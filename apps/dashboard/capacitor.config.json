@@ -1,0 +1,8 @@
+{
+  "appId": "ae.eventana.dashboard",
+  "appName": "Eventana Ops",
+  "webDir": "dist",
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}
