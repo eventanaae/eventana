@@ -16,7 +16,7 @@ import 'dotenv/config';
 
 const env = process.env;
 
-export type ProviderMode = 'live' | 'sandbox' | 'simulated';
+export type ProviderMode = 'live' | 'sandbox' | 'simulated' | 'disabled';
 
 export interface ProviderConfig {
   name: 'tabby' | 'tamara' | 'ziina';
@@ -50,8 +50,23 @@ function providerConfig(
   };
   const missing = opts.requires.filter((k) => !values[k]);
   const declared = (env.EVENTANA_PAYMENT_MODE ?? 'sandbox').toLowerCase();
-  const mode: ProviderMode =
-    missing.length > 0 ? 'simulated' : declared === 'live' ? 'live' : 'sandbox';
+
+  // A provider only ever handles REAL money with a complete set of
+  // NON-TEST credentials. Tabby issues sk_test_/pk_test_ keys; those must
+  // never run in a live deployment.
+  const looksTest = [values.publicKey, values.secretKey, values.merchantCode].some(
+    (v) => typeof v === 'string' && /^(sk|pk)_test_/i.test(v),
+  );
+
+  let mode: ProviderMode;
+  if (declared === 'live') {
+    // Live deployment: activate providers that are genuinely
+    // production-ready; disable the rest rather than blocking the whole app.
+    mode = missing.length > 0 || looksTest ? 'disabled' : 'live';
+  } else {
+    // Sandbox / development: a provider with no secrets runs simulated.
+    mode = missing.length > 0 ? 'simulated' : 'sandbox';
+  }
 
   return {
     name,
@@ -167,7 +182,9 @@ export const allowSimulatedPayments =
 
 /** True when this deployment can actually take a customer's money. */
 export function acceptsRealPayments(): boolean {
-  return Object.values(config.providers).every((p) => p.mode === 'live');
+  // Real money can move as soon as at least one provider is live. Providers
+  // that are not production-ready are 'disabled', never 'live'.
+  return Object.values(config.providers).some((p) => p.mode === 'live');
 }
 
 /** Summary for /health and the dashboard — never includes any secret. */
@@ -188,7 +205,38 @@ export function readinessSummary() {
  */
 export function assertProductionReady(): void {
   if (config.nodeEnv !== 'production') return;
-  const simulated = Object.values(config.providers).filter((p) => p.mode === 'simulated');
+
+  const providers = Object.values(config.providers);
+  const declaredLive = (env.EVENTANA_PAYMENT_MODE ?? '').toLowerCase() === 'live';
+
+  // Live deployment: at least one provider must be genuinely production-ready.
+  // Providers without complete, non-test credentials are 'disabled' (not
+  // offered) rather than blocking the whole app.
+  if (declaredLive) {
+    const live = providers.filter((p) => p.mode === 'live');
+    const disabled = providers.filter((p) => p.mode === 'disabled');
+    if (live.length === 0) {
+      throw new Error(
+        'Refusing to start: EVENTANA_PAYMENT_MODE=live but no provider has complete, ' +
+          'non-test production credentials. Provide real keys for at least one provider, ' +
+          'or set EVENTANA_PAYMENT_MODE=sandbox.',
+      );
+    }
+    console.warn(
+      `\n${'='.repeat(72)}\n` +
+        `  LIVE PAYMENTS ENABLED — REAL MONEY WILL MOVE\n` +
+        `  Live:     ${live.map((p) => p.name).join(', ')}\n` +
+        `  Disabled: ${
+          disabled
+            .map((p) => `${p.name} (${p.missing.join(', ') || 'test credentials'})`)
+            .join('; ') || '(none)'
+        }\n` +
+        `${'='.repeat(72)}\n`,
+    );
+    return;
+  }
+
+  const simulated = providers.filter((p) => p.mode === 'simulated');
   if (simulated.length === 0) return;
 
   const detail = simulated

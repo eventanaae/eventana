@@ -48,7 +48,11 @@ export function getProvider(name: string): PaymentProvider {
 }
 
 export function allProviders(): PaymentProvider[] {
-  return (['tabby', 'tamara', 'ziina'] as const).map(getProvider);
+  // A disabled provider (not production-ready in a live deployment) is not
+  // offered to customers at all.
+  return (['tabby', 'tamara', 'ziina'] as const)
+    .filter((name) => config.providers[name].mode !== 'disabled')
+    .map(getProvider);
 }
 
 /** Honest integration status for the dashboard's settings screen. */
@@ -58,7 +62,7 @@ export function integrationStatus() {
     return {
       name,
       mode: cfg.mode,
-      ready: cfg.mode !== 'simulated',
+      ready: cfg.mode === 'live' || cfg.mode === 'sandbox',
       missing: cfg.missing,
       webhookUrl: `${config.publicApiUrl}/api/webhooks/${name}`,
       note:
@@ -66,9 +70,11 @@ export function integrationStatus() {
           ? `Simulated — set ${cfg.missing
               .map((m) => `${name.toUpperCase()}_${m.replace(/([A-Z])/g, '_$1').toUpperCase()}`)
               .join(', ')} in the server environment to connect the real account.`
-          : cfg.mode === 'sandbox'
-            ? 'Sandbox keys loaded. Run the 9-case test plan before switching to live.'
-            : 'Live keys loaded.',
+          : cfg.mode === 'disabled'
+            ? 'Disabled in this live deployment — needs a complete set of production (non-test) credentials to accept real payments.'
+            : cfg.mode === 'sandbox'
+              ? 'Sandbox keys loaded. Run the 9-case test plan before switching to live.'
+              : 'Live keys loaded.',
     };
   });
 }

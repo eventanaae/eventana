@@ -134,6 +134,10 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     });
   }
 
+  // A method that is disabled (not production-ready) is never charged.
+  if (config.providers[req.provider as keyof typeof config.providers]?.mode === 'disabled') {
+    throw new CheckoutError('This payment method is not currently available.', 'unavailable');
+  }
   const provider = getProvider(req.provider);
   const endHour = eventEndHour(cart.startTime!, cfg.rules);
   const requiredAssets = resolveRequiredAssets(cart, cfg);
@@ -315,6 +319,9 @@ export async function startAddonCheckout(args: {
     });
   }
 
+  if (config.providers[args.provider as keyof typeof config.providers]?.mode === 'disabled') {
+    throw new CheckoutError('This payment method is not currently available.', 'unavailable');
+  }
   const provider = getProvider(args.provider);
   const orderId = await withTransaction(async (db) => {
     const id = await nextOrderId(db);
