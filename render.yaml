@@ -1,0 +1,163 @@
+# Eventana — Render blueprint.
+#
+# Three services and one database:
+#   eventana-api        the engine (Node web service)
+#   eventana-customer   the customer app (static site)
+#   eventana-dashboard  internal operations (static site)
+#   eventana-db         PostgreSQL
+#
+# No secret appears in this file. Everything marked `sync: false` must be
+# set in the Render dashboard, per service, by someone who holds the key.
+#
+# Deploy: Render → New → Blueprint → pick this repository.
+
+databases:
+  - name: eventana-db
+    databaseName: eventana
+    user: eventana
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  # ---------------------------------------------------------------- API
+  - type: web
+    name: eventana-api
+    runtime: node
+    plan: free
+    region: frankfurt          # closest Render region to the UAE
+    branch: main
+    buildCommand: npm ci && npm run build -w @eventana/shared && npm run build -w @eventana/api
+    startCommand: npm run start -w @eventana/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: eventana-db
+          property: connectionString
+      # Applies the schema and seeds an EMPTY catalogue at boot. The seed
+      # never overwrites prices Eventana has since edited.
+      - key: RUN_MIGRATIONS_ON_BOOT
+        value: "true"
+      # Render can only pass another service's HOST, never a full URL, so
+      # these are hostnames and the API adds the https:// scheme itself.
+      # Discovering the host this way (rather than hardcoding a URL) keeps
+      # working when Render appends a suffix to a taken subdomain.
+      - key: PUBLIC_API_HOST
+        fromService:
+          name: eventana-api
+          type: web
+          property: host
+      - key: PUBLIC_APP_HOST
+        fromService:
+          name: eventana-customer
+          type: static
+          property: host
+      - key: PUBLIC_DASHBOARD_HOST
+        fromService:
+          name: eventana-dashboard
+          type: static
+          property: host
+
+      # Staff access to /api/admin. Render generates it; read it from the
+      # dashboard and give it only to Eventana staff.
+      - key: STAFF_TOKEN
+        generateValue: true
+
+      # --- payment providers -------------------------------------------
+      # Set these in the Render dashboard when the merchant accounts
+      # exist. While any is missing that provider runs simulated and the
+      # deployment must carry ALLOW_SIMULATED_PAYMENTS to boot at all.
+      - key: ALLOW_SIMULATED_PAYMENTS
+        value: "true"          # ← set to "false" once real keys are in
+      - key: EVENTANA_PAYMENT_MODE
+        value: sandbox         # ← "live" only after the 9-case test plan passes
+      - key: TABBY_PUBLIC_KEY
+        sync: false
+      - key: TABBY_SECRET_KEY
+        sync: false
+      - key: TABBY_MERCHANT_CODE
+        sync: false
+      - key: TABBY_WEBHOOK_SECRET
+        sync: false
+      - key: TAMARA_PUBLIC_KEY
+        sync: false
+      - key: TAMARA_API_TOKEN
+        sync: false
+      - key: TAMARA_NOTIFICATION_TOKEN
+        sync: false
+      - key: ZIINA_API_KEY
+        sync: false
+      - key: ZIINA_WEBHOOK_SECRET
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+
+  # ----------------------------------------------------- customer app
+  - type: web
+    name: eventana-customer
+    runtime: static
+    plan: free
+    branch: main
+    buildCommand: npm ci && npm run build -w @eventana/shared && npm run build -w @eventana/customer
+    staticPublishPath: apps/customer/dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      # A hostname; the app adds https:// itself.
+      - key: VITE_API_HOST
+        fromService:
+          name: eventana-api
+          type: web
+          property: host
+    routes:
+      # The payment return lands on /pay/return?order=… — serve the app
+      # for any path so a refresh there does not 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+  # ------------------------------------------------ internal dashboard
+  - type: web
+    name: eventana-dashboard
+    runtime: static
+    plan: free
+    branch: main
+    buildCommand: npm ci && npm run build -w @eventana/shared && npm run build -w @eventana/dashboard
+    staticPublishPath: apps/dashboard/dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      # A hostname; the app adds https:// itself.
+      - key: VITE_API_HOST
+        fromService:
+          name: eventana-api
+          type: web
+          property: host
+      # The staff token the dashboard sends. Must match the API's
+      # STAFF_TOKEN — copy it across in the Render dashboard.
+      - key: VITE_STAFF_TOKEN
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

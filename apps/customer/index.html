@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Eventana</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@400;500;600;700&family=Sacramento&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #efe9e4;
+        font-family: 'Quicksand', sans-serif;
+        color: #3b3641;
+        -webkit-font-smoothing: antialiased;
+      }
+      button, input, textarea { font-family: inherit; }
+      a { color: #e94f9c; text-decoration: none; }
+      .scroll::-webkit-scrollbar { width: 0; height: 0; }
+      .scroll { scrollbar-width: none; }
+      @keyframes rise { from { transform: translateY(14px); opacity: 0 } to { transform: none; opacity: 1 } }
+      @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+      @keyframes spin { to { transform: rotate(360deg) } }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

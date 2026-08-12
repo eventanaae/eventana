@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "Bash(gh api *)",
+      "PowerShell(Write-Output \"---GIT---\"; \\(Get-Command git -ErrorAction SilentlyContinue\\).Source; Write-Output \"---GH---\"; \\(Get-Command gh -ErrorAction SilentlyContinue\\).Source; Write-Output \"---NODE---\"; \\(Get-Command node -ErrorAction SilentlyContinue\\).Source; node -v; Write-Output \"---NPM---\"; \\(Get-Command npm -ErrorAction SilentlyContinue\\).Source)",
+      "mcp__e0dbef5c-52f6-4354-a554-e48a23bdef55__list_workspaces",
+      "mcp__e0dbef5c-52f6-4354-a554-e48a23bdef55__list_services",
+      "mcp__e0dbef5c-52f6-4354-a554-e48a23bdef55__list_postgres_instances",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Deploy Eventana: host-based service discovery for Render blueprint *)"
+    ]
+  }
+}

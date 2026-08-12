@@ -1,0 +1,101 @@
+/**
+ * The reconciliation safety net (spec §6, boxed note).
+ *
+ * Webhooks get missed — providers retry, networks drop, deploys restart
+ * processes mid-flight. Every 5 minutes this sweep asks the provider
+ * directly about anything stuck in Processing for more than 10 minutes,
+ * and alerts operations about anything still unresolved after 30.
+ *
+ * It resolves through the SAME code path as a webhook, so a booking
+ * confirmed by reconciliation is indistinguishable from one confirmed by
+ * a webhook — same audit trail, same idempotency, same Event ID rules.
+ */
+import { config } from '../config.js';
+import { pool } from '../db/pool.js';
+import { expireStaleHolds } from './inventory.js';
+import { recordPaymentEvent } from './orders.js';
+import { processDelivery } from './webhooks.js';
+
+export interface ReconcileReport {
+  expiredHolds: number;
+  chased: number;
+  resolved: number;
+  alerted: number;
+}
+
+export async function reconcileOnce(): Promise<ReconcileReport> {
+  const report: ReconcileReport = { expiredHolds: 0, chased: 0, resolved: 0, alerted: 0 };
+
+  // Lapsed holds are released first, so a chase that ends in a late
+  // success sees the true availability picture.
+  report.expiredHolds = await expireStaleHolds(pool);
+
+  const stuckSince = new Date(Date.now() - config.reconcileStuckAfterMs);
+  const { rows } = await pool.query(
+    `SELECT p.id, p.provider, p.provider_payment_id, p.order_id, o.updated_at
+       FROM payments p
+       JOIN orders o ON o.id = p.order_id
+      WHERE o.status = 'processing'
+        AND p.provider_payment_id IS NOT NULL
+        AND o.updated_at < $1
+      ORDER BY o.updated_at ASC
+      LIMIT 100`,
+    [stuckSince],
+  );
+
+  for (const row of rows) {
+    report.chased += 1;
+    try {
+      const { outcome } = await processDelivery(null, row.provider, row.provider_payment_id);
+      if (outcome === 'accepted') report.resolved += 1;
+
+      const age = Date.now() - new Date(row.updated_at).getTime();
+      if (outcome !== 'accepted' && age > config.reconcileAlertAfterMs) {
+        report.alerted += 1;
+        await pool.query(
+          `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+           VALUES (NULL, 'ops_alert', 'payment_unresolved', now(), $1)`,
+          [
+            JSON.stringify({
+              orderId: row.order_id,
+              provider: row.provider,
+              minutesStuck: Math.round(age / 60_000),
+              outcome,
+            }),
+          ],
+        );
+      }
+    } catch (err) {
+      await recordPaymentEvent(pool, {
+        paymentId: row.id,
+        orderId: row.order_id,
+        provider: row.provider,
+        newStatus: 'reconcile_error',
+        source: 'poll',
+        note: (err as Error).message,
+      });
+    }
+  }
+
+  return report;
+}
+
+let timer: NodeJS.Timeout | null = null;
+
+export function startReconciliation(): void {
+  if (timer) return;
+  timer = setInterval(() => {
+    reconcileOnce().catch((err) => {
+      console.error('[reconcile] sweep failed:', err);
+    });
+  }, config.reconcileIntervalMs);
+  // Never hold the process open just for the sweep.
+  timer.unref();
+}
+
+export function stopReconciliation(): void {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+}

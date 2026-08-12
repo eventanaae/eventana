@@ -1,0 +1,24 @@
+{
+  "name": "eventana",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Eventana — customer app, internal operations dashboard and booking/payment engine",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w @eventana/shared",
+    "db:migrate": "npm run migrate -w @eventana/api",
+    "db:seed": "npm run seed -w @eventana/api",
+    "db:reset": "npm run reset -w @eventana/api",
+    "dev:api": "npm run dev -w @eventana/api",
+    "dev:customer": "npm run dev -w @eventana/customer",
+    "dev:dashboard": "npm run dev -w @eventana/dashboard",
+    "test": "npm run test -w @eventana/api",
+    "typecheck": "tsc -b packages/shared apps/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

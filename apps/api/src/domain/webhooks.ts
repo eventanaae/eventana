@@ -1,0 +1,212 @@
+/**
+ * Webhook handling — the only path by which a booking becomes paid.
+ *
+ * Requirements, in the order the spec states them (§6):
+ *   1. validate the shared-secret header FIRST; 401 and log on mismatch
+ *   2. respond 200 fast, process asynchronously
+ *   3. be idempotent — keyed on provider payment id plus status
+ *   4. re-verify against the provider's API; never trust body amounts
+ *   5. handle late success after hold expiry without double-booking
+ *   6. log every transition to the append-only audit table
+ */
+import { pool, withTransaction } from '../db/pool.js';
+import { getProvider } from '../payments/index.js';
+import { confirmBooking } from './confirm.js';
+import { holdsStillValid, releaseHolds } from './inventory.js';
+import {
+  applyPaymentStatus,
+  flagForReview,
+  getPaymentByProviderRef,
+  recordPaymentEvent,
+} from './orders.js';
+import { loadConfig } from './settings.js';
+
+export type WebhookOutcome =
+  | 'accepted'
+  | 'duplicate'
+  | 'unsigned'
+  | 'unparseable'
+  | 'unknown_payment'
+  | 'amount_mismatch'
+  | 'late_success'
+  | 'ignored';
+
+export interface WebhookResult {
+  httpStatus: number;
+  outcome: WebhookOutcome;
+  detail?: string;
+}
+
+/**
+ * Step 1 and 2: verify, de-duplicate, acknowledge. The heavy work is
+ * handed to `processDelivery` — the provider gets its 200 immediately.
+ */
+export async function receiveWebhook(args: {
+  providerName: string;
+  headers: Record<string, string | string[] | undefined>;
+  rawBody: string;
+  /** Tests pass false to run the work inline and assert on the result. */
+  async?: boolean;
+}): Promise<WebhookResult> {
+  let provider;
+  try {
+    provider = getProvider(args.providerName);
+  } catch {
+    return { httpStatus: 404, outcome: 'unknown_payment', detail: 'Unknown provider' };
+  }
+
+  // (1) Signature first — before the body is trusted for anything.
+  if (!provider.verifyWebhook(args.headers, args.rawBody)) {
+    await recordPaymentEvent(pool, {
+      provider: args.providerName,
+      newStatus: 'rejected_signature',
+      source: 'webhook',
+      note: 'Webhook rejected: shared-secret header did not match',
+      payload: { headersPresent: Object.keys(args.headers) },
+    });
+    return { httpStatus: 401, outcome: 'unsigned' };
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(args.rawBody);
+  } catch {
+    return { httpStatus: 400, outcome: 'unparseable' };
+  }
+
+  const parsed = provider.parseWebhook(body);
+  if (!parsed) return { httpStatus: 400, outcome: 'unparseable' };
+
+  // (3) Idempotency at the door: the unique index means a replayed
+  // delivery inserts nothing and is acknowledged without reprocessing.
+  const inserted = await pool.query<{ id: number }>(
+    `INSERT INTO webhook_deliveries
+       (provider, provider_payment_id, provider_status, signature_ok, payload)
+     VALUES ($1,$2,$3,TRUE,$4)
+     ON CONFLICT (provider, provider_payment_id, provider_status) DO NOTHING
+     RETURNING id`,
+    [provider.name, parsed.providerPaymentId, parsed.providerStatus, args.rawBody],
+  );
+
+  if (inserted.rowCount === 0) {
+    return { httpStatus: 200, outcome: 'duplicate' };
+  }
+
+  const deliveryId = inserted.rows[0].id;
+
+  if (args.async === false) {
+    const result = await processDelivery(deliveryId, provider.name, parsed.providerPaymentId);
+    return { httpStatus: 200, ...result };
+  }
+
+  // (2) Acknowledge now, work after. A real deployment swaps this for a
+  // durable queue; the contract of processDelivery does not change.
+  setImmediate(() => {
+    processDelivery(deliveryId, provider.name, parsed.providerPaymentId).catch(async (err) => {
+      await recordPaymentEvent(pool, {
+        provider: provider.name,
+        newStatus: 'error',
+        source: 'webhook',
+        note: `Processing failed: ${(err as Error).message}`,
+      });
+    });
+  });
+
+  return { httpStatus: 200, outcome: 'accepted' };
+}
+
+/**
+ * Steps 4-6. Kept separate so the reconciliation job can run the exact
+ * same resolution path for a webhook that never arrived.
+ */
+export async function processDelivery(
+  deliveryId: number | null,
+  providerName: string,
+  providerPaymentId: string,
+): Promise<{ outcome: WebhookOutcome; detail?: string }> {
+  const provider = getProvider(providerName);
+  const cfg = await loadConfig();
+
+  const payment = await getPaymentByProviderRef(pool, provider.name, providerPaymentId);
+  if (!payment) {
+    await finish(deliveryId, 'unknown_payment');
+    return { outcome: 'unknown_payment' };
+  }
+
+  // (4) Never trust the webhook body. Ask the provider directly and
+  // compare BOTH status and amount against the stored order total.
+  const verified = await provider.retrievePayment(providerPaymentId);
+
+  if (verified.amountFils !== Number(payment.amount_fils)) {
+    await flagForReview(
+      pool,
+      payment.order_id,
+      `Amount mismatch: provider reports ${verified.amountFils} fils, order is ${payment.amount_fils} fils`,
+      provider.name,
+    );
+    await finish(deliveryId, 'amount_mismatch');
+    return { outcome: 'amount_mismatch' };
+  }
+
+  const isSuccess = verified.status === 'paid' || verified.status === 'captured';
+
+  // (5) A success that arrives after the hold lapsed must never silently
+  // double-book. If the assets are gone, a human takes it from here.
+  if (isSuccess && !(await holdsStillValid(pool, payment.order_id))) {
+    await flagForReview(
+      pool,
+      payment.order_id,
+      'Payment succeeded after the inventory hold expired — the asset may have gone to another booking. Refund or date change needed.',
+      provider.name,
+    );
+    await finish(deliveryId, 'late_success');
+    return { outcome: 'late_success' };
+  }
+
+  const outcome = await withTransaction(async (db) => {
+    const { applied } = await applyPaymentStatus(db, {
+      paymentId: payment.id,
+      nextStatus: verified.status,
+      source: 'webhook',
+      providerStatus: verified.providerStatus,
+      payload: verified.raw,
+      capturedFils: verified.capturedFils,
+      refundedFils: verified.refundedFils,
+    });
+
+    if (!applied) return 'ignored' as const;
+
+    if (verified.status === 'paid' || verified.status === 'captured') {
+      // (6) Confirmation is idempotent: a second delivery that somehow
+      // gets here still yields one Event ID.
+      await confirmBooking(db, {
+        orderId: payment.order_id,
+        rules: cfg.rules,
+        serviceIsInflatable: (id) => cfg.services.get(id)?.isInflatable ?? false,
+        serviceIsFoodStation: (id) => cfg.services.get(id)?.isFoodStation ?? false,
+      });
+    }
+
+    if (verified.status === 'failed' || verified.status === 'cancelled') {
+      await releaseHolds(db, payment.order_id, verified.status);
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES (NULL, 'push', 'payment_failed', now(), $1)`,
+        [JSON.stringify({ orderId: payment.order_id, provider: provider.name })],
+      );
+    }
+
+    return 'accepted' as const;
+  });
+
+  await finish(deliveryId, outcome);
+  return { outcome };
+}
+
+async function finish(deliveryId: number | null, outcome: string) {
+  if (deliveryId === null) return;
+  await pool.query(
+    `UPDATE webhook_deliveries SET processed_at = now(), outcome = $2 WHERE id = $1`,
+    [deliveryId, outcome],
+  );
+}
