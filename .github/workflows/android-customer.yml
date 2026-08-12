@@ -1,0 +1,64 @@
+# Build the Eventana CUSTOMER app for Android on a Linux runner.
+# Android builds don't need a Mac, so this produces a testable APK with zero
+# extra credentials. A Play Store *release* additionally needs signing +
+# a Play service account — see the notes at the bottom.
+#
+# Starter workflow (authored without a device to test — expect minor tweaks).
+# Manual dispatch only.
+
+name: Android Customer (build APK)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies (+ Capacitor for the customer app)
+        run: |
+          npm ci
+          npm install -w @eventana/customer \
+            @capacitor/core@^6 @capacitor/android@^6 @capacitor/cli@^6
+
+      - name: Build web assets and generate the Android project
+        working-directory: apps/customer
+        run: |
+          npm run build
+          npx cap add android || true   # no-op if android/ already exists
+          npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: apps/customer/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: eventana-customer-debug-apk
+          path: apps/customer/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+# ── For a Google Play RELEASE (not covered above) ──────────────────────────
+# 1. Generate an upload keystore:
+#      keytool -genkey -v -keystore upload.jks -alias upload \
+#        -keyalg RSA -keysize 2048 -validity 9125
+# 2. Add repo secrets: ANDROID_KEYSTORE_BASE64 (base64 of upload.jks),
+#    ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+# 3. Swap the assemble step for `./gradlew bundleRelease` with signingConfig
+#    wired to the decoded keystore, producing app-release.aab.
+# 4. Upload to Play with a service-account JSON (Play Console → API access) via
+#    the `r0adkll/upload-google-play` action, track: internal.
