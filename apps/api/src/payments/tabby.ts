@@ -170,8 +170,17 @@ export class TabbyProvider implements PaymentProvider {
   async capture(providerPaymentId: string, amountFils: number): Promise<RetrieveResult> {
     await providerFetch(
       'tabby',
-      `${this.cfg.baseUrl}/v1/payments/${encodeURIComponent(providerPaymentId)}/captures`,
-      { method: 'POST', headers: this.auth(), body: { amount: providerAmount(amountFils) } },
+      `${this.cfg.baseUrl}/v2/payments/${encodeURIComponent(providerPaymentId)}/captures`,
+      {
+        method: 'POST',
+        headers: this.auth(),
+        body: {
+          amount: providerAmount(amountFils),
+          // Required by the current API: an idempotency key so a retried
+          // capture of the same amount can never double-charge.
+          reference_id: `${providerPaymentId}-cap-${amountFils}`,
+        },
+      },
     );
     return this.retrievePayment(providerPaymentId);
   }
@@ -183,11 +192,16 @@ export class TabbyProvider implements PaymentProvider {
   ): Promise<RetrieveResult> {
     await providerFetch(
       'tabby',
-      `${this.cfg.baseUrl}/v1/payments/${encodeURIComponent(providerPaymentId)}/refunds`,
+      `${this.cfg.baseUrl}/v2/payments/${encodeURIComponent(providerPaymentId)}/refunds`,
       {
         method: 'POST',
         headers: this.auth(),
-        body: { amount: providerAmount(amountFils), reason },
+        body: {
+          amount: providerAmount(amountFils),
+          reason,
+          // Required idempotency key (current Tabby API reference).
+          reference_id: `${providerPaymentId}-ref-${amountFils}`,
+        },
       },
     );
     return this.retrievePayment(providerPaymentId);

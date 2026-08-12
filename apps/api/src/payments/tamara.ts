@@ -191,7 +191,15 @@ export class TamaraProvider implements PaymentProvider {
    * just the presence of a header.
    */
   verifyWebhook(headers: Record<string, string | string[] | undefined>): boolean {
-    const token = headerValue(headers, 'tamara_token');
+    // Tamara delivers the JWT differently across integrations: a
+    // `tamara_token` / `tamaraToken` header, or the standard
+    // `Authorization: Bearer <jwt>`. Accept any location — the HS256
+    // signature check below is what actually gates authenticity.
+    const authz = headerValue(headers, 'authorization');
+    const token =
+      headerValue(headers, 'tamara_token') ??
+      headerValue(headers, 'tamaratoken') ??
+      (authz ? authz.replace(/^Bearer\s+/i, '') : undefined);
     const secret = this.cfg.webhookSecret;
     if (!token || !secret) return false;
 

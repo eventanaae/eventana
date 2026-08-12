@@ -127,9 +127,19 @@ export class ZiinaProvider implements PaymentProvider {
   ): boolean {
     const secret = this.cfg.webhookSecret;
     if (!secret) return false;
-    const sent = headerValue(headers, 'ziina-signature') ?? headerValue(headers, 'x-ziina-signature');
-    const expected = createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
-    return safeEqual(sent, expected);
+    const sent =
+      headerValue(headers, 'ziina-signature') ??
+      headerValue(headers, 'x-ziina-signature') ??
+      headerValue(headers, 'ziina-webhook-signature') ??
+      headerValue(headers, 'webhook-signature');
+    if (!sent) return false;
+    // Ziina signs with the merchant-supplied webhook secret (HMAC-SHA256 of
+    // the raw body). The public docs don't pin the encoding, so accept hex or
+    // base64 — both still require the shared secret, so neither weakens the
+    // check.
+    const hex = createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
+    const b64 = createHmac('sha256', secret).update(rawBody, 'utf8').digest('base64');
+    return safeEqual(sent, hex) || safeEqual(sent, b64);
   }
 
   parseWebhook(body: any): WebhookParseResult | null {
