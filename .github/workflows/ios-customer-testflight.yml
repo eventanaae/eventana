@@ -1,0 +1,101 @@
+# Build the Eventana CUSTOMER app on a cloud Mac and upload to TestFlight.
+# No local Mac required — GitHub's macos runner does the iOS build.
+#
+# This is a STARTER workflow (authored without a Mac to test it — expect to
+# tweak Xcode/scheme details on the first run). It runs only on manual
+# dispatch, so it never fires by accident.
+#
+# ── Required repository secrets (Settings → Secrets and variables → Actions) ──
+#   APPLE_TEAM_ID                 Your 10-char Apple Developer Team ID
+#   APP_STORE_CONNECT_KEY_ID      App Store Connect API key ID
+#   APP_STORE_CONNECT_ISSUER_ID   App Store Connect API issuer ID
+#   APP_STORE_CONNECT_API_KEY     The .p8 API key, base64-encoded
+#                                 (macOS: base64 -i AuthKey_XXXX.p8 | pbcopy)
+#
+# Create the API key at: App Store Connect → Users and Access → Integrations
+# → App Store Connect API (role: App Manager). The app record with bundle id
+# `ae.eventana.customer` should exist first (or automatic signing creates the
+# signing assets; the app record itself is created in App Store Connect).
+
+name: iOS Customer → TestFlight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (+ Capacitor for the customer app)
+        run: |
+          npm ci
+          npm install -w @eventana/customer \
+            @capacitor/core@^6 @capacitor/ios@^6 @capacitor/cli@^6
+
+      - name: Build web assets and generate the iOS project
+        working-directory: apps/customer
+        run: |
+          npm run build
+          npx cap add ios || true   # no-op if ios/ already exists
+          npx cap sync ios
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 --decode \
+            > ~/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8
+
+      - name: Archive and export IPA (automatic signing)
+        working-directory: apps/customer/ios/App
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Release -archivePath build/App.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${KEY_ID}.p8 \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            archive
+
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+
+          xcodebuild -exportArchive -archivePath build/App.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${KEY_ID}.p8 \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID"
+
+      - name: Upload to TestFlight
+        working-directory: apps/customer/ios/App
+        run: |
+          xcrun altool --upload-app -t ios -f build/export/*.ipa \
+            --apiKey "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+      - name: Save the IPA as a build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eventana-customer-ipa
+          path: apps/customer/ios/App/build/export/*.ipa
+          if-no-files-found: ignore
