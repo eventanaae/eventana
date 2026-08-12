@@ -39,9 +39,10 @@ jobs:
             @capacitor/core@^6 @capacitor/ios@^6 @capacitor/cli@^6
 
       - name: Build web assets and generate the iOS project
-        working-directory: apps/customer
         run: |
-          npm run build
+          npm run build -w @eventana/shared    # customer imports @eventana/shared
+          npm run build -w @eventana/customer
+          cd apps/customer
           npx cap add ios || true   # no-op if ios/ already exists
           npx cap sync ios
 

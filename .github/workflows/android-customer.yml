@@ -33,9 +33,10 @@ jobs:
             @capacitor/core@^6 @capacitor/android@^6 @capacitor/cli@^6
 
       - name: Build web assets and generate the Android project
-        working-directory: apps/customer
         run: |
-          npm run build
+          npm run build -w @eventana/shared    # customer imports @eventana/shared
+          npm run build -w @eventana/customer
+          cd apps/customer
           npx cap add android || true   # no-op if android/ already exists
           npx cap sync android
 
