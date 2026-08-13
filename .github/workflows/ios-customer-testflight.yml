@@ -53,32 +53,35 @@ jobs:
         run: |
           mkdir -p ~/private_keys
           OUT="$HOME/private_keys/AuthKey_${KEY_ID}.p8"
-          RAW="$HOME/private_keys/raw.pem"
+          TMP="$HOME/private_keys/tmp.bin"
           CLEAN=$(printf '%s' "$ASC_KEY" | tr -d '[:space:]')
-          if printf '%s' "$ASC_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
-            branch=raw-pem; printf '%s\n' "$ASC_KEY" > "$RAW"
-          else
-            printf '%s' "$CLEAN" | base64 --decode > "$RAW" 2>/dev/null || true
-            if head -c 27 "$RAW" | grep -q 'BEGIN PRIVATE KEY'; then
-              branch=base64-of-pem
-            elif [ "$(head -c1 "$RAW" | od -An -tx1 | tr -d ' ')" = "30" ]; then
-              branch=base64-of-der
-              { echo "-----BEGIN PRIVATE KEY-----"; printf '%s' "$CLEAN" | fold -w 64; echo "-----END PRIVATE KEY-----"; } > "$RAW"
-            else
-              branch=unknown
+          ok=0
+          # (1) Secret is the raw .p8 (PEM).
+          if [ "$ok" = 0 ] && printf '%s' "$ASC_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$ASC_KEY" > "$TMP"
+            openssl pkcs8 -topk8 -nocrypt -in "$TMP" -out "$OUT" 2>/tmp/e && ok=1
+          fi
+          # (2) Secret is base64 of the whole .p8 (decodes to a PEM).
+          if [ "$ok" = 0 ]; then
+            printf '%s' "$CLEAN" | base64 --decode > "$TMP" 2>/dev/null || true
+            if head -c 27 "$TMP" | grep -q 'BEGIN PRIVATE KEY'; then
+              openssl pkcs8 -topk8 -nocrypt -in "$TMP" -out "$OUT" 2>/tmp/e && ok=1
             fi
           fi
-          echo "key input form: $branch"
-          # Re-emit as a canonical PKCS#8 PEM so line wrapping / endings are
-          # exactly what Xcode's parser expects.
-          if openssl pkcs8 -topk8 -nocrypt -in "$RAW" -out "$OUT" 2>/tmp/ossl.err; then
-            echo "Normalised a valid App Store Connect .p8 key."
+          # (3) Secret is the bare key body — base64 of the PKCS#8 DER. Read
+          #     the DER directly so there is no hand-rolled PEM to malform.
+          if [ "$ok" = 0 ]; then
+            printf '%s' "$CLEAN" | base64 --decode > "$TMP" 2>/dev/null || true
+            openssl pkcs8 -topk8 -nocrypt -inform DER -in "$TMP" -out "$OUT" 2>/tmp/e && ok=1
+          fi
+          rm -f "$TMP"
+          if [ "$ok" = 1 ] && head -1 "$OUT" 2>/dev/null | grep -q 'BEGIN PRIVATE KEY'; then
+            echo "Resolved a valid App Store Connect .p8 key."
           else
-            echo "::error::APP_STORE_CONNECT_API_KEY is not a usable private key (form=$branch, length=${#ASC_KEY}). Re-add it as the base64 of the whole file: base64 -w0 AuthKey_XXXX.p8"
-            sed -E 's/[A-Za-z0-9+/=]{16,}/<redacted>/g' /tmp/ossl.err || true
+            echo "::error::APP_STORE_CONNECT_API_KEY is not a usable private key (length=${#ASC_KEY}). Re-add it as the base64 of the whole file: base64 -w0 AuthKey_XXXX.p8"
+            sed -E 's/[A-Za-z0-9+/=]{16,}/<redacted>/g' /tmp/e || true
             exit 1
           fi
-          rm -f "$RAW"
 
       - name: Archive and export IPA (automatic signing)
         working-directory: apps/customer/ios/App
