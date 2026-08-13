@@ -53,16 +53,28 @@ jobs:
         run: |
           mkdir -p ~/private_keys
           OUT="$HOME/private_keys/AuthKey_${KEY_ID}.p8"
-          # Accept either the raw .p8 (PEM) or a base64-encoded .p8 in the secret.
+          CLEAN=$(printf '%s' "$ASC_KEY" | tr -d '[:space:]')
           if printf '%s' "$ASC_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+            # (a) Secret holds the raw .p8 (PEM) — use as-is.
             printf '%s\n' "$ASC_KEY" > "$OUT"
           else
-            printf '%s' "$ASC_KEY" | base64 --decode > "$OUT"
+            DEC="$HOME/private_keys/dec.bin"
+            printf '%s' "$CLEAN" | base64 --decode > "$DEC" 2>/dev/null || true
+            if head -c 27 "$DEC" | grep -q 'BEGIN PRIVATE KEY'; then
+              # (b) Secret is base64 of the whole .p8 file.
+              cp "$DEC" "$OUT"
+            elif [ "$(head -c1 "$DEC" | od -An -tx1 | tr -d ' ')" = "30" ]; then
+              # (c) Secret is the bare key body (base64 of DER) — wrap in PEM.
+              { echo "-----BEGIN PRIVATE KEY-----"; printf '%s' "$CLEAN" | fold -w 64; echo "-----END PRIVATE KEY-----"; } > "$OUT"
+            fi
+            rm -f "$DEC"
           fi
-          if ! head -1 "$OUT" | grep -q 'BEGIN PRIVATE KEY'; then
-            echo "::error::APP_STORE_CONNECT_API_KEY did not resolve to a valid .p8 (expected raw .p8 text or its base64)."
+          if ! head -1 "$OUT" 2>/dev/null | grep -q 'BEGIN PRIVATE KEY'; then
+            echo "::error::APP_STORE_CONNECT_API_KEY could not be resolved to a valid .p8. Store the base64 of the WHOLE key file: base64 -w0 AuthKey_XXXX.p8"
+            echo "debug: secret length=${#ASC_KEY}"
             exit 1
           fi
+          echo "Resolved a valid App Store Connect .p8 key."
 
       - name: Archive and export IPA (automatic signing)
         working-directory: apps/customer/ios/App
