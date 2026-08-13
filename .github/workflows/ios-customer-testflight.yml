@@ -53,28 +53,32 @@ jobs:
         run: |
           mkdir -p ~/private_keys
           OUT="$HOME/private_keys/AuthKey_${KEY_ID}.p8"
+          RAW="$HOME/private_keys/raw.pem"
           CLEAN=$(printf '%s' "$ASC_KEY" | tr -d '[:space:]')
           if printf '%s' "$ASC_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
-            # (a) Secret holds the raw .p8 (PEM) — use as-is.
-            printf '%s\n' "$ASC_KEY" > "$OUT"
+            branch=raw-pem; printf '%s\n' "$ASC_KEY" > "$RAW"
           else
-            DEC="$HOME/private_keys/dec.bin"
-            printf '%s' "$CLEAN" | base64 --decode > "$DEC" 2>/dev/null || true
-            if head -c 27 "$DEC" | grep -q 'BEGIN PRIVATE KEY'; then
-              # (b) Secret is base64 of the whole .p8 file.
-              cp "$DEC" "$OUT"
-            elif [ "$(head -c1 "$DEC" | od -An -tx1 | tr -d ' ')" = "30" ]; then
-              # (c) Secret is the bare key body (base64 of DER) — wrap in PEM.
-              { echo "-----BEGIN PRIVATE KEY-----"; printf '%s' "$CLEAN" | fold -w 64; echo "-----END PRIVATE KEY-----"; } > "$OUT"
+            printf '%s' "$CLEAN" | base64 --decode > "$RAW" 2>/dev/null || true
+            if head -c 27 "$RAW" | grep -q 'BEGIN PRIVATE KEY'; then
+              branch=base64-of-pem
+            elif [ "$(head -c1 "$RAW" | od -An -tx1 | tr -d ' ')" = "30" ]; then
+              branch=base64-of-der
+              { echo "-----BEGIN PRIVATE KEY-----"; printf '%s' "$CLEAN" | fold -w 64; echo "-----END PRIVATE KEY-----"; } > "$RAW"
+            else
+              branch=unknown
             fi
-            rm -f "$DEC"
           fi
-          if ! head -1 "$OUT" 2>/dev/null | grep -q 'BEGIN PRIVATE KEY'; then
-            echo "::error::APP_STORE_CONNECT_API_KEY could not be resolved to a valid .p8. Store the base64 of the WHOLE key file: base64 -w0 AuthKey_XXXX.p8"
-            echo "debug: secret length=${#ASC_KEY}"
+          echo "key input form: $branch"
+          # Re-emit as a canonical PKCS#8 PEM so line wrapping / endings are
+          # exactly what Xcode's parser expects.
+          if openssl pkcs8 -topk8 -nocrypt -in "$RAW" -out "$OUT" 2>/tmp/ossl.err; then
+            echo "Normalised a valid App Store Connect .p8 key."
+          else
+            echo "::error::APP_STORE_CONNECT_API_KEY is not a usable private key (form=$branch, length=${#ASC_KEY}). Re-add it as the base64 of the whole file: base64 -w0 AuthKey_XXXX.p8"
+            sed -E 's/[A-Za-z0-9+/=]{16,}/<redacted>/g' /tmp/ossl.err || true
             exit 1
           fi
-          echo "Resolved a valid App Store Connect .p8 key."
+          rm -f "$RAW"
 
       - name: Archive and export IPA (automatic signing)
         working-directory: apps/customer/ios/App
