@@ -47,10 +47,22 @@ jobs:
           npx cap sync ios
 
       - name: Write App Store Connect API key
+        env:
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
         run: |
           mkdir -p ~/private_keys
-          echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 --decode \
-            > ~/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8
+          OUT="$HOME/private_keys/AuthKey_${KEY_ID}.p8"
+          # Accept either the raw .p8 (PEM) or a base64-encoded .p8 in the secret.
+          if printf '%s' "$ASC_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$ASC_KEY" > "$OUT"
+          else
+            printf '%s' "$ASC_KEY" | base64 --decode > "$OUT"
+          fi
+          if ! head -1 "$OUT" | grep -q 'BEGIN PRIVATE KEY'; then
+            echo "::error::APP_STORE_CONNECT_API_KEY did not resolve to a valid .p8 (expected raw .p8 text or its base64)."
+            exit 1
+          fi
 
       - name: Archive and export IPA (automatic signing)
         working-directory: apps/customer/ios/App
