@@ -1,9 +1,11 @@
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, SectionTitle } from '../ui';
 
-export function Home({ catalogue, draft, update, go }: ScreenProps) {
+export function Home({ catalogue, draft, update, go, customerName }: ScreenProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const firstName = (customerName || '').trim().split(' ')[0] || 'there';
+  const initial = firstName.charAt(0).toUpperCase() || '☺';
   const popular = catalogue.packages.slice(0, 3);
   const trending = catalogue.themes.filter((t) => t.popular).slice(0, 3);
 
@@ -30,7 +32,7 @@ export function Home({ catalogue, draft, update, go }: ScreenProps) {
           <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, letterSpacing: '.4px' }}>
             {greeting}
           </div>
-          <div style={{ ...fredoka(23), marginTop: 2 }}>Sara ✨</div>
+          <div style={{ ...fredoka(23), marginTop: 2 }}>{firstName} ✨</div>
         </div>
         <div
           style={{
@@ -38,7 +40,7 @@ export function Home({ catalogue, draft, update, go }: ScreenProps) {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15,
           }}
         >
-          S
+          {initial}
         </div>
       </div>
 
@@ -67,13 +69,13 @@ export function Home({ catalogue, draft, update, go }: ScreenProps) {
             onClick={() => go('explore')}
             style={{ flex: 1, background: C.pink, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13.5, padding: '13px 0', borderRadius: 20, cursor: 'pointer' }}
           >
-            Explore Packages
+            Explore Kids Packages
           </button>
           <button
             onClick={() => go('build')}
             style={{ flex: 1, background: 'rgba(255,255,255,.75)', border: 'none', color: C.ink, fontWeight: 700, fontSize: 13.5, padding: '13px 0', borderRadius: 20, cursor: 'pointer' }}
           >
-            Build Your Own
+            Build Your Own Party
           </button>
         </div>
       </div>

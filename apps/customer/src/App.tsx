@@ -13,6 +13,8 @@ import { PaymentReturn } from './screens/Payment';
 import { MyEvent } from './screens/MyEvent';
 import { Assistant } from './screens/Assistant';
 import { Profile } from './screens/Profile';
+import { Onboarding } from './screens/Onboarding';
+import { useProfile } from './profile';
 
 export type Screen =
   | 'home' | 'explore' | 'package' | 'buildIntake' | 'build' | 'theme' | 'custom'
@@ -87,6 +89,7 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
 }
 
 export default function App() {
+  const { profile, save: saveProfile } = useProfile();
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
   const [screen, setScreen] = useState<Screen>('home');
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -183,9 +186,27 @@ export default function App() {
   }, []);
 
   const shared = useMemo(
-    () => ({ catalogue: catalogue!, draft, update, quote, go, reset, startBuild }),
-    [catalogue, draft, update, quote, go, reset, startBuild],
+    () => ({
+      catalogue: catalogue!,
+      draft,
+      update,
+      quote,
+      go,
+      reset,
+      startBuild,
+      customerName: profile?.name ?? '',
+    }),
+    [catalogue, draft, update, quote, go, reset, startBuild, profile?.name],
   );
+
+  // First run: ask the customer's name and birthday before anything else.
+  if (!profile) {
+    return (
+      <Frame>
+        <Onboarding onDone={saveProfile} />
+      </Frame>
+    );
+  }
 
   if (error) {
     return (
@@ -350,4 +371,6 @@ export interface ScreenProps {
   reset: () => void;
   /** Used only by the Build intake — see App.startBuild. */
   startBuild: (answers: Partial<Draft>) => void;
+  /** The name captured at first run, shown in greetings. */
+  customerName: string;
 }
