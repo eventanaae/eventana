@@ -14,14 +14,10 @@ import { C, fredoka, PrimaryButton } from '../ui';
  * point cannot forget to ask.
  */
 
-const AGE_BANDS = [
-  { id: '1-3', label: '1–3 years', sub: 'Toddlers' },
-  { id: '4-6', label: '4–6 years', sub: 'Little ones' },
-  { id: '7-9', label: '7–9 years', sub: 'Big kids' },
-  { id: '10-12', label: '10–12 years', sub: 'Tweens' },
-  { id: '13+', label: '13+ years', sub: 'Teens & up' },
-  { id: 'adults', label: 'Adults', sub: 'Grown-up celebration' },
-];
+// The guest of honour's exact age. Kids run 1–15; "Adult" covers grown-up
+// celebrations. Stored as a plain string on the draft (a frontend-only
+// field — it is never sent to the server), so the format is free to change.
+const AGES: string[] = Array.from({ length: 15 }, (_, i) => String(i + 1)).concat('Adult');
 
 export function BuildIntake({ catalogue, draft, go, startBuild }: ScreenProps) {
   // Pre-select only what the customer actually chose — never a default,
@@ -30,19 +26,14 @@ export function BuildIntake({ catalogue, draft, go, startBuild }: ScreenProps) {
     draft.celebrationTypeChosen ? draft.celebrationType : null,
   );
   const [age, setAge] = useState<string | null>(draft.ageBand);
-  const [children, setChildren] = useState<string>(
-    draft.buildAnswered ? String(draft.childrenCount) : '',
-  );
 
-  const childCount = Number(children.replace(/\D/g, ''));
-  const complete = Boolean(type) && Boolean(age) && childCount > 0;
+  const complete = Boolean(type) && Boolean(age);
 
   const start = () => {
     startBuild({
       celebrationType: type!,
       celebrationTypeChosen: true,
       ageBand: age,
-      childrenCount: childCount,
       // A different celebration prices differently — start its build clean.
       ...(type !== draft.celebrationType
         ? { services: {}, packageId: null, themeId: null, customTheme: false }
@@ -61,7 +52,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild }: ScreenProps) {
 
       <div style={{ ...fredoka(24), marginTop: 8 }}>Let’s build your party ✨</div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '4px 0 20px', lineHeight: 1.5 }}>
-        Three quick questions so we show you the right services and the right prices.
+        Two quick things and we’ll tailor everything to your celebration.
       </div>
 
       {/* 1 — celebration type */}
@@ -89,49 +80,46 @@ export function BuildIntake({ catalogue, draft, go, startBuild }: ScreenProps) {
         })}
       </div>
 
-      {/* 2 — age band */}
+      {/* 2 — exact age of the guest of honour */}
       <Question step={2} title="How old is the guest of honour?" />
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
-        {AGE_BANDS.map((band) => {
-          const active = age === band.id;
+      <div
+        className="scroll"
+        style={{ display: 'flex', gap: 9, overflowX: 'auto', margin: '0 -22px', padding: '2px 22px 6px', marginBottom: 8 }}
+      >
+        {AGES.map((a) => {
+          const active = age === a;
+          const isAdult = a === 'Adult';
           return (
             <button
-              key={band.id}
-              onClick={() => setAge(band.id)}
+              key={a}
+              onClick={() => setAge(a)}
               style={{
+                flex: 'none',
+                minWidth: isAdult ? 64 : 46,
+                height: 46,
+                borderRadius: isAdult ? 16 : '50%',
+                padding: isAdult ? '0 14px' : 0,
                 border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
-                background: active ? C.pinkSoft : '#fff',
-                color: active ? C.pinkDeep : C.ink,
-                borderRadius: 16, padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
+                background: active ? C.pink : '#fff',
+                color: active ? '#fff' : C.ink,
+                fontSize: isAdult ? 12.5 : 15,
+                fontWeight: 700,
+                cursor: 'pointer',
               }}
             >
-              <div style={{ fontSize: 12.5, fontWeight: 700 }}>{band.label}</div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 1 }}>{band.sub}</div>
+              {a}
             </button>
           );
         })}
       </div>
-
-      {/* 3 — head count */}
-      <Question step={3} title="How many children are attending?" />
-      <input
-        placeholder="e.g. 25"
-        inputMode="numeric"
-        value={children}
-        onChange={(e) => setChildren(e.target.value.replace(/\D/g, '').slice(0, 3))}
-        style={{
-          width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 16,
-          padding: '14px 16px', fontWeight: 600, fontSize: 14, background: '#fff',
-          color: C.ink, outline: 'none',
-        }}
-      />
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '7px 0 24px', lineHeight: 1.5 }}>
-        Activity sessions are priced per child with a minimum of 20 children, so we need this to
-        show you accurate prices.
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '2px 0 26px', lineHeight: 1.5 }}>
+        {age && age !== 'Adult'
+          ? `Turning ${age} — how exciting! 🎉`
+          : 'Swipe to pick the exact age.'}
       </div>
 
       <PrimaryButton disabled={!complete} onClick={start}>
-        {complete ? 'Start building' : 'Answer all three to continue'}
+        {complete ? 'Start building' : 'Pick a celebration and age to continue'}
       </PrimaryButton>
     </div>
   );
