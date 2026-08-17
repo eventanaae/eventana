@@ -14,11 +14,12 @@ import { MyEvent } from './screens/MyEvent';
 import { Assistant } from './screens/Assistant';
 import { Profile } from './screens/Profile';
 import { Onboarding } from './screens/Onboarding';
+import { MovieSelect } from './screens/MovieSelect';
 import { useProfile } from './profile';
 
 export type Screen =
   | 'home' | 'explore' | 'package' | 'buildIntake' | 'build' | 'theme' | 'custom'
-  | 'assistant' | 'checkout' | 'confirming' | 'myevent' | 'profile';
+  | 'assistant' | 'movieselect' | 'checkout' | 'confirming' | 'myevent' | 'profile';
 
 export interface Draft {
   celebrationType: string;
@@ -40,6 +41,8 @@ export interface Draft {
   address: { area: string; street: string; villa: string; details: string };
   mapPin: { lat: number; lng: number } | null;
   provider: string;
+  /** Movie Night selection — frontend-only, like ageBand. */
+  movie: string | null;
 }
 
 const emptyDraft: Draft = {
@@ -59,6 +62,7 @@ const emptyDraft: Draft = {
   address: { area: '', street: '', villa: '', details: '' },
   mapPin: null,
   provider: 'tabby',
+  movie: null,
 };
 
 /** Next Saturday — the app opens on a plausible party date. */
@@ -258,6 +262,7 @@ export default function App() {
           <Themes {...shared} custom={screen === 'custom'} />
         )}
         {screen === 'assistant' && <Assistant {...shared} />}
+        {screen === 'movieselect' && <MovieSelect {...shared} />}
         {screen === 'checkout' && (
           <Checkout {...shared} onOrder={(id) => { setOrderId(id); go('confirming'); }} />
         )}

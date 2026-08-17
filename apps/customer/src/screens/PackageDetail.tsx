@@ -16,6 +16,10 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
     );
   }
 
+  // Fixed-concept packages skip the normal theme step.
+  const isSpa = pkg.id === 'spa';
+  const isMovie = pkg.id === 'movie';
+
   return (
     <div style={{ animation: 'rise .35s ease', paddingBottom: 30 }}>
       <div style={{ height: 210, background: pkg.gradient, position: 'relative' }}>
@@ -40,6 +44,17 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '5px 0 16px' }}>
           {pkg.capacity} · {pkg.durationHours} hour event · Setup &amp; breakdown handled by Eventana
         </div>
+
+        {isSpa && (
+          <div style={{ background: 'linear-gradient(135deg,#FDEFF6,#F3E9FB)', borderRadius: 18, padding: '14px 16px', marginBottom: 14 }}>
+            <div style={{ ...fredoka(15), color: C.pinkDeep }}>A pamper day they’ll never forget 💅</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginTop: 5, lineHeight: 1.55 }}>
+              Robes on, music up — little guests enjoy kid-safe manis &amp; pedis, a braid corner,
+              face masks and a glam setup. A calm, magical alternative to a traditional party, made
+              for a girls’ celebration where everyone feels like a star.
+            </div>
+          </div>
+        )}
 
         <div style={{ marginBottom: 10 }}>
           <Notice tone="info">{catalogue.notices.packageItemsFixed}</Notice>
@@ -99,12 +114,16 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
 
         <div style={{ marginTop: 24 }}>
           <PrimaryButton
-            onClick={() => go('theme')}
+            onClick={() => go(isMovie ? 'movieselect' : isSpa ? 'checkout' : 'theme')}
             disabled={pkg.hasCastleChoice && !draft.castleVariant}
           >
             {pkg.hasCastleChoice && !draft.castleVariant
               ? 'Choose a castle colour to continue'
-              : 'Continue — Choose Theme'}
+              : isMovie
+                ? 'Continue — Pick a Movie'
+                : isSpa
+                  ? 'Continue — Booking Details'
+                  : 'Continue — Choose Theme'}
           </PrimaryButton>
         </div>
       </div>
