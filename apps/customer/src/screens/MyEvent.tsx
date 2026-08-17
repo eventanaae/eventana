@@ -36,6 +36,7 @@ export function MyEvent({
   const [chat, setChat] = useState('');
   const [designNote, setDesignNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [addonError, setAddonError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (eventId) {
@@ -91,14 +92,20 @@ export function MyEvent({
 
   const payExtras = async () => {
     setBusy(true);
+    setAddonError(null);
     try {
       const result = await api.addonCheckout(eventId!, {
-        provider: 'tabby',
+        // Use a live payment method (Tabby stays disabled until its live
+        // credentials are in).
+        provider: 'ziina',
         additionalHours: pending.hours,
         socksPairs: pending.socks,
         extraServings: pending.servings,
       });
       if (result.checkoutUrl) window.location.href = result.checkoutUrl;
+      else setAddonError('Could not open checkout. Please try again.');
+    } catch (e: any) {
+      setAddonError(e?.body?.message ?? e?.message ?? 'Could not add this right now.');
     } finally {
       setBusy(false);
     }
@@ -251,6 +258,11 @@ export function MyEvent({
         )}
         {addonQuote && !addonQuote.bookable && addonQuote.problems?.[0] && (
           <Notice tone="error">{addonQuote.problems[0].message}</Notice>
+        )}
+        {addonError && (
+          <div style={{ marginTop: 8 }}>
+            <Notice tone="error">{addonError}</Notice>
+          </div>
         )}
       </div>
       )}
