@@ -48,7 +48,7 @@ export function mapZiinaStatus(providerStatus: string): PaymentStatus {
 export class ZiinaProvider implements PaymentProvider {
   readonly name = 'ziina' as const;
   readonly label = 'Ziina';
-  readonly tagline = 'Card & wallet';
+  readonly tagline = 'Apple Pay · Google Pay · Card';
 
   constructor(private readonly cfg: ProviderConfig) {}
 
