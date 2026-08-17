@@ -4,6 +4,7 @@ import { toCart, type ScreenProps } from '../App';
 import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel } from '../ui';
 import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
 import { loadProfile } from '../profile';
+import { MapPicker } from '../MapPicker';
 
 /** Placement photos are offered only for items actually in the booking. */
 const PHOTO_ROWS: Array<{ key: string; label: string; match: RegExp }> = [
@@ -188,31 +189,26 @@ export function Checkout({
           />
         </div>
 
-        {draft.mapPin ? (
-          <div style={{ marginTop: 10 }}>
-            <Notice tone="ok">
-              ✓ Map pin set · {draft.mapPin.lat.toFixed(4)}, {draft.mapPin.lng.toFixed(4)}
-              <div style={{ fontWeight: 600, color: '#6fae95', marginTop: 2 }}>
-                Used for delivery, team routes &amp; live ETA
-              </div>
-            </Notice>
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 12.5, color: C.pinkDeep, marginBottom: 7 }}>
+            📍 Pin your exact event location — required
           </div>
-        ) : (
-          <div
-            onClick={() => update({ mapPin: { lat: 25.2048, lng: 55.2708 } })}
-            style={{
-              marginTop: 10, border: `1.5px dashed ${C.pinkDash}`, borderRadius: 14,
-              padding: 16, textAlign: 'center', cursor: 'pointer', background: C.cream,
-            }}
-          >
-            <div style={{ fontWeight: 700, fontSize: 12.5, color: C.pinkDeep }}>
-              📍 Drop Map Pin — required
+          <MapPicker
+            mapsKey={catalogue.mapsKey}
+            value={draft.mapPin}
+            onChange={(pin, addr) =>
+              update({
+                mapPin: pin,
+                address: addr ? { ...draft.address, details: draft.address.details || addr } : draft.address,
+              })
+            }
+          />
+          {draft.mapPin && (
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: '#6fae95', marginTop: 6 }}>
+              Used for delivery, team routes &amp; live ETA
             </div>
-            <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 3 }}>
-              Select your exact event location on the map
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ---------------- placement photos ---------------- */}

@@ -17,6 +17,7 @@ import {
   type CartInput,
 } from '@eventana/shared';
 import { pool } from '../db/pool.js';
+import { config } from '../config.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout } from '../domain/checkout.js';
 import { allProviders } from '../payments/index.js';
@@ -92,6 +93,10 @@ export async function publicRoutes(app: FastifyInstance) {
         tagline: p.tagline,
         mode: p.mode,
       })),
+      // Browser-side Google Maps key (client-exposed by design; restrict by
+      // referrer/bundle in Google Cloud). Served from the API so it lives only
+      // in the API's environment — never committed to the repo.
+      mapsKey: config.googleMapsApiKey ?? null,
     };
   });
 

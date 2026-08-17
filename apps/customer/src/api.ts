@@ -69,6 +69,7 @@ export interface Catalogue {
   notices: Record<string, string>;
   missingServiceNotes: Record<string, string>;
   paymentMethods: Array<{ name: string; label: string; tagline: string; mode: string }>;
+  mapsKey: string | null;
 }
 
 export interface QuoteResult extends Quote {

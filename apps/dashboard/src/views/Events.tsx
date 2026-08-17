@@ -157,6 +157,8 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <LocationPanel event={data.event} />
+
               <Panel title="Advance status">
                 {data.event.phase === 'Cancelled' ? (
                   <div>
@@ -489,6 +491,61 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Event location for the driver/team. The pin comes straight from the
+ * customer's Google-Maps placement at checkout. "Directions" and "Open in
+ * Maps" are Google's universal deep links — they open the driver's native
+ * Google Maps app with turn-by-turn navigation, no API key required.
+ */
+function LocationPanel({ event }: { event: any }) {
+  const pin = event.mapPin as { lat: number; lng: number } | null;
+  if (!pin) {
+    return (
+      <Panel title="Event location">
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
+          {event.emirate ? `${event.emirate} — ` : ''}no exact pin was captured for this booking.
+        </div>
+      </Panel>
+    );
+  }
+  const q = `${pin.lat},${pin.lng}`;
+  const view = `https://www.google.com/maps/search/?api=1&query=${q}`;
+  const directions = `https://www.google.com/maps/dir/?api=1&destination=${q}&travelmode=driving`;
+  const embed = `https://maps.google.com/maps?q=${q}&z=16&output=embed`;
+  const linkBtn: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none',
+    border: `1px solid ${C.line}`, background: '#fff', color: C.ink,
+    borderRadius: 10, padding: '8px 13px', fontSize: 12.5, fontWeight: 700,
+  };
+  return (
+    <Panel title="Event location">
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, marginBottom: 4 }}>
+        📍 {event.emirate ?? 'UAE'}
+        <span style={{ color: C.muted, fontWeight: 600 }}> · {q}</span>
+      </div>
+      {event.addressDetails && (
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.5 }}>
+          {event.addressDetails}
+        </div>
+      )}
+      <iframe
+        title="Event location map"
+        src={embed}
+        style={{ width: '100%', height: 190, border: 0, borderRadius: 12, marginBottom: 10 }}
+        loading="lazy"
+      />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <a href={directions} target="_blank" rel="noreferrer" style={{ ...linkBtn, background: C.pinkSoft, borderColor: C.pink, color: C.pinkDeep }}>
+          🧭 Directions
+        </a>
+        <a href={view} target="_blank" rel="noreferrer" style={linkBtn}>
+          Open in Google Maps
+        </a>
+      </div>
+    </Panel>
   );
 }
 

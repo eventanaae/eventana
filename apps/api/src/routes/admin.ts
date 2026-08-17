@@ -232,6 +232,10 @@ export async function adminRoutes(app: FastifyInstance) {
         totalDisplay: formatAed(Number(rows[0].total_fils)),
         // Who the party is for — distinct from the account holder (#23/#24).
         eventFor: (rows[0].cart as { eventFor?: string } | null)?.eventFor ?? null,
+        // Exact location for driver routing (#driver / Google Maps link).
+        mapPin: (rows[0].cart as { mapPin?: { lat: number; lng: number } } | null)?.mapPin ?? null,
+        addressDetails:
+          (rows[0].cart as { address?: { details?: string } } | null)?.address?.details ?? null,
       },
       services: services.rows,
       tasks: tasks.rows,
