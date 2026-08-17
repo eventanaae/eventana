@@ -106,6 +106,7 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
   const [data, setData] = useState<any>(null);
   const [audit, setAudit] = useState<any[]>([]);
   const [reply, setReply] = useState('');
+  const [eta, setEta] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
@@ -181,13 +182,28 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
                   </div>
                 ) : (
                   <>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>
+                        ETA for “On The Way”:
+                      </span>
+                      <input
+                        placeholder="e.g. 25 min · 4:35 PM"
+                        value={eta}
+                        onChange={(e) => setEta(e.target.value)}
+                        style={{ ...inputStyle, maxWidth: 210 }}
+                      />
+                    </div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {PHASES.map((p) => (
                         <Button
                           key={p}
                           tone={data.event.phase === p ? 'primary' : 'ghost'}
                           onClick={async () => {
-                            await api.setPhase(eventId, p, p === 'On The Way' ? '4:35 PM' : undefined);
+                            await api.setPhase(
+                              eventId,
+                              p,
+                              p === 'On The Way' ? eta.trim() || undefined : undefined,
+                            );
                             load();
                           }}
                         >
@@ -195,6 +211,11 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
                         </Button>
                       ))}
                     </div>
+                    {data.event.eta && (
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: C.pinkDeep, marginTop: 6 }}>
+                        Customer sees ETA: {data.event.eta}
+                      </div>
+                    )}
                     <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.6 }}>
                         Cancelling stops live tracking, releases the reserved assets, closes the
@@ -349,6 +370,28 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
                     </div>
                   ))}
                 </div>
+                {data.event.chat_open && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                    {[
+                      'We’re on our way 🚐',
+                      'We’ve arrived 🎉',
+                      'Please open the gate 🙏',
+                      'Where should we park?',
+                      'We’re setting up now ✨',
+                    ].map((q) => (
+                      <Button
+                        key={q}
+                        tone="ghost"
+                        onClick={async () => {
+                          await api.reply(eventId, q);
+                          load();
+                        }}
+                      >
+                        {q}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     placeholder="Reply to the customer…"
