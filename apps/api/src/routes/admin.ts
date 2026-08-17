@@ -168,7 +168,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const { eventId } = request.params as { eventId: string };
     const { rows } = await pool.query(
       `SELECT e.*, c.name AS customer, c.phone, c.email, o.id AS order_id,
-              o.status AS order_status, o.total_fils, o.quote
+              o.status AS order_status, o.total_fils, o.quote, o.cart
          FROM events e
          JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id
@@ -204,7 +204,12 @@ export async function adminRoutes(app: FastifyInstance) {
     ]);
 
     return {
-      event: { ...rows[0], totalDisplay: formatAed(Number(rows[0].total_fils)) },
+      event: {
+        ...rows[0],
+        totalDisplay: formatAed(Number(rows[0].total_fils)),
+        // Who the party is for — distinct from the account holder (#23/#24).
+        eventFor: (rows[0].cart as { eventFor?: string } | null)?.eventFor ?? null,
+      },
       services: services.rows,
       tasks: tasks.rows,
       team: team.rows,

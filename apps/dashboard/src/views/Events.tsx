@@ -139,6 +139,12 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
                   {new Date(data.event.event_date).toDateString()} · {data.event.start_time}–
                   {data.event.base_end_time}
                 </div>
+                {data.event.eventFor && (
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginTop: 5 }}>
+                    🎉 Event for: {data.event.eventFor}
+                    <span style={{ fontWeight: 600, color: C.muted }}> · booked by {data.event.customer}</span>
+                  </div>
+                )}
               </div>
               <Button tone="ghost" onClick={onClose}>Close</Button>
             </div>
