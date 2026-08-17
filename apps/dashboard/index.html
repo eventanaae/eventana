@@ -24,7 +24,12 @@
       ::-webkit-scrollbar-thumb { background: #ded6d0; border-radius: 4px; }
       @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .4 } }
       @keyframes spin { to { transform: rotate(360deg) } }
-    </style>
+      /* On phones, wide ops tables scroll horizontally instead of breaking
+         the layout. */
+      @media (max-width: 820px) {
+        table { display: block; overflow-x: auto; white-space: nowrap;
+                -webkit-overflow-scrolling: touch; }
+      }
   </head>
   <body>
     <div id="root"></div>

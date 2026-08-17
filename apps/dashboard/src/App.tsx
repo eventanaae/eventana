@@ -48,6 +48,61 @@ export default function App() {
 
   const current = NAV.find((n) => n.id === view)!;
   const sandbox = integrations.some((i) => i.mode !== 'live');
+  const mobile = useIsMobile();
+
+  const body = error ? (
+    <div style={{ padding: 40, textAlign: 'center' }}>
+      <div style={{ ...fredoka(18), marginBottom: 8 }}>Can’t reach the Eventana engine</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>{error}</div>
+    </div>
+  ) : (
+    <>
+      {view === 'today' && <Today onOpenEvent={() => setView('events')} />}
+      {view === 'events' && <Events />}
+      {view === 'inventory' && <Inventory />}
+      {view === 'tasks' && <Tasks />}
+      {view === 'team' && <Team />}
+      {view === 'settings' && <Settings />}
+    </>
+  );
+
+  // Phone layout: full-width content with a bottom tab bar (the fixed desktop
+  // sidebar is far too wide for a phone).
+  if (mobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
+        <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: `1px solid ${C.line}`, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={fredoka(17)}>{current.title}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {current.sub}
+            </div>
+          </div>
+          <span style={{ background: error ? C.redSoft : C.greenSoft, color: error ? C.red : C.green, fontSize: 10, fontWeight: 700, padding: '5px 9px', borderRadius: 10, flex: 'none' }}>
+            {error ? '● offline' : '● live'}
+          </span>
+        </div>
+        <div style={{ flex: 1, padding: 14, paddingBottom: 82, minWidth: 0 }}>{body}</div>
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 10, background: C.ink, display: 'flex', padding: '7px 2px calc(7px + env(safe-area-inset-bottom))' }}>
+          {NAV.map((n) => {
+            const active = view === n.id;
+            const badge = n.id === 'tasks' ? counts.tasks : n.id === 'events' ? counts.review : 0;
+            return (
+              <div key={n.id} onClick={() => setView(n.id)} style={{ flex: 1, textAlign: 'center', cursor: 'pointer', color: active ? '#fff' : C.sidebarMuted, position: 'relative' }}>
+                <div style={{ fontSize: 16 }}>{n.icon}</div>
+                <div style={{ fontSize: 8.5, fontWeight: 700, marginTop: 2 }}>{n.label}</div>
+                {badge > 0 && (
+                  <span style={{ position: 'absolute', top: -3, left: '50%', marginLeft: 4, background: n.id === 'events' ? C.red : C.pink, color: '#fff', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 8 }}>
+                    {badge}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
@@ -189,30 +244,21 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ flex: 1, padding: 24, minWidth: 0 }}>
-          {error ? (
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ ...fredoka(18), marginBottom: 8 }}>Can’t reach the Eventana engine</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
-                {error}
-                <br />
-                Start it with <code>npm run dev:api</code>.
-              </div>
-            </div>
-          ) : (
-            <>
-              {view === 'today' && <Today onOpenEvent={() => setView('events')} />}
-              {view === 'events' && <Events />}
-              {view === 'inventory' && <Inventory />}
-              {view === 'tasks' && <Tasks />}
-              {view === 'team' && <Team />}
-              {view === 'settings' && <Settings />}
-            </>
-          )}
-        </div>
+        <div style={{ flex: 1, padding: 24, minWidth: 0 }}>{body}</div>
       </div>
     </div>
   );
+}
+
+/** True on phone-width viewports. */
+function useIsMobile(): boolean {
+  const [m, setM] = useState(() => typeof window !== 'undefined' && window.innerWidth < 820);
+  useEffect(() => {
+    const on = () => setM(window.innerWidth < 820);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return m;
 }
 
 /** Staff access gate — shown when no token is stored (e.g. the mobile app). */
