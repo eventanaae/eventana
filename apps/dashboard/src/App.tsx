@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import { api, hasStaffToken, setStaffToken, clearStaffToken } from './api';
 import { C, fredoka } from './ui';
 import { Today } from './views/Today';
+import { Calendar } from './views/Calendar';
 import { Events } from './views/Events';
 import { Inventory } from './views/Inventory';
 import { Tasks } from './views/Tasks';
 import { Team } from './views/Team';
 import { Settings } from './views/Settings';
 
-export type View = 'today' | 'events' | 'inventory' | 'tasks' | 'team' | 'settings';
+export type View = 'today' | 'calendar' | 'events' | 'inventory' | 'tasks' | 'team' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string }> = [
   { id: 'today', label: 'Today', icon: '◉', title: 'Today', sub: 'Live board, tasks and inventory at a glance' },
+  { id: 'calendar', label: 'Calendar', icon: '▦', title: 'Calendar', sub: 'Monthly view of events and bookings' },
   { id: 'events', label: 'Events', icon: '▤', title: 'Events', sub: 'Every booking, with its services, tasks and payments' },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Physical assets, reservations and buffers' },
   { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Work by department across all events' },
@@ -58,6 +60,7 @@ export default function App() {
   ) : (
     <>
       {view === 'today' && <Today onOpenEvent={() => setView('events')} />}
+      {view === 'calendar' && <Calendar onOpenEvent={() => setView('events')} />}
       {view === 'events' && <Events />}
       {view === 'inventory' && <Inventory />}
       {view === 'tasks' && <Tasks />}

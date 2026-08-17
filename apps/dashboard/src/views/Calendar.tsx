@@ -1,0 +1,127 @@
+import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { api } from '../api';
+import { C, Panel, Spinner } from '../ui';
+
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const pad = (n: number) => String(n).padStart(2, '0');
+
+const navBtn: CSSProperties = {
+  border: `1px solid ${C.line}`,
+  background: '#fff',
+  borderRadius: 8,
+  padding: '5px 10px',
+  fontWeight: 700,
+  fontSize: 12,
+  cursor: 'pointer',
+  color: C.ink,
+};
+
+export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void }) {
+  const [events, setEvents] = useState<any[] | null>(null);
+  const now = new Date();
+  const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() });
+
+  useEffect(() => {
+    void api.events().then(setEvents);
+  }, []);
+
+  const byDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    (events ?? []).forEach((e) => {
+      const key = String(e.event_date).slice(0, 10);
+      (map[key] ||= []).push(e);
+    });
+    return map;
+  }, [events]);
+
+  if (!events) return <Spinner />;
+
+  const first = new Date(ym.y, ym.m, 1);
+  const startWd = first.getDay();
+  const daysIn = new Date(ym.y, ym.m + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startWd; i++) cells.push(null);
+  for (let d = 1; d <= daysIn; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const monthLabel = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+  const shift = (delta: number) =>
+    setYm((s) => {
+      const d = new Date(s.y, s.m + delta, 1);
+      return { y: d.getFullYear(), m: d.getMonth() };
+    });
+
+  return (
+    <Panel
+      title={`Calendar — ${monthLabel}`}
+      action={
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => shift(-1)} style={navBtn}>‹</button>
+          <button onClick={() => setYm({ y: now.getFullYear(), m: now.getMonth() })} style={navBtn}>Today</button>
+          <button onClick={() => shift(1)} style={navBtn}>›</button>
+        </div>
+      }
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6, minWidth: 640 }}>
+        {WD.map((w) => (
+          <div key={w} style={{ fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'center', padding: '2px 0' }}>
+            {w}
+          </div>
+        ))}
+        {cells.map((d, i) => {
+          if (d === null) return <div key={i} />;
+          const key = `${ym.y}-${pad(ym.m + 1)}-${pad(d)}`;
+          const evs = byDate[key] ?? [];
+          const isToday = key === todayKey;
+          return (
+            <div
+              key={i}
+              style={{
+                minHeight: 78,
+                border: `1px solid ${isToday ? C.pink : C.line}`,
+                borderRadius: 10,
+                padding: '5px 6px',
+                background: '#fff',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? C.pink : C.ink, marginBottom: 3 }}>{d}</div>
+              {evs.slice(0, 3).map((e) => (
+                <div
+                  key={e.id}
+                  onClick={() => onOpenEvent?.(e.id)}
+                  title={`${e.customer} · ${e.start_time} · ${e.phase}`}
+                  style={{
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    color: '#fff',
+                    background: e.phase === 'Cancelled' ? C.red : C.pink,
+                    borderRadius: 6,
+                    padding: '2px 5px',
+                    marginBottom: 2,
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {e.customer}
+                </div>
+              ))}
+              {evs.length > 3 && (
+                <div style={{ fontSize: 9, fontWeight: 700, color: C.muted }}>+{evs.length - 3} more</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 12, fontSize: 11.5, fontWeight: 600, color: C.muted }}>
+        {events.length} events loaded · tap an event to open it. Staff days off, birthdays and holidays
+        will appear here as they’re added.
+      </div>
+    </Panel>
+  );
+}
