@@ -6,6 +6,7 @@
  * server recomputes is what gets charged.
  */
 import type { CartInput, Quote } from '@eventana/shared';
+import { currentCustomerId } from './account';
 
 /**
  * Render blueprints can only inject another service's HOST, not a full
@@ -21,15 +22,12 @@ function apiBase(): string {
 
 const BASE = apiBase();
 
-/** Until real sign-in exists, the demo customer identifies by header. */
-export const CUSTOMER_ID = 'CUST-4471';
-
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
-      'x-customer-id': CUSTOMER_ID,
+      'x-customer-id': currentCustomerId(),
       ...(init.headers ?? {}),
     },
   });
@@ -92,8 +90,20 @@ export const api = {
       totalFils: number; holdExpiresAt: string;
     }>('/api/checkout', {
       method: 'POST',
-      body: JSON.stringify({ cart, customerId: CUSTOMER_ID, provider }),
+      body: JSON.stringify({ cart, customerId: currentCustomerId(), provider }),
     }),
+
+  register: (body: { name: string; email: string; phone: string; password: string }) =>
+    request<{ customerId: string; name: string; email: string; phone: string }>(
+      '/api/customers/register',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  login: (body: { email: string; password: string }) =>
+    request<{ customerId: string; name: string; email: string; phone: string }>(
+      '/api/customers/login',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   order: (orderId: string) =>
     request<{

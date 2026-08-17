@@ -43,6 +43,8 @@ export interface Draft {
   provider: string;
   /** Movie Night selection — frontend-only, like ageBand. */
   movie: string | null;
+  /** Who the celebration is for — stored separately from the account holder. */
+  eventFor: string;
 }
 
 const emptyDraft: Draft = {
@@ -63,6 +65,7 @@ const emptyDraft: Draft = {
   mapPin: null,
   provider: 'tabby',
   movie: null,
+  eventFor: '',
 };
 
 /** Next Saturday — the app opens on a plausible party date. */
@@ -89,6 +92,7 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     castleVariant: draft.castleVariant,
     address: draft.address,
     mapPin: draft.mapPin,
+    eventFor: draft.eventFor.trim() || undefined,
   };
 }
 

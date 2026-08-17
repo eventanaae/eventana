@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { toCart, type ScreenProps } from '../App';
 import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel } from '../ui';
+import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
+import { loadProfile } from '../profile';
 
 /** Placement photos are offered only for items actually in the booking. */
 const PHOTO_ROWS: Array<{ key: string; label: string; match: RegExp }> = [
@@ -24,6 +26,55 @@ export function Checkout({
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [photos, setPhotos] = useState<Record<string, string>>({});
+
+  const [account, setAccount] = useState<Account | null>(() => loadAccount());
+  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
+  const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', password: '' });
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // The booking captures who the party is FOR, separately from the account
+  // holder, with wording that fits the celebration.
+  const eventForLabel =
+    (
+      {
+        kids: "Child's name",
+        graduation: "Graduate's name",
+        bride: "Bride's name",
+        baby: "Baby's name",
+        gender: 'Parents / baby name',
+        adult: 'Guest of honour name',
+        customc: 'Guest of honour / celebration name',
+      } as Record<string, string>
+    )[draft.celebrationType] ?? 'Guest of honour name';
+
+  const emailOk = /.+@.+\..+/.test(reg.email.trim());
+  const authReady =
+    authMode === 'register'
+      ? reg.name.trim().length >= 2 && emailOk && reg.phone.trim().length >= 6 && reg.password.length >= 6
+      : emailOk && reg.password.length >= 1;
+
+  const submitAuth = async () => {
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      const acc =
+        authMode === 'register'
+          ? await api.register({
+              name: reg.name.trim(),
+              email: reg.email.trim(),
+              phone: reg.phone.trim(),
+              password: reg.password,
+            })
+          : await api.login({ email: reg.email.trim(), password: reg.password });
+      saveAccount(acc);
+      setAccount(acc);
+    } catch (e: any) {
+      setAuthError(e?.body?.message ?? e?.message ?? 'Something went wrong. Please try again.');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
 
   useEffect(() => {
     api.startTimes().then(setTimes).catch(() => setTimes([]));
@@ -66,12 +117,22 @@ export function Checkout({
   };
 
   const canPay =
-    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying;
+    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && Boolean(account);
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
       <button onClick={() => go('theme')} style={backStyle}>‹ Back</button>
       <div style={{ ...fredoka(24), margin: '8px 0 16px' }}>Your Celebration</div>
+
+      {/* --------- who the celebration is for (not the account holder) --------- */}
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>Who is the celebration for?</div>
+        <Field
+          placeholder={eventForLabel}
+          value={draft.eventFor}
+          onChange={(v) => update({ eventFor: v })}
+        />
+      </div>
 
       {/* ---------------- location ---------------- */}
       <div style={cardStyle}>
@@ -268,6 +329,76 @@ export function Checkout({
         )}
       </div>
 
+      {/* ---------------- account (required to confirm) ---------------- */}
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>Your account</div>
+        {account ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+              ✓ Signed in as {account.name}
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+                {account.email} · {account.phone}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                clearAccount();
+                setAccount(null);
+              }}
+              style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 10 }}>
+              Create your account (or sign in) to confirm your booking. Your event details are kept.
+            </div>
+            {authMode === 'register' && (
+              <Field placeholder="Full name" value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
+            )}
+            <Field placeholder="Email" value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
+            {authMode === 'register' && (
+              <Field placeholder="Mobile number" value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
+            )}
+            <input
+              type="password"
+              placeholder="Password"
+              value={reg.password}
+              onChange={(e) => setReg((r) => ({ ...r, password: e.target.value }))}
+              style={{
+                border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px',
+                fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none',
+                width: '100%', marginBottom: 9,
+              }}
+            />
+            {authError && (
+              <div style={{ marginBottom: 9 }}>
+                <Notice tone="error">{authError}</Notice>
+              </div>
+            )}
+            <PrimaryButton disabled={!authReady || authBusy} onClick={submitAuth}>
+              {authBusy ? 'Please wait…' : authMode === 'register' ? 'Create account' : 'Sign in'}
+            </PrimaryButton>
+            <div style={{ textAlign: 'center', marginTop: 10, fontSize: 12, fontWeight: 700 }}>
+              <span style={{ color: C.muted }}>
+                {authMode === 'register' ? 'Already have an account?' : 'New to Eventana?'}
+              </span>{' '}
+              <a
+                onClick={() => {
+                  setAuthMode((m) => (m === 'register' ? 'login' : 'register'));
+                  setAuthError(null);
+                }}
+                style={{ cursor: 'pointer', color: C.pinkDeep }}
+              >
+                {authMode === 'register' ? 'Sign in' : 'Create one'}
+              </a>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* ---------------- payment ---------------- */}
       <div style={{ fontWeight: 700, fontSize: 14, margin: '18px 0 10px' }}>Pay with</div>
       <div style={{ display: 'flex', gap: 9 }}>
@@ -303,6 +434,11 @@ export function Checkout({
       {!draft.mapPin && (
         <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
           Map pin required to complete your booking
+        </div>
+      )}
+      {!account && (
+        <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
+          Create your account above to confirm your booking
         </div>
       )}
       <div style={{ marginTop: 10, fontSize: 10.5, fontWeight: 600, color: C.faint, textAlign: 'center' }}>

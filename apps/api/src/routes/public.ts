@@ -44,6 +44,8 @@ const cartSchema = z.object({
     })
     .optional(),
   mapPin: z.object({ lat: z.number(), lng: z.number() }).nullable().optional(),
+  /** Who the celebration is for — distinct from the account holder. */
+  eventFor: z.string().max(120).optional(),
 });
 
 export async function publicRoutes(app: FastifyInstance) {
