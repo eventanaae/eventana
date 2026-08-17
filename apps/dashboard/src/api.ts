@@ -16,15 +16,44 @@ function apiBase(): string {
 
 const BASE = apiBase();
 
-/** Replace with real staff SSO before go-live. */
-const STAFF_TOKEN = import.meta.env.VITE_STAFF_TOKEN ?? 'dev-staff-token';
+/**
+ * Staff access token. Entered by the staff member on this device (so it is
+ * never baked into a distributed app binary), with a build-time fallback for
+ * the web deployment. A stepping stone to real staff SSO.
+ */
+const STAFF_TOKEN_KEY = 'eventana.staffToken';
+
+export function getStaffToken(): string {
+  try {
+    return localStorage.getItem(STAFF_TOKEN_KEY) || (import.meta.env.VITE_STAFF_TOKEN ?? '');
+  } catch {
+    return import.meta.env.VITE_STAFF_TOKEN ?? '';
+  }
+}
+export function setStaffToken(t: string): void {
+  try {
+    localStorage.setItem(STAFF_TOKEN_KEY, t.trim());
+  } catch {
+    /* storage unavailable — kept for this session only */
+  }
+}
+export function clearStaffToken(): void {
+  try {
+    localStorage.removeItem(STAFF_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+export function hasStaffToken(): boolean {
+  return getStaffToken().length > 0;
+}
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
-      'x-staff-token': STAFF_TOKEN,
+      'x-staff-token': getStaffToken(),
       'x-staff-name': 'Maryam',
       ...(init.headers ?? {}),
     },

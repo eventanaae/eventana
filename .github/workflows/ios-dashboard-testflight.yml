@@ -4,15 +4,12 @@
 # ── Required repository secrets (Settings → Secrets and variables → Actions) ──
 #   APPLE_TEAM_ID, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID,
 #   APP_STORE_CONNECT_API_KEY   (same four the customer workflow uses)
-#   VITE_STAFF_TOKEN            The staff token, baked into the build so the
-#                               app can call the admin API. NEVER commit it.
 #
-# Also create an App Store Connect app record for bundle id
-# `ae.eventana.dashboard` before the first upload.
+# No staff token is baked into this build — staff enter their access token in
+# the app on first launch (stored on-device). Create an App Store Connect app
+# record for bundle id `ae.eventana.dashboard` before the first upload.
 #
-# ⚠️ SECURITY: the staff token is embedded in the distributed binary. Keep
-# this build to INTERNAL TestFlight testers only; do not publish it to the
-# public App Store until real staff sign-in (SSO) replaces the shared token.
+# Keep distribution to INTERNAL TestFlight testers until real staff SSO lands.
 
 name: iOS Dashboard (Ops) → TestFlight
 
@@ -43,8 +40,6 @@ jobs:
             @capacitor/core@^6 @capacitor/ios@^6 @capacitor/cli@^6
 
       - name: Build web assets and generate the iOS project
-        env:
-          VITE_STAFF_TOKEN: ${{ secrets.VITE_STAFF_TOKEN }}
         run: |
           npm run build -w @eventana/shared    # dashboard imports @eventana/shared
           npm run build -w @eventana/dashboard
