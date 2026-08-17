@@ -118,6 +118,10 @@ CREATE TABLE IF NOT EXISTS customers (
   registered_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Additive: self-service account password (salt:hash). Customers created
+-- before self-registration simply have NULL here.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
 CREATE TABLE IF NOT EXISTS orders (
   id               TEXT PRIMARY KEY,
   kind             TEXT NOT NULL DEFAULT 'booking',   -- booking | addon

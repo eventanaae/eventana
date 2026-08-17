@@ -4,6 +4,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import {
   CELEBRATION_TYPES,
   CASTLE_VARIANTS,
@@ -195,6 +196,64 @@ export async function publicRoutes(app: FastifyInstance) {
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     return answerAssistant(parsed.data.question, parsed.data.celebrationType);
+  });
+
+  /* --------------------------- customer accounts ------------------------ */
+  // Simple, additive self-service accounts. These do not change the checkout
+  // contract: checkout still takes a customerId — registration just creates a
+  // real one instead of the demo customer.
+
+  const hashPassword = (password: string): string => {
+    const salt = randomBytes(16).toString('hex');
+    return `${salt}:${scryptSync(password, salt, 64).toString('hex')}`;
+  };
+  const verifyPassword = (password: string, stored: string | null): boolean => {
+    if (!stored || !stored.includes(':')) return false;
+    const [salt, hash] = stored.split(':');
+    const check = scryptSync(password, salt, 64).toString('hex');
+    const a = Buffer.from(check, 'hex');
+    const b = Buffer.from(hash, 'hex');
+    return a.length === b.length && timingSafeEqual(a, b);
+  };
+
+  app.post('/api/customers/register', async (request, reply) => {
+    const schema = z.object({
+      name: z.string().trim().min(2).max(120),
+      email: z.string().trim().email(),
+      phone: z.string().trim().min(6).max(30),
+      password: z.string().min(6).max(200),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    }
+    const { name, email, phone, password } = parsed.data;
+    const existing = await pool.query('SELECT id FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
+    if (existing.rowCount) {
+      return reply.status(409).send({ error: 'email_taken', message: 'An account with this email already exists — please sign in.' });
+    }
+    const id = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
+    await pool.query(
+      `INSERT INTO customers (id, name, phone, email, password_hash) VALUES ($1,$2,$3,$4,$5)`,
+      [id, name, phone, email, hashPassword(password)],
+    );
+    return { customerId: id, name, email, phone };
+  });
+
+  app.post('/api/customers/login', async (request, reply) => {
+    const schema = z.object({ email: z.string().trim().email(), password: z.string().min(1) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { email, password } = parsed.data;
+    const { rows } = await pool.query(
+      'SELECT id, name, phone, email, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1',
+      [email],
+    );
+    const c = rows[0];
+    if (!c || !verifyPassword(password, c.password_hash)) {
+      return reply.status(401).send({ error: 'invalid_credentials', message: 'Wrong email or password.' });
+    }
+    return { customerId: c.id, name: c.name, email: c.email, phone: c.phone };
   });
 }
 
