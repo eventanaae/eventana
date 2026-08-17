@@ -100,6 +100,24 @@ export const api = {
   setAsset: (code: string, patch: Record<string, unknown>) =>
     request<any>(`/api/admin/inventory/${code}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 
+  consumables: () => request<any[]>('/api/admin/consumables'),
+  saveConsumable: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/consumables', { method: 'POST', body: JSON.stringify(body) }),
+  adjustConsumable: (id: string, delta: number, reason?: string) =>
+    request<any>(`/api/admin/consumables/${id}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify({ delta, reason }),
+    }),
+
+  missingItems: () => request<any[]>('/api/admin/missing-items'),
+  reportMissing: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/missing-items', { method: 'POST', body: JSON.stringify(body) }),
+  setMissingStatus: (id: number, status: string) =>
+    request<any>(`/api/admin/missing-items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
   team: () => request<any[]>('/api/admin/team'),
 
   settings: () => request<any>('/api/admin/settings'),
