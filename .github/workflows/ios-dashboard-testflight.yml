@@ -1,0 +1,140 @@
+# Build the Eventana STAFF DASHBOARD (Ops) app on a cloud Mac → TestFlight.
+# Bundle id: ae.eventana.dashboard  (separate app from the customer app).
+#
+# ── Required repository secrets (Settings → Secrets and variables → Actions) ──
+#   APPLE_TEAM_ID, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID,
+#   APP_STORE_CONNECT_API_KEY   (same four the customer workflow uses)
+#   VITE_STAFF_TOKEN            The staff token, baked into the build so the
+#                               app can call the admin API. NEVER commit it.
+#
+# Also create an App Store Connect app record for bundle id
+# `ae.eventana.dashboard` before the first upload.
+#
+# ⚠️ SECURITY: the staff token is embedded in the distributed binary. Keep
+# this build to INTERNAL TestFlight testers only; do not publish it to the
+# public App Store until real staff sign-in (SSO) replaces the shared token.
+
+name: iOS Dashboard (Ops) → TestFlight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Select the newest installed Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Selecting $LATEST"
+          sudo xcode-select -s "$LATEST/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install dependencies (+ Capacitor for the dashboard app)
+        run: |
+          npm ci
+          npm install -w @eventana/dashboard \
+            @capacitor/core@^6 @capacitor/ios@^6 @capacitor/cli@^6
+
+      - name: Build web assets and generate the iOS project
+        env:
+          VITE_STAFF_TOKEN: ${{ secrets.VITE_STAFF_TOKEN }}
+        run: |
+          npm run build -w @eventana/shared    # dashboard imports @eventana/shared
+          npm run build -w @eventana/dashboard
+          cd apps/dashboard
+          npx cap add ios || true   # no-op if ios/ already exists
+          npx cap sync ios
+          PLIST=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string ${{ github.run_number }}" "$PLIST"
+          echo "Info.plist: no-encryption=true, CFBundleVersion=${{ github.run_number }}"
+
+      - name: Write App Store Connect API key
+        env:
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          OUT="$HOME/private_keys/AuthKey_${KEY_ID}.p8"
+          TMP="$HOME/private_keys/tmp.bin"
+          CLEAN=$(printf '%s' "$ASC_KEY" | tr -d '[:space:]')
+          ok=0
+          if [ "$ok" = 0 ] && printf '%s' "$ASC_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$ASC_KEY" > "$TMP"
+            openssl pkcs8 -topk8 -nocrypt -in "$TMP" -out "$OUT" 2>/tmp/e && ok=1
+          fi
+          if [ "$ok" = 0 ]; then
+            printf '%s' "$CLEAN" | base64 --decode > "$TMP" 2>/dev/null || true
+            if head -c 27 "$TMP" | grep -q 'BEGIN PRIVATE KEY'; then
+              openssl pkcs8 -topk8 -nocrypt -in "$TMP" -out "$OUT" 2>/tmp/e && ok=1
+            fi
+          fi
+          if [ "$ok" = 0 ]; then
+            printf '%s' "$CLEAN" | base64 --decode > "$TMP" 2>/dev/null || true
+            openssl pkcs8 -topk8 -nocrypt -inform DER -in "$TMP" -out "$OUT" 2>/tmp/e && ok=1
+          fi
+          rm -f "$TMP"
+          if [ "$ok" = 1 ] && head -1 "$OUT" 2>/dev/null | grep -q 'BEGIN PRIVATE KEY'; then
+            echo "Resolved a valid App Store Connect .p8 key."
+          else
+            echo "::error::APP_STORE_CONNECT_API_KEY is not a usable private key. Re-add it as the base64 of the whole file: base64 -w0 AuthKey_XXXX.p8"
+            sed -E 's/[A-Za-z0-9+/=]{16,}/<redacted>/g' /tmp/e || true
+            exit 1
+          fi
+
+      - name: Archive and export IPA (automatic signing)
+        working-directory: apps/dashboard/ios/App
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Release -archivePath build/App.xcarchive \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            archive
+
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+
+          xcodebuild -exportArchive -archivePath build/App.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${KEY_ID}.p8 \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID"
+
+      - name: Upload to TestFlight
+        working-directory: apps/dashboard/ios/App
+        run: |
+          xcrun altool --upload-app -t ios -f build/export/*.ipa \
+            --apiKey "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+      - name: Save the IPA as a build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eventana-dashboard-ipa
+          path: apps/dashboard/ios/App/build/export/*.ipa
+          if-no-files-found: ignore
