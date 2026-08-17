@@ -7,7 +7,8 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
   const firstName = (customerName || '').trim().split(' ')[0] || 'there';
   const initial = firstName.charAt(0).toUpperCase() || '☺';
   const popular = catalogue.packages.slice(0, 3);
-  const trending = catalogue.themes.filter((t) => t.popular).slice(0, 3);
+  const popularThemes = catalogue.themes.filter((t) => t.popular);
+  const trending = (popularThemes.length >= 4 ? popularThemes : catalogue.themes).slice(0, 12);
 
   const pickCelebration = (id: string, route: 'explore' | 'build') => {
     // Switching celebration type resets the build so pricing stays
@@ -64,20 +65,24 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
         <div style={{ position: 'relative', fontSize: 12.5, fontWeight: 600, color: '#8b7d84', margin: '8px 0 18px' }}>
           Cheers to love, music, and the magic of every moment.
         </div>
-        <div style={{ display: 'flex', gap: 10, position: 'relative' }}>
-          <button
-            onClick={() => go('explore')}
-            style={{ flex: 1, background: C.pink, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13.5, padding: '13px 0', borderRadius: 20, cursor: 'pointer' }}
-          >
-            Explore Kids Packages
-          </button>
-          <button
-            onClick={() => go('build')}
-            style={{ flex: 1, background: 'rgba(255,255,255,.75)', border: 'none', color: C.ink, fontWeight: 700, fontSize: 13.5, padding: '13px 0', borderRadius: 20, cursor: 'pointer' }}
-          >
-            Build Your Own Party
-          </button>
-        </div>
+      </div>
+
+      {/* Two clear, premium ways to begin */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 18 }}>
+        <OptionCard
+          icon="🎁"
+          tint="linear-gradient(135deg,#FDE0EE,#F9C6DC)"
+          title="Explore Kids Packages"
+          sub="Ready-made setups — themed, priced & ready to book"
+          onClick={() => go('explore')}
+        />
+        <OptionCard
+          icon="🎨"
+          tint="linear-gradient(135deg,#E9F8F5,#BDEBE4)"
+          title="Build Your Own Party"
+          sub="Hand-pick every detail and make it uniquely yours"
+          onClick={() => go('build')}
+        />
       </div>
 
       <SectionTitle style={{ marginBottom: 4 }}>What Are You Celebrating? ✨</SectionTitle>
@@ -136,12 +141,15 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
         ))}
       </div>
 
-      <SectionTitle>Trending Themes</SectionTitle>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '26px 0 12px' }}>
+        <span style={fredoka(19)}>Trending Themes</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.faint }}>swipe →</span>
+      </div>
+      <div className="scroll" style={{ display: 'flex', gap: 12, overflowX: 'auto', margin: '0 -22px', padding: '0 22px 6px' }}>
         {trending.map((t) => (
-          <div key={t.id} onClick={() => go('theme')} style={{ borderRadius: 18, overflow: 'hidden', cursor: 'pointer' }}>
-            <div style={{ height: 78, background: t.gradient }} />
-            <div style={{ fontSize: 11.5, fontWeight: 700, padding: '7px 2px 0', textAlign: 'center' }}>{t.name}</div>
+          <div key={t.id} onClick={() => go('theme')} style={{ flex: 'none', width: 132, cursor: 'pointer' }}>
+            <div style={{ height: 96, borderRadius: 18, background: t.gradient, boxShadow: C.shadow }} />
+            <div style={{ fontSize: 11.5, fontWeight: 700, padding: '8px 2px 0', textAlign: 'center' }}>{t.name}</div>
           </div>
         ))}
       </div>
@@ -165,6 +173,60 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
       <div style={{ marginTop: 18, textAlign: 'center', fontSize: 11, fontWeight: 600, color: C.faint }}>
         @eventana.uae · +971 56 450 0777
       </div>
+    </div>
+  );
+}
+
+/** A premium, tappable way-to-start card (Explore / Build Your Own). */
+function OptionCard({
+  icon,
+  tint,
+  title,
+  sub,
+  onClick,
+}: {
+  icon: string;
+  tint: string;
+  title: string;
+  sub: string;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        background: '#fff',
+        borderRadius: 22,
+        padding: '14px 16px',
+        boxShadow: C.shadowLg,
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: 18,
+          background: tint,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 24,
+          flex: 'none',
+        }}
+      >
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={fredoka(15)}>{title}</div>
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>
+          {sub}
+        </div>
+      </div>
+      <span style={{ color: C.pink, fontWeight: 700, fontSize: 18 }}>›</span>
     </div>
   );
 }
