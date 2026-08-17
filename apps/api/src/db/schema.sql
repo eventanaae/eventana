@@ -278,6 +278,11 @@ CREATE TABLE IF NOT EXISTS team_members (
   active  BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+-- Additive: dashboard access level (owner | manager | employee) and a
+-- personal login token, so staff sign in as themselves with the right scope.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS access_level TEXT NOT NULL DEFAULT 'employee';
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS access_token TEXT;
+
 CREATE TABLE IF NOT EXISTS event_team (
   event_id  TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   member_id TEXT NOT NULL REFERENCES team_members(id),

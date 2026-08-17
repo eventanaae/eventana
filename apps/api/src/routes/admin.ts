@@ -67,9 +67,32 @@ async function cancelEvent(eventId: string, reason: string) {
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', async (request, reply) => {
     const token = request.headers['x-staff-token'];
-    if (token !== config.staffToken) {
+    if (typeof token !== 'string' || !token) {
       return reply.status(401).send({ error: 'unauthorized' });
     }
+    // The master token is the Owner (backward compatible). Otherwise a team
+    // member's personal access token resolves their access level.
+    if (token === config.staffToken) {
+      (request as any).staff = { name: 'Owner', role: 'owner' };
+      return;
+    }
+    const { rows } = await pool.query(
+      `SELECT id, name, access_level FROM team_members WHERE access_token = $1 AND active LIMIT 1`,
+      [token],
+    );
+    if (!rows[0]) {
+      return reply.status(401).send({ error: 'unauthorized' });
+    }
+    (request as any).staff = {
+      id: rows[0].id,
+      name: rows[0].name,
+      role: rows[0].access_level ?? 'employee',
+    };
+  });
+
+  /** The signed-in staff member and their access level. */
+  app.get('/api/admin/me', async (request) => {
+    return (request as any).staff ?? { name: 'Staff', role: 'employee' };
   });
 
   /* ------------------------------ Today --------------------------- */
