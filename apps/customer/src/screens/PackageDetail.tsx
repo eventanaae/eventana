@@ -2,8 +2,6 @@ import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet } from '../ui';
 
-const INFLATABLE_ASSETS = /castle|bubble-house|ball-pool-slide|amwaj|blue-water|slippery/;
-
 export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
   const pkg = catalogue.packages.find((p) => p.id === draft.packageId);
   const [detail, setDetail] = useState<
@@ -17,8 +15,6 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
       </div>
     );
   }
-
-  const hasInflatable = pkg.items.some((i) => i.assets.some((a) => INFLATABLE_ASSETS.test(a)));
 
   return (
     <div style={{ animation: 'rise .35s ease', paddingBottom: 30 }}>
@@ -48,14 +44,6 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
         <div style={{ marginBottom: 10 }}>
           <Notice tone="info">{catalogue.notices.packageItemsFixed}</Notice>
         </div>
-
-        {hasInflatable && (
-          <div style={{ marginBottom: 10 }}>
-            <Notice tone="warn">
-              🧦 {catalogue.notices.inflatableSocks} {catalogue.notices.inflatableNoFood}
-            </Notice>
-          </div>
-        )}
 
         <div style={{ fontWeight: 700, fontSize: 15, margin: '16px 0 10px' }}>
           What’s included{' '}
@@ -130,13 +118,6 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
               <div style={{ fontSize: 13, fontWeight: 600, color: C.muted2, marginTop: 8, lineHeight: 1.55 }}>
                 {detail.detail}
               </div>
-              {detail.assets.some((a) => INFLATABLE_ASSETS.test(a)) && (
-                <div style={{ marginTop: 14 }}>
-                  <Notice tone="warn">
-                    {catalogue.notices.inflatableSocks} {catalogue.notices.inflatableNoFood}
-                  </Notice>
-                </div>
-              )}
             </div>
           </>
         )}
