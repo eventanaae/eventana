@@ -160,8 +160,21 @@ export function MyEvent({
         </div>
       )}
 
+      {/* The team has arrived — a clear, celebratory banner + contact shortcut. */}
+      {!cancelled && event.phase === 'Arrived' && (
+        <div style={{ background: C.green, borderRadius: 20, padding: '15px 18px', color: '#fff', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 13 }}>
+          <span style={{ fontSize: 24 }}>🎉</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5 }}>Your Eventana team has arrived!</div>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.95, marginTop: 2 }}>
+              They’re getting set up — message them below if you need anything.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Live tracking never shows for a cancelled event — no team is on the way. */}
-      {!cancelled && event.eta && (
+      {!cancelled && event.phase !== 'Arrived' && event.eta && (
         <div style={{ background: C.mint, borderRadius: 20, padding: '15px 18px', color: '#fff', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 13 }}>
           <span style={{ fontSize: 24, animation: 'pulse 1.6s infinite' }}>🚐</span>
           <div style={{ flex: 1 }}>
