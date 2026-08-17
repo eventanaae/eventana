@@ -677,5 +677,116 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows;
   });
 
+  /* ------------------------- consumables inventory ------------------------ */
+
+  app.get('/api/admin/consumables', async () => {
+    const { rows } = await pool.query(
+      `SELECT *, (on_hand <= reorder_level) AS low_stock
+         FROM consumables ORDER BY category, name`,
+    );
+    return rows;
+  });
+
+  app.post('/api/admin/consumables', async (request, reply) => {
+    const schema = z.object({
+      id: z.string().trim().min(1).optional(),
+      name: z.string().trim().min(1).max(120),
+      category: z.string().trim().max(40).default('general'),
+      unit: z.string().trim().max(20).default('pcs'),
+      onHand: z.number().int().min(0).default(0),
+      reorderLevel: z.number().int().min(0).default(0),
+      perGuest: z.boolean().default(false),
+      perEventQty: z.number().int().min(0).default(0),
+      supplier: z.string().trim().max(120).optional(),
+      active: z.boolean().default(true),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
+    const d = p.data;
+    const id = d.id ?? `CON-${Date.now().toString(36).toUpperCase()}`;
+    const { rows } = await pool.query(
+      `INSERT INTO consumables (id, name, category, unit, on_hand, reorder_level, per_guest, per_event_qty, supplier, active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (id) DO UPDATE SET
+         name=EXCLUDED.name, category=EXCLUDED.category, unit=EXCLUDED.unit,
+         reorder_level=EXCLUDED.reorder_level, per_guest=EXCLUDED.per_guest,
+         per_event_qty=EXCLUDED.per_event_qty, supplier=EXCLUDED.supplier, active=EXCLUDED.active
+       RETURNING *`,
+      [id, d.name, d.category, d.unit, d.onHand, d.reorderLevel, d.perGuest, d.perEventQty, d.supplier ?? null, d.active],
+    );
+    return rows[0];
+  });
+
+  // Restock (positive delta) or manual draw-down (negative); records the
+  // movement and updates on-hand stock.
+  app.post('/api/admin/consumables/:id/adjust', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const schema = z.object({
+      delta: z.number().int(),
+      reason: z.string().max(40).optional(),
+      eventId: z.string().optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    return withTransaction(async (db) => {
+      const { rows } = await db.query(
+        `UPDATE consumables SET on_hand = GREATEST(0, on_hand + $2) WHERE id = $1 RETURNING *`,
+        [id, p.data.delta],
+      );
+      if (!rows[0]) {
+        reply.status(404).send({ error: 'not_found' });
+        return;
+      }
+      await db.query(
+        `INSERT INTO consumable_usage (consumable_id, event_id, quantity, reason)
+         VALUES ($1,$2,$3,$4)`,
+        [id, p.data.eventId ?? null, -p.data.delta, p.data.reason ?? (p.data.delta >= 0 ? 'restock' : 'manual')],
+      );
+      return rows[0];
+    });
+  });
+
+  /* --------------------------- missing items ----------------------------- */
+
+  app.get('/api/admin/missing-items', async () => {
+    const { rows } = await pool.query(
+      `SELECT * FROM missing_items ORDER BY (status = 'requested') DESC, created_at DESC LIMIT 200`,
+    );
+    return rows;
+  });
+
+  app.post('/api/admin/missing-items', async (request, reply) => {
+    const schema = z.object({
+      item: z.string().trim().min(1).max(120),
+      quantity: z.number().int().min(1).default(1),
+      eventId: z.string().optional(),
+      supplier: z.string().max(120).optional(),
+      note: z.string().max(300).optional(),
+      reportedBy: z.string().max(80).optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
+    const d = p.data;
+    const { rows } = await pool.query(
+      `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, d.reportedBy ?? null],
+    );
+    return rows[0];
+  });
+
+  app.patch('/api/admin/missing-items/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const schema = z.object({ status: z.enum(['requested', 'ordered', 'received', 'cancelled']) });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { rows } = await pool.query(
+      `UPDATE missing_items SET status = $2 WHERE id = $1 RETURNING *`,
+      [id, p.data.status],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return rows[0];
+  });
+
   void recordPaymentEvent;
 }

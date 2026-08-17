@@ -347,3 +347,47 @@ CREATE INDEX IF NOT EXISTS notifications_pending_idx
 -- Sequences for the human-facing identifiers.
 CREATE SEQUENCE IF NOT EXISTS order_ref_seq START 1;
 CREATE SEQUENCE IF NOT EXISTS event_ref_seq START 187;
+
+-- ── Consumables inventory ────────────────────────────────────────────────
+-- Durable assets (machines, inflatables) live in inventory_assets and are
+-- double-booking-protected via inventory_holds. Consumables are single-use
+-- counted stock (plates, cups, cutlery, water) drawn down per event.
+CREATE TABLE IF NOT EXISTS consumables (
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  category       TEXT NOT NULL DEFAULT 'general',   -- plates | cups | cutlery | water | ...
+  unit           TEXT NOT NULL DEFAULT 'pcs',
+  on_hand        INT NOT NULL DEFAULT 0,
+  reorder_level  INT NOT NULL DEFAULT 0,
+  per_guest      BOOLEAN NOT NULL DEFAULT FALSE,     -- auto-deduct children_count per booking
+  per_event_qty  INT NOT NULL DEFAULT 0,             -- flat auto-deduction per booking
+  supplier       TEXT,
+  active         BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Every draw-down (auto on booking, or manual) — the audit behind on_hand.
+CREATE TABLE IF NOT EXISTS consumable_usage (
+  id             BIGSERIAL PRIMARY KEY,
+  consumable_id  TEXT NOT NULL REFERENCES consumables(id),
+  event_id       TEXT,
+  order_id       TEXT,
+  quantity       INT NOT NULL,                       -- negative = restock
+  reason         TEXT NOT NULL DEFAULT 'event',      -- event | manual | restock
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS consumable_usage_event_idx ON consumable_usage (event_id);
+
+-- Field team reports of missing / to-order items (#29).
+CREATE TABLE IF NOT EXISTS missing_items (
+  id           BIGSERIAL PRIMARY KEY,
+  item         TEXT NOT NULL,
+  quantity     INT NOT NULL DEFAULT 1,
+  event_id     TEXT,
+  supplier     TEXT,
+  status       TEXT NOT NULL DEFAULT 'requested',    -- requested | ordered | received | cancelled
+  reported_by  TEXT,
+  note         TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS missing_items_status_idx ON missing_items (status, created_at);
