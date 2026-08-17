@@ -161,6 +161,25 @@ export async function confirmBooking(
     }
   }
 
+  // Auto-draw single-use consumable stock for this booking. Deliberately
+  // constraint-free (INSERT..SELECT straight from consumables, GREATEST-clamped
+  // UPDATE) so it can never abort a confirmation: per-guest items draw the head
+  // count, flat items draw their per-event quantity.
+  const guests = cart.childrenCount ?? 0;
+  await db.query(
+    `INSERT INTO consumable_usage (consumable_id, event_id, order_id, quantity, reason)
+     SELECT id, $1, $2, (CASE WHEN per_guest THEN $3::int ELSE 0 END) + per_event_qty, 'event'
+       FROM consumables
+      WHERE active AND ((CASE WHEN per_guest THEN $3::int ELSE 0 END) + per_event_qty) > 0`,
+    [eventId, order.id, guests],
+  );
+  await db.query(
+    `UPDATE consumables
+        SET on_hand = GREATEST(0, on_hand - ((CASE WHEN per_guest THEN $1::int ELSE 0 END) + per_event_qty))
+      WHERE active AND ((CASE WHEN per_guest THEN $1::int ELSE 0 END) + per_event_qty) > 0`,
+    [guests],
+  );
+
   const serviceIds = cart.services.map((s) => s.serviceId);
   const hasInflatable = serviceIds.some(args.serviceIsInflatable);
   const hasFoodStation = serviceIds.some(args.serviceIsFoodStation);
