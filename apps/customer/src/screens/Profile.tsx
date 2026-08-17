@@ -2,9 +2,16 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Screen } from '../App';
 import { C, fredoka, Spinner } from '../ui';
+import { loadProfile } from '../profile';
 
 export function Profile({ go }: { go: (s: Screen) => void }) {
   const [events, setEvents] = useState<any[] | null>(null);
+  const profile = loadProfile();
+  const name = profile?.name?.trim() || 'Guest';
+  const initial = (name[0] || '☺').toUpperCase();
+  const subline = profile?.birthday
+    ? `🎂 Birthday ${new Date(profile.birthday).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`
+    : 'Complete your profile';
 
   useEffect(() => {
     api.events().then(setEvents).catch(() => setEvents([]));
@@ -19,13 +26,11 @@ export function Profile({ go }: { go: (s: Screen) => void }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 21,
           }}
         >
-          S
+          {initial}
         </div>
         <div>
-          <div style={fredoka(20)}>Sara Al Mansoori</div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
-            +971 50 ··· ··42 · sara@···.com
-          </div>
+          <div style={fredoka(20)}>{name}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{subline}</div>
         </div>
       </div>
 
