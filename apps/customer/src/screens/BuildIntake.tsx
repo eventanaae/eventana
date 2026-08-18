@@ -19,7 +19,7 @@ import { C, fredoka, PrimaryButton } from '../ui';
 // field — it is never sent to the server), so the format is free to change.
 const AGES: string[] = Array.from({ length: 15 }, (_, i) => String(i + 1)).concat('Adult');
 
-export function BuildIntake({ catalogue, draft, go, startBuild }: ScreenProps) {
+export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps) {
   // Pre-select only what the customer actually chose — never a default,
   // or the question would count as answered without being asked.
   const [type, setType] = useState<string | null>(
@@ -47,16 +47,16 @@ export function BuildIntake({ catalogue, draft, go, startBuild }: ScreenProps) {
         onClick={() => go('home')}
         style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0 }}
       >
-        ‹ Home
+        {t('common.home')}
       </button>
 
-      <div style={{ ...fredoka(24), marginTop: 8 }}>Let’s build your party ✨</div>
+      <div style={{ ...fredoka(24), marginTop: 8 }}>{t('intake.title')}</div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '4px 0 20px', lineHeight: 1.5 }}>
-        Two quick things and we’ll tailor everything to your celebration.
+        {t('intake.sub')}
       </div>
 
       {/* 1 — celebration type */}
-      <Question step={1} title="What are you celebrating?" />
+      <Question step={1} title={t('intake.q1')} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
         {catalogue.celebrationTypes.map((ev) => {
           const active = type === ev.id;
@@ -81,7 +81,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild }: ScreenProps) {
       </div>
 
       {/* 2 — exact age of the guest of honour */}
-      <Question step={2} title="How old is the guest of honour?" />
+      <Question step={2} title={t('intake.q2')} />
       <div
         className="scroll"
         style={{ display: 'flex', gap: 9, overflowX: 'auto', margin: '0 -22px', padding: '2px 22px 6px', marginBottom: 8 }}
@@ -107,19 +107,19 @@ export function BuildIntake({ catalogue, draft, go, startBuild }: ScreenProps) {
                 cursor: 'pointer',
               }}
             >
-              {a}
+              {isAdult ? t('intake.adult') : a}
             </button>
           );
         })}
       </div>
       <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '2px 0 26px', lineHeight: 1.5 }}>
         {age && age !== 'Adult'
-          ? `Turning ${age} — how exciting! 🎉`
-          : 'Swipe to pick the exact age.'}
+          ? t('intake.turning', { age })
+          : t('intake.swipeAge')}
       </div>
 
       <PrimaryButton disabled={!complete} onClick={start}>
-        {complete ? 'Start building' : 'Pick a celebration and age to continue'}
+        {complete ? t('intake.start') : t('intake.startDisabled')}
       </PrimaryButton>
     </div>
   );

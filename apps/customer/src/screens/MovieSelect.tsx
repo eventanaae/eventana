@@ -42,7 +42,7 @@ const MOVIES: Movie[] = [
   { id: 'sing', title: 'Sing', age: 'PG', g1: '#D9B8E8', g2: '#F7C948' },
 ];
 
-export function MovieSelect({ draft, update, go }: ScreenProps) {
+export function MovieSelect({ draft, update, go, t }: ScreenProps) {
   const selected = draft.movie;
 
   return (
@@ -52,11 +52,11 @@ export function MovieSelect({ draft, update, go }: ScreenProps) {
           onClick={() => go('package')}
           style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0 }}
         >
-          ‹ Back
+          {t('common.back')}
         </button>
-        <div style={{ ...fredoka(24), marginTop: 8 }}>Pick your movie 🍿</div>
+        <div style={{ ...fredoka(24), marginTop: 8 }}>{t('movie.title')}</div>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '4px 0 16px', lineHeight: 1.5 }}>
-          Choose the film for your cosy cinema night. Final availability is confirmed by the Eventana team.
+          {t('movie.sub')}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -105,7 +105,7 @@ export function MovieSelect({ draft, update, go }: ScreenProps) {
 
       <div style={{ position: 'sticky', bottom: 0, padding: '12px 16px', background: 'linear-gradient(transparent, rgba(255,253,250,.95) 30%)' }}>
         <PrimaryButton disabled={!selected} onClick={() => go('checkout')}>
-          {selected ? 'Continue to booking' : 'Pick a movie to continue'}
+          {selected ? t('movie.continue') : t('movie.pick')}
         </PrimaryButton>
       </div>
     </div>

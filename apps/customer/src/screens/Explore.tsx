@@ -1,7 +1,7 @@
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice } from '../ui';
 
-export function Explore({ catalogue, draft, update, go }: ScreenProps) {
+export function Explore({ catalogue, draft, update, go, t }: ScreenProps) {
   const isKids = draft.celebrationType === 'kids';
   const evLabel =
     catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType)?.label ?? 'Celebration';
@@ -12,11 +12,9 @@ export function Explore({ catalogue, draft, update, go }: ScreenProps) {
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
-      <div style={{ ...fredoka(24), marginBottom: 4 }}>{isKids ? evLabel : 'Explore Packages'}</div>
+      <div style={{ ...fredoka(24), marginBottom: 4 }}>{isKids ? evLabel : t('explore.title')}</div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 16 }}>
-        {isKids
-          ? 'Pick a theme, choose a ready-made package, or build your own.'
-          : 'Fixed packages — contents can’t be changed, but you can always add more.'}
+        {isKids ? t('explore.subKids') : t('explore.subFixed')}
       </div>
 
       <div className="scroll" style={{ display: 'flex', gap: 8, marginBottom: 18, overflowX: 'auto', paddingBottom: 2 }}>
@@ -53,24 +51,23 @@ export function Explore({ catalogue, draft, update, go }: ScreenProps) {
 
       {!isKids ? (
         <div style={{ background: C.pinkSoft, borderRadius: 22, padding: 20, textAlign: 'center' }}>
-          <div style={fredoka(16)}>{evLabel} packages are on the way ✨</div>
+          <div style={fredoka(16)}>{t('explore.comingTitle', { label: evLabel })}</div>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#a76f8d', margin: '6px 0 12px', lineHeight: 1.5 }}>
-            Eventana is curating fixed packages for this celebration. Meanwhile, build it your way —
-            backdrops, food stations &amp; more.
+            {t('explore.comingBody')}
           </div>
           <button
             onClick={() => go('build')}
             style={{ background: C.pink, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, padding: '12px 22px', borderRadius: 18, cursor: 'pointer' }}
           >
-            Build Your {evLabel}
+            {t('explore.buildYour', { label: evLabel })}
           </button>
         </div>
       ) : (
         <>
           {/* Browse Themes — pick a look first, or skip straight to a package */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-            <span style={fredoka(17)}>Browse Themes</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.faint }}>swipe →</span>
+            <span style={fredoka(17)}>{t('explore.browseThemes')}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.faint }}>{t('common.swipe')}</span>
           </div>
           <div className="scroll" style={{ display: 'flex', gap: 12, overflowX: 'auto', margin: '0 -22px 6px', padding: '0 22px 6px' }}>
             {kidsThemes.map((t) => {
@@ -96,13 +93,11 @@ export function Explore({ catalogue, draft, update, go }: ScreenProps) {
           </div>
           {draft.themeId && (
             <div style={{ margin: '2px 0 6px' }}>
-              <Notice tone="ok">
-                Theme selected — now pick a package below, or Build Your Own. You can fine-tune it later.
-              </Notice>
+              <Notice tone="ok">{t('explore.themeSelected')}</Notice>
             </div>
           )}
 
-          <div style={{ ...fredoka(17), margin: '20px 0 12px' }}>Ready-Made Packages</div>
+          <div style={{ ...fredoka(17), margin: '20px 0 12px' }}>{t('explore.readyMade')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {catalogue.packages.map((p) => {
             const chips = p.items.slice(0, 3).map((i) => i.name);
@@ -120,7 +115,7 @@ export function Explore({ catalogue, draft, update, go }: ScreenProps) {
                     {p.tag}
                   </span>
                   <span style={{ position: 'absolute', top: 12, right: 12, background: '#C7F2C2', color: '#2e7d4f', fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
-                    tabby · Easy Payment
+                    {t('explore.easyPay')}
                   </span>
                 </div>
                 <div style={{ padding: '15px 18px 17px' }}>
@@ -131,7 +126,7 @@ export function Explore({ catalogue, draft, update, go }: ScreenProps) {
                     </span>
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 10px' }}>
-                    {p.capacity} · {p.durationHours} hours · {p.items.length} items included
+                    {p.capacity} · {p.durationHours} {t('home.hours')} · {p.items.length} {t('explore.itemsIncluded')}
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {chips.map((c) => (
@@ -141,9 +136,7 @@ export function Explore({ catalogue, draft, update, go }: ScreenProps) {
                     ))}
                   </div>
                   <div style={{ marginTop: 11, fontSize: 11.5, fontWeight: 700, color: singleUnit ? C.yellowInk : C.green }}>
-                    {singleUnit
-                      ? '● Limited — includes a single-unit inflatable'
-                      : '● Available on your date'}
+                    {singleUnit ? t('explore.limited') : t('explore.available')}
                   </div>
                 </div>
               </div>
@@ -164,9 +157,9 @@ export function Explore({ catalogue, draft, update, go }: ScreenProps) {
               🎨
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={fredoka(15)}>Build Your Own Party</div>
+              <div style={fredoka(15)}>{t('explore.byoTitle')}</div>
               <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>
-                Prefer to customize? Hand-pick every service and make it yours.
+                {t('explore.byoSub')}
               </div>
             </div>
             <span style={{ color: C.pink, fontWeight: 700, fontSize: 18 }}>›</span>

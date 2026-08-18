@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet } from '../ui';
 
-export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
+export function PackageDetail({ catalogue, draft, update, go, t }: ScreenProps) {
   const pkg = catalogue.packages.find((p) => p.id === draft.packageId);
   const [detail, setDetail] = useState<
     { name: string; detail: string; assets: string[] } | null
@@ -42,7 +42,7 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
           </span>
         </div>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '5px 0 16px' }}>
-          {pkg.capacity} · {pkg.durationHours} hour event · Setup &amp; breakdown handled by Eventana
+          {pkg.capacity} · {pkg.durationHours} {t('pkg.hourEvent')} · {t('pkg.setupIncluded')}
         </div>
 
         {isSpa && (
@@ -61,8 +61,8 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
         </div>
 
         <div style={{ fontWeight: 700, fontSize: 15, margin: '16px 0 10px' }}>
-          What’s included{' '}
-          <span style={{ fontWeight: 600, fontSize: 11.5, color: C.muted }}>— tap any item for details</span>
+          {t('pkg.whatsIncluded')}{' '}
+          <span style={{ fontWeight: 600, fontSize: 11.5, color: C.muted }}>{t('pkg.tapForDetails')}</span>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -86,9 +86,9 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
 
         {pkg.hasCastleChoice && (
           <div style={{ marginTop: 22 }}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>Choose Your Bouncy Castle Color</div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{t('pkg.castleColor')}</div>
             <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 10px' }}>
-              Only colors available for your date are selectable.
+              {t('pkg.castleAvail')}
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               {catalogue.castleVariants.map((cv) => {
@@ -118,12 +118,12 @@ export function PackageDetail({ catalogue, draft, update, go }: ScreenProps) {
             disabled={pkg.hasCastleChoice && !draft.castleVariant}
           >
             {pkg.hasCastleChoice && !draft.castleVariant
-              ? 'Choose a castle colour to continue'
+              ? t('pkg.chooseCastle')
               : isMovie
-                ? 'Continue — Pick a Movie'
+                ? t('pkg.continueMovie')
                 : isSpa
-                  ? 'Continue — Booking Details'
-                  : 'Continue — Choose Theme'}
+                  ? t('pkg.continueBooking')
+                  : t('pkg.continueTheme')}
           </PrimaryButton>
         </div>
       </div>

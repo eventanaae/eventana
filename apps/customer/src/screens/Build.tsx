@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet } from '../ui';
 
-export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
+export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
   const [detail, setDetail] = useState<Catalogue['services'][number] | null>(null);
 
   const evLabel =
@@ -30,10 +30,9 @@ export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
   return (
     <div style={{ animation: 'rise .35s ease' }}>
       <div style={{ padding: '8px 22px 20px' }}>
-        <div style={{ ...fredoka(24), marginBottom: 4 }}>Build Your Own</div>
+        <div style={{ ...fredoka(24), marginBottom: 4 }}>{t('build.title')}</div>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 14 }}>
-          {evLabel} · Pick services individually. Reach AED {money(threshold)} in eligible services to
-          unlock 15% off.
+          {t('build.sub', { label: evLabel, aed: `${t('common.aed')} ${money(threshold)}` })}
         </div>
 
         {missing && (
@@ -44,8 +43,8 @@ export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
                 padding: '12px 15px', fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.5,
               }}
             >
-              More {evLabel} services coming from Eventana:{' '}
-              <span style={{ color: '#a76f8d' }}>{missing} — NEEDS EVENTANA ADMIN INPUT</span>
+              {t('build.moreComing', { label: evLabel })}{' '}
+              <span style={{ color: '#a76f8d' }}>{missing}</span>
             </div>
           </div>
         )}
@@ -53,13 +52,13 @@ export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
         {quote && !quote.discountUnlocked && quote.remainingToUnlockFils > 0 && (
           <div style={{ marginBottom: 14 }}>
             <Notice tone="warn">
-              Add AED {money(quote.remainingToUnlockFils)} more to unlock 15% off ✨
+              {t('build.addToUnlock', { aed: `${t('common.aed')} ${money(quote.remainingToUnlockFils)}` })}
             </Notice>
           </div>
         )}
         {quote?.discountUnlocked && (
           <div style={{ marginBottom: 14, background: C.pink, borderRadius: 16, padding: '11px 15px', fontSize: 12.5, fontWeight: 700, color: '#fff' }}>
-            15% OFF UNLOCKED 🎉 &nbsp;You’re saving AED {money(quote.discountFils)}
+            {t('build.unlocked', { aed: `${t('common.aed')} ${money(quote.discountFils)}` })}
           </div>
         )}
 
@@ -86,9 +85,9 @@ export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
                         ? (s.pricing.minQuantity ?? 1)
                         : 1;
                     const unitNote = perChild
-                      ? `per child · min ${minQty}`
+                      ? t('build.perChild', { n: minQty })
                       : perPiece && minQty > 1
-                        ? `each · min ${minQty}`
+                        ? t('build.eachMin', { n: minQty })
                         : s.badge ?? '';
 
                     return (
@@ -116,7 +115,7 @@ export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
                           </div>
                           {s.needsAdminReview && (
                             <div style={{ fontSize: 9.5, fontWeight: 700, color: C.yellowInk, marginTop: 2 }}>
-                              PRICE PENDING EVENTANA ADMIN
+                              {t('build.pricePending')}
                             </div>
                           )}
                         </div>
@@ -145,20 +144,20 @@ export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
         <div style={{ position: 'sticky', bottom: 0, padding: '0 14px 14px' }}>
           <div style={{ background: C.ink, borderRadius: 22, padding: '14px 18px', color: '#fff', boxShadow: '0 8px 24px rgba(59,54,65,.35)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: '#cfc4cc' }}>
-              <span>Your Party · {count} services</span>
-              <span>Eligible subtotal</span>
+              <span>{t('build.yourParty', { n: count })}</span>
+              <span>{t('build.eligibleSubtotal')}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 3, gap: 10 }}>
               <button
                 onClick={() => go('theme')}
                 style={{ background: C.pink, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, padding: '11px 18px', borderRadius: 16, cursor: 'pointer' }}
               >
-                Continue — Theme ›
+                {t('build.continueTheme')}
               </button>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700, fontSize: 18 }}>AED {money(eligible)}</div>
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{t('common.aed')} {money(eligible)}</div>
                 {quote?.discountUnlocked && (
-                  <div style={{ fontSize: 11, color: C.yellow, fontWeight: 700 }}>15% applied at checkout</div>
+                  <div style={{ fontSize: 11, color: C.yellow, fontWeight: 700 }}>{t('build.appliedAtCheckout')}</div>
                 )}
               </div>
             </div>
@@ -192,9 +191,7 @@ export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
                   <Notice tone="info">{catalogue.notices.activityMinimum}</Notice>
                 )}
                 {detail.needsAdminReview && (
-                  <Notice tone="warn">
-                    This price is awaiting confirmation from Eventana admin.
-                  </Notice>
+                  <Notice tone="warn">{t('build.pendingAdmin')}</Notice>
                 )}
               </div>
               <div style={{ marginTop: 18 }}>
@@ -208,7 +205,7 @@ export function Build({ catalogue, draft, update, quote, go }: ScreenProps) {
                     setDetail(null);
                   }}
                 >
-                  {draft.services[detail.id] ? 'Remove from my party' : 'Add to my party'}
+                  {draft.services[detail.id] ? t('build.removeFromParty') : t('build.addToParty')}
                 </PrimaryButton>
               </div>
             </div>

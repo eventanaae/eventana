@@ -8,6 +8,7 @@ export function Themes({
   update,
   go,
   custom,
+  t,
 }: ScreenProps & { custom: boolean }) {
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState('All');
@@ -36,8 +37,8 @@ export function Themes({
   if (custom) {
     return (
       <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
-        <button onClick={() => go('theme')} style={backStyle}>‹ Themes</button>
-        <div style={{ ...fredoka(24), marginTop: 8 }}>Custom Theme ✨</div>
+        <button onClick={() => go('theme')} style={backStyle}>{t('common.back')}</button>
+        <div style={{ ...fredoka(24), marginTop: 8 }}>{t('themes.customTitle')}</div>
 
         <div
           style={{
@@ -45,19 +46,18 @@ export function Themes({
             background: C.pinkSoft, borderRadius: 16, padding: '12px 16px', margin: '14px 0 12px',
           }}
         >
-          <span style={{ fontSize: 12.5, fontWeight: 700 }}>Custom Theme Design</span>
-          <span style={{ fontWeight: 700, color: C.pinkDeep }}>+ AED {money(feeFils)}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t('themes.customDesign')}</span>
+          <span style={{ fontWeight: 700, color: C.pinkDeep }}>+ {t('common.aed')} {money(feeFils)}</span>
         </div>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.55, marginBottom: 18 }}>
-          This theme isn’t part of Eventana’s standard collection, so our design team will create it
-          from scratch. The fee is never discounted and doesn’t count toward the 15% minimum.
+          {t('themes.customNote')}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[
-            ['theme', 'Requested theme (e.g. Butterfly Garden)'],
-            ['concept', 'Character or concept'],
-            ['colors', 'Preferred colors'],
+            ['theme', t('themes.phTheme')],
+            ['concept', t('themes.phConcept')],
+            ['colors', t('themes.phColors')],
           ].map(([key, placeholder]) => (
             <input
               key={key}
@@ -69,20 +69,20 @@ export function Themes({
           ))}
           <div style={{ display: 'flex', gap: 12 }}>
             <input
-              placeholder="Child's name"
+              placeholder={t('themes.phChild')}
               value={brief.child}
               onChange={(e) => setBrief({ ...brief, child: e.target.value })}
               style={{ ...inputStyle, flex: 1, minWidth: 0 }}
             />
             <input
-              placeholder="Age"
+              placeholder={t('themes.phAge')}
               value={brief.age}
               onChange={(e) => setBrief({ ...brief, age: e.target.value })}
               style={{ ...inputStyle, width: 80 }}
             />
           </div>
           <textarea
-            placeholder="Special requests"
+            placeholder={t('themes.phNotes')}
             rows={3}
             value={brief.notes}
             onChange={(e) => setBrief({ ...brief, notes: e.target.value })}
@@ -95,7 +95,7 @@ export function Themes({
             disabled={!brief.theme.trim()}
             onClick={() => { update({ customTheme: true, themeId: null, themeBrief: brief }); go('checkout'); }}
           >
-            Add Custom Theme · AED {money(feeFils)}
+            {t('themes.addCustom')} · {t('common.aed')} {money(feeFils)}
           </PrimaryButton>
         </div>
       </div>
@@ -104,14 +104,14 @@ export function Themes({
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
-      <button onClick={() => go(draft.packageId ? 'package' : 'build')} style={backStyle}>‹ Back</button>
-      <div style={{ ...fredoka(24), marginTop: 8, marginBottom: 4 }}>Choose Your Theme</div>
+      <button onClick={() => go(draft.packageId ? 'package' : 'build')} style={backStyle}>{t('common.back')}</button>
+      <div style={{ ...fredoka(24), marginTop: 8, marginBottom: 4 }}>{t('themes.chooseTheme')}</div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>
-        Standard Eventana themes are included — no extra charge.
+        {t('themes.included')}
       </div>
 
       <input
-        placeholder="Search themes…"
+        placeholder={t('themes.search')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         style={{ ...inputStyle, borderRadius: 16, marginBottom: 10 }}
@@ -142,7 +142,7 @@ export function Themes({
 
       {filtered.length === 0 && (
         <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: C.muted, padding: '14px 0' }}>
-          No themes match — try a different search, or create a custom theme below.
+          {t('themes.noMatch')}
         </div>
       )}
 
@@ -191,23 +191,23 @@ export function Themes({
         }}
       >
         <div style={{ fontFamily: "'Sacramento', cursive", fontSize: 22, color: C.pinkDeep, lineHeight: 1 }}>
-          Can’t find your theme?
+          {t('themes.cantFind')}
         </div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '6px 0 12px' }}>
-          Our design team will create it from scratch ·{' '}
-          <b style={{ color: C.pinkDeep }}>+ AED {money(feeFils)}</b>
+          {t('themes.willCreate')}{' '}
+          <b style={{ color: C.pinkDeep }}>+ {t('common.aed')} {money(feeFils)}</b>
         </div>
         <button
           onClick={() => go('custom')}
           style={{ background: C.pinkSoft, border: 'none', color: C.pinkDeep, fontWeight: 700, fontSize: 13, padding: '11px 20px', borderRadius: 16, cursor: 'pointer' }}
         >
-          Create a Custom Theme ✨
+          {t('themes.createCustom')}
         </button>
       </div>
 
       {(draft.themeId || draft.customTheme) && (
         <div style={{ marginTop: 20 }}>
-          <PrimaryButton onClick={() => go('checkout')}>Continue — Review &amp; Pay</PrimaryButton>
+          <PrimaryButton onClick={() => go('checkout')}>{t('themes.reviewPay')}</PrimaryButton>
         </div>
       )}
     </div>
