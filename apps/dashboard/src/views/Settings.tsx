@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { Badge, Button, C, money, Panel, Spinner, Td, Th } from '../ui';
+import { Badge, Button, C, money, Panel, Spinner } from '../ui';
 
 /**
  * Every rule Eventana operates by, editable here. The customer app reads
@@ -109,69 +109,47 @@ export function Settings() {
           Delivery is never discounted and never counts toward the Build Your Own minimum. Marking a
           zone unavailable blocks checkout for it entirely.
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <Th width={200}>Zone</Th>
-              <Th width={160}>Fee (AED)</Th>
-              <Th width={140}>Availability</Th>
-              <Th>Special conditions</Th>
-              <Th width={100} />
-            </tr>
-          </thead>
-          <tbody>
-            {data.deliveryZones.map((z: any) => (
-              <tr key={z.emirate}>
-                <Td style={{ color: C.ink, fontWeight: 700 }}>{z.zoneName}</Td>
-                <Td>
-                  <input
-                    value={zoneDraft[z.emirate] ?? ''}
-                    placeholder="—"
-                    onChange={(e) =>
-                      setZoneDraft({ ...zoneDraft, [z.emirate]: e.target.value.replace(/[^\d.]/g, '') })
-                    }
-                    style={{ ...inputStyle, width: 110, marginTop: 0 }}
-                  />
-                </Td>
-                <Td>
-                  <Badge tone={z.available ? 'ok' : 'error'}>
-                    {z.available ? 'Delivering' : 'Not serviced'}
-                  </Badge>
-                </Td>
-                <Td>{z.specialConditions ?? '—'}</Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <Button
-                      tone="ghost"
-                      style={{ padding: '6px 10px', fontSize: 11 }}
-                      onClick={async () => {
-                        const raw = zoneDraft[z.emirate];
-                        await api.saveZone(z.emirate, {
-                          feeFils: raw === '' ? null : Math.round(Number(raw) * 100),
-                        });
-                        setSaved(`${z.zoneName} delivery fee updated.`);
-                        load();
-                        setTimeout(() => setSaved(null), 4000);
-                      }}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      tone="ghost"
-                      style={{ padding: '6px 10px', fontSize: 11 }}
-                      onClick={async () => {
-                        await api.saveZone(z.emirate, { available: !z.available });
-                        load();
-                      }}
-                    >
-                      {z.available ? 'Stop' : 'Start'}
-                    </Button>
-                  </div>
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {data.deliveryZones.map((z: any) => (
+            <div key={z.emirate} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, color: C.ink }}>{z.zoneName}</span>
+                <Badge tone={z.available ? 'ok' : 'error'}>{z.available ? 'Delivering' : 'Not serviced'}</Badge>
+              </div>
+              {z.specialConditions && (
+                <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 4 }}>{z.specialConditions}</div>
+              )}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+                <input
+                  value={zoneDraft[z.emirate] ?? ''}
+                  placeholder="Fee (AED)"
+                  onChange={(e) => setZoneDraft({ ...zoneDraft, [z.emirate]: e.target.value.replace(/[^\d.]/g, '') })}
+                  style={{ ...inputStyle, flex: 1, minWidth: 0, marginTop: 0 }}
+                />
+                <Button
+                  tone="ghost"
+                  style={{ padding: '9px 14px', fontSize: 11.5 }}
+                  onClick={async () => {
+                    const raw = zoneDraft[z.emirate];
+                    await api.saveZone(z.emirate, { feeFils: raw === '' ? null : Math.round(Number(raw) * 100) });
+                    setSaved(`${z.zoneName} delivery fee updated.`);
+                    load();
+                    setTimeout(() => setSaved(null), 4000);
+                  }}
+                >
+                  Save
+                </Button>
+                <Button
+                  tone="ghost"
+                  style={{ padding: '9px 14px', fontSize: 11.5 }}
+                  onClick={async () => { await api.saveZone(z.emirate, { available: !z.available }); load(); }}
+                >
+                  {z.available ? 'Stop' : 'Start'}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
       </Panel>
 
       <Panel title="Integrations">

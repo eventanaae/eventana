@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { api } from '../api';
-import { Badge, Button, C, Panel, Spinner, Td, Th } from '../ui';
+import { Badge, Button, C, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
 
 const inp = (w: number): CSSProperties => ({
@@ -68,64 +68,36 @@ export function Inventory() {
           Reservation windows include prep, transport, setup, the event, breakdown, return and cleaning —
           not just the customer’s four hours. That is why a single asset can block a whole day.
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <Th>Asset</Th>
-              <Th width={110}>Variant</Th>
-              <Th width={70}>Units</Th>
-              <Th width={90}>Reserved</Th>
-              <Th width={70}>Held</Th>
-              <Th width={150}>Buffers</Th>
-              <Th width={120}>Status</Th>
-              <Th width={190}>Next commitments</Th>
-            </tr>
-          </thead>
-          <tbody>
+        {assets.length === 0 ? (
+          <Empty>No assets configured.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {assets.map((a) => (
-              <tr key={a.code}>
-                <Td style={{ color: C.ink, fontWeight: 700 }}>{a.name}</Td>
-                <Td>{a.variant ?? '—'}</Td>
-                <Td>{a.units}</Td>
-                <Td>{a.reserved}</Td>
-                <Td>{a.held}</Td>
-                <Td>−{a.buffer_before_minutes}m / +{a.buffer_after_minutes}m</Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <Badge tone={a.status === 'available' ? 'ok' : a.status === 'maintenance' ? 'warn' : 'error'}>
-                      {a.status}
-                    </Badge>
-                    <Button
-                      tone="ghost"
-                      style={{ padding: '5px 9px', fontSize: 11 }}
-                      onClick={async () => {
-                        await api.setAsset(a.code, {
-                          status: a.status === 'available' ? 'maintenance' : 'available',
-                        });
-                        load();
-                      }}
-                    >
+              <div key={a.code} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{a.name}{a.variant ? ` · ${a.variant}` : ''}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+                      {a.units} unit{a.units === 1 ? '' : 's'} · {a.reserved} reserved · {a.held} held · buffers −{a.buffer_before_minutes}m/+{a.buffer_after_minutes}m
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 'none' }}>
+                    <Badge tone={a.status === 'available' ? 'ok' : a.status === 'maintenance' ? 'warn' : 'error'}>{a.status}</Badge>
+                    <Button tone="ghost" style={{ padding: '5px 9px', fontSize: 11 }}
+                      onClick={async () => { await api.setAsset(a.code, { status: a.status === 'available' ? 'maintenance' : 'available' }); load(); }}>
                       {a.status === 'available' ? 'Hold' : 'Free'}
                     </Button>
                   </div>
-                </Td>
-                <Td>
-                  {!a.upcoming || a.upcoming.length === 0 ? (
-                    <span style={{ color: C.muted }}>Free</span>
-                  ) : (
-                    a.upcoming.slice(0, 2).map((u: any, i: number) => (
-                      <div key={i} style={{ fontSize: 11 }}>
-                        {u.eventId ?? u.orderId} ·{' '}
-                        {new Date(u.startsAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                      </div>
-                    ))
-                  )}
-                </Td>
-              </tr>
+                </div>
+                {a.upcoming && a.upcoming.length > 0 && (
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.lineSoft}` }}>
+                    Next: {a.upcoming.slice(0, 2).map((u: any) => `${u.eventId ?? u.orderId} · ${new Date(u.startsAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`).join('  ·  ')}
+                  </div>
+                )}
+              </div>
             ))}
-          </tbody>
-        </table>
-        {assets.length === 0 && <Empty>No assets configured.</Empty>}
+          </div>
+        )}
       </Panel>
 
       {/* ---------------- consumables ---------------- */}
@@ -134,43 +106,29 @@ export function Inventory() {
           Single-use stock, drawn down automatically when a booking confirms (per-guest items draw the
           head count). Restock or manually adjust below.
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <Th>Item</Th>
-              <Th width={90}>Category</Th>
-              <Th width={110}>On hand</Th>
-              <Th width={80}>Reorder</Th>
-              <Th width={100}>Auto-draw</Th>
-              <Th width={120}>Supplier</Th>
-              <Th width={150}>Adjust</Th>
-            </tr>
-          </thead>
-          <tbody>
+        {consumables.length === 0 ? (
+          <Empty>No consumables yet — add one below.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {consumables.map((c) => (
-              <tr key={c.id}>
-                <Td style={{ color: C.ink, fontWeight: 700 }}>{c.name}</Td>
-                <Td>{c.category}</Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span>{c.on_hand} {c.unit}</span>
+              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{c.name}</span>
                     {c.low_stock && <Badge tone="warn">low</Badge>}
                   </div>
-                </Td>
-                <Td>{c.reorder_level}</Td>
-                <Td>{c.per_guest ? 'per guest' : c.per_event_qty ? `${c.per_event_qty}/event` : '—'}</Td>
-                <Td>{c.supplier ?? '—'}</Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <Button tone="ghost" style={{ padding: '5px 9px', fontSize: 11 }} onClick={async () => { await api.adjustConsumable(c.id, 50, 'restock'); load(); }}>+50</Button>
-                    <Button tone="ghost" style={{ padding: '5px 9px', fontSize: 11 }} onClick={async () => { await api.adjustConsumable(c.id, -10, 'manual'); load(); }}>−10</Button>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+                    {c.on_hand} {c.unit} · reorder {c.reorder_level} · {c.per_guest ? 'per guest' : c.per_event_qty ? `${c.per_event_qty}/event` : '—'}{c.supplier ? ` · ${c.supplier}` : ''}
                   </div>
-                </Td>
-              </tr>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
+                  <Button tone="ghost" style={{ padding: '6px 10px', fontSize: 11 }} onClick={async () => { await api.adjustConsumable(c.id, 50, 'restock'); load(); }}>+50</Button>
+                  <Button tone="ghost" style={{ padding: '6px 10px', fontSize: 11 }} onClick={async () => { await api.adjustConsumable(c.id, -10, 'manual'); load(); }}>−10</Button>
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-        {consumables.length === 0 && <Empty>No consumables yet — add one below.</Empty>}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
           <input placeholder="Item name" value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} style={inp(150)} />
           <input placeholder="Category" value={nc.category} onChange={(e) => setNc({ ...nc, category: e.target.value })} style={inp(110)} />
@@ -186,41 +144,30 @@ export function Inventory() {
 
       {/* ---------------- missing items ---------------- */}
       <Panel title={`Missing items (${openMissing} open)`}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <Th>Item</Th>
-              <Th width={60}>Qty</Th>
-              <Th width={120}>Supplier</Th>
-              <Th width={110}>Status</Th>
-              <Th width={210}>Action</Th>
-            </tr>
-          </thead>
-          <tbody>
+        {missing.length === 0 ? (
+          <Empty>No missing items reported.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {missing.map((m: any) => (
-              <tr key={m.id}>
-                <Td style={{ color: C.ink, fontWeight: 700 }}>{m.item}</Td>
-                <Td>{m.quantity}</Td>
-                <Td>{m.supplier ?? '—'}</Td>
-                <Td>
-                  <Badge tone={m.status === 'received' ? 'ok' : m.status === 'cancelled' ? 'error' : 'warn'}>
-                    {m.status}
-                  </Badge>
-                </Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {['ordered', 'received', 'cancelled'].map((s) => (
-                      <Button key={s} tone="ghost" style={{ padding: '5px 9px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, s); load(); }}>
-                        {s}
-                      </Button>
-                    ))}
+              <div key={m.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{m.item} <span style={{ fontWeight: 600, color: C.muted }}>×{m.quantity}</span></div>
+                    {m.supplier && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>{m.supplier}</div>}
                   </div>
-                </Td>
-              </tr>
+                  <Badge tone={m.status === 'received' ? 'ok' : m.status === 'cancelled' ? 'error' : 'warn'}>{m.status}</Badge>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                  {['ordered', 'received', 'cancelled'].map((s) => (
+                    <Button key={s} tone="ghost" style={{ padding: '6px 11px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, s); load(); }}>
+                      {s}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-        {missing.length === 0 && <Empty>No missing items reported.</Empty>}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
           <input placeholder="Item" value={nm.item} onChange={(e) => setNm({ ...nm, item: e.target.value })} style={inp(160)} />
           <input placeholder="Qty" value={nm.quantity} onChange={(e) => setNm({ ...nm, quantity: e.target.value.replace(/\D/g, '') })} style={inp(70)} />
