@@ -15,6 +15,7 @@ import { pool } from '../db/pool.js';
 import { expireStaleHolds } from './inventory.js';
 import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
+import { sweepScheduledCampaigns } from './marketing.js';
 
 export interface ReconcileReport {
   expiredHolds: number;
@@ -76,6 +77,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
       });
     }
   }
+
+  // Send any marketing campaigns whose scheduled time has arrived. Non-fatal:
+  // a mail hiccup must never disturb payment reconciliation.
+  await sweepScheduledCampaigns().catch((err) => console.error('[marketing] sweep failed:', err));
 
   return report;
 }

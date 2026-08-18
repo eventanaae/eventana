@@ -468,3 +468,23 @@ CREATE TABLE IF NOT EXISTS staff_days_off (
 );
 CREATE INDEX IF NOT EXISTS days_off_member_idx ON staff_days_off (member_id, start_date);
 CREATE INDEX IF NOT EXISTS days_off_range_idx ON staff_days_off (start_date, end_date);
+
+-- ── Email marketing (#26) ────────────────────────────────────────────────
+-- Customers opt out here; campaigns send only to opted-in addresses. A
+-- campaign can be sent now or scheduled (a boot sweep sends due ones).
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_opt_out BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS email_campaigns (
+  id            BIGSERIAL PRIMARY KEY,
+  subject       TEXT NOT NULL,
+  body_html     TEXT NOT NULL,
+  audience      TEXT NOT NULL DEFAULT 'all',   -- all | past_customers | no_recent_booking
+  status        TEXT NOT NULL DEFAULT 'draft', -- draft | scheduled | sending | sent | failed
+  scheduled_for TIMESTAMPTZ,
+  sent_at       TIMESTAMPTZ,
+  recipient_count INT NOT NULL DEFAULT 0,
+  sent_count    INT NOT NULL DEFAULT 0,
+  created_by    TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS email_campaigns_status_idx ON email_campaigns (status, scheduled_for);

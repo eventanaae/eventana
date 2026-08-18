@@ -16,6 +16,8 @@ import { applyPaymentStatus, recordPaymentEvent } from '../domain/orders.js';
 import { withTransaction } from '../db/pool.js';
 import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
+import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
+import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 
 /**
  * Moves an event to the terminal Cancelled phase and stands its
@@ -110,6 +112,7 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/reconcile') ||
       path.startsWith('/api/admin/notifications') ||
       path.startsWith('/api/admin/alerts') ||
+      path.startsWith('/api/admin/marketing') ||
       path === '/api/admin/team' ||
       /^\/api\/admin\/orders\/[^/]+\/refund$/.test(path) ||
       /^\/api\/admin\/events\/[^/]+\/(cancel|reinstate)$/.test(path);
@@ -1295,6 +1298,93 @@ export async function adminRoutes(app: FastifyInstance) {
         needsReview: needsReview.rows[0].n,
       },
     };
+  });
+
+  /* ---------------------------- Email marketing --------------------------- */
+
+  app.get('/api/admin/marketing', async () => {
+    const [counts, campaigns] = await Promise.all([
+      audienceCounts(),
+      pool.query(
+        `SELECT id, subject, audience, status, scheduled_for, sent_at,
+                recipient_count, sent_count, created_at
+           FROM email_campaigns ORDER BY created_at DESC LIMIT 50`,
+      ),
+    ]);
+    return { emailConfigured: emailEnabled(), audiences: counts, campaigns: campaigns.rows };
+  });
+
+  app.post('/api/admin/marketing/campaigns', async (request, reply) => {
+    const schema = z.object({
+      subject: z.string().min(1).max(200),
+      bodyHtml: z.string().min(1).max(50_000),
+      audience: z.enum(['all', 'past_customers', 'no_recent_booking']).default('all'),
+      scheduledFor: z.string().datetime().optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    const d = parsed.data;
+    const status = d.scheduledFor ? 'scheduled' : 'draft';
+    const { rows } = await pool.query(
+      `INSERT INTO email_campaigns (subject, body_html, audience, status, scheduled_for, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [d.subject, d.bodyHtml, d.audience, status, d.scheduledFor ?? null, (request as any).staff?.name ?? 'Staff'],
+    );
+    return reply.status(201).send(rows[0]);
+  });
+
+  app.post('/api/admin/marketing/campaigns/:id/send', async (request, reply) => {
+    if (!emailEnabled()) {
+      return reply.status(409).send({
+        error: 'email_disabled',
+        message: 'Set RESEND_API_KEY (and EMAIL_FROM) in the server environment to send.',
+      });
+    }
+    const id = Number((request.params as { id: string }).id);
+    try {
+      const result = await sendCampaign(id);
+      return { ...result };
+    } catch (e) {
+      return reply.status(400).send({ error: 'send_failed', message: (e as Error).message });
+    }
+  });
+
+  app.patch('/api/admin/marketing/campaigns/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const schema = z.object({
+      scheduledFor: z.string().datetime().nullable().optional(),
+      status: z.enum(['draft', 'scheduled']).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const d = parsed.data;
+    const status = d.status ?? (d.scheduledFor ? 'scheduled' : undefined);
+    const { rows } = await pool.query(
+      `UPDATE email_campaigns
+          SET scheduled_for = COALESCE($2, scheduled_for),
+              status = COALESCE($3, status)
+        WHERE id = $1 AND status IN ('draft','scheduled') RETURNING *`,
+      [id, d.scheduledFor ?? null, status ?? null],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return rows[0];
+  });
+
+  app.delete('/api/admin/marketing/campaigns/:id', async (request) => {
+    const id = Number((request.params as { id: string }).id);
+    await pool.query(`DELETE FROM email_campaigns WHERE id = $1 AND status IN ('draft','scheduled','failed')`, [id]);
+    return { deleted: true };
+  });
+
+  /** Send a one-off test of a draft body to a single address. */
+  app.post('/api/admin/marketing/test', async (request, reply) => {
+    if (!emailEnabled()) return reply.status(409).send({ error: 'email_disabled' });
+    const schema = z.object({ to: z.string().email(), subject: z.string().min(1), bodyHtml: z.string().min(1) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const html = renderCampaignHtml(parsed.data.bodyHtml, `${config.publicApiUrl}/api/unsubscribe?c=preview&t=preview`);
+    const res = await sendEmail({ to: parsed.data.to, subject: `[TEST] ${parsed.data.subject}`, html });
+    return res.ok ? { ok: true } : reply.status(502).send({ error: 'send_failed', message: res.error });
   });
 
   /* ------------------------- consumables inventory ------------------------ */

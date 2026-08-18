@@ -19,6 +19,7 @@ import {
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { checkCalendarConnection } from '../integrations/googleCalendar.js';
+import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout } from '../domain/checkout.js';
 import { allProviders } from '../payments/index.js';
@@ -53,6 +54,21 @@ const cartSchema = z.object({
 export async function publicRoutes(app: FastifyInstance) {
   /** Ops probe: is the Google Calendar link actually working? Status only. */
   app.get('/api/calendar/check', async () => checkCalendarConnection());
+
+  /** One-click email unsubscribe (token-verified). Returns a small page. */
+  app.get('/api/unsubscribe', async (request, reply) => {
+    const { c, t } = request.query as { c?: string; t?: string };
+    const page = (msg: string) =>
+      reply.type('text/html').send(
+        `<!doctype html><html><body style="font-family:sans-serif;background:#faf6f2;color:#3B3641;text-align:center;padding:60px 20px">
+          <div style="font-size:22px;font-weight:800;color:#E94F9C">Eventana</div>
+          <p style="font-size:15px;margin-top:16px">${msg}</p>
+        </body></html>`,
+      );
+    if (!c || !t || !verifyUnsub(c, t)) return page('This unsubscribe link is invalid or expired.');
+    await pool.query(`UPDATE customers SET email_opt_out = TRUE WHERE id = $1`, [c]);
+    return page('You’ve been unsubscribed from Eventana emails. We’re sorry to see you go! 🎈');
+  });
 
   /** Everything the apps need to render the catalogue. */
   app.get('/api/catalogue', async () => {

@@ -158,6 +158,16 @@ export const api = {
   notifications: () => request<any[]>('/api/admin/notifications'),
   alerts: () => request<any>('/api/admin/alerts'),
 
+  marketing: () => request<any>('/api/admin/marketing'),
+  createCampaign: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/marketing/campaigns', { method: 'POST', body: JSON.stringify(body) }),
+  sendCampaign: (id: number) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}/send`, { method: 'POST' }),
+  deleteCampaign: (id: number) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}`, { method: 'DELETE' }),
+  testCampaign: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/marketing/test', { method: 'POST', body: JSON.stringify(body) }),
+
   kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
 
   finance: (month?: string) => request<any>(`/api/admin/finance${month ? `?month=${month}` : ''}`),

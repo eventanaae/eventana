@@ -155,6 +155,17 @@ export const config = {
     calendarId: env.GOOGLE_CALENDAR_ID ?? null,
   },
 
+  /**
+   * Transactional/marketing email (Resend). RESEND_API_KEY enables real
+   * sending; EMAIL_FROM is the verified sender. Absent → campaigns can be
+   * composed and queued but sending is a no-op (mode 'disabled').
+   */
+  email: {
+    resendApiKey: env.RESEND_API_KEY ?? null,
+    from: env.EMAIL_FROM ?? 'Eventana <onboarding@resend.dev>',
+    publicBaseUrl: toUrl(env.PUBLIC_API_URL ?? env.PUBLIC_API_HOST, 'http://localhost:4000'),
+  },
+
   providers: {
     tabby: providerConfig('tabby', {
       publicKey: env.TABBY_PUBLIC_KEY,
@@ -215,6 +226,7 @@ export function readinessSummary() {
     calendarConfigured: Boolean(
       config.googleCalendar.serviceAccountJson && config.googleCalendar.calendarId,
     ),
+    emailConfigured: Boolean(config.email.resendApiKey),
   };
 }
 
