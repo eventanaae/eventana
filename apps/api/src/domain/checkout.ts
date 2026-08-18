@@ -148,7 +148,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     serverQuote.lines.push(...applied.lines);
     serverQuote.discountFils += applied.totalFils;
     serverQuote.totalFils -= applied.totalFils;
-    (cart as Record<string, unknown>).appliedDiscounts = applied;
+    (cart as unknown as Record<string, unknown>).appliedDiscounts = applied;
   }
 
   // A method that is disabled (not production-ready) is never charged.
