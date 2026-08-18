@@ -17,13 +17,10 @@ interface Msg {
   escalated?: boolean;
 }
 
-export function Assistant({ draft, go, customerName }: ScreenProps) {
+export function Assistant({ draft, go, customerName, t }: ScreenProps) {
   const firstName = (customerName || '').trim().split(' ')[0];
   const [messages, setMessages] = useState<Msg[]>([
-    {
-      who: 'ai',
-      text: `Hi ${firstName || 'there'} ✨ I’m your Eventana event assistant. Ask me about packages, prices, availability or themes — I only quote what’s in Eventana’s system.`,
-    },
+    { who: 'ai', text: t('assistant.greeting', { name: firstName || t('common.friend') }) },
   ]);
   const [text, setText] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -38,10 +35,7 @@ export function Assistant({ draft, go, customerName }: ScreenProps) {
       const answer = await api.assistant(question, draft.celebrationType);
       setMessages((m) => [...m, { who: 'ai', text: answer.reply, escalated: answer.escalated }]);
     } catch {
-      setMessages((m) => [
-        ...m,
-        { who: 'ai', text: 'I couldn’t reach Eventana’s catalogue just now. Please try again.' },
-      ]);
+      setMessages((m) => [...m, { who: 'ai', text: t('assistant.unreachable') }]);
     } finally {
       setThinking(false);
       setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
@@ -55,7 +49,7 @@ export function Assistant({ draft, go, customerName }: ScreenProps) {
           onClick={() => go('home')}
           style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 6 }}
         >
-          ‹ Home
+          {t('common.home')}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <div
@@ -67,9 +61,9 @@ export function Assistant({ draft, go, customerName }: ScreenProps) {
             ✦
           </div>
           <div>
-            <div style={{ ...fredoka(19), lineHeight: 1.1 }}>Eventana Assistant</div>
+            <div style={{ ...fredoka(19), lineHeight: 1.1 }}>{t('assistant.title')}</div>
             <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>
-              Answers from Eventana’s live catalogue
+              {t('assistant.sub')}
             </div>
           </div>
         </div>
@@ -93,14 +87,14 @@ export function Assistant({ draft, go, customerName }: ScreenProps) {
             {m.text}
             {m.escalated && (
               <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 6, letterSpacing: '.3px' }}>
-                PASSED TO A HUMAN
+                {t('assistant.escalated')}
               </div>
             )}
           </div>
         ))}
         {thinking && (
           <div style={{ alignSelf: 'flex-start', fontSize: 12, fontWeight: 600, color: C.muted, padding: '4px 6px' }}>
-            Checking the catalogue…
+            {t('assistant.checking')}
           </div>
         )}
         <div ref={endRef} />
@@ -124,7 +118,7 @@ export function Assistant({ draft, go, customerName }: ScreenProps) {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
-            placeholder="Ask about packages, themes, availability…"
+            placeholder={t('assistant.placeholder')}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && send(text)}

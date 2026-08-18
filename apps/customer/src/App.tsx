@@ -16,6 +16,7 @@ import { Profile } from './screens/Profile';
 import { Onboarding } from './screens/Onboarding';
 import { MovieSelect } from './screens/MovieSelect';
 import { useProfile } from './profile';
+import { useLang, makeT, type Lang, type TFn } from './i18n';
 
 export type Screen =
   | 'home' | 'explore' | 'package' | 'buildIntake' | 'build' | 'theme' | 'custom'
@@ -131,6 +132,8 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
 
 export default function App() {
   const { profile, save: saveProfile } = useProfile();
+  const { lang, setLang } = useLang();
+  const t = useMemo(() => makeT(lang), [lang]);
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
   const [screen, setScreen] = useState<Screen>('home');
   const [draft, setDraft] = useState<Draft>(() => loadDraft() ?? emptyDraft);
@@ -261,36 +264,38 @@ export default function App() {
       reset,
       startBuild,
       customerName: profile?.name ?? '',
+      lang,
+      t,
     }),
-    [catalogue, draft, update, quote, go, reset, startBuild, profile?.name],
+    [catalogue, draft, update, quote, go, reset, startBuild, profile?.name, lang, t],
   );
 
   // First run: ask the customer's name and birthday before anything else.
   if (!profile) {
     return (
-      <Frame>
-        <Onboarding onDone={saveProfile} />
+      <Frame lang={lang}>
+        <Onboarding onDone={saveProfile} t={t} lang={lang} setLang={setLang} />
       </Frame>
     );
   }
 
   if (error) {
     return (
-      <Frame>
+      <Frame lang={lang}>
         <div style={{ padding: '60px 34px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <div style={{ fontSize: 40, marginBottom: 6 }}>🎈</div>
-          <div style={{ ...fredoka(21) }}>We couldn’t reach Eventana</div>
+          <div style={{ ...fredoka(21) }}>{t('error.title')}</div>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, margin: '8px 0 22px' }}>
-            Please check your connection and try again — your celebration plans are safe.
+            {t('error.body')}
           </div>
           <button
             onClick={() => { setError(null); api.catalogue().then(setCatalogue).catch((e) => setError(e.message)); }}
             style={{ background: C.pink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '13px 30px', borderRadius: 18, cursor: 'pointer' }}
           >
-            Try again
+            {t('common.tryAgain')}
           </button>
           <a href="https://wa.me/971564500777" style={{ marginTop: 14, fontSize: 12.5, fontWeight: 700, color: C.pinkDeep, textDecoration: 'none' }}>
-            Message us on WhatsApp →
+            {t('common.whatsapp')}
           </a>
         </div>
       </Frame>
@@ -299,23 +304,23 @@ export default function App() {
 
   if (!catalogue) {
     return (
-      <Frame>
-        <Spinner label="Loading Eventana…" />
+      <Frame lang={lang}>
+        <Spinner label={t('load.app')} />
       </Frame>
     );
   }
 
   const tabs: Array<{ id: Screen; label: string; icon: string }> = [
-    { id: 'home', label: 'Home', icon: '⌂' },
-    { id: 'explore', label: 'Explore', icon: '◎' },
-    { id: 'myevent', label: 'My Event', icon: '✦' },
-    { id: 'profile', label: 'Profile', icon: '☺' },
+    { id: 'home', label: t('nav.home'), icon: '⌂' },
+    { id: 'explore', label: t('nav.explore'), icon: '◎' },
+    { id: 'myevent', label: t('nav.myevent'), icon: '✦' },
+    { id: 'profile', label: t('nav.profile'), icon: '☺' },
   ];
 
   const showTabs = screen !== 'confirming';
 
   return (
-    <Frame>
+    <Frame lang={lang}>
       <div
         id="screen-scroll"
         className="scroll"
@@ -342,7 +347,7 @@ export default function App() {
           />
         )}
         {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} />}
-        {screen === 'profile' && <Profile go={go} onRebook={rebook} />}
+        {screen === 'profile' && <Profile go={go} onRebook={rebook} t={t} lang={lang} setLang={setLang} />}
       </div>
 
       {showTabs && (
@@ -390,9 +395,10 @@ export default function App() {
 }
 
 /** The phone frame. Full-bleed on a real phone, a device card on desktop. */
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children, lang = 'en' }: { children: React.ReactNode; lang?: Lang }) {
   return (
     <div
+      dir={lang === 'ar' ? 'rtl' : 'ltr'}
       style={{
         minHeight: '100dvh',
         display: 'flex',
@@ -446,4 +452,7 @@ export interface ScreenProps {
   startBuild: (answers: Partial<Draft>) => void;
   /** The name captured at first run, shown in greetings. */
   customerName: string;
+  /** Current language and its translator. */
+  lang: Lang;
+  t: TFn;
 }

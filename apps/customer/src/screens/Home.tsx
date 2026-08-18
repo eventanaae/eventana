@@ -1,9 +1,9 @@
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, SectionTitle } from '../ui';
 
-export function Home({ catalogue, draft, update, go, customerName }: ScreenProps) {
+export function Home({ catalogue, draft, update, go, customerName, t }: ScreenProps) {
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
   const firstName = (customerName || '').trim().split(' ')[0] || 'there';
   const initial = firstName.charAt(0).toUpperCase() || '☺';
   const popular = catalogue.packages.slice(0, 3);
@@ -57,13 +57,13 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
         <div style={{ position: 'absolute', top: -30, right: -30, width: 130, height: 130, borderRadius: '50%', background: 'rgba(255,255,255,.5)' }} />
         <div style={{ position: 'absolute', bottom: -44, right: 36, width: 80, height: 80, borderRadius: '50%', background: 'rgba(247,201,72,.28)' }} />
         <div style={{ position: 'relative', fontFamily: "'Sacramento', cursive", fontSize: 24, color: C.pinkDeep, lineHeight: 1 }}>
-          Eventana Parties
+          {t('home.brand')}
         </div>
         <div style={{ position: 'relative', ...fredoka(27), lineHeight: 1.15, marginTop: 4 }}>
-          Let’s Create Something Magical ✨
+          {t('home.hero')}
         </div>
         <div style={{ position: 'relative', fontSize: 12.5, fontWeight: 600, color: '#8b7d84', margin: '8px 0 18px' }}>
-          Cheers to love, music, and the magic of every moment.
+          {t('home.heroSub')}
         </div>
       </div>
 
@@ -72,22 +72,22 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
         <OptionCard
           icon="🎁"
           tint="linear-gradient(135deg,#FDE0EE,#F9C6DC)"
-          title="Explore Kids Packages"
-          sub="Ready-made setups — themed, priced & ready to book"
+          title={t('home.exploreTitle')}
+          sub={t('home.exploreSub')}
           onClick={() => go('explore')}
         />
         <OptionCard
           icon="🎨"
           tint="linear-gradient(135deg,#E9F8F5,#BDEBE4)"
-          title="Build Your Own Party"
-          sub="Hand-pick every detail and make it uniquely yours"
+          title={t('home.buildTitle')}
+          sub={t('home.buildSub')}
           onClick={() => go('build')}
         />
       </div>
 
-      <SectionTitle style={{ marginBottom: 4 }}>What Are You Celebrating? ✨</SectionTitle>
+      <SectionTitle style={{ marginBottom: 4 }}>{t('home.celebrating')}</SectionTitle>
       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12 }}>
-        We’ll tailor packages, services &amp; themes to your celebration.
+        {t('home.celebratingSub')}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {catalogue.celebrationTypes.map((ev) => (
@@ -113,9 +113,9 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '28px 0 14px' }}>
-        <span style={fredoka(19)}>Popular Packages</span>
+        <span style={fredoka(19)}>{t('home.popular')}</span>
         <a onClick={() => go('explore')} style={{ fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-          See all
+          {t('common.seeAll')}
         </a>
       </div>
       <div className="scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', margin: '0 -22px', padding: '0 22px 6px' }}>
@@ -133,7 +133,7 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
             <div style={{ padding: '13px 15px 15px' }}>
               <div style={fredoka(14.5)}>{p.name}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
-                {p.capacity} · {p.durationHours} hours
+                {p.capacity} · {p.durationHours} {t('home.hours')}
               </div>
               <div style={{ fontWeight: 700, fontSize: 15, color: C.pinkDeep }}>AED {money(p.priceFils)}</div>
             </div>
@@ -142,8 +142,8 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '26px 0 12px' }}>
-        <span style={fredoka(19)}>Trending Themes</span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.faint }}>swipe →</span>
+        <span style={fredoka(19)}>{t('home.trending')}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.faint }}>{t('common.swipe')}</span>
       </div>
       <div className="scroll" style={{ display: 'flex', gap: 12, overflowX: 'auto', margin: '0 -22px', padding: '0 22px 6px' }}>
         {trending.map((t) => (
@@ -162,9 +162,9 @@ export function Home({ catalogue, draft, update, go, customerName }: ScreenProps
           ✦
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 13.5 }}>Eventana AI Assistant</div>
+          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{t('home.assistant')}</div>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: '#7ba49e' }}>
-            “I have 30 kids and AED 5,000 — help me plan.”
+            {t('home.assistantEg')}
           </div>
         </div>
         <span style={{ color: C.mint, fontWeight: 700 }}>›</span>

@@ -3,17 +3,31 @@ import { api } from '../api';
 import type { Screen } from '../App';
 import { C, fredoka, Spinner } from '../ui';
 import { loadProfile } from '../profile';
+import { LangToggle } from '../LangToggle';
+import type { Lang, TFn } from '../i18n';
 
-export function Profile({ go, onRebook }: { go: (s: Screen) => void; onRebook: (eventId: string) => Promise<void> }) {
+export function Profile({
+  go,
+  onRebook,
+  t,
+  lang,
+  setLang,
+}: {
+  go: (s: Screen) => void;
+  onRebook: (eventId: string) => Promise<void>;
+  t: TFn;
+  lang: Lang;
+  setLang: (l: Lang) => void;
+}) {
   const [events, setEvents] = useState<any[] | null>(null);
   const [rebooking, setRebooking] = useState<string | null>(null);
   const [rewards, setRewards] = useState<Awaited<ReturnType<typeof api.rewards>> | null>(null);
   const profile = loadProfile();
-  const name = profile?.name?.trim() || 'Guest';
+  const name = profile?.name?.trim() || t('profile.guest');
   const initial = (name[0] || '☺').toUpperCase();
   const subline = profile?.birthday
-    ? `🎂 Birthday ${new Date(profile.birthday).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`
-    : 'Complete your profile';
+    ? `🎂 ${new Date(profile.birthday).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'long' })}`
+    : t('profile.completeProfile');
 
   useEffect(() => {
     api.events().then(setEvents).catch(() => setEvents([]));
@@ -31,29 +45,30 @@ export function Profile({ go, onRebook }: { go: (s: Screen) => void; onRebook: (
         >
           {initial}
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={fredoka(20)}>{name}</div>
           <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{subline}</div>
         </div>
+        <LangToggle lang={lang} setLang={setLang} />
       </div>
 
       <div style={{ background: 'linear-gradient(135deg,#5BCFC5,#3aa79d)', borderRadius: 24, padding: '20px 22px', color: '#fff', marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <span style={fredoka(17)}>Eventana Rewards ✨</span>
+          <span style={fredoka(17)}>{t('profile.rewards')}</span>
           <span style={{ background: 'rgba(255,255,255,.25)', fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 12, letterSpacing: '.4px' }}>
             {rewards?.tier ?? '—'}
           </span>
         </div>
         <div style={{ fontSize: 32, fontWeight: 700, margin: '12px 0 2px' }}>
           {rewards ? rewards.points.toLocaleString('en-US') : '—'}{' '}
-          <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>points</span>
+          <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>{t('profile.points')}</span>
         </div>
         <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.9 }}>
           {!rewards
-            ? 'Loading your rewards…'
+            ? t('profile.loadingRewards')
             : rewards.nextTier
-              ? `${rewards.pointsToNextTier.toLocaleString('en-US')} points to ${rewards.nextTier}`
-              : 'You’ve reached our top tier 🎉'}
+              ? `${rewards.pointsToNextTier.toLocaleString('en-US')} ${t('profile.points')} → ${rewards.nextTier}`
+              : t('profile.topTier')}
         </div>
         {rewards && rewards.nextTier && (
           <div style={{ height: 6, background: 'rgba(255,255,255,.25)', borderRadius: 3, marginTop: 10, overflow: 'hidden' }}>
@@ -61,13 +76,13 @@ export function Profile({ go, onRebook }: { go: (s: Screen) => void; onRebook: (
           </div>
         )}
         <div style={{ fontSize: 10.5, fontWeight: 600, opacity: 0.85, marginTop: 10 }}>
-          You earn {`1 point per AED`} on every booking. Redeem on an upcoming celebration — coming soon.
+          {t('profile.pointsToward')}
         </div>
       </div>
 
       {rewards && rewards.history.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 20, padding: '15px 18px', boxShadow: C.shadow, marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Points activity</div>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>{t('profile.activity')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {rewards.history.slice(0, 5).map((h, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
@@ -81,16 +96,16 @@ export function Profile({ go, onRebook }: { go: (s: Screen) => void; onRebook: (
         </div>
       )}
 
-      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>My Events</div>
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{t('profile.myEvents')}</div>
       {events === null ? (
         <Spinner />
       ) : events.length === 0 ? (
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
-          No bookings yet.{' '}
+          {t('profile.noBookings')}{' '}
           <a onClick={() => go('explore')} style={{ cursor: 'pointer' }}>
-            Explore packages
+            {t('profile.exploreToStart')}
           </a>{' '}
-          to get started.
+          {t('profile.toGetStarted')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -106,7 +121,7 @@ export function Profile({ go, onRebook }: { go: (s: Screen) => void; onRebook: (
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 12.5 }}>{e.packageName ?? 'Celebration'}</div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>
-                  {new Date(e.date).toDateString()} · {e.emirate} · AED {e.totalDisplay}
+                  {new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · {e.emirate} · {t('common.aed')} {e.totalDisplay}
                 </div>
               </div>
               <button
@@ -121,7 +136,7 @@ export function Profile({ go, onRebook }: { go: (s: Screen) => void; onRebook: (
                   opacity: rebooking === e.id ? 0.6 : 1,
                 }}
               >
-                {rebooking === e.id ? 'Opening…' : 'Book Again'}
+                {rebooking === e.id ? t('profile.opening') : t('profile.bookAgain')}
               </button>
             </div>
           ))}
