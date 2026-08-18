@@ -1,0 +1,36 @@
+# Keeps the Render free-tier API from spinning down.
+#
+# Render's free web services sleep after ~15 minutes of inactivity; the first
+# request then cold-starts (30–60s) and the apps show "Can't reach the Eventana
+# engine". A lightweight ping every ~10 minutes keeps the instance warm so the
+# dashboard and customer app always reach the API instantly.
+#
+# This is a best-effort free workaround. For a production ops app used during
+# live events, upgrading the API to a paid (always-on) plan is more reliable.
+name: Keep API warm
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # every 10 minutes (UTC)
+  workflow_dispatch: {}
+
+# Never let overlapping runs pile up.
+concurrency:
+  group: keep-api-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the API (wake it if asleep)
+        run: |
+          url="https://eventana-api.onrender.com/api/catalogue"
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 70 "$url" || echo 000)
+            echo "attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 15
+          done
+          echo "API did not respond 200 after retries"
+          exit 1
