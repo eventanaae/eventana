@@ -2,6 +2,10 @@
   "appId": "ae.eventana.customer",
   "appName": "Eventana",
   "webDir": "dist",
+  "server": {
+    "url": "https://app.eventanauae.com",
+    "cleartext": false
+  },
   "plugins": {
     "CapacitorHttp": { "enabled": true }
   }
