@@ -187,6 +187,8 @@ export const api = {
   kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
 
   finance: (month?: string) => request<any>(`/api/admin/finance${month ? `?month=${month}` : ''}`),
+  emailFinanceReport: (month?: string) =>
+    request<any>(`/api/admin/finance/report${month ? `?month=${month}` : ''}`, { method: 'POST' }),
   expenses: (month?: string) => request<any>(`/api/admin/expenses${month ? `?month=${month}` : ''}`),
   addExpense: (body: Record<string, unknown>) =>
     request<any>('/api/admin/expenses', { method: 'POST', body: JSON.stringify(body) }),

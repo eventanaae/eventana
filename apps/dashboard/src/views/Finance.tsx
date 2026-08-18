@@ -76,7 +76,20 @@ export function Finance() {
       <Panel
         title={`Finance — ${monthLabel(month)}`}
         action={
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button
+              onClick={async () => {
+                try {
+                  const r = await api.emailFinanceReport(month);
+                  alert(r.sent > 0 ? `Report emailed to ${r.sent} recipient(s).` : 'No recipients configured (set FINANCE_REPORT_TO or add manager emails).');
+                } catch (e: any) {
+                  alert(e?.message ?? 'Could not send the report.');
+                }
+              }}
+              style={{ ...navBtn, color: C.pinkDeep, borderColor: C.pink }}
+            >
+              ✉ Email report
+            </button>
             <button onClick={() => shift(-1)} style={navBtn}>‹</button>
             <button onClick={() => setMonth(`${now.getFullYear()}-${pad(now.getMonth() + 1)}`)} style={navBtn}>This month</button>
             <button onClick={() => shift(1)} style={navBtn}>›</button>
