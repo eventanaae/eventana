@@ -347,7 +347,7 @@ export default function App() {
             t={t}
           />
         )}
-        {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} />}
+        {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} t={t} lang={lang} />}
         {screen === 'profile' && <Profile go={go} onRebook={rebook} t={t} lang={lang} setLang={setLang} />}
       </div>
 
