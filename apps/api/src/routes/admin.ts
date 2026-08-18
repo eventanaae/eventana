@@ -18,6 +18,7 @@ import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
+import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
 
@@ -726,6 +727,21 @@ export async function adminRoutes(app: FastifyInstance) {
         profitDisplay: formatAed(t.profitFils),
       })),
     };
+  });
+
+  /** Send the finance report for a month now (default: last month). */
+  app.post('/api/admin/finance/report', async (request, reply) => {
+    if (!emailEnabled()) {
+      return reply.status(409).send({ error: 'email_disabled', message: 'Configure email to send reports.' });
+    }
+    const q = request.query as { month?: string };
+    const now = new Date();
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
+      ? q.month!
+      : `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    const result = await sendReport(monthStr);
+    return { month: monthStr, ...result };
   });
 
   /** Team reply in the event chat. The staff name shows; no phone number. */

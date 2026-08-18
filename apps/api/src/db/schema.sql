@@ -503,3 +503,15 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS device_tokens_token_idx ON device_tokens (token);
 CREATE INDEX IF NOT EXISTS device_tokens_owner_idx ON device_tokens (owner_type, owner_id);
+
+-- ── Monthly finance report (#31) ─────────────────────────────────────────
+-- Managers can receive a monthly finance summary by email. Staff emails let
+-- owner/manager members receive it; finance_reports dedupes the auto-send so
+-- the sweep mails each month exactly once.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS email TEXT;
+
+CREATE TABLE IF NOT EXISTS finance_reports (
+  month      TEXT PRIMARY KEY,            -- YYYY-MM
+  sent_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  recipients INT NOT NULL DEFAULT 0
+);

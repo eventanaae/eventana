@@ -16,6 +16,7 @@ import { expireStaleHolds } from './inventory.js';
 import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
 import { sweepScheduledCampaigns } from './marketing.js';
+import { sweepMonthlyReport } from './financeReport.js';
 
 export interface ReconcileReport {
   expiredHolds: number;
@@ -81,6 +82,9 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // Send any marketing campaigns whose scheduled time has arrived. Non-fatal:
   // a mail hiccup must never disturb payment reconciliation.
   await sweepScheduledCampaigns().catch((err) => console.error('[marketing] sweep failed:', err));
+
+  // Mail the previous month's finance report once the month turns over.
+  await sweepMonthlyReport().catch((err) => console.error('[finance-report] sweep failed:', err));
 
   return report;
 }
