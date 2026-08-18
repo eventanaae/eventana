@@ -344,6 +344,7 @@ export default function App() {
             orderId={orderId}
             onConfirmed={(id) => { setEventId(id); reset(); go('myevent'); }}
             onRetry={() => go('checkout')}
+            t={t}
           />
         )}
         {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} />}

@@ -22,6 +22,7 @@ export function Checkout({
   quote,
   go,
   onOrder,
+  t,
 }: ScreenProps & { onOrder: (orderId: string) => void }) {
   const [times, setTimes] = useState<Array<{ value: string; allowed: boolean }>>([]);
   const [paying, setPaying] = useState(false);
@@ -35,18 +36,8 @@ export function Checkout({
 
   // The booking captures who the party is FOR, separately from the account
   // holder, with wording that fits the celebration.
-  const eventForLabel =
-    (
-      {
-        kids: "Child's name",
-        graduation: "Graduate's name",
-        bride: "Bride's name",
-        baby: "Baby's name",
-        gender: 'Parents / baby name',
-        adult: 'Guest of honour name',
-        customc: 'Guest of honour / celebration name',
-      } as Record<string, string>
-    )[draft.celebrationType] ?? 'Guest of honour name';
+  const forKeys = ['kids', 'graduation', 'bride', 'baby', 'gender', 'adult'];
+  const eventForLabel = t(`checkout.for.${forKeys.includes(draft.celebrationType) ? draft.celebrationType : 'default'}`);
 
   const emailOk = /.+@.+\..+/.test(reg.email.trim());
   const authReady =
@@ -100,9 +91,7 @@ export function Checkout({
     try {
       const result = await api.checkout(toCart(draft), draft.provider);
       if (!result.eligible || !result.checkoutUrl) {
-        setError(
-          `${draft.provider} isn’t available for this booking. Please choose another payment method.`,
-        );
+        setError(t('checkout.providerUnavailable', { provider: draft.provider }));
         setPaying(false);
         return;
       }
@@ -121,12 +110,12 @@ export function Checkout({
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
-      <button onClick={() => go('theme')} style={backStyle}>‹ Back</button>
-      <div style={{ ...fredoka(24), margin: '8px 0 16px' }}>Your Celebration</div>
+      <button onClick={() => go('theme')} style={backStyle}>{t('common.back')}</button>
+      <div style={{ ...fredoka(24), margin: '8px 0 16px' }}>{t('checkout.title')}</div>
 
       {/* --------- who the celebration is for (not the account holder) --------- */}
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>Who is the celebration for?</div>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('checkout.forWho')}</div>
         <Field
           placeholder={eventForLabel}
           value={draft.eventFor}
@@ -136,9 +125,9 @@ export function Checkout({
 
       {/* ---------------- location ---------------- */}
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>Event location</div>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.location')}</div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 9 }}>
-          Delivery is calculated automatically from your emirate.
+          {t('checkout.deliveryAuto')}
         </div>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
           {catalogue.deliveryZones.map((z) => (
@@ -158,31 +147,31 @@ export function Checkout({
         ) : (
           zone?.feeFils != null && (
             <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: C.green }}>
-              Delivery to {zone.zoneName}: AED {money(zone.feeFils)}
+              {t('checkout.deliveryTo', { zone: zone.zoneName, aed: `${t('common.aed')} ${money(zone.feeFils)}` })}
             </div>
           )
         )}
 
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
           <Field
-            placeholder="Area (e.g. Jumeirah 1)"
+            placeholder={t('checkout.phArea')}
             value={draft.address.area}
             onChange={(v) => update({ address: { ...draft.address, area: v } })}
           />
           <div style={{ display: 'flex', gap: 9 }}>
             <Field
-              placeholder="Street"
+              placeholder={t('checkout.phStreet')}
               value={draft.address.street}
               onChange={(v) => update({ address: { ...draft.address, street: v } })}
             />
             <Field
-              placeholder="Villa / Building"
+              placeholder={t('checkout.phVilla')}
               value={draft.address.villa}
               onChange={(v) => update({ address: { ...draft.address, villa: v } })}
             />
           </div>
           <Field
-            placeholder="Additional location details (optional)"
+            placeholder={t('checkout.phDetails')}
             value={draft.address.details}
             onChange={(v) => update({ address: { ...draft.address, details: v } })}
           />
@@ -190,7 +179,7 @@ export function Checkout({
 
         <div style={{ marginTop: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 12.5, color: C.pinkDeep, marginBottom: 7 }}>
-            📍 Pin your exact event location — required
+            {t('checkout.pinRequired')}
           </div>
           <MapPicker
             mapsKey={catalogue.mapsKey}
@@ -204,7 +193,7 @@ export function Checkout({
           />
           {draft.mapPin && (
             <div style={{ fontSize: 10.5, fontWeight: 600, color: '#6fae95', marginTop: 6 }}>
-              Used for delivery, team routes &amp; live ETA
+              {t('checkout.pinUsed')}
             </div>
           )}
         </div>
@@ -215,19 +204,18 @@ export function Checkout({
           to yet. A short heads-up sets the expectation. */}
       {photoRows.length > 0 && (
         <div style={{ ...cardStyle, background: C.mintSoft }}>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>📸 Show us your setup spot after booking</div>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>{t('checkout.setupSpotTitle')}</div>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: '#5f8f86', margin: '4px 0 0', lineHeight: 1.5 }}>
-            Once your booking is confirmed, open <b>My Event</b> to snap where you’d like each item placed —
-            your team sees it before they arrive.
+            {t('checkout.setupSpotBody')}
           </div>
         </div>
       )}
 
       {/* ---------------- time ---------------- */}
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>Event time</div>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.eventTime')}</div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 9 }}>
-          Pick a start time — your 4-hour party ends automatically.
+          {t('checkout.pickStart')}
         </div>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
           {(times.length ? times : catalogue.startTimes.map((v) => ({ value: v, allowed: true }))).map((t) => (
@@ -260,7 +248,7 @@ export function Checkout({
         </div>
         <div style={{ marginTop: 10 }}>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 6 }}>
-            Number of children attending
+            {t('checkout.numChildren')}
           </div>
           <Field
             placeholder="25"
@@ -271,7 +259,7 @@ export function Checkout({
       </div>
 
       {/* Weather forecast for the chosen day + location (free, keyless). */}
-      <WeatherCard pin={draft.mapPin} date={draft.eventDate} />
+      <WeatherCard pin={draft.mapPin} date={draft.eventDate} t={t} />
 
       {/* ---------------- summary ---------------- */}
       <div style={cardStyle}>
@@ -292,23 +280,23 @@ export function Checkout({
         ))}
         <div style={{ borderTop: '1px solid #f6e7ef', margin: '9px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700 }}>
-          <span>Total</span>
-          <span>AED {quote ? money(quote.totalFils) : '—'}</span>
+          <span>{t('checkout.total')}</span>
+          <span>{t('common.aed')} {quote ? money(quote.totalFils) : '—'}</span>
         </div>
         {quote?.discountUnlocked && (
           <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: C.green }}>
-            You saved AED {money(quote.discountFils)} 🎉
+            {t('checkout.saved', { aed: `${t('common.aed')} ${money(quote.discountFils)}` })}
           </div>
         )}
       </div>
 
       {/* ---------------- account (required to confirm) ---------------- */}
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>Your account</div>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('checkout.yourAccount')}</div>
         {account ? (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>
-              ✓ Signed in as {account.name}
+              {t('checkout.signedInAs', { name: account.name })}
               <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>
                 {account.email} · {account.phone}
               </div>
@@ -320,24 +308,24 @@ export function Checkout({
               }}
               style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
             >
-              Sign out
+              {t('checkout.signOut')}
             </button>
           </div>
         ) : (
           <>
             <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 10 }}>
-              Create your account (or sign in) to confirm your booking. Your event details are kept.
+              {t('checkout.createOrSignin')}
             </div>
             {authMode === 'register' && (
-              <Field placeholder="Full name" value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
+              <Field placeholder={t('checkout.phFullName')} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
             )}
-            <Field placeholder="Email" value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
+            <Field placeholder={t('checkout.phEmail')} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
             {authMode === 'register' && (
-              <Field placeholder="Mobile number" value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
+              <Field placeholder={t('checkout.phMobile')} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
             )}
             <input
               type="password"
-              placeholder="Password"
+              placeholder={t('checkout.phPassword')}
               value={reg.password}
               onChange={(e) => setReg((r) => ({ ...r, password: e.target.value }))}
               style={{
@@ -352,11 +340,11 @@ export function Checkout({
               </div>
             )}
             <PrimaryButton disabled={!authReady || authBusy} onClick={submitAuth}>
-              {authBusy ? 'Please wait…' : authMode === 'register' ? 'Create account' : 'Sign in'}
+              {authBusy ? t('checkout.pleaseWait') : authMode === 'register' ? t('checkout.createAccount') : t('checkout.signin')}
             </PrimaryButton>
             <div style={{ textAlign: 'center', marginTop: 10, fontSize: 12, fontWeight: 700 }}>
               <span style={{ color: C.muted }}>
-                {authMode === 'register' ? 'Already have an account?' : 'New to Eventana?'}
+                {authMode === 'register' ? t('checkout.haveAccount') : t('checkout.newHere')}
               </span>{' '}
               <a
                 onClick={() => {
@@ -365,7 +353,7 @@ export function Checkout({
                 }}
                 style={{ cursor: 'pointer', color: C.pinkDeep }}
               >
-                {authMode === 'register' ? 'Sign in' : 'Create one'}
+                {authMode === 'register' ? t('checkout.signin') : t('checkout.createOne')}
               </a>
             </div>
           </>
@@ -373,7 +361,7 @@ export function Checkout({
       </div>
 
       {/* ---------------- payment ---------------- */}
-      <div style={{ fontWeight: 700, fontSize: 14, margin: '18px 0 10px' }}>Pay with</div>
+      <div style={{ fontWeight: 700, fontSize: 14, margin: '18px 0 10px' }}>{t('checkout.payWith')}</div>
       <div style={{ display: 'flex', gap: 9 }}>
         {catalogue.paymentMethods.map((pm) => {
           const active = draft.provider === pm.name;
@@ -406,12 +394,12 @@ export function Checkout({
       )}
       {!draft.mapPin && (
         <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
-          Map pin required to complete your booking
+          {t('checkout.mapPinRequired')}
         </div>
       )}
       {!account && (
         <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
-          Create your account above to confirm your booking
+          {t('checkout.createToConfirm')}
         </div>
       )}
       <div style={{ marginTop: 10, fontSize: 10.5, fontWeight: 600, color: C.faint, textAlign: 'center' }}>
@@ -420,7 +408,7 @@ export function Checkout({
 
       <div style={{ marginTop: 14 }}>
         <PrimaryButton disabled={!canPay} onClick={pay}>
-          {paying ? 'Opening secure checkout…' : `Pay AED ${quote ? money(quote.totalFils) : '—'}`}
+          {paying ? t('checkout.opening') : t('checkout.pay', { aed: `${t('common.aed')} ${quote ? money(quote.totalFils) : '—'}` })}
         </PrimaryButton>
       </div>
     </div>
@@ -428,7 +416,7 @@ export function Checkout({
 }
 
 /** Live weather forecast for the picked day + location. Free & keyless. */
-function WeatherCard({ pin, date }: { pin: { lat: number; lng: number } | null; date: string }) {
+function WeatherCard({ pin, date, t }: { pin: { lat: number; lng: number } | null; date: string; t: import('../i18n').TFn }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.weather>> | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -448,16 +436,16 @@ function WeatherCard({ pin, date }: { pin: { lat: number; lng: number } | null; 
 
   return (
     <div style={{ ...cardStyle, background: 'linear-gradient(135deg,#EAF6FF,#F3ECFB)' }}>
-      <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>Weather on your day 🌤️</div>
+      <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('checkout.weatherTitle')}</div>
       {loading ? (
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Checking the forecast…</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{t('checkout.weatherChecking')}</div>
       ) : !data?.available ? (
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
           {data?.reason === 'too_far'
-            ? 'Forecast opens closer to the date (about a week ahead) — we’ll show it then.'
+            ? t('checkout.weatherTooFar')
             : data?.reason === 'past'
-              ? 'That date has passed.'
-              : 'Forecast isn’t available for this spot right now.'}
+              ? t('checkout.weatherPast')
+              : t('checkout.weatherUnavailable')}
         </div>
       ) : (
         <div>
