@@ -17,8 +17,12 @@ async function main() {
   if ((process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() === 'true') {
     const { migrate } = await import('./db/migrate.js');
     const { seedIfEmpty } = await import('./db/seed.js');
+    const { seedTeamFromEnv } = await import('./db/seedTeam.js');
     await migrate();
     await seedIfEmpty();
+    // Load real staff + birthdays from TEAM_SEED (kept in the environment,
+    // never the repo). No-op when the variable is unset.
+    await seedTeamFromEnv();
   }
 
   const app = await buildServer();
