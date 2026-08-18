@@ -129,6 +129,14 @@ const en: Dict = {
   'assistant.placeholder': 'Ask about packages, themes, availability…',
   'assistant.escalated': 'PASSED TO A HUMAN',
   'assistant.unreachable': 'I couldn’t reach Eventana’s catalogue just now. Please try again.',
+  'plan.title': 'Plan my party for me ✨',
+  'plan.sub': 'Tell me your budget and head count — I’ll build a plan you can book.',
+  'plan.budget': 'Budget (AED)',
+  'plan.kids': 'Guests',
+  'plan.build': 'Build my plan',
+  'plan.building': 'Planning…',
+  'plan.addToCart': 'Add this to my cart →',
+  'plan.estTotal': 'Estimated',
 
   // explore
   'explore.title': 'Explore Packages',
@@ -466,6 +474,14 @@ const ar: Dict = {
   'assistant.placeholder': 'اسأل عن الباقات، الثيمات، التوفّر…',
   'assistant.escalated': 'حُوّلت إلى موظف',
   'assistant.unreachable': 'تعذّر الوصول لكتالوج Eventana الآن. حاول مرة أخرى.',
+  'plan.title': 'خطّط لي مناسبتي ✨',
+  'plan.sub': 'قل لي ميزانيتك وعدد الحضور — وأبني لك خطة جاهزة للحجز.',
+  'plan.budget': 'الميزانية (درهم)',
+  'plan.kids': 'الحضور',
+  'plan.build': 'ابنِ خطتي',
+  'plan.building': 'جارٍ التخطيط…',
+  'plan.addToCart': 'أضف هذا إلى سلتي →',
+  'plan.estTotal': 'تقديري',
 
   // explore
   'explore.title': 'تصفّح الباقات',

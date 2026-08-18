@@ -228,4 +228,11 @@ export const api = {
       '/api/assistant',
       { method: 'POST', body: JSON.stringify({ question, celebrationType }) },
     ),
+
+  plan: (body: { celebrationType: string; childrenCount: number; budgetFils?: number | null; age?: string }) =>
+    request<{
+      kind: string; celebrationType: string; packageId: string | null;
+      services: Record<string, number>; themeId: string | null; themeName: string | null;
+      estTotalFils: number; summary: string;
+    }>('/api/plan', { method: 'POST', body: JSON.stringify(body) }),
 };

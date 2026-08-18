@@ -385,6 +385,96 @@ export async function publicRoutes(app: FastifyInstance) {
     };
   });
 
+  /**
+   * AI party planner — a real, deterministic recommender over the live
+   * catalogue (same philosophy as the assistant: never invents a price). Given
+   * a celebration, head count and budget it returns a concrete proposal the
+   * app can drop straight into the cart: a package when one fits, otherwise a
+   * budget-fitted Build-Your-Own bundle that reaches the 15% threshold when it
+   * can. A matching theme is included.
+   */
+  app.post('/api/plan', async (request, reply) => {
+    const schema = z.object({
+      celebrationType: z.enum(['kids', 'graduation', 'bride', 'baby', 'gender', 'adult', 'customc']).default('kids'),
+      childrenCount: z.number().int().min(1).max(500).default(20),
+      budgetFils: z.number().int().min(0).nullable().optional(),
+      age: z.string().max(20).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { celebrationType, childrenCount, budgetFils, age } = parsed.data;
+    const cfg = await loadConfig();
+    const budget = budgetFils && budgetFils > 0 ? budgetFils : Number.MAX_SAFE_INTEGER;
+
+    const costOf = (s: any) =>
+      s.pricing?.kind === 'per_child'
+        ? s.priceFils * Math.max(childrenCount, s.pricing.minChildren ?? 1)
+        : s.pricing?.kind === 'per_piece'
+          ? s.priceFils * (s.pricing.minQuantity ?? 1)
+          : s.priceFils;
+    const qtyOf = (s: any) =>
+      s.pricing?.kind === 'per_child' ? childrenCount : (s.pricing?.minQuantity ?? 1);
+
+    const { rows: themeRows } = await pool.query(
+      `SELECT id, name FROM themes WHERE active AND celebration_type = $1 ORDER BY popular DESC, sort_order LIMIT 1`,
+      [celebrationType],
+    );
+    const theme = themeRows[0] ?? null;
+
+    // 1) A ready-made package (kids) that fits — the fullest within budget.
+    const pkg = [...cfg.packages.values()]
+      .filter((p) => p.priceFils <= budget)
+      .sort((a, b) => b.priceFils - a.priceFils)[0];
+    if (celebrationType === 'kids' && pkg) {
+      return {
+        kind: 'package',
+        celebrationType,
+        packageId: pkg.id,
+        services: {},
+        themeId: theme?.id ?? null,
+        themeName: theme?.name ?? null,
+        estTotalFils: pkg.priceFils,
+        summary: `${pkg.name} — ${pkg.capacity}, ${pkg.durationHours}h, setup handled by Eventana. Fits your budget with room for extras.`,
+      };
+    }
+
+    // 2) Build-Your-Own bundle, greedy within budget.
+    const eligible = [...cfg.services.values()]
+      .filter((s) => !s.needsAdminReview)
+      .filter((s) => !s.celebrationTypes || s.celebrationTypes.includes(celebrationType));
+    const chosen: Record<string, number> = {};
+    let total = 0;
+    const tryAdd = (pred: (s: any) => boolean) => {
+      const cand = eligible.filter((s) => pred(s) && !chosen[s.id]).sort((a, b) => costOf(a) - costOf(b));
+      for (const s of cand) {
+        if (total + costOf(s) <= budget) { chosen[s.id] = qtyOf(s); total += costOf(s); return true; }
+      }
+      return false;
+    };
+    tryAdd((s) => /backdrop/i.test(s.name));
+    tryAdd((s) => s.pricing?.kind === 'per_child'); // an activity
+    tryAdd((s) => s.isFoodStation);
+    const threshold = (cfg.rules as any).byoDiscountThresholdFils ?? 250_000;
+    let guard = 0;
+    while (total < Math.min(budget, threshold) && guard++ < 10) {
+      if (!tryAdd(() => true)) break;
+    }
+
+    return {
+      kind: 'byo',
+      celebrationType,
+      packageId: null,
+      services: chosen,
+      themeId: theme?.id ?? null,
+      themeName: theme?.name ?? null,
+      estTotalFils: total,
+      summary:
+        Object.keys(chosen).length > 0
+          ? `A custom ${childrenCount}-child celebration${age ? ` for age ${age}` : ''} — ${Object.keys(chosen).length} services${total >= threshold ? ', which unlocks 15% off' : ''}.`
+          : 'Tell me a little more budget and I’ll put a party together.',
+    };
+  });
+
   /* --------------------------- customer accounts ------------------------ */
   // Simple, additive self-service accounts. These do not change the checkout
   // contract: checkout still takes a customerId — registration just creates a
