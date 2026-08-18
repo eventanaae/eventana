@@ -449,3 +449,22 @@ CREATE TABLE IF NOT EXISTS expenses (
 );
 CREATE INDEX IF NOT EXISTS expenses_spent_idx ON expenses (spent_on);
 CREATE INDEX IF NOT EXISTS expenses_category_idx ON expenses (category, spent_on);
+
+-- ── Staff scheduling: days off & birthdays (#28) ─────────────────────────
+-- Birthdays live on the member; the team sees whose is coming up. Days off
+-- are date ranges the calendar layers on top of events so nobody is rostered
+-- while away. Managers approve; the crew can request.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS birthday DATE;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS phone TEXT;
+
+CREATE TABLE IF NOT EXISTS staff_days_off (
+  id         BIGSERIAL PRIMARY KEY,
+  member_id  TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  start_date DATE NOT NULL,
+  end_date   DATE NOT NULL,
+  reason     TEXT,
+  status     TEXT NOT NULL DEFAULT 'approved',  -- requested | approved | denied
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS days_off_member_idx ON staff_days_off (member_id, start_date);
+CREATE INDEX IF NOT EXISTS days_off_range_idx ON staff_days_off (start_date, end_date);

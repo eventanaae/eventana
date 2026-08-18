@@ -850,6 +850,140 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows;
   });
 
+  /* ------------------- Staff scheduling (days off & birthdays) ------------- */
+
+  /** Owner/manager: set a member's birthday, phone or colour. */
+  app.patch('/api/admin/team/:id/profile', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const schema = z.object({
+      birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      phone: z.string().max(40).nullable().optional(),
+      color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const d = parsed.data;
+    const { rows } = await pool.query(
+      `UPDATE team_members SET
+         birthday = COALESCE($2, birthday),
+         phone = COALESCE($3, phone),
+         color = COALESCE($4, color)
+       WHERE id = $1 RETURNING *`,
+      [id, d.birthday ?? null, d.phone ?? null, d.color ?? null],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return rows[0];
+  });
+
+  /** Roster overlay for a month: days off + birthdays, for the calendar. */
+  app.get('/api/admin/team-schedule', async (request) => {
+    const q = request.query as { month?: string };
+    const now = new Date();
+    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
+      ? q.month!
+      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const start = `${monthStr}-01`;
+    const endD = new Date(`${start}T00:00:00Z`);
+    endD.setUTCMonth(endD.getUTCMonth() + 1);
+    const end = endD.toISOString().slice(0, 10);
+    const monthNum = Number(monthStr.split('-')[1]);
+
+    const [off, birthdays] = await Promise.all([
+      pool.query(
+        `SELECT d.id, d.member_id, m.name AS member_name, m.color, d.start_date, d.end_date,
+                d.reason, d.status
+           FROM staff_days_off d JOIN team_members m ON m.id = d.member_id
+          WHERE d.start_date < $2 AND d.end_date >= $1
+          ORDER BY d.start_date`,
+        [start, end],
+      ),
+      pool.query(
+        `SELECT id, name, color, birthday,
+                extract(day from birthday)::int AS day
+           FROM team_members
+          WHERE active AND birthday IS NOT NULL AND extract(month from birthday) = $1
+          ORDER BY extract(day from birthday)`,
+        [monthNum],
+      ),
+    ]);
+
+    return {
+      month: monthStr,
+      daysOff: off.rows,
+      birthdays: birthdays.rows.map((b) => ({
+        ...b,
+        date: `${monthStr}-${String(b.day).padStart(2, '0')}`,
+      })),
+    };
+  });
+
+  /** Record a day off. Crew can request their own; managers add approved. */
+  app.post('/api/admin/days-off', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string; role: string };
+    const schema = z.object({
+      memberId: z.string().optional(),
+      startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      reason: z.string().max(300).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    if (parsed.data.endDate < parsed.data.startDate) {
+      return reply.status(400).send({ error: 'invalid_range', message: 'End date is before start date.' });
+    }
+
+    const isManager = staff.role === 'owner' || staff.role === 'manager';
+    // Employees may only request their own leave; managers set any member's.
+    const memberId = isManager ? parsed.data.memberId : staff.id;
+    if (!memberId) return reply.status(400).send({ error: 'member_required' });
+    const status = isManager ? 'approved' : 'requested';
+
+    const { rows } = await pool.query(
+      `INSERT INTO staff_days_off (member_id, start_date, end_date, reason, status)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [memberId, parsed.data.startDate, parsed.data.endDate, parsed.data.reason ?? null, status],
+    );
+    // Let managers see a new leave request land.
+    if (status === 'requested') {
+      await pool.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES (NULL,'ops_alert','leave_requested', now(), $1)`,
+        [JSON.stringify({ memberId, startDate: parsed.data.startDate, endDate: parsed.data.endDate })],
+      );
+    }
+    return reply.status(201).send(rows[0]);
+  });
+
+  /** Owner/manager: approve/deny a leave request. */
+  app.patch('/api/admin/days-off/:id', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const id = Number((request.params as { id: string }).id);
+    const schema = z.object({ status: z.enum(['requested', 'approved', 'denied']) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { rows } = await pool.query(
+      `UPDATE staff_days_off SET status = $2 WHERE id = $1 RETURNING *`,
+      [id, parsed.data.status],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return rows[0];
+  });
+
+  app.delete('/api/admin/days-off/:id', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string; role: string };
+    const id = Number((request.params as { id: string }).id);
+    // Managers delete any; a member may withdraw their own request.
+    if (staff.role === 'owner' || staff.role === 'manager') {
+      await pool.query(`DELETE FROM staff_days_off WHERE id = $1`, [id]);
+    } else {
+      await pool.query(`DELETE FROM staff_days_off WHERE id = $1 AND member_id = $2`, [id, staff.id]);
+    }
+    return { deleted: true };
+  });
+
   /* ---------------------------- Settings -------------------------- */
 
   app.get('/api/admin/settings', async () => {

@@ -19,12 +19,19 @@ const navBtn: CSSProperties = {
 
 export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void }) {
   const [events, setEvents] = useState<any[] | null>(null);
+  const [schedule, setSchedule] = useState<any>(null);
   const now = new Date();
   const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() });
 
   useEffect(() => {
     void api.events().then(setEvents);
   }, []);
+
+  const monthStr = `${ym.y}-${pad(ym.m + 1)}`;
+  useEffect(() => {
+    // Roster overlay is manager/employee-only; ignore a 403 for drivers.
+    void api.teamSchedule(monthStr).then(setSchedule).catch(() => setSchedule(null));
+  }, [monthStr]);
 
   const byDate = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -34,6 +41,29 @@ export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void 
     });
     return map;
   }, [events]);
+
+  // Which members are off on a given day, and whose birthday it is.
+  const offByDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    (schedule?.daysOff ?? []).forEach((d: any) => {
+      if (d.status === 'denied') return;
+      const s = new Date(String(d.start_date).slice(0, 10) + 'T00:00:00');
+      const e = new Date(String(d.end_date).slice(0, 10) + 'T00:00:00');
+      for (let dt = new Date(s); dt <= e; dt.setDate(dt.getDate() + 1)) {
+        const key = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+        (map[key] ||= []).push(d);
+      }
+    });
+    return map;
+  }, [schedule]);
+
+  const bdayByDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    (schedule?.birthdays ?? []).forEach((b: any) => {
+      (map[b.date] ||= []).push(b);
+    });
+    return map;
+  }, [schedule]);
 
   if (!events) return <Spinner />;
 
@@ -75,6 +105,8 @@ export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void 
           if (d === null) return <div key={i} />;
           const key = `${ym.y}-${pad(ym.m + 1)}-${pad(d)}`;
           const evs = byDate[key] ?? [];
+          const off = offByDate[key] ?? [];
+          const bdays = bdayByDate[key] ?? [];
           const isToday = key === todayKey;
           return (
             <div
@@ -88,7 +120,27 @@ export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void 
                 overflow: 'hidden',
               }}
             >
-              <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? C.pink : C.ink, marginBottom: 3 }}>{d}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? C.pink : C.ink }}>{d}</span>
+                {bdays.map((b: any) => (
+                  <span key={b.id} title={`${b.name}'s birthday 🎂`} style={{ fontSize: 11 }}>🎂</span>
+                ))}
+              </div>
+              {off.map((o: any) => (
+                <div
+                  key={`off-${o.id}`}
+                  title={`${o.member_name} off${o.reason ? ` · ${o.reason}` : ''}${o.status === 'requested' ? ' (requested)' : ''}`}
+                  style={{
+                    fontSize: 9, fontWeight: 700, color: '#8a7f86',
+                    background: o.status === 'requested' ? '#f5efe9' : '#efe7f2',
+                    border: `1px dashed ${o.status === 'requested' ? C.line : '#d9c7e6'}`,
+                    borderRadius: 5, padding: '1px 4px', marginBottom: 2,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}
+                >
+                  🌴 {o.member_name}{o.status === 'requested' ? '?' : ''}
+                </div>
+              ))}
               {evs.slice(0, 3).map((e) => (
                 <div
                   key={e.id}
@@ -119,8 +171,8 @@ export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void 
         })}
       </div>
       <div style={{ marginTop: 12, fontSize: 11.5, fontWeight: 600, color: C.muted }}>
-        {events.length} events loaded · tap an event to open it. Staff days off, birthdays and holidays
-        will appear here as they’re added.
+        {events.length} events · tap one to open it. 🌴 = staff day off (dashed = requested) · 🎂 = birthday.
+        Manage days off &amp; birthdays from the Team tab.
       </div>
     </Panel>
   );

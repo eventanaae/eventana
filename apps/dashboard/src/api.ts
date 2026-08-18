@@ -127,6 +127,16 @@ export const api = {
       body: JSON.stringify({ accessLevel, rotateToken }),
     }),
   myEvents: () => request<any[]>('/api/admin/my-events'),
+  setTeamProfile: (id: string, patch: Record<string, unknown>) =>
+    request<any>(`/api/admin/team/${id}/profile`, { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  teamSchedule: (month?: string) =>
+    request<any>(`/api/admin/team-schedule${month ? `?month=${month}` : ''}`),
+  addDayOff: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/days-off', { method: 'POST', body: JSON.stringify(body) }),
+  setDayOffStatus: (id: number, status: string) =>
+    request<any>(`/api/admin/days-off/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deleteDayOff: (id: number) => request<any>(`/api/admin/days-off/${id}`, { method: 'DELETE' }),
 
   settings: () => request<any>('/api/admin/settings'),
   saveRules: (patch: Record<string, unknown>) =>

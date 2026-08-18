@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, hasStaffToken, setStaffToken, clearStaffToken } from './api';
 import { C, fredoka } from './ui';
 import { Today } from './views/Today';
+import { MyEvents } from './views/MyEvents';
 import { Calendar } from './views/Calendar';
 import { Events } from './views/Events';
 import { Inventory } from './views/Inventory';
@@ -11,10 +12,11 @@ import { Kpis } from './views/Kpis';
 import { Finance } from './views/Finance';
 import { Settings } from './views/Settings';
 
-export type View = 'today' | 'calendar' | 'events' | 'inventory' | 'tasks' | 'team' | 'kpis' | 'finance' | 'settings';
+export type View = 'today' | 'myevents' | 'calendar' | 'events' | 'inventory' | 'tasks' | 'team' | 'kpis' | 'finance' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string }> = [
   { id: 'today', label: 'Today', icon: '◉', title: 'Today', sub: 'Live board, tasks and inventory at a glance' },
+  { id: 'myevents', label: 'My Jobs', icon: '◈', title: 'My Jobs', sub: 'Your assigned events, with one-tap directions' },
   { id: 'calendar', label: 'Calendar', icon: '▦', title: 'Calendar', sub: 'Monthly view of events and bookings' },
   { id: 'events', label: 'Events', icon: '▤', title: 'Events', sub: 'Every booking, with its services, tasks and payments' },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Physical assets, reservations and buffers' },
@@ -30,8 +32,8 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
 const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   manager: 'all',
-  employee: ['today', 'calendar', 'events', 'inventory', 'tasks'],
-  driver: ['calendar', 'events'],
+  employee: ['myevents', 'today', 'calendar', 'events', 'inventory', 'tasks'],
+  driver: ['myevents', 'calendar', 'events'],
 };
 
 export default function App() {
@@ -90,6 +92,7 @@ export default function App() {
   ) : (
     <>
       {view === 'today' && <Today onOpenEvent={() => setView('events')} />}
+      {view === 'myevents' && <MyEvents onOpenEvent={() => setView('events')} />}
       {view === 'calendar' && <Calendar onOpenEvent={() => setView('events')} />}
       {view === 'events' && <Events />}
       {view === 'inventory' && <Inventory />}
