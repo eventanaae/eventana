@@ -310,6 +310,14 @@ export function Checkout({
         </div>
       </div>
 
+      {/* Live availability: the server's quote flags any booked asset that is
+          already taken for the chosen date/time. */}
+      {quote && quote.unavailable && quote.unavailable.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <Notice tone="error">{t('checkout.unavailable')}</Notice>
+        </div>
+      )}
+
       {/* Weather forecast for the chosen day + location (free, keyless). */}
       <WeatherCard pin={draft.mapPin} date={draft.eventDate} t={t} />
 

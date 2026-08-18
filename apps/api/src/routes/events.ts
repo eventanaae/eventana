@@ -23,6 +23,7 @@ import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToStaff } from '../integrations/push.js';
 import { generateEventPass, walletEnabled } from '../integrations/wallet.js';
 import { customerFromRequest } from '../domain/customerAuth.js';
+import { rescheduleEvent, RescheduleError, RESCHEDULE_MIN_HOURS } from '../domain/reschedule.js';
 
 /**
  * The customer is identified by their signed session token — never a raw
@@ -173,6 +174,39 @@ export async function eventRoutes(app: FastifyInstance) {
     };
   });
 
+  /**
+   * Self-service reschedule — move the date/time when the event is more than
+   * 72h away and the assets are free in the new slot. Theme changes and
+   * cancellations stay with the team.
+   */
+  app.post('/api/events/:eventId/reschedule', async (request, reply) => {
+    const customerId = customerIdOf(request);
+    if (!customerId) return reply.status(401).send({ error: 'auth_required' });
+    const { eventId } = request.params as { eventId: string };
+    const schema = z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      startTime: z.string().regex(/^\d{2}:\d{2}$/),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    try {
+      const r = await rescheduleEvent({
+        eventId,
+        customerId,
+        newDate: parsed.data.date,
+        newStartTime: parsed.data.startTime,
+      });
+      return { ok: true, ...r };
+    } catch (err) {
+      if (err instanceof RescheduleError) {
+        const status = err.code === 'not_found' ? 404 : err.code === 'unavailable' ? 409 : 422;
+        return reply.status(status).send({ error: err.code, message: err.message });
+      }
+      request.log.error({ err }, 'reschedule failed');
+      return reply.status(500).send({ error: 'reschedule_failed' });
+    }
+  });
+
   app.get('/api/events/:eventId', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const customerId = customerIdOf(request);
@@ -245,11 +279,19 @@ export async function eventRoutes(app: FastifyInstance) {
       ? 0
       : purchasableExtraHours(event.start_time, cfg.rules, event.extra_hours);
 
+    // Self-service reschedule is offered only while the event is comfortably
+    // ahead (more than 72h) and not cancelled.
+    const startMs = Date.parse(
+      `${new Date(event.event_date).toISOString().slice(0, 10)}T${event.start_time}:00+04:00`,
+    );
+    const canReschedule = !cancelled && startMs - Date.now() > RESCHEDULE_MIN_HOURS * 3_600_000;
+
     return {
       id: event.id,
       orderId: event.order_id,
       phase: event.phase,
       cancelled,
+      canReschedule,
       cancelledAt: event.cancelled_at,
       cancellationReason: event.cancellation_reason,
       // Live tracking is suppressed outright rather than left to the app

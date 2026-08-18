@@ -203,6 +203,10 @@ export function MyEvent({
         </button>
       )}
 
+      {!cancelled && event.canReschedule && (
+        <Reschedule eventId={event.id} t={t} onDone={async () => setEvent(await api.event(event.id))} />
+      )}
+
       {cancelled && (
         <div style={{ marginBottom: 14 }}>
           <Notice tone="error">
@@ -557,6 +561,100 @@ export function MyEvent({
               </div>
             </Notice>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Reschedule({ eventId, t, onDone }: { eventId: string; t: TFn; onDone: () => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('17:00');
+  const [times, setTimes] = useState<string[]>(['11:00', '14:00', '17:00', '19:00']);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    api.startTimes().then((r) => setTimes(r.filter((x) => x.allowed).map((x) => x.value))).catch(() => {});
+  }, []);
+
+  // 72h ≈ 3 days; add a day of buffer so the picked date always clears the rule.
+  const minDate = new Date(Date.now() + 4 * 86_400_000).toISOString().slice(0, 10);
+
+  const submit = async () => {
+    if (!date) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.reschedule(eventId, date, startTime);
+      setDone(true);
+      await onDone();
+    } catch (e: any) {
+      setError(e?.body?.message ?? e?.message ?? 'Could not reschedule.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <Notice tone="ok">{t('me.rescheduleDone')}</Notice>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...card, background: C.mintSoft }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 0 }}
+      >
+        <span style={{ fontWeight: 700, fontSize: 13.5, color: C.ink }}>🗓️ {t('me.reschedule')}</span>
+        <span style={{ color: C.mint, fontWeight: 700, fontSize: 16 }}>{open ? '−' : '＋'}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#5f8f86', marginBottom: 12, lineHeight: 1.5 }}>
+            {t('me.rescheduleHint')}
+          </div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 6 }}>{t('me.rescheduleNewDate')}</div>
+          <input
+            type="date"
+            value={date}
+            min={minDate}
+            onChange={(e) => setDate(e.target.value)}
+            style={{ width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 12, padding: '11px 14px', fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 12 }}
+          />
+          <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 6 }}>{t('me.rescheduleNewTime')}</div>
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
+            {times.map((tm) => (
+              <button
+                key={tm}
+                onClick={() => setStartTime(tm)}
+                style={{
+                  border: `1.5px solid ${startTime === tm ? C.pink : C.pinkLine}`,
+                  background: startTime === tm ? C.pinkSoft : '#fff', color: startTime === tm ? C.pinkDeep : C.ink,
+                  fontWeight: 700, fontSize: 12, padding: '8px 12px', borderRadius: 12, cursor: 'pointer',
+                }}
+              >
+                {timeLabel(tm)}
+              </button>
+            ))}
+          </div>
+          {error && <div style={{ marginBottom: 10 }}><Notice tone="error">{error}</Notice></div>}
+          <button
+            onClick={submit}
+            disabled={!date || busy}
+            style={{
+              width: '100%', background: !date ? '#cfe8e3' : C.mint, color: '#fff', border: 'none',
+              fontWeight: 700, fontSize: 13, padding: '12px 0', borderRadius: 14, cursor: !date ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {busy ? t('me.rescheduleSaving') : t('me.rescheduleConfirm')}
+          </button>
         </div>
       )}
     </div>
