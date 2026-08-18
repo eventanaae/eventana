@@ -145,7 +145,13 @@ export const config = {
    * every confirmed booking is written to. Absent → sync is a silent no-op.
    */
   googleCalendar: {
-    serviceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON ?? null,
+    // Accept the raw JSON, or (preferred) a base64 of it — base64 is a single
+    // clean token with no quotes/newlines to corrupt in an env var.
+    serviceAccountJson:
+      env.GOOGLE_SERVICE_ACCOUNT_JSON ??
+      (env.GOOGLE_SERVICE_ACCOUNT_B64
+        ? Buffer.from(env.GOOGLE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8')
+        : null),
     calendarId: env.GOOGLE_CALENDAR_ID ?? null,
   },
 
