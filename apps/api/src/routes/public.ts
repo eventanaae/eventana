@@ -180,6 +180,7 @@ export async function publicRoutes(app: FastifyInstance) {
     return {
       orderId: order.id,
       status: order.status,
+      kind: order.kind,
       paymentStatus: order.payment_status,
       provider: order.provider,
       eventId: order.event_id,

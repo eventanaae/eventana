@@ -108,7 +108,7 @@ export const api = {
 
   order: (orderId: string) =>
     request<{
-      orderId: string; status: string; paymentStatus: string; eventId: string | null;
+      orderId: string; status: string; kind: string; paymentStatus: string; eventId: string | null;
       confirmed: boolean; totalDisplay: string;
     }>(`/api/orders/${orderId}`),
 
@@ -138,6 +138,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ itemKey, description }),
     }),
+
+  rateEvent: (eventId: string, stars: number, feedback?: string) =>
+    request<{ stars: number; feedback: string | null }>(`/api/events/${eventId}/rating`, {
+      method: 'POST',
+      body: JSON.stringify({ stars, feedback }),
+    }),
+
+  tipCheckout: (eventId: string, amountFils: number, memberId: string | null) =>
+    request<{ orderId: string; checkoutUrl: string | null }>(
+      `/api/events/${eventId}/tip/checkout`,
+      { method: 'POST', body: JSON.stringify({ amountFils, memberId, provider: 'ziina' }) },
+    ),
 
   assistant: (question: string, celebrationType: string) =>
     request<{ reply: string; escalated: boolean; references: Array<{ kind: string; id: string; name: string }> }>(

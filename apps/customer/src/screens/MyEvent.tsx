@@ -367,6 +367,11 @@ export function MyEvent({
         </div>
       </div>
 
+      {/* ---------------- rate & tip ---------------- */}
+      {!cancelled && event.review?.canReview && (
+        <RateAndTip event={event} onDone={async () => setEvent(await api.event(event.id))} />
+      )}
+
       {/* ---------------- chat ---------------- */}
       <div style={card}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>Message Your Team 💬</div>
@@ -493,6 +498,186 @@ export function MyEvent({
         </div>
       )}
     </div>
+  );
+}
+
+function RateAndTip({ event, onDone }: { event: any; onDone: () => Promise<void> }) {
+  const existing = event.review?.rating as { stars: number; feedback: string | null } | null;
+  const presets: number[] = event.review?.tipPresetsFils ?? [5000, 10000, 15000];
+
+  const [stars, setStars] = useState<number>(existing?.stars ?? 0);
+  const [feedback, setFeedback] = useState<string>(existing?.feedback ?? '');
+  const [saved, setSaved] = useState<boolean>(Boolean(existing));
+  const [savingRating, setSavingRating] = useState(false);
+
+  const [amountFils, setAmountFils] = useState<number>(presets[0] ?? 5000);
+  const [customAed, setCustomAed] = useState<string>('');
+  const [memberId, setMemberId] = useState<string | null>(null); // null = whole team
+  const [tipping, setTipping] = useState(false);
+  const [tipError, setTipError] = useState<string | null>(null);
+
+  const submitRating = async () => {
+    if (stars < 1) return;
+    setSavingRating(true);
+    try {
+      await api.rateEvent(event.id, stars, feedback.trim() || undefined);
+      setSaved(true);
+      await onDone();
+    } finally {
+      setSavingRating(false);
+    }
+  };
+
+  const effectiveTip = customAed ? Math.round(Number(customAed) * 100) : amountFils;
+
+  const sendTip = async () => {
+    if (!Number.isFinite(effectiveTip) || effectiveTip < 500) {
+      setTipError('A tip must be at least AED 5.');
+      return;
+    }
+    setTipping(true);
+    setTipError(null);
+    try {
+      const res = await api.tipCheckout(event.id, effectiveTip, memberId);
+      if (res.checkoutUrl) window.location.href = res.checkoutUrl;
+      else setTipError('Could not open checkout. Please try again.');
+    } catch (e: any) {
+      setTipError(e?.body?.message ?? e?.message ?? 'Could not start the tip right now.');
+    } finally {
+      setTipping(false);
+    }
+  };
+
+  return (
+    <div style={card}>
+      <div style={{ fontWeight: 700, fontSize: 14 }}>How was your celebration? ⭐</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 12px' }}>
+        Your rating helps the crew — and a tip goes straight to them.
+      </div>
+
+      {/* stars */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            onClick={() => { setStars(n); setSaved(false); }}
+            style={{
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              fontSize: 30, lineHeight: 1, padding: 0,
+              filter: n <= stars ? 'none' : 'grayscale(1) opacity(0.35)',
+            }}
+            aria-label={`${n} star${n > 1 ? 's' : ''}`}
+          >
+            ⭐
+          </button>
+        ))}
+      </div>
+
+      {saved && existing ? (
+        <Notice tone="ok">Thanks for rating {existing.stars}★ — the team sees it.</Notice>
+      ) : (
+        <>
+          <textarea
+            placeholder="Tell us what you loved (optional)"
+            rows={2}
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            style={{
+              width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
+              fontWeight: 600, fontSize: 12.5, background: C.cream, color: C.ink,
+              outline: 'none', resize: 'none', marginBottom: 10,
+            }}
+          />
+          <button
+            onClick={submitRating}
+            disabled={stars < 1 || savingRating}
+            style={{
+              width: '100%', background: stars < 1 ? '#e6dcd6' : C.pink, color: '#fff', border: 'none',
+              fontWeight: 700, fontSize: 13, padding: '12px 0', borderRadius: 16,
+              cursor: stars < 1 ? 'not-allowed' : 'pointer', marginBottom: 6,
+            }}
+          >
+            {savingRating ? 'Saving…' : 'Submit rating'}
+          </button>
+        </>
+      )}
+
+      {/* tip */}
+      <div style={{ borderTop: `1px solid ${C.pinkLine}`, marginTop: 14, paddingTop: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Leave a tip for the crew 💐</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 10 }}>
+          100% goes to the team · paid securely by card / Apple Pay via Ziina
+        </div>
+
+        {/* who */}
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
+          <TipChip label="Whole team 🎉" active={memberId === null} onClick={() => setMemberId(null)} />
+          {event.team.map((m: any) => (
+            <TipChip key={m.id} label={m.name} active={memberId === m.id} onClick={() => setMemberId(m.id)} />
+          ))}
+        </div>
+
+        {/* amount */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          {presets.map((f) => {
+            const active = !customAed && amountFils === f;
+            return (
+              <button
+                key={f}
+                onClick={() => { setAmountFils(f); setCustomAed(''); }}
+                style={{
+                  flex: 1, border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
+                  background: active ? C.pinkSoft : '#fff', color: active ? C.pinkDeep : C.ink,
+                  fontWeight: 700, fontSize: 14, padding: '12px 0', borderRadius: 14, cursor: 'pointer',
+                }}
+              >
+                AED {money(f)}
+              </button>
+            );
+          })}
+        </div>
+        <input
+          placeholder="Custom amount (AED)"
+          inputMode="decimal"
+          value={customAed}
+          onChange={(e) => setCustomAed(e.target.value.replace(/[^\d.]/g, ''))}
+          style={{
+            width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
+            fontWeight: 700, fontSize: 13, background: '#fff', color: C.ink, outline: 'none', marginBottom: 10,
+          }}
+        />
+        <button
+          onClick={sendTip}
+          disabled={tipping}
+          style={{
+            width: '100%', background: C.pinkDeep, color: '#fff', border: 'none', fontWeight: 700,
+            fontSize: 13, padding: '13px 0', borderRadius: 16, cursor: 'pointer',
+          }}
+        >
+          {tipping ? 'Opening checkout…' : `Tip AED ${money(effectiveTip)} ${memberId ? `to ${event.team.find((m: any) => m.id === memberId)?.name ?? 'crew'}` : 'to the team'}`}
+        </button>
+        {tipError && (
+          <div style={{ marginTop: 8 }}>
+            <Notice tone="error">{tipError}</Notice>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TipChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
+        background: active ? C.pinkSoft : '#fff', color: active ? C.pinkDeep : C.ink,
+        fontWeight: 700, fontSize: 11.5, padding: '7px 12px', borderRadius: 20, cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

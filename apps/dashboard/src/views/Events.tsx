@@ -158,6 +158,9 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <LocationPanel event={data.event} />
+              {(data.rating || (data.tips && data.tips.length > 0)) && (
+                <RatingTipsPanel rating={data.rating} tips={data.tips} />
+              )}
 
               <Panel title="Advance status">
                 {data.event.phase === 'Cancelled' ? (
@@ -545,6 +548,44 @@ function LocationPanel({ event }: { event: any }) {
           Open in Google Maps
         </a>
       </div>
+    </Panel>
+  );
+}
+
+/** Customer's rating and any paid tips for this event. */
+function RatingTipsPanel({ rating, tips }: { rating: any; tips: any[] }) {
+  const totalTipFils = (tips ?? []).reduce((sum, t) => sum + Number(t.amount_fils), 0);
+  return (
+    <Panel title="Rating & tips">
+      {rating ? (
+        <div style={{ marginBottom: tips?.length ? 12 : 0 }}>
+          <span style={{ color: C.pinkDeep, fontSize: 17, letterSpacing: 1 }}>
+            {'★'.repeat(rating.stars)}
+            <span style={{ color: C.line }}>{'★'.repeat(5 - rating.stars)}</span>
+          </span>
+          {rating.feedback && (
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, marginTop: 6, lineHeight: 1.5 }}>
+              “{rating.feedback}”
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>No rating yet.</div>
+      )}
+
+      {tips && tips.length > 0 && (
+        <div style={{ borderTop: `1px solid ${C.lineSoft}`, paddingTop: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>
+            Tips · AED {money(totalTipFils)} total 💐
+          </div>
+          {tips.map((t) => (
+            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, padding: '3px 0' }}>
+              <span style={{ color: C.muted }}>{t.member_name ? `For ${t.member_name}` : 'For the whole team'}</span>
+              <span style={{ fontWeight: 700, color: C.pinkDeep }}>AED {t.amountDisplay}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </Panel>
   );
 }

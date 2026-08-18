@@ -138,4 +138,6 @@ export const api = {
     }),
   reconcile: () => request<any>('/api/admin/reconcile', { method: 'POST' }),
   notifications: () => request<any[]>('/api/admin/notifications'),
+
+  kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
 };

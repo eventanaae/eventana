@@ -21,6 +21,7 @@ export function PaymentReturn({
 }) {
   const [status, setStatus] = useState<string>('checking');
   const [eventId, setEventId] = useState<string | null>(null);
+  const [kind, setKind] = useState<string>('booking');
   const [waited, setWaited] = useState(0);
   const done = useRef(false);
 
@@ -30,6 +31,7 @@ export function PaymentReturn({
       try {
         const order = await api.order(orderId);
         setStatus(order.status);
+        setKind(order.kind);
         if (order.confirmed && order.eventId) {
           done.current = true;
           setEventId(order.eventId);
@@ -51,6 +53,18 @@ export function PaymentReturn({
   }, [orderId]);
 
   if (eventId) {
+    const isTip = kind === 'tip';
+    const isAddon = kind === 'addon';
+    const heading = isTip
+      ? 'Thank you for your tip! 💐'
+      : isAddon
+        ? 'Added to your event! ✨'
+        : 'Your celebration is booked! 🎉';
+    const sub = isTip
+      ? '100% goes straight to your Eventana crew — they’ve been notified. You’re amazing!'
+      : isAddon
+        ? 'Payment verified. Your extras are now on your event and the team can see them.'
+        : 'Payment verified by your provider. Your Eventana team is already preparing everything.';
     return (
       <div style={{ padding: '60px 30px 40px', textAlign: 'center', animation: 'rise .4s ease' }}>
         <div
@@ -59,24 +73,26 @@ export function PaymentReturn({
             fontSize: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 22px',
           }}
         >
-          ✓
+          {isTip ? '💐' : '✓'}
         </div>
-        <div style={{ ...fredoka(26), lineHeight: 1.15 }}>Your celebration is booked! 🎉</div>
+        <div style={{ ...fredoka(26), lineHeight: 1.15 }}>{heading}</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, margin: '12px 0 26px', lineHeight: 1.5 }}>
-          Payment verified by your provider. Your Eventana team is already preparing everything.
+          {sub}
         </div>
-        <div style={{ background: '#fff', borderRadius: 20, padding: 16, boxShadow: C.shadowLg, display: 'inline-block', minWidth: 220 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 1 }}>EVENT ID</div>
-          <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 21, fontWeight: 700, marginTop: 4, letterSpacing: 1 }}>
-            {eventId}
+        {!isTip && (
+          <div style={{ background: '#fff', borderRadius: 20, padding: 16, boxShadow: C.shadowLg, display: 'inline-block', minWidth: 220 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 1 }}>EVENT ID</div>
+            <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 21, fontWeight: 700, marginTop: 4, letterSpacing: 1 }}>
+              {eventId}
+            </div>
           </div>
-        </div>
+        )}
         <div style={{ marginTop: 30 }}>
           <button
             onClick={() => onConfirmed(eventId)}
             style={{ background: C.ink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '15px 34px', borderRadius: 22, cursor: 'pointer' }}
           >
-            View My Event
+            {isTip ? 'Back to My Event' : 'View My Event'}
           </button>
         </div>
       </div>
