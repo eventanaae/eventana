@@ -4,7 +4,7 @@ import { Badge, C, fredoka, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
 
 /** The signed-in member's own assigned jobs, with one-tap directions. */
-export function MyEvents({ onOpenEvent }: { onOpenEvent?: (id?: string) => void }) {
+export function MyEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [events, setEvents] = useState<any[] | null>(null);
 
   useEffect(() => { void api.myEvents().then(setEvents).catch(() => setEvents([])); }, []);

@@ -17,7 +17,7 @@ const navBtn: CSSProperties = {
   color: C.ink,
 };
 
-export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void }) {
+export function Calendar({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [events, setEvents] = useState<any[] | null>(null);
   const [schedule, setSchedule] = useState<any>(null);
   const now = new Date();

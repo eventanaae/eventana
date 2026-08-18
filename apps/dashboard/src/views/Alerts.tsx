@@ -13,7 +13,7 @@ const ago = (ts: string) => {
   return `${Math.floor(h / 24)}d ago`;
 };
 
-export function Alerts({ onOpenEvent }: { onOpenEvent?: (id?: string) => void }) {
+export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [data, setData] = useState<any>(null);
   const load = () => api.alerts().then(setData).catch(() => setData(null));
   useEffect(() => {
