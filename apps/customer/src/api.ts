@@ -122,6 +122,15 @@ export const api = {
   events: () => request<any[]>('/api/events'),
   event: (eventId: string) => request<any>(`/api/events/${eventId}`),
 
+  rebook: (eventId: string) => request<Record<string, unknown>>(`/api/events/${eventId}/rebook`),
+
+  rewards: () =>
+    request<{
+      points: number; lifetimeEarned: number; tier: string;
+      nextTier: string | null; pointsToNextTier: number; progressPct: number;
+      history: Array<{ points: number; reason: string; at: string | null }>;
+    }>('/api/rewards'),
+
   addonQuote: (eventId: string, body: unknown) =>
     request<any>(`/api/events/${eventId}/addons/quote`, { method: 'POST', body: JSON.stringify(body) }),
 

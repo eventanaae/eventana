@@ -223,6 +223,27 @@ export default function App() {
     document.getElementById('screen-scroll')?.scrollTo({ top: 0 });
   }, []);
 
+  /**
+   * One-tap rebooking: pull the exact selections from a past booking into a
+   * fresh draft (new date, re-pin) and drop the customer at review & pay.
+   */
+  const rebook = useCallback(
+    async (eventId: string) => {
+      const prior = (await api.rebook(eventId)) as Partial<Draft>;
+      setDraft({
+        ...emptyDraft,
+        ...prior,
+        celebrationTypeChosen: true,
+        buildAnswered: true,
+        eventDate: defaultDate(),
+        startTime: '17:00',
+        provider: 'tabby',
+      });
+      go('checkout');
+    },
+    [go],
+  );
+
   const reset = useCallback(() => {
     setDraft({ ...emptyDraft, eventDate: defaultDate() });
     setQuote(null);
@@ -321,7 +342,7 @@ export default function App() {
           />
         )}
         {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} />}
-        {screen === 'profile' && <Profile go={go} />}
+        {screen === 'profile' && <Profile go={go} onRebook={rebook} />}
       </div>
 
       {showTabs && (

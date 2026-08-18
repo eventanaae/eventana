@@ -4,8 +4,10 @@ import type { Screen } from '../App';
 import { C, fredoka, Spinner } from '../ui';
 import { loadProfile } from '../profile';
 
-export function Profile({ go }: { go: (s: Screen) => void }) {
+export function Profile({ go, onRebook }: { go: (s: Screen) => void; onRebook: (eventId: string) => Promise<void> }) {
   const [events, setEvents] = useState<any[] | null>(null);
+  const [rebooking, setRebooking] = useState<string | null>(null);
+  const [rewards, setRewards] = useState<Awaited<ReturnType<typeof api.rewards>> | null>(null);
   const profile = loadProfile();
   const name = profile?.name?.trim() || 'Guest';
   const initial = (name[0] || '☺').toUpperCase();
@@ -15,6 +17,7 @@ export function Profile({ go }: { go: (s: Screen) => void }) {
 
   useEffect(() => {
     api.events().then(setEvents).catch(() => setEvents([]));
+    api.rewards().then(setRewards).catch(() => setRewards(null));
   }, []);
 
   return (
@@ -37,38 +40,46 @@ export function Profile({ go }: { go: (s: Screen) => void }) {
       <div style={{ background: 'linear-gradient(135deg,#5BCFC5,#3aa79d)', borderRadius: 24, padding: '20px 22px', color: '#fff', marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <span style={fredoka(17)}>Eventana Rewards ✨</span>
-          <span style={{ background: 'rgba(255,255,255,.25)', fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 12 }}>
-            GOLD
+          <span style={{ background: 'rgba(255,255,255,.25)', fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 12, letterSpacing: '.4px' }}>
+            {rewards?.tier ?? '—'}
           </span>
         </div>
         <div style={{ fontSize: 32, fontWeight: 700, margin: '12px 0 2px' }}>
-          1,250 <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>points</span>
+          {rewards ? rewards.points.toLocaleString('en-US') : '—'}{' '}
+          <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>points</span>
         </div>
-        <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.9 }}>750 points to your next reward</div>
-        <div style={{ height: 6, background: 'rgba(255,255,255,.25)', borderRadius: 3, marginTop: 10, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: '62%', background: C.yellow, borderRadius: 3 }} />
+        <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.9 }}>
+          {!rewards
+            ? 'Loading your rewards…'
+            : rewards.nextTier
+              ? `${rewards.pointsToNextTier.toLocaleString('en-US')} points to ${rewards.nextTier}`
+              : 'You’ve reached our top tier 🎉'}
+        </div>
+        {rewards && rewards.nextTier && (
+          <div style={{ height: 6, background: 'rgba(255,255,255,.25)', borderRadius: 3, marginTop: 10, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${rewards.progressPct}%`, background: C.yellow, borderRadius: 3, transition: 'width .5s' }} />
+          </div>
+        )}
+        <div style={{ fontSize: 10.5, fontWeight: 600, opacity: 0.85, marginTop: 10 }}>
+          You earn {`1 point per AED`} on every booking. Redeem on an upcoming celebration — coming soon.
         </div>
       </div>
 
-      <div
-        style={{
-          background: '#fff', borderRadius: 20, padding: '15px 18px', boxShadow: C.shadow,
-          display: 'flex', alignItems: 'center', gap: 13, marginBottom: 16,
-        }}
-      >
-        <div style={{ width: 44, height: 44, borderRadius: 15, background: C.yellowSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flex: 'none' }}>
-          🎁
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>15% OFF Your Next Event</div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>
-            Valid until Oct 30 · Min spend AED 2,000
+      {rewards && rewards.history.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 20, padding: '15px 18px', boxShadow: C.shadow, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Points activity</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {rewards.history.slice(0, 5).map((h, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{h.reason}</span>
+                <span style={{ fontWeight: 700, fontSize: 12.5, color: h.points < 0 ? C.red : C.green, whiteSpace: 'nowrap' }}>
+                  {h.points < 0 ? '' : '+'}{h.points.toLocaleString('en-US')}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: C.green, background: C.greenSoft, padding: '4px 9px', borderRadius: 10 }}>
-          ACTIVE
-        </span>
-      </div>
+      )}
 
       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>My Events</div>
       {events === null ? (
@@ -99,13 +110,18 @@ export function Profile({ go }: { go: (s: Screen) => void }) {
                 </div>
               </div>
               <button
-                onClick={() => go('explore')}
+                disabled={rebooking === e.id}
+                onClick={async () => {
+                  setRebooking(e.id);
+                  try { await onRebook(e.id); } catch { setRebooking(null); }
+                }}
                 style={{
                   background: C.pinkSoft, border: 'none', color: C.pinkDeep, fontWeight: 700,
                   fontSize: 10.5, padding: '8px 11px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                  opacity: rebooking === e.id ? 0.6 : 1,
                 }}
               >
-                Book Similar
+                {rebooking === e.id ? 'Opening…' : 'Book Again'}
               </button>
             </div>
           ))}

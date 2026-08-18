@@ -67,6 +67,102 @@ export async function eventRoutes(app: FastifyInstance) {
     }));
   });
 
+  /**
+   * Real loyalty balance for the signed-in customer. Points are already
+   * earned on every confirmed booking (see confirmBooking); this exposes the
+   * true balance, tier and history so the app can stop showing invented
+   * numbers. Redeemable value is shown once redemption ships.
+   */
+  app.get('/api/rewards', async (request) => {
+    const customerId = customerIdOf(request);
+
+    const { rows: cust } = await pool.query(
+      `SELECT loyalty_points FROM customers WHERE id = $1`,
+      [customerId],
+    );
+    const points = Number(cust[0]?.loyalty_points ?? 0);
+
+    const { rows: earned } = await pool.query(
+      `SELECT COALESCE(SUM(points),0) AS earned
+         FROM loyalty_transactions WHERE customer_id = $1 AND points > 0`,
+      [customerId],
+    );
+    const lifetimeEarned = Number(earned[0]?.earned ?? 0);
+
+    const { rows: history } = await pool.query(
+      `SELECT points, reason, created_at
+         FROM loyalty_transactions WHERE customer_id = $1
+        ORDER BY created_at DESC LIMIT 10`,
+      [customerId],
+    );
+
+    // Tiers are earned by lifetime points, so a redemption never demotes a
+    // customer. Thresholds are deliberately simple and easy to tune later.
+    const TIERS = [
+      { name: 'SILVER', min: 0 },
+      { name: 'GOLD', min: 3000 },
+      { name: 'PLATINUM', min: 8000 },
+    ];
+    let tierIndex = 0;
+    for (let i = 0; i < TIERS.length; i++) if (lifetimeEarned >= TIERS[i].min) tierIndex = i;
+    const next = TIERS[tierIndex + 1] ?? null;
+    const floor = TIERS[tierIndex].min;
+    const progressPct = next
+      ? Math.min(100, Math.round(((lifetimeEarned - floor) / (next.min - floor)) * 100))
+      : 100;
+
+    return {
+      points,
+      lifetimeEarned,
+      tier: TIERS[tierIndex].name,
+      nextTier: next?.name ?? null,
+      pointsToNextTier: next ? Math.max(0, next.min - lifetimeEarned) : 0,
+      progressPct,
+      history: history.map((h) => ({
+        points: h.points,
+        reason: h.reason,
+        at: h.created_at?.toISOString?.() ?? null,
+      })),
+    };
+  });
+
+  /**
+   * Rebooking — reconstruct the exact selections from a past booking into a
+   * fresh draft the app can drop the customer straight into (with a new date
+   * and a re-pin). Reads the original cart, the faithful source of truth.
+   */
+  app.get('/api/events/:eventId/rebook', async (request, reply) => {
+    const customerId = customerIdOf(request);
+    const { eventId } = request.params as { eventId: string };
+    const { rows } = await pool.query(
+      `SELECT o.cart FROM events e JOIN orders o ON o.id = e.order_id
+        WHERE e.id = $1 AND e.customer_id = $2`,
+      [eventId, customerId],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    const cart = (rows[0].cart ?? {}) as any;
+
+    const services: Record<string, number> = {};
+    for (const s of cart.services ?? []) if (s?.serviceId && s.quantity > 0) services[s.serviceId] = s.quantity;
+
+    return {
+      celebrationType: cart.celebrationType ?? 'kids',
+      ageBand: cart.ageBand ?? null,
+      packageId: cart.packageId ?? null,
+      services,
+      themeId: cart.themeId ?? null,
+      customTheme: Boolean(cart.customTheme),
+      themeBrief: cart.themeBrief ?? null,
+      castleVariant: cart.castleVariant ?? null,
+      emirate: cart.emirate ?? 'Dubai',
+      childrenCount: cart.childrenCount ?? 25,
+      movie: cart.movie ?? null,
+      eventFor: cart.eventFor ?? '',
+      address: cart.address ?? { area: '', street: '', villa: '', details: '' },
+      mapPin: cart.mapPin ?? null,
+    };
+  });
+
   app.get('/api/events/:eventId', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const customerId = customerIdOf(request);
