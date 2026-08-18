@@ -2,19 +2,20 @@
  * The signed-in customer account.
  *
  * Browsing needs no account; one is only required to confirm a booking.
- * Stored on the device so the customer stays signed in across sessions.
- * When no account exists, the API falls back to the demo customer so the
- * catalogue and quoting keep working while browsing.
+ * Stored on the device so the customer stays signed in across sessions. The
+ * account carries a signed session token; the catalogue and live quoting are
+ * public and need no token, so browsing works fully while signed out.
  */
 export interface Account {
   customerId: string;
   name: string;
   email: string;
   phone: string;
+  /** Signed session token — proves who the customer is to the API. */
+  token?: string;
 }
 
 const KEY = 'eventana.account';
-const DEMO_CUSTOMER_ID = 'CUST-4471';
 
 export function loadAccount(): Account | null {
   try {
@@ -43,7 +44,12 @@ export function clearAccount(): void {
   }
 }
 
-/** The id used to identify the customer to the API. */
+/** The id used to identify the customer to the API (empty when signed out). */
 export function currentCustomerId(): string {
-  return loadAccount()?.customerId ?? DEMO_CUSTOMER_ID;
+  return loadAccount()?.customerId ?? '';
+}
+
+/** The signed session token sent with every request, if signed in. */
+export function currentToken(): string {
+  return loadAccount()?.token ?? '';
 }

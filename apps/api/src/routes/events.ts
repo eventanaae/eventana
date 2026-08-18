@@ -22,10 +22,15 @@ import { CheckoutError, startAddonCheckout, startTipCheckout } from '../domain/c
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToStaff } from '../integrations/push.js';
 import { generateEventPass, walletEnabled } from '../integrations/wallet.js';
+import { customerFromRequest } from '../domain/customerAuth.js';
 
-/** Until real auth lands, the customer identifies itself by header. */
+/**
+ * The customer is identified by their signed session token — never a raw
+ * client-set id. Unauthenticated requests get an empty id, so scoped queries
+ * return nothing instead of another customer's (or the demo customer's) data.
+ */
 function customerIdOf(request: any): string {
-  return String(request.headers['x-customer-id'] ?? 'CUST-4471');
+  return customerFromRequest(request);
 }
 
 /**

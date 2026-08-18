@@ -22,6 +22,7 @@ import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout } from '../domain/checkout.js';
+import { customerFromRequest, issueCustomerToken } from '../domain/customerAuth.js';
 import { allProviders } from '../payments/index.js';
 import { answerAssistant } from '../domain/assistant.js';
 
@@ -254,7 +255,9 @@ export async function publicRoutes(app: FastifyInstance) {
   app.post('/api/checkout', async (request, reply) => {
     const schema = z.object({
       cart: cartSchema,
-      customerId: z.string(),
+      // The customer is taken from the signed token, not the body — a client
+      // can no longer check out as someone else by sending their id.
+      customerId: z.string().optional(),
       provider: z.enum(['tabby', 'tamara', 'ziina']),
       lang: z.enum(['en', 'ar']).optional(),
       idempotencyKey: z.string().optional(),
@@ -264,10 +267,15 @@ export async function publicRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     }
 
+    const customerId = customerFromRequest(request);
+    if (!customerId) {
+      return reply.status(401).send({ error: 'auth_required', message: 'Please sign in to complete your booking.' });
+    }
+
     try {
       const result = await startCheckout({
         cart: parsed.data.cart as unknown as CheckoutCart,
-        customerId: parsed.data.customerId,
+        customerId,
         provider: parsed.data.provider,
         lang: parsed.data.lang,
         idempotencyKey: parsed.data.idempotencyKey,
@@ -371,7 +379,7 @@ export async function publicRoutes(app: FastifyInstance) {
       `INSERT INTO customers (id, name, phone, email, password_hash) VALUES ($1,$2,$3,$4,$5)`,
       [id, name, phone, email, hashPassword(password)],
     );
-    return { customerId: id, name, email, phone };
+    return { customerId: id, name, email, phone, token: issueCustomerToken(id) };
   });
 
   app.post('/api/customers/login', async (request, reply) => {
@@ -387,7 +395,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!c || !verifyPassword(password, c.password_hash)) {
       return reply.status(401).send({ error: 'invalid_credentials', message: 'Wrong email or password.' });
     }
-    return { customerId: c.id, name: c.name, email: c.email, phone: c.phone };
+    return { customerId: c.id, name: c.name, email: c.email, phone: c.phone, token: issueCustomerToken(c.id) };
   });
 }
 

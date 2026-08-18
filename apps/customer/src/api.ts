@@ -6,7 +6,7 @@
  * server recomputes is what gets charged.
  */
 import type { CartInput, Quote } from '@eventana/shared';
-import { currentCustomerId } from './account';
+import { currentCustomerId, currentToken } from './account';
 
 /**
  * Render blueprints can only inject another service's HOST, not a full
@@ -23,10 +23,14 @@ function apiBase(): string {
 const BASE = apiBase();
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = currentToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
+      // The signed token identifies the customer; the raw id is no longer
+      // trusted for scoping and is sent only as a harmless hint.
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
       'x-customer-id': currentCustomerId(),
       ...(init.headers ?? {}),
     },
@@ -102,13 +106,13 @@ export const api = {
     }),
 
   register: (body: { name: string; email: string; phone: string; password: string }) =>
-    request<{ customerId: string; name: string; email: string; phone: string }>(
+    request<{ customerId: string; name: string; email: string; phone: string; token: string }>(
       '/api/customers/register',
       { method: 'POST', body: JSON.stringify(body) },
     ),
 
   login: (body: { email: string; password: string }) =>
-    request<{ customerId: string; name: string; email: string; phone: string }>(
+    request<{ customerId: string; name: string; email: string; phone: string; token: string }>(
       '/api/customers/login',
       { method: 'POST', body: JSON.stringify(body) },
     ),
@@ -172,8 +176,12 @@ export const api = {
 
   /** Fetch the signed Apple Wallet pass and return a blob URL to open it. */
   walletPass: async (eventId: string): Promise<string> => {
+    const token = currentToken();
     const res = await fetch(`${BASE}/api/events/${eventId}/pass`, {
-      headers: { 'x-customer-id': currentCustomerId() },
+      headers: {
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        'x-customer-id': currentCustomerId(),
+      },
     });
     if (!res.ok) throw new Error('Pass not available yet.');
     return URL.createObjectURL(await res.blob());
