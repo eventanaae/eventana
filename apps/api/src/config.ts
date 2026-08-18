@@ -92,6 +92,22 @@ function toUrl(value: string | undefined, fallback: string): string {
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
 }
 
+/** Cloudinary creds from CLOUDINARY_URL or the three separate vars. */
+function parseCloudinary(): { cloudName: string | null; apiKey: string | null; apiSecret: string | null } {
+  const url = env.CLOUDINARY_URL;
+  if (url) {
+    const m = /^cloudinary:\/\/([^:]+):([^@]+)@(.+)$/.exec(url.trim());
+    if (m && !m[1].startsWith('<') && !m[2].startsWith('<')) {
+      return { apiKey: m[1], apiSecret: m[2], cloudName: m[3] };
+    }
+  }
+  return {
+    cloudName: env.CLOUDINARY_CLOUD_NAME ?? null,
+    apiKey: env.CLOUDINARY_API_KEY ?? null,
+    apiSecret: env.CLOUDINARY_API_SECRET ?? null,
+  };
+}
+
 export const config = {
   port: Number(env.PORT ?? 4000),
   host: env.HOST ?? '0.0.0.0',
@@ -166,6 +182,13 @@ export const config = {
     publicBaseUrl: toUrl(env.PUBLIC_API_URL ?? env.PUBLIC_API_HOST, 'http://localhost:4000'),
   },
 
+  /**
+   * Cloudinary image storage. Accepts a single CLOUDINARY_URL
+   * (cloudinary://key:secret@cloud) or the three parts separately. The API
+   * secret stays server-side; clients upload directly with a signed request.
+   */
+  cloudinary: parseCloudinary(),
+
   providers: {
     tabby: providerConfig('tabby', {
       publicKey: env.TABBY_PUBLIC_KEY,
@@ -227,6 +250,9 @@ export function readinessSummary() {
       config.googleCalendar.serviceAccountJson && config.googleCalendar.calendarId,
     ),
     emailConfigured: Boolean(config.email.resendApiKey),
+    uploadsConfigured: Boolean(
+      config.cloudinary.cloudName && config.cloudinary.apiKey && config.cloudinary.apiSecret,
+    ),
   };
 }
 

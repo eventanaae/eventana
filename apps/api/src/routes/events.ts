@@ -19,6 +19,7 @@ const display = (time: string) => formatHour(parseHour(time));
 import { pool } from '../db/pool.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, startAddonCheckout, startTipCheckout } from '../domain/checkout.js';
+import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 
 /** Until real auth lands, the customer identifies itself by header. */
 function customerIdOf(request: any): string {
@@ -359,6 +360,19 @@ export async function eventRoutes(app: FastifyInstance) {
       [eventId, parsed.data.body],
     );
     return inserted.rows[0];
+  });
+
+  /** Sign a direct-to-Cloudinary upload for this customer's own event photo. */
+  app.post('/api/events/:eventId/uploads/sign', async (request, reply) => {
+    if (!uploadsEnabled()) return reply.status(409).send({ error: 'uploads_disabled' });
+    const { eventId } = request.params as { eventId: string };
+    const { rows } = await pool.query(
+      `SELECT phase FROM events WHERE id = $1 AND customer_id = $2`,
+      [eventId, customerIdOf(request)],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    if (isCancelled(rows[0].phase)) return reply.status(409).send(CANCELLED_ERROR);
+    return signUpload('eventana/setup-photos');
   });
 
   /** Optional setup-placement photos. Never blocks checkout. */

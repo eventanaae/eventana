@@ -18,6 +18,7 @@ import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
+import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 
 /**
  * Moves an event to the terminal Cancelled phase and stands its
@@ -1385,6 +1386,20 @@ export async function adminRoutes(app: FastifyInstance) {
     const html = renderCampaignHtml(parsed.data.bodyHtml, `${config.publicApiUrl}/api/unsubscribe?c=preview&t=preview`);
     const res = await sendEmail({ to: parsed.data.to, subject: `[TEST] ${parsed.data.subject}`, html });
     return res.ok ? { ok: true } : reply.status(502).send({ error: 'send_failed', message: res.error });
+  });
+
+  /** Sign a direct-to-Cloudinary upload for a staff-side image. */
+  app.post('/api/admin/uploads/sign', async (request, reply) => {
+    if (!uploadsEnabled()) {
+      return reply.status(409).send({
+        error: 'uploads_disabled',
+        message: 'Set CLOUDINARY_URL in the server environment to enable image uploads.',
+      });
+    }
+    const schema = z.object({ folder: z.enum(['receipts', 'themes', 'designs', 'setup-photos']).default('receipts') });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    return signUpload(`eventana/${parsed.data.folder}` as const);
   });
 
   /* ------------------------- consumables inventory ------------------------ */

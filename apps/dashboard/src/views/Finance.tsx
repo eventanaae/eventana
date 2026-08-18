@@ -29,6 +29,8 @@ export function Finance() {
   const [fin, setFin] = useState<any>(null);
   const [exp, setExp] = useState<any>(null);
   const [form, setForm] = useState({ category: 'inventory', description: '', amount: '', vendor: '', spentOn: '' });
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -55,8 +57,10 @@ export function Finance() {
         amountFils,
         vendor: form.vendor.trim() || undefined,
         spentOn: form.spentOn || undefined,
+        receiptUrl: receiptUrl || undefined,
       });
       setForm({ category: form.category, description: '', amount: '', vendor: '', spentOn: '' });
+      setReceiptUrl(null);
       load();
     } finally {
       setSaving(false);
@@ -161,13 +165,34 @@ export function Finance() {
             <span style={fieldLabel}>Date</span>
             <input type="date" value={form.spentOn} onChange={(e) => setForm((f) => ({ ...f, spentOn: e.target.value }))} style={input} />
           </label>
-          <Button onClick={addExpense} disabled={saving || !form.description.trim() || !form.amount}>
+          <label style={{ ...fieldWrap, minWidth: 130 }}>
+            <span style={fieldLabel}>Receipt</span>
+            <label style={{ ...input, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: receiptUrl ? C.green : C.muted }}>
+              {uploading ? 'Uploading…' : receiptUrl ? '✓ Attached' : '📎 Add photo'}
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setUploading(true);
+                  try { setReceiptUrl(await api.uploadImage(f, 'receipts')); }
+                  catch (err: any) { alert(err?.message ?? 'Upload failed'); }
+                  finally { setUploading(false); }
+                }}
+              />
+            </label>
+          </label>
+          <Button onClick={addExpense} disabled={saving || uploading || !form.description.trim() || !form.amount}>
             {saving ? 'Saving…' : 'Add expense'}
           </Button>
         </div>
-        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 8 }}>
-          Receipt photos attach here once image storage is connected — the amount and category work now.
-        </div>
+        {receiptUrl && (
+          <div style={{ marginTop: 8 }}>
+            <img src={receiptUrl} alt="receipt" style={{ height: 54, borderRadius: 8, border: `1px solid ${C.line}` }} />
+          </div>
+        )}
       </Panel>
 
       <Panel title={`Expenses — ${monthLabel(month)}`}>
@@ -198,7 +223,12 @@ export function Finance() {
                         {e.category}
                       </span>
                     </td>
-                    <td style={{ ...td, fontWeight: 600 }}>{e.description}</td>
+                    <td style={{ ...td, fontWeight: 600 }}>
+                      {e.description}
+                      {e.receipt_url && (
+                        <a href={e.receipt_url} target="_blank" rel="noreferrer" style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: C.pinkDeep, textDecoration: 'none' }}>📎 receipt</a>
+                      )}
+                    </td>
                     <td style={{ ...td, color: C.muted }}>{e.vendor ?? '—'}</td>
                     <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>AED {e.amountDisplay}</td>
                     <td style={{ ...td, textAlign: 'right' }}>

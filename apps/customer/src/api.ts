@@ -133,11 +133,26 @@ export const api = {
       body: JSON.stringify({ decision, note }),
     }),
 
-  setupPhoto: (eventId: string, itemKey: string, description: string) =>
+  setupPhoto: (eventId: string, itemKey: string, description: string, photoUrl?: string) =>
     request<any>(`/api/events/${eventId}/setup-photos`, {
       method: 'POST',
-      body: JSON.stringify({ itemKey, description }),
+      body: JSON.stringify({ itemKey, description, photoUrl }),
     }),
+
+  /** Sign + upload an event photo straight to Cloudinary; returns its URL. */
+  uploadEventImage: async (eventId: string, file: File): Promise<string> => {
+    const s = await request<any>(`/api/events/${eventId}/uploads/sign`, { method: 'POST', body: JSON.stringify({}) });
+    const form = new FormData();
+    form.append('file', file);
+    form.append('api_key', s.apiKey);
+    form.append('timestamp', String(s.timestamp));
+    form.append('signature', s.signature);
+    form.append('folder', s.folder);
+    const res = await fetch(s.uploadUrl, { method: 'POST', body: form });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j?.error?.message ?? 'Upload failed');
+    return j.secure_url as string;
+  },
 
   rateEvent: (eventId: string, stars: number, feedback?: string) =>
     request<{ stars: number; feedback: string | null }>(`/api/events/${eventId}/rating`, {

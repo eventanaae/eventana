@@ -367,6 +367,9 @@ export function MyEvent({
         </div>
       </div>
 
+      {/* ---------------- setup-spot photos ---------------- */}
+      {!cancelled && <SetupSpotPhotos eventId={event.id} />}
+
       {/* ---------------- rate & tip ---------------- */}
       {!cancelled && event.review?.canReview && (
         <RateAndTip event={event} onDone={async () => setEvent(await api.event(event.id))} />
@@ -495,6 +498,70 @@ export function MyEvent({
               </div>
             </Notice>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SetupSpotPhotos({ eventId }: { eventId: string }) {
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const upload = async (file: File) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const url = await api.uploadEventImage(eventId, file);
+      await api.setupPhoto(eventId, 'spot', note.trim(), url);
+      setSent((s) => [url, ...s]);
+      setNote('');
+    } catch (e: any) {
+      // Cloudinary not configured yet, or upload failed.
+      setError(e?.body?.error === 'uploads_disabled' ? 'Photo upload isn’t available yet.' : (e?.message ?? 'Upload failed.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={card}>
+      <div style={{ fontWeight: 700, fontSize: 14 }}>Show us your setup spot 📸</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 12px' }}>
+        Snap where you’d like everything placed — your team sees it before they arrive.
+      </div>
+      <input
+        placeholder="Note (optional) — e.g. backdrop by the pool"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        style={{
+          width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
+          fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 10,
+        }}
+      />
+      <label
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          border: `1.5px dashed ${C.pinkDash}`, borderRadius: 14, padding: '14px',
+          fontWeight: 700, fontSize: 13, color: C.pinkDeep, cursor: 'pointer',
+        }}
+      >
+        {busy ? 'Uploading…' : '📷 Add a photo'}
+        <input
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }}
+        />
+      </label>
+      {error && <div style={{ marginTop: 8 }}><Notice tone="info">{error}</Notice></div>}
+      {sent.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+          {sent.map((u) => (
+            <img key={u} src={u} alt="setup spot" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.pinkLine}` }} />
+          ))}
         </div>
       )}
     </div>

@@ -334,8 +334,15 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
                   <Empty>The customer didn’t add placement notes — that’s optional.</Empty>
                 ) : (
                   data.setupPhotos.map((p: any) => (
-                    <div key={p.id} style={{ fontSize: 12.5, fontWeight: 600, padding: '4px 0' }}>
-                      <b style={{ textTransform: 'capitalize' }}>{p.item_key}</b>: {p.description ?? '(photo only)'}
+                    <div key={p.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '5px 0' }}>
+                      {p.photo_url && (
+                        <a href={p.photo_url} target="_blank" rel="noreferrer">
+                          <img src={p.photo_url} alt={p.item_key} style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line}` }} />
+                        </a>
+                      )}
+                      <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+                        <b style={{ textTransform: 'capitalize' }}>{p.item_key}</b>: {p.description || '(photo)'}
+                      </div>
                     </div>
                   ))
                 )}

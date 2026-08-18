@@ -158,6 +158,21 @@ export const api = {
   notifications: () => request<any[]>('/api/admin/notifications'),
   alerts: () => request<any>('/api/admin/alerts'),
 
+  /** Sign + upload an image straight to Cloudinary; returns its secure URL. */
+  uploadImage: async (file: File, folder: 'receipts' | 'themes' | 'designs' | 'setup-photos'): Promise<string> => {
+    const s = await request<any>('/api/admin/uploads/sign', { method: 'POST', body: JSON.stringify({ folder }) });
+    const form = new FormData();
+    form.append('file', file);
+    form.append('api_key', s.apiKey);
+    form.append('timestamp', String(s.timestamp));
+    form.append('signature', s.signature);
+    form.append('folder', s.folder);
+    const res = await fetch(s.uploadUrl, { method: 'POST', body: form });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j?.error?.message ?? 'Upload failed');
+    return j.secure_url as string;
+  },
+
   marketing: () => request<any>('/api/admin/marketing'),
   createCampaign: (body: Record<string, unknown>) =>
     request<any>('/api/admin/marketing/campaigns', { method: 'POST', body: JSON.stringify(body) }),
