@@ -21,6 +21,7 @@ import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, startAddonCheckout, startTipCheckout } from '../domain/checkout.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToStaff } from '../integrations/push.js';
+import { generateEventPass, walletEnabled } from '../integrations/wallet.js';
 
 /** Until real auth lands, the customer identifies itself by header. */
 function customerIdOf(request: any): string {
@@ -269,6 +270,41 @@ export async function eventRoutes(app: FastifyInstance) {
           .send({ error: err.code, message: err.message, details: err.details });
       }
       throw err;
+    }
+  });
+
+  /** Apple Wallet pass (.pkpass) for the customer's event ticket. */
+  app.get('/api/events/:eventId/pass', async (request, reply) => {
+    if (!walletEnabled()) return reply.status(409).send({ error: 'wallet_disabled' });
+    const { eventId } = request.params as { eventId: string };
+    const { rows } = await pool.query(
+      `SELECT e.*, p.name AS package_name, o.cart
+         FROM events e
+         LEFT JOIN packages p ON p.id = e.package_id
+         LEFT JOIN orders o ON o.id = e.order_id
+        WHERE e.id = $1 AND e.customer_id = $2`,
+      [eventId, customerIdOf(request)],
+    );
+    const ev = rows[0];
+    if (!ev) return reply.status(404).send({ error: 'not_found' });
+
+    const cart = (ev.cart ?? {}) as { eventFor?: string };
+    try {
+      const buffer = await generateEventPass({
+        id: ev.id,
+        title: ev.package_name ?? String(ev.celebration_type ?? 'Celebration'),
+        dateLabel: new Date(ev.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }),
+        timeLabel: `${display(ev.start_time)} – ${display(ev.base_end_time)}`,
+        guest: cart.eventFor ?? null,
+        emirate: ev.emirate,
+      });
+      return reply
+        .header('Content-Type', 'application/vnd.apple.pkpass')
+        .header('Content-Disposition', `attachment; filename="${ev.id}.pkpass"`)
+        .send(buffer);
+    } catch (err) {
+      request.log.error({ err }, 'pass generation failed');
+      return reply.status(500).send({ error: 'pass_failed' });
     }
   });
 

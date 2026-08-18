@@ -154,6 +154,15 @@ export const api = {
     return j.secure_url as string;
   },
 
+  /** Fetch the signed Apple Wallet pass and return a blob URL to open it. */
+  walletPass: async (eventId: string): Promise<string> => {
+    const res = await fetch(`${BASE}/api/events/${eventId}/pass`, {
+      headers: { 'x-customer-id': currentCustomerId() },
+    });
+    if (!res.ok) throw new Error('Pass not available yet.');
+    return URL.createObjectURL(await res.blob());
+  },
+
   rateEvent: (eventId: string, stars: number, feedback?: string) =>
     request<{ stars: number; feedback: string | null }>(`/api/events/${eventId}/rating`, {
       method: 'POST',

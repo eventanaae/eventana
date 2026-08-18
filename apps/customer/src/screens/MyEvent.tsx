@@ -147,6 +147,26 @@ export function MyEvent({
         </div>
       </div>
 
+      {!cancelled && (
+        <button
+          onClick={async () => {
+            try {
+              const url = await api.walletPass(event.id);
+              window.location.href = url;
+            } catch (e: any) {
+              alert(e?.message ?? 'Wallet pass isn’t available yet.');
+            }
+          }}
+          style={{
+            width: '100%', marginBottom: 14, background: '#000', color: '#fff', border: 'none',
+            borderRadius: 16, padding: '13px 0', fontWeight: 700, fontSize: 13.5, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+           Add to Apple Wallet
+        </button>
+      )}
+
       {cancelled && (
         <div style={{ marginBottom: 14 }}>
           <Notice tone="error">

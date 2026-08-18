@@ -196,6 +196,18 @@ export const config = {
   cloudinary: parseCloudinary(),
 
   /**
+   * Apple Wallet passes. Signing material (base64 PEMs) + the Pass Type ID
+   * and Team ID. Absent → the pass endpoint reports unavailable.
+   */
+  wallet: {
+    certPem: env.PASS_CERT_B64 ? Buffer.from(env.PASS_CERT_B64, 'base64').toString('utf8') : null,
+    keyPem: env.PASS_KEY_B64 ? Buffer.from(env.PASS_KEY_B64, 'base64').toString('utf8') : null,
+    wwdrPem: env.PASS_WWDR_B64 ? Buffer.from(env.PASS_WWDR_B64, 'base64').toString('utf8') : null,
+    typeId: env.PASS_TYPE_ID ?? null,
+    teamId: env.PASS_TEAM_ID ?? null,
+  },
+
+  /**
    * Push notifications via Firebase Cloud Messaging (HTTP v1). A Firebase
    * service-account JSON (raw or base64) + the project id enable real pushes;
    * absent → registration works but sends are a no-op.
@@ -274,6 +286,10 @@ export function readinessSummary() {
       config.cloudinary.cloudName && config.cloudinary.apiKey && config.cloudinary.apiSecret,
     ),
     pushConfigured: Boolean(config.fcm.serviceAccountJson && config.fcm.projectId),
+    walletConfigured: Boolean(
+      config.wallet.certPem && config.wallet.keyPem && config.wallet.wwdrPem &&
+      config.wallet.typeId && config.wallet.teamId,
+    ),
   };
 }
 
