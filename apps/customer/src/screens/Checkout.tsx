@@ -26,7 +26,6 @@ export function Checkout({
   const [times, setTimes] = useState<Array<{ value: string; allowed: boolean }>>([]);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [photos, setPhotos] = useState<Record<string, string>>({});
 
   const [account, setAccount] = useState<Account | null>(() => loadAccount());
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
@@ -211,40 +210,15 @@ export function Checkout({
         </div>
       </div>
 
-      {/* ---------------- placement photos ---------------- */}
+      {/* Placement photos are captured for real in My Event (with upload) once
+          the booking exists — not here, where there is no event to attach them
+          to yet. A short heads-up sets the expectation. */}
       {photoRows.length > 0 && (
-        <div style={cardStyle}>
-          <div style={{ fontWeight: 700, fontSize: 13.5 }}>
-            Setup placement photos{' '}
-            <span style={{ fontWeight: 600, fontSize: 11, color: C.muted }}>— optional, skip anytime</span>
-          </div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 10px' }}>
-            Show us where you’d like each item placed — sent to your Eventana team.
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {photoRows.map((row) => (
-              <div key={row.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600 }}>{row.label}</span>
-                <button
-                  onClick={() =>
-                    setPhotos((p) => {
-                      const next = { ...p };
-                      if (next[row.key]) delete next[row.key];
-                      else next[row.key] = 'noted';
-                      return next;
-                    })
-                  }
-                  style={{
-                    border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 11,
-                    padding: '8px 12px', borderRadius: 12, whiteSpace: 'nowrap',
-                    background: photos[row.key] ? C.greenSoft : C.pinkSoft,
-                    color: photos[row.key] ? C.green : C.pinkDeep,
-                  }}
-                >
-                  {photos[row.key] ? '✓ Noted' : '＋ Add photo'}
-                </button>
-              </div>
-            ))}
+        <div style={{ ...cardStyle, background: C.mintSoft }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>📸 Show us your setup spot after booking</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: '#5f8f86', margin: '4px 0 0', lineHeight: 1.5 }}>
+            Once your booking is confirmed, open <b>My Event</b> to snap where you’d like each item placed —
+            your team sees it before they arrive.
           </div>
         </div>
       )}
@@ -480,7 +454,7 @@ function WeatherCard({ pin, date }: { pin: { lat: number; lng: number } | null; 
       ) : !data?.available ? (
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
           {data?.reason === 'too_far'
-            ? 'Forecast opens closer to the date (about 2 weeks ahead) — we’ll show it then.'
+            ? 'Forecast opens closer to the date (about a week ahead) — we’ll show it then.'
             : data?.reason === 'past'
               ? 'That date has passed.'
               : 'Forecast isn’t available for this spot right now.'}

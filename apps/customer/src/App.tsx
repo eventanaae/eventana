@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CartInput } from '@eventana/shared';
 import { api, type Catalogue, type QuoteResult } from './api';
-import { C, Spinner } from './ui';
+import { C, Spinner, fredoka } from './ui';
 import { Home } from './screens/Home';
 import { Explore } from './screens/Explore';
 import { PackageDetail } from './screens/PackageDetail';
@@ -41,8 +41,12 @@ export interface Draft {
   address: { area: string; street: string; villa: string; details: string };
   mapPin: { lat: number; lng: number } | null;
   provider: string;
-  /** Movie Night selection — frontend-only, like ageBand. */
+  /** Movie Night selection — sent to the team so they prep the right film. */
   movie: string | null;
+  /** Custom-theme brief — sent to the design team so nothing is lost. */
+  themeBrief: {
+    theme: string; concept: string; colors: string; child: string; age: string; notes: string;
+  } | null;
   /** Who the celebration is for — stored separately from the account holder. */
   eventFor: string;
 }
@@ -65,8 +69,32 @@ const emptyDraft: Draft = {
   mapPin: null,
   provider: 'tabby',
   movie: null,
+  themeBrief: null,
   eventFor: '',
 };
+
+/**
+ * The in-progress party survives a refresh or an accidental app close, so a
+ * customer never loses their selections before they reach checkout. Only the
+ * event details are kept — never anything sensitive. Cleared on a completed
+ * booking (see `reset`).
+ */
+const DRAFT_KEY = 'eventana.draft';
+function loadDraft(): Draft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = { ...emptyDraft, ...(JSON.parse(raw) as Draft) };
+    // A stale draft whose date has passed is reset to a fresh plausible date.
+    if (!d.eventDate || d.eventDate < new Date().toISOString().slice(0, 10)) d.eventDate = defaultDate();
+    return d;
+  } catch {
+    return null;
+  }
+}
+function saveDraft(d: Draft): void {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* storage full/unavailable */ }
+}
 
 /** Next Saturday — the app opens on a plausible party date. */
 function defaultDate(): string {
@@ -93,6 +121,11 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     address: draft.address,
     mapPin: draft.mapPin,
     eventFor: draft.eventFor.trim() || undefined,
+    // Previously frontend-only and silently dropped at checkout — now sent so
+    // the team gets the exact age, the chosen film, and the custom-theme brief.
+    ageBand: draft.ageBand ?? undefined,
+    movie: draft.movie ?? undefined,
+    themeBrief: draft.customTheme && draft.themeBrief ? draft.themeBrief : undefined,
   };
 }
 
@@ -100,7 +133,7 @@ export default function App() {
   const { profile, save: saveProfile } = useProfile();
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
   const [screen, setScreen] = useState<Screen>('home');
-  const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [draft, setDraft] = useState<Draft>(() => loadDraft() ?? emptyDraft);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
@@ -124,6 +157,9 @@ export default function App() {
   const update = useCallback((patch: Partial<Draft>) => {
     setDraft((d) => ({ ...d, ...patch }));
   }, []);
+
+  // Keep the in-progress party saved so nothing is lost on refresh/close.
+  useEffect(() => { saveDraft(draft); }, [draft]);
 
   /**
    * Live total. Debounced, and every response is checked against the
@@ -191,6 +227,7 @@ export default function App() {
     setDraft({ ...emptyDraft, eventDate: defaultDate() });
     setQuote(null);
     setOrderId(null);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
   }, []);
 
   const shared = useMemo(
@@ -219,15 +256,21 @@ export default function App() {
   if (error) {
     return (
       <Frame>
-        <div style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
-            Can’t reach Eventana
+        <div style={{ padding: '60px 34px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          <div style={{ fontSize: 40, marginBottom: 6 }}>🎈</div>
+          <div style={{ ...fredoka(21) }}>We couldn’t reach Eventana</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, margin: '8px 0 22px' }}>
+            Please check your connection and try again — your celebration plans are safe.
           </div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
-            {error}
-            <br />
-            Start the engine with <code>npm run dev:api</code>.
-          </div>
+          <button
+            onClick={() => { setError(null); api.catalogue().then(setCatalogue).catch((e) => setError(e.message)); }}
+            style={{ background: C.pink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '13px 30px', borderRadius: 18, cursor: 'pointer' }}
+          >
+            Try again
+          </button>
+          <a href="https://wa.me/971564500777" style={{ marginTop: 14, fontSize: 12.5, fontWeight: 700, color: C.pinkDeep, textDecoration: 'none' }}>
+            Message us on WhatsApp →
+          </a>
         </div>
       </Frame>
     );

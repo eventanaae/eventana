@@ -17,11 +17,12 @@ interface Msg {
   escalated?: boolean;
 }
 
-export function Assistant({ draft, go }: ScreenProps) {
+export function Assistant({ draft, go, customerName }: ScreenProps) {
+  const firstName = (customerName || '').trim().split(' ')[0];
   const [messages, setMessages] = useState<Msg[]>([
     {
       who: 'ai',
-      text: 'Hi Sara ✨ I’m your Eventana event assistant. Ask me about packages, prices, availability or themes — I only quote what’s in Eventana’s system.',
+      text: `Hi ${firstName || 'there'} ✨ I’m your Eventana event assistant. Ask me about packages, prices, availability or themes — I only quote what’s in Eventana’s system.`,
     },
   ]);
   const [text, setText] = useState('');

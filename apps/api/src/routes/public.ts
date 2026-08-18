@@ -49,6 +49,22 @@ const cartSchema = z.object({
   mapPin: z.object({ lat: z.number(), lng: z.number() }).nullable().optional(),
   /** Who the celebration is for — distinct from the account holder. */
   eventFor: z.string().max(120).optional(),
+  /** Exact age of the guest of honour (e.g. "6" or "Adult"). */
+  ageBand: z.string().max(20).nullable().optional(),
+  /** Movie Night film choice — so the team preps the right title. */
+  movie: z.string().max(60).nullable().optional(),
+  /** Custom-theme brief — reaches the design team instead of being lost. */
+  themeBrief: z
+    .object({
+      theme: z.string().max(200).optional(),
+      concept: z.string().max(200).optional(),
+      colors: z.string().max(200).optional(),
+      child: z.string().max(120).optional(),
+      age: z.string().max(20).optional(),
+      notes: z.string().max(1000).optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 /** MET Norway symbol code (e.g. "clearsky_day") → label, emoji, outdoor note. */

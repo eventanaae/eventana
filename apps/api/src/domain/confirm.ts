@@ -128,6 +128,8 @@ export async function confirmBooking(
     address?: Record<string, unknown>;
     mapPin?: { lat: number; lng: number };
     customerId?: string;
+    movie?: string | null;
+    themeBrief?: Record<string, string> | null;
   };
   const quote = order.quote as Quote;
 
@@ -138,9 +140,10 @@ export async function confirmBooking(
   await db.query(
     `INSERT INTO events
        (id, order_id, customer_id, celebration_type, package_id, theme_id, custom_theme,
+        custom_theme_brief, movie_id,
         event_date, start_time, base_end_time, extra_hours, children_count, emirate,
         address, map_lat, map_lng, castle_variant, phase)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,$12,$13,$14,$15,$16,'Booking Confirmed')`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0,$13,$14,$15,$16,$17,$18,'Booking Confirmed')`,
     [
       eventId,
       order.id,
@@ -149,6 +152,9 @@ export async function confirmBooking(
       cart.packageId,
       cart.themeId,
       cart.customTheme,
+      // Custom-theme brief + film choice reach the team instead of being lost.
+      cart.customTheme && cart.themeBrief ? JSON.stringify(cart.themeBrief) : null,
+      cart.movie ?? null,
       cart.eventDate,
       startTime,
       // Stored in 24h so arithmetic and comparison stay trivial; the API
@@ -262,6 +268,22 @@ export async function confirmBooking(
        ON CONFLICT (event_id, version) DO NOTHING`,
       [eventId],
     );
+    // Surface the customer's brief in the ops task list so the design team
+    // acts on the actual request rather than a generic "custom theme" task.
+    const b = cart.themeBrief;
+    if (b && (b.theme || b.concept || b.colors || b.notes)) {
+      const summary = [
+        b.theme && `Theme: ${b.theme}`,
+        b.concept && `Concept: ${b.concept}`,
+        b.colors && `Colours: ${b.colors}`,
+        b.child && `For: ${b.child}${b.age ? ` (${b.age})` : ''}`,
+        b.notes && `Notes: ${b.notes}`,
+      ].filter(Boolean).join(' · ');
+      await db.query(
+        `INSERT INTO event_tasks (event_id, department, title) VALUES ($1,'design',$2)`,
+        [eventId, `Custom theme brief — ${summary}`.slice(0, 500)],
+      );
+    }
   }
 
   // Scheduled communications. A cancellation cancels these rather than

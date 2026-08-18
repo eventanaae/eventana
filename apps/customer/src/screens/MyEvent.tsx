@@ -39,12 +39,14 @@ export function MyEvent({
   const [addonError, setAddonError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // Always keep the full list so a customer with several bookings can switch
+    // between them — not just see the most recent one.
+    const events = await api.events();
+    setList(events);
     if (eventId) {
       setEvent(await api.event(eventId));
-    } else {
-      const events = await api.events();
-      setList(events);
-      if (events.length > 0) onPickEvent(events[0].id);
+    } else if (events.length > 0) {
+      onPickEvent(events[0].id);
     }
   }, [eventId, onPickEvent]);
 
@@ -114,9 +116,36 @@ export function MyEvent({
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-        <span style={fredoka(24)}>My Event</span>
+        <span style={fredoka(24)}>{list && list.length > 1 ? 'My Events' : 'My Event'}</span>
         <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: C.muted }}>{event.id}</span>
       </div>
+
+      {/* Switcher — only when there is more than one booking to move between. */}
+      {list && list.length > 1 && (
+        <div className="scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', margin: '0 -22px 14px', padding: '0 22px 4px' }}>
+          {list.map((e) => {
+            const active = e.id === event.id;
+            return (
+              <button
+                key={e.id}
+                onClick={() => { if (!active) onPickEvent(e.id); }}
+                style={{
+                  flex: 'none', textAlign: 'start', cursor: 'pointer', borderRadius: 14,
+                  border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
+                  background: active ? C.pinkSoft : '#fff', padding: '9px 13px', minWidth: 140,
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 12, color: active ? C.pinkDeep : C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {e.packageName ?? 'Celebration'}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+                  {new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {e.phase ?? ''}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div
         style={{

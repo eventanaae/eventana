@@ -93,7 +93,7 @@ export function Themes({
         <div style={{ marginTop: 20 }}>
           <PrimaryButton
             disabled={!brief.theme.trim()}
-            onClick={() => { update({ customTheme: true, themeId: null }); go('checkout'); }}
+            onClick={() => { update({ customTheme: true, themeId: null, themeBrief: brief }); go('checkout'); }}
           >
             Add Custom Theme · AED {money(feeFils)}
           </PrimaryButton>
