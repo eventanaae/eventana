@@ -19,6 +19,7 @@ import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCale
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
+import { registerDevice, pushToOwner } from '../integrations/push.js';
 
 /**
  * Moves an event to the terminal Cancelled phase and stands its
@@ -144,6 +145,16 @@ export async function adminRoutes(app: FastifyInstance) {
   /** The signed-in staff member and their access level. */
   app.get('/api/admin/me', async (request) => {
     return (request as any).staff ?? { name: 'Staff', role: 'employee' };
+  });
+
+  /** Register this staff device for push notifications. */
+  app.post('/api/admin/devices/register', async (request, reply) => {
+    const schema = z.object({ token: z.string().min(10), platform: z.enum(['ios', 'android', 'web']).default('ios') });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const staff = (request as any).staff as { id?: string };
+    await registerDevice('staff', staff.id ?? 'owner', parsed.data.token, parsed.data.platform);
+    return { ok: true };
   });
 
   /** Newest confirmed booking — the dashboard polls this to chime on new
@@ -360,7 +371,20 @@ export async function adminRoutes(app: FastifyInstance) {
       [eventId, parsed.data.phase, parsed.data.eta ?? null],
     );
     void syncEventToCalendar(eventId);
-    return rows[0];
+    // Nudge the customer at the moments that matter most.
+    const ev = rows[0];
+    if (ev) {
+      const line =
+        ev.phase === 'On The Way'
+          ? `Your Eventana team is on the way!${ev.eta ? ` ETA ${ev.eta}` : ''} 🚐`
+          : ev.phase === 'Arrived'
+            ? 'Your Eventana team has arrived! 🎉'
+            : ev.phase === 'Setup Ready'
+              ? 'Everything is set up and ready — enjoy your celebration! ✨'
+              : null;
+      if (line) void pushToOwner('customer', ev.customer_id, 'Eventana', line, { eventId });
+    }
+    return ev;
   });
 
   /**

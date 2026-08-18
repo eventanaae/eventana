@@ -488,3 +488,18 @@ CREATE TABLE IF NOT EXISTS email_campaigns (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS email_campaigns_status_idx ON email_campaigns (status, scheduled_for);
+
+-- ── Push notifications (#20) ─────────────────────────────────────────────
+-- Device tokens for FCM. owner_type is 'staff' or 'customer'; a token is
+-- unique (re-registration upserts). Sends go through Firebase HTTP v1.
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id          BIGSERIAL PRIMARY KEY,
+  owner_type  TEXT NOT NULL,                 -- staff | customer
+  owner_id    TEXT NOT NULL,
+  token       TEXT NOT NULL,
+  platform    TEXT NOT NULL DEFAULT 'ios',   -- ios | android | web
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS device_tokens_token_idx ON device_tokens (token);
+CREATE INDEX IF NOT EXISTS device_tokens_owner_idx ON device_tokens (owner_type, owner_id);

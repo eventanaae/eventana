@@ -13,6 +13,7 @@ import { pool, withTransaction } from '../db/pool.js';
 import { getProvider } from '../payments/index.js';
 import { confirmBooking } from './confirm.js';
 import { syncEventToCalendar } from '../integrations/googleCalendar.js';
+import { pushToStaff } from '../integrations/push.js';
 import { holdsStillValid, releaseHolds } from './inventory.js';
 import {
   applyPaymentStatus,
@@ -165,6 +166,7 @@ export async function processDelivery(
   }
 
   let confirmedEventId: string | null = null;
+  let newBooking = false;
   const outcome = await withTransaction(async (db) => {
     const { applied } = await applyPaymentStatus(db, {
       paymentId: payment.id,
@@ -188,6 +190,7 @@ export async function processDelivery(
         serviceIsFoodStation: (id) => cfg.services.get(id)?.isFoodStation ?? false,
       });
       confirmedEventId = confirmed.eventId;
+      newBooking = confirmed.created;
     }
 
     if (verified.status === 'failed' || verified.status === 'cancelled') {
@@ -207,6 +210,12 @@ export async function processDelivery(
   // roll back a paid booking; it's a silent no-op when calendar sync is off.
   if (outcome === 'accepted' && confirmedEventId) {
     await syncEventToCalendar(confirmedEventId);
+    // Buzz the team's phones the moment a real new booking lands.
+    if (newBooking) {
+      void pushToStaff('New booking 🎉', `${confirmedEventId} just booked — tap to view.`, {
+        eventId: confirmedEventId,
+      });
+    }
   }
 
   await finish(deliveryId, outcome);

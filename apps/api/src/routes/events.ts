@@ -20,6 +20,7 @@ import { pool } from '../db/pool.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, startAddonCheckout, startTipCheckout } from '../domain/checkout.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
+import { registerDevice, pushToStaff } from '../integrations/push.js';
 
 /** Until real auth lands, the customer identifies itself by header. */
 function customerIdOf(request: any): string {
@@ -271,6 +272,15 @@ export async function eventRoutes(app: FastifyInstance) {
     }
   });
 
+  /** Register this customer's device for push notifications. */
+  app.post('/api/devices/register', async (request, reply) => {
+    const schema = z.object({ token: z.string().min(10), platform: z.enum(['ios', 'android', 'web']).default('ios') });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    await registerDevice('customer', customerIdOf(request), parsed.data.token, parsed.data.platform);
+    return { ok: true };
+  });
+
   /** Rate the event (1–5 + optional feedback). One rating per event; a
    *  re-submit updates it. No payment — this is separate from tipping. */
   app.post('/api/events/:eventId/rating', async (request, reply) => {
@@ -304,6 +314,7 @@ export async function eventRoutes(app: FastifyInstance) {
        VALUES ($1,'push','rating_received', now(), $2)`,
       [eventId, JSON.stringify({ eventId, stars: parsed.data.stars })],
     );
+    void pushToStaff('New rating ⭐', `${eventId} was rated ${parsed.data.stars}/5`, { eventId });
     return inserted.rows[0];
   });
 

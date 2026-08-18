@@ -189,6 +189,20 @@ export const config = {
    */
   cloudinary: parseCloudinary(),
 
+  /**
+   * Push notifications via Firebase Cloud Messaging (HTTP v1). A Firebase
+   * service-account JSON (raw or base64) + the project id enable real pushes;
+   * absent → registration works but sends are a no-op.
+   */
+  fcm: {
+    serviceAccountJson:
+      env.FCM_SERVICE_ACCOUNT_JSON ??
+      (env.FCM_SERVICE_ACCOUNT_B64
+        ? Buffer.from(env.FCM_SERVICE_ACCOUNT_B64, 'base64').toString('utf8')
+        : null),
+    projectId: env.FCM_PROJECT_ID ?? null,
+  },
+
   providers: {
     tabby: providerConfig('tabby', {
       publicKey: env.TABBY_PUBLIC_KEY,
@@ -253,6 +267,7 @@ export function readinessSummary() {
     uploadsConfigured: Boolean(
       config.cloudinary.cloudName && config.cloudinary.apiKey && config.cloudinary.apiSecret,
     ),
+    pushConfigured: Boolean(config.fcm.serviceAccountJson && config.fcm.projectId),
   };
 }
 
