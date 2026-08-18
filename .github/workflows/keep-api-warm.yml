@@ -11,7 +11,7 @@ name: Keep API warm
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # every 10 minutes (UTC)
+    - cron: '*/5 * * * *' # every 5 minutes (UTC) — extra margin vs GitHub cron delays
   workflow_dispatch: {}
 
 # Never let overlapping runs pile up.

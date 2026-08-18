@@ -22,9 +22,17 @@ function apiBase(): string {
 
 const BASE = apiBase();
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// The free-tier API sleeps after ~15 min idle and cold-starts on the next
+// request (~50s). Retry through that window so the app reconnects on its own
+// instead of showing "Can't reach Eventana". A thrown fetch reached nothing
+// (safe to retry); a gateway 5xx is only retried for idempotent GETs.
+const COLD_START_BACKOFF_MS = [2000, 4000, 6000, 8000, 10000, 12000];
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = currentToken();
-  const res = await fetch(`${BASE}${path}`, {
+  const idempotent = (init.method ?? 'GET').toUpperCase() === 'GET';
+  const opts: RequestInit = {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -34,7 +42,23 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       'x-customer-id': currentCustomerId(),
       ...(init.headers ?? {}),
     },
-  });
+  };
+  let res: Response;
+  let attempt = 0;
+  for (;;) {
+    try {
+      res = await fetch(`${BASE}${path}`, opts);
+      const gateway = res.status === 502 || res.status === 503 || res.status === 504;
+      if (gateway && idempotent && attempt < COLD_START_BACKOFF_MS.length) {
+        await sleep(COLD_START_BACKOFF_MS[attempt++]);
+        continue;
+      }
+      break;
+    } catch (err) {
+      if (attempt < COLD_START_BACKOFF_MS.length) { await sleep(COLD_START_BACKOFF_MS[attempt++]); continue; }
+      throw err;
+    }
+  }
   const text = await res.text();
   const body = text ? JSON.parse(text) : null;
   if (!res.ok) {
