@@ -386,6 +386,116 @@ export async function startAddonCheckout(args: {
 }
 
 /* ------------------------------------------------------------------ */
+/* Tips — a real payment for the crew, on the normal order rail          */
+/* ------------------------------------------------------------------ */
+
+export async function startTipCheckout(args: {
+  eventId: string;
+  amountFils: number;
+  memberId?: string | null;
+  provider: string;
+  customerId: string;
+  lang?: 'en' | 'ar';
+}): Promise<CheckoutResult> {
+  const cfg = await loadConfig(pool, { fresh: true });
+
+  const { rows } = await pool.query(
+    `SELECT * FROM events WHERE id = $1 AND customer_id = $2`,
+    [args.eventId, args.customerId],
+  );
+  const event = rows[0];
+  if (!event) throw new CheckoutError('Event not found.', 'not_found');
+
+  if (!Number.isInteger(args.amountFils) || args.amountFils < 500) {
+    throw new CheckoutError('A tip must be at least AED 5.', 'invalid_amount');
+  }
+
+  // Optional: a tip aimed at one crew member must be someone actually on the
+  // event, so the money and the KPI credit land on the right person.
+  if (args.memberId) {
+    const { rows: onCrew } = await pool.query(
+      `SELECT 1 FROM event_team WHERE event_id = $1 AND member_id = $2`,
+      [args.eventId, args.memberId],
+    );
+    if (!onCrew[0]) throw new CheckoutError('That team member is not on this event.', 'not_found');
+  }
+
+  if (config.providers[args.provider as keyof typeof config.providers]?.mode === 'disabled') {
+    throw new CheckoutError('This payment method is not currently available.', 'unavailable');
+  }
+  const provider = getProvider(args.provider);
+
+  const tipQuote = {
+    bookable: true,
+    totalFils: args.amountFils,
+    lines: [
+      { refId: 'crew_tip', label: 'Tip for the Eventana crew', quantity: 1, unitFils: args.amountFils, amountFils: args.amountFils },
+    ],
+  };
+
+  const orderId = await withTransaction(async (db) => {
+    const id = await nextOrderId(db);
+    await createOrder(db, {
+      id,
+      kind: 'tip',
+      customerId: args.customerId,
+      eventId: args.eventId,
+      totalFils: args.amountFils,
+      cart: { tip: true, eventId: args.eventId, memberId: args.memberId ?? null },
+      quote: tipQuote,
+    });
+    await db.query(
+      `INSERT INTO tips (event_id, order_id, member_id, amount_fils, status)
+       VALUES ($1,$2,$3,$4,'pending')`,
+      [args.eventId, id, args.memberId ?? null, args.amountFils],
+    );
+    return id;
+  });
+
+  const customer = await loadCustomer(args.customerId);
+  const paymentId = randomUUID();
+  const session = await provider.createSession({
+    orderId,
+    amountFils: args.amountFils,
+    currency: 'AED',
+    customer,
+    items: [
+      { title: 'Crew tip', quantity: 1, unitPriceFils: args.amountFils, referenceId: 'crew_tip', category: 'events' },
+    ],
+    shippingFils: 0,
+    discountFils: 0,
+    city: event.emirate,
+    address: String((event.address as any)?.area ?? ''),
+    lang: args.lang ?? 'en',
+    successUrl: `${config.publicAppUrl}/pay/return?order=${orderId}`,
+    cancelUrl: `${config.publicAppUrl}/pay/cancel?order=${orderId}`,
+    failureUrl: `${config.publicAppUrl}/pay/failure?order=${orderId}`,
+    orderHistory: await loadOrderHistory(args.customerId),
+  });
+
+  await createPayment(pool, {
+    id: paymentId,
+    orderId,
+    provider: provider.name,
+    amountFils: args.amountFils,
+    providerPaymentId: session.providerPaymentId || null,
+    checkoutUrl: session.checkoutUrl,
+    raw: session.raw,
+  });
+
+  return {
+    orderId,
+    paymentId,
+    provider: provider.name,
+    checkoutUrl: session.checkoutUrl,
+    eligible: session.eligible,
+    totalFils: args.amountFils,
+    holdExpiresAt: new Date(Date.now() + cfg.rules.inventoryHoldMinutes * 60_000).toISOString(),
+    quote: tipQuote as unknown as Quote,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 
 async function loadCustomer(customerId: string) {
   const { rows } = await pool.query(`SELECT * FROM customers WHERE id = $1`, [customerId]);

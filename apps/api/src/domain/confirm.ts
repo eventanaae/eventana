@@ -88,6 +88,42 @@ export async function confirmBooking(
     return { eventId: order.event_id, created: false };
   }
 
+  if (order.kind === 'tip') {
+    // A tip is money for the crew, not a booking: mark it paid and alert the
+    // team. Idempotent — a replayed webhook flips an already-paid tip to the
+    // same state and the notification insert is guarded by NOT EXISTS.
+    await db.query(
+      `UPDATE tips SET status = 'paid', paid_at = now()
+        WHERE order_id = $1 AND status <> 'paid'`,
+      [order.id],
+    );
+    const { rows: tipRows } = await db.query(
+      `SELECT event_id, member_id, amount_fils FROM tips WHERE order_id = $1`,
+      [order.id],
+    );
+    const tip = tipRows[0];
+    if (tip) {
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         SELECT $1, 'push', 'tip_received', now(), $2
+          WHERE NOT EXISTS (
+            SELECT 1 FROM notifications
+             WHERE template = 'tip_received' AND payload->>'orderId' = $3)`,
+        [
+          tip.event_id,
+          JSON.stringify({
+            orderId: order.id,
+            eventId: tip.event_id,
+            memberId: tip.member_id,
+            amountFils: Number(tip.amount_fils),
+          }),
+          order.id,
+        ],
+      );
+    }
+    return { eventId: order.event_id, created: false };
+  }
+
   const cart = order.cart as CartInput & {
     address?: Record<string, unknown>;
     mapPin?: { lat: number; lng: number };

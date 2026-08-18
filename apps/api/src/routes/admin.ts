@@ -201,7 +201,8 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
 
-    const [services, tasks, team, holds, messages, photos, orders, payments] = await Promise.all([
+    const [services, tasks, team, holds, messages, photos, orders, payments, rating, tips] =
+      await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(`SELECT * FROM event_tasks WHERE event_id = $1 ORDER BY department, id`, [eventId]),
       pool.query(
@@ -225,6 +226,15 @@ export async function adminRoutes(app: FastifyInstance) {
           WHERE o.event_id = $1 OR o.id = $2 ORDER BY p.created_at`,
         [eventId, rows[0].order_id],
       ),
+      pool.query(`SELECT stars, feedback, created_at FROM event_ratings WHERE event_id = $1`, [
+        eventId,
+      ]),
+      pool.query(
+        `SELECT t.id, t.amount_fils, t.status, t.created_at, t.member_id, m.name AS member_name
+           FROM tips t LEFT JOIN team_members m ON m.id = t.member_id
+          WHERE t.event_id = $1 AND t.status = 'paid' ORDER BY t.created_at`,
+        [eventId],
+      ),
     ]);
 
     return {
@@ -246,6 +256,8 @@ export async function adminRoutes(app: FastifyInstance) {
       setupPhotos: photos.rows,
       orders: orders.rows.map((o) => ({ ...o, totalDisplay: formatAed(Number(o.total_fils)) })),
       payments: payments.rows,
+      rating: rating.rows[0] ?? null,
+      tips: tips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
     };
   });
 
@@ -347,6 +359,102 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     for (const r of rows) await syncEventToCalendar(r.id);
     return { synced: rows.length };
+  });
+
+  /**
+   * Staff KPIs & tips leaderboard for a month (default: current). Each metric
+   * is a correlated aggregate so joining ratings and tips can't inflate the
+   * others. Points are a simple, transparent formula computed here.
+   */
+  app.get('/api/admin/kpis', async (request) => {
+    const q = request.query as { month?: string };
+    const now = new Date();
+    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
+      ? q.month!
+      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const start = `${monthStr}-01`;
+    const end = new Date(`${start}T00:00:00Z`);
+    end.setUTCMonth(end.getUTCMonth() + 1);
+    const endStr = end.toISOString().slice(0, 10);
+
+    const { rows } = await pool.query(
+      `SELECT tm.id, tm.name, tm.role, tm.color, tm.access_level,
+         (SELECT COUNT(*) FROM event_team et JOIN events e ON e.id = et.event_id
+            WHERE et.member_id = tm.id AND e.phase = 'Event Completed'
+              AND e.event_date >= $1 AND e.event_date < $2) AS events_done,
+         (SELECT COALESCE(SUM(t.amount_fils),0) FROM tips t JOIN events e ON e.id = t.event_id
+            WHERE t.member_id = tm.id AND t.status = 'paid'
+              AND e.event_date >= $1 AND e.event_date < $2) AS tips_fils,
+         (SELECT COUNT(*) FROM tips t JOIN events e ON e.id = t.event_id
+            WHERE t.member_id = tm.id AND t.status = 'paid'
+              AND e.event_date >= $1 AND e.event_date < $2) AS tips_count,
+         (SELECT COALESCE(ROUND(AVG(r.stars)::numeric,2),0) FROM event_ratings r
+            JOIN event_team et ON et.event_id = r.event_id
+            JOIN events e ON e.id = r.event_id
+            WHERE et.member_id = tm.id AND e.event_date >= $1 AND e.event_date < $2) AS avg_rating,
+         (SELECT COUNT(*) FROM event_ratings r
+            JOIN event_team et ON et.event_id = r.event_id
+            JOIN events e ON e.id = r.event_id
+            WHERE et.member_id = tm.id AND r.stars = 5
+              AND e.event_date >= $1 AND e.event_date < $2) AS five_stars
+       FROM team_members tm
+       WHERE tm.active
+       ORDER BY tips_fils DESC, events_done DESC, tm.name`,
+      [start, endStr],
+    );
+
+    const staff = rows.map((r) => {
+      const eventsDone = Number(r.events_done);
+      const tipsFils = Number(r.tips_fils);
+      const fiveStars = Number(r.five_stars);
+      const points = eventsDone * 10 + Math.round(tipsFils / 100) + fiveStars * 20;
+      return {
+        id: r.id,
+        name: r.name,
+        role: r.role,
+        color: r.color,
+        accessLevel: r.access_level,
+        eventsDone,
+        tipsFils,
+        tipsDisplay: formatAed(tipsFils),
+        tipsCount: Number(r.tips_count),
+        avgRating: Number(r.avg_rating),
+        fiveStars,
+        points,
+      };
+    });
+
+    const totals = await pool.query(
+      `SELECT
+         (SELECT COALESCE(SUM(amount_fils),0) FROM tips t JOIN events e ON e.id=t.event_id
+            WHERE t.status='paid' AND e.event_date >= $1 AND e.event_date < $2) AS tips_fils,
+         (SELECT COALESCE(SUM(amount_fils),0) FROM tips t JOIN events e ON e.id=t.event_id
+            WHERE t.status='paid' AND t.member_id IS NULL
+              AND e.event_date >= $1 AND e.event_date < $2) AS team_pool_fils,
+         (SELECT COUNT(*) FROM events e WHERE e.phase='Event Completed'
+            AND e.event_date >= $1 AND e.event_date < $2) AS events_done,
+         (SELECT COALESCE(ROUND(AVG(r.stars)::numeric,2),0) FROM event_ratings r
+            JOIN events e ON e.id=r.event_id
+            WHERE e.event_date >= $1 AND e.event_date < $2) AS avg_rating,
+         (SELECT COUNT(*) FROM event_ratings r JOIN events e ON e.id=r.event_id
+            WHERE e.event_date >= $1 AND e.event_date < $2) AS ratings_count`,
+      [start, endStr],
+    );
+    const t = totals.rows[0];
+
+    return {
+      month: monthStr,
+      staff,
+      overall: {
+        tipsFils: Number(t.tips_fils),
+        tipsDisplay: formatAed(Number(t.tips_fils)),
+        teamPoolFils: Number(t.team_pool_fils),
+        teamPoolDisplay: formatAed(Number(t.team_pool_fils)),
+        eventsDone: Number(t.events_done),
+        avgRating: Number(t.avg_rating),
+        ratingsCount: Number(t.ratings_count),
+      },
+    };
   });
 
   /** Team reply in the event chat. The staff name shows; no phone number. */

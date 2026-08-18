@@ -399,3 +399,33 @@ CREATE TABLE IF NOT EXISTS missing_items (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS missing_items_status_idx ON missing_items (status, created_at);
+
+-- ── Ratings & tips (#30) ─────────────────────────────────────────────────
+-- After an event, the customer rates it (1–5 + feedback) and can leave a tip
+-- for the whole crew or a specific member. A tip is a real Ziina payment: it
+-- rides the normal order→payment→webhook rail as a 'tip'-kind order, and is
+-- marked paid only on a provider-confirmed webhook — never optimistically.
+CREATE TABLE IF NOT EXISTS event_ratings (
+  id          BIGSERIAL PRIMARY KEY,
+  event_id    TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  customer_id TEXT REFERENCES customers(id),
+  stars       INT NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  feedback    TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- One rating per event; a re-submit updates it (handled with ON CONFLICT).
+CREATE UNIQUE INDEX IF NOT EXISTS event_ratings_event_idx ON event_ratings (event_id);
+
+CREATE TABLE IF NOT EXISTS tips (
+  id          BIGSERIAL PRIMARY KEY,
+  event_id    TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  order_id    TEXT REFERENCES orders(id),          -- the tip's own payment order
+  member_id   TEXT REFERENCES team_members(id),    -- NULL = whole team
+  amount_fils BIGINT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'pending',      -- pending | paid | failed
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  paid_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS tips_event_idx  ON tips (event_id);
+CREATE INDEX IF NOT EXISTS tips_member_idx ON tips (member_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS tips_order_idx ON tips (order_id) WHERE order_id IS NOT NULL;

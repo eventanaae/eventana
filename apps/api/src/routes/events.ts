@@ -18,7 +18,7 @@ import {
 const display = (time: string) => formatHour(parseHour(time));
 import { pool } from '../db/pool.js';
 import { loadConfig } from '../domain/settings.js';
-import { CheckoutError, startAddonCheckout } from '../domain/checkout.js';
+import { CheckoutError, startAddonCheckout, startTipCheckout } from '../domain/checkout.js';
 
 /** Until real auth lands, the customer identifies itself by header. */
 function customerIdOf(request: any): string {
@@ -80,7 +80,7 @@ export async function eventRoutes(app: FastifyInstance) {
     const event = rows[0];
     if (!event) return reply.status(404).send({ error: 'not_found' });
 
-    const [services, team, messages, designs, tasks] = await Promise.all([
+    const [services, team, messages, designs, tasks, rating] = await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(
         `SELECT m.id, m.name, m.role, m.color FROM event_team et
@@ -99,6 +99,7 @@ export async function eventRoutes(app: FastifyInstance) {
            FROM event_tasks WHERE event_id = $1`,
         [eventId],
       ),
+      pool.query(`SELECT stars, feedback FROM event_ratings WHERE event_id = $1`, [eventId]),
     ]);
 
     const serviceIds = services.rows.map((s) => s.service_id).filter(Boolean) as string[];
@@ -171,6 +172,13 @@ export async function eventRoutes(app: FastifyInstance) {
         source: s.source,
       })),
       team: team.rows,
+      // Ratings & tips open once the party is under way / done, and never on a
+      // cancelled event. The crew list above is who a tip can be aimed at.
+      review: {
+        canReview: !cancelled && ['Party Started', 'Event Completed'].includes(event.phase),
+        rating: rating.rows[0] ?? null,
+        tipPresetsFils: [5000, 10000, 15000],
+      },
       messages: messages.rows,
       chatOpen: event.chat_open,
       designs: designs.rows,
@@ -251,6 +259,74 @@ export async function eventRoutes(app: FastifyInstance) {
           socksPairs: parsed.data.socksPairs,
           extraServings: parsed.data.extraServings,
         },
+      });
+    } catch (err) {
+      if (err instanceof CheckoutError) {
+        return reply
+          .status(err.code === 'not_found' ? 404 : 422)
+          .send({ error: err.code, message: err.message, details: err.details });
+      }
+      throw err;
+    }
+  });
+
+  /** Rate the event (1–5 + optional feedback). One rating per event; a
+   *  re-submit updates it. No payment — this is separate from tipping. */
+  app.post('/api/events/:eventId/rating', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const schema = z.object({
+      stars: z.number().int().min(1).max(5),
+      feedback: z.string().max(2000).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+
+    const customerId = customerIdOf(request);
+    const { rows } = await pool.query(
+      `SELECT phase FROM events WHERE id = $1 AND customer_id = $2`,
+      [eventId, customerId],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    if (isCancelled(rows[0].phase)) return reply.status(409).send(CANCELLED_ERROR);
+
+    const inserted = await pool.query(
+      `INSERT INTO event_ratings (event_id, customer_id, stars, feedback)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (event_id) DO UPDATE
+         SET stars = EXCLUDED.stars, feedback = EXCLUDED.feedback, created_at = now()
+       RETURNING stars, feedback`,
+      [eventId, customerId, parsed.data.stars, parsed.data.feedback ?? null],
+    );
+    // Let the crew see the rating land — surfaced in the dashboard's alerts.
+    await pool.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       VALUES ($1,'push','rating_received', now(), $2)`,
+      [eventId, JSON.stringify({ eventId, stars: parsed.data.stars })],
+    );
+    return inserted.rows[0];
+  });
+
+  /** Tip the crew — a real Ziina payment on the same Event ID. Optionally
+   *  aimed at one team member; otherwise it's for the whole crew. */
+  app.post('/api/events/:eventId/tip/checkout', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const schema = z.object({
+      amountFils: z.number().int().min(500).max(5_000_00),
+      memberId: z.string().nullable().optional(),
+      provider: z.enum(['tabby', 'tamara', 'ziina']).default('ziina'),
+      lang: z.enum(['en', 'ar']).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+
+    try {
+      return await startTipCheckout({
+        eventId,
+        customerId: customerIdOf(request),
+        amountFils: parsed.data.amountFils,
+        memberId: parsed.data.memberId ?? null,
+        provider: parsed.data.provider,
+        lang: parsed.data.lang,
       });
     } catch (err) {
       if (err instanceof CheckoutError) {
