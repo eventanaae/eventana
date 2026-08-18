@@ -119,6 +119,7 @@ export const api = {
     }),
 
   me: () => request<{ id?: string; name: string; role: string }>('/api/admin/me'),
+  latestBooking: () => request<any>('/api/admin/bookings/latest'),
 
   team: () => request<any[]>('/api/admin/team'),
   setTeamAccess: (id: string, accessLevel: string, rotateToken = false) =>

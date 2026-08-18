@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, hasStaffToken, setStaffToken, clearStaffToken } from './api';
 import { C, fredoka } from './ui';
+import { BookingNotifier } from './BookingNotifier';
 import { Today } from './views/Today';
 import { MyEvents } from './views/MyEvents';
 import { Calendar } from './views/Calendar';
@@ -115,6 +116,7 @@ export default function App() {
   if (mobile) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
+        <BookingNotifier enabled={authed} />
         <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: `1px solid ${C.line}`, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={fredoka(17)}>{current.title}</div>
@@ -150,6 +152,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
+      <BookingNotifier enabled={authed} />
       {/* ---------------- sidebar ---------------- */}
       <div
         style={{

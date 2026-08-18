@@ -130,6 +130,7 @@ export async function adminRoutes(app: FastifyInstance) {
             path === '/api/admin/today' ||
             path === '/api/admin/events' ||
             path === '/api/admin/my-events' ||
+            path === '/api/admin/bookings/latest' ||
             /^\/api\/admin\/events\/[^/]+$/.test(path))) ||
         (method === 'POST' && /^\/api\/admin\/events\/[^/]+\/phase$/.test(path));
       if (!allowed) {
@@ -143,6 +144,20 @@ export async function adminRoutes(app: FastifyInstance) {
   /** The signed-in staff member and their access level. */
   app.get('/api/admin/me', async (request) => {
     return (request as any).staff ?? { name: 'Staff', role: 'employee' };
+  });
+
+  /** Newest confirmed booking — the dashboard polls this to chime on new
+   *  bookings. Light by design (one row). */
+  app.get('/api/admin/bookings/latest', async () => {
+    const { rows } = await pool.query(
+      `SELECT e.id, e.created_at, e.event_date, e.emirate, c.name AS customer,
+              p.name AS package_name, e.celebration_type
+         FROM events e
+         JOIN customers c ON c.id = e.customer_id
+         LEFT JOIN packages p ON p.id = e.package_id
+        ORDER BY e.created_at DESC LIMIT 1`,
+    );
+    return rows[0] ?? null;
   });
 
   /* ------------------------------ Today --------------------------- */
