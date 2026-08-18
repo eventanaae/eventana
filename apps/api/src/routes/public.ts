@@ -51,24 +51,27 @@ const cartSchema = z.object({
   eventFor: z.string().max(120).optional(),
 });
 
-/** WMO weather code → a friendly label, emoji, and an outdoor-party note. */
-function describeWeather(code: number): { label: string; emoji: string; outdoorNote: string } {
+/** MET Norway symbol code (e.g. "clearsky_day") → label, emoji, outdoor note. */
+function describeWeather(symbol: string): { label: string; emoji: string; outdoorNote: string } {
   const perfect = 'Perfect for an outdoor celebration! ☀️';
-  const table: Array<[number[], string, string, string]> = [
-    [[0], 'Clear sky', '☀️', perfect],
-    [[1, 2], 'Mostly sunny', '🌤️', perfect],
-    [[3], 'Cloudy', '☁️', 'Comfortable and cool — great for outdoors.'],
-    [[45, 48], 'Foggy', '🌫️', 'Foggy morning — should clear up.'],
-    [[51, 53, 55, 56, 57], 'Light drizzle', '🌦️', 'A little drizzle possible — consider a covered spot.'],
-    [[61, 63, 65, 66, 67, 80, 81, 82], 'Rain', '🌧️', 'Rain likely — an indoor or covered setup is safer.'],
-    [[71, 73, 75, 77, 85, 86], 'Snow', '🌨️', 'Snow expected — indoors recommended.'],
-    [[95, 96, 99], 'Thunderstorm', '⛈️', 'Storms possible — please plan for indoors.'],
-  ];
-  for (const [codes, label, emoji, note] of table) {
-    if (codes.includes(code)) return { label, emoji, outdoorNote: note };
-  }
+  const s = symbol.replace(/_(day|night|polartwilight)$/, '');
+  const map: Record<string, [string, string, string]> = {
+    clearsky: ['Clear sky', '☀️', perfect],
+    fair: ['Mostly sunny', '🌤️', perfect],
+    partlycloudy: ['Partly cloudy', '⛅', perfect],
+    cloudy: ['Cloudy', '☁️', 'Comfortable and cool — great for outdoors.'],
+    fog: ['Foggy', '🌫️', 'Foggy — should clear up during the day.'],
+  };
+  if (map[s]) return { label: map[s][0], emoji: map[s][1], outdoorNote: map[s][2] };
+  if (/thunder/.test(s)) return { label: 'Thunderstorm', emoji: '⛈️', outdoorNote: 'Storms possible — please plan for indoors.' };
+  if (/snow|sleet/.test(s)) return { label: 'Snow', emoji: '🌨️', outdoorNote: 'Snow/sleet expected — indoors recommended.' };
+  if (/heavyrain/.test(s)) return { label: 'Heavy rain', emoji: '🌧️', outdoorNote: 'Heavy rain likely — an indoor or covered setup is safer.' };
+  if (/rain|drizzle|showers/.test(s)) return { label: 'Rain likely', emoji: '🌦️', outdoorNote: 'Some rain possible — consider a covered spot.' };
   return { label: 'Mild', emoji: '🌤️', outdoorNote: perfect };
 }
+
+/** Small in-memory cache so repeated lookups don't hammer the weather API. */
+const weatherCache = new Map<string, { at: number; value: unknown }>();
 
 export async function publicRoutes(app: FastifyInstance) {
   /** Ops probe: is the Google Calendar link actually working? Status only. */
@@ -91,45 +94,53 @@ export async function publicRoutes(app: FastifyInstance) {
         86_400_000,
     );
     if (daysOut < 0) return { available: false, reason: 'past' };
-    if (daysOut > 15) return { available: false, reason: 'too_far' };
+    if (daysOut > 9) return { available: false, reason: 'too_far' };
+
+    const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${q.date}`;
+    const cached = weatherCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < 3 * 3600_000) return cached.value as object;
 
     try {
-      const url =
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
-        `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,wind_speed_10m_max` +
-        `&timezone=auto&start_date=${q.date}&end_date=${q.date}`;
-      const res = await fetch(url, { headers: { 'user-agent': 'Eventana/1.0 (+https://eventana.ae)' } });
+      // MET Norway (Norwegian Meteorological Institute) — free, keyless; a
+      // descriptive User-Agent is required by their terms.
+      const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}`;
+      const res = await fetch(url, { headers: { 'user-agent': 'EventanaEvents/1.0 hello@eventanauae.com' } });
       if (!res.ok) {
-        request.log.warn({ status: res.status, body: (await res.text()).slice(0, 200) }, 'open-meteo non-ok');
+        request.log.warn({ status: res.status }, 'met.no non-ok');
         return { available: false, reason: 'unavailable' };
       }
       const d = (await res.json()) as {
-        daily?: {
-          temperature_2m_max?: number[]; temperature_2m_min?: number[];
-          weather_code?: number[]; precipitation_probability_max?: number[]; wind_speed_10m_max?: number[];
-        };
+        properties?: { timeseries?: Array<{ time: string; data: any }> };
       };
-      const day = d.daily;
-      if (!day?.weather_code?.length) {
-        request.log.warn({ keys: Object.keys(d) }, 'open-meteo empty daily');
-        return { available: false, reason: 'unavailable' };
-      }
-      const code = day.weather_code[0];
-      const w = describeWeather(code);
-      return {
+      const series = (d.properties?.timeseries ?? []).filter((t) => t.time.slice(0, 10) === q.date);
+      if (series.length === 0) return { available: false, reason: 'too_far' };
+
+      const temps = series.map((t) => t.data?.instant?.details?.air_temperature).filter((n) => typeof n === 'number');
+      const winds = series.map((t) => t.data?.instant?.details?.wind_speed).filter((n) => typeof n === 'number');
+      let precip = 0;
+      for (const t of series) precip += t.data?.next_6_hours?.details?.precipitation_amount ?? t.data?.next_1_hours?.details?.precipitation_amount ?? 0;
+      // Pick the symbol from around midday for a representative condition.
+      const noon = series.find((t) => t.time.slice(11, 13) === '12') ?? series[Math.floor(series.length / 2)];
+      const symbol: string =
+        noon?.data?.next_6_hours?.summary?.symbol_code ?? noon?.data?.next_1_hours?.summary?.symbol_code ?? 'fair_day';
+      const w = describeWeather(symbol);
+
+      const value = {
         available: true,
         date: q.date,
-        tempMax: Math.round(day.temperature_2m_max?.[0] ?? 0),
-        tempMin: Math.round(day.temperature_2m_min?.[0] ?? 0),
-        precipProb: Math.round(day.precipitation_probability_max?.[0] ?? 0),
-        windMax: Math.round(day.wind_speed_10m_max?.[0] ?? 0),
-        code,
+        tempMax: Math.round(Math.max(...temps)),
+        tempMin: Math.round(Math.min(...temps)),
+        precipMm: Math.round(precip * 10) / 10,
+        windMax: Math.round(Math.max(...winds, 0) * 3.6), // m/s → km/h
+        symbol,
         emoji: w.emoji,
         label: w.label,
         outdoorNote: w.outdoorNote,
       };
+      weatherCache.set(cacheKey, { at: Date.now(), value });
+      return value;
     } catch (err) {
-      request.log.warn({ err: (err as Error).message }, 'open-meteo fetch threw');
+      request.log.warn({ err: (err as Error).message }, 'weather fetch threw');
       return { available: false, reason: 'unavailable' };
     }
   });

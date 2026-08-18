@@ -83,7 +83,7 @@ export const api = {
   weather: (lat: number, lng: number, date: string) =>
     request<{
       available: boolean; reason?: string; date?: string;
-      tempMax?: number; tempMin?: number; precipProb?: number; windMax?: number;
+      tempMax?: number; tempMin?: number; precipMm?: number; windMax?: number;
       emoji?: string; label?: string; outdoorNote?: string;
     }>(`/api/weather?lat=${lat}&lng=${lng}&date=${date}`),
 

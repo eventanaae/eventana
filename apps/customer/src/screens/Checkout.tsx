@@ -496,7 +496,7 @@ function WeatherCard({ pin, date }: { pin: { lat: number; lng: number } | null; 
               <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{data.label}</div>
             </div>
             <div style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, color: C.muted }}>
-              <div>💧 {data.precipProb}%</div>
+              <div>🌧️ {data.precipMm} mm</div>
               <div>💨 {data.windMax} km/h</div>
             </div>
           </div>
