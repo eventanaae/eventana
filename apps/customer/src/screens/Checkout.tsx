@@ -30,7 +30,16 @@ export function Checkout({
 
   const [account, setAccount] = useState<Account | null>(() => loadAccount());
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
-  const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', password: '' });
+
+  // Savings: promo code, store credit, point redemption.
+  const [rewards, setRewards] = useState<Awaited<ReturnType<typeof api.rewards>> | null>(null);
+  const [promoInput, setPromoInput] = useState('');
+  const [promo, setPromo] = useState<{ code: string; amountFils: number } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [useCredit, setUseCredit] = useState(false);
+  const [redeemPoints, setRedeemPoints] = useState(false);
+  const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', password: '', referralCode: '' });
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -56,6 +65,7 @@ export function Checkout({
               email: reg.email.trim(),
               phone: reg.phone.trim(),
               password: reg.password,
+              referralCode: reg.referralCode.trim() || undefined,
             })
           : await api.login({ email: reg.email.trim(), password: reg.password });
       saveAccount(acc);
@@ -70,6 +80,44 @@ export function Checkout({
   useEffect(() => {
     api.startTimes().then(setTimes).catch(() => setTimes([]));
   }, []);
+
+  // Load the customer's rewards balance once signed in (for credit + points).
+  useEffect(() => {
+    if (account) api.rewards().then(setRewards).catch(() => setRewards(null));
+    else { setRewards(null); setUseCredit(false); setRedeemPoints(false); }
+  }, [account]);
+
+  const subtotalFils = quote?.totalFils ?? 0;
+
+  // Estimated savings, mirroring the server's priority order (promo → credit →
+  // points), each capped so at least AED 5 stays payable. The server is
+  // authoritative at payment; this is the live preview.
+  const MIN_PAYABLE = 500;
+  let remaining = subtotalFils;
+  const promoFils = promo ? Math.min(promo.amountFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
+  remaining -= promoFils;
+  const creditFils = useCredit && rewards ? Math.min(rewards.creditFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
+  remaining -= creditFils;
+  const pointsFils = redeemPoints && rewards ? Math.min(rewards.redeemableFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
+  remaining -= pointsFils;
+  const savingsFils = promoFils + creditFils + pointsFils;
+  const estTotalFils = Math.max(0, subtotalFils - savingsFils);
+
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code) return;
+    setPromoBusy(true);
+    setPromoError(null);
+    try {
+      const r = await api.checkPromo(code, subtotalFils);
+      if (r.ok && r.code) { setPromo({ code: r.code, amountFils: r.amountFils ?? 0 }); setPromoError(null); }
+      else { setPromo(null); setPromoError(r.reason ?? 'This code isn’t valid.'); }
+    } catch {
+      setPromoError('Couldn’t check that code. Try again.');
+    } finally {
+      setPromoBusy(false);
+    }
+  };
 
   const zone = catalogue.deliveryZones.find((z) => z.emirate === draft.emirate);
   const blocked = zone && (!zone.available || zone.feeFils === null);
@@ -89,7 +137,11 @@ export function Checkout({
     setPaying(true);
     setError(null);
     try {
-      const result = await api.checkout(toCart(draft), draft.provider);
+      const result = await api.checkout(toCart(draft), draft.provider, {
+        promoCode: promo?.code ?? null,
+        useCredit,
+        redeemPoints,
+      });
       if (!result.eligible || !result.checkoutUrl) {
         setError(t('checkout.providerUnavailable', { provider: draft.provider }));
         setPaying(false);
@@ -323,6 +375,9 @@ export function Checkout({
             {authMode === 'register' && (
               <Field placeholder={t('checkout.phMobile')} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
             )}
+            {authMode === 'register' && (
+              <Field placeholder={t('checkout.phReferral')} value={reg.referralCode} onChange={(v) => setReg((r) => ({ ...r, referralCode: v.toUpperCase() }))} style={{ marginBottom: 9 }} />
+            )}
             <input
               type="password"
               placeholder={t('checkout.phPassword')}
@@ -359,6 +414,74 @@ export function Checkout({
           </>
         )}
       </div>
+
+      {/* ---------------- savings & rewards ---------------- */}
+      {account && (
+        <div style={cardStyle}>
+          <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.rewardsTitle')}</div>
+
+          {/* promo code */}
+          {promo ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: C.green }}>
+                {t('checkout.promoApplied', { code: promo.code, aed: `${t('common.aed')} ${money(promoFils)}` })}
+              </span>
+              <button
+                onClick={() => { setPromo(null); setPromoInput(''); }}
+                style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+              >✕</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+              <input
+                placeholder={t('checkout.promoPh')}
+                value={promoInput}
+                onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                style={{
+                  flex: 1, minWidth: 0, border: `1px solid ${C.pinkLine}`, borderRadius: 12, padding: '10px 12px',
+                  fontWeight: 700, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none', letterSpacing: '.5px',
+                }}
+              />
+              <button
+                onClick={applyPromo}
+                disabled={promoBusy || !promoInput.trim()}
+                style={{
+                  border: 'none', background: C.pinkSoft, color: C.pinkDeep, fontWeight: 700, fontSize: 12.5,
+                  padding: '0 16px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >{promoBusy ? '…' : t('checkout.apply')}</button>
+            </div>
+          )}
+          {promoError && <div style={{ fontSize: 11, fontWeight: 600, color: C.red, marginBottom: 6 }}>{promoError}</div>}
+
+          {/* store credit */}
+          {rewards && rewards.creditFils > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', padding: '8px 0' }}>
+              <input type="checkbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} />
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                {t('checkout.useCredit', { aed: `${t('common.aed')} ${money(rewards.creditFils)}` })}
+              </span>
+            </label>
+          )}
+
+          {/* points redemption */}
+          {rewards && rewards.redeemableFils > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', padding: '8px 0' }}>
+              <input type="checkbox" checked={redeemPoints} onChange={(e) => setRedeemPoints(e.target.checked)} />
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                {t('checkout.redeem', { points: rewards.points.toLocaleString('en-US'), aed: `${t('common.aed')} ${money(rewards.redeemableFils)}` })}
+              </span>
+            </label>
+          )}
+
+          {savingsFils > 0 && (
+            <div style={{ borderTop: `1px solid ${C.pinkLine}`, marginTop: 8, paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 700 }}>
+              <span>{t('checkout.estTotal')}</span>
+              <span style={{ color: C.green }}>{t('common.aed')} {money(estTotalFils)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ---------------- payment ---------------- */}
       <div style={{ fontWeight: 700, fontSize: 14, margin: '18px 0 10px' }}>{t('checkout.payWith')}</div>
@@ -408,7 +531,7 @@ export function Checkout({
 
       <div style={{ marginTop: 14 }}>
         <PrimaryButton disabled={!canPay} onClick={pay}>
-          {paying ? t('checkout.opening') : t('checkout.pay', { aed: `${t('common.aed')} ${quote ? money(quote.totalFils) : '—'}` })}
+          {paying ? t('checkout.opening') : t('checkout.pay', { aed: `${t('common.aed')} ${quote ? money(estTotalFils) : '—'}` })}
         </PrimaryButton>
       </div>
     </div>

@@ -122,6 +122,47 @@ CREATE TABLE IF NOT EXISTS customers (
 -- before self-registration simply have NULL here.
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
+-- Referral programme + store credit.
+--  referral_code: this customer's own shareable code.
+--  referred_by: the code they signed up with (credits its owner on first booking).
+--  referral_credit_fils: spendable store credit (welcome credit + referral rewards).
+--  referral_rewarded: guards the one-time referrer reward on the referee's 1st booking.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS referral_code TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS referred_by TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS referral_credit_fils INT NOT NULL DEFAULT 0;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS customers_referral_code_idx ON customers (referral_code);
+
+-- Marketing promo codes the dashboard can create.
+CREATE TABLE IF NOT EXISTS promo_codes (
+  code           TEXT PRIMARY KEY,          -- stored uppercased
+  kind           TEXT NOT NULL,             -- 'percent' | 'fixed'
+  value          INT NOT NULL,              -- percent (1-100) or fils
+  min_spend_fils INT NOT NULL DEFAULT 0,
+  max_uses       INT,                       -- NULL = unlimited
+  uses           INT NOT NULL DEFAULT 0,
+  active         BOOLEAN NOT NULL DEFAULT TRUE,
+  expires_at     TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One redemption per customer per code (also the audit trail).
+CREATE TABLE IF NOT EXISTS promo_redemptions (
+  id          BIGSERIAL PRIMARY KEY,
+  code        TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  order_id    TEXT NOT NULL,
+  amount_fils INT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (code, customer_id)
+);
+
+-- Launch promo codes (owner can add/disable more from the dashboard).
+INSERT INTO promo_codes (code, kind, value, min_spend_fils) VALUES
+  ('WELCOME10', 'percent', 10, 0),
+  ('EVENTANA50', 'fixed', 5000, 100000)
+ON CONFLICT (code) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS orders (
   id               TEXT PRIMARY KEY,
   kind             TEXT NOT NULL DEFAULT 'booking',   -- booking | addon

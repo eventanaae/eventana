@@ -130,6 +130,11 @@ export async function confirmBooking(
     customerId?: string;
     movie?: string | null;
     themeBrief?: Record<string, string> | null;
+    appliedDiscounts?: {
+      promo: { code: string; amountFils: number } | null;
+      creditFils: number;
+      points: { used: number; amountFils: number } | null;
+    };
   };
   const quote = order.quote as Quote;
 
@@ -309,6 +314,56 @@ export async function confirmBooking(
       order.customer_id,
       points,
     ]);
+  }
+
+  // Consume any checkout discounts now that the payment is real. Each is
+  // clamped so a replay or a race can never overspend, and the referral
+  // reward is guarded by referral_rewarded so it pays out at most once.
+  const disc = cart.appliedDiscounts;
+  if (disc) {
+    if (disc.points && disc.points.used > 0) {
+      await db.query(
+        `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
+         VALUES ($1,$2,$3,$4,'Points redeemed at checkout')`,
+        [order.customer_id, eventId, order.id, -disc.points.used],
+      );
+      await db.query(
+        `UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`,
+        [order.customer_id, disc.points.used],
+      );
+    }
+    if (disc.creditFils > 0) {
+      await db.query(
+        `UPDATE customers SET referral_credit_fils = GREATEST(0, referral_credit_fils - $2) WHERE id = $1`,
+        [order.customer_id, disc.creditFils],
+      );
+    }
+    if (disc.promo) {
+      await db.query(
+        `INSERT INTO promo_redemptions (code, customer_id, order_id, amount_fils)
+         VALUES ($1,$2,$3,$4) ON CONFLICT (code, customer_id) DO NOTHING`,
+        [disc.promo.code, order.customer_id, order.id, disc.promo.amountFils],
+      );
+      await db.query(`UPDATE promo_codes SET uses = uses + 1 WHERE code = $1`, [disc.promo.code]);
+    }
+  }
+
+  // Referral reward: the first confirmed booking of a referred customer pays
+  // their referrer AED 250 in store credit, once.
+  const { rows: refRows } = await db.query(
+    `SELECT referred_by, referral_rewarded FROM customers WHERE id = $1`,
+    [order.customer_id],
+  );
+  const ref = refRows[0];
+  if (ref?.referred_by && !ref.referral_rewarded) {
+    const { rowCount } = await db.query(
+      `UPDATE customers SET referral_credit_fils = referral_credit_fils + 25000
+        WHERE referral_code = $1 AND referral_code <> COALESCE((SELECT referral_code FROM customers WHERE id = $2), '')`,
+      [ref.referred_by, order.customer_id],
+    );
+    // Mark rewarded regardless, so a missing/self referrer isn't retried forever.
+    await db.query(`UPDATE customers SET referral_rewarded = TRUE WHERE id = $1`, [order.customer_id]);
+    void rowCount;
   }
 
   await db.query(`UPDATE orders SET event_id = $2, updated_at = now() WHERE id = $1`, [

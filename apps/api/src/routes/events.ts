@@ -82,10 +82,12 @@ export async function eventRoutes(app: FastifyInstance) {
     const customerId = customerIdOf(request);
 
     const { rows: cust } = await pool.query(
-      `SELECT loyalty_points FROM customers WHERE id = $1`,
+      `SELECT loyalty_points, referral_code, referral_credit_fils FROM customers WHERE id = $1`,
       [customerId],
     );
     const points = Number(cust[0]?.loyalty_points ?? 0);
+    const referralCode = cust[0]?.referral_code ?? null;
+    const creditFils = Number(cust[0]?.referral_credit_fils ?? 0);
 
     const { rows: earned } = await pool.query(
       `SELECT COALESCE(SUM(points),0) AS earned
@@ -118,6 +120,9 @@ export async function eventRoutes(app: FastifyInstance) {
 
     return {
       points,
+      redeemableFils: points * 2, // 100 points = AED 2
+      referralCode,
+      creditFils,
       lifetimeEarned,
       tier: TIERS[tierIndex].name,
       nextTier: next?.name ?? null,

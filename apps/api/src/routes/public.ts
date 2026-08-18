@@ -23,6 +23,7 @@ import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout } from '../domain/checkout.js';
 import { customerFromRequest, issueCustomerToken } from '../domain/customerAuth.js';
+import { makeReferralCode, REFERRAL_CREDIT_FILS, validatePromo } from '../domain/discounts.js';
 import { allProviders } from '../payments/index.js';
 import { answerAssistant } from '../domain/assistant.js';
 
@@ -261,6 +262,13 @@ export async function publicRoutes(app: FastifyInstance) {
       provider: z.enum(['tabby', 'tamara', 'ziina']),
       lang: z.enum(['en', 'ar']).optional(),
       idempotencyKey: z.string().optional(),
+      discounts: z
+        .object({
+          promoCode: z.string().max(40).nullable().optional(),
+          useCredit: z.boolean().optional(),
+          redeemPoints: z.boolean().optional(),
+        })
+        .optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
@@ -279,6 +287,7 @@ export async function publicRoutes(app: FastifyInstance) {
         provider: parsed.data.provider,
         lang: parsed.data.lang,
         idempotencyKey: parsed.data.idempotencyKey,
+        discounts: parsed.data.discounts,
       });
       return result;
     } catch (err) {
@@ -364,22 +373,62 @@ export async function publicRoutes(app: FastifyInstance) {
       email: z.string().trim().email(),
       phone: z.string().trim().min(6).max(30),
       password: z.string().min(6).max(200),
+      referralCode: z.string().trim().max(40).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     }
-    const { name, email, phone, password } = parsed.data;
+    const { name, email, phone, password, referralCode } = parsed.data;
     const existing = await pool.query('SELECT id FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
     if (existing.rowCount) {
       return reply.status(409).send({ error: 'email_taken', message: 'An account with this email already exists — please sign in.' });
     }
+
+    // A valid referral code grants the new customer welcome credit and links
+    // them to the referrer (who is rewarded on this customer's first booking).
+    let referredBy: string | null = null;
+    let welcomeCredit = 0;
+    if (referralCode) {
+      const norm = referralCode.toUpperCase();
+      const { rows } = await pool.query(`SELECT id FROM customers WHERE referral_code = $1`, [norm]);
+      if (rows[0]) { referredBy = norm; welcomeCredit = REFERRAL_CREDIT_FILS; }
+    }
+
     const id = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
+    // Retry a couple of times in the unlikely event of a code collision.
+    let myCode = makeReferralCode(name);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const clash = await pool.query(`SELECT 1 FROM customers WHERE referral_code = $1`, [myCode]);
+      if (!clash.rowCount) break;
+      myCode = makeReferralCode(name);
+    }
+
     await pool.query(
-      `INSERT INTO customers (id, name, phone, email, password_hash) VALUES ($1,$2,$3,$4,$5)`,
-      [id, name, phone, email, hashPassword(password)],
+      `INSERT INTO customers (id, name, phone, email, password_hash, referral_code, referred_by, referral_credit_fils)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [id, name, phone, email, hashPassword(password), myCode, referredBy, welcomeCredit],
     );
-    return { customerId: id, name, email, phone, token: issueCustomerToken(id) };
+    return {
+      customerId: id, name, email, phone, token: issueCustomerToken(id),
+      referralCode: myCode, welcomeCreditFils: welcomeCredit,
+    };
+  });
+
+  /**
+   * Live promo-code check for the signed-in customer at a given subtotal, so
+   * the app can show the exact saving before paying.
+   */
+  app.post('/api/promo/check', async (request, reply) => {
+    const schema = z.object({ code: z.string().trim().min(1).max(40), subtotalFils: z.number().int().min(0) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const customerId = customerFromRequest(request);
+    if (!customerId) return reply.status(401).send({ error: 'auth_required' });
+    const v = await validatePromo(pool, parsed.data.code, customerId, parsed.data.subtotalFils);
+    return v.ok
+      ? { ok: true, code: v.code, amountFils: v.amountFils }
+      : { ok: false, reason: v.reason };
   });
 
   app.post('/api/customers/login', async (request, reply) => {
@@ -388,14 +437,17 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     const { email, password } = parsed.data;
     const { rows } = await pool.query(
-      'SELECT id, name, phone, email, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1',
+      'SELECT id, name, phone, email, password_hash, referral_code FROM customers WHERE lower(email) = lower($1) LIMIT 1',
       [email],
     );
     const c = rows[0];
     if (!c || !verifyPassword(password, c.password_hash)) {
       return reply.status(401).send({ error: 'invalid_credentials', message: 'Wrong email or password.' });
     }
-    return { customerId: c.id, name: c.name, email: c.email, phone: c.phone, token: issueCustomerToken(c.id) };
+    return {
+      customerId: c.id, name: c.name, email: c.email, phone: c.phone,
+      token: issueCustomerToken(c.id), referralCode: c.referral_code ?? null,
+    };
   });
 }
 

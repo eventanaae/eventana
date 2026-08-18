@@ -25,6 +25,7 @@ import { getProvider } from '../payments/index.js';
 import { ConflictError, acquireHolds, releaseHolds, unavailableAssets } from './inventory.js';
 import { createOrder, createPayment, nextOrderId, recordPaymentEvent } from './orders.js';
 import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
+import { computeDiscounts, type DiscountInput } from './discounts.js';
 
 export interface CheckoutRequest {
   cart: CartInput & {
@@ -35,6 +36,7 @@ export interface CheckoutRequest {
   provider: string;
   lang?: 'en' | 'ar';
   idempotencyKey?: string;
+  discounts?: DiscountInput;
 }
 
 export class CheckoutError extends Error {
@@ -132,6 +134,21 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     throw new CheckoutError('This booking cannot be completed yet.', 'not_bookable', {
       problems: serverQuote.problems,
     });
+  }
+
+  // Apply promo / store credit / point redemption, server-validated. Recorded
+  // on the cart so confirmation can consume them once (and only once) the
+  // payment actually lands.
+  const applied = await computeDiscounts(pool, {
+    customerId: req.customerId,
+    subtotalFils: serverQuote.totalFils,
+    input: req.discounts ?? {},
+  });
+  if (applied.totalFils > 0) {
+    serverQuote.lines.push(...applied.lines);
+    serverQuote.discountFils += applied.totalFils;
+    serverQuote.totalFils -= applied.totalFils;
+    (cart as Record<string, unknown>).appliedDiscounts = applied;
   }
 
   // A method that is disabled (not production-ready) is never charged.

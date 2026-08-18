@@ -96,23 +96,33 @@ export const api = {
 
   startTimes: () => request<Array<{ value: string; allowed: boolean }>>('/api/start-times'),
 
-  checkout: (cart: unknown, provider: string) =>
+  checkout: (
+    cart: unknown,
+    provider: string,
+    discounts?: { promoCode?: string | null; useCredit?: boolean; redeemPoints?: boolean },
+  ) =>
     request<{
       orderId: string; checkoutUrl: string | null; eligible: boolean;
       totalFils: number; holdExpiresAt: string;
     }>('/api/checkout', {
       method: 'POST',
-      body: JSON.stringify({ cart, customerId: currentCustomerId(), provider }),
+      body: JSON.stringify({ cart, customerId: currentCustomerId(), provider, discounts }),
     }),
 
-  register: (body: { name: string; email: string; phone: string; password: string }) =>
-    request<{ customerId: string; name: string; email: string; phone: string; token: string }>(
+  checkPromo: (code: string, subtotalFils: number) =>
+    request<{ ok: boolean; code?: string; amountFils?: number; reason?: string }>(
+      '/api/promo/check',
+      { method: 'POST', body: JSON.stringify({ code, subtotalFils }) },
+    ),
+
+  register: (body: { name: string; email: string; phone: string; password: string; referralCode?: string }) =>
+    request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number }>(
       '/api/customers/register',
       { method: 'POST', body: JSON.stringify(body) },
     ),
 
   login: (body: { email: string; password: string }) =>
-    request<{ customerId: string; name: string; email: string; phone: string; token: string }>(
+    request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string | null }>(
       '/api/customers/login',
       { method: 'POST', body: JSON.stringify(body) },
     ),
@@ -130,7 +140,8 @@ export const api = {
 
   rewards: () =>
     request<{
-      points: number; lifetimeEarned: number; tier: string;
+      points: number; redeemableFils: number; referralCode: string | null; creditFils: number;
+      lifetimeEarned: number; tier: string;
       nextTier: string | null; pointsToNextTier: number; progressPct: number;
       history: Array<{ points: number; reason: string; at: string | null }>;
     }>('/api/rewards'),

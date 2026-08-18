@@ -114,6 +114,12 @@ const en: Dict = {
   'profile.bookAgain': 'Book Again',
   'profile.opening': 'Opening…',
   'profile.language': 'Language',
+  'profile.referTitle': 'Invite friends — both get AED 250 🎁',
+  'profile.referSub': 'Share your code. They get AED 250 off their first booking, and you get AED 250 credit once they book.',
+  'profile.yourCode': 'Your code',
+  'profile.credit': 'Your Eventana credit',
+  'profile.copied': 'Copied!',
+  'profile.share': 'Share',
 
   // assistant
   'assistant.title': 'Eventana Assistant',
@@ -258,6 +264,14 @@ const en: Dict = {
   'checkout.opening': 'Opening secure checkout…',
   'checkout.pay': 'Pay {aed}',
   'checkout.providerUnavailable': '{provider} isn’t available for this booking. Please choose another payment method.',
+  'checkout.rewardsTitle': 'Savings & rewards',
+  'checkout.promoPh': 'Promo code',
+  'checkout.apply': 'Apply',
+  'checkout.promoApplied': 'Code {code} applied · −{aed}',
+  'checkout.useCredit': 'Use my {aed} Eventana credit',
+  'checkout.redeem': 'Redeem {points} points (−{aed})',
+  'checkout.estTotal': 'Estimated total',
+  'checkout.phReferral': 'Referral code (optional) — AED 250 off',
 
   // payment return
   'pay.tipThanks': 'Thank you for your tip! 💐',
@@ -424,6 +438,12 @@ const ar: Dict = {
   'profile.bookAgain': 'احجز مرة أخرى',
   'profile.opening': 'جارٍ الفتح…',
   'profile.language': 'اللغة',
+  'profile.referTitle': 'ادعُ أصدقاءك — ولكما 250 درهم 🎁',
+  'profile.referSub': 'شارك كودك. يحصل صديقك على خصم 250 درهم على أول حجز، وتحصل أنت على رصيد 250 درهم بمجرّد حجزه.',
+  'profile.yourCode': 'كودك',
+  'profile.credit': 'رصيدك في Eventana',
+  'profile.copied': 'تم النسخ!',
+  'profile.share': 'مشاركة',
 
   // assistant
   'assistant.title': 'مساعد Eventana',
@@ -568,6 +588,14 @@ const ar: Dict = {
   'checkout.opening': 'جارٍ فتح الدفع الآمن…',
   'checkout.pay': 'ادفع {aed}',
   'checkout.providerUnavailable': '{provider} غير متاح لهذا الحجز. اختر وسيلة دفع أخرى من فضلك.',
+  'checkout.rewardsTitle': 'التوفير والمكافآت',
+  'checkout.promoPh': 'كود الخصم',
+  'checkout.apply': 'تطبيق',
+  'checkout.promoApplied': 'طُبّق كود {code} · −{aed}',
+  'checkout.useCredit': 'استخدم رصيدي {aed} في Eventana',
+  'checkout.redeem': 'استبدل {points} نقطة (−{aed})',
+  'checkout.estTotal': 'الإجمالي المتوقّع',
+  'checkout.phReferral': 'كود إحالة (اختياري) — خصم 250 درهم',
 
   // payment return
   'pay.tipThanks': 'شكراً على بقشيشك! 💐',

@@ -22,6 +22,7 @@ export function Profile({
   const [events, setEvents] = useState<any[] | null>(null);
   const [rebooking, setRebooking] = useState<string | null>(null);
   const [rewards, setRewards] = useState<Awaited<ReturnType<typeof api.rewards>> | null>(null);
+  const [copied, setCopied] = useState(false);
   const profile = loadProfile();
   const name = profile?.name?.trim() || t('profile.guest');
   const initial = (name[0] || '☺').toUpperCase();
@@ -79,6 +80,37 @@ export function Profile({
           {t('profile.pointsToward')}
         </div>
       </div>
+
+      {rewards?.referralCode && (
+        <div style={{ background: 'linear-gradient(135deg,#FDE0EE,#F9C6DC)', borderRadius: 20, padding: '16px 18px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>{t('profile.referTitle')}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8b5d74', margin: '5px 0 12px', lineHeight: 1.5 }}>
+            {t('profile.referSub')}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ flex: 1, background: '#fff', borderRadius: 12, padding: '11px 14px', fontWeight: 800, fontSize: 16, letterSpacing: '2px', color: C.pinkDeep, textAlign: 'center' }}>
+              {rewards.referralCode}
+            </div>
+            <button
+              onClick={async () => {
+                const msg = `${t('profile.referSub')} ${rewards.referralCode}`;
+                try {
+                  if (navigator.share) await navigator.share({ text: msg });
+                  else { await navigator.clipboard.writeText(rewards.referralCode!); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+                } catch { /* dismissed */ }
+              }}
+              style={{ border: 'none', background: C.pink, color: '#fff', fontWeight: 700, fontSize: 12.5, padding: '11px 16px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              {copied ? t('profile.copied') : t('profile.share')}
+            </button>
+          </div>
+          {rewards.creditFils > 0 && (
+            <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: C.green }}>
+              {t('profile.credit')}: AED {(rewards.creditFils / 100).toLocaleString('en-US')}
+            </div>
+          )}
+        </div>
+      )}
 
       {rewards && rewards.history.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 20, padding: '15px 18px', boxShadow: C.shadow, marginBottom: 16 }}>
