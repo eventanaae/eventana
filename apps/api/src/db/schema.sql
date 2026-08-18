@@ -429,3 +429,23 @@ CREATE TABLE IF NOT EXISTS tips (
 CREATE INDEX IF NOT EXISTS tips_event_idx  ON tips (event_id);
 CREATE INDEX IF NOT EXISTS tips_member_idx ON tips (member_id, status);
 CREATE UNIQUE INDEX IF NOT EXISTS tips_order_idx ON tips (order_id) WHERE order_id IS NOT NULL;
+
+-- ── Expenses & finance (#31) ─────────────────────────────────────────────
+-- QuickBooks-style expense log. Owner/CEO dashboards read revenue from paid
+-- orders (bookings + add-ons; tips are pass-through to staff, never revenue)
+-- and subtract these to show net profit. receipt_url is filled once image
+-- storage is wired; the amount and category work without it.
+CREATE TABLE IF NOT EXISTS expenses (
+  id           BIGSERIAL PRIMARY KEY,
+  category     TEXT NOT NULL DEFAULT 'general',  -- inventory | salaries | rent | fuel | marketing | maintenance | supplies | utilities | other
+  description  TEXT NOT NULL,
+  amount_fils  BIGINT NOT NULL CHECK (amount_fils >= 0),
+  vendor       TEXT,
+  event_id     TEXT REFERENCES events(id) ON DELETE SET NULL,  -- optional: cost tied to a job
+  spent_on     DATE NOT NULL DEFAULT current_date,
+  receipt_url  TEXT,
+  recorded_by  TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS expenses_spent_idx ON expenses (spent_on);
+CREATE INDEX IF NOT EXISTS expenses_category_idx ON expenses (category, spent_on);

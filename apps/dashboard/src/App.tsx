@@ -8,9 +8,10 @@ import { Inventory } from './views/Inventory';
 import { Tasks } from './views/Tasks';
 import { Team } from './views/Team';
 import { Kpis } from './views/Kpis';
+import { Finance } from './views/Finance';
 import { Settings } from './views/Settings';
 
-export type View = 'today' | 'calendar' | 'events' | 'inventory' | 'tasks' | 'team' | 'kpis' | 'settings';
+export type View = 'today' | 'calendar' | 'events' | 'inventory' | 'tasks' | 'team' | 'kpis' | 'finance' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string }> = [
   { id: 'today', label: 'Today', icon: '◉', title: 'Today', sub: 'Live board, tasks and inventory at a glance' },
@@ -20,6 +21,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Work by department across all events' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and upcoming assignments' },
   { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard — events, ratings, tips and points' },
+  { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance — Owner view', sub: 'Revenue, expenses, net profit and monthly trend' },
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing rules, delivery zones and integrations' },
 ];
 
@@ -68,6 +70,7 @@ export default function App() {
       {view === 'tasks' && <Tasks />}
       {view === 'team' && <Team />}
       {view === 'kpis' && <Kpis />}
+      {view === 'finance' && <Finance />}
       {view === 'settings' && <Settings />}
     </>
   );

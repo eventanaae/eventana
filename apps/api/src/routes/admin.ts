@@ -457,6 +457,189 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  /* ---------------- Expenses & finance (#31) ---------------- */
+
+  const EXPENSE_CATEGORIES = [
+    'inventory', 'salaries', 'rent', 'fuel', 'marketing',
+    'maintenance', 'supplies', 'utilities', 'other',
+  ] as const;
+
+  /** List expenses (default: current month). */
+  app.get('/api/admin/expenses', async (request) => {
+    const q = request.query as { month?: string };
+    const now = new Date();
+    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
+      ? q.month!
+      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const start = `${monthStr}-01`;
+    const end = new Date(`${start}T00:00:00Z`);
+    end.setUTCMonth(end.getUTCMonth() + 1);
+    const { rows } = await pool.query(
+      `SELECT e.*, ev.id AS event_ref
+         FROM expenses e LEFT JOIN events ev ON ev.id = e.event_id
+        WHERE e.spent_on >= $1 AND e.spent_on < $2
+        ORDER BY e.spent_on DESC, e.id DESC`,
+      [start, end.toISOString().slice(0, 10)],
+    );
+    return {
+      month: monthStr,
+      categories: EXPENSE_CATEGORIES,
+      expenses: rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) })),
+    };
+  });
+
+  /** Record an expense. */
+  app.post('/api/admin/expenses', async (request, reply) => {
+    const schema = z.object({
+      category: z.enum(EXPENSE_CATEGORIES).default('other'),
+      description: z.string().min(1).max(300),
+      amountFils: z.number().int().min(0),
+      vendor: z.string().max(200).optional(),
+      eventId: z.string().optional(),
+      spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      receiptUrl: z.string().url().nullable().optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    const d = parsed.data;
+    const { rows } = await pool.query(
+      `INSERT INTO expenses (category, description, amount_fils, vendor, event_id, spent_on, receipt_url, recorded_by)
+       VALUES ($1,$2,$3,$4,$5,COALESCE($6, current_date),$7,$8) RETURNING *`,
+      [
+        d.category, d.description, d.amountFils, d.vendor ?? null, d.eventId ?? null,
+        d.spentOn ?? null, d.receiptUrl ?? null,
+        String((request.headers['x-staff-name'] as string) ?? 'Staff'),
+      ],
+    );
+    return reply.status(201).send({ ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) });
+  });
+
+  /** Edit or delete an expense. */
+  app.patch('/api/admin/expenses/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const schema = z.object({
+      category: z.enum(EXPENSE_CATEGORIES).optional(),
+      description: z.string().min(1).max(300).optional(),
+      amountFils: z.number().int().min(0).optional(),
+      vendor: z.string().max(200).nullable().optional(),
+      spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const d = parsed.data;
+    const { rows } = await pool.query(
+      `UPDATE expenses SET
+         category = COALESCE($2, category),
+         description = COALESCE($3, description),
+         amount_fils = COALESCE($4, amount_fils),
+         vendor = COALESCE($5, vendor),
+         spent_on = COALESCE($6, spent_on)
+       WHERE id = $1 RETURNING *`,
+      [id, d.category ?? null, d.description ?? null, d.amountFils ?? null, d.vendor ?? null, d.spentOn ?? null],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return { ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) };
+  });
+
+  app.delete('/api/admin/expenses/:id', async (request) => {
+    const id = Number((request.params as { id: string }).id);
+    await pool.query(`DELETE FROM expenses WHERE id = $1`, [id]);
+    return { deleted: true };
+  });
+
+  /**
+   * Owner/CEO finance summary for a month: revenue (paid bookings + add-ons;
+   * tips are pass-through to staff, never counted as revenue), expenses by
+   * category, net profit and margin, plus a 6-month trend.
+   */
+  app.get('/api/admin/finance', async (request) => {
+    const q = request.query as { month?: string };
+    const now = new Date();
+    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
+      ? q.month!
+      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const start = `${monthStr}-01`;
+    const endD = new Date(`${start}T00:00:00Z`);
+    endD.setUTCMonth(endD.getUTCMonth() + 1);
+    const end = endD.toISOString().slice(0, 10);
+    // Six-month window (this month back five).
+    const sixD = new Date(`${start}T00:00:00Z`);
+    sixD.setUTCMonth(sixD.getUTCMonth() - 5);
+    const sixStart = sixD.toISOString().slice(0, 10);
+
+    const [rev, exp, byCat, tipsRow, revTrend, expTrend] = await Promise.all([
+      pool.query(
+        `SELECT COALESCE(SUM(total_fils),0) AS v FROM orders
+          WHERE status='paid' AND kind IN ('booking','addon')
+            AND created_at >= $1 AND created_at < $2`,
+        [start, end],
+      ),
+      pool.query(`SELECT COALESCE(SUM(amount_fils),0) AS v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [start, end]),
+      pool.query(
+        `SELECT category, SUM(amount_fils) AS v FROM expenses
+          WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+        [start, end],
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(amount_fils),0) AS v FROM tips t JOIN events e ON e.id=t.event_id
+          WHERE t.status='paid' AND e.event_date >= $1 AND e.event_date < $2`,
+        [start, end],
+      ),
+      pool.query(
+        `SELECT to_char(date_trunc('month', created_at),'YYYY-MM') AS m, SUM(total_fils) AS v
+           FROM orders WHERE status='paid' AND kind IN ('booking','addon') AND created_at >= $1
+          GROUP BY 1`,
+        [sixStart],
+      ),
+      pool.query(
+        `SELECT to_char(date_trunc('month', spent_on),'YYYY-MM') AS m, SUM(amount_fils) AS v
+           FROM expenses WHERE spent_on >= $1 GROUP BY 1`,
+        [sixStart],
+      ),
+    ]);
+
+    const revenue = Number(rev.rows[0].v);
+    const expenses = Number(exp.rows[0].v);
+    const profit = revenue - expenses;
+
+    const revMap = new Map(revTrend.rows.map((r) => [r.m, Number(r.v)]));
+    const expMap = new Map(expTrend.rows.map((r) => [r.m, Number(r.v)]));
+    const trend: Array<{ month: string; revenueFils: number; expenseFils: number; profitFils: number }> = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(`${sixStart}T00:00:00Z`);
+      d.setUTCMonth(d.getUTCMonth() + i);
+      const m = d.toISOString().slice(0, 7);
+      const r = revMap.get(m) ?? 0;
+      const e = expMap.get(m) ?? 0;
+      trend.push({ month: m, revenueFils: r, expenseFils: e, profitFils: r - e });
+    }
+
+    return {
+      month: monthStr,
+      revenueFils: revenue,
+      revenueDisplay: formatAed(revenue),
+      expensesFils: expenses,
+      expensesDisplay: formatAed(expenses),
+      profitFils: profit,
+      profitDisplay: formatAed(Math.abs(profit)),
+      profitNegative: profit < 0,
+      marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
+      tipsCollectedFils: Number(tipsRow.rows[0].v),
+      tipsCollectedDisplay: formatAed(Number(tipsRow.rows[0].v)),
+      byCategory: byCat.rows.map((r) => ({
+        category: r.category,
+        amountFils: Number(r.v),
+        amountDisplay: formatAed(Number(r.v)),
+      })),
+      trend: trend.map((t) => ({
+        ...t,
+        revenueDisplay: formatAed(t.revenueFils),
+        expenseDisplay: formatAed(t.expenseFils),
+        profitDisplay: formatAed(t.profitFils),
+      })),
+    };
+  });
+
   /** Team reply in the event chat. The staff name shows; no phone number. */
   app.post('/api/admin/events/:eventId/messages', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };

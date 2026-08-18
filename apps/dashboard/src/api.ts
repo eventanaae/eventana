@@ -140,4 +140,13 @@ export const api = {
   notifications: () => request<any[]>('/api/admin/notifications'),
 
   kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
+
+  finance: (month?: string) => request<any>(`/api/admin/finance${month ? `?month=${month}` : ''}`),
+  expenses: (month?: string) => request<any>(`/api/admin/expenses${month ? `?month=${month}` : ''}`),
+  addExpense: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/expenses', { method: 'POST', body: JSON.stringify(body) }),
+  updateExpense: (id: number, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteExpense: (id: number) =>
+    request<any>(`/api/admin/expenses/${id}`, { method: 'DELETE' }),
 };
