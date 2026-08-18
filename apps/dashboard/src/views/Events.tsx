@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { Badge, Button, C, fredoka, money, Panel, Spinner, Td, Th } from '../ui';
+import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
 
 const PHASES = [
@@ -8,101 +8,88 @@ const PHASES = [
   'Setting Up', 'Setup Ready', 'Party Started', 'Event Completed',
 ];
 
-export function Events() {
+/**
+ * The all-events list. Opening an event is lifted to the app so the same
+ * Event Details page opens from Today, Schedule or here — always by id.
+ * Mobile shows compact cards; wide screens keep the scannable table.
+ */
+export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [events, setEvents] = useState<any[] | null>(null);
   const [needsReview, setNeedsReview] = useState<any[]>([]);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [q, setQ] = useState('');
 
-  const load = () => {
+  useEffect(() => {
     api.events().then(setEvents);
     api.needsReview().then(setNeedsReview).catch(() => setNeedsReview([]));
-  };
-  useEffect(load, []);
+  }, []);
 
   if (!events) return <Spinner />;
 
+  const filtered = events.filter((e) => {
+    const s = q.trim().toLowerCase();
+    return !s || `${e.id} ${e.customer} ${e.emirate} ${e.phase}`.toLowerCase().includes(s);
+  });
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {needsReview.length > 0 && (
         <Panel title="Needs review" style={{ borderColor: '#f2c9c2' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
-            These orders were held back by the engine rather than confirmed — an amount mismatch, or a
-            payment that succeeded after the inventory hold expired. A person decides what happens next.
+            Held back by the engine rather than confirmed — an amount mismatch, or a payment that
+            landed after the hold expired. A person decides what happens next.
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <Th width={160}>Order</Th>
-                <Th width={110}>Value</Th>
-                <Th>Reason</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {needsReview.map((o) => (
-                <tr key={o.id}>
-                  <Td style={{ fontFamily: 'ui-monospace, monospace', color: C.ink }}>{o.id}</Td>
-                  <Td style={{ fontWeight: 700, color: C.ink }}>AED {o.totalDisplay}</Td>
-                  <Td>{o.last_note}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {needsReview.map((o) => (
+              <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: C.ink }}>{o.id}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{o.last_note}</div>
+                </div>
+                <span style={{ fontWeight: 700, fontSize: 12.5, color: C.ink, whiteSpace: 'nowrap' }}>AED {o.totalDisplay}</span>
+              </div>
+            ))}
+          </div>
         </Panel>
       )}
 
-      <Panel title={`All events (${events.length})`}>
-        {events.length === 0 ? (
-          <Empty>No bookings yet. Complete a checkout in the customer app to see one here.</Empty>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <Th width={140}>Event ID</Th>
-                <Th>Customer</Th>
-                <Th width={150}>When</Th>
-                <Th width={120}>Emirate</Th>
-                <Th width={130}>Phase</Th>
-                <Th width={110}>Payment</Th>
-                <Th width={110}>Value</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((e) => (
-                <tr key={e.id} onClick={() => setOpenId(e.id)} style={{ cursor: 'pointer' }}>
-                  <Td style={{ fontFamily: 'ui-monospace, monospace', color: C.ink }}>{e.id}</Td>
-                  <Td>
-                    {e.customer}
-                    <div style={{ fontSize: 10.5, color: C.muted }}>{e.phone}</div>
-                  </Td>
-                  <Td>
-                    {new Date(e.event_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    <div style={{ fontSize: 10.5, color: C.muted }}>
-                      {e.start_time}–{e.base_end_time}
-                    </div>
-                  </Td>
-                  <Td>{e.emirate}</Td>
-                  <Td>
-                    <Badge tone={e.phase === 'Cancelled' ? 'error' : 'info'}>{e.phase}</Badge>
-                  </Td>
-                  <Td>
-                    <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>
-                      {e.order_status}
-                    </Badge>
-                  </Td>
-                  <Td style={{ fontWeight: 700, color: C.ink }}>AED {e.totalDisplay}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Panel>
+      <input
+        placeholder="Search events, customers, emirates…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink }}
+      />
 
-      {openId && <EventDrawer eventId={openId} onClose={() => { setOpenId(null); load(); }} />}
+      {filtered.length === 0 ? (
+        <Panel><Empty>No matching bookings.</Empty></Panel>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {filtered.map((e) => (
+            <div
+              key={e.id}
+              onClick={() => onOpenEvent(e.id)}
+              style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.customer}</span>
+                <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
+              </div>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
+                <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
+                {new Date(e.event_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {e.start_time}–{e.base_end_time} · {e.emirate}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Badge tone={e.phase === 'Cancelled' ? 'error' : 'info'}>{e.phase}</Badge>
+                <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => void }) {
+export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => void }) {
   const [data, setData] = useState<any>(null);
   const [audit, setAudit] = useState<any[]>([]);
   const [reply, setReply] = useState('');
@@ -126,7 +113,7 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 640, maxWidth: '92vw', background: C.bg, height: '100vh', overflowY: 'auto', padding: 22 }}
+        style={{ width: 'min(680px, 100vw)', maxWidth: '100vw', background: C.bg, height: '100vh', overflowY: 'auto', padding: 18 }}
       >
         {!data ? (
           <Spinner />
@@ -256,49 +243,40 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
               </Panel>
 
               <Panel title="Booked services">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr><Th>Item</Th><Th width={70}>Qty</Th><Th width={110}>Source</Th><Th width={110}>Value</Th></tr>
-                  </thead>
-                  <tbody>
-                    {data.services.map((s: any) => (
-                      <tr key={s.id}>
-                        <Td style={{ color: C.ink }}>{s.label}</Td>
-                        <Td>{s.quantity}</Td>
-                        <Td>
-                          <Badge tone={s.source === 'addon' ? 'info' : 'neutral'}>{s.source}</Badge>
-                        </Td>
-                        <Td>{s.amount_fils > 0 ? `AED ${money(Number(s.amount_fils))}` : '—'}</Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {data.services.map((s: any) => (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{s.label}</div>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>×{s.quantity} · {s.source}</div>
+                      </div>
+                      <span style={{ fontWeight: 700, fontSize: 12.5, color: C.ink, whiteSpace: 'nowrap' }}>
+                        {s.amount_fils > 0 ? `AED ${money(Number(s.amount_fils))}` : '—'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </Panel>
 
               <Panel title="Reserved inventory">
                 {data.reservations.length === 0 ? (
                   <Empty>No physical assets reserved.</Empty>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr><Th>Asset</Th><Th>Window (incl. buffers)</Th><Th width={100}>Status</Th></tr>
-                    </thead>
-                    <tbody>
-                      {data.reservations.map((r: any) => (
-                        <tr key={r.id}>
-                          <Td style={{ color: C.ink }}>
-                            {r.name}{r.variant ? ` · ${r.variant}` : ''}
-                          </Td>
-                          <Td>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {data.reservations.map((r: any) => (
+                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{r.name}{r.variant ? ` · ${r.variant}` : ''}</div>
+                          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>
                             {new Date(r.starts_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                             {' → '}
                             {new Date(r.ends_at).toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                          </Td>
-                          <Td><Badge tone={r.status === 'reserved' ? 'ok' : 'warn'}>{r.status}</Badge></Td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+                        <Badge tone={r.status === 'reserved' ? 'ok' : 'warn'}>{r.status}</Badge>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </Panel>
 

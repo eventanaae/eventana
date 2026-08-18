@@ -95,7 +95,7 @@ export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void 
         </div>
       }
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6, minWidth: 640 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, minWidth: 0 }}>
         {WD.map((w) => (
           <div key={w} style={{ fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'center', padding: '2px 0' }}>
             {w}
@@ -112,10 +112,10 @@ export function Calendar({ onOpenEvent }: { onOpenEvent?: (id?: string) => void 
             <div
               key={i}
               style={{
-                minHeight: 78,
+                minHeight: 60,
                 border: `1px solid ${isToday ? C.pink : C.line}`,
-                borderRadius: 10,
-                padding: '5px 6px',
+                borderRadius: 8,
+                padding: '4px 4px',
                 background: '#fff',
                 overflow: 'hidden',
               }}
