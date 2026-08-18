@@ -277,7 +277,7 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
 
-    const [services, tasks, team, holds, messages, photos, orders, payments, rating, tips] =
+    const [services, tasks, team, holds, messages, photos, orders, payments, rating, tips, designs] =
       await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(`SELECT * FROM event_tasks WHERE event_id = $1 ORDER BY department, id`, [eventId]),
@@ -311,6 +311,7 @@ export async function adminRoutes(app: FastifyInstance) {
           WHERE t.event_id = $1 AND t.status = 'paid' ORDER BY t.created_at`,
         [eventId],
       ),
+      pool.query(`SELECT * FROM designs WHERE event_id = $1 ORDER BY version DESC`, [eventId]),
     ]);
 
     return {
@@ -334,7 +335,38 @@ export async function adminRoutes(app: FastifyInstance) {
       payments: payments.rows,
       rating: rating.rows[0] ?? null,
       tips: tips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
+      designs: designs.rows,
     };
+  });
+
+  /** Upload/attach a design image for customer approval. Updates the latest
+   *  pending version, or opens the next version pending. */
+  app.post('/api/admin/events/:eventId/design', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const schema = z.object({ imageUrl: z.string().url() });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+
+    const { rows: latest } = await pool.query<{ id: number; version: number; status: string }>(
+      `SELECT id, version, status FROM designs WHERE event_id = $1 ORDER BY version DESC LIMIT 1`,
+      [eventId],
+    );
+    if (latest[0] && latest[0].status === 'pending') {
+      const { rows } = await pool.query(
+        `UPDATE designs SET image_url = $2 WHERE id = $1 RETURNING *`,
+        [latest[0].id, parsed.data.imageUrl],
+      );
+      return rows[0];
+    }
+    const nextVersion = latest[0] ? latest[0].version + 1 : 1;
+    const { rows } = await pool.query(
+      `INSERT INTO designs (event_id, version, image_url, status) VALUES ($1,$2,$3,'pending')
+       ON CONFLICT (event_id, version) DO UPDATE
+         SET image_url = EXCLUDED.image_url, status = 'pending', customer_note = NULL, decided_at = NULL
+       RETURNING *`,
+      [eventId, nextVersion, parsed.data.imageUrl],
+    );
+    return rows[0];
   });
 
   app.post('/api/admin/events/:eventId/phase', async (request, reply) => {

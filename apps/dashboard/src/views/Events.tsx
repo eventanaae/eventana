@@ -161,6 +161,9 @@ function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => voi
               {(data.rating || (data.tips && data.tips.length > 0)) && (
                 <RatingTipsPanel rating={data.rating} tips={data.tips} />
               )}
+              {data.event.custom_theme && (
+                <DesignPanel eventId={eventId} designs={data.designs ?? []} onChange={load} />
+              )}
 
               <Panel title="Advance status">
                 {data.event.phase === 'Cancelled' ? (
@@ -554,6 +557,61 @@ function LocationPanel({ event }: { event: any }) {
         <a href={view} target="_blank" rel="noreferrer" style={linkBtn}>
           Open in Google Maps
         </a>
+      </div>
+    </Panel>
+  );
+}
+
+/** Upload a custom-theme design for the customer to approve. */
+function DesignPanel({ eventId, designs, onChange }: { eventId: string; designs: any[]; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const latest = designs[0];
+  return (
+    <Panel title="Design for approval 🎨">
+      {latest && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 12.5 }}>Version {latest.version}</span>
+            <Badge tone={latest.status === 'approved' ? 'ok' : latest.status === 'changes_requested' ? 'error' : 'warn'}>
+              {String(latest.status).replace('_', ' ')}
+            </Badge>
+          </div>
+          {latest.image_url ? (
+            <a href={latest.image_url} target="_blank" rel="noreferrer">
+              <img src={latest.image_url} alt="design" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 12, border: `1px solid ${C.line}` }} />
+            </a>
+          ) : (
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>No image uploaded yet.</div>
+          )}
+          {latest.customer_note && (
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.red, marginTop: 6 }}>Customer asked: “{latest.customer_note}”</div>
+          )}
+        </div>
+      )}
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '8px 13px', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
+        {busy ? 'Uploading…' : latest?.status === 'changes_requested' ? '📤 Upload new version' : '📤 Upload design'}
+        <input
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            setBusy(true);
+            try {
+              const url = await api.uploadImage(f, 'designs');
+              await api.uploadDesign(eventId, url);
+              onChange();
+            } catch (err: any) {
+              alert(err?.message ?? 'Upload failed');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </label>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 8 }}>
+        The customer sees this in their app and approves or requests changes.
       </div>
     </Panel>
   );

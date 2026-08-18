@@ -460,7 +460,17 @@ export function MyEvent({
           <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 12 }}>
             Custom theme · v{design.version}
           </div>
-          <div style={{ height: 180, borderRadius: 16, background: 'linear-gradient(135deg,#FDE0EE,#BDEBE4)', marginBottom: 12 }} />
+          {design.image_url ? (
+            <img
+              src={design.image_url}
+              alt="Your design"
+              style={{ width: '100%', maxHeight: 260, objectFit: 'contain', borderRadius: 16, marginBottom: 12, background: '#faf6f2' }}
+            />
+          ) : (
+            <div style={{ height: 180, borderRadius: 16, background: 'linear-gradient(135deg,#FDE0EE,#BDEBE4)', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#a76f8d' }}>
+              Your design is being prepared ✨
+            </div>
+          )}
 
           {design.status === 'pending' && (
             <>

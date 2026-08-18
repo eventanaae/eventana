@@ -69,6 +69,9 @@ export const api = {
   events: (status?: string) =>
     request<any[]>(`/api/admin/events${status ? `?status=${status}` : ''}`),
   event: (id: string) => request<any>(`/api/admin/events/${id}`),
+  uploadDesign: (id: string, imageUrl: string) =>
+    request<any>(`/api/admin/events/${id}/design`, { method: 'POST', body: JSON.stringify({ imageUrl }) }),
+
   setPhase: (id: string, phase: string, eta?: string) =>
     request<any>(`/api/admin/events/${id}/phase`, {
       method: 'POST',
