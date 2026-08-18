@@ -40,6 +40,33 @@ export function calendarEnabled(): boolean {
   return credentials() !== null;
 }
 
+/**
+ * Live connectivity probe: exchanges the JWT and lists one event on the
+ * configured calendar (within the calendar.events scope). Returns only a
+ * status — no secret leaves. Used to verify setup end-to-end.
+ */
+export async function checkCalendarConnection(): Promise<{
+  configured: boolean;
+  ok: boolean;
+  error?: string;
+}> {
+  const creds = credentials();
+  if (!creds) return { configured: false, ok: false, error: 'not configured' };
+  try {
+    const token = await accessToken(creds.sa);
+    const cal = encodeURIComponent(creds.calendarId);
+    const res = await fetch(`${API}/${cal}/events?maxResults=1`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      return { configured: true, ok: false, error: `${res.status}: ${(await res.text()).slice(0, 400)}` };
+    }
+    return { configured: true, ok: true };
+  } catch (err) {
+    return { configured: true, ok: false, error: (err as Error).message.slice(0, 400) };
+  }
+}
+
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 async function accessToken(sa: ServiceAccount): Promise<string> {

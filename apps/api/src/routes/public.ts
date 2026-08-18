@@ -18,6 +18,7 @@ import {
 } from '@eventana/shared';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
+import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout } from '../domain/checkout.js';
 import { allProviders } from '../payments/index.js';
@@ -50,6 +51,9 @@ const cartSchema = z.object({
 });
 
 export async function publicRoutes(app: FastifyInstance) {
+  /** Ops probe: is the Google Calendar link actually working? Status only. */
+  app.get('/api/calendar/check', async () => checkCalendarConnection());
+
   /** Everything the apps need to render the catalogue. */
   app.get('/api/catalogue', async () => {
     const cfg = await loadConfig();
