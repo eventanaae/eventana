@@ -9,10 +9,11 @@ import { Inventory } from './views/Inventory';
 import { Tasks } from './views/Tasks';
 import { Team } from './views/Team';
 import { Kpis } from './views/Kpis';
+import { Alerts } from './views/Alerts';
 import { Finance } from './views/Finance';
 import { Settings } from './views/Settings';
 
-export type View = 'today' | 'myevents' | 'calendar' | 'events' | 'inventory' | 'tasks' | 'team' | 'kpis' | 'finance' | 'settings';
+export type View = 'today' | 'myevents' | 'calendar' | 'events' | 'inventory' | 'tasks' | 'alerts' | 'team' | 'kpis' | 'finance' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string }> = [
   { id: 'today', label: 'Today', icon: '◉', title: 'Today', sub: 'Live board, tasks and inventory at a glance' },
@@ -21,6 +22,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'events', label: 'Events', icon: '▤', title: 'Events', sub: 'Every booking, with its services, tasks and payments' },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Physical assets, reservations and buffers' },
   { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Work by department across all events' },
+  { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Low stock, leave requests, reviews, tips and ratings' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and upcoming assignments' },
   { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard — events, ratings, tips and points' },
   { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance — Owner view', sub: 'Revenue, expenses, net profit and monthly trend' },
@@ -97,6 +99,7 @@ export default function App() {
       {view === 'events' && <Events />}
       {view === 'inventory' && <Inventory />}
       {view === 'tasks' && <Tasks />}
+      {view === 'alerts' && <Alerts onOpenEvent={() => setView('events')} />}
       {view === 'team' && <Team role={role} />}
       {view === 'kpis' && <Kpis />}
       {view === 'finance' && <Finance />}

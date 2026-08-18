@@ -109,6 +109,7 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/needs-review') ||
       path.startsWith('/api/admin/reconcile') ||
       path.startsWith('/api/admin/notifications') ||
+      path.startsWith('/api/admin/alerts') ||
       path === '/api/admin/team' ||
       /^\/api\/admin\/orders\/[^/]+\/refund$/.test(path) ||
       /^\/api\/admin\/events\/[^/]+\/(cancel|reinstate)$/.test(path);
@@ -1250,6 +1251,50 @@ export async function adminRoutes(app: FastifyInstance) {
       `SELECT * FROM notifications ORDER BY created_at DESC LIMIT 100`,
     );
     return rows;
+  });
+
+  /**
+   * Unified ops alert centre: what needs a person's attention right now
+   * (low stock, leave to approve, orders held for review) plus a recent feed
+   * of tips and ratings. Manager/owner only (gated in the preHandler).
+   */
+  app.get('/api/admin/alerts', async () => {
+    const [lowStock, pendingLeave, needsReview, tips, ratings] = await Promise.all([
+      pool.query(
+        `SELECT id, name, unit, on_hand, reorder_level FROM consumables
+          WHERE active AND on_hand <= reorder_level
+          ORDER BY (on_hand - reorder_level) ASC, name`,
+      ),
+      pool.query(
+        `SELECT d.id, d.start_date, d.end_date, d.reason, m.name AS member_name, m.color
+           FROM staff_days_off d JOIN team_members m ON m.id = d.member_id
+          WHERE d.status = 'requested' ORDER BY d.start_date`,
+      ),
+      pool.query(`SELECT count(*)::int AS n FROM orders WHERE status = 'needs_review'`),
+      pool.query(
+        `SELECT t.id, t.amount_fils, t.created_at, t.event_id, m.name AS member_name
+           FROM tips t LEFT JOIN team_members m ON m.id = t.member_id
+          WHERE t.status = 'paid'
+          ORDER BY COALESCE(t.paid_at, t.created_at) DESC LIMIT 8`,
+      ),
+      pool.query(
+        `SELECT r.id, r.stars, r.feedback, r.created_at, r.event_id
+           FROM event_ratings r ORDER BY r.created_at DESC LIMIT 8`,
+      ),
+    ]);
+
+    return {
+      lowStock: lowStock.rows,
+      pendingLeave: pendingLeave.rows,
+      needsReview: needsReview.rows[0].n,
+      recentTips: tips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
+      recentRatings: ratings.rows,
+      counts: {
+        lowStock: lowStock.rowCount,
+        pendingLeave: pendingLeave.rowCount,
+        needsReview: needsReview.rows[0].n,
+      },
+    };
   });
 
   /* ------------------------- consumables inventory ------------------------ */
