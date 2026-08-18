@@ -98,8 +98,11 @@ export async function publicRoutes(app: FastifyInstance) {
         `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
         `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,wind_speed_10m_max` +
         `&timezone=auto&start_date=${q.date}&end_date=${q.date}`;
-      const res = await fetch(url);
-      if (!res.ok) return { available: false, reason: 'unavailable' };
+      const res = await fetch(url, { headers: { 'user-agent': 'Eventana/1.0 (+https://eventana.ae)' } });
+      if (!res.ok) {
+        request.log.warn({ status: res.status, body: (await res.text()).slice(0, 200) }, 'open-meteo non-ok');
+        return { available: false, reason: 'unavailable' };
+      }
       const d = (await res.json()) as {
         daily?: {
           temperature_2m_max?: number[]; temperature_2m_min?: number[];
@@ -107,7 +110,10 @@ export async function publicRoutes(app: FastifyInstance) {
         };
       };
       const day = d.daily;
-      if (!day?.weather_code?.length) return { available: false, reason: 'unavailable' };
+      if (!day?.weather_code?.length) {
+        request.log.warn({ keys: Object.keys(d) }, 'open-meteo empty daily');
+        return { available: false, reason: 'unavailable' };
+      }
       const code = day.weather_code[0];
       const w = describeWeather(code);
       return {
@@ -122,7 +128,8 @@ export async function publicRoutes(app: FastifyInstance) {
         label: w.label,
         outdoorNote: w.outdoorNote,
       };
-    } catch {
+    } catch (err) {
+      request.log.warn({ err: (err as Error).message }, 'open-meteo fetch threw');
       return { available: false, reason: 'unavailable' };
     }
   });
