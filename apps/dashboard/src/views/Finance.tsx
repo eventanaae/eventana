@@ -214,48 +214,32 @@ export function Finance() {
         ) : exp.expenses.length === 0 ? (
           <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>No expenses recorded this month.</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
-              <thead>
-                <tr style={{ textAlign: 'left', color: C.muted, fontSize: 11 }}>
-                  <th style={th}>Date</th>
-                  <th style={th}>Category</th>
-                  <th style={th}>Description</th>
-                  <th style={th}>Vendor</th>
-                  <th style={{ ...th, textAlign: 'right' }}>Amount</th>
-                  <th style={th}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {exp.expenses.map((e: any) => (
-                  <tr key={e.id} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
-                    <td style={td}>{String(e.spent_on).slice(0, 10)}</td>
-                    <td style={td}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 12, textTransform: 'capitalize' }}>
-                        <span style={{ width: 9, height: 9, borderRadius: '50%', background: CAT_COLORS[e.category] ?? C.pink }} />
-                        {e.category}
-                      </span>
-                    </td>
-                    <td style={{ ...td, fontWeight: 600 }}>
-                      {e.description}
-                      {e.receipt_url && (
-                        <a href={e.receipt_url} target="_blank" rel="noreferrer" style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: C.pinkDeep, textDecoration: 'none' }}>📎 receipt</a>
-                      )}
-                    </td>
-                    <td style={{ ...td, color: C.muted }}>{e.vendor ?? '—'}</td>
-                    <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>AED {e.amountDisplay}</td>
-                    <td style={{ ...td, textAlign: 'right' }}>
-                      <button
-                        onClick={async () => { await api.deleteExpense(e.id); load(); }}
-                        style={{ border: 'none', background: 'transparent', color: '#F06C6C', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {exp.expenses.map((e: any) => (
+              <div key={e.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: CAT_COLORS[e.category] ?? C.pink, marginTop: 4, flex: 'none' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>
+                    {e.description}
+                    {e.receipt_url && (
+                      <a href={e.receipt_url} target="_blank" rel="noreferrer" style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: C.pinkDeep, textDecoration: 'none' }}>📎</a>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2, textTransform: 'capitalize' }}>
+                    {e.category} · {String(e.spent_on).slice(0, 10)}{e.vendor ? ` · ${e.vendor}` : ''}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flex: 'none' }}>
+                  <div style={{ fontWeight: 800, fontSize: 13.5 }}>AED {e.amountDisplay}</div>
+                  <button
+                    onClick={async () => { await api.deleteExpense(e.id); load(); }}
+                    style={{ border: 'none', background: 'transparent', color: C.red, fontWeight: 700, fontSize: 11, cursor: 'pointer', padding: '2px 0 0' }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Panel>
@@ -273,8 +257,6 @@ function Tile({ label, value, accent, sub }: { label: string; value: string; acc
   );
 }
 
-const th: CSSProperties = { padding: '6px 10px', fontWeight: 700 };
-const td: CSSProperties = { padding: '9px 10px', verticalAlign: 'middle', fontSize: 12.5 };
 const fieldWrap: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 110 };
 const fieldLabel: CSSProperties = { fontSize: 10.5, fontWeight: 700, color: C.muted };
 const input: CSSProperties = {

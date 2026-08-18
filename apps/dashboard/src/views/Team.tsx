@@ -1,8 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { api } from '../api';
-import { Badge, Button, C, Panel, Spinner, Td, Th } from '../ui';
+import { Badge, Button, C, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
+
+/** A label + control row inside a team member card. */
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, width: 84, flex: 'none' }}>{label}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+    </div>
+  );
+}
 
 const LEVELS = ['owner', 'manager', 'employee', 'driver'] as const;
 const LEVEL_NOTE: Record<string, string> = {
@@ -45,55 +55,49 @@ export function Team({ role = 'owner' }: { role?: string }) {
       )}
 
       <Panel title={`Team (${team.length})`}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: canManage ? 820 : 520 }}>
-            <thead>
-              <tr>
-                <Th width={190}>Name</Th>
-                <Th width={120}>Job title</Th>
-                {canManage && <Th width={140}>Birthday</Th>}
-                {isOwner && <Th width={140}>Access level</Th>}
-                {isOwner && <Th width={200}>Login token</Th>}
-                <Th>Upcoming assignments</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {team.map((m) => (
-                <tr key={m.id}>
-                  <Td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: m.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flex: 'none' }}>
-                        {m.name[0]}
-                      </div>
-                      <span style={{ fontWeight: 700, color: C.ink }}>{m.name}</span>
-                    </div>
-                  </Td>
-                  <Td>{m.role}</Td>
+        {team.length === 0 ? (
+          <Empty>No team members configured.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {team.map((m) => (
+              <div key={m.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: m.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flex: 'none' }}>
+                    {m.name[0]}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: C.ink }}>{m.name}</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{m.role}</div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 11, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {canManage && (
-                    <Td>
+                    <Row label="Birthday">
                       <input
                         type="date"
                         defaultValue={m.birthday ? String(m.birthday).slice(0, 10) : ''}
                         onChange={async (e) => { await api.setTeamProfile(m.id, { birthday: e.target.value || null }); load(); }}
                         style={dateInput}
                       />
-                    </Td>
+                    </Row>
                   )}
-                  {isOwner && <Td><AccessSelect member={m} onChange={load} /></Td>}
-                  {isOwner && <Td><TokenCell member={m} onChange={load} /></Td>}
-                  <Td>
+                  {isOwner && <Row label="Access"><AccessSelect member={m} onChange={load} /></Row>}
+                  {isOwner && <Row label="Login token"><TokenCell member={m} onChange={load} /></Row>}
+                  <Row label="Assignments">
                     {!m.assignments || m.assignments.length === 0 ? (
-                      <span style={{ color: C.muted }}>Free</span>
+                      <span style={{ color: C.muted, fontSize: 12.5, fontWeight: 600 }}>Free</span>
                     ) : (
-                      m.assignments.map((a: any) => `${a.eventId} (${new Date(a.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })})`).join(' · ')
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>
+                        {m.assignments.map((a: any) => `${a.eventId} (${new Date(a.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })})`).join(' · ')}
+                      </span>
                     )}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {team.length === 0 && <Empty>No team members configured.</Empty>}
+                  </Row>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Panel>
 
       {canManage && <DaysOff team={team} schedule={schedule} onChange={load} />}

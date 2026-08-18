@@ -32,8 +32,6 @@ export function Kpis() {
     setMonth(`${d.getFullYear()}-${pad(d.getMonth() + 1)}`);
   };
 
-  const stars = (n: number) => (n > 0 ? `${'★'.repeat(Math.round(n))}${'☆'.repeat(5 - Math.round(n))}` : '—');
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Panel
@@ -73,58 +71,30 @@ export function Kpis() {
           {data.staff.length === 0 ? (
             <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>No active staff.</div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', color: C.muted, fontSize: 11 }}>
-                    <th style={th}>#</th>
-                    <th style={th}>Member</th>
-                    <th style={th}>Events</th>
-                    <th style={th}>Rating</th>
-                    <th style={th}>Tips</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Points</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.staff.map((s: any, i: number) => (
-                    <tr key={s.id} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
-                      <td style={{ ...td, fontSize: 16 }}>{RANK[i] ?? i + 1}</td>
-                      <td style={td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div
-                            style={{
-                              width: 32, height: 32, borderRadius: '50%', background: s.color, color: '#fff',
-                              fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
-                            }}
-                          >
-                            {s.name[0]}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 12.5 }}>{s.name}</div>
-                            <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, textTransform: 'capitalize' }}>
-                              {s.role} · {s.accessLevel}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ ...td, fontWeight: 700 }}>{s.eventsDone}</td>
-                      <td style={td}>
-                        <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1 }}>{stars(s.avgRating)}</span>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: C.muted }}>
-                          {s.avgRating > 0 ? `${s.avgRating} · ${s.fiveStars}×5★` : 'no reviews'}
-                        </div>
-                      </td>
-                      <td style={td}>
-                        <div style={{ fontWeight: 700, fontSize: 12.5, color: C.pinkDeep }}>AED {s.tipsDisplay}</div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: C.muted }}>{s.tipsCount} tips</div>
-                      </td>
-                      <td style={{ ...td, textAlign: 'right' }}>
-                        <span style={{ ...fredoka(18), color: C.ink }}>{s.points}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {data.staff.map((s: any, i: number) => (
+                <div key={s.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                    <span style={{ fontSize: 17, width: 24, textAlign: 'center', flex: 'none' }}>{RANK[i] ?? i + 1}</span>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                      {s.name[0]}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, textTransform: 'capitalize' }}>{s.role} · {s.accessLevel}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', flex: 'none' }}>
+                      <div style={{ ...fredoka(18), color: C.ink, lineHeight: 1 }}>{s.points}</div>
+                      <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: '.4px' }}>POINTS</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 11, paddingTop: 11, borderTop: `1px solid ${C.lineSoft}` }}>
+                    <MiniKpi label="Events" value={String(s.eventsDone)} />
+                    <MiniKpi label="Rating" value={s.avgRating > 0 ? `${s.avgRating} ★` : '—'} accent={C.pinkDeep} />
+                    <MiniKpi label={`Tips · ${s.tipsCount}`} value={`AED ${s.tipsDisplay}`} accent={C.pinkDeep} />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
           <div style={{ marginTop: 12, fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
@@ -146,5 +116,11 @@ function Tile({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-const th: CSSProperties = { padding: '6px 10px', fontWeight: 700 };
-const td: CSSProperties = { padding: '10px', verticalAlign: 'middle' };
+function MiniKpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: '.3px' }}>{label.toUpperCase()}</div>
+      <div style={{ fontWeight: 800, fontSize: 13.5, color: accent ?? C.ink, marginTop: 2 }}>{value}</div>
+    </div>
+  );
+}

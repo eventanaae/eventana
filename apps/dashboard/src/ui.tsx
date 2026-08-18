@@ -1,24 +1,30 @@
 import type { CSSProperties, ReactNode } from 'react';
 
+// Refined Eventana identity: the brand pink kept, but elevated — a deeper
+// raspberry accent, a clean light-neutral ground with a faint pink bias,
+// generous white cards and soft shadows. Not candy.
 export const C = {
-  ink: '#3B3641',
-  bg: '#F4F1ED',
-  line: '#e8e0da',
-  lineSoft: '#f1eae5',
-  pink: '#F06CA8',
-  pinkDeep: '#E94F9C',
-  pinkSoft: '#FDEFF6',
-  mint: '#5BCFC5',
-  yellow: '#F7C948',
-  yellowSoft: '#FFF3D6',
-  yellowInk: '#a8752a',
-  green: '#2e9e7e',
-  greenSoft: '#E3F6EF',
-  red: '#c2453a',
-  redSoft: '#FCE9E5',
-  muted: '#a3968f',
-  muted2: '#6f6369',
-  sidebarMuted: '#a99fa6',
+  ink: '#2B2631',       // deep plum-charcoal
+  bg: '#F6F4F7',        // whisper light neutral (pink-biased)
+  line: '#ECE7EF',
+  lineSoft: '#F4F1F6',
+  pink: '#D6336C',      // refined raspberry — the brand, elevated
+  pinkDeep: '#B02A63',
+  pinkSoft: '#FBEAF1',
+  mint: '#2FB0A3',      // refined teal
+  yellow: '#E7A33C',    // refined amber
+  yellowSoft: '#FCF2E1',
+  yellowInk: '#9A6A1C',
+  green: '#2E9E74',
+  greenSoft: '#E4F5EE',
+  red: '#D6455A',
+  redSoft: '#FBEAEC',
+  muted: '#8B8492',     // neutral warm-gray (chosen, not default)
+  muted2: '#5E5766',
+  sidebarMuted: '#B8AEC4',
+  // soft, layered shadows for an elevated, premium card feel
+  shadow: '0 1px 2px rgba(43,38,49,.04), 0 4px 14px rgba(43,38,49,.05)',
+  shadowLg: '0 2px 6px rgba(43,38,49,.06), 0 10px 30px rgba(43,38,49,.07)',
 } as const;
 
 export const fredoka = (size: number, weight = 600): CSSProperties => ({
@@ -46,14 +52,15 @@ export function Panel({
       style={{
         background: '#fff',
         border: `1px solid ${C.line}`,
-        borderRadius: 16,
-        padding: 18,
+        borderRadius: 18,
+        padding: 20,
+        boxShadow: C.shadow,
         ...style,
       }}
     >
       {(title || action) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <div style={{ ...fredoka(15), flex: 1 }}>{title}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <div style={{ ...fredoka(15), flex: 1, letterSpacing: '-.1px' }}>{title}</div>
           {action}
         </div>
       )}
@@ -192,11 +199,12 @@ export function Stat({ label, value, tone }: { label: string; value: ReactNode; 
     <div
       style={{
         background: '#fff',
-        border: `1px solid ${tone === 'alert' ? '#f2c9c2' : C.line}`,
+        border: `1px solid ${tone === 'alert' ? '#f0cdd4' : C.line}`,
         borderRadius: 16,
         padding: '16px 18px',
         flex: 1,
         minWidth: 0,
+        boxShadow: C.shadow,
       }}
     >
       <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '.6px' }}>

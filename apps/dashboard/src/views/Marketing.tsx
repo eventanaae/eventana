@@ -113,42 +113,31 @@ export function Marketing() {
         {data.campaigns.length === 0 ? (
           <Empty>No campaigns yet.</Empty>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
-              <thead>
-                <tr style={{ textAlign: 'left', color: C.muted, fontSize: 11 }}>
-                  <th style={th}>Subject</th><th style={th}>Audience</th><th style={th}>Status</th>
-                  <th style={th}>Sent</th><th style={th}>When</th><th style={th}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.campaigns.map((c: any) => (
-                  <tr key={c.id} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
-                    <td style={{ ...td, fontWeight: 700 }}>{c.subject}</td>
-                    <td style={td}>{c.audience.replace(/_/g, ' ')}</td>
-                    <td style={td}>
-                      <Badge tone={c.status === 'sent' ? 'ok' : c.status === 'failed' ? 'error' : c.status === 'scheduled' ? 'info' : 'neutral'}>{c.status}</Badge>
-                    </td>
-                    <td style={td}>{c.status === 'sent' ? `${c.sent_count}/${c.recipient_count}` : '—'}</td>
-                    <td style={{ ...td, color: C.muted, fontSize: 11.5 }}>
-                      {c.sent_at ? new Date(c.sent_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                        : c.scheduled_for ? `⏰ ${new Date(c.scheduled_for).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-                        : new Date(c.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                    </td>
-                    <td style={{ ...td, textAlign: 'right' }}>
-                      {(c.status === 'draft' || c.status === 'scheduled' || c.status === 'failed') && (
-                        <>
-                          {data.emailConfigured && (
-                            <button onClick={async () => { await api.sendCampaign(c.id); load(); }} style={miniBtn}>Send</button>
-                          )}
-                          <button onClick={async () => { await api.deleteCampaign(c.id); load(); }} style={{ ...miniBtn, color: C.red }}>Delete</button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {data.campaigns.map((c: any) => (
+              <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                  <Badge tone={c.status === 'sent' ? 'ok' : c.status === 'failed' ? 'error' : c.status === 'scheduled' ? 'info' : 'neutral'}>{c.status}</Badge>
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 0' }}>
+                  {c.audience.replace(/_/g, ' ')}
+                  {c.status === 'sent' && ` · ${c.sent_count}/${c.recipient_count} sent`}
+                  {' · '}
+                  {c.sent_at ? new Date(c.sent_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    : c.scheduled_for ? `⏰ ${new Date(c.scheduled_for).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                    : new Date(c.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                </div>
+                {(c.status === 'draft' || c.status === 'scheduled' || c.status === 'failed') && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    {data.emailConfigured && (
+                      <button onClick={async () => { await api.sendCampaign(c.id); load(); }} style={miniBtn}>Send</button>
+                    )}
+                    <button onClick={async () => { await api.deleteCampaign(c.id); load(); }} style={{ ...miniBtn, color: C.red }}>Delete</button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </Panel>
@@ -168,6 +157,4 @@ function Tile({ label, value }: { label: string; value: number }) {
 const input: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, borderRadius: 10, padding: '10px 12px', fontSize: 13, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink };
 const chip: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 20, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
 const chipActive: CSSProperties = { border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep };
-const th: CSSProperties = { padding: '6px 10px', fontWeight: 700 };
-const td: CSSProperties = { padding: '9px 10px', verticalAlign: 'middle', fontSize: 12.5 };
-const miniBtn: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.ink, marginLeft: 6 };
+const miniBtn: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
