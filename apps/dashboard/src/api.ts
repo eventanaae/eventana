@@ -118,7 +118,15 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
+  me: () => request<{ id?: string; name: string; role: string }>('/api/admin/me'),
+
   team: () => request<any[]>('/api/admin/team'),
+  setTeamAccess: (id: string, accessLevel: string, rotateToken = false) =>
+    request<any>(`/api/admin/team/${id}/access`, {
+      method: 'PATCH',
+      body: JSON.stringify({ accessLevel, rotateToken }),
+    }),
+  myEvents: () => request<any[]>('/api/admin/my-events'),
 
   settings: () => request<any>('/api/admin/settings'),
   saveRules: (patch: Record<string, unknown>) =>

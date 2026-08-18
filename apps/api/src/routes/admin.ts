@@ -5,6 +5,7 @@
  * the customer app, never in the assistant (spec §9).
  */
 import type { FastifyInstance } from 'fastify';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { formatAed, isCancelled } from '@eventana/shared';
 import { config } from '../config.js';
@@ -73,22 +74,65 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     // The master token is the Owner (backward compatible). Otherwise a team
     // member's personal access token resolves their access level.
+    let staff: { id?: string; name: string; role: string };
     if (token === config.staffToken) {
-      (request as any).staff = { name: 'Owner', role: 'owner' };
-      return;
+      staff = { name: 'Owner', role: 'owner' };
+    } else {
+      const { rows } = await pool.query(
+        `SELECT id, name, access_level FROM team_members WHERE access_token = $1 AND active LIMIT 1`,
+        [token],
+      );
+      if (!rows[0]) return reply.status(401).send({ error: 'unauthorized' });
+      staff = { id: rows[0].id, name: rows[0].name, role: rows[0].access_level ?? 'employee' };
     }
-    const { rows } = await pool.query(
-      `SELECT id, name, access_level FROM team_members WHERE access_token = $1 AND active LIMIT 1`,
-      [token],
-    );
-    if (!rows[0]) {
-      return reply.status(401).send({ error: 'unauthorized' });
+    (request as any).staff = staff;
+
+    // ── Role-based authorization ─────────────────────────────────────────
+    // Owner: unrestricted. Everyone else is gated by route below.
+    if (staff.role === 'owner') return;
+
+    const path = request.url.split('?')[0];
+    const method = request.method;
+
+    // Only the Owner may change team access levels / login tokens.
+    if (/^\/api\/admin\/team\/[^/]+\/access$/.test(path)) {
+      return reply.status(403).send({ error: 'forbidden', message: 'Only the owner can change team access.' });
     }
-    (request as any).staff = {
-      id: rows[0].id,
-      name: rows[0].name,
-      role: rows[0].access_level ?? 'employee',
-    };
+
+    // Money, configuration, review and refunds: Manager + Owner only.
+    const managerOnly =
+      path.startsWith('/api/admin/finance') ||
+      path.startsWith('/api/admin/expenses') ||
+      path.startsWith('/api/admin/kpis') ||
+      path.startsWith('/api/admin/settings') ||
+      path.startsWith('/api/admin/delivery-zones') ||
+      path.startsWith('/api/admin/needs-review') ||
+      path.startsWith('/api/admin/reconcile') ||
+      path.startsWith('/api/admin/notifications') ||
+      path === '/api/admin/team' ||
+      /^\/api\/admin\/orders\/[^/]+\/refund$/.test(path) ||
+      /^\/api\/admin\/events\/[^/]+\/(cancel|reinstate)$/.test(path);
+    if (managerOnly && staff.role !== 'manager') {
+      return reply.status(403).send({ error: 'forbidden', message: 'Managers and the owner only.' });
+    }
+
+    // Driver: a tight whitelist — the calendar/board, job locations, and
+    // updating a job's status (on the way / arrived) from the road.
+    if (staff.role === 'driver') {
+      const allowed =
+        (method === 'GET' &&
+          (path === '/api/admin/me' ||
+            path === '/api/admin/today' ||
+            path === '/api/admin/events' ||
+            path === '/api/admin/my-events' ||
+            /^\/api\/admin\/events\/[^/]+$/.test(path))) ||
+        (method === 'POST' && /^\/api\/admin\/events\/[^/]+\/phase$/.test(path));
+      if (!allowed) {
+        return reply
+          .status(403)
+          .send({ error: 'forbidden', message: 'Drivers can access the calendar and job locations.' });
+      }
+    }
   });
 
   /** The signed-in staff member and their access level. */
@@ -745,6 +789,63 @@ export async function adminRoutes(app: FastifyInstance) {
                  FROM event_team et JOIN events e ON e.id = et.event_id
                 WHERE et.member_id = m.id AND e.event_date >= CURRENT_DATE) AS assignments
          FROM team_members m ORDER BY m.name`,
+    );
+    return rows;
+  });
+
+  /**
+   * Owner-only: set a member's access level and issue/rotate their personal
+   * login token. The token is what they enter in the dashboard to sign in as
+   * themselves with the right scope. Returned here so the owner can share it.
+   */
+  app.patch('/api/admin/team/:id/access', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const schema = z.object({
+      accessLevel: z.enum(['owner', 'manager', 'employee', 'driver']),
+      rotateToken: z.boolean().optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+
+    const newToken = `stf_${randomBytes(18).toString('hex')}`;
+    const { rows } = await pool.query(
+      `UPDATE team_members
+          SET access_level = $2,
+              access_token = CASE WHEN $3 OR access_token IS NULL THEN $4 ELSE access_token END
+        WHERE id = $1
+        RETURNING id, name, role, access_level, access_token`,
+      [id, parsed.data.accessLevel, parsed.data.rotateToken ?? false, newToken],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return rows[0];
+  });
+
+  /**
+   * Events assigned to the signed-in member (their own crew list). Owner and
+   * managers have no member id, so they get the upcoming board instead.
+   */
+  app.get('/api/admin/my-events', async (request) => {
+    const staff = (request as any).staff as { id?: string };
+    if (staff.id) {
+      const { rows } = await pool.query(
+        `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta, e.emirate,
+                c.name AS customer, e.map_lat, e.map_lng
+           FROM events e
+           JOIN event_team et ON et.event_id = e.id
+           JOIN customers c ON c.id = e.customer_id
+          WHERE et.member_id = $1 AND e.event_date >= CURRENT_DATE - interval '1 day'
+          ORDER BY e.event_date, e.start_time`,
+        [staff.id],
+      );
+      return rows;
+    }
+    const { rows } = await pool.query(
+      `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta, e.emirate,
+              c.name AS customer, e.map_lat, e.map_lng
+         FROM events e JOIN customers c ON c.id = e.customer_id
+        WHERE e.event_date >= CURRENT_DATE - interval '1 day'
+        ORDER BY e.event_date, e.start_time
+        LIMIT 100`,
     );
     return rows;
   });

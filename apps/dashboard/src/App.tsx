@@ -25,15 +25,30 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing rules, delivery zones and integrations' },
 ];
 
+// Which tabs each access level sees. Owner/manager get everything; the API
+// enforces the same rules, so hiding a tab is convenience, not the guard.
+const ROLE_VIEWS: Record<string, View[] | 'all'> = {
+  owner: 'all',
+  manager: 'all',
+  employee: ['today', 'calendar', 'events', 'inventory', 'tasks'],
+  driver: ['calendar', 'events'],
+};
+
 export default function App() {
   const [authed, setAuthed] = useState(hasStaffToken());
   const [view, setView] = useState<View>('today');
+  const [role, setRole] = useState<string>('owner');
+  const [staffName, setStaffName] = useState<string>('Owner');
   const [counts, setCounts] = useState<{ tasks: number; review: number }>({ tasks: 0, review: 0 });
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authed) return;
+    api
+      .me()
+      .then((m) => { setRole(m.role); setStaffName(m.name); })
+      .catch(() => setRole('employee'));
     const load = () =>
       api
         .today()
@@ -48,11 +63,22 @@ export default function App() {
     return () => clearInterval(timer);
   }, [authed]);
 
+  const allowed = ROLE_VIEWS[role] ?? 'all';
+  const visibleNav = allowed === 'all' ? NAV : NAV.filter((n) => allowed.includes(n.id));
+
+  // If the current tab isn't allowed for this role, snap to the first that is.
+  useEffect(() => {
+    if (allowed !== 'all' && !allowed.includes(view)) {
+      setView(visibleNav[0]?.id ?? 'today');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
   if (!authed) {
     return <StaffLogin onDone={() => setAuthed(true)} />;
   }
 
-  const current = NAV.find((n) => n.id === view)!;
+  const current = NAV.find((n) => n.id === view) ?? NAV[0];
   const sandbox = integrations.some((i) => i.mode !== 'live');
   const mobile = useIsMobile();
 
@@ -68,7 +94,7 @@ export default function App() {
       {view === 'events' && <Events />}
       {view === 'inventory' && <Inventory />}
       {view === 'tasks' && <Tasks />}
-      {view === 'team' && <Team />}
+      {view === 'team' && <Team role={role} />}
       {view === 'kpis' && <Kpis />}
       {view === 'finance' && <Finance />}
       {view === 'settings' && <Settings />}
@@ -93,7 +119,7 @@ export default function App() {
         </div>
         <div style={{ flex: 1, padding: 14, paddingBottom: 82, minWidth: 0 }}>{body}</div>
         <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 10, background: C.ink, display: 'flex', padding: '7px 2px calc(7px + env(safe-area-inset-bottom))' }}>
-          {NAV.map((n) => {
+          {visibleNav.map((n) => {
             const active = view === n.id;
             const badge = n.id === 'tasks' ? counts.tasks : n.id === 'events' ? counts.review : 0;
             return (
@@ -138,7 +164,7 @@ export default function App() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '0 10px' }}>
-          {NAV.map((n) => {
+          {visibleNav.map((n) => {
             const active = view === n.id;
             const badge =
               n.id === 'tasks' ? counts.tasks : n.id === 'events' ? counts.review : 0;
@@ -193,17 +219,24 @@ export default function App() {
               style={{
                 width: 32, height: 32, borderRadius: '50%', background: C.pink,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, fontSize: 13,
+                fontWeight: 700, fontSize: 13, flex: 'none',
               }}
             >
-              M
+              {staffName[0]?.toUpperCase() ?? 'E'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700 }}>Maryam</div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: C.sidebarMuted }}>
-                Operations Manager
+              <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{staffName}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: C.sidebarMuted, textTransform: 'capitalize' }}>
+                {role}
               </div>
             </div>
+            <button
+              onClick={() => { clearStaffToken(); setAuthed(false); }}
+              title="Sign out"
+              style={{ border: 'none', background: 'transparent', color: C.sidebarMuted, fontSize: 15, cursor: 'pointer', flex: 'none' }}
+            >
+              ⏻
+            </button>
           </div>
         </div>
       </div>
