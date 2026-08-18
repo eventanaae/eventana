@@ -51,9 +51,81 @@ const cartSchema = z.object({
   eventFor: z.string().max(120).optional(),
 });
 
+/** WMO weather code → a friendly label, emoji, and an outdoor-party note. */
+function describeWeather(code: number): { label: string; emoji: string; outdoorNote: string } {
+  const perfect = 'Perfect for an outdoor celebration! ☀️';
+  const table: Array<[number[], string, string, string]> = [
+    [[0], 'Clear sky', '☀️', perfect],
+    [[1, 2], 'Mostly sunny', '🌤️', perfect],
+    [[3], 'Cloudy', '☁️', 'Comfortable and cool — great for outdoors.'],
+    [[45, 48], 'Foggy', '🌫️', 'Foggy morning — should clear up.'],
+    [[51, 53, 55, 56, 57], 'Light drizzle', '🌦️', 'A little drizzle possible — consider a covered spot.'],
+    [[61, 63, 65, 66, 67, 80, 81, 82], 'Rain', '🌧️', 'Rain likely — an indoor or covered setup is safer.'],
+    [[71, 73, 75, 77, 85, 86], 'Snow', '🌨️', 'Snow expected — indoors recommended.'],
+    [[95, 96, 99], 'Thunderstorm', '⛈️', 'Storms possible — please plan for indoors.'],
+  ];
+  for (const [codes, label, emoji, note] of table) {
+    if (codes.includes(code)) return { label, emoji, outdoorNote: note };
+  }
+  return { label: 'Mild', emoji: '🌤️', outdoorNote: perfect };
+}
+
 export async function publicRoutes(app: FastifyInstance) {
   /** Ops probe: is the Google Calendar link actually working? Status only. */
   app.get('/api/calendar/check', async () => checkCalendarConnection());
+
+  /**
+   * Weather forecast for an event's day + location, via Open-Meteo (free, no
+   * key). Forecast reaches ~16 days out; beyond that we say so. Used by the
+   * customer app once a date and a map pin are chosen.
+   */
+  app.get('/api/weather', async (request) => {
+    const q = request.query as { lat?: string; lng?: string; date?: string };
+    const lat = Number(q.lat);
+    const lng = Number(q.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !/^\d{4}-\d{2}-\d{2}$/.test(q.date ?? '')) {
+      return { available: false, reason: 'invalid' };
+    }
+    const daysOut = Math.round(
+      (new Date(`${q.date}T00:00:00Z`).getTime() - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime()) /
+        86_400_000,
+    );
+    if (daysOut < 0) return { available: false, reason: 'past' };
+    if (daysOut > 15) return { available: false, reason: 'too_far' };
+
+    try {
+      const url =
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+        `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,wind_speed_10m_max` +
+        `&timezone=auto&start_date=${q.date}&end_date=${q.date}`;
+      const res = await fetch(url);
+      if (!res.ok) return { available: false, reason: 'unavailable' };
+      const d = (await res.json()) as {
+        daily?: {
+          temperature_2m_max?: number[]; temperature_2m_min?: number[];
+          weather_code?: number[]; precipitation_probability_max?: number[]; wind_speed_10m_max?: number[];
+        };
+      };
+      const day = d.daily;
+      if (!day?.weather_code?.length) return { available: false, reason: 'unavailable' };
+      const code = day.weather_code[0];
+      const w = describeWeather(code);
+      return {
+        available: true,
+        date: q.date,
+        tempMax: Math.round(day.temperature_2m_max?.[0] ?? 0),
+        tempMin: Math.round(day.temperature_2m_min?.[0] ?? 0),
+        precipProb: Math.round(day.precipitation_probability_max?.[0] ?? 0),
+        windMax: Math.round(day.wind_speed_10m_max?.[0] ?? 0),
+        code,
+        emoji: w.emoji,
+        label: w.label,
+        outdoorNote: w.outdoorNote,
+      };
+    } catch {
+      return { available: false, reason: 'unavailable' };
+    }
+  });
 
   /** One-click email unsubscribe (token-verified). Returns a small page. */
   app.get('/api/unsubscribe', async (request, reply) => {

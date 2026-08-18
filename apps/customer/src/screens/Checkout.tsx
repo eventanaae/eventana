@@ -296,6 +296,9 @@ export function Checkout({
         </div>
       </div>
 
+      {/* Weather forecast for the chosen day + location (free, keyless). */}
+      <WeatherCard pin={draft.mapPin} date={draft.eventDate} />
+
       {/* ---------------- summary ---------------- */}
       <div style={cardStyle}>
         {quote?.lines.map((line, i) => (
@@ -446,6 +449,62 @@ export function Checkout({
           {paying ? 'Opening secure checkout…' : `Pay AED ${quote ? money(quote.totalFils) : '—'}`}
         </PrimaryButton>
       </div>
+    </div>
+  );
+}
+
+/** Live weather forecast for the picked day + location. Free & keyless. */
+function WeatherCard({ pin, date }: { pin: { lat: number; lng: number } | null; date: string }) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.weather>> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!pin || !date) { setData(null); return; }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .weather(pin.lat, pin.lng, date)
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [pin?.lat, pin?.lng, date]);
+
+  if (!pin || !date) return null;
+
+  return (
+    <div style={{ ...cardStyle, background: 'linear-gradient(135deg,#EAF6FF,#F3ECFB)' }}>
+      <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>Weather on your day 🌤️</div>
+      {loading ? (
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Checking the forecast…</div>
+      ) : !data?.available ? (
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
+          {data?.reason === 'too_far'
+            ? 'Forecast opens closer to the date (about 2 weeks ahead) — we’ll show it then.'
+            : data?.reason === 'past'
+              ? 'That date has passed.'
+              : 'Forecast isn’t available for this spot right now.'}
+        </div>
+      ) : (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 38, lineHeight: 1 }}>{data.emoji}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 20 }}>
+                {data.tempMax}° <span style={{ color: C.muted, fontWeight: 700, fontSize: 14 }}>/ {data.tempMin}°</span>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{data.label}</div>
+            </div>
+            <div style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, color: C.muted }}>
+              <div>💧 {data.precipProb}%</div>
+              <div>💨 {data.windMax} km/h</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: '#5b6b8a', marginTop: 8, lineHeight: 1.5 }}>
+            {data.outdoorNote}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -80,6 +80,13 @@ export interface QuoteResult extends Quote {
 export const api = {
   catalogue: () => request<Catalogue>('/api/catalogue'),
 
+  weather: (lat: number, lng: number, date: string) =>
+    request<{
+      available: boolean; reason?: string; date?: string;
+      tempMax?: number; tempMin?: number; precipProb?: number; windMax?: number;
+      emoji?: string; label?: string; outdoorNote?: string;
+    }>(`/api/weather?lat=${lat}&lng=${lng}&date=${date}`),
+
   quote: (cart: CartInput) =>
     request<QuoteResult>('/api/quote', { method: 'POST', body: JSON.stringify(cart) }),
 
