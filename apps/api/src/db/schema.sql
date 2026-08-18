@@ -233,6 +233,9 @@ CREATE TABLE IF NOT EXISTS events (
 ALTER TABLE events ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
 
+-- Google Calendar sync: id of the mirrored event in the shared team calendar.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS google_calendar_event_id TEXT;
+
 CREATE TABLE IF NOT EXISTS event_services (
   id          SERIAL PRIMARY KEY,
   event_id    TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,

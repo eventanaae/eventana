@@ -12,6 +12,7 @@
 import { pool, withTransaction } from '../db/pool.js';
 import { getProvider } from '../payments/index.js';
 import { confirmBooking } from './confirm.js';
+import { syncEventToCalendar } from '../integrations/googleCalendar.js';
 import { holdsStillValid, releaseHolds } from './inventory.js';
 import {
   applyPaymentStatus,
@@ -163,6 +164,7 @@ export async function processDelivery(
     return { outcome: 'late_success' };
   }
 
+  let confirmedEventId: string | null = null;
   const outcome = await withTransaction(async (db) => {
     const { applied } = await applyPaymentStatus(db, {
       paymentId: payment.id,
@@ -179,12 +181,13 @@ export async function processDelivery(
     if (verified.status === 'paid' || verified.status === 'captured') {
       // (6) Confirmation is idempotent: a second delivery that somehow
       // gets here still yields one Event ID.
-      await confirmBooking(db, {
+      const confirmed = await confirmBooking(db, {
         orderId: payment.order_id,
         rules: cfg.rules,
         serviceIsInflatable: (id) => cfg.services.get(id)?.isInflatable ?? false,
         serviceIsFoodStation: (id) => cfg.services.get(id)?.isFoodStation ?? false,
       });
+      confirmedEventId = confirmed.eventId;
     }
 
     if (verified.status === 'failed' || verified.status === 'cancelled') {
@@ -198,6 +201,13 @@ export async function processDelivery(
 
     return 'accepted' as const;
   });
+
+  // Mirror the confirmed booking into the shared team Google Calendar. Done
+  // after the transaction commits so a slow/failed network call can never
+  // roll back a paid booking; it's a silent no-op when calendar sync is off.
+  if (outcome === 'accepted' && confirmedEventId) {
+    await syncEventToCalendar(confirmedEventId);
+  }
 
   await finish(deliveryId, outcome);
   return { outcome };

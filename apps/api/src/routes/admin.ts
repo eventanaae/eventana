@@ -14,6 +14,7 @@ import { invalidateConfigCache, loadConfig, savePricingRules } from '../domain/s
 import { applyPaymentStatus, recordPaymentEvent } from '../domain/orders.js';
 import { withTransaction } from '../db/pool.js';
 import { reconcileOnce } from '../domain/reconcile.js';
+import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
 
 /**
  * Moves an event to the terminal Cancelled phase and stands its
@@ -282,6 +283,7 @@ export async function adminRoutes(app: FastifyInstance) {
       `UPDATE events SET phase = $2, eta = COALESCE($3, eta) WHERE id = $1 RETURNING *`,
       [eventId, parsed.data.phase, parsed.data.eta ?? null],
     );
+    void syncEventToCalendar(eventId);
     return rows[0];
   });
 
@@ -303,6 +305,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const result = await cancelEvent(eventId, parsed.data.reason);
     if (!result) return reply.status(404).send({ error: 'not_found' });
+    void syncEventToCalendar(eventId);
     return result;
   });
 
@@ -324,7 +327,26 @@ export async function adminRoutes(app: FastifyInstance) {
        VALUES ($1,'operations','Event reinstated — re-check inventory availability and crew')`,
       [eventId],
     );
+    void syncEventToCalendar(eventId);
     return rows[0];
+  });
+
+  /**
+   * Backfill the shared Google Calendar with existing bookings — run once
+   * after switching calendar sync on. Pushes every event from yesterday
+   * onward; each upsert is idempotent, so it's safe to run again.
+   */
+  app.post('/api/admin/calendar/resync', async (_request, reply) => {
+    if (!calendarEnabled()) {
+      return reply
+        .status(409)
+        .send({ error: 'calendar_disabled', message: 'Google Calendar sync is not configured.' });
+    }
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM events WHERE event_date >= current_date - interval '1 day' ORDER BY event_date`,
+    );
+    for (const r of rows) await syncEventToCalendar(r.id);
+    return { synced: rows.length };
   });
 
   /** Team reply in the event chat. The staff name shows; no phone number. */

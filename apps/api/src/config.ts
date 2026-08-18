@@ -138,6 +138,17 @@ export const config = {
 
   googleMapsApiKey: env.GOOGLE_MAPS_API_KEY ?? null,
 
+  /**
+   * Google Calendar sync (service-account model). Paste the whole service
+   * account JSON key into GOOGLE_SERVICE_ACCOUNT_JSON and share the target
+   * calendar with that account's email; GOOGLE_CALENDAR_ID is the calendar
+   * every confirmed booking is written to. Absent → sync is a silent no-op.
+   */
+  googleCalendar: {
+    serviceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON ?? null,
+    calendarId: env.GOOGLE_CALENDAR_ID ?? null,
+  },
+
   providers: {
     tabby: providerConfig('tabby', {
       publicKey: env.TABBY_PUBLIC_KEY,
@@ -195,6 +206,9 @@ export function readinessSummary() {
     simulatedPaymentsAllowed: allowSimulatedPayments,
     providers: Object.values(config.providers).map((p) => ({ name: p.name, mode: p.mode })),
     mapsConfigured: Boolean(config.googleMapsApiKey),
+    calendarConfigured: Boolean(
+      config.googleCalendar.serviceAccountJson && config.googleCalendar.calendarId,
+    ),
   };
 }
 
