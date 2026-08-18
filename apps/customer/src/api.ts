@@ -84,6 +84,13 @@ export interface QuoteResult extends Quote {
 export const api = {
   catalogue: () => request<Catalogue>('/api/catalogue'),
 
+  socialProof: () =>
+    request<{
+      packages: Record<string, { avg: number; count: number }>;
+      overall: { avg: number; count: number };
+      testimonials: Array<{ stars: number; feedback: string; name: string }>;
+    }>('/api/social-proof'),
+
   weather: (lat: number, lng: number, date: string) =>
     request<{
       available: boolean; reason?: string; date?: string;

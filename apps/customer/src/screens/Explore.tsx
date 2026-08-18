@@ -1,7 +1,7 @@
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice } from '../ui';
 
-export function Explore({ catalogue, draft, update, go, t }: ScreenProps) {
+export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps) {
   const isKids = draft.celebrationType === 'kids';
   const evLabel =
     catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType)?.label ?? 'Celebration';
@@ -125,8 +125,13 @@ export function Explore({ catalogue, draft, update, go, t }: ScreenProps) {
                       AED {money(p.priceFils)}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 10px' }}>
-                    {p.capacity} · {p.durationHours} {t('home.hours')} · {p.items.length} {t('explore.itemsIncluded')}
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 10px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span>{p.capacity} · {p.durationHours} {t('home.hours')} · {p.items.length} {t('explore.itemsIncluded')}</span>
+                    {social?.packages[p.id] && social.packages[p.id].count > 0 && (
+                      <span style={{ fontWeight: 800, color: C.yellowInk, background: C.yellowSoft, borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                        ⭐ {social.packages[p.id].avg} ({social.packages[p.id].count})
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {chips.map((c) => (

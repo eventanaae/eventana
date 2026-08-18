@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet } from '../ui';
 
-export function PackageDetail({ catalogue, draft, update, go, t }: ScreenProps) {
+export function PackageDetail({ catalogue, draft, update, go, t, social }: ScreenProps) {
   const pkg = catalogue.packages.find((p) => p.id === draft.packageId);
   const [detail, setDetail] = useState<
     { name: string; detail: string; assets: string[] } | null
@@ -44,6 +44,12 @@ export function PackageDetail({ catalogue, draft, update, go, t }: ScreenProps) 
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '5px 0 16px' }}>
           {pkg.capacity} · {pkg.durationHours} {t('pkg.hourEvent')} · {t('pkg.setupIncluded')}
         </div>
+        {social?.packages[pkg.id] && social.packages[pkg.id].count > 0 && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, color: C.yellowInk, background: C.yellowSoft, borderRadius: 12, padding: '5px 11px', fontSize: 12.5, marginBottom: 14 }}>
+            ⭐ {social.packages[pkg.id].avg}
+            <span style={{ fontWeight: 600, color: C.muted }}>· {social.packages[pkg.id].count} {social.packages[pkg.id].count === 1 ? 'review' : 'reviews'}</span>
+          </div>
+        )}
 
         {isSpa && (
           <div style={{ background: 'linear-gradient(135deg,#FDEFF6,#F3E9FB)', borderRadius: 18, padding: '14px 16px', marginBottom: 14 }}>

@@ -349,6 +349,42 @@ export async function publicRoutes(app: FastifyInstance) {
     return answerAssistant(parsed.data.question, parsed.data.celebrationType);
   });
 
+  /**
+   * Real social proof from confirmed events: average rating per package, an
+   * overall average, and recent written testimonials (first name only). Public
+   * and anonymous — no customer detail beyond a first name leaks.
+   */
+  app.get('/api/social-proof', async () => {
+    const [perPkg, overall, testi] = await Promise.all([
+      pool.query(
+        `SELECT e.package_id, round(avg(r.stars)::numeric, 1) AS avg, count(*)::int AS count
+           FROM event_ratings r JOIN events e ON e.id = r.event_id
+          WHERE e.package_id IS NOT NULL
+          GROUP BY e.package_id`,
+      ),
+      pool.query(`SELECT round(avg(stars)::numeric, 1) AS avg, count(*)::int AS count FROM event_ratings`),
+      pool.query(
+        `SELECT r.stars, r.feedback, c.name
+           FROM event_ratings r
+           JOIN events e ON e.id = r.event_id
+           LEFT JOIN customers c ON c.id = e.customer_id
+          WHERE r.feedback IS NOT NULL AND length(trim(r.feedback)) > 0
+          ORDER BY r.created_at DESC LIMIT 8`,
+      ),
+    ]);
+    return {
+      packages: Object.fromEntries(
+        perPkg.rows.map((p) => [p.package_id, { avg: Number(p.avg), count: p.count }]),
+      ),
+      overall: { avg: Number(overall.rows[0]?.avg ?? 0), count: overall.rows[0]?.count ?? 0 },
+      testimonials: testi.rows.map((x) => ({
+        stars: x.stars,
+        feedback: x.feedback,
+        name: String(x.name ?? '').trim().split(' ')[0] || 'Guest',
+      })),
+    };
+  });
+
   /* --------------------------- customer accounts ------------------------ */
   // Simple, additive self-service accounts. These do not change the checkout
   // contract: checkout still takes a customerId — registration just creates a

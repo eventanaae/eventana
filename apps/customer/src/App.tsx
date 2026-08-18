@@ -142,8 +142,11 @@ export default function App() {
   const [eventId, setEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [social, setSocial] = useState<Awaited<ReturnType<typeof api.socialProof>> | null>(null);
+
   useEffect(() => {
     api.catalogue().then(setCatalogue).catch((e) => setError(e.message));
+    api.socialProof().then(setSocial).catch(() => setSocial(null));
   }, []);
 
   // Returning from a provider's hosted checkout.
@@ -266,8 +269,9 @@ export default function App() {
       customerName: profile?.name ?? '',
       lang,
       t,
+      social,
     }),
-    [catalogue, draft, update, quote, go, reset, startBuild, profile?.name, lang, t],
+    [catalogue, draft, update, quote, go, reset, startBuild, profile?.name, lang, t, social],
   );
 
   // First run: ask the customer's name and birthday before anything else.
@@ -456,4 +460,10 @@ export interface ScreenProps {
   /** Current language and its translator. */
   lang: Lang;
   t: TFn;
+  /** Real ratings + testimonials from confirmed events (null until loaded). */
+  social: {
+    packages: Record<string, { avg: number; count: number }>;
+    overall: { avg: number; count: number };
+    testimonials: Array<{ stars: number; feedback: string; name: string }>;
+  } | null;
 }

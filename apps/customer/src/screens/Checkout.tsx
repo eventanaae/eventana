@@ -321,6 +321,41 @@ export function Checkout({
       {/* Weather forecast for the chosen day + location (free, keyless). */}
       <WeatherCard pin={draft.mapPin} date={draft.eventDate} t={t} />
 
+      {/* ---------------- cross-sell: popular add-ons ---------------- */}
+      {(() => {
+        const picks = catalogue.services
+          .filter((s) => s.celebrationTypes.includes(draft.celebrationType) && !draft.services[s.id])
+          .sort((a, b) => Number(Boolean(b.isFoodStation || b.badge)) - Number(Boolean(a.isFoodStation || a.badge)))
+          .slice(0, 4);
+        if (picks.length === 0) return null;
+        return (
+          <div style={cardStyle}>
+            <div style={{ fontWeight: 700, fontSize: 13.5 }}>{t('checkout.alsoLike')}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 12px' }}>{t('checkout.alsoLikeSub')}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {picks.map((s) => (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: s.gradient, flex: 'none' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep }}>{t('common.aed')} {money(s.priceFils)}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const min = s.pricing.kind === 'per_child' ? draft.childrenCount : (s.pricing.minQuantity ?? 1);
+                      update({ services: { ...draft.services, [s.id]: min } });
+                    }}
+                    style={{ border: 'none', background: C.pinkSoft, color: C.pinkDeep, fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    ＋ {t('checkout.add')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ---------------- summary ---------------- */}
       <div style={cardStyle}>
         {quote?.lines.map((line, i) => (
