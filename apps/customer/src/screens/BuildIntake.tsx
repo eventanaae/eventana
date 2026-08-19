@@ -84,10 +84,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
 
       {/* 2 — exact age of the guest of honour (optional) */}
       <Question step={2} title={t('intake.q2')} optional={t('intake.optional')} />
-      <div
-        className="scroll"
-        style={{ display: 'flex', gap: 9, overflowX: 'auto', margin: '0 -22px', padding: '2px 22px 6px', marginBottom: 8 }}
-      >
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
         {AGES.map((a) => {
           const active = age === a;
           const isAdult = a === 'Adult';
@@ -97,16 +94,19 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
               onClick={() => setAge(active ? null : a)}
               style={{
                 flex: 'none',
-                minWidth: isAdult ? 64 : 46,
+                width: isAdult ? 'auto' : 46,
+                minWidth: isAdult ? 68 : 46,
                 height: 46,
-                borderRadius: isAdult ? 16 : '50%',
-                padding: isAdult ? '0 14px' : 0,
+                borderRadius: isAdult ? 15 : '50%',
+                padding: isAdult ? '0 18px' : 0,
                 border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
                 background: active ? C.pink : '#fff',
                 color: active ? '#fff' : C.ink,
-                fontSize: isAdult ? 12.5 : 15,
+                fontSize: isAdult ? 13 : 15.5,
                 fontWeight: 700,
                 cursor: 'pointer',
+                boxShadow: active ? C.shadow : 'none',
+                transition: 'background .12s, border-color .12s',
               }}
             >
               {isAdult ? t('intake.adult') : a}
