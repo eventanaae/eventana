@@ -16,6 +16,8 @@ const NEW_THEMES: Array<{
 }> = [
   { id: 'ballerina', name: 'Ballerina', tags: ['Cute', 'Girls'], colors: ['#F9C6DC', '#FDE0EE', '#D9B8E8'], gradient: 'linear-gradient(135deg,#FDE0EE,#D9B8E8)', sortOrder: 41 },
   { id: 'powerpuff', name: 'Power Puff Girls', tags: ['Characters', 'Girls'], colors: ['#F06CA8', '#5BCFC5', '#7A8AC8'], gradient: 'linear-gradient(135deg,#F9C6DC,#BDEBE4)', sortOrder: 42 },
+  { id: 'gabby', name: 'Gabby’s Dollhouse', tags: ['Characters', 'Cute', 'Girls'], colors: ['#F06CA8', '#B96CF0', '#5BCFC5'], gradient: 'linear-gradient(135deg,#FDE0EE,#E7D4F5)', sortOrder: 43 },
+  { id: 'moon', name: 'Moon & Stars', tags: ['Cute', 'Neutral'], colors: ['#7A8AC8', '#BDEBE4', '#F7C948'], gradient: 'linear-gradient(135deg,#D9E2F5,#BDEBE4)', sortOrder: 44 },
 ];
 
 export async function applyThemeGallery(): Promise<void> {
