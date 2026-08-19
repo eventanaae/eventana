@@ -139,6 +139,12 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [draft, setDraft] = useState<Draft>(() => loadDraft() ?? emptyDraft);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
+  // True when the live price couldn't be fetched (e.g. a mobile network blip),
+  // so the UI can offer a retry instead of a dead "AED —". Bumping the nonce
+  // re-runs the quote effect on demand.
+  const [quoteError, setQuoteError] = useState(false);
+  const [quoteNonce, setQuoteNonce] = useState(0);
+  const retryQuote = useCallback(() => setQuoteNonce((n) => n + 1), []);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -182,6 +188,7 @@ export default function App() {
     const cart = toCart(draft);
     if (!cart.packageId && cart.services.length === 0) {
       setQuote(null);
+      setQuoteError(false);
       return;
     }
     const mine = ++seq.current;
@@ -189,14 +196,16 @@ export default function App() {
       api
         .quote(cart)
         .then((q) => {
-          if (mine === seq.current) setQuote(q);
+          if (mine === seq.current) { setQuote(q); setQuoteError(false); }
         })
         .catch(() => {
-          if (mine === seq.current) setQuote(null);
+          // Keep the last good total on screen if we have one; only flag the
+          // error so the customer can retry. A blank cart already returned above.
+          if (mine === seq.current) setQuoteError(true);
         });
     }, 180);
     return () => clearTimeout(timer);
-  }, [draft]);
+  }, [draft, quoteNonce]);
 
   // `go` is stable across renders, so it reads the draft through a ref
   // rather than closing over a stale copy.
@@ -268,6 +277,8 @@ export default function App() {
       draft,
       update,
       quote,
+      quoteError,
+      retryQuote,
       go,
       reset,
       startBuild,
@@ -276,7 +287,7 @@ export default function App() {
       t,
       social,
     }),
-    [catalogue, draft, update, quote, go, reset, startBuild, profile?.name, lang, t, social],
+    [catalogue, draft, update, quote, quoteError, retryQuote, go, reset, startBuild, profile?.name, lang, t, social],
   );
 
   // Password reset takes precedence over everything (deep link from email).
@@ -465,6 +476,10 @@ export interface ScreenProps {
   draft: Draft;
   update: (patch: Partial<Draft>) => void;
   quote: QuoteResult | null;
+  /** True when the last live-price fetch failed (network blip). */
+  quoteError: boolean;
+  /** Re-run the live-price fetch on demand (retry button). */
+  retryQuote: () => void;
   go: (s: Screen) => void;
   reset: () => void;
   /** Used only by the Build intake — see App.startBuild. */

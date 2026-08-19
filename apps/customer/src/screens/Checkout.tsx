@@ -20,6 +20,8 @@ export function Checkout({
   draft,
   update,
   quote,
+  quoteError,
+  retryQuote,
   go,
   onOrder,
   t,
@@ -160,7 +162,9 @@ export function Checkout({
       onOrder(result.orderId);
       window.location.href = result.checkoutUrl;
     } catch (e: any) {
-      setError(e?.body?.message ?? e.message);
+      // A thrown fetch (no server body) is a connection problem — show a clear,
+      // localised message instead of the browser's raw "Load failed".
+      setError(e?.body?.message ?? (e?.body ? e.message : t('checkout.network')));
       setPaying(false);
     }
   };
@@ -386,6 +390,18 @@ export function Checkout({
           <span>{t('checkout.total')}</span>
           <span>{t('common.aed')} {quote ? money(quote.totalFils) : '—'}</span>
         </div>
+        {quoteError && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: C.pinkSoft, borderRadius: 12, padding: '9px 12px' }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.red, lineHeight: 1.4 }}>{t('checkout.priceLoadFailed')}</span>
+            <button
+              type="button"
+              onClick={retryQuote}
+              style={{ flex: 'none', border: 'none', background: C.pink, color: '#fff', borderRadius: 10, padding: '7px 14px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+            >
+              {t('checkout.retry')}
+            </button>
+          </div>
+        )}
         {quote?.discountUnlocked && (
           <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: C.green }}>
             {t('checkout.saved', { aed: `${t('common.aed')} ${money(quote.discountFils)}` })}
