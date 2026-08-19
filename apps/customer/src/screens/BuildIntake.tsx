@@ -19,7 +19,7 @@ import { C, fredoka, PrimaryButton } from '../ui';
 // field — it is never sent to the server), so the format is free to change.
 const AGES: string[] = Array.from({ length: 15 }, (_, i) => String(i + 1)).concat('Adult');
 
-export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps) {
+export function BuildIntake({ catalogue, draft, go, startBuild, t, lang }: ScreenProps) {
   // Pre-select only what the customer actually chose — never a default,
   // or the question would count as answered without being asked.
   const [type, setType] = useState<string | null>(
@@ -84,35 +84,45 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
 
       {/* 2 — exact age of the guest of honour (optional) */}
       <Question step={2} title={t('intake.q2')} optional={t('intake.optional')} />
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
-        {AGES.map((a) => {
-          const active = age === a;
-          const isAdult = a === 'Adult';
-          return (
-            <button
-              key={a}
-              onClick={() => setAge(active ? null : a)}
-              style={{
-                flex: 'none',
-                width: isAdult ? 'auto' : 46,
-                minWidth: isAdult ? 68 : 46,
-                height: 46,
-                borderRadius: isAdult ? 15 : '50%',
-                padding: isAdult ? '0 18px' : 0,
-                border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
-                background: active ? C.pink : '#fff',
-                color: active ? '#fff' : C.ink,
-                fontSize: isAdult ? 13 : 15.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: active ? C.shadow : 'none',
-                transition: 'background .12s, border-color .12s',
-              }}
-            >
-              {isAdult ? t('intake.adult') : a}
-            </button>
-          );
-        })}
+      <div style={{ position: 'relative', marginBottom: 8 }}>
+        <select
+          value={age ?? ''}
+          onChange={(e) => setAge(e.target.value || null)}
+          style={{
+            width: '100%',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            border: `1.5px solid ${age ? C.pink : C.pinkLine}`,
+            borderRadius: 14,
+            padding: '13px 40px 13px 15px',
+            fontWeight: 700,
+            fontSize: 14,
+            background: '#fff',
+            color: age ? C.ink : C.muted,
+            outline: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <option value="">{t('intake.agePlaceholder')}</option>
+          {AGES.map((a) => (
+            <option key={a} value={a}>
+              {a === 'Adult' ? t('intake.adult') : t('intake.yearsOld', { age: a })}
+            </option>
+          ))}
+        </select>
+        <span
+          style={{
+            position: 'absolute',
+            top: '50%',
+            [lang === 'ar' ? 'left' : 'right']: 15,
+            transform: 'translateY(-50%)',
+            pointerEvents: 'none',
+            color: C.muted,
+            fontSize: 12,
+          }}
+        >
+          ▼
+        </span>
       </div>
       <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '2px 0 26px', lineHeight: 1.5 }}>
         {age && age !== 'Adult'
