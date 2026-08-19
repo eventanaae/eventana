@@ -69,10 +69,6 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
           <Point icon="📸" text={t('pkg.imagesNote')} />
         </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <Notice tone="info">{catalogue.notices.packageItemsFixed}</Notice>
-        </div>
-
         <div style={{ fontWeight: 700, fontSize: 15, margin: '16px 0 10px' }}>
           {t('pkg.whatsIncluded')}{' '}
           <span style={{ fontWeight: 600, fontSize: 11.5, color: C.muted }}>{t('pkg.tapForDetails')}</span>
@@ -138,6 +134,11 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
                   ? t('pkg.continueBooking')
                   : t('pkg.continueTheme')}
           </PrimaryButton>
+        </div>
+
+        {/* Fixed-items disclaimer lives at the very bottom of the page. */}
+        <div style={{ marginTop: 16 }}>
+          <Notice tone="info">{catalogue.notices.packageItemsFixed}</Notice>
         </div>
       </div>
 
