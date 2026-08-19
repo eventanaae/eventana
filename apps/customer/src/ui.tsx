@@ -5,18 +5,6 @@
  */
 import type { CSSProperties, ReactNode } from 'react';
 
-/** A cute icon per package, shown centered on the package's colour when it has
- *  no photo cover — keeps the cards lively, consistent and easy to tweak. */
-export const PKG_ICON: Record<string, string> = {
-  golden: '🏰',
-  silver: '🛝',
-  bronze: '🤡',
-  summer: '☀️',
-  movie: '🎬',
-  spa: '🧖',
-};
-export const pkgIcon = (id: string): string => PKG_ICON[id] ?? '🎉';
-
 export const C = {
   ink: '#3B3641',
   pink: '#F06CA8',

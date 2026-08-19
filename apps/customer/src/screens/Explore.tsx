@@ -1,5 +1,5 @@
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, Notice, pkgIcon } from '../ui';
+import { C, fredoka, money, Notice } from '../ui';
 
 export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps) {
   const isKids = draft.celebrationType === 'kids';
@@ -112,10 +112,7 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
                 onClick={() => { update({ packageId: p.id, services: {} }); go('package'); }}
                 style={{ background: '#fff', borderRadius: 24, overflow: 'hidden', boxShadow: C.shadowLg, cursor: 'pointer' }}
               >
-                <div style={{ height: 150, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {!p.coverImageUrl && (
-                    <span style={{ fontSize: 60, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.15))' }}>{pkgIcon(p.id)}</span>
-                  )}
+                <div style={{ height: 150, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
                   <span style={{ position: 'absolute', top: 12, left: 12, background: '#fff', color: C.pinkDeep, fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20, letterSpacing: '.5px' }}>
                     {p.tag}
                   </span>
