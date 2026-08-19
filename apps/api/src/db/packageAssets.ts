@@ -14,14 +14,14 @@ export async function applyPackageAssets(): Promise<void> {
     for (const [pkgId, url] of Object.entries(PACKAGE_COVERS)) {
       await pool.query(`UPDATE packages SET cover_image_url = $2 WHERE id = $1`, [pkgId, url]);
     }
-    if (SPA_GALLERY.length > 0) {
-      await pool.query(`DELETE FROM package_inspiration WHERE package_id = 'spa'`);
-      for (const url of SPA_GALLERY) {
-        await pool.query(
-          `INSERT INTO package_inspiration (package_id, image_url) VALUES ('spa', $1)`,
-          [url],
-        );
-      }
+    // Authoritative: clear the Spa gallery first so an empty SPA_GALLERY
+    // actually removes the photos, then re-insert whatever remains.
+    await pool.query(`DELETE FROM package_inspiration WHERE package_id = 'spa'`);
+    for (const url of SPA_GALLERY) {
+      await pool.query(
+        `INSERT INTO package_inspiration (package_id, image_url) VALUES ('spa', $1)`,
+        [url],
+      );
     }
     console.log(`[packages] covers applied for ${Object.keys(PACKAGE_COVERS).length} package(s)`);
   } catch (err) {

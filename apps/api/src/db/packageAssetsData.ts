@@ -1,18 +1,5 @@
 /* AUTO-GENERATED. Package cover images + Spa inspiration gallery. */
 export const PACKAGE_COVERS: Record<string, string> = {
-  // Designed SVG covers removed per owner — a clean, cover-less card is tidier.
-  // Spa keeps its real setup photos.
-  "spa": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162249/eventana/themes/kuyhoxa6ufbnwlisoyfn.jpg",
+  // All package covers removed per owner — clean, cover-less cards throughout.
 };
-export const SPA_GALLERY: string[] = [
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162249/eventana/themes/kuyhoxa6ufbnwlisoyfn.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162246/eventana/themes/peog8ajdbejutdtiuuzv.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162252/eventana/themes/m66ins8x90yvju1wpl6w.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162255/eventana/themes/ay2hmsohena65hgpywwe.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162260/eventana/themes/ysqtkougdgmsrvvhnhg5.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162263/eventana/themes/czmnc5wzxlvjvcdj6kzj.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162266/eventana/themes/mkjvnlznsbe1htsdhee7.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162269/eventana/themes/iejprhtdpuqn7l6ygh1j.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162272/eventana/themes/htin6jaar0fpl7huu16i.jpg",
-  "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162276/eventana/themes/nrn3u3cpuykv8gotx5n3.jpg",
-];
+export const SPA_GALLERY: string[] = [];
