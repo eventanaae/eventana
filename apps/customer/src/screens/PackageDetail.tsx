@@ -22,16 +22,31 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
 
   return (
     <div style={{ animation: 'rise .35s ease', paddingBottom: 30 }}>
-      <div style={{ height: 210, background: pkg.coverImageUrl ? `#f2e7ee url(${pkg.coverImageUrl}) center/cover no-repeat` : pkg.gradient, position: 'relative' }}>
+      <div style={{ position: 'relative' }}>
+        {pkg.gallery && pkg.gallery.length > 0 ? (
+          // Swipeable photo carousel — the customer flips through real setups.
+          <div className="scroll" style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}>
+            {pkg.gallery.map((url, i) => (
+              <div key={i} style={{ flex: '0 0 100%', scrollSnapAlign: 'start', height: 250, background: `#f2e7ee url(${url}) center/cover no-repeat` }} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ height: 210, background: pkg.coverImageUrl ? `#f2e7ee url(${pkg.coverImageUrl}) center/cover no-repeat` : pkg.gradient }} />
+        )}
         <button
           onClick={() => go('explore')}
           style={{
             position: 'absolute', top: 14, left: 16, width: 36, height: 36, borderRadius: '50%',
-            background: 'rgba(255,255,255,.92)', border: 'none', fontSize: 17, cursor: 'pointer', color: C.ink,
+            background: 'rgba(255,255,255,.92)', border: 'none', fontSize: 17, cursor: 'pointer', color: C.ink, zIndex: 2,
           }}
         >
           ‹
         </button>
+        {pkg.gallery && pkg.gallery.length > 1 && (
+          <span style={{ position: 'absolute', bottom: 12, right: 14, background: 'rgba(0,0,0,.5)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20 }}>
+            📷 {pkg.gallery.length} · {t('pkg.swipe')}
+          </span>
+        )}
       </div>
 
       <div style={{ padding: '20px 22px 0' }}>
@@ -58,17 +73,6 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
               Robes on, music up — little guests enjoy kid-safe manis &amp; pedis, a braid corner,
               face masks and a glam setup. A calm, magical alternative to a traditional party, made
               for a girls’ celebration where everyone feels like a star.
-            </div>
-          </div>
-        )}
-
-        {pkg.gallery && pkg.gallery.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{t('pkg.realSetups')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {pkg.gallery.map((url, i) => (
-                <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 14, background: `#f2e7ee url(${url}) center/cover no-repeat`, border: `1px solid ${C.pinkLine}` }} />
-              ))}
             </div>
           </div>
         )}
