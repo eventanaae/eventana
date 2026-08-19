@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, Notice, PrimaryButton, Sheet } from '../ui';
+import { C, fredoka, money, Notice, PrimaryButton, Sheet, pkgIcon } from '../ui';
 
 export function PackageDetail({ catalogue, draft, update, go, t, social }: ScreenProps) {
   const pkg = catalogue.packages.find((p) => p.id === draft.packageId);
@@ -31,7 +31,11 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
             ))}
           </div>
         ) : (
-          <div style={{ height: 210, background: pkg.coverImageUrl ? `#f2e7ee url(${pkg.coverImageUrl}) center/cover no-repeat` : pkg.gradient }} />
+          <div style={{ height: 210, background: pkg.coverImageUrl ? `#f2e7ee url(${pkg.coverImageUrl}) center/cover no-repeat` : pkg.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {!pkg.coverImageUrl && (
+              <span style={{ fontSize: 96, filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.15))' }}>{pkgIcon(pkg.id)}</span>
+            )}
+          </div>
         )}
         <button
           onClick={() => go('explore')}

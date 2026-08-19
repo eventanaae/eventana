@@ -1,5 +1,5 @@
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, SectionTitle } from '../ui';
+import { C, fredoka, money, SectionTitle, pkgIcon } from '../ui';
 
 export function Home({ catalogue, draft, update, go, customerName, t }: ScreenProps) {
   const hour = new Date().getHours();
@@ -125,7 +125,10 @@ export function Home({ catalogue, draft, update, go, customerName, t }: ScreenPr
             onClick={() => { update({ packageId: p.id, services: {} }); go('package'); }}
             style={{ flex: 'none', width: 230, background: '#fff', borderRadius: 22, overflow: 'hidden', boxShadow: C.shadowLg, cursor: 'pointer' }}
           >
-            <div style={{ height: 120, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
+            <div style={{ height: 120, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {!p.coverImageUrl && (
+                <span style={{ fontSize: 48, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.15))' }}>{pkgIcon(p.id)}</span>
+              )}
               <span style={{ position: 'absolute', top: 10, left: 10, background: '#fff', color: C.pinkDeep, fontSize: 9.5, fontWeight: 700, padding: '4px 9px', borderRadius: 20, letterSpacing: '.5px' }}>
                 {p.tag}
               </span>
