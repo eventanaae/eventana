@@ -158,6 +158,15 @@ export const api = {
       { method: 'POST', body: JSON.stringify(body) },
     ),
 
+  forgotPassword: (email: string) =>
+    request<{ ok: boolean }>('/api/customers/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
+
+  resetPassword: (token: string, password: string) =>
+    request<{ customerId: string; name: string; email: string; phone: string; token: string }>(
+      '/api/customers/reset',
+      { method: 'POST', body: JSON.stringify({ token, password }) },
+    ),
+
   order: (orderId: string) =>
     request<{
       orderId: string; status: string; kind: string; paymentStatus: string; eventId: string | null;

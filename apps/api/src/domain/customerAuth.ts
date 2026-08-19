@@ -57,3 +57,32 @@ export function customerFromRequest(request: {
     (request.headers['x-customer-token'] as string | undefined);
   return verifyCustomerToken(header) ?? '';
 }
+
+/** How long a password-reset link stays valid. */
+const RESET_TTL_MS = 30 * 60_000;
+
+/** A short-lived, signed password-reset token (distinct from a session token). */
+export function issueResetToken(customerId: string): string {
+  const body = Buffer.from(`reset:${customerId}:${Date.now()}`).toString('base64url');
+  return `${body}.${sign(body)}`;
+}
+
+/** Return the customer id iff the reset token verifies and hasn't expired. */
+export function verifyResetToken(token: string | undefined | null): string | null {
+  if (!token) return null;
+  const dot = token.lastIndexOf('.');
+  if (dot < 1) return null;
+  const body = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(sign(body));
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const [kind, cid, issued] = Buffer.from(body, 'base64url').toString('utf8').split(':');
+    if (kind !== 'reset' || !cid) return null;
+    if (Date.now() - Number(issued) > RESET_TTL_MS) return null;
+    return cid;
+  } catch {
+    return null;
+  }
+}

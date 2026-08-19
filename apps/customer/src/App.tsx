@@ -15,6 +15,7 @@ import { Assistant } from './screens/Assistant';
 import { Profile } from './screens/Profile';
 import { Onboarding } from './screens/Onboarding';
 import { MovieSelect } from './screens/MovieSelect';
+import { ResetPassword } from './screens/ResetPassword';
 import { useProfile } from './profile';
 import { useLang, makeT, type Lang, type TFn } from './i18n';
 
@@ -141,6 +142,10 @@ export default function App() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Password-reset deep link (?reset=<token>) — handled before anything else.
+  const [resetToken] = useState<string | null>(() => {
+    try { return new URLSearchParams(window.location.search).get('reset'); } catch { return null; }
+  });
 
   const [social, setSocial] = useState<Awaited<ReturnType<typeof api.socialProof>> | null>(null);
 
@@ -273,6 +278,15 @@ export default function App() {
     }),
     [catalogue, draft, update, quote, go, reset, startBuild, profile?.name, lang, t, social],
   );
+
+  // Password reset takes precedence over everything (deep link from email).
+  if (resetToken) {
+    return (
+      <Frame lang={lang}>
+        <ResetPassword token={resetToken} t={t} />
+      </Frame>
+    );
+  }
 
   // First run: ask the customer's name and birthday before anything else.
   if (!profile) {

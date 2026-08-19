@@ -42,6 +42,14 @@ export function Checkout({
   const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', password: '', referralCode: '' });
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [forgotMsg, setForgotMsg] = useState<string | null>(null);
+
+  const forgotPassword = async () => {
+    if (!emailOk) { setAuthError(t('checkout.forgotEmail')); return; }
+    setAuthError(null);
+    try { await api.forgotPassword(reg.email.trim()); } catch { /* never reveal */ }
+    setForgotMsg(t('checkout.forgotSent'));
+  };
 
   // The booking captures who the party is FOR, separately from the account
   // holder, with wording that fits the celebration.
@@ -448,12 +456,25 @@ export function Checkout({
                 onClick={() => {
                   setAuthMode((m) => (m === 'register' ? 'login' : 'register'));
                   setAuthError(null);
+                  setForgotMsg(null);
                 }}
                 style={{ cursor: 'pointer', color: C.pinkDeep }}
               >
                 {authMode === 'register' ? t('checkout.signin') : t('checkout.createOne')}
               </a>
             </div>
+            {authMode === 'login' && !forgotMsg && (
+              <div style={{ textAlign: 'center', marginTop: 8 }}>
+                <a onClick={forgotPassword} style={{ cursor: 'pointer', color: C.muted, fontSize: 11.5, fontWeight: 700 }}>
+                  {t('checkout.forgot')}
+                </a>
+              </div>
+            )}
+            {forgotMsg && (
+              <div style={{ marginTop: 10 }}>
+                <Notice tone="ok">{forgotMsg}</Notice>
+              </div>
+            )}
           </>
         )}
       </div>

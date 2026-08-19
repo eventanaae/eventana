@@ -22,8 +22,9 @@ import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout } from '../domain/checkout.js';
-import { customerFromRequest, issueCustomerToken } from '../domain/customerAuth.js';
+import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
 import { makeReferralCode, REFERRAL_CREDIT_FILS, validatePromo } from '../domain/discounts.js';
+import { sendEmail, emailEnabled } from '../integrations/email.js';
 import { allProviders } from '../payments/index.js';
 import { answerAssistant } from '../domain/assistant.js';
 
@@ -574,6 +575,55 @@ export async function publicRoutes(app: FastifyInstance) {
       customerId: c.id, name: c.name, email: c.email, phone: c.phone,
       token: issueCustomerToken(c.id), referralCode: c.referral_code ?? null,
     };
+  });
+
+  /**
+   * Request a password reset. Always returns ok — it never reveals whether an
+   * email is registered. When it is, a short-lived signed link is emailed.
+   */
+  app.post('/api/customers/forgot', async (request, reply) => {
+    const schema = z.object({ email: z.string().trim().email() });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { rows } = await pool.query(
+      'SELECT id, name FROM customers WHERE lower(email) = lower($1) LIMIT 1',
+      [parsed.data.email],
+    );
+    const c = rows[0];
+    if (c && emailEnabled()) {
+      const link = `${config.publicAppUrl}/?reset=${issueResetToken(c.id)}`;
+      await sendEmail({
+        to: parsed.data.email,
+        subject: 'Reset your Eventana password',
+        html: `<!doctype html><html><body style="margin:0;background:#faf6f2;font-family:'Segoe UI',Arial,sans-serif;color:#3B3641">
+          <div style="max-width:520px;margin:0 auto;padding:24px">
+            <div style="text-align:center;padding:14px 0 18px"><span style="font-size:22px;font-weight:800;color:#E94F9C">Eventana</span></div>
+            <div style="background:#fff;border-radius:18px;padding:26px 24px;line-height:1.6;font-size:15px">
+              <p style="margin:0 0 14px">Hi ${String(c.name).split(' ')[0]} 👋</p>
+              <p style="margin:0 0 18px">Tap below to set a new password. This link expires in 30 minutes. If you didn't ask for this, you can ignore this email.</p>
+              <a href="${link}" style="display:inline-block;background:#E94F9C;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:12px">Reset my password →</a>
+            </div>
+          </div></body></html>`,
+      }).catch(() => null);
+    }
+    return { ok: true };
+  });
+
+  /** Complete a password reset with a valid token. */
+  app.post('/api/customers/reset', async (request, reply) => {
+    const schema = z.object({ token: z.string().min(10), password: z.string().min(6).max(200) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid_request', message: 'Your new password needs at least 6 characters.' });
+    }
+    const cid = verifyResetToken(parsed.data.token);
+    if (!cid) return reply.status(401).send({ error: 'invalid_token', message: 'This reset link is invalid or has expired. Please request a new one.' });
+    const { rows } = await pool.query('SELECT id, name, email, phone FROM customers WHERE id = $1', [cid]);
+    const c = rows[0];
+    if (!c) return reply.status(404).send({ error: 'not_found' });
+    await pool.query('UPDATE customers SET password_hash = $2 WHERE id = $1', [cid, hashPassword(parsed.data.password)]);
+    // Sign them straight in.
+    return { customerId: c.id, name: c.name, email: c.email, phone: c.phone, token: issueCustomerToken(c.id) };
   });
 }
 
