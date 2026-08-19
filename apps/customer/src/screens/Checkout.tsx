@@ -275,9 +275,25 @@ export function Checkout({
         </div>
       )}
 
-      {/* ---------------- time ---------------- */}
+      {/* ---------------- date & time ---------------- */}
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.eventTime')}</div>
+
+        {/* 1) Date first — a clear, obviously-tappable picker. */}
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, marginBottom: 6 }}>{t('checkout.eventDate')}</div>
+        <input
+          type="date"
+          value={draft.eventDate}
+          min={new Date().toISOString().slice(0, 10)}
+          onChange={(e) => update({ eventDate: e.target.value })}
+          style={{
+            width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px',
+            fontWeight: 700, fontSize: 13.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 16,
+          }}
+        />
+
+        {/* 2) Then the start time. */}
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, marginBottom: 3 }}>{t('checkout.startTimeLabel')}</div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 9 }}>
           {t('checkout.pickStart')}
         </div>
@@ -297,19 +313,11 @@ export function Checkout({
             <Notice tone="error">{catalogue.notices.midnight}</Notice>
           </div>
         )}
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
-          <input
-            type="date"
-            value={draft.eventDate}
-            onChange={(e) => update({ eventDate: e.target.value })}
-            style={{ border: 'none', background: 'none', fontWeight: 600, color: C.muted, fontSize: 12.5, outline: 'none' }}
-          />
-          <span style={{ fontWeight: 700 }}>
-            {draft.startTime && quote?.endTime
-              ? `${timeLabel(draft.startTime)} – ${quote.endTime}`
-              : '—'}
-          </span>
-        </div>
+        {draft.startTime && quote?.endTime && (
+          <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
+            {timeLabel(draft.startTime)} – {quote.endTime}
+          </div>
+        )}
         {/* Number of children only matters for Build-Your-Own (per-child
             pricing). Packages have a fixed capacity, so we never ask. */}
         {!draft.packageId && (
