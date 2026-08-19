@@ -19,6 +19,7 @@ async function main() {
     const { seedIfEmpty } = await import('./db/seed.js');
     const { seedTeamFromEnv } = await import('./db/seedTeam.js');
     const { inviteStaffFromEnv } = await import('./db/inviteStaff.js');
+    const { productionReconcile } = await import('./db/productionReconcile.js');
     await migrate();
     await seedIfEmpty();
     // Load real staff + birthdays from TEAM_SEED (kept in the environment,
@@ -27,6 +28,9 @@ async function main() {
     // Provision staff testers from STAFF_INVITES: mint a personal token and
     // email it with links to both apps. No-op when the variable is unset.
     await inviteStaffFromEnv().catch((err) => console.error('[invite] failed:', err));
+    // Reconcile the live roster to the real team and purge demo/QA data so the
+    // apps never show mock data. Runs last; idempotent and non-fatal.
+    await productionReconcile();
   }
 
   const app = await buildServer();
