@@ -18,7 +18,9 @@ export async function buildServer(): Promise<FastifyInstance> {
     // Spread: `config` is a const assertion, so this is a readonly array.
     origin: [...config.corsOrigins],
     credentials: true,
-    allowedHeaders: ['content-type', 'x-customer-id', 'x-staff-token', 'x-staff-name'],
+    // `authorization` carries the signed customer session token — without it
+    // every logged-in customer request fails CORS preflight ("Failed to fetch").
+    allowedHeaders: ['content-type', 'authorization', 'x-customer-id', 'x-staff-token', 'x-staff-name'],
   });
 
   /**
