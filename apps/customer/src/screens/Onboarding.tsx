@@ -22,7 +22,9 @@ export function Onboarding({
 }) {
   const [name, setName] = useState('');
   const [birthday, setBirthday] = useState('');
-  const ready = name.trim().length >= 2 && Boolean(birthday);
+  // Name is enough to personalise; the birthday is a nice-to-have. Either can
+  // be left blank, and "Skip" below bypasses both entirely.
+  const ready = name.trim().length >= 2;
 
   return (
     <div
@@ -48,7 +50,9 @@ export function Onboarding({
       <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 6 }}>{t('onboard.name')}</div>
       <Field placeholder={t('onboard.namePh')} value={name} onChange={setName} style={{ marginBottom: 18 }} />
 
-      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 6 }}>{t('onboard.birthday')}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 6 }}>
+        {t('onboard.birthday')} <span style={{ color: C.muted, fontWeight: 600 }}>· {t('onboard.optional')}</span>
+      </div>
       <input
         type="date"
         value={birthday}
@@ -71,6 +75,23 @@ export function Onboarding({
       <PrimaryButton onClick={() => onDone({ name: name.trim(), birthday })} disabled={!ready}>
         {t('onboard.start')}
       </PrimaryButton>
+      <button
+        type="button"
+        onClick={() => onDone({ name: '', birthday: '', skipped: true })}
+        style={{
+          marginTop: 14,
+          background: 'none',
+          border: 'none',
+          color: C.muted,
+          fontWeight: 700,
+          fontSize: 13,
+          cursor: 'pointer',
+          alignSelf: 'center',
+          padding: 6,
+        }}
+      >
+        {t('onboard.skip')}
+      </button>
     </div>
   );
 }

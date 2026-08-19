@@ -73,11 +73,13 @@ const en: Dict = {
   // onboarding
   'onboard.welcome': 'Welcome to Eventana',
   'onboard.title': 'Let’s get to know you ✨',
-  'onboard.sub': 'Just your name and birthday — so your celebrations feel personal, and we can wish you on your special day 🎂',
+  'onboard.sub': 'Tell us your name so your celebrations feel personal — add a birthday and we’ll wish you on your special day 🎂 Or skip and dive right in.',
   'onboard.name': 'Your name',
   'onboard.namePh': 'e.g. Sara',
   'onboard.birthday': 'Your birthday',
+  'onboard.optional': 'optional',
   'onboard.start': 'Start celebrating 🎉',
+  'onboard.skip': 'Skip for now',
 
   // home
   'home.morning': 'Good morning',
@@ -160,10 +162,12 @@ const en: Dict = {
   'intake.sub': 'Two quick things and we’ll tailor everything to your celebration.',
   'intake.q1': 'What are you celebrating?',
   'intake.q2': 'How old is the guest of honour?',
+  'intake.optional': 'optional',
   'intake.turning': 'Turning {age} — how exciting! 🎉',
-  'intake.swipeAge': 'Swipe to pick the exact age.',
+  'intake.swipeAge': 'Swipe to pick the age, or skip it.',
   'intake.start': 'Start building',
   'intake.startDisabled': 'Pick a celebration and age to continue',
+  'intake.startDisabledType': 'Pick a celebration to continue',
   'intake.adult': 'Adult',
 
   // build
@@ -428,11 +432,13 @@ const ar: Dict = {
   // onboarding
   'onboard.welcome': 'أهلاً بك في Eventana',
   'onboard.title': 'خلّينا نتعرّف عليك ✨',
-  'onboard.sub': 'بس اسمك وتاريخ ميلادك — عشان تكون مناسباتك أقرب لك، ونهنّيك بيومك الخاص 🎂',
+  'onboard.sub': 'اكتب اسمك عشان تكون مناسباتك أقرب لك — وإذا أضفت تاريخ ميلادك نهنّيك بيومك الخاص 🎂 أو تخطّاها وابدأ على طول.',
   'onboard.name': 'اسمك',
   'onboard.namePh': 'مثال: سارة',
   'onboard.birthday': 'تاريخ ميلادك',
+  'onboard.optional': 'اختياري',
   'onboard.start': 'يلا نحتفل 🎉',
+  'onboard.skip': 'تخطّي الآن',
 
   // home
   'home.morning': 'صباح الخير',
@@ -515,10 +521,12 @@ const ar: Dict = {
   'intake.sub': 'سؤالان سريعان ونفصّل لك كل شيء حسب مناسبتك.',
   'intake.q1': 'شو تحتفل فيه؟',
   'intake.q2': 'كم عمر صاحب المناسبة؟',
+  'intake.optional': 'اختياري',
   'intake.turning': 'يكمل {age} — شو أحلى! 🎉',
-  'intake.swipeAge': 'اسحب لاختيار العمر بالضبط.',
+  'intake.swipeAge': 'اسحب لاختيار العمر، أو تخطّاه.',
   'intake.start': 'ابدأ التصميم',
   'intake.startDisabled': 'اختر المناسبة والعمر للمتابعة',
+  'intake.startDisabledType': 'اختر المناسبة للمتابعة',
   'intake.adult': 'بالغ',
 
   // build

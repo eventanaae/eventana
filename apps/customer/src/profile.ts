@@ -12,6 +12,9 @@ export interface Profile {
   name: string;
   /** ISO date, yyyy-mm-dd. */
   birthday: string;
+  /** True when the customer chose "Skip" on the welcome screen — they gave no
+   *  details but must not be asked again on every open. */
+  skipped?: boolean;
 }
 
 const KEY = 'eventana.profile';
@@ -21,7 +24,8 @@ export function loadProfile(): Profile | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as Profile;
-    return p && typeof p.name === 'string' && p.name.trim() ? p : null;
+    // A record counts as "onboarded" if it has a name OR the customer skipped.
+    return p && (( typeof p.name === 'string' && p.name.trim()) || p.skipped) ? p : null;
   } catch {
     return null;
   }

@@ -27,7 +27,9 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
   );
   const [age, setAge] = useState<string | null>(draft.ageBand);
 
-  const complete = Boolean(type) && Boolean(age);
+  // Age is optional — it only helps the team tailor the party, never the price.
+  // The celebration type is the one answer we truly need to open Build.
+  const complete = Boolean(type);
 
   const start = () => {
     startBuild({
@@ -80,8 +82,8 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
         })}
       </div>
 
-      {/* 2 — exact age of the guest of honour */}
-      <Question step={2} title={t('intake.q2')} />
+      {/* 2 — exact age of the guest of honour (optional) */}
+      <Question step={2} title={t('intake.q2')} optional={t('intake.optional')} />
       <div
         className="scroll"
         style={{ display: 'flex', gap: 9, overflowX: 'auto', margin: '0 -22px', padding: '2px 22px 6px', marginBottom: 8 }}
@@ -92,7 +94,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
           return (
             <button
               key={a}
-              onClick={() => setAge(a)}
+              onClick={() => setAge(active ? null : a)}
               style={{
                 flex: 'none',
                 minWidth: isAdult ? 64 : 46,
@@ -119,13 +121,13 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
       </div>
 
       <PrimaryButton disabled={!complete} onClick={start}>
-        {complete ? t('intake.start') : t('intake.startDisabled')}
+        {complete ? t('intake.start') : t('intake.startDisabledType')}
       </PrimaryButton>
     </div>
   );
 }
 
-function Question({ step, title }: { step: number; title: string }) {
+function Question({ step, title, optional }: { step: number; title: string; optional?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
       <div
@@ -138,6 +140,9 @@ function Question({ step, title }: { step: number; title: string }) {
         {step}
       </div>
       <div style={{ fontWeight: 700, fontSize: 14 }}>{title}</div>
+      {optional && (
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>· {optional}</span>
+      )}
     </div>
   );
 }
