@@ -77,6 +77,15 @@ CREATE TABLE IF NOT EXISTS package_items (
   sort_order  INT NOT NULL DEFAULT 0
 );
 
+-- Additive: a hero cover image + an inspiration gallery for each package.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
+
+CREATE TABLE IF NOT EXISTS package_inspiration (
+  id          SERIAL PRIMARY KEY,
+  package_id  TEXT NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+  image_url   TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS themes (
   id                TEXT PRIMARY KEY,
   name              TEXT NOT NULL,

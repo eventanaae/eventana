@@ -23,7 +23,7 @@ export interface LoadedConfig {
   rules: PricingRules;
   zones: DeliveryZone[];
   services: Map<string, ServiceDefinition>;
-  packages: Map<string, PackageDefinition>;
+  packages: Map<string, PackageDefinition & { coverImageUrl: string | null; gallery: string[] }>;
 }
 
 function rowToService(r: any): ServiceDefinition {
@@ -49,13 +49,22 @@ function rowToService(r: any): ServiceDefinition {
 export async function loadConfig(db: Db = pool, { fresh = false } = {}): Promise<LoadedConfig> {
   if (!fresh && cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
 
-  const [settingsRes, zonesRes, servicesRes, packagesRes, itemsRes] = await Promise.all([
+  const [settingsRes, zonesRes, servicesRes, packagesRes, itemsRes, pkgInspoRes] = await Promise.all([
     db.query(`SELECT value FROM settings WHERE key = 'pricing_rules'`),
     db.query(`SELECT * FROM delivery_zones ORDER BY zone_name`),
     db.query(`SELECT * FROM services WHERE active ORDER BY id`),
     db.query(`SELECT * FROM packages WHERE active ORDER BY price_fils DESC`),
     db.query(`SELECT * FROM package_items ORDER BY package_id, sort_order`),
+    db.query<{ package_id: string; image_url: string }>(
+      `SELECT package_id, image_url FROM package_inspiration ORDER BY id`,
+    ),
   ]);
+  const pkgGallery = new Map<string, string[]>();
+  for (const row of pkgInspoRes.rows) {
+    const list = pkgGallery.get(row.package_id) ?? [];
+    list.push(row.image_url);
+    pkgGallery.set(row.package_id, list);
+  }
 
   const rules: PricingRules = {
     ...DEFAULT_PRICING_RULES,
@@ -76,7 +85,7 @@ export async function loadConfig(db: Db = pool, { fresh = false } = {}): Promise
 
   const services = new Map(servicesRes.rows.map((r) => [r.id as string, rowToService(r)]));
 
-  const packages = new Map<string, PackageDefinition>(
+  const packages = new Map<string, PackageDefinition & { coverImageUrl: string | null; gallery: string[] }>(
     packagesRes.rows.map((r) => [
       r.id as string,
       {
@@ -88,6 +97,8 @@ export async function loadConfig(db: Db = pool, { fresh = false } = {}): Promise
         tag: r.tag,
         gradient: r.gradient,
         hasCastleChoice: r.has_castle_choice,
+        coverImageUrl: r.cover_image_url ?? null,
+        gallery: pkgGallery.get(r.id as string) ?? [],
         items: itemsRes.rows
           .filter((i) => i.package_id === r.id)
           .map((i) => ({ name: i.name, detail: i.detail, assets: i.assets ?? [] })),

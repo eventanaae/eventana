@@ -21,6 +21,7 @@ async function main() {
     const { inviteStaffFromEnv } = await import('./db/inviteStaff.js');
     const { productionReconcile } = await import('./db/productionReconcile.js');
     const { applyThemeGallery } = await import('./db/themeGallery.js');
+    const { applyPackageAssets } = await import('./db/packageAssets.js');
     await migrate();
     await seedIfEmpty();
     // Load real staff + birthdays from TEAM_SEED (kept in the environment,
@@ -35,6 +36,7 @@ async function main() {
     // Attach real theme cover photos + inspiration galleries. No-op if the
     // generated data file is empty.
     await applyThemeGallery();
+    await applyPackageAssets();
   }
 
   const app = await buildServer();

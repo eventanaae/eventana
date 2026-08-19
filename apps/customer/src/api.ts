@@ -83,6 +83,7 @@ export interface Catalogue {
   packages: Array<{
     id: string; name: string; priceFils: number; capacity: string; durationHours: number;
     tag: string; gradient: string; hasCastleChoice: boolean;
+    coverImageUrl: string | null; gallery: string[];
     items: Array<{ name: string; detail: string; assets: string[] }>;
   }>;
   themes: Array<{
