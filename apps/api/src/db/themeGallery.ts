@@ -28,6 +28,9 @@ export async function applyThemeGallery(): Promise<void> {
     // Retire themes the owner removed (kept in the table, just not shown).
     await pool.query(`UPDATE themes SET active = false WHERE id = ANY($1)`, [RETIRED_THEME_IDS]);
 
+    // Renames requested by the owner.
+    await pool.query(`UPDATE themes SET name = 'Circus' WHERE id = 't33'`);
+
     // Ensure the two extra themes exist before attaching their photos.
     for (const th of NEW_THEMES) {
       await pool.query(
