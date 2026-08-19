@@ -86,13 +86,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
+  // Hooks must run on every render, before any early return — otherwise
+  // logging in (authed false→true) changes the hook count and React crashes.
+  const mobile = useIsMobile();
+
   if (!authed) {
     return <StaffLogin onDone={() => setAuthed(true)} />;
   }
 
   const current = NAV.find((n) => n.id === view) ?? NAV[0];
   const sandbox = integrations.some((i) => i.mode !== 'live');
-  const mobile = useIsMobile();
   const openEvent = (id: string) => setOpenEventId(id);
 
   const go = (id: View) => { setView(id); setMoreOpen(false); };
