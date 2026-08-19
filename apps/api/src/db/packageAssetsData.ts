@@ -1,10 +1,7 @@
 /* AUTO-GENERATED. Package cover images + Spa inspiration gallery. */
 export const PACKAGE_COVERS: Record<string, string> = {
-  "golden": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162646/eventana/themes/tazkxyoitllpup2jytfl.svg",
-  "silver": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162649/eventana/themes/r50oxowx6cao1tk9kxec.svg",
-  "bronze": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162652/eventana/themes/zdc9j0awsgchfkhbgtoi.svg",
-  "summer": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162655/eventana/themes/kpcfne9gdzgmq9sr31no.svg",
-  "movie": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162658/eventana/themes/u4mu5blrr6f3tcosa4iy.svg",
+  // Designed SVG covers removed per owner — a clean, cover-less card is tidier.
+  // Spa keeps its real setup photos.
   "spa": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787162249/eventana/themes/kuyhoxa6ufbnwlisoyfn.jpg",
 };
 export const SPA_GALLERY: string[] = [

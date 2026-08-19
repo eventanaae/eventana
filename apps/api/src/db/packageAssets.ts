@@ -8,6 +8,9 @@ import { PACKAGE_COVERS, SPA_GALLERY } from './packageAssetsData.js';
 
 export async function applyPackageAssets(): Promise<void> {
   try {
+    // Clear every cover first so removing a package from PACKAGE_COVERS also
+    // removes its cover (keeps the set authoritative + tidy).
+    await pool.query(`UPDATE packages SET cover_image_url = NULL`);
     for (const [pkgId, url] of Object.entries(PACKAGE_COVERS)) {
       await pool.query(`UPDATE packages SET cover_image_url = $2 WHERE id = $1`, [pkgId, url]);
     }
