@@ -250,7 +250,12 @@ export function Themes({
               }}
             >
               {/* Fixed-height cover — every card is exactly the same size. */}
-              <div style={{ height: 118, background: cover ? `#f2e7ee url(${cover}) center/cover no-repeat` : th.gradient, position: 'relative' }}>
+              <div style={{ height: 118, background: cover ? `#f2e7ee url(${cover}) center/cover no-repeat` : th.gradient, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {!cover && (
+                  <span style={{ background: 'rgba(255,255,255,.9)', color: C.pinkDeep, fontSize: 11.5, fontWeight: 800, padding: '6px 14px', borderRadius: 20, letterSpacing: '.3px', boxShadow: '0 2px 8px rgba(0,0,0,.12)' }}>
+                    {t('themes.comingSoon')}
+                  </span>
+                )}
                 {photos.length > 0 && (
                   <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 20 }}>
                     📷 {photos.length}

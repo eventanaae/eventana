@@ -20,8 +20,14 @@ const NEW_THEMES: Array<{
   { id: 'moon', name: 'Moon & Stars', tags: ['Cute', 'Neutral'], colors: ['#7A8AC8', '#BDEBE4', '#F7C948'], gradient: 'linear-gradient(135deg,#D9E2F5,#BDEBE4)', sortOrder: 44 },
 ];
 
+/** Themes retired from the app (owner request) — hidden via active = false. */
+const RETIRED_THEME_IDS = ['t6', 't20', 't22', 't23', 't38']; // Nissan Patrol, Luffy, Captain America, Iron Man, Masha & The Bear
+
 export async function applyThemeGallery(): Promise<void> {
   try {
+    // Retire themes the owner removed (kept in the table, just not shown).
+    await pool.query(`UPDATE themes SET active = false WHERE id = ANY($1)`, [RETIRED_THEME_IDS]);
+
     // Ensure the two extra themes exist before attaching their photos.
     for (const th of NEW_THEMES) {
       await pool.query(
