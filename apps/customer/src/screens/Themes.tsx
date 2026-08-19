@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { ScreenProps } from '../App';
-import { api } from '../api';
-import { C, fredoka, money, PrimaryButton } from '../ui';
+import { api, type Catalogue } from '../api';
+import { C, fredoka, money, PrimaryButton, Sheet } from '../ui';
+
+type Th = Catalogue['themes'][number];
 
 export function Themes({
   catalogue,
@@ -18,6 +20,7 @@ export function Themes({
   }>({ theme: '', concept: '', child: '', age: '', colors: '', notes: '', refImages: [] });
   const [refBusy, setRefBusy] = useState(false);
   const [refErr, setRefErr] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Th | null>(null);
 
   const addRefs = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -228,18 +231,31 @@ export function Themes({
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        {filtered.map((t) => {
-          const selected = draft.themeId === t.id;
+        {filtered.map((th) => {
+          const selected = draft.themeId === th.id;
+          const photos = th.gallery ?? [];
+          const cover = th.coverImageUrl ?? photos[0] ?? null;
           return (
             <div
-              key={t.id}
-              onClick={() => update({ themeId: t.id, customTheme: false })}
+              key={th.id}
+              onClick={() => {
+                // With photos, open the gallery so the customer can see real
+                // examples; otherwise select the theme directly.
+                if (photos.length > 0) setPreview(th);
+                else update({ themeId: th.id, customTheme: false });
+              }}
               style={{
                 background: '#fff', borderRadius: 20, overflow: 'hidden', cursor: 'pointer',
                 border: `2px solid ${selected ? C.pink : 'transparent'}`, boxShadow: C.shadow,
               }}
             >
-              <div style={{ height: 96, background: t.coverImageUrl ? `url(${t.coverImageUrl}) center/cover` : t.gradient, position: 'relative' }}>
+              {/* Fixed-height cover — every card is exactly the same size. */}
+              <div style={{ height: 118, background: cover ? `#f2e7ee url(${cover}) center/cover no-repeat` : th.gradient, position: 'relative' }}>
+                {photos.length > 0 && (
+                  <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 20 }}>
+                    📷 {photos.length}
+                  </span>
+                )}
                 {selected && (
                   <span
                     style={{
@@ -253,9 +269,9 @@ export function Themes({
                 )}
               </div>
               <div style={{ padding: '10px 12px 12px' }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{t.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{th.name}</div>
                 <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-                  {t.colors.slice(0, 3).map((c, i) => (
+                  {th.colors.slice(0, 3).map((c, i) => (
                     <div key={i} style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />
                   ))}
                 </div>
@@ -264,6 +280,36 @@ export function Themes({
           );
         })}
       </div>
+
+      {/* Theme gallery — real setup photos, every tile the same square size. */}
+      <Sheet open={Boolean(preview)} onClose={() => setPreview(null)}>
+        {preview && (
+          <div style={{ padding: '20px 22px 8px' }}>
+            <div style={{ ...fredoka(22) }}>{preview.name}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 14px' }}>
+              {t('themes.galleryNote')}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {(preview.gallery ?? []).map((url, i) => (
+                <div
+                  key={i}
+                  style={{
+                    aspectRatio: '1 / 1', width: '100%', borderRadius: 14, overflow: 'hidden',
+                    background: `#f2e7ee url(${url}) center/cover no-repeat`, border: `1px solid ${C.pinkLine}`,
+                  }}
+                />
+              ))}
+            </div>
+            <div style={{ margin: '16px 0 6px' }}>
+              <PrimaryButton
+                onClick={() => { update({ themeId: preview.id, customTheme: false }); setPreview(null); }}
+              >
+                {draft.themeId === preview.id ? t('themes.selected') : t('themes.selectThis')}
+              </PrimaryButton>
+            </div>
+          </div>
+        )}
+      </Sheet>
 
       {(draft.themeId || draft.customTheme) && (
         <div style={{ marginTop: 20 }}>

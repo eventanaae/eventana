@@ -185,10 +185,20 @@ export async function publicRoutes(app: FastifyInstance) {
   /** Everything the apps need to render the catalogue. */
   app.get('/api/catalogue', async () => {
     const cfg = await loadConfig();
-    const [themes, categories] = await Promise.all([
+    const [themes, categories, inspo] = await Promise.all([
       pool.query(`SELECT * FROM themes WHERE active ORDER BY celebration_type, sort_order`),
       pool.query(`SELECT * FROM service_categories ORDER BY sort_order`),
+      pool.query<{ theme_id: string; image_url: string }>(
+        `SELECT theme_id, image_url FROM theme_inspiration ORDER BY id`,
+      ),
     ]);
+    // Group the inspiration photos into a gallery per theme (first = cover).
+    const galleryByTheme = new Map<string, string[]>();
+    for (const row of inspo.rows) {
+      const list = galleryByTheme.get(row.theme_id) ?? [];
+      list.push(row.image_url);
+      galleryByTheme.set(row.theme_id, list);
+    }
 
     return {
       celebrationTypes: CELEBRATION_TYPES,
@@ -208,6 +218,7 @@ export async function publicRoutes(app: FastifyInstance) {
         colors: t.colors,
         gradient: t.gradient,
         coverImageUrl: t.cover_image_url,
+        gallery: galleryByTheme.get(t.id) ?? [],
         popular: t.popular,
         featured: t.featured,
         celebrationType: t.celebration_type,

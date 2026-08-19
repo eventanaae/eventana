@@ -148,7 +148,7 @@ export function Home({ catalogue, draft, update, go, customerName, t }: ScreenPr
       <div className="scroll" style={{ display: 'flex', gap: 12, overflowX: 'auto', margin: '0 -22px', padding: '0 22px 6px' }}>
         {trending.map((t) => (
           <div key={t.id} onClick={() => go('theme')} style={{ flex: 'none', width: 132, cursor: 'pointer' }}>
-            <div style={{ height: 96, borderRadius: 18, background: t.gradient, boxShadow: C.shadow }} />
+            <div style={{ height: 96, borderRadius: 18, background: t.coverImageUrl ? `#f2e7ee url(${t.coverImageUrl}) center/cover no-repeat` : t.gradient, boxShadow: C.shadow }} />
             <div style={{ fontSize: 11.5, fontWeight: 700, padding: '8px 2px 0', textAlign: 'center' }}>{t.name}</div>
           </div>
         ))}

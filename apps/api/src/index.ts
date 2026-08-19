@@ -20,6 +20,7 @@ async function main() {
     const { seedTeamFromEnv } = await import('./db/seedTeam.js');
     const { inviteStaffFromEnv } = await import('./db/inviteStaff.js');
     const { productionReconcile } = await import('./db/productionReconcile.js');
+    const { applyThemeGallery } = await import('./db/themeGallery.js');
     await migrate();
     await seedIfEmpty();
     // Load real staff + birthdays from TEAM_SEED (kept in the environment,
@@ -31,6 +32,9 @@ async function main() {
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
+    // Attach real theme cover photos + inspiration galleries. No-op if the
+    // generated data file is empty.
+    await applyThemeGallery();
   }
 
   const app = await buildServer();

@@ -80,7 +80,8 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
                 >
                   <div
                     style={{
-                      height: 96, borderRadius: 18, background: t.gradient, boxShadow: C.shadow,
+                      height: 96, borderRadius: 18, boxShadow: C.shadow,
+                      background: t.coverImageUrl ? `#f2e7ee url(${t.coverImageUrl}) center/cover no-repeat` : t.gradient,
                       border: `2.5px solid ${active ? C.pink : 'transparent'}`,
                     }}
                   />

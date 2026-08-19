@@ -87,7 +87,7 @@ export interface Catalogue {
   }>;
   themes: Array<{
     id: string; name: string; tags: string[]; colors: string[]; gradient: string;
-    coverImageUrl: string | null; popular: boolean; featured: boolean; celebrationType: string;
+    coverImageUrl: string | null; gallery: string[]; popular: boolean; featured: boolean; celebrationType: string;
   }>;
   themeTags: string[];
   castleVariants: Array<{ code: string; name: string; swatch: string }>;
