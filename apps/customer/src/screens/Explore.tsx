@@ -140,6 +140,22 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
                       {desc}
                     </div>
                   )}
+                  {/* Top inclusions — a scannable tier-style checklist. */}
+                  {p.items.length > 0 && (
+                    <div style={{ marginTop: 11, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {p.items.slice(0, 3).map((it) => (
+                        <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: C.ink }}>
+                          <span style={{ flex: 'none', width: 17, height: 17, borderRadius: '50%', background: C.greenSoft, color: C.green, fontSize: 10.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
+                        </div>
+                      ))}
+                      {p.items.length > 3 && (
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, marginTop: 1 }}>
+                          + {p.items.length - 3} {t('explore.moreIncluded')}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
