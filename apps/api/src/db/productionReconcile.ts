@@ -38,10 +38,28 @@ const PLACEHOLDER_TEAM_IDS = [
 /** Demo customer the seed inserts ("Sara Al Mansoori"). */
 const DEMO_CUSTOMER_ID = 'CUST-4471';
 
+/**
+ * Deletes customers and everything beneath them. Events cascade all their
+ * children (line items, photos, team, tips, designs, tasks, notifications);
+ * orders cascade payments and inventory holds. Order matters: events first
+ * (they reference orders), then orders, then the customer.
+ */
+async function purgeCustomers(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await pool.query(`DELETE FROM events WHERE customer_id = ANY($1)`, [ids]);
+  await pool.query(
+    `DELETE FROM payment_events WHERE order_id IN (SELECT id FROM orders WHERE customer_id = ANY($1))`,
+    [ids],
+  );
+  await pool.query(`DELETE FROM loyalty_transactions WHERE customer_id = ANY($1)`, [ids]);
+  await pool.query(`DELETE FROM orders WHERE customer_id = ANY($1)`, [ids]);
+  await pool.query(`DELETE FROM customers WHERE id = ANY($1)`, [ids]);
+}
+
 export async function productionReconcile(): Promise<void> {
+  // 1) Upsert the real roster (create if missing; refresh role/level/active;
+  //    mint a personal login token once so each can sign in as themselves).
   try {
-    // 1) Upsert the real roster (create if missing; refresh role/level/active;
-    //    mint a personal login token once so each can sign in as themselves).
     for (const m of REAL_TEAM) {
       const id = `tm-${m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
       await pool.query(
@@ -67,33 +85,30 @@ export async function productionReconcile(): Promise<void> {
     await pool.query(`DELETE FROM event_team WHERE member_id = ANY($1)`, [PLACEHOLDER_TEAM_IDS]);
     await pool.query(`DELETE FROM staff_days_off WHERE member_id = ANY($1)`, [PLACEHOLDER_TEAM_IDS]);
     await pool.query(`DELETE FROM team_members WHERE id = ANY($1)`, [PLACEHOLDER_TEAM_IDS]);
+  } catch (err) {
+    console.error('[reconcile] team step failed (non-fatal):', err);
+  }
 
-    // 3) Remove the shipped demo customer (the seed inserts it with no orders).
-    await pool.query(`DELETE FROM loyalty_transactions WHERE customer_id = $1`, [DEMO_CUSTOMER_ID]);
-    await pool.query(`DELETE FROM customers WHERE id = $1`, [DEMO_CUSTOMER_ID]);
+  // 3) Remove the shipped demo customer and everything under it.
+  try {
+    await purgeCustomers([DEMO_CUSTOMER_ID]);
+  } catch (err) {
+    console.error('[reconcile] demo purge failed (non-fatal):', err);
+  }
 
-    // 4) Remove QA test artefacts. Unpaid test orders would otherwise be chased
-    //    by the reconciliation sweep into false "payment unresolved" ops alerts.
+  // 4) Remove QA test artefacts (@eventana-qa.test). Unpaid test orders would
+  //    otherwise be chased by the reconcile sweep into false ops alerts.
+  try {
     const { rows: qa } = await pool.query<{ id: string }>(
       `SELECT id FROM customers WHERE email LIKE '%@eventana-qa.test'`,
     );
-    if (qa.length > 0) {
-      const ids = qa.map((r) => r.id);
-      const { rows: ords } = await pool.query<{ id: string }>(
-        `SELECT id FROM orders WHERE customer_id = ANY($1)`,
-        [ids],
-      );
-      const orderIds = ords.map((r) => r.id);
-      if (orderIds.length > 0) {
-        await pool.query(`DELETE FROM payment_events WHERE order_id = ANY($1)`, [orderIds]);
-      }
-      await pool.query(`DELETE FROM loyalty_transactions WHERE customer_id = ANY($1)`, [ids]);
-      // Orders cascade-delete their payments and inventory holds.
-      await pool.query(`DELETE FROM orders WHERE customer_id = ANY($1)`, [ids]);
-      await pool.query(`DELETE FROM customers WHERE id = ANY($1)`, [ids]);
-    }
+    await purgeCustomers(qa.map((r) => r.id));
+  } catch (err) {
+    console.error('[reconcile] QA purge failed (non-fatal):', err);
+  }
 
-    // Log the resulting roster (names only, never tokens) for verification.
+  // Log the resulting roster (names only, never tokens) for verification.
+  try {
     const { rows: team } = await pool.query<{ name: string; access_level: string }>(
       `SELECT name, access_level FROM team_members WHERE active ORDER BY name`,
     );
@@ -101,7 +116,7 @@ export async function productionReconcile(): Promise<void> {
       `[reconcile] production roster (${team.length}): ` +
         team.map((t) => `${t.name}/${t.access_level}`).join(', '),
     );
-  } catch (err) {
-    console.error('[reconcile] production reconcile failed (non-fatal):', err);
+  } catch {
+    /* logging only */
   }
 }
