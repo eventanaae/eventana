@@ -25,6 +25,7 @@ import { CheckoutError, previewQuote, startCheckout } from '../domain/checkout.j
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
 import { makeReferralCode, REFERRAL_CREDIT_FILS, validatePromo } from '../domain/discounts.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
+import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { allProviders } from '../payments/index.js';
 import { answerAssistant } from '../domain/assistant.js';
 
@@ -65,6 +66,8 @@ const cartSchema = z.object({
       child: z.string().max(120).optional(),
       age: z.string().max(20).optional(),
       notes: z.string().max(1000).optional(),
+      /** Optional reference images the customer uploads for the design team. */
+      refImages: z.array(z.string().url().max(500)).max(8).optional(),
     })
     .nullable()
     .optional(),
@@ -556,6 +559,19 @@ export async function publicRoutes(app: FastifyInstance) {
     return v.ok
       ? { ok: true, code: v.code, amountFils: v.amountFils }
       : { ok: false, reason: v.reason };
+  });
+
+  /**
+   * Signs a direct Cloudinary upload for custom-theme reference images. The
+   * customer may attach these before an order exists, so this isn't event- or
+   * account-scoped; it only ever returns a short-lived signature for the
+   * `eventana/themes` folder (image bytes go straight to Cloudinary).
+   */
+  app.post('/api/customers/uploads/sign', async (_request, reply) => {
+    if (!uploadsEnabled()) return reply.status(503).send({ error: 'uploads_unavailable' });
+    const signed = signUpload('eventana/themes');
+    if (!signed) return reply.status(503).send({ error: 'uploads_unavailable' });
+    return signed;
   });
 
   app.post('/api/customers/login', async (request, reply) => {

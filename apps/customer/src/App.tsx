@@ -48,6 +48,7 @@ export interface Draft {
   /** Custom-theme brief — sent to the design team so nothing is lost. */
   themeBrief: {
     theme: string; concept: string; colors: string; child: string; age: string; notes: string;
+    refImages?: string[];
   } | null;
   /** Who the celebration is for — stored separately from the account holder. */
   eventFor: string;

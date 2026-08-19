@@ -231,6 +231,21 @@ export const api = {
     return j.secure_url as string;
   },
 
+  /** Upload a custom-theme reference image (pre-booking) → returns its URL. */
+  uploadThemeRef: async (file: File): Promise<string> => {
+    const s = await request<any>('/api/customers/uploads/sign', { method: 'POST', body: JSON.stringify({}) });
+    const form = new FormData();
+    form.append('file', file);
+    form.append('api_key', s.apiKey);
+    form.append('timestamp', String(s.timestamp));
+    form.append('signature', s.signature);
+    form.append('folder', s.folder);
+    const res = await fetch(s.uploadUrl, { method: 'POST', body: form });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j?.error?.message ?? 'Upload failed');
+    return j.secure_url as string;
+  },
+
   /** Fetch the signed Apple Wallet pass and return a blob URL to open it. */
   walletPass: async (eventId: string): Promise<string> => {
     const token = currentToken();

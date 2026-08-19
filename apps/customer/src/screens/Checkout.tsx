@@ -310,16 +310,20 @@ export function Checkout({
               : '—'}
           </span>
         </div>
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 6 }}>
-            {t('checkout.numChildren')}
+        {/* Number of children only matters for Build-Your-Own (per-child
+            pricing). Packages have a fixed capacity, so we never ask. */}
+        {!draft.packageId && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 6 }}>
+              {t('checkout.numChildren')}
+            </div>
+            <Field
+              placeholder="25"
+              value={String(draft.childrenCount)}
+              onChange={(v) => update({ childrenCount: Math.max(0, Number(v.replace(/\D/g, '')) || 0) })}
+            />
           </div>
-          <Field
-            placeholder="25"
-            value={String(draft.childrenCount)}
-            onChange={(v) => update({ childrenCount: Math.max(0, Number(v.replace(/\D/g, '')) || 0) })}
-          />
-        </div>
+        )}
       </div>
 
       {/* Live availability: the server's quote flags any booked asset that is

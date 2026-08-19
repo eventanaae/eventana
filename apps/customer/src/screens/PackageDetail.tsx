@@ -62,6 +62,13 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
           </div>
         )}
 
+        {/* How the day runs + the honest "photos are illustrative" note. */}
+        <div style={{ background: C.pinkSoft, borderRadius: 18, padding: '14px 16px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <Point icon="⏱️" text={t('pkg.durationSetup')} />
+          <Point icon="➕" text={t('pkg.extraHour')} />
+          <Point icon="📸" text={t('pkg.imagesNote')} />
+        </div>
+
         <div style={{ marginBottom: 10 }}>
           <Notice tone="info">{catalogue.notices.packageItemsFixed}</Notice>
         </div>
@@ -147,6 +154,16 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
           </>
         )}
       </Sheet>
+    </div>
+  );
+}
+
+/** A small icon + line, used for the "how the day runs" notes. */
+function Point({ icon, text }: { icon: string; text: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+      <span style={{ fontSize: 13, flex: 'none', lineHeight: 1.5 }}>{icon}</span>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: '#8a6f7d', lineHeight: 1.55 }}>{text}</span>
     </div>
   );
 }

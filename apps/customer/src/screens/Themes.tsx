@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ScreenProps } from '../App';
+import { api } from '../api';
 import { C, fredoka, money, PrimaryButton } from '../ui';
 
 export function Themes({
@@ -12,7 +13,28 @@ export function Themes({
 }: ScreenProps & { custom: boolean }) {
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState('All');
-  const [brief, setBrief] = useState({ theme: '', concept: '', child: '', age: '', colors: '', notes: '' });
+  const [brief, setBrief] = useState<{
+    theme: string; concept: string; child: string; age: string; colors: string; notes: string; refImages: string[];
+  }>({ theme: '', concept: '', child: '', age: '', colors: '', notes: '', refImages: [] });
+  const [refBusy, setRefBusy] = useState(false);
+  const [refErr, setRefErr] = useState<string | null>(null);
+
+  const addRefs = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setRefBusy(true);
+    setRefErr(null);
+    try {
+      const urls: string[] = [];
+      for (const f of Array.from(files).slice(0, 8)) {
+        urls.push(await api.uploadThemeRef(f));
+      }
+      setBrief((b) => ({ ...b, refImages: [...b.refImages, ...urls].slice(0, 8) }));
+    } catch {
+      setRefErr(t('themes.refError'));
+    } finally {
+      setRefBusy(false);
+    }
+  };
 
   const feeFils = (catalogue.rules.customThemeFeeFils as number) ?? 80_000;
   const isKids = draft.celebrationType === 'kids';
@@ -49,24 +71,29 @@ export function Themes({
           <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t('themes.customDesign')}</span>
           <span style={{ fontWeight: 700, color: C.pinkDeep }}>+ {t('common.aed')} {money(feeFils)}</span>
         </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.55, marginBottom: 18 }}>
-          {t('themes.customNote')}
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8a6f7d', lineHeight: 1.6, marginBottom: 18 }}>
+          {t('themes.basedOnPackage')}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[
-            ['theme', t('themes.phTheme')],
-            ['concept', t('themes.phConcept')],
-            ['colors', t('themes.phColors')],
-          ].map(([key, placeholder]) => (
-            <input
-              key={key}
-              placeholder={placeholder}
-              value={brief[key as keyof typeof brief]}
-              onChange={(e) => setBrief({ ...brief, [key]: e.target.value })}
-              style={inputStyle}
-            />
-          ))}
+          <input
+            placeholder={t('themes.phTheme')}
+            value={brief.theme}
+            onChange={(e) => setBrief((b) => ({ ...b, theme: e.target.value }))}
+            style={inputStyle}
+          />
+          <input
+            placeholder={t('themes.phConcept')}
+            value={brief.concept}
+            onChange={(e) => setBrief((b) => ({ ...b, concept: e.target.value }))}
+            style={inputStyle}
+          />
+          <input
+            placeholder={t('themes.phColors')}
+            value={brief.colors}
+            onChange={(e) => setBrief((b) => ({ ...b, colors: e.target.value }))}
+            style={inputStyle}
+          />
           <div style={{ display: 'flex', gap: 12 }}>
             <input
               placeholder={t('themes.phChild')}
@@ -90,6 +117,35 @@ export function Themes({
           />
         </div>
 
+        {/* Optional reference images for the design team. */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
+            {t('themes.addRefs')}{' '}
+            <span style={{ color: C.muted, fontWeight: 600 }}>· {t('themes.refsHint')}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {brief.refImages.map((u) => (
+              <div key={u} style={{ position: 'relative', width: 66, height: 66, borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.pinkLine}` }}>
+                <img src={u} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <button
+                  type="button"
+                  onClick={() => setBrief((b) => ({ ...b, refImages: b.refImages.filter((x) => x !== u) }))}
+                  style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 13, lineHeight: 1, cursor: 'pointer' }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {brief.refImages.length < 8 && (
+              <label style={{ width: 66, height: 66, borderRadius: 12, border: `1.5px dashed ${C.pinkDash}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 22, color: C.pink, background: '#fff' }}>
+                {refBusy ? '…' : '＋'}
+                <input type="file" accept="image/*" multiple hidden onChange={(e) => addRefs(e.target.files)} />
+              </label>
+            )}
+          </div>
+          {refErr && <div style={{ fontSize: 11, fontWeight: 600, color: C.red, marginTop: 6 }}>{refErr}</div>}
+        </div>
+
         <div style={{ marginTop: 20 }}>
           <PrimaryButton
             disabled={!brief.theme.trim()}
@@ -108,6 +164,31 @@ export function Themes({
       <div style={{ ...fredoka(24), marginTop: 8, marginBottom: 4 }}>{t('themes.chooseTheme')}</div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>
         {t('themes.included')}
+      </div>
+
+      {/* Custom theme first — the premium, made-for-you option. */}
+      <div
+        onClick={() => go('custom')}
+        style={{
+          background: 'linear-gradient(135deg,#FDE0EE,#F3E9FB)', border: `1.5px solid ${C.pinkLine}`,
+          borderRadius: 20, padding: '16px 18px', cursor: 'pointer', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 14,
+        }}
+      >
+        <div style={{ width: 46, height: 46, borderRadius: 15, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flex: 'none' }}>🎨</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={fredoka(15)}>{t('themes.createCustom')}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8a6f7d', marginTop: 2 }}>
+            {t('themes.willCreate')} <b style={{ color: C.pinkDeep }}>+ {t('common.aed')} {money(feeFils)}</b>
+          </div>
+        </div>
+        <span style={{ color: C.pink, fontWeight: 700, fontSize: 18 }}>›</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}>
+        <div style={{ flex: 1, height: 1, background: C.pinkLine }} />
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>{t('themes.orChoose')}</span>
+        <div style={{ flex: 1, height: 1, background: C.pinkLine }} />
       </div>
 
       <input
@@ -182,27 +263,6 @@ export function Themes({
             </div>
           );
         })}
-      </div>
-
-      <div
-        style={{
-          marginTop: 18, background: '#fff', border: `1.5px dashed ${C.pinkDash}`,
-          borderRadius: 20, padding: '18px 20px', textAlign: 'center',
-        }}
-      >
-        <div style={{ fontFamily: "'Sacramento', cursive", fontSize: 22, color: C.pinkDeep, lineHeight: 1 }}>
-          {t('themes.cantFind')}
-        </div>
-        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '6px 0 12px' }}>
-          {t('themes.willCreate')}{' '}
-          <b style={{ color: C.pinkDeep }}>+ {t('common.aed')} {money(feeFils)}</b>
-        </div>
-        <button
-          onClick={() => go('custom')}
-          style={{ background: C.pinkSoft, border: 'none', color: C.pinkDeep, fontWeight: 700, fontSize: 13, padding: '11px 20px', borderRadius: 16, cursor: 'pointer' }}
-        >
-          {t('themes.createCustom')}
-        </button>
       </div>
 
       {(draft.themeId || draft.customTheme) && (

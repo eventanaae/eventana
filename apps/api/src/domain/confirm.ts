@@ -129,7 +129,7 @@ export async function confirmBooking(
     mapPin?: { lat: number; lng: number };
     customerId?: string;
     movie?: string | null;
-    themeBrief?: Record<string, string> | null;
+    themeBrief?: (Record<string, string> & { refImages?: string[] }) | null;
     appliedDiscounts?: {
       promo: { code: string; amountFils: number } | null;
       creditFils: number;
@@ -276,13 +276,15 @@ export async function confirmBooking(
     // Surface the customer's brief in the ops task list so the design team
     // acts on the actual request rather than a generic "custom theme" task.
     const b = cart.themeBrief;
-    if (b && (b.theme || b.concept || b.colors || b.notes)) {
+    const refCount = Array.isArray(b?.refImages) ? b!.refImages.length : 0;
+    if (b && (b.theme || b.concept || b.colors || b.notes || refCount > 0)) {
       const summary = [
         b.theme && `Theme: ${b.theme}`,
         b.concept && `Concept: ${b.concept}`,
         b.colors && `Colours: ${b.colors}`,
         b.child && `For: ${b.child}${b.age ? ` (${b.age})` : ''}`,
         b.notes && `Notes: ${b.notes}`,
+        refCount > 0 && `${refCount} reference image${refCount === 1 ? '' : 's'} attached`,
       ].filter(Boolean).join(' · ');
       await db.query(
         `INSERT INTO event_tasks (event_id, department, title) VALUES ($1,'design',$2)`,

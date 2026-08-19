@@ -100,10 +100,11 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
           <div style={{ ...fredoka(17), margin: '20px 0 12px' }}>{t('explore.readyMade')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {catalogue.packages.map((p) => {
-            const chips = p.items.slice(0, 3).map((i) => i.name);
-            const singleUnit = p.items.some((i) =>
-              i.assets.some((a) => a === 'bubble-house' || a === 'ball-pool-slide'),
-            );
+            // A short, on-brand reason to book — falls back to nothing if a
+            // package has no blurb yet (t() returns the key when unknown).
+            const descKey = `pkgDesc.${p.id}`;
+            const desc = t(descKey);
+            const hasDesc = Boolean(desc) && desc !== descKey;
             return (
               <div
                 key={p.id}
@@ -125,24 +126,19 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
                       AED {money(p.priceFils)}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 10px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span>{p.capacity} · {p.durationHours} {t('home.hours')} · {p.items.length} {t('explore.itemsIncluded')}</span>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span>{p.capacity} · {p.durationHours} {t('home.hours')}</span>
                     {social?.packages[p.id] && social.packages[p.id].count > 0 && (
                       <span style={{ fontWeight: 800, color: C.yellowInk, background: C.yellowSoft, borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap' }}>
                         ⭐ {social.packages[p.id].avg} ({social.packages[p.id].count})
                       </span>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {chips.map((c) => (
-                      <span key={c} style={{ background: C.pinkSoft, fontSize: 10.5, fontWeight: 600, padding: '4px 9px', borderRadius: 12, color: '#a76f8d', whiteSpace: 'nowrap' }}>
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: 11, fontSize: 11.5, fontWeight: 700, color: singleUnit ? C.yellowInk : C.green }}>
-                    {singleUnit ? t('explore.limited') : t('explore.available')}
-                  </div>
+                  {hasDesc && (
+                    <div style={{ marginTop: 9, fontSize: 12.5, fontWeight: 600, color: C.muted2, lineHeight: 1.55 }}>
+                      {desc}
+                    </div>
+                  )}
                 </div>
               </div>
             );
