@@ -5,6 +5,40 @@
  */
 import type { CSSProperties, ReactNode } from 'react';
 
+/** The pre-discount "was" price: current price is shown as 20% off, so the
+ *  original is price / 0.8, rounded to a clean nearest-100-AED figure. */
+export const wasPriceFils = (priceFils: number): number =>
+  Math.round(priceFils / 0.8 / 10000) * 10000;
+
+/** Picks a cute emoji for a package/service item by keyword. */
+export function itemIcon(name: string): string {
+  const n = name.toLowerCase();
+  const has = (...k: string[]) => k.some((x) => n.includes(x));
+  if (has('manicure', 'pedicure', 'nail')) return '💅';
+  if (has('cotton candy')) return '🍭';
+  if (has('popcorn')) return '🍿';
+  if (has('braid')) return '💇';
+  if (has('robe')) return '🧖';
+  if (has('face paint')) return '🎨';
+  if (has('cake')) return '🎂';
+  if (has('speaker', 'music')) return '🎵';
+  if (has('giveaway', 'gift')) return '🎁';
+  if (has('backdrop')) return '🖼️';
+  if (has('welcom')) return '🪧';
+  if (has('entertainer')) return '🕺';
+  if (has('bouncy', 'castle')) return '🏰';
+  if (has('bubble')) return '🫧';
+  if (has('ball pool', 'slide')) return '🛝';
+  if (has('foam')) return '💦';
+  if (has('ice cream')) return '🍦';
+  if (has('photograph', 'instant', 'photo')) return '📸';
+  if (has('game', 'prize')) return '🎯';
+  if (has('essential', 'spa')) return '🧴';
+  if (has('table', 'chair')) return '🪑';
+  if (has('mask')) return '🥒';
+  return '🎉';
+}
+
 export const C = {
   ink: '#3B3641',
   pink: '#F06CA8',

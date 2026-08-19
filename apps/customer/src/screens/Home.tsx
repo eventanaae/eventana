@@ -1,5 +1,5 @@
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, SectionTitle } from '../ui';
+import { C, fredoka, money, SectionTitle, wasPriceFils } from '../ui';
 
 export function Home({ catalogue, draft, update, go, customerName, t }: ScreenProps) {
   const hour = new Date().getHours();
@@ -135,7 +135,10 @@ export function Home({ catalogue, draft, update, go, customerName, t }: ScreenPr
               <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
                 {p.capacity} · {p.durationHours} {t('home.hours')}
               </div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: C.pinkDeep }}>AED {money(p.priceFils)}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textDecoration: 'line-through' }}>{money(wasPriceFils(p.priceFils))}</span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: C.pinkDeep }}>AED {money(p.priceFils)}</span>
+              </div>
             </div>
           </div>
         ))}

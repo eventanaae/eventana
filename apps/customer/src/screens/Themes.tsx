@@ -231,7 +231,7 @@ export function Themes({
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        {filtered.map((th) => {
+        {[...filtered].sort((a, b) => (b.coverImageUrl ? 1 : 0) - (a.coverImageUrl ? 1 : 0)).map((th) => {
           const selected = draft.themeId === th.id;
           const photos = th.gallery ?? [];
           const cover = th.coverImageUrl ?? photos[0] ?? null;

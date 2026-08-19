@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, Notice, PrimaryButton, Sheet } from '../ui';
+import { C, fredoka, money, Notice, PrimaryButton, Sheet, itemIcon, wasPriceFils } from '../ui';
 
 export function PackageDetail({ catalogue, draft, update, go, t, social }: ScreenProps) {
   const pkg = catalogue.packages.find((p) => p.id === draft.packageId);
@@ -50,14 +50,13 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
       </div>
 
       <div style={{ padding: '20px 22px 0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-          <span style={fredoka(23)}>{pkg.name}</span>
-          <span style={{ fontWeight: 700, fontSize: 19, color: C.pinkDeep, whiteSpace: 'nowrap', flex: 'none' }}>
-            AED {money(pkg.priceFils)}
-          </span>
-        </div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '5px 0 16px' }}>
-          {pkg.capacity} · {pkg.durationHours} {t('pkg.hourEvent')} · {t('pkg.setupIncluded')}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 16 }}>
+          <span style={{ ...fredoka(23), marginTop: 4 }}>{pkg.name}</span>
+          <div style={{ textAlign: 'right', flex: 'none' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, textDecoration: 'line-through' }}>AED {money(wasPriceFils(pkg.priceFils))}</div>
+            <div style={{ fontWeight: 700, fontSize: 20, color: C.pinkDeep, lineHeight: 1.1 }}>AED {money(pkg.priceFils)}</div>
+            <span style={{ display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 800, color: '#fff', background: C.pink, borderRadius: 8, padding: '2px 8px' }}>{t('pkg.percentOff')}</span>
+          </div>
         </div>
         {social?.packages[pkg.id] && social.packages[pkg.id].count > 0 && (
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, color: C.yellowInk, background: C.yellowSoft, borderRadius: 12, padding: '5px 11px', fontSize: 12.5, marginBottom: 14 }}>
@@ -77,14 +76,7 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
           </div>
         )}
 
-        {/* How the day runs + the honest "photos are illustrative" note. */}
-        <div style={{ background: C.pinkSoft, borderRadius: 18, padding: '14px 16px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <Point icon="⏱️" text={t('pkg.durationSetup')} />
-          <Point icon="➕" text={t('pkg.extraHour')} />
-          <Point icon="📸" text={t('pkg.imagesNote')} />
-        </div>
-
-        <div style={{ fontWeight: 700, fontSize: 15, margin: '16px 0 10px' }}>
+        <div style={{ fontWeight: 700, fontSize: 15, margin: '4px 0 10px' }}>
           {t('pkg.whatsIncluded')}{' '}
           <span style={{ fontWeight: 600, fontSize: 11.5, color: C.muted }}>{t('pkg.tapForDetails')}</span>
         </div>
@@ -99,7 +91,7 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
                 borderRadius: 18, padding: '11px 14px', cursor: 'pointer', boxShadow: C.shadow,
               }}
             >
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: pkg.gradient, flex: 'none' }} />
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: pkg.gradient, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{itemIcon(it.name)}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{it.name}</div>
               </div>
@@ -151,8 +143,13 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
           </PrimaryButton>
         </div>
 
-        {/* Fixed-items disclaimer lives at the very bottom of the page. */}
-        <div style={{ marginTop: 16 }}>
+        {/* How the day runs + honest notes + fixed-items disclaimer — all at the bottom. */}
+        <div style={{ background: C.pinkSoft, borderRadius: 18, padding: '14px 16px', marginTop: 22, display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <Point icon="⏱️" text={t('pkg.durationSetup')} />
+          <Point icon="➕" text={t('pkg.extraHour')} />
+          <Point icon="📸" text={t('pkg.imagesNote')} />
+        </div>
+        <div style={{ marginTop: 12 }}>
           <Notice tone="info">{catalogue.notices.packageItemsFixed}</Notice>
         </div>
       </div>

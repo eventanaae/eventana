@@ -1,5 +1,8 @@
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, Notice } from '../ui';
+import { C, fredoka, money, Notice, wasPriceFils } from '../ui';
+
+/** Owner-chosen package order (cheapest tier first, then specials). */
+const PKG_SORT = ['bronze', 'silver', 'golden', 'summer', 'spa', 'movie'];
 
 export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps) {
   const isKids = draft.celebrationType === 'kids';
@@ -100,7 +103,7 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
 
           <div style={{ ...fredoka(17), margin: '20px 0 12px' }}>{t('explore.readyMade')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {catalogue.packages.map((p) => {
+          {[...catalogue.packages].sort((a, b) => (PKG_SORT.indexOf(a.id) + 1 || 99) - (PKG_SORT.indexOf(b.id) + 1 || 99)).map((p) => {
             // A short, on-brand reason to book — falls back to nothing if a
             // package has no blurb yet (t() returns the key when unknown).
             const descKey = `pkgDesc.${p.id}`;
@@ -113,19 +116,21 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
                 style={{ background: '#fff', borderRadius: 24, overflow: 'hidden', boxShadow: C.shadowLg, cursor: 'pointer' }}
               >
                 <div style={{ height: 150, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
-                  <span style={{ position: 'absolute', top: 12, left: 12, background: '#fff', color: C.pinkDeep, fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20, letterSpacing: '.5px' }}>
-                    {p.tag}
+                  <span style={{ position: 'absolute', top: 12, left: 12, background: p.id === 'summer' ? C.pink : '#fff', color: p.id === 'summer' ? '#fff' : C.pinkDeep, fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20, letterSpacing: '.5px' }}>
+                    {p.id === 'summer' ? t('explore.limitedTime') : p.tag}
                   </span>
                   <span style={{ position: 'absolute', top: 12, right: 12, background: '#C7F2C2', color: '#2e7d4f', fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
-                    {t('explore.easyPay')}
+                    {t('explore.installments')}
                   </span>
                 </div>
                 <div style={{ padding: '15px 18px 17px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                    <span style={fredoka(16)}>{p.name}</span>
-                    <span style={{ fontWeight: 700, fontSize: 16, color: C.pinkDeep, whiteSpace: 'nowrap', flex: 'none' }}>
-                      AED {money(p.priceFils)}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ ...fredoka(16), marginTop: 2 }}>{p.name}</span>
+                    <div style={{ textAlign: 'right', flex: 'none' }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, textDecoration: 'line-through' }}>AED {money(wasPriceFils(p.priceFils))}</div>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: C.pinkDeep, lineHeight: 1.1 }}>AED {money(p.priceFils)}</div>
+                      <span style={{ display: 'inline-block', marginTop: 2, fontSize: 8.5, fontWeight: 800, color: '#fff', background: C.pink, borderRadius: 7, padding: '1px 6px' }}>{t('pkg.percentOff')}</span>
+                    </div>
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span>{p.capacity} · {p.durationHours} {t('home.hours')}</span>
@@ -140,22 +145,18 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
                       {desc}
                     </div>
                   )}
-                  {/* Top inclusions — a scannable tier-style checklist. */}
-                  {p.items.length > 0 && (
-                    <div style={{ marginTop: 11, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {p.items.slice(0, 3).map((it) => (
-                        <div key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: C.ink }}>
-                          <span style={{ flex: 'none', width: 17, height: 17, borderRadius: '50%', background: C.greenSoft, color: C.green, fontSize: 10.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
-                        </div>
-                      ))}
-                      {p.items.length > 3 && (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, marginTop: 1 }}>
-                          + {p.items.length - 3} {t('explore.moreIncluded')}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Best-selling points shown as soft bubbles. */}
+                  {(() => {
+                    const hi = [1, 2, 3].map((n) => t(`pkgHi.${p.id}.${n}`)).filter((x) => x && !x.startsWith('pkgHi.'));
+                    const chips = hi.length ? hi : p.items.slice(0, 3).map((i) => i.name);
+                    return (
+                      <div style={{ marginTop: 11, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                        {chips.map((c) => (
+                          <span key={c} style={{ background: C.pinkSoft, color: '#a76f8d', fontSize: 11, fontWeight: 700, padding: '6px 12px', borderRadius: 20 }}>{c}</span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
