@@ -7,12 +7,32 @@ type Pin = { lat: number; lng: number };
 const UAE_CENTER: Pin = { lat: 25.2048, lng: 55.2708 };
 
 /**
+ * Google calls `window.gm_authFailure` when it rejects the key at runtime
+ * (referrer restriction, billing, or a stripped Referer header on some mobile
+ * browsers). When that happens Google paints its own grey "Oops!" box inside
+ * the map div. We intercept it so the app can drop to the manual pin fallback
+ * instead — the customer must never be stuck behind Google's error overlay.
+ */
+let authFailed = false;
+const authListeners = new Set<() => void>();
+function installAuthFailureHook() {
+  const w = window as any;
+  if (w.__eventanaAuthHook) return;
+  w.__eventanaAuthHook = true;
+  w.gm_authFailure = () => {
+    authFailed = true;
+    authListeners.forEach((fn) => fn());
+  };
+}
+
+/**
  * Loads the Google Maps JS SDK exactly once per page. The browser key is
  * supplied at runtime (from the catalogue) so it never lives in the repo.
  */
 let loaderPromise: Promise<any> | null = null;
 function loadMaps(key: string): Promise<any> {
   const w = window as any;
+  installAuthFailureHook();
   if (w.google?.maps) return Promise.resolve(w.google);
   if (loaderPromise) return loaderPromise;
   loaderPromise = new Promise((resolve, reject) => {
@@ -26,7 +46,9 @@ function loadMaps(key: string): Promise<any> {
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=${cbName}`;
     s.async = true;
     s.defer = true;
-    s.onerror = () => reject(new Error('load-failed'));
+    // A failed load must not poison the singleton — clear it so a later mount
+    // (or retry) can attempt the load again instead of reusing a rejection.
+    s.onerror = () => { loaderPromise = null; reject(new Error('load-failed')); };
     document.head.appendChild(s);
   });
   return loaderPromise;
@@ -55,9 +77,14 @@ export function MapPicker({
       setStatus('nokey');
       return;
     }
+    // If Google rejects the key at runtime (its grey "Oops!" overlay), fall
+    // back to the manual pin so the customer can still finish booking.
+    if (authFailed) { setStatus('error'); return; }
+    const onAuthFail = () => { if (!cancelled) setStatus('error'); };
+    authListeners.add(onAuthFail);
     loadMaps(mapsKey)
       .then((google) => {
-        if (cancelled || !boxRef.current) return;
+        if (cancelled || authFailed || !boxRef.current) return;
         const start = value ?? UAE_CENTER;
         const map = new google.maps.Map(boxRef.current, {
           center: start,
@@ -101,6 +128,7 @@ export function MapPicker({
       });
     return () => {
       cancelled = true;
+      authListeners.delete(onAuthFail);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapsKey]);
