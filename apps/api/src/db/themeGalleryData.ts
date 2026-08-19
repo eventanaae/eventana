@@ -73,10 +73,10 @@ export const THEME_GALLERY: Record<string, string[]> = {
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152169/eventana/themes/nzgag82imdxfx7ctieuj.jpg",
   ],
   "t19": [
+    "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152179/eventana/themes/bcxqdwb5vgzpceubhvj8.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152172/eventana/themes/l7cr6bjxipesne2e6urh.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152175/eventana/themes/l9ryko9bmdbam5j4ie7y.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152177/eventana/themes/xqhi3izbfwjmighfk2b0.jpg",
-    "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152179/eventana/themes/bcxqdwb5vgzpceubhvj8.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152183/eventana/themes/nvs6thwqjniz1rfmdxtg.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152185/eventana/themes/uqukgxud2ldeukwth1gq.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152188/eventana/themes/jkeyxwkozwxu9gdj9436.jpg",
@@ -162,8 +162,8 @@ export const THEME_GALLERY: Record<string, string[]> = {
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152363/eventana/themes/xalkfroto4jgs4hzsdse.jpg",
   ],
   "t13": [
-    "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152365/eventana/themes/sxbtz06gvw7fvaqcxyqc.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152368/eventana/themes/calth0zfq45kkgiuiq3x.jpg",
+    "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152365/eventana/themes/sxbtz06gvw7fvaqcxyqc.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152370/eventana/themes/jjdmy0a9ucnpi5p6cjqb.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152373/eventana/themes/uetzkqsljjtf3lk7zkfc.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152375/eventana/themes/jzn7s89iputlhlvk8fot.jpg",
@@ -203,9 +203,9 @@ export const THEME_GALLERY: Record<string, string[]> = {
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152453/eventana/themes/pnrqeplyor9k09joce4m.jpg",
   ],
   "t9": [
+    "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152460/eventana/themes/t2locybyupboxw8yqliw.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152455/eventana/themes/uwpli4vesuefu5xbauo7.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152458/eventana/themes/rrccj1xidrekwcg44n2z.jpg",
-    "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152460/eventana/themes/t2locybyupboxw8yqliw.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152463/eventana/themes/ryeux4zvvljusmxuzkft.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152466/eventana/themes/guln01gjokktvozhdzzp.jpg",
     "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152468/eventana/themes/vmouqu2xccwlnbkdteh9.jpg",
