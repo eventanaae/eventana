@@ -1,7 +1,8 @@
 /**
  * Applies package cover images + the Spa inspiration gallery on boot
- * (idempotent, non-fatal). Covers for Golden/Silver/Bronze/Summer/Movie are
- * branded SVG designs; Spa uses real setup photos with a gallery.
+ * (idempotent, non-fatal). Every package cover is a real event photo chosen
+ * per tier (Golden→Barbie, Silver→Princess, Bronze→Bow, Summer→Lilo,
+ * Movie→K-Pop stage, Spa→Spa Party); the Spa gallery is currently empty.
  */
 import { pool } from './pool.js';
 import { PACKAGE_COVERS, SPA_GALLERY } from './packageAssetsData.js';
