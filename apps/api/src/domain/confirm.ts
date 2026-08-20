@@ -13,6 +13,7 @@
  */
 import type { PoolClient } from 'pg';
 import {
+  effectiveEventHours,
   eventEndHour,
   formatHour,
   formatHour24,
@@ -140,7 +141,7 @@ export async function confirmBooking(
 
   const eventId = await nextEventId(db);
   const startTime = cart.startTime!;
-  const endHour = eventEndHour(startTime, args.rules);
+  const endHour = eventEndHour(startTime, args.rules, 0, effectiveEventHours(cart, args.rules));
 
   await db.query(
     `INSERT INTO events

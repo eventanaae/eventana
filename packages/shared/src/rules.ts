@@ -107,8 +107,9 @@ export function eventEndHour(
   startTime: string,
   rules: PricingRules,
   extraHours = 0,
+  baseHours: number = rules.standardEventHours,
 ): number {
-  return parseHour(startTime) + rules.standardEventHours + extraHours;
+  return parseHour(startTime) + baseHours + extraHours;
 }
 
 /** Whether an event with this start time and extra hours finishes in time. */
@@ -116,8 +117,9 @@ export function endsBeforeCutoff(
   startTime: string,
   rules: PricingRules,
   extraHours = 0,
+  baseHours: number = rules.standardEventHours,
 ): boolean {
-  const end = eventEndHour(startTime, rules, extraHours);
+  const end = eventEndHour(startTime, rules, extraHours, baseHours);
   return Number.isFinite(end) && end <= rules.latestEndHour;
 }
 

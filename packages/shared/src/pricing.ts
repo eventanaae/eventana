@@ -17,6 +17,7 @@
  *      threshold
  */
 import { percentOf } from './money.js';
+import { SERVICE_BY_ID } from './catalogue.js';
 import {
   DEFAULT_PRICING_RULES,
   endsBeforeCutoff,
@@ -25,6 +26,27 @@ import {
   parseHour,
   type PricingRules,
 } from './rules.js';
+
+/** Categories whose Build-Your-Own booking needs a 6-hour window. */
+const SIX_HOUR_CATEGORIES = new Set(['backdrop', 'inflatables', 'machines']);
+
+/**
+ * Effective event length in hours. Packages ALWAYS run the standard 4 hours,
+ * even with add-ons. Build-Your-Own runs 6 hours when it includes decor/stands,
+ * inflatables or machines (which need a longer window); otherwise 4.
+ */
+export function effectiveEventHours(
+  cart: { packageId: string | null; services: Array<{ serviceId: string; quantity: number }> },
+  rules: PricingRules,
+): number {
+  if (cart.packageId) return rules.standardEventHours;
+  const needsLong = cart.services.some((line) => {
+    if (line.quantity <= 0) return false;
+    const svc = SERVICE_BY_ID.get(line.serviceId);
+    return svc ? SIX_HOUR_CATEGORIES.has(svc.categoryId) : false;
+  });
+  return needsLong ? 6 : rules.standardEventHours;
+}
 import type {
   AddonRequest,
   CartInput,
@@ -223,19 +245,20 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
     });
   }
 
-  // Time: fixed 4-hour event that must finish by midnight.
+  // Time: 4-hour event (6 for Build-Your-Own with decor/inflatables/machines)
+  // that must finish by midnight.
+  const baseHours = effectiveEventHours(cart, rules);
   let endTime: string | null = null;
   if (!cart.startTime) {
     problems.push({ code: 'missing_time', message: 'Pick a start time for your event.' });
   } else if (!Number.isFinite(parseHour(cart.startTime))) {
     problems.push({ code: 'missing_time', message: 'That start time is not valid.' });
   } else {
-    endTime = formatHour(eventEndHour(cart.startTime, rules));
-    if (!endsBeforeCutoff(cart.startTime, rules)) {
+    endTime = formatHour(eventEndHour(cart.startTime, rules, 0, baseHours));
+    if (!endsBeforeCutoff(cart.startTime, rules, 0, baseHours)) {
       problems.push({
         code: 'end_after_midnight',
-        message:
-          'Our standard 4-hour party packages must finish by 12:00 AM. Please select an earlier start time.',
+        message: `Your ${baseHours}-hour event must finish by 12:00 AM. Please select an earlier start time.`,
       });
     }
   }

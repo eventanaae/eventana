@@ -10,6 +10,7 @@
  *   7. …and then wait for the webhook. Nothing here confirms anything.
  */
 import {
+  effectiveEventHours,
   eventEndHour,
   isCancelled,
   quote as computeQuote,
@@ -90,7 +91,7 @@ export async function previewQuote(cart: CartInput): Promise<Quote & { unavailab
       assets,
       cart.eventDate,
       cart.startTime,
-      eventEndHour(cart.startTime, cfg.rules),
+      eventEndHour(cart.startTime, cfg.rules, 0, effectiveEventHours(cart, cfg.rules)),
     );
   }
 
@@ -156,7 +157,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     throw new CheckoutError('This payment method is not currently available.', 'unavailable');
   }
   const provider = getProvider(req.provider);
-  const endHour = eventEndHour(cart.startTime!, cfg.rules);
+  const endHour = eventEndHour(cart.startTime!, cfg.rules, 0, effectiveEventHours(cart, cfg.rules));
   const requiredAssets = resolveRequiredAssets(cart, cfg);
 
   // (2)(3)(4) availability, hold and order in ONE transaction.

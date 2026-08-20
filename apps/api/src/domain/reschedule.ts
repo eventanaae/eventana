@@ -9,7 +9,7 @@
  * The reserved inventory holds move with the event, checked against every
  * OTHER booking so a reschedule can never double-book an asset.
  */
-import { eventEndHour, formatHour24, isCancelled } from '@eventana/shared';
+import { eventEndHour, formatHour24, isCancelled, parseHour } from '@eventana/shared';
 import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from './settings.js';
 import { eventWindow, getAssets } from './inventory.js';
@@ -59,7 +59,10 @@ export async function rescheduleEvent(args: {
       throw new RescheduleError('Please choose a new date more than 72 hours from now.', 'too_soon');
     }
 
-    const endHour = eventEndHour(args.newStartTime, cfg.rules, ev.extra_hours);
+    // Preserve the event's original base length (4h, or 6h for a decor BYO).
+    const origBase = parseHour(ev.base_end_time) - parseHour(ev.start_time) - (ev.extra_hours ?? 0);
+    const baseHours = Number.isFinite(origBase) && origBase > 0 ? origBase : cfg.rules.standardEventHours;
+    const endHour = eventEndHour(args.newStartTime, cfg.rules, ev.extra_hours, baseHours);
     if (endHour > cfg.rules.latestEndHour) {
       throw new RescheduleError('That start time would end too late — events must finish by midnight.', 'end_after_midnight');
     }
