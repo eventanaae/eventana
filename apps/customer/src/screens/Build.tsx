@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, Notice, PrimaryButton, Sheet } from '../ui';
+import { C, fredoka, money, Notice, PrimaryButton, Sheet, durationKey } from '../ui';
 
 export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
   const [detail, setDetail] = useState<Catalogue['services'][number] | null>(null);
@@ -113,6 +113,11 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                               <span style={{ fontWeight: 600, fontSize: 10, color: C.faint }}> · {unitNote}</span>
                             )}
                           </div>
+                          {durationKey(s.categoryId, s.id) && (
+                            <div style={{ fontSize: 10, fontWeight: 700, color: C.muted2, marginTop: 3 }}>
+                              {t(durationKey(s.categoryId, s.id))}
+                            </div>
+                          )}
                           {s.needsAdminReview && (
                             <div style={{ fontSize: 9.5, fontWeight: 700, color: C.yellowInk, marginTop: 2 }}>
                               {t('build.pricePending')}

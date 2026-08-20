@@ -10,6 +10,22 @@ import type { CSSProperties, ReactNode } from 'react';
 export const wasPriceFils = (priceFils: number): number =>
   Math.round(priceFils / 0.8 / 10000) * 10000;
 
+/** The i18n key describing how long a service runs (or its lead time). */
+export function durationKey(categoryId: string, id: string): string {
+  if (categoryId === 'giveaways') return 'dur.preorder';
+  if (categoryId === 'backdrop') return 'dur.decor';
+  if (categoryId === 'food') return 'dur.food';
+  if (categoryId === 'inflatables') return 'dur.inflatable';
+  if (categoryId === 'machines') return 'dur.machine';
+  if (categoryId === 'games') return 'dur.games';
+  if (categoryId === 'activities') return 'dur.activity';
+  if (categoryId === 'entertainment') return id === 'clown' || id === 'mascot' ? 'dur.h2' : 'dur.h4';
+  return '';
+}
+
+/** True for keepsake items that are produced ahead (need ~2 weeks lead time). */
+export const isPreOrderCategory = (categoryId: string): boolean => categoryId === 'giveaways';
+
 /** Picks a cute emoji for a package/service item by keyword. */
 export function itemIcon(name: string): string {
   const n = name.toLowerCase();

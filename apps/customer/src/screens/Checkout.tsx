@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { toCart, type ScreenProps } from '../App';
-import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel } from '../ui';
+import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPreOrderCategory } from '../ui';
 import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
 import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
@@ -131,6 +131,14 @@ export function Checkout({
 
   const zone = catalogue.deliveryZones.find((z) => z.emirate === draft.emirate);
   const blocked = zone && (!zone.available || zone.feeFils === null);
+
+  // Made-to-order keepsakes need ~2 weeks; warn if the event is sooner.
+  const hasPreOrder = Object.keys(draft.services).some((id) => {
+    const s = catalogue.services.find((x) => x.id === id);
+    return s ? isPreOrderCategory(s.categoryId) : false;
+  });
+  const daysToEvent = Math.ceil((new Date(`${draft.eventDate}T00:00:00`).getTime() - Date.now()) / 86_400_000);
+  const preOrderRisk = hasPreOrder && daysToEvent < 14;
 
   // Which placement-photo rows apply to what is actually booked.
   const bookedLabels = [
@@ -333,6 +341,12 @@ export function Checkout({
           </div>
         )}
       </div>
+
+      {preOrderRisk && (
+        <div style={{ marginBottom: 14 }}>
+          <Notice tone="warn">{t('build.preOrderWarn')}</Notice>
+        </div>
+      )}
 
       {/* Live availability: the server's quote flags any booked asset that is
           already taken for the chosen date/time. */}
