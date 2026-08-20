@@ -845,7 +845,7 @@ function openDayPicker(day){
     m.textContent = "📍 " + locPlace(pick) + " — open on the map";
   });
   $("#d-save").onclick  = () => setPresence([day], pick);
-  $("#d-clear").onclick = () => setPresence([day], S.me.default_location);
+  $("#d-clear").onclick = () => setPresence([day], null);   // null = drop the override
 }
 
 function openWeekPicker(){
@@ -885,7 +885,8 @@ async function setPresence(days, location){
       person_id:S.me.id, day, location,
       person_name:S.me.name, team:S.me.team,
     })));
-    await loadPresence(); closeSheet(); render(); toast(location + " — saved");
+    await loadPresence(); closeSheet(); render();
+    toast(location ? location + " — saved" : "Back to " + S.me.default_location);
   } catch { toast("Could not save"); }
 }
 

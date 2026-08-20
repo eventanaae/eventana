@@ -265,6 +265,16 @@ async function apiRoute(req, res, url) {
     for (const r of rows) {
       const d = day(r.day);
       if (!d) continue;
+
+      // No location means "back to my usual office" — drop the override
+      // rather than pinning the day to today's default, so the day keeps
+      // following the person if they later move desks.
+      if (!str(r.location, 40)) {
+        await pool.query('delete from hr_presence where person_id = $1 and day = $2',
+          [need(r.person_id, 64), d]);
+        continue;
+      }
+
       const q = await pool.query(
         `insert into hr_presence (person_id, day, location, person_name, team, updated_at)
          values ($1,$2,$3,$4,$5, now())
