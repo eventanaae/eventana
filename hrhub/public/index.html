@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HR Team Hub 2026</title>
+<meta name="theme-color" content="#101d3d" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:oklch(24.6% .062 258);
+    --bg-2:oklch(21% .055 258);
+    --card:oklch(29% .055 258);
+    --card-2:oklch(32.5% .05 258);
+    --fg:oklch(98% .005 260);
+    --dim:oklch(78% .02 260);
+    --dimmer:oklch(64% .025 260);
+    --line:oklch(100% 0 0/.12);
+    --line-2:oklch(100% 0 0/.07);
+    --primary:oklch(58% .22 264);
+    --fn-ld:oklch(70% .17 264);
+    --fn-hrbp:oklch(78% .13 200);
+    --fn-emir:oklch(82% .14 155);
+    --fn-comms:oklch(78% .15 80);
+    --ok:oklch(80% .16 150);
+    --warn:oklch(82% .15 85);
+    --bad:oklch(70% .19 25);
+    --r:16px;
+    --shadow:0 10px 40px -12px rgb(0 0 0 / .55);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, oklch(34% .09 264 / .55), transparent 60%),
+      radial-gradient(900px 500px at 95% 0%, oklch(30% .07 220 / .45), transparent 55%),
+      var(--bg);
+    background-attachment:fixed;
+    color:var(--fg);
+    font-family:"Plus Jakarta Sans",ui-sans-serif,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer;background:none;border:none}
+  a{color:inherit}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
+
+  /* ---------- header ---------- */
+  header.top{
+    position:sticky;top:0;z-index:40;
+    backdrop-filter:blur(14px);
+    background:oklch(22% .055 258 / .82);
+    border-bottom:1px solid var(--line-2);
+  }
+  .top-in{max-width:1180px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:16px}
+  .brand{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .brand b{font-size:15px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+  .brand span{font-size:11px;color:var(--dimmer);letter-spacing:.14em;text-transform:uppercase}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .icon-btn{
+    position:relative;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);
+    display:grid;place-items:center;background:oklch(100% 0 0/.04);transition:.15s;
+  }
+  .icon-btn:hover{background:oklch(100% 0 0/.09)}
+  .dot{
+    position:absolute;top:6px;right:6px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
+    background:var(--bad);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center;
+    border:2px solid var(--bg);
+  }
+  .me{
+    display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;
+    border:1px solid var(--line);background:oklch(100% 0 0/.04);transition:.15s;
+  }
+  .me:hover{background:oklch(100% 0 0/.09)}
+  .avatar{
+    width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+    font-size:11px;font-weight:800;background:var(--primary);color:#fff;flex:none;
+  }
+  .me-txt{display:flex;flex-direction:column;line-height:1.15;text-align:left}
+  .me-txt b{font-size:12.5px;font-weight:700}
+  .me-txt span{font-size:10.5px;color:var(--dimmer)}
+
+  /* ---------- tabs ---------- */
+  nav.tabs{display:flex;gap:6px;padding:16px 0 4px;flex-wrap:wrap}
+  nav.tabs button{
+    padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:600;color:var(--dim);
+    border:1px solid transparent;transition:.15s;
+  }
+  nav.tabs button:hover{color:var(--fg);background:oklch(100% 0 0/.05)}
+  nav.tabs button.on{background:var(--fg);color:oklch(24% .06 258);border-color:transparent}
+
+  h1.page{font-size:clamp(26px,4vw,38px);font-weight:800;letter-spacing:-.02em;margin:22px 0 6px}
+  p.lede{color:var(--dim);font-size:14.5px;margin:0 0 22px;max-width:62ch;line-height:1.6}
+
+  /* ---------- filter chips ---------- */
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+  .chip{
+    padding:7px 15px;border-radius:999px;border:1px solid var(--line);font-size:12.5px;font-weight:600;
+    color:var(--dim);transition:.15s;display:inline-flex;align-items:center;gap:7px;
+  }
+  .chip:hover{background:oklch(100% 0 0/.06);color:var(--fg)}
+  .chip.on{background:oklch(100% 0 0/.12);color:var(--fg);border-color:oklch(100% 0 0/.28)}
+  .chip i{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+
+  /* ---------- project grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+  .pcard{
+    text-align:left;background:linear-gradient(160deg,var(--card),var(--bg-2));
+    border:1px solid var(--line-2);border-radius:var(--r);padding:18px;
+    display:flex;flex-direction:column;gap:11px;transition:.18s;position:relative;overflow:hidden;
+  }
+  .pcard:hover{transform:translateY(-2px);border-color:var(--line);box-shadow:var(--shadow)}
+  .pcard::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--fn)}
+  .pcard .fn{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--fn)}
+  .pcard h3{margin:0;font-size:17px;font-weight:700;letter-spacing:-.01em;line-height:1.25}
+  .pcard .sum{margin:0;font-size:13px;color:var(--dim);line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dimmer);
+    letter-spacing:.06em;text-transform:uppercase;font-weight:600;flex-wrap:wrap;margin-top:auto}
+  .bar{height:5px;border-radius:99px;background:oklch(100% 0 0/.09);overflow:hidden}
+  .bar>i{display:block;height:100%;border-radius:99px;background:var(--fn);transition:width .4s}
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;
+    font-size:11px;font-weight:700;letter-spacing:.04em;border:1px solid currentColor;
+  }
+  .pill i{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .st-notstarted{color:var(--dimmer)}
+  .st-ontrack{color:var(--ok)}
+  .st-atrisk{color:var(--warn)}
+  .st-delayed{color:var(--bad)}
+  .st-completed{color:oklch(80% .12 200)}
+  .lastup{font-size:11.5px;color:var(--dimmer);border-top:1px solid var(--line-2);padding-top:10px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45}
+
+  /* ---------- sheet / modal ---------- */
+  .scrim{
+    position:fixed;inset:0;z-index:60;background:oklch(12% .03 258 / .68);backdrop-filter:blur(4px);
+    display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto;
+  }
+  .sheet{
+    width:min(760px,100%);background:linear-gradient(170deg,var(--card),var(--bg-2));
+    border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);
+    animation:rise .22s cubic-bezier(.2,.8,.3,1);
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .sheet-hd{padding:22px 24px 18px;border-bottom:1px solid var(--line-2);position:relative}
+  .sheet-bd{padding:22px 24px 26px}
+  .x{position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:10px;
+    display:grid;place-items:center;color:var(--dim);border:1px solid var(--line-2)}
+  .x:hover{background:oklch(100% 0 0/.08);color:var(--fg)}
+
+  .kv{display:flex;gap:26px;flex-wrap:wrap;margin:14px 0 0}
+  .kv div{display:flex;flex-direction:column;gap:3px}
+  .kv b{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer);font-weight:700}
+  .kv span{font-size:14px;font-weight:600}
+
+  .field{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+  .field>label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer);font-weight:700}
+  input[type=text],input[type=date],input[type=datetime-local],select,textarea{
+    width:100%;padding:11px 13px;border-radius:12px;border:1px solid var(--line);
+    background:oklch(100% 0 0/.05);outline:none;transition:.15s;font-size:14px;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--primary);background:oklch(100% 0 0/.08)}
+  textarea{resize:vertical;min-height:88px;line-height:1.55}
+  select option{background:#1b2646;color:#fff}
+  input[type=range]{width:100%;accent-color:var(--primary)}
+
+  .btn{
+    padding:11px 20px;border-radius:12px;font-size:13.5px;font-weight:700;
+    background:var(--primary);color:#fff;transition:.15s;border:1px solid transparent;
+  }
+  .btn:hover{filter:brightness(1.12)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:oklch(100% 0 0/.06);border-color:var(--line);color:var(--fg)}
+  .btn.ghost:hover{background:oklch(100% 0 0/.12)}
+  .btn.sm{padding:8px 15px;font-size:12.5px;border-radius:10px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg button{padding:7px 13px;border-radius:10px;border:1px solid var(--line);font-size:12.5px;
+    font-weight:600;color:var(--dim);transition:.15s}
+  .seg button:hover{background:oklch(100% 0 0/.07);color:var(--fg)}
+  .seg button.on{background:oklch(100% 0 0/.14);color:var(--fg);border-color:oklch(100% 0 0/.3)}
+
+  /* ---------- feed ---------- */
+  .feed{display:flex;flex-direction:column;gap:0;margin-top:8px}
+  .post{display:flex;gap:12px;padding:15px 0;border-top:1px solid var(--line-2)}
+  .post .avatar{width:34px;height:34px;font-size:12px;background:oklch(100% 0 0/.12);color:var(--fg)}
+  .post-bd{flex:1;min-width:0}
+  .post-hd{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:5px}
+  .post-hd b{font-size:13.5px;font-weight:700}
+  .post-hd time{font-size:11.5px;color:var(--dimmer)}
+  .post-bd p{margin:0;font-size:14px;line-height:1.6;color:var(--dim);white-space:pre-wrap;word-break:break-word}
+  .tag{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;
+    border-radius:6px;background:oklch(100% 0 0/.1);color:var(--dim)}
+
+  /* ---------- calendar ---------- */
+  .cal-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .days{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .day{
+    background:linear-gradient(165deg,var(--card),var(--bg-2));border:1px solid var(--line-2);
+    border-radius:var(--r);padding:14px 13px;min-height:190px;display:flex;flex-direction:column;gap:11px;
+  }
+  .day.today{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary) inset}
+  .day-hd{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+  .day-hd b{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer);font-weight:700}
+  .day-hd span{font-size:19px;font-weight:800}
+  .locgrp{display:flex;flex-direction:column;gap:5px}
+  .locgrp>button{
+    display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--loc);text-align:left;
+  }
+  .locgrp>button i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .who{display:flex;flex-wrap:wrap;gap:4px;padding-left:12px}
+  .who span{
+    font-size:11.5px;padding:3px 8px;border-radius:7px;background:oklch(100% 0 0/.07);
+    border-left:2px solid var(--tm);white-space:nowrap;
+  }
+  .day .setme{margin-top:auto;font-size:11.5px;font-weight:700;color:var(--dim);
+    border:1px dashed var(--line);border-radius:9px;padding:7px;text-align:center;transition:.15s}
+  .day .setme:hover{color:var(--fg);border-color:var(--primary);background:oklch(100% 0 0/.05)}
+  .empty{font-size:12px;color:var(--dimmer);font-style:italic}
+
+  /* ---------- news ---------- */
+  .news{display:flex;flex-direction:column;gap:12px}
+  .ncard{
+    background:linear-gradient(165deg,var(--card),var(--bg-2));border:1px solid var(--line-2);
+    border-radius:var(--r);padding:17px 18px;position:relative;overflow:hidden;
+  }
+  .ncard::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--kc)}
+  .ncard h3{margin:6px 0 6px;font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .ncard p.body{margin:0;font-size:14px;line-height:1.6;color:var(--dim);white-space:pre-wrap}
+  .kind{font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--kc)}
+  .nmeta{display:flex;gap:14px;flex-wrap:wrap;margin-top:11px;font-size:11.5px;color:var(--dimmer);
+    font-weight:600;align-items:center}
+  .nmeta a{color:oklch(80% .1 230);text-decoration:none}
+  .nmeta a:hover{text-decoration:underline}
+  .cmts{margin-top:12px;border-top:1px solid var(--line-2);padding-top:4px}
+  .cmt{display:flex;gap:9px;padding:9px 0;font-size:13px;line-height:1.5}
+  .cmt .avatar{width:26px;height:26px;font-size:10px;background:oklch(100% 0 0/.12);color:var(--fg)}
+  .cmt b{font-weight:700}
+  .cmt time{font-size:11px;color:var(--dimmer);margin-left:6px}
+  .cmt p{margin:2px 0 0;color:var(--dim);white-space:pre-wrap;word-break:break-word}
+  .cmtbox{display:flex;gap:8px;margin-top:8px}
+  .cmtbox input{flex:1}
+
+  .fab{
+    position:fixed;right:22px;bottom:22px;z-index:30;padding:14px 22px;border-radius:999px;
+    background:var(--primary);color:#fff;font-weight:700;font-size:14px;box-shadow:var(--shadow);
+    display:flex;align-items:center;gap:8px;
+  }
+  .fab:hover{filter:brightness(1.12)}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:90;
+    background:oklch(96% .01 260);color:oklch(22% .05 258);padding:12px 20px;border-radius:12px;
+    font-size:13.5px;font-weight:700;box-shadow:var(--shadow);animation:rise .2s;
+  }
+  .skel{height:150px;border-radius:var(--r);background:oklch(100% 0 0/.05);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:.5}50%{opacity:.9}}
+  .muted{color:var(--dimmer);font-size:13px}
+  .vid{width:100%;aspect-ratio:16/9;border:0;border-radius:14px;background:oklch(15% .03 258);margin-top:4px}
+
+  @media(max-width:820px){
+    .days{grid-template-columns:1fr;gap:8px}
+    .day{min-height:0}
+    .me-txt{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <b>HR Team Hub</b>
+      <span id="clock">—</span>
+    </div>
+    <div class="top-right">
+      <button class="icon-btn" id="bell" title="Notifications" aria-label="Notifications">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span class="dot" id="belldot" hidden>0</span>
+      </button>
+      <button class="me" id="mebtn">
+        <span class="avatar" id="meav">?</span>
+        <span class="me-txt"><b id="mename">Sign in</b><span id="meteam">tap to set up</span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="tabs">
+    <button data-tab="projects" class="on">Projects</button>
+    <button data-tab="calendar">Who's where</button>
+    <button data-tab="news">News &amp; events</button>
+  </nav>
+  <main id="view"></main>
+</div>
+
+<div id="layer"></div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+
+/* ======================================================================
+   Config
+   ====================================================================== */
+/* The 21 project cards stay where they already live — the existing hub's
+   Supabase table, read with the same public key that site ships. Anything the
+   team adds (updates, comments, presence, news) goes to this app's own API,
+   so editing a project in the old Admin still flows through here. */
+const PROJECTS_URL =
+  "https://rrzsalvketmxbyhfzixn.supabase.co/rest/v1/hr_projects" +
+  "?select=id,title,function,summary,description,owner,start_date,end_date,video_url&order=sort_order.asc";
+const PROJECTS_KEY = "sb_publishable_3V3cdM-KHyngTpt6-uo8Eg_WDHBStVx";
+
+const TEAMS = [
+  { key:"L&D",             label:"L&D",                 css:"var(--fn-ld)"    },
+  { key:"HRBPs",           label:"HR Business Partners",css:"var(--fn-hrbp)"  },
+  { key:"Emiratization",   label:"Emiratization",       css:"var(--fn-emir)"  },
+  { key:"Comms & Culture", label:"Comms & Culture",     css:"var(--fn-comms)" },
+];
+const teamCss = k => (TEAMS.find(t=>t.key===k)||{}).css || "var(--dimmer)";
+const teamLabel = k => (TEAMS.find(t=>t.key===k)||{}).label || k;
+
+/* The five offices, with the exact Google Maps pin for each. */
+const LOCATIONS = [
+  { key:"Dubai",          place:"Tanfeeth",                   map:"https://maps.app.goo.gl/qg48wtVVDHVaFp8m6", css:"oklch(78% .14 264)" },
+  { key:"Ras Al Khaimah", place:"Julphar Towers",             map:"https://maps.app.goo.gl/1y42jRbxHn9p8n3FA", css:"oklch(80% .13 200)" },
+  { key:"Al Ain",         place:"Aloft Al Ain",               map:"https://maps.app.goo.gl/52jxXq9211EvAC8V8", css:"oklch(82% .14 155)" },
+  { key:"Muraqqabat",     place:"Emirates NBD — Muraqqabat",  map:"https://maps.app.goo.gl/FzH4hnmNdx7PdLiZ7", css:"oklch(80% .15 80)"  },
+  { key:"Al Fahidi",      place:"Emirates NBD — Al Fahidi",   map:"https://maps.app.goo.gl/qMSg2H9rX8jsvsvg7", css:"oklch(78% .15 20)"  },
+];
+const locOf   = k => LOCATIONS.find(l=>l.key===k) || {};
+const locCss  = k => locOf(k).css || "var(--dimmer)";
+const locPlace= k => locOf(k).place || k;
+const mapLink = k => locOf(k).map || ("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(k));
+
+const STATUSES = [
+  { key:"Not started", cls:"st-notstarted" },
+  { key:"On track",    cls:"st-ontrack"    },
+  { key:"At risk",     cls:"st-atrisk"     },
+  { key:"Delayed",     cls:"st-delayed"    },
+  { key:"Completed",   cls:"st-completed"  },
+];
+const stCls = k => (STATUSES.find(s=>s.key===k)||STATUSES[0]).cls;
+
+const NEWS_KINDS = [
+  { key:"promotion",   label:"Promotion",   css:"oklch(80% .15 300)", icon:"★" },
+  { key:"achievement", label:"Achievement", css:"var(--ok)",          icon:"✦" },
+  { key:"event",       label:"Event",       css:"var(--fn-comms)",    icon:"◆" },
+  { key:"meeting",     label:"Meeting",     css:"var(--fn-hrbp)",     icon:"●" },
+  { key:"news",        label:"Announcement",css:"var(--fn-ld)",       icon:"■" },
+];
+const kindOf = k => NEWS_KINDS.find(x=>x.key===k) || NEWS_KINDS[4];
+
+/* ======================================================================
+   Tiny helpers
+   ====================================================================== */
+const $  = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const esc = s => String(s??"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const initials = n => String(n||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase() || "?";
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "p"+Math.random().toString(36).slice(2)+Date.now());
+
+const iso = d => { const x=new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); };
+const monday = d => { const x=new Date(d); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); x.setHours(0,0,0,0); return x; };
+const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+
+const fmtRange = (a,b) => {
+  const f = s => s ? new Date(s+"T00:00:00").toLocaleDateString("en-GB",{month:"short",year:"numeric"}) : "—";
+  return f(a)+" – "+f(b);
+};
+const fmtWhen = s => new Date(s).toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+const ago = s => {
+  const m = Math.floor((Date.now()-new Date(s))/60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m+"m ago";
+  if (m < 1440) return Math.floor(m/60)+"h ago";
+  if (m < 10080) return Math.floor(m/1440)+"d ago";
+  return new Date(s).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+};
+
+function toast(msg){
+  const el = document.createElement("div");
+  el.className = "toast"; el.textContent = msg;
+  $("#toasts").append(el);
+  setTimeout(()=>el.remove(), 2600);
+}
+
+/* ======================================================================
+   API
+   ====================================================================== */
+async function api(path, body){
+  const res = await fetch("/api" + path, body === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  return res.json();
+}
+async function fetchProjects(){
+  const res = await fetch(PROJECTS_URL, {
+    headers: { apikey: PROJECTS_KEY, Authorization: "Bearer " + PROJECTS_KEY },
+  });
+  if (!res.ok) throw new Error("projects: " + res.status);
+  return res.json();
+}
+
+/* ======================================================================
+   State
+   ====================================================================== */
+const S = {
+  tab: "projects",
+  me: null,                  // {id,name,team,default_location}
+  projects: [], state: {}, posts: {},
+  people: [], presence: [],
+  news: [], comments: {},
+  filter: "all",
+  weekStart: monday(new Date()),
+  seen: Number(localStorage.getItem("hub.seen") || 0),
+  loaded: false,
+};
+
+function loadMe(){
+  try { S.me = JSON.parse(localStorage.getItem("hub.me") || "null"); } catch { S.me = null; }
+}
+function saveMe(me){
+  S.me = me;
+  localStorage.setItem("hub.me", JSON.stringify(me));
+  api("/people", me).then(row => {
+    const i = S.people.findIndex(p => p.id === row.id);
+    if (i >= 0) S.people[i] = row; else S.people.push(row);
+  }).catch(()=>{});
+  paintMe();
+}
+function paintMe(){
+  if (!S.me) return;
+  $("#meav").textContent  = initials(S.me.name);
+  $("#mename").textContent = S.me.name;
+  $("#meteam").textContent = teamLabel(S.me.team) + " · " + S.me.default_location;
+}
+
+/* ======================================================================
+   Data loading
+   ====================================================================== */
+async function loadAll(){
+  const [projects, boot] = await Promise.all([ fetchProjects(), api("/bootstrap") ]);
+  S.projects = projects || [];
+  S.state  = Object.fromEntries((boot.state || []).map(r => [r.project_id, r]));
+  S.people = boot.people || [];
+  S.news   = boot.news || [];
+
+  S.posts = {};
+  for (const p of boot.posts || []) (S.posts[p.project_id] ||= []).push(p);
+  S.comments = {};
+  for (const c of boot.comments || []) (S.comments[c.news_id] ||= []).push(c);
+
+  S.loaded = true;
+  paintBell();
+}
+
+async function loadPresence(){
+  const from = iso(S.weekStart), to = iso(addDays(S.weekStart,6));
+  S.presence = await api(`/presence?from=${from}&to=${to}`) || [];
+}
+
+/* ======================================================================
+   Notifications
+   ====================================================================== */
+function unseen(){ return S.news.filter(n => new Date(n.created_at).getTime() > S.seen); }
+function paintBell(){
+  const n = unseen().length;
+  const dot = $("#belldot");
+  dot.hidden = n === 0;
+  dot.textContent = n > 9 ? "9+" : n;
+}
+function markSeen(){
+  S.seen = Date.now();
+  localStorage.setItem("hub.seen", String(S.seen));
+  paintBell();
+}
+async function askPush(){
+  if (!("Notification" in window) || Notification.permission !== "default") return;
+  try { await Notification.requestPermission(); } catch {}
+}
+function push(n){
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  if (S.me && n.author_id === S.me.id) return;
+  try {
+    new Notification(kindOf(n.kind).label + " · HR Team Hub", {
+      body: n.title + (n.location ? " — " + n.location : ""),
+      tag: n.id,
+    });
+  } catch {}
+}
+
+/* Poll for anything new every 25s. */
+let poller;
+function startPolling(){
+  clearInterval(poller);
+  poller = setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const fresh = await api("/news");
+      const known = new Set(S.news.map(n=>n.id));
+      const added = (fresh||[]).filter(n=>!known.has(n.id));
+      if (added.length){
+        S.news = fresh;
+        added.forEach(push);
+        paintBell();
+        if (S.tab === "news") render();
+      }
+    } catch {}
+  }, 25000);
+}
+
+/* ======================================================================
+   Setup / profile sheet
+   ====================================================================== */
+function openProfile(force){
+  const me = S.me || { id: uid(), name:"", team:"L&D", default_location:"Dubai" };
+  openSheet(`
+    <div class="sheet-hd">
+      ${force ? "" : '<button class="x" data-close aria-label="Close">✕</button>'}
+      <div class="kind" style="--kc:var(--fn-ld)">${force ? "Welcome" : "Your profile"}</div>
+      <h1 style="margin:6px 0 0;font-size:24px;font-weight:800;letter-spacing:-.02em">
+        ${force ? "Tell us who you are" : "Edit your details"}</h1>
+      <p class="muted" style="margin:8px 0 0;line-height:1.55">
+        Your name is stamped on every update, comment and event you post — no password needed.
+        Saved on this device only.</p>
+    </div>
+    <div class="sheet-bd">
+      <div class="field"><label>Full name</label>
+        <input type="text" id="p-name" value="${esc(me.name)}" placeholder="e.g. Rawdha Al Nuaimi" autocomplete="name"></div>
+      <div class="field"><label>Your team</label>
+        <select id="p-team">${TEAMS.map(t=>`<option value="${esc(t.key)}" ${t.key===me.team?"selected":""}>${esc(t.label)}</option>`).join("")}</select></div>
+      <div class="field"><label>Where you normally work</label>
+        <select id="p-loc">${LOCATIONS.map(l=>`<option value="${esc(l.key)}" ${l.key===me.default_location?"selected":""}>${esc(l.key)}</option>`).join("")}</select>
+        <span class="muted">Used on the calendar for any day you haven't picked a different office.</span></div>
+      <div class="row" style="margin-top:20px">
+        <button class="btn" id="p-save">${force ? "Enter the hub" : "Save"}</button>
+        ${force ? "" : '<button class="btn ghost" data-close>Cancel</button>'}
+      </div>
+    </div>`, { dismissable: !force });
+
+  $("#p-save").onclick = () => {
+    const name = $("#p-name").value.trim();
+    if (!name){ $("#p-name").focus(); toast("Your name, please"); return; }
+    saveMe({ id: me.id, name, team: $("#p-team").value, default_location: $("#p-loc").value });
+    closeSheet();
+    askPush();
+    render();
+  };
+}
+
+/* ======================================================================
+   Sheet plumbing
+   ====================================================================== */
+function openSheet(html, { dismissable = true } = {}){
+  const layer = $("#layer");
+  layer.innerHTML = `<div class="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  const scrim = $(".scrim", layer);
+  if (dismissable){
+    scrim.addEventListener("mousedown", e => { if (e.target === scrim) closeSheet(); });
+    $$("[data-close]", layer).forEach(b => b.onclick = closeSheet);
+    document.addEventListener("keydown", escClose);
+  }
+  document.body.style.overflow = "hidden";
+}
+function escClose(e){ if (e.key === "Escape") closeSheet(); }
+function closeSheet(){
+  $("#layer").innerHTML = "";
+  document.body.style.overflow = "";
+  document.removeEventListener("keydown", escClose);
+}
+
+/* ======================================================================
+   Views
+   ====================================================================== */
+function render(){
+  const v = $("#view");
+  if (!S.loaded){ v.innerHTML = `<div class="grid">${'<div class="skel"></div>'.repeat(6)}</div>`; return; }
+  if (S.tab === "projects") renderProjects(v);
+  else if (S.tab === "calendar") renderCalendar(v);
+  else renderNews(v);
+}
+
+/* ---------- Projects ---------- */
+function lastPost(id){ return (S.posts[id] || [])[0]; }
+
+function renderProjects(v){
+  const list = S.filter === "all" ? S.projects : S.projects.filter(p => p.function === S.filter);
+  v.innerHTML = `
+    <h1 class="page">Projects</h1>
+    <p class="lede">Every initiative across the four HR functions. Open one to post an update, move its
+      status or leave a comment — your name and the date are recorded automatically.</p>
+    <div class="chips">
+      <button class="chip ${S.filter==="all"?"on":""}" data-f="all">All projects <span class="muted">${S.projects.length}</span></button>
+      ${TEAMS.map(t=>`<button class="chip ${S.filter===t.key?"on":""}" data-f="${esc(t.key)}" style="color:${t.css}">
+        <i></i>${esc(t.label)}</button>`).join("")}
+    </div>
+    <div class="grid">${list.map(cardHTML).join("") || '<p class="muted">Nothing here yet.</p>'}</div>`;
+
+  $$(".chip",v).forEach(b => b.onclick = () => { S.filter = b.dataset.f; render(); });
+  $$(".pcard",v).forEach(b => b.onclick = () => openProject(b.dataset.id));
+}
+
+function cardHTML(p){
+  const st = S.state[p.id] || { status:"Not started", progress:0 };
+  const up = lastPost(p.id);
+  return `
+  <button class="pcard" data-id="${esc(p.id)}" style="--fn:${teamCss(p.function)}">
+    <div class="fn">${esc(teamLabel(p.function))}</div>
+    <h3>${esc(p.title.trim())}</h3>
+    ${p.summary ? `<p class="sum">${esc(p.summary)}</p>` : ""}
+    <div class="row" style="gap:8px">
+      <span class="pill ${stCls(st.status)}"><i></i>${esc(st.status)}</span>
+      <span class="muted" style="font-size:11.5px;font-weight:700">${st.progress}%</span>
+    </div>
+    <div class="bar"><i style="width:${Math.max(0,Math.min(100,st.progress))}%"></i></div>
+    <div class="meta"><span>${esc(p.owner || "—")}</span><span>·</span><span>${fmtRange(p.start_date,p.end_date)}</span></div>
+    ${up ? `<div class="lastup"><b style="color:var(--dim)">${esc(up.author_name)}</b> · ${ago(up.created_at)}<br>${esc(up.body)}</div>`
+         : `<div class="lastup">No updates yet — be the first.</div>`}
+  </button>`;
+}
+
+function heygenEmbed(url){
+  if (!url) return null;
+  const m = String(url).match(/([0-9a-f]{32})/i);
+  return m ? "https://app.heygen.com/embeds/" + m[1] : null;
+}
+
+function openProject(id){
+  const p = S.projects.find(x => x.id === id);
+  if (!p) return;
+  const st = S.state[id] || { status:"Not started", progress:0 };
+  const embed = heygenEmbed(p.video_url);
+  const posts = S.posts[id] || [];
+
+  openSheet(`
+    <div class="sheet-hd">
+      <button class="x" data-close aria-label="Close">✕</button>
+      <div class="kind" style="--kc:${teamCss(p.function)}">${esc(teamLabel(p.function))}</div>
+      <h1 style="margin:6px 0 0;font-size:25px;font-weight:800;letter-spacing:-.02em">${esc(p.title.trim())}</h1>
+      ${p.summary ? `<p class="muted" style="margin:8px 0 0;font-size:14px;line-height:1.55">${esc(p.summary)}</p>` : ""}
+      <div class="kv">
+        <div><b>Owner</b><span>${esc(p.owner||"—")}</span></div>
+        <div><b>Timeline</b><span>${fmtRange(p.start_date,p.end_date)}</span></div>
+        <div><b>Status</b><span class="pill ${stCls(st.status)}" style="align-self:flex-start"><i></i>${esc(st.status)}</span></div>
+      </div>
+    </div>
+    <div class="sheet-bd">
+      ${p.description ? `<p style="margin:0 0 18px;font-size:14.5px;line-height:1.65;color:var(--dim)">${esc(p.description)}</p>` : ""}
+      ${embed ? `<iframe class="vid" src="${esc(embed)}" allow="encrypted-media;fullscreen" allowfullscreen loading="lazy" title="Project video"></iframe>` : ""}
+      ${p.video_url ? `<p style="margin:8px 0 20px"><a class="btn ghost sm" style="display:inline-block;text-decoration:none"
+          href="${esc(p.video_url)}" target="_blank" rel="noopener">Open video in a new tab ↗</a></p>` : ""}
+
+      <div style="background:oklch(100% 0 0/.04);border:1px solid var(--line-2);border-radius:14px;padding:16px;margin-bottom:18px">
+        <div class="field"><label>Post an update</label>
+          <textarea id="u-body" placeholder="What moved this week? Blockers? Next step…"></textarea></div>
+        <div class="row" style="gap:16px;align-items:flex-end">
+          <div class="field" style="flex:1;min-width:180px;margin:0">
+            <label>Status</label>
+            <select id="u-status">${STATUSES.map(s=>`<option ${s.key===st.status?"selected":""}>${esc(s.key)}</option>`).join("")}</select>
+          </div>
+          <div class="field" style="flex:1;min-width:180px;margin:0">
+            <label>Progress <span id="u-pct">${st.progress}%</span></label>
+            <input type="range" id="u-prog" min="0" max="100" step="5" value="${st.progress}">
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" id="u-post">Post update</button>
+          <button class="btn ghost" id="u-comment">Just a comment</button>
+        </div>
+      </div>
+
+      <div style="font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dimmer);font-weight:700">
+        Activity <span style="opacity:.7">(${posts.length})</span></div>
+      <div class="feed" id="u-feed">
+        ${posts.map(postHTML).join("") || '<p class="muted" style="padding-top:14px">Nothing posted yet.</p>'}
+      </div>
+    </div>`);
+
+  $("#u-prog").oninput = e => $("#u-pct").textContent = e.target.value + "%";
+  $("#u-post").onclick    = () => submitPost(id, "update");
+  $("#u-comment").onclick = () => submitPost(id, "comment");
+}
+
+function postHTML(u){
+  return `
+  <div class="post">
+    <span class="avatar">${esc(initials(u.author_name))}</span>
+    <div class="post-bd">
+      <div class="post-hd">
+        <b>${esc(u.author_name)}</b>
+        ${u.author_team ? `<span class="tag">${esc(teamLabel(u.author_team))}</span>` : ""}
+        ${u.status ? `<span class="pill ${stCls(u.status)}"><i></i>${esc(u.status)}</span>` : ""}
+        <time>${fmtWhen(u.created_at)}</time>
+      </div>
+      <p>${esc(u.body)}</p>
+    </div>
+  </div>`;
+}
+
+async function submitPost(projectId, kind){
+  const body = $("#u-body").value.trim();
+  if (!body){ $("#u-body").focus(); toast("Write something first"); return; }
+  const status = kind === "update" ? $("#u-status").value : null;
+  const progress = kind === "update" ? Number($("#u-prog").value) : null;
+
+  $("#u-post").disabled = $("#u-comment").disabled = true;
+  try {
+    const { post, state } = await api("/posts", {
+      project_id: projectId, kind, status, progress, body,
+      author_id: S.me.id, author_name: S.me.name, author_team: S.me.team,
+    });
+    (S.posts[projectId] ||= []).unshift(post);
+    if (state) S.state[projectId] = state;
+
+    $("#u-body").value = "";
+    $("#u-feed").insertAdjacentHTML("afterbegin", postHTML(post));
+    toast(kind === "update" ? "Update posted" : "Comment added");
+  } catch(e){
+    toast("Could not save — check the connection");
+  } finally {
+    const a = $("#u-post"), b = $("#u-comment");
+    if (a) a.disabled = false; if (b) b.disabled = false;
+  }
+}
+
+/* ---------- Calendar ---------- */
+function whereOn(person, day){
+  const row = S.presence.find(r => r.person_id === person.id && r.day === day);
+  return row ? row.location : person.default_location;
+}
+
+function renderCalendar(v){
+  const days = [0,1,2,3,4].map(i => addDays(S.weekStart,i));
+  const today = iso(new Date());
+  const wkLabel = S.weekStart.toLocaleDateString("en-GB",{day:"numeric",month:"short"}) + " – " +
+                  addDays(S.weekStart,4).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+
+  v.innerHTML = `
+    <h1 class="page">Who's where</h1>
+    <p class="lede">Working week, Monday to Friday. Everyone shows at their usual office until they pick
+      somewhere else for a given day. Tap a location to open it on the map.</p>
+    <div class="cal-hd">
+      <button class="btn ghost sm" id="c-prev">← Previous</button>
+      <button class="btn ghost sm" id="c-today">This week</button>
+      <button class="btn ghost sm" id="c-next">Next →</button>
+      <b style="margin-left:6px;font-size:14px">${wkLabel}</b>
+      <span style="margin-left:auto"></span>
+      <button class="btn sm" id="c-mine">Set my week</button>
+    </div>
+    <div class="chips">
+      ${LOCATIONS.map(l=>`<a class="chip" style="color:${l.css};text-decoration:none" href="${esc(l.map)}"
+         target="_blank" rel="noopener" title="${esc(l.place)} — open on the map"><i></i>${esc(l.key)}
+         <span style="opacity:.6;font-weight:500;text-transform:none">${esc(l.place)}</span></a>`).join("")}
+    </div>
+    <div class="days">${days.map(d => dayHTML(d, today)).join("")}</div>`;
+
+  $("#c-prev").onclick  = async () => { S.weekStart = addDays(S.weekStart,-7); await loadPresence(); render(); };
+  $("#c-next").onclick  = async () => { S.weekStart = addDays(S.weekStart, 7); await loadPresence(); render(); };
+  $("#c-today").onclick = async () => { S.weekStart = monday(new Date()); await loadPresence(); render(); };
+  $("#c-mine").onclick  = () => openWeekPicker();
+  $$("[data-day]",v).forEach(b => b.onclick = () => openDayPicker(b.dataset.day));
+  $$("[data-loc]",v).forEach(b => b.onclick = () => window.open(mapLink(b.dataset.loc), "_blank", "noopener"));
+}
+
+function dayHTML(d, today){
+  const day = iso(d);
+  const people = S.people.length ? S.people : (S.me ? [S.me] : []);
+  const byLoc = {};
+  for (const p of people) (byLoc[whereOn(p, day)] ||= []).push(p);
+
+  const groups = LOCATIONS.filter(l => byLoc[l.key]?.length).map(l => `
+    <div class="locgrp" style="--loc:${l.css}">
+      <button data-loc="${esc(l.key)}" title="${esc(l.place)} — open on the map"><i></i>${esc(l.key)} · ${byLoc[l.key].length}</button>
+      <div class="who">${byLoc[l.key]
+        .sort((a,b)=>a.name.localeCompare(b.name))
+        .map(p=>`<span style="--tm:${teamCss(p.team)}" title="${esc(teamLabel(p.team))}">${esc(p.name)}</span>`).join("")}</div>
+    </div>`).join("");
+
+  return `
+  <div class="day ${day===today?"today":""}">
+    <div class="day-hd">
+      <b>${d.toLocaleDateString("en-GB",{weekday:"short"})}</b>
+      <span>${d.getDate()}</span>
+    </div>
+    ${groups || '<p class="empty">No one set yet.</p>'}
+    <button class="setme" data-day="${day}">${S.me ? "I'm somewhere else" : "Set your office"}</button>
+  </div>`;
+}
+
+function openDayPicker(day){
+  const cur = S.me ? whereOn(S.me, day) : "Dubai";
+  const label = new Date(day+"T00:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
+  openSheet(`
+    <div class="sheet-hd">
+      <button class="x" data-close aria-label="Close">✕</button>
+      <div class="kind" style="--kc:var(--fn-hrbp)">Your location</div>
+      <h1 style="margin:6px 0 0;font-size:23px;font-weight:800;letter-spacing:-.02em">${esc(label)}</h1>
+    </div>
+    <div class="sheet-bd">
+      <div class="field"><label>Working from</label>
+        <div class="seg" id="d-seg">
+          ${LOCATIONS.map(l=>`<button data-l="${esc(l.key)}" class="${l.key===cur?"on":""}" title="${esc(l.place)}">${esc(l.key)}</button>`).join("")}
+        </div>
+        <a class="muted" id="d-map" href="${esc(mapLink(cur))}" target="_blank" rel="noopener"
+           style="color:oklch(80% .1 230);text-decoration:none">📍 ${esc(locPlace(cur))} — open on the map</a>
+      </div>
+      <div class="row" style="margin-top:18px">
+        <button class="btn" id="d-save">Save</button>
+        <button class="btn ghost" id="d-clear">Back to my usual office</button>
+      </div>
+    </div>`);
+
+  let pick = cur;
+  $$("#d-seg button").forEach(b => b.onclick = () => {
+    pick = b.dataset.l;
+    $$("#d-seg button").forEach(x => x.classList.toggle("on", x === b));
+    const m = $("#d-map");
+    m.href = mapLink(pick);
+    m.textContent = "📍 " + locPlace(pick) + " — open on the map";
+  });
+  $("#d-save").onclick  = () => setPresence([day], pick);
+  $("#d-clear").onclick = () => setPresence([day], S.me.default_location);
+}
+
+function openWeekPicker(){
+  const days = [0,1,2,3,4].map(i => addDays(S.weekStart,i));
+  openSheet(`
+    <div class="sheet-hd">
+      <button class="x" data-close aria-label="Close">✕</button>
+      <div class="kind" style="--kc:var(--fn-hrbp)">Your week</div>
+      <h1 style="margin:6px 0 0;font-size:23px;font-weight:800;letter-spacing:-.02em">Set all five days</h1>
+      <p class="muted" style="margin:8px 0 0">Leave a day on your usual office if nothing changes.</p>
+    </div>
+    <div class="sheet-bd">
+      ${days.map(d=>{
+        const day = iso(d), cur = whereOn(S.me, day);
+        return `<div class="field"><label>${d.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short"})}</label>
+          <select data-day="${day}">${LOCATIONS.map(l=>`<option ${l.key===cur?"selected":""}>${esc(l.key)}</option>`).join("")}</select></div>`;
+      }).join("")}
+      <div class="row" style="margin-top:6px"><button class="btn" id="w-save">Save week</button></div>
+    </div>`);
+
+  $("#w-save").onclick = async () => {
+    const rows = $$("#layer select[data-day]").map(s => ({ day: s.dataset.day, location: s.value }));
+    $("#w-save").disabled = true;
+    try {
+      await api("/presence", rows.map(r => ({
+        person_id:S.me.id, day:r.day, location:r.location,
+        person_name:S.me.name, team:S.me.team,
+      })));
+      await loadPresence(); closeSheet(); render(); toast("Your week is set");
+    } catch { toast("Could not save"); $("#w-save").disabled = false; }
+  };
+}
+
+async function setPresence(days, location){
+  try {
+    await api("/presence", days.map(day => ({
+      person_id:S.me.id, day, location,
+      person_name:S.me.name, team:S.me.team,
+    })));
+    await loadPresence(); closeSheet(); render(); toast(location + " — saved");
+  } catch { toast("Could not save"); }
+}
+
+/* ---------- News ---------- */
+function renderNews(v){
+  markSeen();
+  v.innerHTML = `
+    <h1 class="page">News &amp; events</h1>
+    <p class="lede">Promotions, achievements, events and meetings — anyone can post, everyone gets notified.
+      Events and meetings carry their location.</p>
+    <div class="row" style="margin-bottom:20px">
+      <button class="btn" id="n-new">+ Post something</button>
+      ${("Notification" in window && Notification.permission === "default")
+        ? '<button class="btn ghost" id="n-push">Turn on device notifications</button>' : ""}
+    </div>
+    <div class="news">${S.news.map(newsHTML).join("") || '<p class="muted">Nothing posted yet.</p>'}</div>`;
+
+  $("#n-new").onclick = openNewsComposer;
+  const pb = $("#n-push");
+  if (pb) pb.onclick = async () => { await askPush(); render(); };
+  wireNewsCards(v);
+}
+
+function newsHTML(n){
+  const k = kindOf(n.kind);
+  const cs = S.comments[n.id] || [];
+  return `
+  <article class="ncard" style="--kc:${k.css}" data-news="${esc(n.id)}">
+    <div class="kind">${k.icon} ${esc(k.label)}${n.team ? " · " + esc(teamLabel(n.team)) : ""}</div>
+    <h3>${esc(n.title)}</h3>
+    ${n.body ? `<p class="body">${esc(n.body)}</p>` : ""}
+    <div class="nmeta">
+      <span>${esc(n.author_name)} · ${ago(n.created_at)}</span>
+      ${n.starts_at ? `<span>🕒 ${fmtWhen(n.starts_at)}</span>` : ""}
+      ${n.location ? `<a href="${esc(mapLink(n.location))}" target="_blank" rel="noopener"
+          >📍 ${esc(n.location)} · ${esc(locPlace(n.location))} — open map</a>` : ""}
+    </div>
+    <div class="cmts">
+      ${cs.map(c=>`
+        <div class="cmt"><span class="avatar">${esc(initials(c.author_name))}</span>
+          <div><b>${esc(c.author_name)}</b><time>${ago(c.created_at)}</time><p>${esc(c.body)}</p></div></div>`).join("")}
+      <div class="cmtbox">
+        <input type="text" placeholder="Add a comment…" data-cin="${esc(n.id)}">
+        <button class="btn sm" data-csend="${esc(n.id)}">Send</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function wireNewsCards(root){
+  $$("[data-csend]",root).forEach(b => b.onclick = () => sendComment(b.dataset.csend));
+  $$("[data-cin]",root).forEach(i => i.onkeydown = e => { if (e.key === "Enter") sendComment(i.dataset.cin); });
+}
+
+async function sendComment(newsId){
+  const input = $(`[data-cin="${newsId}"]`);
+  const body = input.value.trim();
+  if (!body) return;
+  input.value = "";
+  try {
+    const row = await api("/news-comments", { news_id:newsId, body, author_name:S.me.name });
+    (S.comments[row.news_id] ||= []).push(row);
+    render();
+  } catch { toast("Could not send"); input.value = body; }
+}
+
+function openNewsComposer(){
+  openSheet(`
+    <div class="sheet-hd">
+      <button class="x" data-close aria-label="Close">✕</button>
+      <div class="kind" style="--kc:var(--fn-comms)">New post</div>
+      <h1 style="margin:6px 0 0;font-size:23px;font-weight:800;letter-spacing:-.02em">Share it with everyone</h1>
+      <p class="muted" style="margin:8px 0 0">Everyone on the hub gets a notification.</p>
+    </div>
+    <div class="sheet-bd">
+      <div class="field"><label>Type</label>
+        <div class="seg" id="n-seg">
+          ${NEWS_KINDS.map((k,i)=>`<button data-k="${k.key}" class="${i===0?"on":""}">${k.icon} ${esc(k.label)}</button>`).join("")}
+        </div>
+      </div>
+      <div class="field"><label>Headline</label>
+        <input type="text" id="n-title" placeholder="e.g. Maryam promoted to Senior HRBP"></div>
+      <div class="field"><label>Details <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+        <textarea id="n-body" placeholder="A couple of lines…"></textarea></div>
+      <div class="row" style="gap:14px;align-items:flex-start">
+        <div class="field" style="flex:1;min-width:200px"><label>Team <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+          <select id="n-team"><option value="">Everyone</option>
+            ${TEAMS.map(t=>`<option value="${esc(t.key)}">${esc(t.label)}</option>`).join("")}</select></div>
+        <div class="field" style="flex:1;min-width:200px"><label>Location</label>
+          <select id="n-loc"><option value="">No location</option>
+            ${LOCATIONS.map(l=>`<option>${esc(l.key)}</option>`).join("")}</select></div>
+      </div>
+      <div class="field" id="n-whenwrap"><label>Date &amp; time</label>
+        <input type="datetime-local" id="n-when"></div>
+      <div class="row" style="margin-top:6px"><button class="btn" id="n-save">Post</button></div>
+    </div>`);
+
+  let kind = NEWS_KINDS[0].key;
+  const syncKind = () => {
+    const ev = kind === "event" || kind === "meeting";
+    $("#n-whenwrap").style.display = ev ? "" : "none";
+    if (ev && !$("#n-loc").value) $("#n-loc").value = S.me.default_location;
+  };
+  $$("#n-seg button").forEach(b => b.onclick = () => {
+    kind = b.dataset.k;
+    $$("#n-seg button").forEach(x => x.classList.toggle("on", x === b));
+    syncKind();
+  });
+  syncKind();
+
+  $("#n-save").onclick = async () => {
+    const title = $("#n-title").value.trim();
+    if (!title){ $("#n-title").focus(); toast("Add a headline"); return; }
+    const when = $("#n-when").value;
+    $("#n-save").disabled = true;
+    try {
+      const row = await api("/news", {
+        kind, title,
+        body: $("#n-body").value.trim() || null,
+        team: $("#n-team").value || null,
+        location: $("#n-loc").value || null,
+        starts_at: (kind === "event" || kind === "meeting") && when ? new Date(when).toISOString() : null,
+        author_id: S.me.id, author_name: S.me.name,
+      });
+      S.news.unshift(row);
+      closeSheet(); S.tab = "news"; paintTabs(); render(); toast("Posted");
+    } catch { toast("Could not post"); $("#n-save").disabled = false; }
+  };
+}
+
+/* ======================================================================
+   Chrome
+   ====================================================================== */
+function paintTabs(){
+  $$("nav.tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
+}
+function tick(){
+  const now = new Date();
+  $("#clock").textContent =
+    now.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"}) +
+    " · " + now.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+}
+
+$$("nav.tabs button").forEach(b => b.onclick = async () => {
+  S.tab = b.dataset.tab; paintTabs();
+  if (S.tab === "calendar") { render(); await loadPresence(); }
+  render();
+});
+$("#mebtn").onclick = () => openProfile(false);
+$("#bell").onclick  = () => { S.tab = "news"; paintTabs(); render(); window.scrollTo({top:0,behavior:"smooth"}); };
+
+/* ======================================================================
+   Boot
+   ====================================================================== */
+(async function boot(){
+  tick(); setInterval(tick, 30000);
+  loadMe();
+  render();
+  try {
+    await loadAll();
+    await loadPresence();
+  } catch(e){
+    $("#view").innerHTML = `<h1 class="page">Can't reach the hub</h1>
+      <p class="lede">The database didn't answer. Check your connection and refresh.</p>`;
+    return;
+  }
+  if (!S.me) openProfile(true); else { paintMe(); saveMe(S.me); }
+  render();
+  startPolling();
+})();
+</script>
+</body>
+</html>
