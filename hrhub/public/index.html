@@ -386,6 +386,17 @@ const ago = s => {
   return new Date(s).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
 };
 
+/* Locked-down corporate browsers can refuse localStorage outright, and an
+   exception here would take the whole app down at boot. Degrade to a
+   per-tab memory store instead: the hub still works, it just asks for the
+   name again next visit. */
+const store = (() => {
+  const mem = {};
+  try { localStorage.setItem("hub.probe","1"); localStorage.removeItem("hub.probe");
+        return { get:k=>localStorage.getItem(k), set:(k,v)=>localStorage.setItem(k,v) }; }
+  catch { return { get:k=>mem[k] ?? null, set:(k,v)=>{ mem[k]=v; } }; }
+})();
+
 function toast(msg){
   const el = document.createElement("div");
   el.className = "toast"; el.textContent = msg;
@@ -424,16 +435,16 @@ const S = {
   news: [], comments: {},
   filter: "all",
   weekStart: monday(new Date()),
-  seen: Number(localStorage.getItem("hub.seen") || 0),
+  seen: Number(store.get("hub.seen") || 0),
   loaded: false,
 };
 
 function loadMe(){
-  try { S.me = JSON.parse(localStorage.getItem("hub.me") || "null"); } catch { S.me = null; }
+  try { S.me = JSON.parse(store.get("hub.me") || "null"); } catch { S.me = null; }
 }
 function saveMe(me){
   S.me = me;
-  localStorage.setItem("hub.me", JSON.stringify(me));
+  store.set("hub.me", JSON.stringify(me));
   api("/people", me).then(row => {
     const i = S.people.findIndex(p => p.id === row.id);
     if (i >= 0) S.people[i] = row; else S.people.push(row);
@@ -483,7 +494,7 @@ function paintBell(){
 }
 function markSeen(){
   S.seen = Date.now();
-  localStorage.setItem("hub.seen", String(S.seen));
+  store.set("hub.seen", String(S.seen));
   paintBell();
 }
 async function askPush(){

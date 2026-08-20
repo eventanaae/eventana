@@ -37,9 +37,19 @@ function sslOption(url) {
   }
 }
 
+/**
+ * Render's free tier allows exactly one database per account, and Eventana
+ * already holds it — so this app shares that instance but keeps every table
+ * inside its own `hrhub` schema. Nothing here can collide with Eventana's
+ * tables, and the whole app moves to a database of its own with a dump of
+ * one schema whenever that is worth doing.
+ */
+const SCHEMA_NAME = 'hrhub';
+
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: sslOption(process.env.DATABASE_URL || ''),
+  options: `-c search_path=${SCHEMA_NAME},public`,
   max: 5,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 15_000,
@@ -116,8 +126,11 @@ create index if not exists hr_news_comments_idx on hr_news_comments(news_id, cre
 `;
 
 async function migrate() {
+  // `create schema` ignores search_path, so this is safe to run first even
+  // though every pooled connection already points search_path at it.
+  await pool.query(`create schema if not exists ${SCHEMA_NAME}`);
   await pool.query(SCHEMA);
-  console.log('[db] schema ready');
+  console.log(`[db] schema "${SCHEMA_NAME}" ready`);
 }
 
 /* --------------------------------------------------------------- http */
