@@ -590,6 +590,7 @@ function closeSheet(){
   $("#layer").innerHTML = "";
   document.body.style.overflow = "";
   document.removeEventListener("keydown", escClose);
+  if (S.loaded) render();   // a status posted in the sheet must show on the card behind it
 }
 
 /* ======================================================================
@@ -693,9 +694,9 @@ function openProject(id){
       </div>
 
       <div style="font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dimmer);font-weight:700">
-        Activity <span style="opacity:.7">(${posts.length})</span></div>
+        Activity <span style="opacity:.7" id="u-count">(${posts.length})</span></div>
       <div class="feed" id="u-feed">
-        ${posts.map(postHTML).join("") || '<p class="muted" style="padding-top:14px">Nothing posted yet.</p>'}
+        ${posts.map(postHTML).join("") || '<p class="muted" id="u-empty" style="padding-top:14px">Nothing posted yet.</p>'}
       </div>
     </div>`);
 
@@ -736,7 +737,9 @@ async function submitPost(projectId, kind){
     if (state) S.state[projectId] = state;
 
     $("#u-body").value = "";
+    $("#u-empty")?.remove();
     $("#u-feed").insertAdjacentHTML("afterbegin", postHTML(post));
+    $("#u-count").textContent = "(" + (S.posts[projectId].length) + ")";
     toast(kind === "update" ? "Update posted" : "Comment added");
   } catch(e){
     toast("Could not save — check the connection");
