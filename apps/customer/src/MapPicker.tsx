@@ -193,6 +193,15 @@ export function MapPicker({
           overflow: 'hidden',
           border: `1px solid ${C.pinkLine}`,
           background: C.pinkSoft,
+          // iOS Safari: the checkout card runs a `transform`/`opacity` entrance
+          // animation (@keyframes rise). A Google Map clipped by overflow+radius
+          // inside that animated ancestor loses its GPU layer on the next repaint
+          // and blanks out ("appears then disappears"). Pinning the map to its own
+          // stable compositing layer keeps the ancestor from clipping it away.
+          transform: 'translateZ(0)',
+          WebkitTransform: 'translateZ(0)',
+          isolation: 'isolate',
+          willChange: 'transform',
         }}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
