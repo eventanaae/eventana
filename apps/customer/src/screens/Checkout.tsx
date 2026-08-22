@@ -7,6 +7,13 @@ import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
 import { TermsSheet } from './Terms';
 
+/** Pink pill for a payment-method badge (Apple Pay / Card / Google Pay). */
+const payBadge = {
+  background: '#FCE7F0', color: '#3B3641', borderRadius: 9,
+  padding: '6px 12px', fontSize: 12.5, fontWeight: 800,
+  display: 'inline-flex', alignItems: 'center',
+} as const;
+
 /** Placement photos are offered only for items actually in the booking. */
 const PHOTO_ROWS: Array<{ key: string; label: string; match: RegExp }> = [
   { key: 'backdrop', label: 'Main Backdrop', match: /backdrop/i },
@@ -94,6 +101,17 @@ export function Checkout({
   useEffect(() => {
     api.startTimes().then(setTimes).catch(() => setTimes([]));
   }, []);
+
+  // Make sure a valid, enabled payment method is selected. A saved draft can
+  // carry a stale provider (e.g. a disabled BNPL default) that would fail at
+  // checkout — snap to the first live method instead.
+  useEffect(() => {
+    const pms = catalogue.paymentMethods;
+    if (pms.length && !pms.some((p) => p.name === draft.provider)) {
+      update({ provider: pms[0].name });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogue.paymentMethods, draft.provider]);
 
   // Load the customer's rewards balance once signed in (for credit + points).
   useEffect(() => {
@@ -609,21 +627,44 @@ export function Checkout({
 
       {/* ---------------- payment ---------------- */}
       <div style={{ fontWeight: 700, fontSize: 14, margin: '18px 0 10px' }}>{t('checkout.payWith')}</div>
-      <div style={{ display: 'flex', gap: 9 }}>
+      <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
         {catalogue.paymentMethods.map((pm) => {
           const active = draft.provider === pm.name;
+          // Ziina is the wallet/card rail — show what the customer actually pays
+          // with (Apple Pay / Card / Google Pay), never the provider's name.
+          const isWallet = pm.name === 'ziina';
           return (
             <div
               key={pm.name}
               onClick={() => update({ provider: pm.name })}
               style={{
-                flex: 1, textAlign: 'center', background: '#fff',
+                flex: 1, minWidth: isWallet ? '100%' : 0, textAlign: 'center', background: '#fff',
                 border: `2px solid ${active ? C.pink : C.pinkLine}`,
-                borderRadius: 16, padding: '13px 4px', cursor: 'pointer',
+                borderRadius: 16, padding: '13px 8px', cursor: 'pointer',
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{pm.label}</div>
-              <div style={{ fontSize: 9.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>{pm.tagline}</div>
+              {isWallet ? (
+                <>
+                  <div style={{ display: 'flex', gap: 7, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <span style={payBadge}>
+                      <svg viewBox="0 0 384 512" width="12" height="12" fill="currentColor" style={{ marginInlineEnd: 4, verticalAlign: '-1px' }}>
+                        <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+                      </svg>
+                      Pay
+                    </span>
+                    <span style={payBadge}>{t('checkout.pmCard')}</span>
+                    <span style={payBadge}><span style={{ color: '#4285F4', fontWeight: 800, marginInlineEnd: 3 }}>G</span> Pay</span>
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 7 }}>
+                    {t('checkout.pmSecure')}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>{pm.label}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>{pm.tagline}</div>
+                </>
+              )}
               {pm.mode === 'simulated' && (
                 <div style={{ fontSize: 8.5, fontWeight: 700, color: C.yellowInk, marginTop: 3, letterSpacing: '.3px' }}>
                   SANDBOX
