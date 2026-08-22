@@ -27,7 +27,7 @@ export function Checkout({
   onOrder,
   t,
   lang,
-}: ScreenProps & { onOrder: (orderId: string) => void }) {
+}: ScreenProps & { onOrder: (orderId: string, embedUrl?: string | null) => void }) {
   const [times, setTimes] = useState<Array<{ value: string; allowed: boolean }>>([]);
   const [paying, setPaying] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -164,15 +164,19 @@ export function Checkout({
         useCredit,
         redeemPoints,
       }, agreed);
-      if (!result.eligible || !result.checkoutUrl) {
+      if (!result.eligible || (!result.embeddedUrl && !result.checkoutUrl)) {
         setError(t('checkout.providerUnavailable', { provider: draft.provider }));
         setPaying(false);
         return;
       }
-      // Hand off to the provider's hosted checkout. Nothing is confirmed
-      // here — the app comes back and waits for the server's own view.
-      onOrder(result.orderId);
-      window.location.href = result.checkoutUrl;
+      // Preferred: pay inside the app via the provider's embedded widget (no
+      // redirect). The confirming screen shows it in an iframe and polls our
+      // own server for the real confirmation. Fall back to the hosted page for
+      // providers that only offer a redirect. Nothing is confirmed here.
+      onOrder(result.orderId, result.embeddedUrl ?? null);
+      if (!result.embeddedUrl && result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+      }
     } catch (e: any) {
       // A thrown fetch (no server body) is a connection problem — show a clear,
       // localised message instead of the browser's raw "Load failed".

@@ -13,11 +13,14 @@ import type { TFn } from '../i18n';
  */
 export function PaymentReturn({
   orderId,
+  embedUrl,
   onConfirmed,
   onRetry,
   t,
 }: {
   orderId: string;
+  /** When set, pay inside the app via this embedded widget (no redirect). */
+  embedUrl?: string | null;
   onConfirmed: (eventId: string) => void;
   onRetry: () => void;
   t: TFn;
@@ -114,6 +117,39 @@ export function PaymentReturn({
       <div style={{ padding: '60px 30px', textAlign: 'center' }}>
         <div style={{ ...fredoka(22), marginBottom: 12 }}>{t('pay.reviewTitle')}</div>
         <Notice tone="warn">{t('pay.reviewBody')}</Notice>
+      </div>
+    );
+  }
+
+  // In-app payment: show the provider's embedded widget in an iframe and keep
+  // polling our server underneath. The customer never leaves the app.
+  if (embedUrl) {
+    return (
+      <div style={{ padding: '10px 12px 20px', animation: 'rise .3s ease' }}>
+        <div style={{ ...fredoka(18), textAlign: 'center', margin: '4px 0 10px' }}>{t('pay.securePay')}</div>
+        <iframe
+          src={embedUrl}
+          title={t('pay.securePay')}
+          allow="payment *; clipboard-write"
+          style={{ width: '100%', height: '68vh', border: `1px solid ${C.pinkLine}`, borderRadius: 16, background: '#fff' }}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12 }}>
+          <Spinner />
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{t('pay.confirmingBody')}</span>
+        </div>
+        {waited > 25 && (
+          <div style={{ marginTop: 14 }}>
+            <Notice tone="info">{t('pay.stillConfirming')}</Notice>
+          </div>
+        )}
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <button
+            onClick={onRetry}
+            style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {t('pay.cancelPay')}
+          </button>
+        </div>
       </div>
     );
   }

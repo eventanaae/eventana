@@ -147,6 +147,7 @@ export default function App() {
   const [quoteNonce, setQuoteNonce] = useState(0);
   const retryQuote = useCallback(() => setQuoteNonce((n) => n + 1), []);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [payUrl, setPayUrl] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Password-reset deep link (?reset=<token>) — handled before anything else.
@@ -367,13 +368,14 @@ export default function App() {
         {screen === 'assistant' && <Assistant {...shared} />}
         {screen === 'movieselect' && <MovieSelect {...shared} />}
         {screen === 'checkout' && (
-          <Checkout {...shared} onOrder={(id) => { setOrderId(id); go('confirming'); }} />
+          <Checkout {...shared} onOrder={(id, embed) => { setOrderId(id); setPayUrl(embed ?? null); go('confirming'); }} />
         )}
         {screen === 'confirming' && orderId && (
           <PaymentReturn
             orderId={orderId}
-            onConfirmed={(id) => { setEventId(id); reset(); go('myevent'); }}
-            onRetry={() => go('checkout')}
+            embedUrl={payUrl}
+            onConfirmed={(id) => { setEventId(id); setPayUrl(null); reset(); go('myevent'); }}
+            onRetry={() => { setPayUrl(null); go('checkout'); }}
             t={t}
           />
         )}

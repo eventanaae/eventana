@@ -105,6 +105,8 @@ export interface CheckoutResult {
   paymentId: string;
   provider: string;
   checkoutUrl: string | null;
+  /** In-app iframe widget URL (Ziina); null when only a hosted redirect exists. */
+  embeddedUrl?: string | null;
   eligible: boolean;
   totalFils: number;
   holdExpiresAt: string;
@@ -276,6 +278,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       paymentId,
       provider: provider.name,
       checkoutUrl: session.checkoutUrl,
+      embeddedUrl: session.embeddedUrl ?? null,
       eligible: true,
       totalFils: serverQuote.totalFils,
       holdExpiresAt: new Date(Date.now() + cfg.rules.inventoryHoldMinutes * 60_000).toISOString(),

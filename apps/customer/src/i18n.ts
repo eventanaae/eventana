@@ -382,6 +382,8 @@ const en: Dict = {
   'pay.reviewTitle': 'We’re checking this one by hand',
   'pay.reviewBody': 'Something about this payment needs a person to look at it. The Eventana team has been notified and will contact you shortly — please don’t pay again in the meantime.',
   'pay.confirming': 'Confirming your payment…',
+  'pay.securePay': 'Secure payment',
+  'pay.cancelPay': 'Cancel and go back',
   'pay.confirmingBody': 'We’re waiting for your payment provider to confirm directly with Eventana. This usually takes a few seconds — keep this screen open.',
   'pay.stillConfirming': 'Still confirming. Your booking is safe — if the provider is slow, our system checks again automatically and we’ll notify you the moment it lands.',
 
@@ -807,6 +809,8 @@ const ar: Dict = {
   'pay.reviewTitle': 'نراجع هذه العملية يدوياً',
   'pay.reviewBody': 'هذه العملية تحتاج مراجعة شخص. تم إشعار فريق Eventana وسيتواصل معك قريباً — لا تدفع مرة أخرى في هذه الأثناء من فضلك.',
   'pay.confirming': 'جارٍ تأكيد دفعك…',
+  'pay.securePay': 'دفع آمن',
+  'pay.cancelPay': 'إلغاء والرجوع',
   'pay.confirmingBody': 'ننتظر تأكيد مزوّد الدفع مباشرة مع Eventana. عادة يأخذ ثوانٍ — أبقِ هذه الشاشة مفتوحة.',
   'pay.stillConfirming': 'ما زلنا نؤكّد. حجزك بأمان — إذا تأخّر المزوّد، نظامنا يتحقّق تلقائياً ونشعرك فور وصوله.',
 

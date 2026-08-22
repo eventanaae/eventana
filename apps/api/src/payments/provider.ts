@@ -61,6 +61,12 @@ export interface CreateSessionResult {
   /** Hosted checkout URL, or null when the customer was not approved. */
   checkoutUrl: string | null;
   /**
+   * Embeddable widget URL for an in-app iframe (payment stays on our site,
+   * no redirect). Ziina returns this alongside the redirect URL; providers
+   * that only offer a hosted page leave it null.
+   */
+  embeddedUrl?: string | null;
+  /**
    * False when the provider declined this customer up front. The caller
    * hides the method and offers another — never an error screen (§7).
    */

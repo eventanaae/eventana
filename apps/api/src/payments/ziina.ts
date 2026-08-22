@@ -79,10 +79,12 @@ export class ZiinaProvider implements PaymentProvider {
     });
 
     const checkoutUrl = res?.redirect_url ?? null;
+    const embeddedUrl = res?.embedded_url ?? null;
     return {
       providerPaymentId: String(res?.id ?? ''),
       checkoutUrl,
-      eligible: Boolean(checkoutUrl),
+      embeddedUrl,
+      eligible: Boolean(checkoutUrl || embeddedUrl),
       raw: res,
     };
   }
