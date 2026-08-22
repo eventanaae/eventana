@@ -132,13 +132,14 @@ export const api = {
     cart: unknown,
     provider: string,
     discounts?: { promoCode?: string | null; useCredit?: boolean; redeemPoints?: boolean },
+    termsAccepted?: boolean,
   ) =>
     request<{
       orderId: string; checkoutUrl: string | null; eligible: boolean;
       totalFils: number; holdExpiresAt: string;
     }>('/api/checkout', {
       method: 'POST',
-      body: JSON.stringify({ cart, customerId: currentCustomerId(), provider, discounts }),
+      body: JSON.stringify({ cart, customerId: currentCustomerId(), provider, discounts, termsAccepted }),
     }),
 
   checkPromo: (code: string, subtotalFils: number) =>
@@ -190,6 +191,7 @@ export const api = {
       points: number; redeemableFils: number; referralCode: string | null; creditFils: number;
       lifetimeEarned: number; tier: string;
       nextTier: string | null; pointsToNextTier: number; progressPct: number;
+      vouchers: Array<{ code: string; percent: number; expiresAt: string | null }>;
       history: Array<{ points: number; reason: string; at: string | null }>;
     }>('/api/rewards'),
 

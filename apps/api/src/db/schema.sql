@@ -155,6 +155,15 @@ CREATE TABLE IF NOT EXISTS promo_codes (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Personal vouchers (e.g. the 20%-off "next booking" reward) reuse this table.
+--  customer_id: NULL = a public marketing code; set = usable only by that customer.
+--  auto_reminder: this is a personal reward we nudge the customer about every 6 months.
+--  last_reminded_at: when the last reminder email went out (NULL = never).
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS customer_id TEXT;
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS auto_reminder BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS last_reminded_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS promo_codes_customer_idx ON promo_codes (customer_id);
+
 -- One redemption per customer per code (also the audit trail).
 CREATE TABLE IF NOT EXISTS promo_redemptions (
   id          BIGSERIAL PRIMARY KEY,

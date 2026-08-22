@@ -97,6 +97,23 @@ export async function eventRoutes(app: FastifyInstance) {
     );
     const lifetimeEarned = Number(earned[0]?.earned ?? 0);
 
+    // Personal, unused, unexpired vouchers (e.g. the 20%-off next-booking reward).
+    const { rows: voucherRows } = await pool.query(
+      `SELECT code, value, expires_at
+         FROM promo_codes p
+        WHERE p.customer_id = $1 AND p.active AND p.kind = 'percent'
+          AND (p.expires_at IS NULL OR p.expires_at > now())
+          AND (p.max_uses IS NULL OR p.uses < p.max_uses)
+          AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code AND r.customer_id = $1)
+        ORDER BY p.created_at DESC`,
+      [customerId],
+    );
+    const vouchers = voucherRows.map((v) => ({
+      code: v.code,
+      percent: Number(v.value),
+      expiresAt: v.expires_at?.toISOString?.() ?? null,
+    }));
+
     const { rows: history } = await pool.query(
       `SELECT points, reason, created_at
          FROM loyalty_transactions WHERE customer_id = $1
@@ -124,6 +141,7 @@ export async function eventRoutes(app: FastifyInstance) {
       redeemableFils: points * 2, // 100 points = AED 2
       referralCode,
       creditFils,
+      vouchers,
       lifetimeEarned,
       tier: TIERS[tierIndex].name,
       nextTier: next?.name ?? null,

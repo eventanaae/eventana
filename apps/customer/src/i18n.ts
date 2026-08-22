@@ -122,6 +122,9 @@ const en: Dict = {
   'profile.credit': 'Your Eventana credit',
   'profile.copied': 'Copied!',
   'profile.share': 'Share',
+  'profile.voucherTitle': 'Your next-booking reward',
+  'profile.voucherSub': '{percent}% off your next Eventana booking — tap to copy the code, then enter it at checkout.',
+  'profile.voucherExpiry': 'valid until {date}',
 
   // assistant
   'assistant.title': 'Eventana Assistant',
@@ -307,6 +310,10 @@ const en: Dict = {
   'checkout.setupSpotBody': 'Once your booking is confirmed, open My Event to snap where you’d like each item placed — your team sees it before they arrive.',
   'checkout.eventTime': 'Date & time',
   'checkout.eventDate': 'Event date',
+  'checkout.tooSoon': 'Bookings need at least 48 hours’ notice so our team can prepare. Please choose a later date.',
+  'checkout.rushNote': '⏳ Rush booking — events within a week add a 40% rush fee (already included in your total below).',
+  'checkout.agreePre': 'I agree to the',
+  'checkout.agreeLink': 'Terms & Conditions',
   'checkout.startTimeLabel': 'Start time',
   'checkout.pickStart': 'Pick a start time — your 4-hour party ends automatically.',
   'checkout.numChildren': 'Number of children attending',
@@ -540,6 +547,9 @@ const ar: Dict = {
   'profile.credit': 'رصيدك في Eventana',
   'profile.copied': 'تم النسخ!',
   'profile.share': 'مشاركة',
+  'profile.voucherTitle': 'مكافأة حجزك القادم',
+  'profile.voucherSub': 'خصم {percent}٪ على حجزك القادم في إيفنتانا — اضغطي لنسخ الكود ثم أدخليه عند الدفع.',
+  'profile.voucherExpiry': 'صالح حتى {date}',
 
   // assistant
   'assistant.title': 'مساعد Eventana',
@@ -725,6 +735,10 @@ const ar: Dict = {
   'checkout.setupSpotBody': 'بعد تأكيد حجزك، افتح «مناسبتي» وصوّر المكان اللي تبيه لكل عنصر — يشوفه فريقك قبل وصوله.',
   'checkout.eventTime': 'التاريخ والوقت',
   'checkout.eventDate': 'تاريخ المناسبة',
+  'checkout.tooSoon': 'الحجز يحتاج ٤٨ ساعة على الأقل عشان الفريق يجهّز. رجاءً اختاري تاريخ أبعد.',
+  'checkout.rushNote': '⏳ حجز مستعجل — المناسبات خلال أسبوع تُضاف لها رسوم استعجال ٤٠٪ (مضمّنة في الإجمالي بالأسفل).',
+  'checkout.agreePre': 'أوافق على',
+  'checkout.agreeLink': 'الشروط والأحكام',
   'checkout.startTimeLabel': 'وقت البداية',
   'checkout.pickStart': 'اختر وقت البداية — حفلتك (4 ساعات) تنتهي تلقائياً.',
   'checkout.numChildren': 'عدد الأطفال الحاضرين',

@@ -19,6 +19,12 @@ export interface PricingRules {
   standardEventHours: number;
   /** No Eventana event may run past this hour (24 = midnight). */
   latestEndHour: number;
+  /** Bookings at least this many days ahead are priced normally. */
+  standardLeadDays: number;
+  /** Bookings closer than this many hours to the event are refused outright. */
+  minLeadHours: number;
+  /** Surcharge (percent) on a rush booking made inside the standard lead window. */
+  rushSurchargePercent: number;
   additionalHourFils: number;
   socksPerPairFils: number;
   /** How long a checkout holds inventory before it is released. */
@@ -41,6 +47,9 @@ export const DEFAULT_PRICING_RULES: PricingRules = {
   customThemeFeeFils: aed(800),
   standardEventHours: 4,
   latestEndHour: 24,
+  standardLeadDays: 7,
+  minLeadHours: 48,
+  rushSurchargePercent: 40,
   additionalHourFils: aed(800),
   socksPerPairFils: aed(12),
   inventoryHoldMinutes: 15,

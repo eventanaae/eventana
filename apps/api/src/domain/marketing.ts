@@ -83,6 +83,65 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
   return { recipients: recips.length, sent };
 }
 
+/**
+ * Reminds customers about an unused personal reward (the 20%-off next-booking
+ * voucher) every ~6 months until they use it or it expires. Runs from the same
+ * periodic sweep; the 6-month WHERE clause keeps it from ever emailing twice in
+ * a window, so it is safe to call as often as the sweep fires.
+ */
+export async function sweepVoucherReminders(): Promise<number> {
+  if (!emailEnabled()) return 0;
+  const { rows } = await pool.query<{
+    code: string;
+    value: number;
+    expires_at: Date | null;
+    id: string;
+    email: string;
+    name: string;
+  }>(
+    `SELECT p.code, p.value, p.expires_at, c.id, c.email, c.name
+       FROM promo_codes p
+       JOIN customers c ON c.id = p.customer_id
+      WHERE p.auto_reminder AND p.active
+        AND c.email IS NOT NULL AND c.email <> '' AND c.email_opt_out = FALSE
+        AND (p.expires_at IS NULL OR p.expires_at > now())
+        AND (p.max_uses IS NULL OR p.uses < p.max_uses)
+        AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code)
+        AND p.created_at <= now() - interval '6 months'
+        AND (p.last_reminded_at IS NULL OR p.last_reminded_at <= now() - interval '6 months')
+      ORDER BY p.created_at
+      LIMIT 50`,
+  );
+  let sent = 0;
+  for (const v of rows) {
+    const unsub = `${config.email.publicBaseUrl}/api/unsubscribe?c=${encodeURIComponent(v.id)}&t=${unsubToken(v.id)}`;
+    const expiry = v.expires_at
+      ? new Date(v.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+      : null;
+    const body = `
+      <p style="font-size:18px;font-weight:800;margin:0 0 12px">You still have ${v.value}% off waiting 🎁</p>
+      <p style="margin:0 0 14px">Hi ${v.name || 'there'}, your Eventana reward from a past party is ready to use on your next booking.</p>
+      <div style="text-align:center;margin:18px 0">
+        <div style="display:inline-block;border:2px dashed #E94F9C;border-radius:14px;padding:14px 26px">
+          <div style="font-size:12px;color:#b3679a;font-weight:700;letter-spacing:.5px">YOUR CODE</div>
+          <div style="font-size:24px;font-weight:800;color:#E94F9C;letter-spacing:1px">${v.code}</div>
+        </div>
+      </div>
+      <p style="margin:0 0 6px">Enter it at checkout to take ${v.value}% off.${expiry ? ` Valid until <strong>${expiry}</strong>.` : ''}</p>
+      <p style="margin:14px 0 0">See you soon,<br/>The Eventana Team 💕</p>`;
+    const res = await sendEmail({
+      to: v.email,
+      subject: `Your ${v.value}% Eventana reward is waiting 🎁`,
+      html: renderCampaignHtml(body, unsub),
+    });
+    if (res.ok) sent++;
+    // Stamp regardless of send outcome so a hard-bouncing address is not retried
+    // every 5 minutes — it waits for the next 6-month window like everyone else.
+    await pool.query(`UPDATE promo_codes SET last_reminded_at = now() WHERE code = $1`, [v.code]);
+  }
+  return sent;
+}
+
 /** Sends any scheduled campaigns whose time has come. Called from the sweep. */
 export async function sweepScheduledCampaigns(): Promise<number> {
   if (!emailEnabled()) return 0;

@@ -65,6 +65,12 @@ export interface PricingContext {
   zones: DeliveryZone[];
   /** Asset codes that are already taken for the requested window. */
   unavailableAssets?: Set<string>;
+  /**
+   * Wall-clock "now" in epoch ms, supplied by the caller so the pure engine
+   * can price the lead-time rush surcharge without reading the clock itself.
+   * Omitted on unit tests and any context that does not care about lead time.
+   */
+  nowMs?: number;
 }
 
 /**
@@ -212,6 +218,44 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
       amountFils: customThemeFeeFils,
       discountEligible: false,
     });
+  }
+
+  // Lead time. A booking is expected at least a week out. A rush booking made
+  // inside that week is allowed — down to a hard 48-hour floor — but pays a
+  // surcharge on the party value (everything except delivery, which is added
+  // next). Closer than the floor is refused: the crew needs time to prepare.
+  if (
+    cart.eventDate &&
+    cart.startTime &&
+    Number.isFinite(parseHour(cart.startTime)) &&
+    typeof ctx.nowMs === 'number'
+  ) {
+    const eventStartMs = Date.parse(`${cart.eventDate}T${cart.startTime}:00+04:00`);
+    if (Number.isFinite(eventStartMs)) {
+      const hoursToEvent = (eventStartMs - ctx.nowMs) / 3_600_000;
+      if (hoursToEvent < rules.minLeadHours) {
+        problems.push({
+          code: 'too_soon',
+          message: `Bookings must be made at least ${rules.minLeadHours} hours before the event. Please choose a later date.`,
+        });
+      } else if (hoursToEvent < rules.standardLeadDays * 24) {
+        const partyNetFils = lines
+          .filter((l) => l.kind !== 'delivery')
+          .reduce((sum, l) => sum + l.amountFils, 0);
+        const rushFils = percentOf(partyNetFils, rules.rushSurchargePercent);
+        if (rushFils > 0) {
+          lines.push({
+            kind: 'surcharge',
+            refId: null,
+            label: `Rush booking (within ${rules.standardLeadDays} days) +${rules.rushSurchargePercent}%`,
+            quantity: 1,
+            unitFils: rushFils,
+            amountFils: rushFils,
+            discountEligible: false,
+          });
+        }
+      }
+    }
   }
 
   // Delivery: automatic from the event location, never chosen by the

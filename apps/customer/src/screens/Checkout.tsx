@@ -5,6 +5,7 @@ import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPre
 import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
 import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
+import { TermsSheet } from './Terms';
 
 /** Placement photos are offered only for items actually in the booking. */
 const PHOTO_ROWS: Array<{ key: string; label: string; match: RegExp }> = [
@@ -25,9 +26,12 @@ export function Checkout({
   go,
   onOrder,
   t,
+  lang,
 }: ScreenProps & { onOrder: (orderId: string) => void }) {
   const [times, setTimes] = useState<Array<{ value: string; allowed: boolean }>>([]);
   const [paying, setPaying] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [account, setAccount] = useState<Account | null>(() => loadAccount());
@@ -159,7 +163,7 @@ export function Checkout({
         promoCode: promo?.code ?? null,
         useCredit,
         redeemPoints,
-      });
+      }, agreed);
       if (!result.eligible || !result.checkoutUrl) {
         setError(t('checkout.providerUnavailable', { provider: draft.provider }));
         setPaying(false);
@@ -178,7 +182,7 @@ export function Checkout({
   };
 
   const canPay =
-    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && Boolean(account);
+    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && Boolean(account) && agreed;
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
@@ -292,13 +296,23 @@ export function Checkout({
         <input
           type="date"
           value={draft.eventDate}
-          min={new Date().toISOString().slice(0, 10)}
+          min={new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10)}
           onChange={(e) => update({ eventDate: e.target.value })}
           style={{
             width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px',
-            fontWeight: 700, fontSize: 13.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 16,
+            fontWeight: 700, fontSize: 13.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 10,
           }}
         />
+        {quote?.problems.some((p) => p.code === 'too_soon') && (
+          <div style={{ marginBottom: 12 }}>
+            <Notice tone="error">{t('checkout.tooSoon')}</Notice>
+          </div>
+        )}
+        {quote?.lines.some((l) => l.kind === 'surcharge') && (
+          <div style={{ marginBottom: 12 }}>
+            <Notice tone="warn">{t('checkout.rushNote')}</Notice>
+          </div>
+        )}
 
         {/* 2) Then the start time. */}
         <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, marginBottom: 3 }}>{t('checkout.startTimeLabel')}</div>
@@ -462,11 +476,11 @@ export function Checkout({
               {t('checkout.createOrSignin')}
             </div>
             {authMode === 'register' && (
-              <Field placeholder={t('checkout.phFullName')} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
+              <Field placeholder={`${t('checkout.phFullName')} *`} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
             )}
-            <Field placeholder={t('checkout.phEmail')} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
+            <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
             {authMode === 'register' && (
-              <Field placeholder={t('checkout.phMobile')} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
+              <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
             )}
             {authMode === 'register' && (
               <Field placeholder={t('checkout.phReferral')} value={reg.referralCode} onChange={(v) => setReg((r) => ({ ...r, referralCode: v.toUpperCase() }))} style={{ marginBottom: 9 }} />
@@ -635,11 +649,33 @@ export function Checkout({
         {catalogue.notices.holdWindow}
       </div>
 
+      {/* Terms & Conditions — must be accepted to pay. */}
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', marginTop: 16 }}>
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(e) => setAgreed(e.target.checked)}
+          style={{ marginTop: 2, width: 17, height: 17, accentColor: C.pink, flexShrink: 0 }}
+        />
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>
+          {t('checkout.agreePre')}{' '}
+          <span
+            role="button"
+            onClick={(e) => { e.preventDefault(); setShowTerms(true); }}
+            style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'underline' }}
+          >
+            {t('checkout.agreeLink')}
+          </span>
+        </span>
+      </label>
+
       <div style={{ marginTop: 14 }}>
         <PrimaryButton disabled={!canPay} onClick={pay}>
           {paying ? t('checkout.opening') : t('checkout.pay', { aed: `${t('common.aed')} ${quote ? money(estTotalFils) : '—'}` })}
         </PrimaryButton>
       </div>
+
+      {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
     </div>
   );
 }

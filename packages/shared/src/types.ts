@@ -146,6 +146,7 @@ export type QuoteLineKind =
   | 'custom_theme'
   | 'discount'
   | 'delivery'
+  | 'surcharge'
   | 'addon';
 
 export interface QuoteLine {

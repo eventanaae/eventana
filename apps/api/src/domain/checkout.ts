@@ -37,6 +37,7 @@ export interface CheckoutRequest {
   provider: string;
   lang?: 'en' | 'ar';
   idempotencyKey?: string;
+  termsAccepted?: boolean;
   discounts?: DiscountInput;
 }
 
@@ -95,7 +96,7 @@ export async function previewQuote(cart: CartInput): Promise<Quote & { unavailab
     );
   }
 
-  const result = computeQuote(cart, toPricingContext(cfg, taken));
+  const result = computeQuote(cart, { ...toPricingContext(cfg, taken), nowMs: Date.now() });
   return { ...result, unavailable: [...taken] };
 }
 
@@ -114,9 +115,15 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   const cfg = await loadConfig(pool, { fresh: true });
   const cart = req.cart;
 
+  // The customer must accept the Terms & Conditions to book (enforced server-
+  // side, not just in the UI).
+  if (req.termsAccepted !== true) {
+    throw new CheckoutError('Please accept the Terms & Conditions to continue.', 'terms_required');
+  }
+
   // (1) The server recomputes everything. A total submitted by the
   // device is not read at all — it is not even a parameter here.
-  const serverQuote = computeQuote(cart, toPricingContext(cfg));
+  const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now() });
 
   // The map pin is required to complete a booking (spec item 7).
   if (!cart.mapPin || typeof cart.mapPin.lat !== 'number' || typeof cart.mapPin.lng !== 'number') {

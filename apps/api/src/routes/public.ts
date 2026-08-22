@@ -277,6 +277,7 @@ export async function publicRoutes(app: FastifyInstance) {
       provider: z.enum(['tabby', 'tamara', 'ziina']),
       lang: z.enum(['en', 'ar']).optional(),
       idempotencyKey: z.string().optional(),
+      termsAccepted: z.boolean().optional(),
       discounts: z
         .object({
           promoCode: z.string().max(40).nullable().optional(),
@@ -302,6 +303,7 @@ export async function publicRoutes(app: FastifyInstance) {
         provider: parsed.data.provider,
         lang: parsed.data.lang,
         idempotencyKey: parsed.data.idempotencyKey,
+        termsAccepted: parsed.data.termsAccepted,
         discounts: parsed.data.discounts,
       });
       return result;

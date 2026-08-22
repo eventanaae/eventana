@@ -23,6 +23,7 @@ export function Profile({
   const [rebooking, setRebooking] = useState<string | null>(null);
   const [rewards, setRewards] = useState<Awaited<ReturnType<typeof api.rewards>> | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const profile = loadProfile();
   const name = profile?.name?.trim() || t('profile.guest');
   const initial = (name[0] || '☺').toUpperCase();
@@ -109,6 +110,30 @@ export function Profile({
               {t('profile.credit')}: AED {(rewards.creditFils / 100).toLocaleString('en-US')}
             </div>
           )}
+        </div>
+      )}
+
+      {rewards?.vouchers && rewards.vouchers.length > 0 && (
+        <div style={{ background: 'linear-gradient(135deg,#FFEFD4,#FFDCEA)', borderRadius: 20, padding: '16px 18px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>🎁 {t('profile.voucherTitle')}</div>
+          {rewards.vouchers.map((v) => (
+            <div key={v.code} style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: '#9a6a4c', marginBottom: 6, lineHeight: 1.5 }}>
+                {t('profile.voucherSub', { percent: String(v.percent) })}
+                {v.expiresAt
+                  ? ` · ${t('profile.voucherExpiry', { date: new Date(v.expiresAt).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) })}`
+                  : ''}
+              </div>
+              <button
+                onClick={async () => {
+                  try { await navigator.clipboard.writeText(v.code); setCopiedCode(v.code); setTimeout(() => setCopiedCode(null), 1500); } catch { /* ignore */ }
+                }}
+                style={{ width: '100%', background: '#fff', border: `1.5px dashed ${C.pink}`, borderRadius: 12, padding: '11px 14px', fontWeight: 800, fontSize: 15, letterSpacing: '1.5px', color: C.pinkDeep, cursor: 'pointer', textAlign: 'center' }}
+              >
+                {copiedCode === v.code ? t('profile.copied') : `${v.code}  ⧉`}
+              </button>
+            </div>
+          ))}
         </div>
       )}
 

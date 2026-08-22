@@ -24,6 +24,7 @@ import {
 } from '@eventana/shared';
 import { confirmHolds } from './inventory.js';
 import { nextEventId } from './orders.js';
+import { makeVoucherCode, NEXT_BOOKING_VOUCHER_PERCENT } from './discounts.js';
 
 export interface ConfirmResult {
   eventId: string;
@@ -318,6 +319,17 @@ export async function confirmBooking(
       points,
     ]);
   }
+
+  // Reward: a personal 20%-off code for the customer's NEXT booking, valid a
+  // year, with a 6-month "don't forget" reminder. Issued once per confirmed
+  // booking (this block only runs when the event is first created).
+  await db.query(
+    `INSERT INTO promo_codes
+       (code, kind, value, min_spend_fils, max_uses, active, expires_at, customer_id, auto_reminder)
+     VALUES ($1, 'percent', $2, 0, 1, TRUE, now() + interval '1 year', $3, TRUE)
+     ON CONFLICT (code) DO NOTHING`,
+    [makeVoucherCode(), NEXT_BOOKING_VOUCHER_PERCENT, order.customer_id],
+  );
 
   // Consume any checkout discounts now that the payment is real. Each is
   // clamped so a replay or a race can never overspend, and the referral

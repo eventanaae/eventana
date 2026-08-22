@@ -52,6 +52,8 @@ export async function validatePromo(
   const { rows } = await db.query(`SELECT * FROM promo_codes WHERE code = $1`, [norm]);
   const p = rows[0];
   if (!p || !p.active) return { ok: false, reason: 'This code isn’t valid.' };
+  // A personal voucher (e.g. a next-booking reward) belongs to one customer.
+  if (p.customer_id && p.customer_id !== customerId) return { ok: false, reason: 'This code isn’t valid.' };
   if (p.expires_at && new Date(p.expires_at).getTime() < Date.now()) return { ok: false, reason: 'This code has expired.' };
   if (p.max_uses != null && p.uses >= p.max_uses) return { ok: false, reason: 'This code has been fully redeemed.' };
   if (subtotalFils < p.min_spend_fils) {
@@ -121,6 +123,17 @@ export async function computeDiscounts(
   }
 
   return out;
+}
+
+/** Percentage off the customer's NEXT booking, granted on every confirmation. */
+export const NEXT_BOOKING_VOUCHER_PERCENT = 20;
+
+/** A unique personal voucher code, e.g. NEXT20-7QK4ZP. */
+export function makeVoucherCode(): string {
+  const rand = Array.from({ length: 6 }, () =>
+    'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)],
+  ).join('');
+  return `NEXT${NEXT_BOOKING_VOUCHER_PERCENT}-${rand}`;
 }
 
 /** A short, unambiguous referral code (no easily-confused characters). */
