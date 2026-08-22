@@ -59,7 +59,8 @@ const EN: Section[] = [
     body: [
       'You may reschedule your event from the app up to seventy-two (72) hours before it starts, provided your items are available on the new date.',
       'Changes within 72 hours, theme changes and cancellations are handled by our team — please contact us as early as possible.',
-      'Refund eligibility depends on how close to the event the cancellation is made; the design fee and any made-to-order items are non-refundable.',
+      'Cancellation refunds on the party value: more than 7 days before the event — 80% refunded (a 20% cancellation fee applies); 3 to 7 days before — 50% refunded; less than 72 hours before — no refund.',
+      'The custom theme design fee and any made-to-order items are non-refundable regardless of when you cancel.',
     ],
   },
   {
@@ -154,7 +155,8 @@ const AR: Section[] = [
     body: [
       'يمكنك إعادة جدولة مناسبتك من التطبيق حتى اثنتين وسبعين (٧٢) ساعة قبل موعدها، بشرط توفّر عناصرك في التاريخ الجديد.',
       'التعديلات خلال ٧٢ ساعة، وتغيير الثيم، والإلغاء تتم عبر فريقنا — رجاءً تواصلي معنا في أقرب وقت.',
-      'تعتمد أحقية الاسترداد على قرب موعد الإلغاء من المناسبة؛ ورسوم التصميم والطلبات المصنّعة غير قابلة للاسترداد.',
+      'استرداد الإلغاء على قيمة الحفلة: قبل المناسبة بأكثر من ٧ أيام — يُسترد ٨٠٪ (تُطبّق رسوم إلغاء ٢٠٪)؛ قبلها بـ ٣ إلى ٧ أيام — يُسترد ٥٠٪؛ قبلها بأقل من ٧٢ ساعة — لا يوجد استرداد.',
+      'رسوم تصميم الثيم الخاص والطلبات المُصنّعة حسب الطلب غير قابلة للاسترداد بغضّ النظر عن وقت الإلغاء.',
     ],
   },
   {
