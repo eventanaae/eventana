@@ -171,7 +171,8 @@ export interface QuoteProblem {
     | 'unavailable'
     | 'empty_cart'
     | 'unknown_service'
-    | 'missing_map_pin';
+    | 'missing_map_pin'
+    | 'too_soon';
   message: string;
   refId?: string;
 }
