@@ -54,6 +54,10 @@ export function Themes({
     const q = query.trim().toLowerCase();
     return library.filter(
       (t) =>
+        // Only show themes that have real setup photos — no "Coming Soon"
+        // placeholders. Celebrations with no ready themes get the custom /
+        // write-your-own path instead.
+        (Boolean(t.coverImageUrl) || (t.gallery?.length ?? 0) > 0) &&
         (!q || t.name.toLowerCase().includes(q)) &&
         (tag === 'All' || t.tags.includes(tag)),
     );
