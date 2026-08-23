@@ -44,6 +44,9 @@ const MOVIES: Movie[] = [
 
 export function MovieSelect({ draft, update, go, t }: ScreenProps) {
   const selected = draft.movie;
+  // draft.movie holds either a known movie id or a free-typed title.
+  const known = MOVIES.some((m) => m.id === selected);
+  const customVal = known ? '' : (selected ?? '');
 
   return (
     <div style={{ animation: 'rise .35s ease', paddingBottom: 30 }}>
@@ -100,6 +103,23 @@ export function MovieSelect({ draft, update, go, t }: ScreenProps) {
               </div>
             );
           })}
+        </div>
+
+        {/* Or type any other title. */}
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginBottom: 7 }}>{t('movie.typeOwn')}</div>
+          <input
+            value={customVal}
+            onChange={(e) => update({ movie: e.target.value || null })}
+            placeholder={t('movie.typePlaceholder')}
+            style={{
+              width: '100%', border: `1.5px solid ${customVal ? C.pink : C.pinkLine}`, borderRadius: 14,
+              padding: '12px 15px', fontWeight: 700, fontSize: 13.5, background: '#fff', color: C.ink, outline: 'none',
+            }}
+          />
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>
+            {t('movie.streamNote')}
+          </div>
         </div>
       </div>
 

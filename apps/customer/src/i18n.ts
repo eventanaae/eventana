@@ -250,6 +250,9 @@ const en: Dict = {
   'movie.sub': 'Choose the film for your cosy cinema night. Final availability is confirmed by the Eventana team.',
   'movie.continue': 'Continue to booking',
   'movie.pick': 'Pick a movie to continue',
+  'movie.typeOwn': 'Or type another movie',
+  'movie.typePlaceholder': 'e.g. Luca, Elemental, Wish…',
+  'movie.streamNote': 'We can screen any movie available on Netflix or Disney+.',
 
   // themes
   'themes.customTitle': 'Custom Theme ✨',
@@ -687,6 +690,9 @@ const ar: Dict = {
   'movie.sub': 'اختر فيلم ليلة السينما المريحة. يؤكّد فريق Eventana التوفّر النهائي.',
   'movie.continue': 'متابعة للحجز',
   'movie.pick': 'اختر فيلماً للمتابعة',
+  'movie.typeOwn': 'أو اكتبي فيلماً آخر',
+  'movie.typePlaceholder': 'مثلاً: لوكا، إليمنتال، ويش…',
+  'movie.streamNote': 'نقدر نعرض أي فيلم متوفّر على Netflix أو Disney+.',
 
   // themes
   'themes.customTitle': 'ثيم مخصّص ✨',
