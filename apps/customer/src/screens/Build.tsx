@@ -2,6 +2,17 @@ import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet, durationKey } from '../ui';
 
+/** Kiosk colours the customer can pick for food & games stations. */
+const STATION_COLORS: Array<{ id: string; hex: string }> = [
+  { id: 'purple', hex: '#B57EDC' },
+  { id: 'pink', hex: '#F06CA8' },
+  { id: 'green', hex: '#6FCF97' },
+  { id: 'yellow', hex: '#F7C948' },
+  { id: 'red', hex: '#EB5757' },
+  { id: 'blue', hex: '#5B8DEF' },
+  { id: 'brown', hex: '#A9744F' },
+];
+
 export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
   const [detail, setDetail] = useState<Catalogue['services'][number] | null>(null);
 
@@ -199,6 +210,31 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                   <Notice tone="warn">{t('build.pendingAdmin')}</Notice>
                 )}
               </div>
+
+              {(detail.categoryId === 'food' || detail.categoryId === 'games') && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 9 }}>{t('build.kioskColor')}</div>
+                  <div style={{ display: 'flex', gap: 11, flexWrap: 'wrap' }}>
+                    {STATION_COLORS.map((c) => {
+                      const active = draft.stationColors[detail.id] === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          aria-label={c.id}
+                          onClick={() => update({ stationColors: { ...draft.stationColors, [detail.id]: c.id } })}
+                          style={{
+                            width: 34, height: 34, borderRadius: '50%', background: c.hex, cursor: 'pointer',
+                            border: active ? `3px solid ${C.ink}` : '2px solid rgba(0,0,0,.12)',
+                            boxShadow: active ? '0 0 0 2px #fff inset' : 'none', outline: 'none', flex: 'none',
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginTop: 18 }}>
                 <PrimaryButton
                   onClick={() => {

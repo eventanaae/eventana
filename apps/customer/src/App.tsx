@@ -33,6 +33,8 @@ export interface Draft {
   buildAnswered: boolean;
   packageId: string | null;
   services: Record<string, number>;
+  /** Chosen kiosk colour per food/games station service id (customer pick). */
+  stationColors: Record<string, string>;
   themeId: string | null;
   customTheme: boolean;
   castleVariant: string | null;
@@ -61,6 +63,7 @@ const emptyDraft: Draft = {
   buildAnswered: false,
   packageId: null,
   services: {},
+  stationColors: {},
   themeId: null,
   customTheme: false,
   castleVariant: null,
@@ -129,6 +132,10 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     ageBand: draft.ageBand ?? undefined,
     movie: draft.movie ?? undefined,
     themeBrief: draft.customTheme && draft.themeBrief ? draft.themeBrief : undefined,
+    // Chosen kiosk colours, limited to stations actually in the cart.
+    stationColors: Object.fromEntries(
+      Object.entries(draft.stationColors).filter(([id]) => (draft.services[id] ?? 0) > 0),
+    ),
   };
 }
 
