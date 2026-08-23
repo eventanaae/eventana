@@ -693,6 +693,25 @@ export function Checkout({
         })}
       </div>
 
+      {/* Buy-now-pay-later — not live yet. */}
+      <div style={{ display: 'flex', gap: 9, marginTop: 9 }}>
+        {['Tabby', 'Tamara'].map((b) => (
+          <div
+            key={b}
+            style={{
+              flex: 1, textAlign: 'center', background: '#faf6f8',
+              border: `1.5px dashed ${C.pinkLine}`, borderRadius: 16, padding: '11px 6px', opacity: 0.8,
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 13, color: C.muted }}>{b}</div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: C.pinkDeep, marginTop: 2 }}>{t('checkout.comingSoon')}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <Notice tone="info">{t('checkout.cashNote')}</Notice>
+      </div>
+
       {error && (
         <div style={{ marginTop: 12 }}>
           <Notice tone="error">{error}</Notice>

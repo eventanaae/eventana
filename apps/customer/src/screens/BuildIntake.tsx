@@ -14,18 +14,20 @@ import { C, fredoka, PrimaryButton } from '../ui';
  * point cannot forget to ask.
  */
 
-// The guest of honour's exact age. Kids run 1–15; "Adult" covers grown-up
-// celebrations. Stored as a plain string on the draft (a frontend-only
-// field — it is never sent to the server), so the format is free to change.
-const AGES: string[] = Array.from({ length: 15 }, (_, i) => String(i + 1)).concat('Adult');
-
-export function BuildIntake({ catalogue, draft, go, startBuild, t, lang }: ScreenProps) {
+export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps) {
   // Pre-select only what the customer actually chose — never a default,
   // or the question would count as answered without being asked.
   const [type, setType] = useState<string | null>(
     draft.celebrationTypeChosen ? draft.celebrationType : null,
   );
-  const [age, setAge] = useState<string | null>(draft.ageBand);
+  // Age is captured as a group (Kids / Baby) plus a typed number, stored as a
+  // single readable string on the draft (e.g. "Kids · 5", "Baby · 8").
+  const initGroup = draft.ageBand
+    ? (/baby/i.test(draft.ageBand) ? 'Baby' : /kid/i.test(draft.ageBand) ? 'Kids' : null)
+    : null;
+  const [ageGroup, setAgeGroup] = useState<string | null>(initGroup);
+  const [ageNum, setAgeNum] = useState<string>(draft.ageBand ? (draft.ageBand.match(/\d+/)?.[0] ?? '') : '');
+  const ageBand = ageGroup ? `${ageGroup}${ageNum.trim() ? ` · ${ageNum.trim()}` : ''}` : null;
 
   // Age is optional — it only helps the team tailor the party, never the price.
   // The celebration type is the one answer we truly need to open Build.
@@ -35,7 +37,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t, lang }: Scree
     startBuild({
       celebrationType: type!,
       celebrationTypeChosen: true,
-      ageBand: age,
+      ageBand,
       // A different celebration prices differently — start its build clean.
       ...(type !== draft.celebrationType
         ? { services: {}, packageId: null, themeId: null, customTheme: false }
@@ -82,53 +84,40 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t, lang }: Scree
         })}
       </div>
 
-      {/* 2 — exact age of the guest of honour (optional) */}
+      {/* 2 — age of the guest of honour (optional): pick a group, then type it */}
       <Question step={2} title={t('intake.q2')} optional={t('intake.optional')} />
-      <div style={{ position: 'relative', marginBottom: 8 }}>
-        <select
-          value={age ?? ''}
-          onChange={(e) => setAge(e.target.value || null)}
-          style={{
-            width: '100%',
-            appearance: 'none',
-            WebkitAppearance: 'none',
-            border: `1.5px solid ${age ? C.pink : C.pinkLine}`,
-            borderRadius: 14,
-            padding: '13px 40px 13px 15px',
-            fontWeight: 700,
-            fontSize: 14,
-            background: '#fff',
-            color: age ? C.ink : C.muted,
-            outline: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">{t('intake.agePlaceholder')}</option>
-          {AGES.map((a) => (
-            <option key={a} value={a}>
-              {a === 'Adult' ? t('intake.adult') : t('intake.yearsOld', { age: a })}
-            </option>
-          ))}
-        </select>
-        <span
-          style={{
-            position: 'absolute',
-            top: '50%',
-            [lang === 'ar' ? 'left' : 'right']: 15,
-            transform: 'translateY(-50%)',
-            pointerEvents: 'none',
-            color: C.muted,
-            fontSize: 12,
-          }}
-        >
-          ▼
-        </span>
+      <div style={{ display: 'flex', gap: 9, marginBottom: ageGroup ? 10 : 26 }}>
+        {(['Kids', 'Baby'] as const).map((g) => {
+          const active = ageGroup === g;
+          return (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setAgeGroup(active ? null : g)}
+              style={{
+                flex: 1, borderRadius: 14, padding: '13px 6px', cursor: 'pointer', fontWeight: 800, fontSize: 14,
+                border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
+                background: active ? C.pinkSoft : '#fff', color: active ? C.pinkDeep : C.ink,
+              }}
+            >
+              {t(g === 'Kids' ? 'intake.kids' : 'intake.baby')}
+            </button>
+          );
+        })}
       </div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '2px 0 26px', lineHeight: 1.5 }}>
-        {age && age !== 'Adult'
-          ? t('intake.turning', { age })
-          : t('intake.swipeAge')}
-      </div>
+      {ageGroup && (
+        <input
+          value={ageNum}
+          onChange={(e) => setAgeNum(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+          inputMode="numeric"
+          placeholder={t(ageGroup === 'Baby' ? 'intake.agePhBaby' : 'intake.agePhKids')}
+          style={{
+            width: '100%', border: `1.5px solid ${ageNum ? C.pink : C.pinkLine}`, borderRadius: 14,
+            padding: '13px 15px', fontWeight: 700, fontSize: 14, background: '#fff', color: C.ink,
+            outline: 'none', marginBottom: 26,
+          }}
+        />
+      )}
 
       <PrimaryButton disabled={!complete} onClick={start}>
         {complete ? t('intake.start') : t('intake.startDisabledType')}
