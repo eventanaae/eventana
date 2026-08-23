@@ -290,6 +290,8 @@ const en: Dict = {
   'themes.noFee': 'No extra charge',
   'themes.createCustom': 'Create a Custom Theme ✨',
   'themes.reviewPay': 'Continue — Review & Pay',
+  'themes.optionalHint': 'A theme is optional for this booking — pick one above if you like, or continue without.',
+  'themes.skipTheme': 'Continue without a theme →',
 
   // checkout
   'checkout.title': 'Your Celebration',
@@ -731,6 +733,8 @@ const ar: Dict = {
   'themes.noFee': 'بدون رسوم إضافية',
   'themes.createCustom': 'أنشئ ثيماً مخصّصاً ✨',
   'themes.reviewPay': 'متابعة — المراجعة والدفع',
+  'themes.optionalHint': 'الثيم اختياري لهذا الحجز — اختاري واحداً بالأعلى إن حبيتي، أو تابعي بدونه.',
+  'themes.skipTheme': 'تابعي بدون ثيم →',
 
   // checkout
   'checkout.title': 'مناسبتك',

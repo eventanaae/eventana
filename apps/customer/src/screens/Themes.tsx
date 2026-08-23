@@ -13,6 +13,14 @@ export function Themes({
   custom,
   t,
 }: ScreenProps & { custom: boolean }) {
+  // A theme is only required when the booking includes a backdrop/decoration
+  // (a package, or a Build service in the 'backdrop' category). Otherwise the
+  // customer may continue with no theme.
+  const themeRequired =
+    Boolean(draft.packageId) ||
+    Object.keys(draft.services).some(
+      (id) => catalogue.services.find((s) => s.id === id)?.categoryId === 'backdrop',
+    );
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState('All');
   const [brief, setBrief] = useState<{
@@ -325,9 +333,16 @@ export function Themes({
         )}
       </Sheet>
 
-      {(draft.themeId || draft.customTheme) && (
-        <div style={{ marginTop: 20 }}>
-          <PrimaryButton onClick={() => go('checkout')}>{t('themes.reviewPay')}</PrimaryButton>
+      {!themeRequired && !draft.themeId && !draft.customTheme && (
+        <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: C.muted, textAlign: 'center', lineHeight: 1.5 }}>
+          {t('themes.optionalHint')}
+        </div>
+      )}
+      {(draft.themeId || draft.customTheme || !themeRequired) && (
+        <div style={{ marginTop: 14 }}>
+          <PrimaryButton onClick={() => go('checkout')}>
+            {draft.themeId || draft.customTheme ? t('themes.reviewPay') : t('themes.skipTheme')}
+          </PrimaryButton>
         </div>
       )}
     </div>
