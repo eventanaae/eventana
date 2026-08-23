@@ -579,8 +579,10 @@ export async function publicRoutes(app: FastifyInstance) {
     const schema = z.object({ code: z.string().trim().min(1).max(40), subtotalFils: z.number().int().min(0) });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    // Anyone can check a general code (guest checkout included). A personal
+    // voucher is still scoped to its owner inside validatePromo, so a guest
+    // (null id) simply can't validate someone else's personal code.
     const customerId = customerFromRequest(request);
-    if (!customerId) return reply.status(401).send({ error: 'auth_required' });
     const v = await validatePromo(pool, parsed.data.code, customerId, parsed.data.subtotalFils);
     return v.ok
       ? { ok: true, code: v.code, amountFils: v.amountFils }

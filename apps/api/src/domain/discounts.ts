@@ -44,7 +44,7 @@ function line(label: string, amountFils: number): QuoteLine {
 export async function validatePromo(
   db: Pool | PoolClient,
   code: string,
-  customerId: string,
+  customerId: string | null,
   subtotalFils: number,
 ): Promise<{ ok: true; amountFils: number; code: string } | { ok: false; reason: string }> {
   const norm = code.trim().toUpperCase();
