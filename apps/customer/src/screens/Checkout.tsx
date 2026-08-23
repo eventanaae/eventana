@@ -162,6 +162,15 @@ export function Checkout({
   const daysToEvent = Math.ceil((new Date(`${draft.eventDate}T00:00:00`).getTime() - Date.now()) / 86_400_000);
   const preOrderRisk = hasPreOrder && daysToEvent < 14;
 
+  // A package always runs 4 hours, so any 6-hour add-on (inflatables, machines,
+  // décor) booked alongside a package runs for the party window, not its own 6h.
+  const sixHourInPackage =
+    Boolean(draft.packageId) &&
+    Object.keys(draft.services).some((id) => {
+      const c = catalogue.services.find((x) => x.id === id)?.categoryId;
+      return c === 'inflatables' || c === 'machines' || c === 'backdrop';
+    });
+
   // Which placement-photo rows apply to what is actually booked.
   const bookedLabels = [
     ...(draft.packageId
@@ -384,6 +393,12 @@ export function Checkout({
       {preOrderRisk && (
         <div style={{ marginBottom: 14 }}>
           <Notice tone="warn">{t('build.preOrderWarn')}</Notice>
+        </div>
+      )}
+
+      {sixHourInPackage && (
+        <div style={{ marginBottom: 14 }}>
+          <Notice tone="info">{t('checkout.pkgDurationNote')}</Notice>
         </div>
       )}
 
