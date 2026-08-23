@@ -76,7 +76,7 @@ export const NOTICES = {
     'We’re sorry, Eventana currently does not provide delivery to the Al Gharbia region.',
   midnight:
     'Our standard 4-hour party packages must finish by 12:00 AM. Please select an earlier start time.',
-  activityMinimum: 'Activity sessions are priced per child with a minimum of 20 children.',
+  activityMinimum: 'Activity sessions are priced per guest with a minimum of 20 guests.',
   holdWindow: 'Inventory is held for 15 minutes while you complete payment.',
 } as const;
 

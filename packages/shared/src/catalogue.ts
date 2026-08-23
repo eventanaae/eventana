@@ -112,7 +112,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
   { id: 'games', name: 'Games', note: '4 hours of fun & prizes', celebrationTypes: ['kids', 'graduation', 'gender', 'adult', 'customc'], sortOrder: 4 },
   { id: 'machines', name: 'Machines', note: 'Magical effects for the party', celebrationTypes: ['kids', 'gender', 'customc'], sortOrder: 5 },
   { id: 'entertainment', name: 'Entertainment', note: 'Performers kids love', celebrationTypes: ['kids', 'customc'], sortOrder: 6 },
-  { id: 'activities', name: 'Activity Sessions', note: 'Price per child · minimum 20 kids · 2 hours · materials included', celebrationTypes: ['kids', 'customc'], sortOrder: 7 },
+  { id: 'activities', name: 'Activity Sessions', note: 'Price per guest · minimum 20 guests · 2 hours · we provide all supplies, equipment and two assistants · tables and chairs not included', celebrationTypes: ['kids', 'customc'], sortOrder: 7 },
   { id: 'giveaways', name: 'Giveaways', note: 'Personalized keepsakes for your guests', celebrationTypes: ALL, sortOrder: 8 },
   { id: 'extras', name: 'Extras', note: 'Finishing touches — digital invitations & extra seating', celebrationTypes: ALL, sortOrder: 9 },
 ];
@@ -192,7 +192,7 @@ export const SERVICES: ServiceDefinition[] = [
   svc({ id: 'clown', name: 'Acrobat Clown', categoryId: 'entertainment', price: 1500, shortDescription: '2 hrs · pro performer', detail: 'Two hours of acrobatics, wheel tricks and stilt walking for the whole party.', gradient: G('#F06CA8', '#F7C948') }),
   svc({ id: 'twisting', name: 'Balloons Twisting', categoryId: 'entertainment', price: 950, shortDescription: '4 hrs · 40 kids', detail: 'Four hours of balloon animals, flowers and hats for up to 40 kids.', gradient: G('#F9C6DC', '#5BCFC5') }),
   svc({ id: 'facepaint', name: 'Face Painting', categoryId: 'entertainment', price: 950, shortDescription: '4 hrs · 40 kids', detail: 'Four hours of face painting for up to 40 kids with kid-safe colours.', gradient: G('#C9E4C5', '#5BCFC5') }),
-  svc({ id: 'mascot', name: 'Mascot Character', categoryId: 'entertainment', price: 950, shortDescription: '2 hrs · Stitch, Unicorn, Cocomelon, Frozen or Mickey Mouse', detail: 'A costumed character welcomes your guests and poses for photos for two hours. Choose Stitch, Unicorn, Cocomelon, Frozen or Mickey Mouse.', gradient: G('#F7C948', '#F06CA8') }),
+  svc({ id: 'mascot', name: 'Mascot Character', categoryId: 'entertainment', price: 950, shortDescription: '2 hrs · Cocomelon, Stitch, Masha or Unicorn', detail: 'A costumed character welcomes your guests and poses for photos for two hours. Choose one: Cocomelon, Stitch, Masha or Unicorn.', gradient: G('#F7C948', '#F06CA8') }),
 
   // --- Activity sessions (per child, min 20) -----------------------
   svc({ id: 'notebook', name: 'Notebook Decorating', categoryId: 'activities', price: 55, shortDescription: 'Decorate notebooks with stickers & craft materials', pricing: { kind: 'per_child', minChildren: 20 }, gradient: G('#F7C948', '#F9C6DC') }),
