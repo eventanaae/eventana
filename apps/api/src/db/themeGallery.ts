@@ -28,6 +28,13 @@ export async function applyThemeGallery(): Promise<void> {
     // Retire themes the owner removed (kept in the table, just not shown).
     await pool.query(`UPDATE themes SET active = false WHERE id = ANY($1)`, [RETIRED_THEME_IDS]);
 
+    // Non-kids celebrations no longer offer ready-made themes (owner request) —
+    // they get the free custom-theme brief instead. Deactivate every non-kids
+    // theme so they vanish from those types AND from the home "Trending Themes"
+    // carousel. Authoritative on every boot (the catalogue sync covers only
+    // services/packages, so themes must be reconciled here).
+    await pool.query(`UPDATE themes SET active = false WHERE celebration_type <> 'kids'`);
+
     // Renames requested by the owner.
     await pool.query(`UPDATE themes SET name = 'Circus' WHERE id = 't33'`);
 
