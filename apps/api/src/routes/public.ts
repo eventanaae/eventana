@@ -73,6 +73,7 @@ const cartSchema = z.object({
     .optional(),
   /** Chosen kiosk colour per food/games station service id. */
   stationColors: z.record(z.string().max(20)).optional(),
+  mascotChoice: z.string().max(40).optional(),
 });
 
 /** MET Norway symbol code (e.g. "clearsky_day") → label, emoji, outdoor note. */

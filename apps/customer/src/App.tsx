@@ -35,6 +35,8 @@ export interface Draft {
   services: Record<string, number>;
   /** Chosen kiosk colour per food/games station service id (customer pick). */
   stationColors: Record<string, string>;
+  /** Chosen mascot character (required when the Mascot service is added). */
+  mascotChoice: string;
   themeId: string | null;
   customTheme: boolean;
   castleVariant: string | null;
@@ -64,6 +66,7 @@ const emptyDraft: Draft = {
   packageId: null,
   services: {},
   stationColors: {},
+  mascotChoice: '',
   themeId: null,
   customTheme: false,
   castleVariant: null,
@@ -136,6 +139,8 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     stationColors: Object.fromEntries(
       Object.entries(draft.stationColors).filter(([id]) => (draft.services[id] ?? 0) > 0),
     ),
+    // Chosen mascot character — only when the Mascot service is in the cart.
+    mascotChoice: (draft.services['mascot'] ?? 0) > 0 ? draft.mascotChoice || undefined : undefined,
   };
 }
 

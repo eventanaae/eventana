@@ -437,10 +437,26 @@ export function Checkout({
 
       {/* ---------------- cross-sell: popular add-ons ---------------- */}
       {(() => {
-        const picks = catalogue.services
-          .filter((s) => s.celebrationTypes.includes(draft.celebrationType) && !draft.services[s.id])
-          .sort((a, b) => Number(Boolean(b.isFoodStation || b.badge)) - Number(Boolean(a.isFoodStation || a.badge)))
-          .slice(0, 4);
+        // A ready-made package already includes the party — so its add-ons are a
+        // curated, package-appropriate set (owner request), not just any service.
+        const PACKAGE_ADDON_IDS = ['invite-image', 'invite-video', 'slush', 'tables-chairs'];
+        // Socks are required whenever an inflatable is booked — surface them
+        // first in the add-ons so the customer is prompted to add a pair.
+        const hasInflatable = catalogue.services.some(
+          (s) => s.categoryId === 'inflatables' && s.id !== 'socks' && (draft.services[s.id] ?? 0) > 0,
+        );
+        const picks = draft.packageId
+          ? PACKAGE_ADDON_IDS
+              .map((id) => catalogue.services.find((s) => s.id === id))
+              .filter((s): s is NonNullable<typeof s> => Boolean(s) && !draft.services[s!.id])
+          : catalogue.services
+              .filter((s) => s.celebrationTypes.includes(draft.celebrationType) && !draft.services[s.id])
+              .sort((a, b) => {
+                const rank = (s: typeof a) =>
+                  hasInflatable && s.id === 'socks' ? 2 : Number(Boolean(s.isFoodStation || s.badge));
+                return rank(b) - rank(a);
+              })
+              .slice(0, 4);
         if (picks.length === 0) return null;
         return (
           <div style={cardStyle}>

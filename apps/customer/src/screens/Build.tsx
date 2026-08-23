@@ -2,16 +2,20 @@ import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet, durationKey } from '../ui';
 
-/** Kiosk colours the customer can pick for food & games stations. */
+/** Kiosk colours the customer can pick for food & games stations. Soft pastel
+ *  tones matched to the printed station-label artwork the owner supplied. */
 const STATION_COLORS: Array<{ id: string; hex: string }> = [
-  { id: 'purple', hex: '#B57EDC' },
-  { id: 'pink', hex: '#F06CA8' },
-  { id: 'green', hex: '#6FCF97' },
-  { id: 'yellow', hex: '#F7C948' },
-  { id: 'red', hex: '#EB5757' },
-  { id: 'blue', hex: '#5B8DEF' },
-  { id: 'brown', hex: '#A9744F' },
+  { id: 'purple', hex: '#C3B1E1' },
+  { id: 'pink', hex: '#F4B3CC' },
+  { id: 'green', hex: '#86C56A' },
+  { id: 'yellow', hex: '#F1E58C' },
+  { id: 'red', hex: '#E63B31' },
+  { id: 'blue', hex: '#ADD4ED' },
+  { id: 'brown', hex: '#B89A78' },
 ];
+
+/** Mascot characters — one must be chosen when the Mascot service is added. */
+const MASCOT_OPTIONS = ['Cocomelon', 'Stitch', 'Masha', 'Unicorn'];
 
 export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
   const [detail, setDetail] = useState<Catalogue['services'][number] | null>(null);
@@ -235,10 +239,38 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                 </div>
               )}
 
+              {detail.id === 'mascot' && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 9 }}>{t('build.mascotPick')}</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {MASCOT_OPTIONS.map((m) => {
+                      const active = draft.mascotChoice === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => update({ mascotChoice: m })}
+                          style={{
+                            borderRadius: 12, padding: '10px 14px', cursor: 'pointer', fontWeight: 800, fontSize: 12.5,
+                            border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
+                            background: active ? C.pinkSoft : '#fff', color: active ? C.pinkDeep : C.ink,
+                          }}
+                        >
+                          {m}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {(() => {
                 const inCart = Boolean(draft.services[detail.id]);
                 const needsColor = detail.categoryId === 'food' || detail.categoryId === 'games';
-                const blockAdd = needsColor && !inCart && !draft.stationColors[detail.id];
+                const needsMascot = detail.id === 'mascot';
+                const missingColor = needsColor && !draft.stationColors[detail.id];
+                const missingMascot = needsMascot && !draft.mascotChoice;
+                const blockAdd = !inCart && (missingColor || missingMascot);
                 return (
                   <div style={{ marginTop: 18 }}>
                     <PrimaryButton
@@ -254,9 +286,11 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                     >
                       {inCart
                         ? t('build.removeFromParty')
-                        : blockAdd
-                          ? t('build.pickColorFirst')
-                          : t('build.addToParty')}
+                        : missingMascot
+                          ? t('build.pickMascotFirst')
+                          : missingColor
+                            ? t('build.pickColorFirst')
+                            : t('build.addToParty')}
                     </PrimaryButton>
                   </div>
                 );

@@ -132,6 +132,7 @@ export async function confirmBooking(
     customerId?: string;
     movie?: string | null;
     stationColors?: Record<string, string>;
+    mascotChoice?: string;
     themeBrief?: (Record<string, string> & { refImages?: string[] }) | null;
     appliedDiscounts?: {
       promo: { code: string; amountFils: number } | null;
@@ -182,7 +183,9 @@ export async function confirmBooking(
   for (const line of quote.lines) {
     if (line.kind === 'discount') continue;
     const color = line.refId ? cart.stationColors?.[line.refId] : undefined;
-    const label = color ? `${line.label} · ${color.charAt(0).toUpperCase()}${color.slice(1)}` : line.label;
+    const mascot = line.refId === 'mascot' ? cart.mascotChoice : undefined;
+    const extra = color ? `${color.charAt(0).toUpperCase()}${color.slice(1)}` : mascot;
+    const label = extra ? `${line.label} · ${extra}` : line.label;
     await db.query(
       `INSERT INTO event_services (event_id, service_id, label, quantity, amount_fils, source, order_id)
        VALUES ($1,$2,$3,$4,$5,'booking',$6)`,

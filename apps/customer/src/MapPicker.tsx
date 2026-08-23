@@ -121,6 +121,17 @@ export function MapPicker({
           if (map.getZoom() < 15) map.setZoom(16);
           commit({ lat: e.latLng.lat(), lng: e.latLng.lng() });
         });
+        // iOS Safari can leave the map blank ("opens then disappears") when it
+        // renders while the checkout card's entrance animation is still running
+        // and the tile layer is measured at the wrong size. Force Google to
+        // remeasure and repaint a few times once the animation has settled.
+        [150, 450, 900].forEach((d) =>
+          window.setTimeout(() => {
+            if (cancelled) return;
+            google.maps.event.trigger(map, 'resize');
+            map.setCenter(start);
+          }, d),
+        );
         setStatus('ready');
       })
       .catch((err) => {
