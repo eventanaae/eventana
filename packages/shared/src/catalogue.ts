@@ -517,11 +517,11 @@ export const CELEBRATION_TYPES = [
  * than filled with invented services.
  */
 export const MISSING_SERVICE_NOTES: Partial<Record<CelebrationType, string>> = {
-  graduation: 'Entrance Stand, Graduation Decoration, Photo Booth & Tables',
-  bride: 'Elegant Decoration, Flower Arrangements, Photo Booth, Tables & Chairs',
+  graduation: 'Entrance Stand, Graduation Decoration & Tables',
+  bride: 'Elegant Decoration, Flower Arrangements, Tables & Chairs',
   baby: 'Baby Shower Decoration, Welcome Stand & Guest Activities',
   gender: 'Voting Stand, Reveal Experience & Boy/Girl Characters',
-  adult: 'Elegant Decoration, Photo Booth & F&B Stations',
+  adult: 'Elegant Decoration & F&B Stations',
 };
 
 export const BRAND = {
