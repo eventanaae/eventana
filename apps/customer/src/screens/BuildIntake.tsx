@@ -23,7 +23,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
   // Age is captured as a group (Kids / Baby) plus a typed number, stored as a
   // single readable string on the draft (e.g. "Kids · 5", "Baby · 8").
   const initGroup = draft.ageBand
-    ? (/baby/i.test(draft.ageBand) ? 'Baby' : /kid/i.test(draft.ageBand) ? 'Kids' : null)
+    ? (/adult/i.test(draft.ageBand) ? 'Adult' : /kid/i.test(draft.ageBand) ? 'Kids' : null)
     : null;
   const [ageGroup, setAgeGroup] = useState<string | null>(initGroup);
   const [ageNum, setAgeNum] = useState<string>(draft.ageBand ? (draft.ageBand.match(/\d+/)?.[0] ?? '') : '');
@@ -87,7 +87,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
       {/* 2 — age of the guest of honour (optional): pick a group, then type it */}
       <Question step={2} title={t('intake.q2')} optional={t('intake.optional')} />
       <div style={{ display: 'flex', gap: 9, marginBottom: ageGroup ? 10 : 26 }}>
-        {(['Kids', 'Baby'] as const).map((g) => {
+        {(['Adult', 'Kids'] as const).map((g) => {
           const active = ageGroup === g;
           return (
             <button
@@ -100,7 +100,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
                 background: active ? C.pinkSoft : '#fff', color: active ? C.pinkDeep : C.ink,
               }}
             >
-              {t(g === 'Kids' ? 'intake.kids' : 'intake.baby')}
+              {t(g === 'Adult' ? 'intake.adult' : 'intake.kids')}
             </button>
           );
         })}
@@ -110,7 +110,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
           value={ageNum}
           onChange={(e) => setAgeNum(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
           inputMode="numeric"
-          placeholder={t(ageGroup === 'Baby' ? 'intake.agePhBaby' : 'intake.agePhKids')}
+          placeholder={t(ageGroup === 'Adult' ? 'intake.agePhAdult' : 'intake.agePhKids')}
           style={{
             width: '100%', border: `1.5px solid ${ageNum ? C.pink : C.pinkLine}`, borderRadius: 14,
             padding: '13px 15px', fontWeight: 700, fontSize: 14, background: '#fff', color: C.ink,

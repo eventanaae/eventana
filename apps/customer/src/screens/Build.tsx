@@ -235,20 +235,32 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                 </div>
               )}
 
-              <div style={{ marginTop: 18 }}>
-                <PrimaryButton
-                  onClick={() => {
-                    const min =
-                      detail.pricing.kind === 'per_child'
-                        ? draft.childrenCount
-                        : (detail.pricing.minQuantity ?? 1);
-                    toggle(detail.id, min);
-                    setDetail(null);
-                  }}
-                >
-                  {draft.services[detail.id] ? t('build.removeFromParty') : t('build.addToParty')}
-                </PrimaryButton>
-              </div>
+              {(() => {
+                const inCart = Boolean(draft.services[detail.id]);
+                const needsColor = detail.categoryId === 'food' || detail.categoryId === 'games';
+                const blockAdd = needsColor && !inCart && !draft.stationColors[detail.id];
+                return (
+                  <div style={{ marginTop: 18 }}>
+                    <PrimaryButton
+                      disabled={blockAdd}
+                      onClick={() => {
+                        const min =
+                          detail.pricing.kind === 'per_child'
+                            ? draft.childrenCount
+                            : (detail.pricing.minQuantity ?? 1);
+                        toggle(detail.id, min);
+                        setDetail(null);
+                      }}
+                    >
+                      {inCart
+                        ? t('build.removeFromParty')
+                        : blockAdd
+                          ? t('build.pickColorFirst')
+                          : t('build.addToParty')}
+                    </PrimaryButton>
+                  </div>
+                );
+              })()}
             </div>
           </>
         )}

@@ -459,24 +459,6 @@ export const THEME_TAGS = [
   'Neutral',
 ];
 
-const otherLibrary = (
-  prefix: string,
-  type: CelebrationType,
-  rows: Array<[string, number]>,
-): ThemeDefinition[] =>
-  rows.map((r, i) => ({
-    id: `${prefix}${i}`,
-    name: r[0],
-    tags: [],
-    colors: PALETTES[r[1]],
-    gradient: G(PALETTES[r[1]][0], PALETTES[r[1]][1]),
-    popular: false,
-    featured: i === 0,
-    active: true,
-    celebrationType: type,
-    sortOrder: i,
-  }));
-
 export const THEMES: ThemeDefinition[] = [
   ...KIDS_THEME_ROWS.map((r, i) => ({
     id: `t${i}`,
@@ -490,11 +472,9 @@ export const THEMES: ThemeDefinition[] = [
     celebrationType: 'kids' as CelebrationType,
     sortOrder: i,
   })),
-  ...otherLibrary('g', 'graduation', [['Classic Gold', 2], ['Navy & Gold', 5], ['Star Graduate', 1], ['Minimal Elegant', 4]]),
-  ...otherLibrary('b', 'bride', [['Blush Romance', 4], ['White & Gold', 2], ['Boho Florals', 7], ['Pearl Elegance', 0]]),
-  ...otherLibrary('s', 'baby', [['Teddy Bear', 7], ['Clouds & Stars', 1], ['Little Moon', 9], ['Boho Neutral', 6]]),
-  ...otherLibrary('r', 'gender', [['Pink or Blue?', 0], ['He or She — Vote!', 9], ['Balloon Pop', 2], ['Little Peanut', 7]]),
-  ...otherLibrary('a', 'adult', [['Black & Gold', 5], ['Retro Disco', 8], ['Garden Dinner', 3], ['Minimal Chic', 4]]),
+  // Non-kids celebrations ship with NO ready-made themes — those customers get a
+  // free custom-theme brief instead (owner decision). Removing these libraries
+  // also clears them from the home "Trending Themes" carousel.
 ];
 
 /* ------------------------------------------------------------------ */
