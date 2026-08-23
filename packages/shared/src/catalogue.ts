@@ -152,8 +152,8 @@ const svc = (r: Row): ServiceDefinition => ({
 
 export const SERVICES: ServiceDefinition[] = [
   // --- Main backdrop & decoration ---------------------------------
-  svc({ id: 'backdropS', name: 'Small Main Backdrop', categoryId: 'backdrop', price: 1500, shortDescription: 'Elegant focal setup · 1 panel', detail: 'A single-panel focal setup for home and smaller celebrations. Personalized with name, age, wording and your theme colours. Exact dimensions are confirmed by Eventana admin.', gradient: G('#FDE0EE', '#F9C6DC') }),
-  svc({ id: 'backdropM', name: 'Medium Main Backdrop', categoryId: 'backdrop', price: 1650, shortDescription: 'Most popular · fuller focal point', detail: 'A fuller main focal point for the cake table and photography, personalized with name, wording and theme graphics.', badge: 'Most Popular', gradient: G('#F9C6DC', '#D9B8E8') }),
+  svc({ id: 'backdropS', name: 'Small Main Backdrop', categoryId: 'backdrop', price: 1500, shortDescription: 'Elegant focal setup · 1 panel', detail: 'A single-panel focal setup for home and smaller celebrations. Includes balloons in your chosen colours, the guest of honour’s name on the backdrop, and one cake stand.', gradient: G('#FDE0EE', '#F9C6DC') }),
+  svc({ id: 'backdropM', name: 'Medium Main Backdrop', categoryId: 'backdrop', price: 1650, shortDescription: 'Most popular · fuller focal point', detail: 'A fuller main focal point for the cake table and photography. Includes balloons in your chosen colours, the guest of honour’s name on the backdrop, and three cake stands.', badge: 'Most Popular', gradient: G('#F9C6DC', '#D9B8E8') }),
   svc({ id: 'backdropL', name: 'Large 3-Panel Backdrop', categoryId: 'backdrop', price: 2200, shortDescription: '3 layered panels · statement setup', detail: 'A statement setup about 3 m wide and 2 m tall. Includes balloons in your chosen colours, the guest of honour’s name on the backdrop, and three cake stands.', gradient: G('#D9B8E8', '#7A8AC8') }),
 
   // --- Food stations (spec item 12: "Station", never "Kiosk") ------
