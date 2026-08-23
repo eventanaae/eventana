@@ -22,8 +22,12 @@ async function main() {
     const { productionReconcile } = await import('./db/productionReconcile.js');
     const { applyThemeGallery } = await import('./db/themeGallery.js');
     const { applyPackageAssets } = await import('./db/packageAssets.js');
+    const { syncCatalogueContent } = await import('./db/syncCatalogue.js');
     await migrate();
     await seedIfEmpty();
+    // Re-sync catalogue content (categories, services, package items) from the
+    // shared catalogue so in-code edits go live without wiping the database.
+    await syncCatalogueContent();
     // Load real staff + birthdays from TEAM_SEED (kept in the environment,
     // never the repo). No-op when the variable is unset.
     await seedTeamFromEnv();

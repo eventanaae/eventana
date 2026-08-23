@@ -24,13 +24,6 @@ export async function applyPackageAssets(): Promise<void> {
         [url],
       );
     }
-    // Keep the giveaway item description in sync with the current offer
-    // (owner: the giveaway is a drawing tablet, handed out during the games).
-    await pool.query(
-      `UPDATE package_items
-          SET detail = 'A drawing tablet for every guest — handed out during the party games, a keepsake to take home.'
-        WHERE name = '10 Giveaways'`,
-    );
     console.log(`[packages] covers applied for ${Object.keys(PACKAGE_COVERS).length} package(s)`);
   } catch (err) {
     console.error('[packages] assets apply failed (non-fatal):', err);

@@ -114,6 +114,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
   { id: 'entertainment', name: 'Entertainment', note: 'Performers kids love', celebrationTypes: ['kids', 'customc'], sortOrder: 6 },
   { id: 'activities', name: 'Activity Sessions', note: 'Price per child · minimum 20 kids · 2 hours · materials included', celebrationTypes: ['kids', 'customc'], sortOrder: 7 },
   { id: 'giveaways', name: 'Giveaways', note: 'Personalized keepsakes for your guests', celebrationTypes: ALL, sortOrder: 8 },
+  { id: 'extras', name: 'Extras', note: 'Finishing touches — digital invitations & extra seating', celebrationTypes: ALL, sortOrder: 9 },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -158,7 +159,7 @@ export const SERVICES: ServiceDefinition[] = [
   // --- Food stations (spec item 12: "Station", never "Kiosk") ------
   svc({ id: 'popcorn', name: 'Popcorn Station', categoryId: 'food', price: 780, shortDescription: '4 hrs · up to 40 guests', detail: 'Freshly popped popcorn served throughout your event.', isFoodStation: true, extraServingFils: aed(195), requiresAssets: ['popcorn-cart'], gradient: G('#F7C948', '#FBD9C0') }),
   svc({ id: 'cotton', name: 'Cotton Candy Station', categoryId: 'food', price: 780, shortDescription: '4 hrs · up to 40 guests', detail: 'Fresh, fluffy cotton candy spun to order.', isFoodStation: true, extraServingFils: aed(195), requiresAssets: ['cotton-cart'], gradient: G('#F9C6DC', '#FDE0EE') }),
-  svc({ id: 'slush', name: 'Slush Station', categoryId: 'food', price: 780, shortDescription: 'Icy fruity flavors · 4 hrs', detail: 'Icy fruit slush in your party colours.', isFoodStation: true, needsAdminReview: true, requiresAssets: ['slush-cart'], gradient: G('#BDEBE4', '#7A8AC8') }),
+  svc({ id: 'slush', name: 'Slush Station', categoryId: 'food', price: 850, shortDescription: '4 hrs · up to 40 guests', detail: 'Icy fruit slush in your party colours.', isFoodStation: true, extraServingFils: aed(195), requiresAssets: ['slush-cart'], gradient: G('#BDEBE4', '#7A8AC8') }),
   svc({ id: 'corn', name: 'Corn Station', categoryId: 'food', price: 900, shortDescription: '4 hrs · up to 40 guests', detail: 'Hot buttered corn cups served fresh.', isFoodStation: true, extraServingFils: aed(225), requiresAssets: ['corn-cart'], gradient: G('#F7C948', '#D9F2B4') }),
   svc({ id: 'icecream', name: 'Ice Cream Station', categoryId: 'food', price: 900, shortDescription: '4 hrs · up to 40 guests', detail: 'Cool, sweet scoops with toppings.', isFoodStation: true, extraServingFils: aed(225), requiresAssets: ['icecream-cart'], gradient: G('#FDE0EE', '#F7C948') }),
   svc({ id: 'hotdog', name: 'Hot Dog Station', categoryId: 'food', price: 1200, shortDescription: '4 hrs · up to 40 guests', detail: 'Fresh hot dogs with all the sauces.', isFoodStation: true, extraServingFils: aed(225), requiresAssets: ['hotdog-cart'], gradient: G('#FBD9C0', '#C97B63') }),
@@ -182,7 +183,7 @@ export const SERVICES: ServiceDefinition[] = [
   svc({ id: 'roll', name: 'Roll & Rule', categoryId: 'games', price: 1200, shortDescription: 'Fun bowling game', detail: 'Roll the ball and knock down the pins.', requiresAssets: ['game-roll'], gradient: G('#BDEBE4', '#F06CA8') }),
 
   // --- Machines ----------------------------------------------------
-  svc({ id: 'foam', name: 'Foam Machine', categoryId: 'machines', price: 1500, shortDescription: 'Playful foam cloud', detail: 'Soft bubbly foam kids dance and play inside — outdoor recommended.', requiresAssets: ['foam-machine'], gradient: G('#D9E8FB', '#BDEBE4') }),
+  svc({ id: 'foam', name: 'Foam Machine', categoryId: 'machines', price: 1500, shortDescription: 'Playful foam cloud', detail: 'Clouds of soft, bubbly foam the kids can dance and play in — best set up outdoors.', requiresAssets: ['foam-machine'], gradient: G('#D9E8FB', '#BDEBE4') }),
   svc({ id: 'bubbles', name: 'Bubbles Machine', categoryId: 'machines', price: 400, shortDescription: 'Shiny party bubbles', detail: 'Fills the air with bubbles for a magical party feel.', requiresAssets: ['bubbles-machine'], gradient: G('#D9E8FB', '#BDEBE4') }),
   svc({ id: 'snow', name: 'Snow Machine', categoryId: 'machines', price: 250, shortDescription: 'Magical snowfall', detail: 'Indoor and outdoor snowfall kids love.', requiresAssets: ['snow-machine'], gradient: G('#FFFFFF', '#D9E8FB') }),
 
@@ -214,6 +215,11 @@ export const SERVICES: ServiceDefinition[] = [
   svc({ id: 'banner', name: 'Face Banner ×10', categoryId: 'giveaways', price: 350, shortDescription: 'Custom banners with the guest of honor’s face', needsAdminReview: true, gradient: G('#F9C6DC', '#7A8AC8') }),
   svc({ id: 'wrist', name: 'VIP Wristbands ×50', categoryId: 'giveaways', price: 120, shortDescription: 'VIP wristbands for all your guests', needsAdminReview: true, gradient: G('#BDEBE4', '#F06CA8') }),
   svc({ id: 'tshirt10', name: 'Customized T-shirts', categoryId: 'giveaways', price: 39, shortDescription: 'AED 39 each · with picture or logo · minimum 10', detail: 'Printed with your picture or logo. Minimum order 10 pieces.', pricing: { kind: 'per_piece', minQuantity: 10 }, gradient: G('#FDE0EE', '#5BCFC5') }),
+
+  // --- Extras -----------------------------------------------------
+  svc({ id: 'invite-image', name: 'Digital Invitation (Image)', categoryId: 'extras', price: 150, shortDescription: 'Themed image invitation to share', detail: 'A digital invitation card designed in your party theme, delivered as an image ready to share.', gradient: G('#FDE0EE', '#D9B8E8') }),
+  svc({ id: 'invite-video', name: 'Digital Invitation (Video)', categoryId: 'extras', price: 250, shortDescription: 'Animated themed video invitation', detail: 'An animated video invitation designed in your party theme, ready to share with your guests.', gradient: G('#D9B8E8', '#7A8AC8') }),
+  svc({ id: 'tables-chairs', name: 'Extra Tables & Chairs (10 guests)', categoryId: 'extras', price: 550, shortDescription: 'Seating + full styling for 10 more guests', detail: 'Extra themed tables and chairs with full styling for 10 additional guests. Add as many sets of 10 as you need.', pricing: { kind: 'per_piece', minQuantity: 1 }, gradient: G('#FBD9C0', '#F9C6DC') }),
 ];
 
 export const SERVICE_BY_ID = new Map(SERVICES.map((s) => [s.id, s]));
@@ -259,7 +265,7 @@ export const PACKAGES: PackageDefinition[] = [
     gradient: G('#BDEBE4', '#F9C6DC'),
     hasCastleChoice: false,
     items: [
-      item('Ball Pool Slide 4x4m', 'A 4×4 m ball pool slide, max 10 kids per ride. One shared unit — the first confirmed booking takes it.', ['ball-pool-slide']),
+      item('Ball Pool Slide 4x4m', 'A 4×4 m ball pool slide, max 10 kids per ride.', ['ball-pool-slide']),
       item('2 Entertainers', 'Two entertainers running dance, games and activities all party long.'),
       item('Face Painting (40 kids)', 'Kid-safe face painting for up to 40 children.'),
       item('Cotton Candy (40 kids)', 'Fresh, fluffy cotton candy for up to 40 kids.', ['cotton-cart']),
@@ -267,7 +273,8 @@ export const PACKAGES: PackageDefinition[] = [
       item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
       item('2 Backdrops', 'Two balloon backdrops in your theme colours.'),
       item('2 Cake Stands', 'Two themed cake display stands.'),
-      item('10 Game Prizes + Music Speaker', 'Ten game prizes and a party speaker.'),
+      item('10 Game Prizes', 'Ten prizes for the party games.'),
+      item('Music Speaker', 'A party speaker for your playlist.'),
       item('Tables & Chairs Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
     ],
   },
@@ -308,6 +315,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('Kids Pedicure', 'Gentle, kid-safe polish throughout the party.'),
       item('Braid Corner', 'A braiding station with hair ties and mirrors.'),
       item('Spa Tables & Essentials', 'Napkins, plates, mask bowls, cucumber slices, face masks, hair ties and mirrors.'),
+      item('Tables & Chairs (10 kids)', 'Themed tables and chairs seating for up to 10 kids.'),
       item('Cotton Candy (20 kids)', 'Fresh, fluffy cotton candy for up to 20 kids.', ['cotton-cart']),
       item('Popcorn (20 kids)', 'Freshly popped popcorn for up to 20 kids.', ['popcorn-cart']),
       item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
@@ -325,14 +333,15 @@ export const PACKAGES: PackageDefinition[] = [
     gradient: G('#AEE7DF', '#F7C948'),
     hasCastleChoice: false,
     items: [
-      item('Ball Pool Slide 4x4m', 'A 4×4 m ball pool slide, max 10 kids per ride. One shared unit — the first confirmed booking takes it.', ['ball-pool-slide']),
-      item('Foam Machine', 'Soft bubbly foam kids dance and play inside.', ['foam-machine']),
+      item('Ball Pool Slide 4x4m', 'A 4×4 m ball pool slide, max 10 kids per ride.', ['ball-pool-slide']),
+      item('Foam Machine', 'Clouds of soft, bubbly foam the kids can dance and play in.', ['foam-machine']),
       item('Ice Cream (40 kids)', 'Cool, sweet scoops for up to 40 kids.', ['icecream-cart']),
       item('Cotton Candy (40 kids)', 'Fresh, fluffy cotton candy for up to 40 kids.', ['cotton-cart']),
       item('3 Entertainers', 'Three entertainers running dance, games and activities all party long.'),
       item('2 Backdrops', 'Two balloon backdrops in your theme colours.'),
       item('1 Cake Stand', 'A themed cake display stand.'),
-      item('10 Game Prizes + Music Speaker', 'Ten game prizes and a party speaker.'),
+      item('10 Game Prizes', 'Ten prizes for the party games.'),
+      item('Music Speaker', 'A party speaker for your playlist.'),
       item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
       item('Tables & Chairs Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
     ],
