@@ -14,8 +14,8 @@ import { randomBytes } from 'node:crypto';
 import { pool } from './pool.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 
-const DASHBOARD_URL = 'https://eventana-dashboard.onrender.com';
-const CUSTOMER_URL = 'https://eventana-customer.onrender.com';
+const DASHBOARD_URL = 'https://ops.eventanauae.com';
+const CUSTOMER_URL = 'https://app.eventanauae.com';
 
 interface Invite {
   name: string;
