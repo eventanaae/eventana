@@ -291,8 +291,17 @@ export function Themes({
         {preview && (
           <div style={{ padding: '20px 22px 8px' }}>
             <div style={{ ...fredoka(22) }}>{preview.name}</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 14px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 12px' }}>
               {t('themes.galleryNote')}
+            </div>
+            {/* Select sits at the TOP so the customer never has to scroll the
+                whole gallery to pick the theme. */}
+            <div style={{ margin: '0 0 14px', position: 'sticky', top: 0, zIndex: 1 }}>
+              <PrimaryButton
+                onClick={() => { update({ themeId: preview.id, customTheme: false }); setPreview(null); }}
+              >
+                {draft.themeId === preview.id ? t('themes.selected') : t('themes.selectThis')}
+              </PrimaryButton>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {(preview.gallery ?? []).map((url, i) => (
@@ -304,13 +313,6 @@ export function Themes({
                   }}
                 />
               ))}
-            </div>
-            <div style={{ margin: '16px 0 6px' }}>
-              <PrimaryButton
-                onClick={() => { update({ themeId: preview.id, customTheme: false }); setPreview(null); }}
-              >
-                {draft.themeId === preview.id ? t('themes.selected') : t('themes.selectThis')}
-              </PrimaryButton>
             </div>
           </div>
         )}

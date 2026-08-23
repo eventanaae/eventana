@@ -187,13 +187,16 @@ export function Checkout({
         setPaying(false);
         return;
       }
-      // Preferred: pay inside the app via the provider's embedded widget (no
-      // redirect). The confirming screen shows it in an iframe and polls our
-      // own server for the real confirmation. Fall back to the hosted page for
-      // providers that only offer a redirect. Nothing is confirmed here.
-      onOrder(result.orderId, result.embeddedUrl ?? null);
-      if (!result.embeddedUrl && result.checkoutUrl) {
+      // Use the provider's hosted checkout (redirect) — the reliable path.
+      // Ziina's embedded iframe widget returns "Forbidden" for this account
+      // (embedded/iframe payments are not enabled), so only fall back to the
+      // embedded widget when no redirect URL is available. Nothing is confirmed
+      // here — the app returns and waits for the server's webhook view.
+      if (result.checkoutUrl) {
+        onOrder(result.orderId);
         window.location.href = result.checkoutUrl;
+      } else if (result.embeddedUrl) {
+        onOrder(result.orderId, result.embeddedUrl);
       }
     } catch (e: any) {
       // A thrown fetch (no server body) is a connection problem — show a clear,
@@ -318,7 +321,7 @@ export function Checkout({
         <input
           type="date"
           value={draft.eventDate}
-          min={new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10)}
+          min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
           onChange={(e) => update({ eventDate: e.target.value })}
           style={{
             width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px',

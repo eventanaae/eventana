@@ -238,7 +238,7 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
           code: 'too_soon',
           message: `Bookings must be made at least ${rules.minLeadHours} hours before the event. Please choose a later date.`,
         });
-      } else if (hoursToEvent < rules.standardLeadDays * 24) {
+      } else if (hoursToEvent < rules.urgentWindowHours) {
         const partyNetFils = lines
           .filter((l) => l.kind !== 'delivery')
           .reduce((sum, l) => sum + l.amountFils, 0);
@@ -247,7 +247,7 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
           lines.push({
             kind: 'surcharge',
             refId: null,
-            label: `Rush booking (within ${rules.standardLeadDays} days) +${rules.rushSurchargePercent}%`,
+            label: `Urgent booking (within ${rules.urgentWindowHours} hours) +${rules.rushSurchargePercent}%`,
             quantity: 1,
             unitFils: rushFils,
             amountFils: rushFils,

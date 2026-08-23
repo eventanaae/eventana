@@ -18,9 +18,9 @@ const EN: Section[] = [
   {
     title: '2. Bookings & lead time',
     body: [
-      'Bookings should be made at least one (1) week before the event date, subject to availability.',
-      'Rush bookings: an event booked less than seven (7) days before its date is accepted where availability allows and carries a rush surcharge of 40% of the party value (shown clearly at checkout before payment).',
-      'We cannot accept a booking made less than forty-eight (48) hours before the event — our team needs time to prepare.',
+      'Bookings should be made a few days before the event date, subject to availability.',
+      'Urgent bookings: an event booked within seventy-two (72) hours (3 days) of its date is accepted where availability allows and carries a 25% urgent surcharge (shown clearly at checkout before payment).',
+      'We cannot accept a booking made less than twenty-four (24) hours before the event — our team needs time to prepare.',
       'A booking is only confirmed once payment is completed and you receive your Event ID.',
     ],
   },
@@ -36,7 +36,6 @@ const EN: Section[] = [
     title: '4. Event duration',
     body: [
       'Standard party packages run for four (4) hours. Certain build-your-own setups (large décor, inflatables or machines) run for six (6) hours.',
-      'Every event must finish by 12:00 AM. Additional hours may be purchased where the finish time still falls before midnight.',
       'Our team typically arrives about two (2) hours before your start time to set up.',
     ],
   },
@@ -114,9 +113,9 @@ const AR: Section[] = [
   {
     title: '٢. الحجز ومدة الإشعار',
     body: [
-      'يُفضّل الحجز قبل موعد المناسبة بأسبوع واحد على الأقل، حسب التوفّر.',
-      'الحجز المستعجل: المناسبة المحجوزة قبل موعدها بأقل من سبعة (٧) أيام تُقبل حسب التوفّر وتُضاف لها رسوم استعجال بنسبة ٤٠٪ من قيمة الحفلة (تظهر بوضوح عند الدفع قبل الإتمام).',
-      'لا يمكننا قبول أي حجز قبل المناسبة بأقل من ثمانٍ وأربعين (٤٨) ساعة — فريقنا يحتاج وقتاً للتجهيز.',
+      'يُفضّل الحجز قبل موعد المناسبة بأيام، حسب التوفّر.',
+      'الحجز الأرجنت: المناسبة المحجوزة خلال ٧٢ ساعة (٣ أيام) من موعدها تُقبل حسب التوفّر وتُضاف لها رسوم استعجال ٢٥٪ من قيمة الحفلة (تظهر بوضوح عند الدفع قبل الإتمام).',
+      'لا يمكننا قبول أي حجز قبل المناسبة بأقل من أربعٍ وعشرين (٢٤) ساعة — فريقنا يحتاج وقتاً للتجهيز.',
       'لا يُعتبر الحجز مؤكداً إلا بعد إتمام الدفع واستلامك رقم المناسبة.',
     ],
   },
@@ -132,7 +131,6 @@ const AR: Section[] = [
     title: '٤. مدة المناسبة',
     body: [
       'الباقات القياسية مدتها أربع (٤) ساعات. بعض تصاميم «صمّم بنفسك» (الديكور الكبير أو النطّاطيات أو الماكينات) مدتها ست (٦) ساعات.',
-      'يجب أن تنتهي كل مناسبة قبل الساعة ١٢:٠٠ منتصف الليل. يمكن شراء ساعات إضافية طالما أن وقت الانتهاء يبقى قبل منتصف الليل.',
       'يصل فريقنا عادةً قبل وقت البداية بنحو ساعتين (٢) للتجهيز.',
     ],
   },
