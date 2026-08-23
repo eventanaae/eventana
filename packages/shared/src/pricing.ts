@@ -206,8 +206,12 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
     });
   }
 
-  // The custom theme fee sits outside the discount entirely.
-  const customThemeFeeFils = cart.customTheme ? rules.customThemeFeeFils : 0;
+  // The custom theme fee sits outside the discount entirely. It applies only
+  // to kids parties, which have a full library of ready themes as the free
+  // option — every other celebration has no ready themes, so a custom design
+  // is included at no extra charge.
+  const customThemeFeeFils =
+    cart.customTheme && cart.celebrationType === 'kids' ? rules.customThemeFeeFils : 0;
   if (customThemeFeeFils > 0) {
     lines.push({
       kind: 'custom_theme',

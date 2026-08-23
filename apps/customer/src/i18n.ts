@@ -279,6 +279,7 @@ const en: Dict = {
   'themes.noMatch': 'No themes match — try a different search, or create a custom theme below.',
   'themes.cantFind': 'Can’t find your theme?',
   'themes.willCreate': 'Our design team will create it from scratch ·',
+  'themes.noFee': 'No extra charge',
   'themes.createCustom': 'Create a Custom Theme ✨',
   'themes.reviewPay': 'Continue — Review & Pay',
 
@@ -709,6 +710,7 @@ const ar: Dict = {
   'themes.noMatch': 'لا توجد ثيمات مطابقة — جرّب بحثاً آخر، أو أنشئ ثيماً مخصّصاً بالأسفل.',
   'themes.cantFind': 'ما لقيت ثيمك؟',
   'themes.willCreate': 'فريق التصميم لدينا يصمّمه من الصفر ·',
+  'themes.noFee': 'بدون رسوم إضافية',
   'themes.createCustom': 'أنشئ ثيماً مخصّصاً ✨',
   'themes.reviewPay': 'متابعة — المراجعة والدفع',
 

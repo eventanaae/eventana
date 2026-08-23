@@ -39,7 +39,10 @@ export function Themes({
     }
   };
 
-  const feeFils = (catalogue.rules.customThemeFeeFils as number) ?? 80_000;
+  // The custom-theme design fee applies to kids parties only; every other
+  // celebration has no ready themes, so a custom design is free.
+  const feeFils = draft.celebrationType === 'kids' ? ((catalogue.rules.customThemeFeeFils as number) ?? 80_000) : 0;
+  const feeLabel = feeFils > 0 ? `+ ${t('common.aed')} ${money(feeFils)}` : t('themes.noFee');
   const isKids = draft.celebrationType === 'kids';
 
   const library = useMemo(
@@ -76,7 +79,7 @@ export function Themes({
           }}
         >
           <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t('themes.customDesign')}</span>
-          <span style={{ fontWeight: 700, color: C.pinkDeep }}>+ {t('common.aed')} {money(feeFils)}</span>
+          <span style={{ fontWeight: 700, color: C.pinkDeep }}>{feeLabel}</span>
         </div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8a6f7d', lineHeight: 1.6, marginBottom: 18 }}>
           {t('themes.basedOnPackage')}
@@ -158,7 +161,7 @@ export function Themes({
             disabled={!brief.theme.trim()}
             onClick={() => { update({ customTheme: true, themeId: null, themeBrief: brief }); go('checkout'); }}
           >
-            {t('themes.addCustom')} · {t('common.aed')} {money(feeFils)}
+            {t('themes.addCustom')} · {feeLabel}
           </PrimaryButton>
         </div>
       </div>
@@ -186,7 +189,7 @@ export function Themes({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={fredoka(15)}>{t('themes.createCustom')}</div>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8a6f7d', marginTop: 2 }}>
-            {t('themes.willCreate')} <b style={{ color: C.pinkDeep }}>+ {t('common.aed')} {money(feeFils)}</b>
+            {t('themes.willCreate')} <b style={{ color: C.pinkDeep }}>{feeLabel}</b>
           </div>
         </div>
         <span style={{ color: C.pink, fontWeight: 700, fontSize: 18 }}>›</span>
