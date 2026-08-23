@@ -131,6 +131,9 @@ CREATE TABLE IF NOT EXISTS customers (
 -- before self-registration simply have NULL here.
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
+-- A mandatory backup contact number, captured at checkout (guest or account).
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS backup_phone TEXT;
+
 -- Referral programme + store credit.
 --  referral_code: this customer's own shareable code.
 --  referred_by: the code they signed up with (credits its owner on first booking).

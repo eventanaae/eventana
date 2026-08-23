@@ -52,7 +52,10 @@ export function Checkout({
   const [promoBusy, setPromoBusy] = useState(false);
   const [useCredit, setUseCredit] = useState(false);
   const [redeemPoints, setRedeemPoints] = useState(false);
-  const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', password: '', referralCode: '' });
+  const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', backupPhone: '', password: '', referralCode: '' });
+  // Guest checkout is the default; creating an account (for points + a next-
+  // booking voucher) is opt-in.
+  const [wantAccount, setWantAccount] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [forgotMsg, setForgotMsg] = useState<string | null>(null);
@@ -70,10 +73,12 @@ export function Checkout({
   const eventForLabel = t(`checkout.for.${forKeys.includes(draft.celebrationType) ? draft.celebrationType : 'default'}`);
 
   const emailOk = /.+@.+\..+/.test(reg.email.trim());
-  const authReady =
-    authMode === 'register'
-      ? reg.name.trim().length >= 2 && emailOk && reg.phone.trim().length >= 6 && reg.password.length >= 6
-      : emailOk && reg.password.length >= 1;
+  // Guest details needed to book (backup phone + email are mandatory). If they
+  // opt into an account, a password is needed too.
+  const guestReady =
+    reg.name.trim().length >= 2 && emailOk && reg.phone.trim().length >= 6 &&
+    reg.backupPhone.trim().length >= 6 && (!wantAccount || reg.password.length >= 6);
+  const loginReady = emailOk && reg.password.length >= 1;
 
   const submitAuth = async () => {
     setAuthBusy(true);
@@ -186,11 +191,27 @@ export function Checkout({
     setPaying(true);
     setError(null);
     try {
+      // Not signed in: either create the opt-in account first (so this booking
+      // is under it and earns points + a voucher), or check out as a guest.
+      let guest: { name: string; phone: string; backupPhone: string; email: string } | undefined;
+      if (!account) {
+        const g = {
+          name: reg.name.trim(), phone: reg.phone.trim(),
+          backupPhone: reg.backupPhone.trim(), email: reg.email.trim(),
+        };
+        if (wantAccount) {
+          const acc = await api.register({ ...g, password: reg.password, referralCode: reg.referralCode.trim() || undefined });
+          saveAccount(acc);
+          setAccount(acc);
+        } else {
+          guest = g;
+        }
+      }
       const result = await api.checkout(toCart(draft), draft.provider, {
         promoCode: promo?.code ?? null,
         useCredit,
         redeemPoints,
-      }, agreed);
+      }, agreed, guest);
       if (!result.eligible || (!result.embeddedUrl && !result.checkoutUrl)) {
         setError(t('checkout.providerUnavailable', { provider: draft.provider }));
         setPaying(false);
@@ -216,7 +237,8 @@ export function Checkout({
   };
 
   const canPay =
-    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && Boolean(account) && agreed;
+    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && agreed &&
+    (Boolean(account) || (authMode === 'register' && guestReady));
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
@@ -489,9 +511,11 @@ export function Checkout({
         )}
       </div>
 
-      {/* ---------------- account (required to confirm) ---------------- */}
+      {/* ---------------- your details / account (guest checkout allowed) ---------------- */}
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('checkout.yourAccount')}</div>
+        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>
+          {account || authMode === 'login' ? t('checkout.yourAccount') : t('checkout.yourDetails')}
+        </div>
         {account ? (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>
@@ -513,64 +537,66 @@ export function Checkout({
         ) : (
           <>
             <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 10 }}>
-              {t('checkout.createOrSignin')}
+              {authMode === 'login' ? t('checkout.signinSub') : t('checkout.guestSub')}
             </div>
-            {authMode === 'register' && (
-              <Field placeholder={`${t('checkout.phFullName')} *`} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
+
+            {authMode === 'login' ? (
+              <>
+                <Field placeholder={t('checkout.phEmail')} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
+                <input
+                  type="password"
+                  placeholder={t('checkout.phPassword')}
+                  value={reg.password}
+                  onChange={(e) => setReg((r) => ({ ...r, password: e.target.value }))}
+                  style={{ border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px', fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none', width: '100%', marginBottom: 9 }}
+                />
+                {authError && (<div style={{ marginBottom: 9 }}><Notice tone="error">{authError}</Notice></div>)}
+                <PrimaryButton disabled={!loginReady || authBusy} onClick={submitAuth}>
+                  {authBusy ? t('checkout.pleaseWait') : t('checkout.signin')}
+                </PrimaryButton>
+                {!forgotMsg && (
+                  <div style={{ textAlign: 'center', marginTop: 8 }}>
+                    <a onClick={forgotPassword} style={{ cursor: 'pointer', color: C.muted, fontSize: 11.5, fontWeight: 700 }}>{t('checkout.forgot')}</a>
+                  </div>
+                )}
+                {forgotMsg && (<div style={{ marginTop: 10 }}><Notice tone="ok">{forgotMsg}</Notice></div>)}
+              </>
+            ) : (
+              <>
+                <Field placeholder={`${t('checkout.phFullName')} *`} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
+                <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
+                <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
+                <Field placeholder={`${t('checkout.phBackup')} *`} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} style={{ marginBottom: 9 }} />
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', margin: '4px 0 0' }}>
+                  <input type="checkbox" checked={wantAccount} onChange={(e) => setWantAccount(e.target.checked)} style={{ marginTop: 2, width: 16, height: 16, accentColor: C.pink, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>{t('checkout.createAccountOpt')}</span>
+                </label>
+                {wantAccount && (
+                  <div style={{ marginTop: 9 }}>
+                    <input
+                      type="password"
+                      placeholder={t('checkout.phPassword')}
+                      value={reg.password}
+                      onChange={(e) => setReg((r) => ({ ...r, password: e.target.value }))}
+                      style={{ border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px', fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none', width: '100%', marginBottom: 9 }}
+                    />
+                    <Field placeholder={t('checkout.phReferral')} value={reg.referralCode} onChange={(v) => setReg((r) => ({ ...r, referralCode: v.toUpperCase() }))} />
+                  </div>
+                )}
+                {authError && (<div style={{ marginTop: 9 }}><Notice tone="error">{authError}</Notice></div>)}
+              </>
             )}
-            <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
-            {authMode === 'register' && (
-              <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
-            )}
-            {authMode === 'register' && (
-              <Field placeholder={t('checkout.phReferral')} value={reg.referralCode} onChange={(v) => setReg((r) => ({ ...r, referralCode: v.toUpperCase() }))} style={{ marginBottom: 9 }} />
-            )}
-            <input
-              type="password"
-              placeholder={t('checkout.phPassword')}
-              value={reg.password}
-              onChange={(e) => setReg((r) => ({ ...r, password: e.target.value }))}
-              style={{
-                border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px',
-                fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none',
-                width: '100%', marginBottom: 9,
-              }}
-            />
-            {authError && (
-              <div style={{ marginBottom: 9 }}>
-                <Notice tone="error">{authError}</Notice>
-              </div>
-            )}
-            <PrimaryButton disabled={!authReady || authBusy} onClick={submitAuth}>
-              {authBusy ? t('checkout.pleaseWait') : authMode === 'register' ? t('checkout.createAccount') : t('checkout.signin')}
-            </PrimaryButton>
+
             <div style={{ textAlign: 'center', marginTop: 10, fontSize: 12, fontWeight: 700 }}>
-              <span style={{ color: C.muted }}>
-                {authMode === 'register' ? t('checkout.haveAccount') : t('checkout.newHere')}
-              </span>{' '}
+              <span style={{ color: C.muted }}>{authMode === 'login' ? t('checkout.newHere') : t('checkout.haveAccount')}</span>{' '}
               <a
-                onClick={() => {
-                  setAuthMode((m) => (m === 'register' ? 'login' : 'register'));
-                  setAuthError(null);
-                  setForgotMsg(null);
-                }}
+                onClick={() => { setAuthMode((m) => (m === 'register' ? 'login' : 'register')); setAuthError(null); setForgotMsg(null); }}
                 style={{ cursor: 'pointer', color: C.pinkDeep }}
               >
-                {authMode === 'register' ? t('checkout.signin') : t('checkout.createOne')}
+                {authMode === 'login' ? t('checkout.createOne') : t('checkout.signin')}
               </a>
             </div>
-            {authMode === 'login' && !forgotMsg && (
-              <div style={{ textAlign: 'center', marginTop: 8 }}>
-                <a onClick={forgotPassword} style={{ cursor: 'pointer', color: C.muted, fontSize: 11.5, fontWeight: 700 }}>
-                  {t('checkout.forgot')}
-                </a>
-              </div>
-            )}
-            {forgotMsg && (
-              <div style={{ marginTop: 10 }}>
-                <Notice tone="ok">{forgotMsg}</Notice>
-              </div>
-            )}
           </>
         )}
       </div>
@@ -722,9 +748,14 @@ export function Checkout({
           {t('checkout.mapPinRequired')}
         </div>
       )}
-      {!account && (
+      {!account && authMode === 'register' && !guestReady && (
         <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
-          {t('checkout.createToConfirm')}
+          {t('checkout.detailsRequired')}
+        </div>
+      )}
+      {!account && authMode === 'login' && (
+        <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
+          {t('checkout.signinToConfirm')}
         </div>
       )}
       <div style={{ marginTop: 10, fontSize: 10.5, fontWeight: 600, color: C.faint, textAlign: 'center' }}>

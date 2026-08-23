@@ -19,21 +19,24 @@ import {
   type CartInput,
   type Quote,
 } from '@eventana/shared';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { pool, withTransaction } from '../db/pool.js';
 import { getProvider } from '../payments/index.js';
 import { ConflictError, acquireHolds, releaseHolds, unavailableAssets } from './inventory.js';
 import { createOrder, createPayment, nextOrderId, recordPaymentEvent } from './orders.js';
 import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
-import { computeDiscounts, type DiscountInput } from './discounts.js';
+import { computeDiscounts, makeReferralCode, type DiscountInput } from './discounts.js';
 
 export interface CheckoutRequest {
   cart: CartInput & {
     address?: Record<string, unknown>;
     mapPin?: { lat: number; lng: number } | null;
   };
-  customerId: string;
+  /** Signed-in customer, or null for a guest checkout (see `guest`). */
+  customerId: string | null;
+  /** Guest contact details, used to mint a lightweight customer when not signed in. */
+  guest?: { name: string; phone: string; backupPhone: string; email: string };
   provider: string;
   lang?: 'en' | 'ar';
   idempotencyKey?: string;
@@ -123,6 +126,14 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     throw new CheckoutError('Please accept the Terms & Conditions to continue.', 'terms_required');
   }
 
+  // Resolve the customer: a signed-in id, or a lightweight guest customer
+  // minted from the checkout contact details. Everything downstream keys off
+  // this id (order, loyalty, history) exactly as a registered customer would.
+  const customerId = req.customerId ?? (req.guest ? await createGuestCustomer(req.guest) : null);
+  if (!customerId) {
+    throw new CheckoutError('Please sign in or enter your details to continue.', 'auth_required');
+  }
+
   // (1) The server recomputes everything. A total submitted by the
   // device is not read at all — it is not even a parameter here.
   const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now() });
@@ -150,7 +161,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   // on the cart so confirmation can consume them once (and only once) the
   // payment actually lands.
   const applied = await computeDiscounts(pool, {
-    customerId: req.customerId,
+    customerId,
     subtotalFils: serverQuote.totalFils,
     input: req.discounts ?? {},
   });
@@ -179,7 +190,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     await createOrder(db, {
       id,
       kind: 'booking',
-      customerId: req.customerId,
+      customerId,
       totalFils: serverQuote.totalFils,
       cart,
       quote: serverQuote,
@@ -205,7 +216,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
 
   // (5) The provider session. Outside the transaction because it is a
   // network call — but a failure here must not strand the hold.
-  const customer = await loadCustomer(req.customerId);
+  const customer = await loadCustomer(customerId);
   const paymentId = randomUUID();
 
   try {
@@ -233,7 +244,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       successUrl: `${config.publicAppUrl}/pay/return?order=${orderId}`,
       cancelUrl: `${config.publicAppUrl}/pay/cancel?order=${orderId}`,
       failureUrl: `${config.publicAppUrl}/pay/failure?order=${orderId}`,
-      orderHistory: await loadOrderHistory(req.customerId),
+      orderHistory: await loadOrderHistory(customerId),
     });
 
     await createPayment(pool, {
@@ -524,6 +535,43 @@ export async function startTipCheckout(args: {
 }
 
 /* ------------------------------------------------------------------ */
+
+/**
+ * Mints a lightweight customer for a guest checkout (no password). If the
+ * email already belongs to an account we reuse it — a returning guest keeps
+ * one identity (and their loyalty/vouchers) instead of fragmenting.
+ */
+async function createGuestCustomer(g: {
+  name: string;
+  phone: string;
+  backupPhone: string;
+  email: string;
+}): Promise<string> {
+  const existing = await pool.query<{ id: string }>(
+    `SELECT id FROM customers WHERE lower(email) = lower($1) LIMIT 1`,
+    [g.email],
+  );
+  if (existing.rows[0]) {
+    await pool.query(
+      `UPDATE customers SET name = $2, phone = $3, backup_phone = $4 WHERE id = $1`,
+      [existing.rows[0].id, g.name, g.phone, g.backupPhone],
+    );
+    return existing.rows[0].id;
+  }
+  const id = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
+  let code = makeReferralCode(g.name);
+  for (let i = 0; i < 3; i++) {
+    const clash = await pool.query(`SELECT 1 FROM customers WHERE referral_code = $1`, [code]);
+    if (!clash.rowCount) break;
+    code = makeReferralCode(g.name);
+  }
+  await pool.query(
+    `INSERT INTO customers (id, name, phone, backup_phone, email, referral_code)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [id, g.name, g.phone, g.backupPhone, g.email, code],
+  );
+  return id;
+}
 
 async function loadCustomer(customerId: string) {
   const { rows } = await pool.query(`SELECT * FROM customers WHERE id = $1`, [customerId]);

@@ -133,13 +133,14 @@ export const api = {
     provider: string,
     discounts?: { promoCode?: string | null; useCredit?: boolean; redeemPoints?: boolean },
     termsAccepted?: boolean,
+    guest?: { name: string; phone: string; backupPhone: string; email: string },
   ) =>
     request<{
       orderId: string; checkoutUrl: string | null; embeddedUrl?: string | null; eligible: boolean;
       totalFils: number; holdExpiresAt: string;
     }>('/api/checkout', {
       method: 'POST',
-      body: JSON.stringify({ cart, customerId: currentCustomerId(), provider, discounts, termsAccepted }),
+      body: JSON.stringify({ cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest }),
     }),
 
   checkPromo: (code: string, subtotalFils: number) =>
@@ -148,7 +149,7 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ code, subtotalFils }) },
     ),
 
-  register: (body: { name: string; email: string; phone: string; password: string; referralCode?: string }) =>
+  register: (body: { name: string; email: string; phone: string; backupPhone?: string; password: string; referralCode?: string }) =>
     request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number }>(
       '/api/customers/register',
       { method: 'POST', body: JSON.stringify(body) },

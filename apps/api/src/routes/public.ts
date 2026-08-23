@@ -280,6 +280,15 @@ export async function publicRoutes(app: FastifyInstance) {
       lang: z.enum(['en', 'ar']).optional(),
       idempotencyKey: z.string().optional(),
       termsAccepted: z.boolean().optional(),
+      // Guest checkout: contact details when the customer is not signed in.
+      guest: z
+        .object({
+          name: z.string().trim().min(2).max(120),
+          phone: z.string().trim().min(6).max(30),
+          backupPhone: z.string().trim().min(6).max(30),
+          email: z.string().trim().email(),
+        })
+        .optional(),
       discounts: z
         .object({
           promoCode: z.string().max(40).nullable().optional(),
@@ -294,14 +303,15 @@ export async function publicRoutes(app: FastifyInstance) {
     }
 
     const customerId = customerFromRequest(request);
-    if (!customerId) {
-      return reply.status(401).send({ error: 'auth_required', message: 'Please sign in to complete your booking.' });
+    if (!customerId && !parsed.data.guest) {
+      return reply.status(401).send({ error: 'auth_required', message: 'Please sign in or enter your details to complete your booking.' });
     }
 
     try {
       const result = await startCheckout({
         cart: parsed.data.cart as unknown as CheckoutCart,
-        customerId,
+        customerId: customerId ?? null,
+        guest: parsed.data.guest,
         provider: parsed.data.provider,
         lang: parsed.data.lang,
         idempotencyKey: parsed.data.idempotencyKey,
@@ -517,6 +527,7 @@ export async function publicRoutes(app: FastifyInstance) {
       name: z.string().trim().min(2).max(120),
       email: z.string().trim().email(),
       phone: z.string().trim().min(6).max(30),
+      backupPhone: z.string().trim().min(6).max(30).optional(),
       password: z.string().min(6).max(200),
       referralCode: z.string().trim().max(40).optional(),
     });
@@ -524,7 +535,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     }
-    const { name, email, phone, password, referralCode } = parsed.data;
+    const { name, email, phone, backupPhone, password, referralCode } = parsed.data;
     const existing = await pool.query('SELECT id FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
     if (existing.rowCount) {
       return reply.status(409).send({ error: 'email_taken', message: 'An account with this email already exists — please sign in.' });
@@ -550,9 +561,9 @@ export async function publicRoutes(app: FastifyInstance) {
     }
 
     await pool.query(
-      `INSERT INTO customers (id, name, phone, email, password_hash, referral_code, referred_by, referral_credit_fils)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [id, name, phone, email, hashPassword(password), myCode, referredBy, welcomeCredit],
+      `INSERT INTO customers (id, name, phone, backup_phone, email, password_hash, referral_code, referred_by, referral_credit_fils)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [id, name, phone, backupPhone ?? null, email, hashPassword(password), myCode, referredBy, welcomeCredit],
     );
     return {
       customerId: id, name, email, phone, token: issueCustomerToken(id),
