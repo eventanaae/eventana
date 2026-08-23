@@ -41,6 +41,12 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
   const count = Object.keys(draft.services).length;
   const eligible = quote?.eligibleSubtotalFils ?? 0;
   const progress = Math.min(100, Math.round((eligible / threshold) * 100));
+  // A theme is only needed when a backdrop/decoration is in the cart. Food
+  // stations, games, machines etc. skip the theme step entirely and go
+  // straight to review (owner request).
+  const themeRequired = Object.keys(draft.services).some(
+    (id) => catalogue.services.find((s) => s.id === id)?.categoryId === 'backdrop',
+  );
 
   return (
     <div style={{ animation: 'rise .35s ease' }}>
@@ -169,10 +175,10 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 3, gap: 10 }}>
               <button
-                onClick={() => go('theme')}
+                onClick={() => go(themeRequired ? 'theme' : 'checkout')}
                 style={{ background: C.pink, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, padding: '11px 18px', borderRadius: 16, cursor: 'pointer' }}
               >
-                {t('build.continueTheme')}
+                {themeRequired ? t('build.continueTheme') : t('build.continueReview')}
               </button>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{t('common.aed')} {money(eligible)}</div>

@@ -87,7 +87,7 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
       {/* 2 — age of the guest of honour (optional): pick a group, then type it */}
       <Question step={2} title={t('intake.q2')} optional={t('intake.optional')} />
       <div style={{ display: 'flex', gap: 9, marginBottom: ageGroup ? 10 : 26 }}>
-        {(['Adult', 'Kids'] as const).map((g) => {
+        {(['Kids', 'Adult'] as const).map((g) => {
           const active = ageGroup === g;
           return (
             <button
