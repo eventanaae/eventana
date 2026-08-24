@@ -270,13 +270,41 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                 </div>
               )}
 
+              {detail.id === 'castle' && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 9 }}>{t('build.castleColor')}</div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {catalogue.castleVariants.map((cv) => {
+                      const active = draft.castleVariant === cv.code;
+                      return (
+                        <button
+                          key={cv.code}
+                          type="button"
+                          aria-label={cv.name}
+                          onClick={() => update({ castleVariant: cv.code })}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 7, borderRadius: 12, padding: '8px 12px', cursor: 'pointer',
+                            border: `1.5px solid ${active ? C.pink : C.pinkLine}`, background: active ? C.pinkSoft : '#fff',
+                          }}
+                        >
+                          <span style={{ width: 20, height: 20, borderRadius: '50%', background: cv.swatch, border: '1px solid rgba(0,0,0,.15)', flex: 'none' }} />
+                          <span style={{ fontWeight: 700, fontSize: 12.5, color: active ? C.pinkDeep : C.ink }}>{cv.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {(() => {
                 const inCart = Boolean(draft.services[detail.id]);
                 const needsColor = detail.categoryId === 'food' || detail.categoryId === 'games';
                 const needsMascot = detail.id === 'mascot';
+                const needsCastle = detail.id === 'castle';
                 const missingColor = needsColor && !draft.stationColors[detail.id];
                 const missingMascot = needsMascot && !draft.mascotChoice;
-                const blockAdd = !inCart && (missingColor || missingMascot);
+                const missingCastle = needsCastle && !draft.castleVariant;
+                const blockAdd = !inCart && (missingColor || missingMascot || missingCastle);
                 return (
                   <div style={{ marginTop: 18 }}>
                     <PrimaryButton
@@ -294,7 +322,7 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                         ? t('build.removeFromParty')
                         : missingMascot
                           ? t('build.pickMascotFirst')
-                          : missingColor
+                          : (missingColor || missingCastle)
                             ? t('build.pickColorFirst')
                             : t('build.addToParty')}
                     </PrimaryButton>

@@ -212,7 +212,7 @@ export const SERVICES: ServiceDefinition[] = [
 
   // --- Giveaways (spec item 23: no water bottles, no surprise box) --
   svc({ id: 'drawing', name: 'Digital Drawing', categoryId: 'giveaways', price: 350, shortDescription: 'Cute digital drawing · free invitation card incl.', detail: 'A digital drawing with a matching invitation card — free printing with a full package.', gradient: G('#D9B8E8', '#F9C6DC') }),
-  svc({ id: 'hat', name: 'Customized Hat', categoryId: 'giveaways', price: 50, shortDescription: 'Personalized party hat', pricing: { kind: 'per_piece', minQuantity: 1 }, needsAdminReview: true, gradient: G('#F7C948', '#F9C6DC') }),
+  svc({ id: 'hat', name: 'Customized Hat', categoryId: 'giveaways', price: 12, shortDescription: 'AED 12 each · minimum 24', detail: 'A personalized party hat printed with the guest of honour’s drawing. Minimum order 24 pieces.', pricing: { kind: 'per_piece', minQuantity: 24 }, needsAdminReview: true, gradient: G('#F7C948', '#F9C6DC') }),
   svc({ id: 'banner', name: 'Face Banner ×10', categoryId: 'giveaways', price: 350, shortDescription: 'Custom banners with the guest of honor’s face', needsAdminReview: true, gradient: G('#F9C6DC', '#7A8AC8') }),
   svc({ id: 'wrist', name: 'VIP Wristbands ×50', categoryId: 'giveaways', price: 120, shortDescription: 'VIP wristbands for all your guests', needsAdminReview: true, gradient: G('#BDEBE4', '#F06CA8') }),
   svc({ id: 'tshirt10', name: 'Customized T-shirts', categoryId: 'giveaways', price: 39, shortDescription: 'AED 39 each · with picture or logo · minimum 10', detail: 'Printed with your picture or logo. Minimum order 10 pieces.', pricing: { kind: 'per_piece', minQuantity: 10 }, gradient: G('#FDE0EE', '#5BCFC5') }),
@@ -220,7 +220,7 @@ export const SERVICES: ServiceDefinition[] = [
   // --- Extras -----------------------------------------------------
   svc({ id: 'invite-image', name: 'Digital Invitation (Image)', categoryId: 'extras', price: 150, shortDescription: 'Themed image invitation to share', detail: 'A digital invitation card designed in your party theme, delivered as an image ready to share.', gradient: G('#FDE0EE', '#D9B8E8') }),
   svc({ id: 'invite-video', name: 'Digital Invitation (Video)', categoryId: 'extras', price: 250, shortDescription: 'Animated themed video invitation', detail: 'An animated video invitation designed in your party theme, ready to share with your guests.', gradient: G('#D9B8E8', '#7A8AC8') }),
-  svc({ id: 'tables-chairs', name: 'Extra Tables & Chairs (10 guests)', categoryId: 'extras', price: 550, shortDescription: 'Seating + full styling for 10 more guests', detail: 'Extra themed tables and chairs with full styling for 10 additional guests. Add as many sets of 10 as you need.', pricing: { kind: 'per_piece', minQuantity: 1 }, gradient: G('#FBD9C0', '#F9C6DC') }),
+  svc({ id: 'tables-chairs', name: 'Extra Tables & Chairs (10 guests)', categoryId: 'extras', price: 550, shortDescription: 'Fully styled seating for 10 more guests', detail: 'Themed tables and chairs seating for 10 extra guests, fully styled. Each seat includes a customized placemat with the name and party theme, a card holder, a water bottle with a custom label, plates, a wooden spoon & fork, and a balloon centerpiece. Add one set for every extra 10 guests.', pricing: { kind: 'per_piece', minQuantity: 1 }, gradient: G('#FBD9C0', '#F9C6DC') }),
 ];
 
 export const SERVICE_BY_ID = new Map(SERVICES.map((s) => [s.id, s]));
