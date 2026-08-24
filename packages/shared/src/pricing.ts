@@ -38,6 +38,15 @@ const SIX_HOUR_CATEGORIES = new Set(['backdrop', 'inflatables', 'machines']);
 export const DIGITAL_SERVICE_IDS = new Set(['invite-image', 'invite-video', 'drawing']);
 
 /**
+ * Customized printed goods (wristbands, T-shirts, hats, face banners) are made
+ * to order and need two weeks of production. When one is in the cart with an
+ * event date sooner than that, checkout is blocked until it is removed or the
+ * date is moved.
+ */
+export const MADE_TO_ORDER_SERVICE_IDS = new Set(['wrist', 'tshirt10', 'hat', 'banner']);
+const MADE_TO_ORDER_LEAD_HOURS = 14 * 24;
+
+/**
  * Effective event length in hours. Packages ALWAYS run the standard 4 hours,
  * even with add-ons. Build-Your-Own runs 6 hours when it includes decor/stands,
  * inflatables or machines (which need a longer window); otherwise 4.
@@ -244,6 +253,18 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
     const eventStartMs = Date.parse(`${cart.eventDate}T${cart.startTime}:00+04:00`);
     if (Number.isFinite(eventStartMs)) {
       const hoursToEvent = (eventStartMs - ctx.nowMs) / 3_600_000;
+      // Customized printed goods need ~2 weeks to make. If the event is sooner,
+      // block the booking until they are removed or the date is moved.
+      if (
+        hoursToEvent < MADE_TO_ORDER_LEAD_HOURS &&
+        cart.services.some((s) => MADE_TO_ORDER_SERVICE_IDS.has(s.serviceId))
+      ) {
+        problems.push({
+          code: 'item_needs_lead',
+          message:
+            'Your customized printed items need at least 2 weeks to make. Remove them, or choose an event date at least 2 weeks away.',
+        });
+      }
       if (hoursToEvent < rules.minLeadHours) {
         problems.push({
           code: 'too_soon',

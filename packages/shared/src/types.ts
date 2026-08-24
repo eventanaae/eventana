@@ -172,7 +172,8 @@ export interface QuoteProblem {
     | 'empty_cart'
     | 'unknown_service'
     | 'missing_map_pin'
-    | 'too_soon';
+    | 'too_soon'
+    | 'item_needs_lead';
   message: string;
   refId?: string;
 }
