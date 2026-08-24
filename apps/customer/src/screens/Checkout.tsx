@@ -529,7 +529,17 @@ export function Checkout({
                   <button
                     onClick={() => {
                       const min = s.pricing.kind === 'per_child' ? draft.childrenCount : (s.pricing.minQuantity ?? 1);
-                      update({ services: { ...draft.services, [s.id]: min } });
+                      // Food/games stations need a kiosk colour. There's no colour
+                      // picker on this screen, so a station added here gets a
+                      // default (pink) the customer can change back in Build —
+                      // never a colourless station.
+                      const needsColor = s.categoryId === 'food' || s.categoryId === 'games';
+                      update({
+                        services: { ...draft.services, [s.id]: min },
+                        ...(needsColor && !draft.stationColors[s.id]
+                          ? { stationColors: { ...draft.stationColors, [s.id]: 'pink' } }
+                          : {}),
+                      });
                     }}
                     style={{ border: 'none', background: C.pinkSoft, color: C.pinkDeep, fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
                   >

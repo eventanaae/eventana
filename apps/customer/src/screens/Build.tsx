@@ -146,7 +146,18 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                           )}
                         </div>
                         <button
-                          onClick={() => toggle(s.id, perChild ? draft.childrenCount : minQty)}
+                          onClick={() => {
+                            // Items that require a choice (kiosk colour, mascot
+                            // character, castle colour) must go through the detail
+                            // sheet so the choice is made — never a blind quick-add.
+                            const needsChoice =
+                              s.categoryId === 'food' || s.categoryId === 'games' || s.id === 'mascot' || s.id === 'castle';
+                            if (!selected && needsChoice) {
+                              setDetail(s);
+                              return;
+                            }
+                            toggle(s.id, perChild ? draft.childrenCount : minQty);
+                          }}
                           style={{
                             width: 36, height: 36, borderRadius: 14, border: 'none', cursor: 'pointer',
                             fontSize: 17, fontWeight: 700,

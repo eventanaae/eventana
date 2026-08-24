@@ -129,7 +129,10 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     startTime: draft.startTime,
     eventDate: draft.eventDate,
     childrenCount: draft.childrenCount,
-    castleVariant: draft.castleVariant,
+    // Only send the castle colour when a castle is actually in the cart — a
+    // package with a castle choice, or the Build castle service. Otherwise a
+    // colour left over from a removed castle would still reach the server.
+    castleVariant: draft.packageId || (draft.services['castle'] ?? 0) > 0 ? draft.castleVariant : null,
     address: draft.address,
     mapPin: draft.mapPin,
     eventFor: draft.eventFor.trim() || undefined,

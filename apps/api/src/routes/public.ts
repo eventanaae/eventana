@@ -311,7 +311,10 @@ export async function publicRoutes(app: FastifyInstance) {
     try {
       const result = await startCheckout({
         cart: parsed.data.cart as unknown as CheckoutCart,
-        customerId: customerId ?? null,
+        // customerFromRequest returns '' (not null) when unauthenticated, and
+        // '' is not nullish — so `?? null` would leak '' downstream and break
+        // the guest branch. Normalize the empty string to null.
+        customerId: customerId || null,
         guest: parsed.data.guest,
         provider: parsed.data.provider,
         lang: parsed.data.lang,
@@ -351,7 +354,12 @@ export async function publicRoutes(app: FastifyInstance) {
         .optional(),
       customization: z
         .object({
-          refImages: z.array(z.string().url().max(500)).max(3).optional(),
+          // Only our own Cloudinary uploads — never an arbitrary URL the team
+          // would open from the dashboard.
+          refImages: z
+            .array(z.string().url().max(500).startsWith('https://res.cloudinary.com/'))
+            .max(3)
+            .optional(),
           wantDraw: z.boolean().optional(),
         })
         .nullable()
@@ -382,7 +390,7 @@ export async function publicRoutes(app: FastifyInstance) {
         emirate: parsed.data.emirate ?? null,
         address: parsed.data.address ?? null,
         customization: parsed.data.customization ?? null,
-        customerId: customerId ?? null,
+        customerId: customerId || null,
         guest: parsed.data.guest,
         provider: parsed.data.provider,
         lang: parsed.data.lang,
@@ -428,8 +436,10 @@ export async function publicRoutes(app: FastifyInstance) {
       eventId: order.event_id,
       totalFils: Number(order.total_fils),
       totalDisplay: formatAed(Number(order.total_fils)),
-      // The app shows a neutral waiting state until this flips.
-      confirmed: order.status === 'paid' && Boolean(order.event_id),
+      // The app shows a neutral waiting state until this flips. A booking is
+      // confirmed once its event exists; a shop order (no event) is confirmed
+      // as soon as it is paid.
+      confirmed: order.status === 'paid' && (order.kind === 'shop' || Boolean(order.event_id)),
     };
   });
 

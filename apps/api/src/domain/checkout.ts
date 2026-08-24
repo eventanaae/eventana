@@ -17,6 +17,7 @@ import {
   quoteAddons,
   quoteShop,
   SHOP_READY_DAYS,
+  SHOP_DRAWING_IDS,
   type AddonRequest,
   type CartInput,
   type Quote,
@@ -362,6 +363,25 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
     throw new CheckoutError('This order cannot be completed yet.', 'not_bookable', { problems: q.problems });
   }
 
+  // Server-side enforcement (never trust the client gate): drawing-based items
+  // need either an uploaded reference or the "draw one for us" request, and any
+  // printed order needs a real delivery address — otherwise the team has
+  // nothing to make or nowhere to ship.
+  const needsDrawing = (req.items ?? []).some((i) => SHOP_DRAWING_IDS.has(i.serviceId));
+  if (needsDrawing) {
+    const c = req.customization;
+    const hasArt = (c?.refImages?.length ?? 0) > 0 || c?.wantDraw === true;
+    if (!hasArt) {
+      throw new CheckoutError(
+        'Attach the guest’s drawing, or ask us to create one, to continue.',
+        'customization_required',
+      );
+    }
+  }
+  if (q.hasPrinted && !req.address?.area?.trim()) {
+    throw new CheckoutError('Add a delivery address for your printed items.', 'address_required');
+  }
+
   const customerId = req.customerId ?? (req.guest ? await createGuestCustomer(req.guest) : null);
   if (!customerId) {
     throw new CheckoutError('Please sign in or enter your details to continue.', 'auth_required');
@@ -688,11 +708,22 @@ async function createGuestCustomer(g: {
   backupPhone: string;
   email: string;
 }): Promise<string> {
-  const existing = await pool.query<{ id: string }>(
-    `SELECT id FROM customers WHERE lower(email) = lower($1) LIMIT 1`,
+  const existing = await pool.query<{ id: string; password_hash: string | null }>(
+    `SELECT id, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1`,
     [g.email],
   );
   if (existing.rows[0]) {
+    // Security: if this email already belongs to a REGISTERED account (it has a
+    // password), a guest must not be able to take it over. Reusing it here would
+    // let anyone knowing the email rewrite the account's name/phones and spend
+    // its loyalty points / store credit. Require a real sign-in instead.
+    if (existing.rows[0].password_hash) {
+      throw new CheckoutError(
+        'This email already has an Eventana account. Please sign in to continue.',
+        'account_exists',
+      );
+    }
+    // A prior guest (no password) with the same email — safe to reuse and refresh.
     await pool.query(
       `UPDATE customers SET name = $2, phone = $3, backup_phone = $4 WHERE id = $1`,
       [existing.rows[0].id, g.name, g.phone, g.backupPhone],
