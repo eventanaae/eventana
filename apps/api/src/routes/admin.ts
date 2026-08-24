@@ -872,6 +872,50 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
+  /* ---------------------- Shop orders (owner/manager) --------------- */
+
+  /** Paid standalone shop orders (custom printed & digital goods, no event). */
+  app.get('/api/admin/shop-orders', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const cfg = await loadConfig();
+    const { rows } = await pool.query(
+      `SELECT o.id, o.total_fils, o.status, o.created_at, o.cart,
+              c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone, c.backup_phone
+         FROM orders o JOIN customers c ON c.id = o.customer_id
+        WHERE o.kind = 'shop' AND o.status = 'paid'
+        ORDER BY o.created_at DESC LIMIT 200`,
+    );
+    return rows.map((r) => {
+      const cart = (r.cart ?? {}) as {
+        items?: Array<{ serviceId: string; quantity: number }>;
+        emirate?: string | null;
+        address?: Record<string, unknown> | null;
+        customization?: { refImages?: string[]; wantDraw?: boolean } | null;
+        readyBy?: string | null;
+      };
+      return {
+        orderId: r.id,
+        totalFils: Number(r.total_fils),
+        createdAt: r.created_at,
+        readyBy: cart.readyBy ?? null,
+        emirate: cart.emirate ?? null,
+        address: cart.address ?? null,
+        items: (cart.items ?? []).map((it) => ({
+          ...it,
+          name: cfg.services.get(it.serviceId)?.name ?? it.serviceId,
+        })),
+        customization: cart.customization ?? null,
+        customer: {
+          name: r.customer_name,
+          email: r.customer_email,
+          phone: r.customer_phone,
+          backupPhone: r.backup_phone,
+        },
+      };
+    });
+  });
+
   /* ------------------------------ Team ---------------------------- */
 
   app.get('/api/admin/team', async () => {

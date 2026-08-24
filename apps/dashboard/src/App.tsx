@@ -13,10 +13,11 @@ import { Alerts } from './views/Alerts';
 import { Finance } from './views/Finance';
 import { Marketing } from './views/Marketing';
 import { Settings } from './views/Settings';
+import { ShopOrders } from './views/ShopOrders';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'finance' | 'marketing' | 'settings';
+  | 'alerts' | 'team' | 'kpis' | 'finance' | 'marketing' | 'settings' | 'shop';
 
 type Group = 'primary' | 'more';
 
@@ -30,6 +31,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', group: 'more' },
   { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance — Owner view', sub: 'Revenue, expenses and profit', group: 'more' },
   { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns', group: 'more' },
+  { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', group: 'more' },
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', group: 'more' },
 ];
 
@@ -116,6 +118,7 @@ export default function App() {
       {view === 'kpis' && <Kpis />}
       {view === 'finance' && <Finance />}
       {view === 'marketing' && <Marketing />}
+      {view === 'shop' && <ShopOrders />}
       {view === 'settings' && <Settings />}
     </>
   );

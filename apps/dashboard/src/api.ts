@@ -92,6 +92,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   today: () => request<any>('/api/admin/today'),
+  shopOrders: () => request<any[]>('/api/admin/shop-orders'),
   events: (status?: string) =>
     request<any[]>(`/api/admin/events${status ? `?status=${status}` : ''}`),
   event: (id: string) => request<any>(`/api/admin/events/${id}`),
