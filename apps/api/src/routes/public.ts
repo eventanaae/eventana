@@ -45,10 +45,10 @@ const cartSchema = z.object({
   castleVariant: z.string().nullable().optional(),
   address: z
     .object({
-      area: z.string().optional(),
-      street: z.string().optional(),
-      villa: z.string().optional(),
-      details: z.string().optional(),
+      area: z.string().max(200).optional(),
+      street: z.string().max(200).optional(),
+      villa: z.string().max(200).optional(),
+      details: z.string().max(500).optional(),
     })
     .optional(),
   mapPin: z.object({ lat: z.number(), lng: z.number() }).nullable().optional(),

@@ -55,12 +55,13 @@ export function ShopCheckout({
     setUploadBusy(true);
     setError(null);
     try {
-      const urls: string[] = [];
+      // Commit each image as it uploads, so if a later one fails the earlier
+      // successes are kept (and not orphaned on Cloudinary + re-uploaded).
       for (const f of Array.from(files).slice(0, 3 - refs.length)) {
-        urls.push(await api.uploadThemeRef(f));
+        const url = await api.uploadThemeRef(f);
+        setRefs((r) => [...r, url].slice(0, 3));
+        setWantDraw(false);
       }
-      setRefs((r) => [...r, ...urls].slice(0, 3));
-      if (urls.length > 0) setWantDraw(false);
     } catch {
       setError(t('shopco.uploadFailed'));
     } finally {

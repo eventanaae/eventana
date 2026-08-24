@@ -20,7 +20,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     credentials: true,
     // `authorization` carries the signed customer session token — without it
     // every logged-in customer request fails CORS preflight ("Failed to fetch").
-    allowedHeaders: ['content-type', 'authorization', 'x-customer-id', 'x-staff-token', 'x-staff-name'],
+    allowedHeaders: ['content-type', 'authorization', 'x-staff-token', 'x-staff-name'],
   });
 
   /**

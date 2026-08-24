@@ -129,9 +129,9 @@ export function MyEvent({
         extraServings: pending.servings,
       });
       if (result.checkoutUrl) window.location.href = result.checkoutUrl;
-      else setAddonError('Could not open checkout. Please try again.');
+      else setAddonError(t('me.errCheckout'));
     } catch (e: any) {
-      setAddonError(e?.body?.message ?? e?.message ?? 'Could not add this right now.');
+      setAddonError(e?.body?.message ?? e?.message ?? t('me.errAddon'));
     } finally {
       setBusy(false);
     }
@@ -160,7 +160,7 @@ export function MyEvent({
                 }}
               >
                 <div style={{ fontWeight: 700, fontSize: 12, color: active ? C.pinkDeep : C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {e.packageName ?? 'Celebration'}
+                  {e.packageName ?? t('me.celebration')}
                 </div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 2 }}>
                   {new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short' })} · {e.phase ? phaseLabel(e.phase) : ''}
@@ -274,11 +274,11 @@ export function MyEvent({
 
         {event.addOns.maxExtraHours > 0 ? (
           <Stepper
-            title={`Additional Hour · AED ${money(event.addOns.additionalHourFils)}`}
+            title={t('me.additionalHour', { aed: `${t('common.aed')} ${money(event.addOns.additionalHourFils)}` })}
             sub={
               pending.hours > 0 && addonQuote?.newEndTime
-                ? `Ends ${addonQuote.newEndTime} · max 12:00 AM`
-                : `Ends ${event.endDisplay} now · max 12:00 AM`
+                ? t('me.endsAt', { time: addonQuote.newEndTime })
+                : t('me.endsNow', { time: event.endDisplay })
             }
             value={pending.hours}
             max={event.addOns.maxExtraHours}
@@ -296,8 +296,8 @@ export function MyEvent({
               <Notice tone="warn">{t('me.socksNotice')}</Notice>
             </div>
             <Stepper
-              title={`Kids Socks · AED ${money(event.addOns.socks.perPairFils)}/pair`}
-              sub={`${event.childrenCount} children attending`}
+              title={t('me.kidsSocks', { aed: `${t('common.aed')} ${money(event.addOns.socks.perPairFils)}` })}
+              sub={t('me.childrenAttending', { n: event.childrenCount })}
               value={pending.socks}
               step={5}
               max={200}
@@ -310,7 +310,7 @@ export function MyEvent({
                 fontSize: 11, padding: '8px 12px', borderRadius: 12, cursor: 'pointer', marginBottom: 12,
               }}
             >
-              Add suggested {event.addOns.socks.suggestedPairs} pairs · AED {event.addOns.socks.suggestedDisplay}
+              {t('me.addSuggested', { n: event.addOns.socks.suggestedPairs, aed: `${t('common.aed')} ${event.addOns.socks.suggestedDisplay}` })}
             </button>
           </>
         )}
@@ -318,8 +318,8 @@ export function MyEvent({
         {event.addOns.extraServings.map((row: any) => (
           <Stepper
             key={row.serviceId}
-            title={`${row.name} — extra servings`}
-            sub={`+${row.blockSize} servings · AED ${row.priceDisplay}`}
+            title={t('me.extraServings', { name: row.name })}
+            sub={t('me.servingsSub', { n: row.blockSize, aed: `${t('common.aed')} ${row.priceDisplay}` })}
             value={pending.servings[row.serviceId] ?? 0}
             max={20}
             format={(v) => `+${v * row.blockSize}`}
@@ -338,7 +338,7 @@ export function MyEvent({
               fontSize: 13, padding: '13px 0', borderRadius: 16, cursor: 'pointer', marginTop: 4,
             }}
           >
-            {busy ? 'Opening checkout…' : `Pay AED ${addonQuote.totalDisplay} · Add to My Event`}
+            {busy ? t('me.openingCheckout') : t('me.payAdd', { aed: `${t('common.aed')} ${addonQuote.totalDisplay}` })}
           </button>
         )}
         {addonQuote && !addonQuote.bookable && addonQuote.problems?.[0] && (
@@ -609,7 +609,7 @@ function Reschedule({ eventId, t, onDone }: { eventId: string; t: TFn; onDone: (
       setDone(true);
       await onDone();
     } catch (e: any) {
-      setError(e?.body?.message ?? e?.message ?? 'Could not reschedule.');
+      setError(e?.body?.message ?? e?.message ?? t('me.errReschedule'));
     } finally {
       setBusy(false);
     }
@@ -781,9 +781,9 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
     try {
       const res = await api.tipCheckout(event.id, effectiveTip, memberId);
       if (res.checkoutUrl) window.location.href = res.checkoutUrl;
-      else setTipError('Could not open checkout. Please try again.');
+      else setTipError(t('me.errCheckout'));
     } catch (e: any) {
-      setTipError(e?.body?.message ?? e?.message ?? 'Could not start the tip right now.');
+      setTipError(e?.body?.message ?? e?.message ?? t('me.errTip'));
     } finally {
       setTipping(false);
     }

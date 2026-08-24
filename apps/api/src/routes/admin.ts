@@ -117,7 +117,7 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/alerts') ||
       path.startsWith('/api/admin/marketing') ||
       path === '/api/admin/team' ||
-      /^\/api\/admin\/orders\/[^/]+\/refund$/.test(path) ||
+      /^\/api\/admin\/orders\/[^/]+\/(refund|audit)$/.test(path) ||
       /^\/api\/admin\/events\/[^/]+\/(cancel|reinstate)$/.test(path);
     if (managerOnly && staff.role !== 'manager') {
       return reply.status(403).send({ error: 'forbidden', message: 'Managers and the owner only.' });
