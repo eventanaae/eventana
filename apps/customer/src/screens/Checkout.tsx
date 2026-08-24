@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SHOP_DRAWING_IDS } from '@eventana/shared';
 import { api } from '../api';
 import { toCart, type ScreenProps } from '../App';
 import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPreOrderCategory } from '../ui';
@@ -94,6 +95,24 @@ export function Checkout({
   const [promoBusy, setPromoBusy] = useState(false);
   const [useCredit, setUseCredit] = useState(false);
   const [redeemPoints, setRedeemPoints] = useState(false);
+  const [custBusy, setCustBusy] = useState(false);
+
+  const addCustFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setCustBusy(true);
+    try {
+      let urls = [...draft.customization.refImages];
+      for (const f of Array.from(files).slice(0, 3 - urls.length)) {
+        const url = await api.uploadThemeRef(f);
+        urls = [...urls, url].slice(0, 3);
+        update({ customization: { refImages: urls, wantDraw: false } });
+      }
+    } catch {
+      /* surfaced by the disabled Pay hint */
+    } finally {
+      setCustBusy(false);
+    }
+  };
   const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', backupPhone: '', password: '', referralCode: '' });
   // Guest checkout is the default; creating an account (for points + a next-
   // booking voucher) is opt-in.
@@ -299,8 +318,16 @@ export function Checkout({
     }
   };
 
+  // A printed drawing-item (t-shirt/hat/banner/drawing) in the cart needs the
+  // guest's picture, or a request that we draw one.
+  const needsCustomization = Object.keys(draft.services).some(
+    (id) => SHOP_DRAWING_IDS.has(id) && (draft.services[id] ?? 0) > 0,
+  );
+  const customizationReady =
+    !needsCustomization || draft.customization.refImages.length > 0 || draft.customization.wantDraw;
+
   const canPay =
-    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && agreed &&
+    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && agreed && customizationReady &&
     (Boolean(account) || (authMode === 'register' && guestReady));
 
   // The live wallet rail (Card + Apple Pay both settle through it).
@@ -721,6 +748,39 @@ export function Checkout({
         )}
       </div>
 
+      {/* ---------------- customization (printed drawing items) ---------------- */}
+      {needsCustomization && (
+        <div style={cardStyle}>
+          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{t('shopco.customization')}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 12px', lineHeight: 1.5 }}>{t('shopco.customizationSub')}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            {draft.customization.refImages.map((url, i) => (
+              <div key={i} style={{ width: 62, height: 62, borderRadius: 12, background: `#f2e7ee url(${url}) center/cover`, position: 'relative' }}>
+                <button
+                  onClick={() => update({ customization: { ...draft.customization, refImages: draft.customization.refImages.filter((_, j) => j !== i) } })}
+                  style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: C.ink, color: '#fff', fontSize: 12, cursor: 'pointer' }}
+                >×</button>
+              </div>
+            ))}
+            {draft.customization.refImages.length < 3 && !draft.customization.wantDraw && (
+              <label style={{ width: 62, height: 62, borderRadius: 12, border: `1.5px dashed ${C.pinkLine}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 22, color: C.pinkDeep }}>
+                {custBusy ? '…' : '＋'}
+                <input type="file" accept="image/*" multiple hidden onChange={(e) => addCustFiles(e.target.files)} />
+              </label>
+            )}
+          </div>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={draft.customization.wantDraw}
+              onChange={(e) => update({ customization: { refImages: e.target.checked ? [] : draft.customization.refImages, wantDraw: e.target.checked } })}
+              style={{ marginTop: 2, width: 16, height: 16, accentColor: C.pink, flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>{t('shopco.wantDraw')}</span>
+          </label>
+        </div>
+      )}
+
       {/* ---------------- savings & rewards ---------------- */}
       {/* Everyone can enter a promo code (guests included); store credit and
           points only appear when a signed-in account actually has them. */}
@@ -847,6 +907,11 @@ export function Checkout({
       {!draft.mapPin && (
         <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
           {t('checkout.mapPinRequired')}
+        </div>
+      )}
+      {!customizationReady && (
+        <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
+          {t('shopco.needDrawing')}
         </div>
       )}
       {!account && authMode === 'register' && !guestReady && (

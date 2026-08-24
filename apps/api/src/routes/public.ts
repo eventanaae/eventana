@@ -75,6 +75,12 @@ const cartSchema = z.object({
   /** Chosen kiosk colour per food/games station service id. */
   stationColors: z.record(z.string().max(20)).optional(),
   mascotChoice: z.string().max(40).optional(),
+  customization: z
+    .object({
+      refImages: z.array(z.string().url().max(500).startsWith('https://res.cloudinary.com/')).max(3).optional(),
+      wantDraw: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 /** MET Norway symbol code (e.g. "clearsky_day") → label, emoji, outdoor note. */

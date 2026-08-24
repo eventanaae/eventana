@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CartInput } from '@eventana/shared';
+import { SHOP_DRAWING_IDS, type CartInput } from '@eventana/shared';
 import { api, type Catalogue, type QuoteResult } from './api';
 import { C, Spinner, fredoka } from './ui';
 import { Home } from './screens/Home';
@@ -40,6 +40,9 @@ export interface Draft {
   stationColors: Record<string, string>;
   /** Chosen mascot character (required when the Mascot service is added). */
   mascotChoice: string;
+  /** The guest's drawing for printed items (t-shirt/hat/banner/drawing): up to
+   *  3 uploaded photos, or a request that we create a professional drawing. */
+  customization: { refImages: string[]; wantDraw: boolean };
   themeId: string | null;
   customTheme: boolean;
   castleVariant: string | null;
@@ -70,6 +73,7 @@ const emptyDraft: Draft = {
   services: {},
   stationColors: {},
   mascotChoice: '',
+  customization: { refImages: [], wantDraw: false },
   themeId: null,
   customTheme: false,
   castleVariant: null,
@@ -147,6 +151,10 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     ),
     // Chosen mascot character — only when the Mascot service is in the cart.
     mascotChoice: (draft.services['mascot'] ?? 0) > 0 ? draft.mascotChoice || undefined : undefined,
+    // The guest's drawing — only when a printed drawing-item is in the cart.
+    customization: Object.keys(draft.services).some((id) => SHOP_DRAWING_IDS.has(id) && (draft.services[id] ?? 0) > 0)
+      ? draft.customization
+      : undefined,
   };
 }
 

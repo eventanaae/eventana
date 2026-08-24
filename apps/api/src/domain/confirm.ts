@@ -165,6 +165,7 @@ export async function confirmBooking(
     movie?: string | null;
     stationColors?: Record<string, string>;
     mascotChoice?: string;
+    customization?: { refImages?: string[]; wantDraw?: boolean } | null;
     themeBrief?: (Record<string, string> & { refImages?: string[] }) | null;
     appliedDiscounts?: {
       promo: { code: string; amountFils: number } | null;
@@ -294,6 +295,20 @@ export async function confirmBooking(
     await db.query(
       `INSERT INTO event_tasks (event_id, department, title) VALUES ($1,$2,$3)`,
       [eventId, t.department, t.title],
+    );
+  }
+
+  // Printed custom items (t-shirt/hat/banner/drawing): surface the guest's
+  // uploaded drawing(s), or the request that we create one, as a design task so
+  // the team can prep the artwork.
+  const cust = cart.customization;
+  if (cust && ((cust.refImages?.length ?? 0) > 0 || cust.wantDraw)) {
+    const title = cust.refImages?.length
+      ? `Custom print artwork — customer uploaded ${cust.refImages.length} image(s): ${cust.refImages.join(' , ')}`
+      : 'Custom print artwork — create a professional digital drawing for the customer';
+    await db.query(
+      `INSERT INTO event_tasks (event_id, department, title) VALUES ($1,'design',$2)`,
+      [eventId, title.slice(0, 1000)],
     );
   }
 
