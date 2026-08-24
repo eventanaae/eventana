@@ -28,7 +28,7 @@ import { config } from '../config.js';
 import { pool, withTransaction } from '../db/pool.js';
 import { getProvider } from '../payments/index.js';
 import { ConflictError, acquireHolds, releaseHolds, unavailableAssets } from './inventory.js';
-import { createOrder, createPayment, nextOrderId, recordPaymentEvent } from './orders.js';
+import { createOrder, createPayment, nextOrderId, orderViewToken, recordPaymentEvent } from './orders.js';
 import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
 import { computeDiscounts, makeReferralCode, type DiscountInput } from './discounts.js';
 
@@ -46,6 +46,17 @@ export interface CheckoutRequest {
   idempotencyKey?: string;
   termsAccepted?: boolean;
   discounts?: DiscountInput;
+}
+
+/** Provider return URLs, each carrying the unguessable order-view token. */
+function payReturnUrls(orderId: string): { successUrl: string; cancelUrl: string; failureUrl: string } {
+  const t = orderViewToken(orderId);
+  const base = config.publicAppUrl;
+  return {
+    successUrl: `${base}/pay/return?order=${orderId}&t=${t}`,
+    cancelUrl: `${base}/pay/cancel?order=${orderId}&t=${t}`,
+    failureUrl: `${base}/pay/failure?order=${orderId}&t=${t}`,
+  };
 }
 
 export class CheckoutError extends Error {
@@ -245,9 +256,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
         .filter(Boolean)
         .join(', '),
       lang: req.lang ?? 'en',
-      successUrl: `${config.publicAppUrl}/pay/return?order=${orderId}`,
-      cancelUrl: `${config.publicAppUrl}/pay/cancel?order=${orderId}`,
-      failureUrl: `${config.publicAppUrl}/pay/failure?order=${orderId}`,
+      ...payReturnUrls(orderId),
       orderHistory: await loadOrderHistory(customerId),
     });
 
@@ -436,9 +445,7 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
       city: String(req.emirate ?? ''),
       address: [req.address?.area, req.address?.street, req.address?.villa].filter(Boolean).join(', '),
       lang: req.lang ?? 'en',
-      successUrl: `${config.publicAppUrl}/pay/return?order=${orderId}`,
-      cancelUrl: `${config.publicAppUrl}/pay/cancel?order=${orderId}`,
-      failureUrl: `${config.publicAppUrl}/pay/failure?order=${orderId}`,
+      ...payReturnUrls(orderId),
       orderHistory: await loadOrderHistory(customerId),
     });
 
@@ -557,9 +564,7 @@ export async function startAddonCheckout(args: {
     city: event.emirate,
     address: String((event.address as any)?.area ?? ''),
     lang: args.lang ?? 'en',
-    successUrl: `${config.publicAppUrl}/pay/return?order=${orderId}`,
-    cancelUrl: `${config.publicAppUrl}/pay/cancel?order=${orderId}`,
-    failureUrl: `${config.publicAppUrl}/pay/failure?order=${orderId}`,
+    ...payReturnUrls(orderId),
     orderHistory: await loadOrderHistory(args.customerId),
   });
 
@@ -667,9 +672,7 @@ export async function startTipCheckout(args: {
     city: event.emirate,
     address: String((event.address as any)?.area ?? ''),
     lang: args.lang ?? 'en',
-    successUrl: `${config.publicAppUrl}/pay/return?order=${orderId}`,
-    cancelUrl: `${config.publicAppUrl}/pay/cancel?order=${orderId}`,
-    failureUrl: `${config.publicAppUrl}/pay/failure?order=${orderId}`,
+    ...payReturnUrls(orderId),
     orderHistory: await loadOrderHistory(args.customerId),
   });
 

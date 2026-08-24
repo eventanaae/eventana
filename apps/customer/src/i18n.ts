@@ -438,6 +438,9 @@ const en: Dict = {
   // payment return
   'pay.tipThanks': 'Thank you for your tip! 💐',
   'pay.addonAdded': 'Added to your event! ✨',
+  'pay.shopThanks': 'Order confirmed! 🎁',
+  'pay.shopSub': 'Payment verified. Digital items arrive by email within 3 days; printed items are made to order (~2 weeks) and shipped to you.',
+  'pay.shopDone': 'Done',
   'pay.booked': 'Your celebration is booked! 🎉',
   'pay.tipSub': '100% goes straight to your Eventana crew — they’ve been notified. You’re amazing!',
   'pay.addonSub': 'Payment verified. Your extras are now on your event and the team can see them.',
@@ -934,6 +937,9 @@ const ar: Dict = {
   // payment return
   'pay.tipThanks': 'شكراً على بقشيشك! 💐',
   'pay.addonAdded': 'أُضيف إلى مناسبتك! ✨',
+  'pay.shopThanks': 'تم تأكيد طلبك! 🎁',
+  'pay.shopSub': 'تم تأكيد الدفع. المنتجات الديجيتال توصل على الإيميل خلال ٣ أيام؛ والمطبوعات تُجهَّز حسب الطلب (أسبوعين تقريباً) وتُشحن لك.',
+  'pay.shopDone': 'تمام',
   'pay.booked': 'تم حجز مناسبتك! 🎉',
   'pay.tipSub': '100% يذهب مباشرة لفريق Eventana — تم إشعارهم. أنت رائع!',
   'pay.addonSub': 'تم تأكيد الدفع. إضافاتك الآن على مناسبتك ويراها الفريق.',

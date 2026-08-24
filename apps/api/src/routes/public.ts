@@ -22,6 +22,7 @@ import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
+import { orderViewTokenValid } from '../domain/orders.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
 import { makeReferralCode, REFERRAL_CREDIT_FILS, validatePromo } from '../domain/discounts.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
@@ -414,6 +415,13 @@ export async function publicRoutes(app: FastifyInstance) {
    */
   app.get('/api/orders/:orderId', async (request, reply) => {
     const { orderId } = request.params as { orderId: string };
+    // Order ids are a visible sequence, so require the unguessable view token
+    // (issued in the provider return URL) — otherwise anyone could enumerate
+    // orders and read their status/amount.
+    const { t } = request.query as { t?: string };
+    if (!orderViewTokenValid(orderId, t)) {
+      return reply.status(404).send({ error: 'not_found' });
+    }
     const { rows } = await pool.query(
       `SELECT o.id, o.status, o.total_fils, o.event_id, o.kind,
               p.provider, p.status AS payment_status, p.checkout_url

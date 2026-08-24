@@ -185,11 +185,11 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ token, password }) },
     ),
 
-  order: (orderId: string) =>
+  order: (orderId: string, token?: string) =>
     request<{
       orderId: string; status: string; kind: string; paymentStatus: string; eventId: string | null;
       confirmed: boolean; totalDisplay: string;
-    }>(`/api/orders/${orderId}`),
+    }>(`/api/orders/${orderId}${token ? `?t=${encodeURIComponent(token)}` : ''}`),
 
   events: () => request<any[]>('/api/events'),
   event: (eventId: string) => request<any>(`/api/events/${eventId}`),

@@ -684,7 +684,9 @@ export function Checkout({
       </div>
 
       {/* ---------------- savings & rewards ---------------- */}
-      {account && (
+      {/* Everyone can enter a promo code (guests included); store credit and
+          points only appear when a signed-in account actually has them. */}
+      {(
         <div style={cardStyle}>
           <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.rewardsTitle')}</div>
 

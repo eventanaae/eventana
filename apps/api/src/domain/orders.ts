@@ -5,9 +5,29 @@
  * `paid` from a provider-confirmed payment transition. Nothing in the
  * customer-facing API can set it.
  */
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type { OrderStatus, PaymentStatus, ProviderName, Quote } from '@eventana/shared';
 import { pool, type Db } from '../db/pool.js';
+import { config } from '../config.js';
+
+/**
+ * An unguessable, stateless token for reading an order's public status. Order
+ * ids are a visible sequence, so the status endpoint requires this HMAC (in the
+ * provider return URL) to stop anyone enumerating other people's orders.
+ */
+export function orderViewToken(orderId: string): string {
+  return createHmac('sha256', config.staffToken).update(`order-view:${orderId}`).digest('base64url').slice(0, 16);
+}
+
+/** Constant-time check of a supplied order-view token. */
+export function orderViewTokenValid(orderId: string, token: string | undefined): boolean {
+  if (!token) return false;
+  const expected = orderViewToken(orderId);
+  const a = Buffer.from(expected);
+  const b = Buffer.from(token);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export async function nextOrderId(db: Db): Promise<string> {
   const { rows } = await db.query<{ n: number }>(`SELECT nextval('order_ref_seq')::int AS n`);

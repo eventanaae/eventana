@@ -168,6 +168,7 @@ export default function App() {
   const [quoteNonce, setQuoteNonce] = useState(0);
   const retryQuote = useCallback(() => setQuoteNonce((n) => n + 1), []);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderToken, setOrderToken] = useState<string | null>(null);
   const [payUrl, setPayUrl] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +190,7 @@ export default function App() {
     const returned = params.get('order');
     if (returned) {
       setOrderId(returned);
+      setOrderToken(params.get('t'));
       setScreen('confirming');
       history.replaceState({}, '', location.pathname);
     }
@@ -396,8 +398,10 @@ export default function App() {
         {screen === 'confirming' && orderId && (
           <PaymentReturn
             orderId={orderId}
+            token={orderToken}
             embedUrl={payUrl}
             onConfirmed={(id) => { setEventId(id); setPayUrl(null); reset(); go('myevent'); }}
+            onShopDone={() => { setPayUrl(null); go('home'); }}
             onRetry={() => { setPayUrl(null); go('checkout'); }}
             t={t}
           />

@@ -102,8 +102,10 @@ export function billableQuantity(
 ): number {
   switch (service.pricing.kind) {
     case 'per_child': {
-      const asked = requested > 0 ? requested : childrenCount;
-      return Math.max(service.pricing.minChildren, asked);
+      // Per-child pricing always follows the live guest count — never a quantity
+      // frozen when the activity was first added (which would desync if the
+      // customer later changes the number of children at checkout).
+      return Math.max(service.pricing.minChildren, childrenCount);
     }
     case 'per_piece':
       return Math.max(service.pricing.minQuantity, requested > 0 ? requested : 0);
@@ -271,8 +273,15 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
           message: `Bookings must be made at least ${rules.minLeadHours} hours before the event. Please choose a later date.`,
         });
       } else if (hoursToEvent < rules.urgentWindowHours) {
+        // Rush fee is on the physical setup value: exclude delivery, the BYO
+        // discount line, and digital deliverables (which carry no rush fee).
         const partyNetFils = lines
-          .filter((l) => l.kind !== 'delivery' && !(l.refId && DIGITAL_SERVICE_IDS.has(l.refId)))
+          .filter(
+            (l) =>
+              l.kind !== 'delivery' &&
+              l.kind !== 'discount' &&
+              !(l.refId && DIGITAL_SERVICE_IDS.has(l.refId)),
+          )
           .reduce((sum, l) => sum + l.amountFils, 0);
         const rushFils = percentOf(partyNetFils, rules.rushSurchargePercent);
         if (rushFils > 0) {

@@ -13,20 +13,27 @@ import type { TFn } from '../i18n';
  */
 export function PaymentReturn({
   orderId,
+  token,
   embedUrl,
   onConfirmed,
+  onShopDone,
   onRetry,
   t,
 }: {
   orderId: string;
+  /** The unguessable order-view token (from the provider return URL). */
+  token?: string | null;
   /** When set, pay inside the app via this embedded widget (no redirect). */
   embedUrl?: string | null;
   onConfirmed: (eventId: string) => void;
+  /** A confirmed standalone shop order has no event — just finish. */
+  onShopDone: () => void;
   onRetry: () => void;
   t: TFn;
 }) {
   const [status, setStatus] = useState<string>('checking');
   const [eventId, setEventId] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [kind, setKind] = useState<string>('booking');
   const [waited, setWaited] = useState(0);
   const done = useRef(false);
@@ -35,12 +42,13 @@ export function PaymentReturn({
     let timer: number;
     const poll = async () => {
       try {
-        const order = await api.order(orderId);
+        const order = await api.order(orderId, token ?? undefined);
         setStatus(order.status);
         setKind(order.kind);
-        if (order.confirmed && order.eventId) {
+        if (order.confirmed) {
           done.current = true;
-          setEventId(order.eventId);
+          setConfirmed(true);
+          setEventId(order.eventId ?? null);
           return;
         }
       } catch {
@@ -56,13 +64,14 @@ export function PaymentReturn({
       done.current = true;
       clearTimeout(timer);
     };
-  }, [orderId]);
+  }, [orderId, token]);
 
-  if (eventId) {
+  if (confirmed) {
+    const isShop = kind === 'shop';
     const isTip = kind === 'tip';
     const isAddon = kind === 'addon';
-    const heading = isTip ? t('pay.tipThanks') : isAddon ? t('pay.addonAdded') : t('pay.booked');
-    const sub = isTip ? t('pay.tipSub') : isAddon ? t('pay.addonSub') : t('pay.bookedSub');
+    const heading = isShop ? t('pay.shopThanks') : isTip ? t('pay.tipThanks') : isAddon ? t('pay.addonAdded') : t('pay.booked');
+    const sub = isShop ? t('pay.shopSub') : isTip ? t('pay.tipSub') : isAddon ? t('pay.addonSub') : t('pay.bookedSub');
     return (
       <div style={{ padding: '60px 30px 40px', textAlign: 'center', animation: 'rise .4s ease' }}>
         <div
@@ -71,13 +80,13 @@ export function PaymentReturn({
             fontSize: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 22px',
           }}
         >
-          {isTip ? '💐' : '✓'}
+          {isTip ? '💐' : isShop ? '🎁' : '✓'}
         </div>
         <div style={{ ...fredoka(26), lineHeight: 1.15 }}>{heading}</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, margin: '12px 0 26px', lineHeight: 1.5 }}>
           {sub}
         </div>
-        {!isTip && (
+        {!isTip && !isShop && eventId && (
           <div style={{ background: '#fff', borderRadius: 20, padding: 16, boxShadow: C.shadowLg, display: 'inline-block', minWidth: 220 }}>
             <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 1 }}>{t('pay.eventId')}</div>
             <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 21, fontWeight: 700, marginTop: 4, letterSpacing: 1 }}>
@@ -87,10 +96,10 @@ export function PaymentReturn({
         )}
         <div style={{ marginTop: 30 }}>
           <button
-            onClick={() => onConfirmed(eventId)}
+            onClick={() => (isShop || !eventId ? onShopDone() : onConfirmed(eventId))}
             style={{ background: C.ink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '15px 34px', borderRadius: 22, cursor: 'pointer' }}
           >
-            {isTip ? t('pay.backToEvent') : t('pay.viewEvent')}
+            {isShop ? t('pay.shopDone') : isTip ? t('pay.backToEvent') : t('pay.viewEvent')}
           </button>
         </div>
       </div>
