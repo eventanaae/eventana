@@ -7,12 +7,54 @@ import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
 import { TermsSheet } from './Terms';
 
-/** Pink pill for a payment-method badge (Apple Pay / Card / Google Pay). */
-const payBadge = {
-  background: '#FCE7F0', color: '#3B3641', borderRadius: 9,
-  padding: '6px 12px', fontSize: 12.5, fontWeight: 800,
-  display: 'inline-flex', alignItems: 'center',
-} as const;
+/* ---- Payment-method brand marks (small, recognisable, self-contained) ---- */
+const brandBox: React.CSSProperties = {
+  height: 21, padding: '0 7px', borderRadius: 5, background: '#fff',
+  border: '1px solid #e7dbe2', display: 'inline-flex', alignItems: 'center',
+  justifyContent: 'center', gap: 2, fontSize: 10, fontWeight: 900, lineHeight: 1,
+};
+function Visa() {
+  return <span style={{ ...brandBox, color: '#1A1F71', fontStyle: 'italic', letterSpacing: '.4px' }}>VISA</span>;
+}
+function TwoCircles({ a, b }: { a: string; b: string }) {
+  return (
+    <span style={{ ...brandBox, padding: '0 6px' }}>
+      <span style={{ width: 13, height: 13, borderRadius: '50%', background: a }} />
+      <span style={{ width: 13, height: 13, borderRadius: '50%', background: b, marginLeft: -5, mixBlendMode: 'multiply' }} />
+    </span>
+  );
+}
+function Amex() {
+  return <span style={{ ...brandBox, background: '#2E77BC', color: '#fff', border: 'none' }}>AMEX</span>;
+}
+function CardLogos() {
+  return (
+    <>
+      <Visa />
+      <TwoCircles a="#EB001B" b="#F79E1B" />
+      <TwoCircles a="#0099DF" b="#ED0006" />
+      <Amex />
+    </>
+  );
+}
+function ApplePayMark() {
+  return (
+    <span style={{ ...brandBox, color: '#000' }}>
+      <svg viewBox="0 0 384 512" width="11" height="11" fill="currentColor">
+        <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+      </svg>
+      <span style={{ fontSize: 10.5, fontWeight: 800 }}>Pay</span>
+    </span>
+  );
+}
+function TabbyTamara() {
+  return (
+    <>
+      <span style={{ ...brandBox, background: '#c2f5e1', color: '#0a3d2a', border: 'none', letterSpacing: '.2px' }}>tabby</span>
+      <span style={{ ...brandBox, background: 'linear-gradient(90deg,#ff7aa8,#8a5cf6)', color: '#fff', border: 'none', letterSpacing: '.2px' }}>tamara</span>
+    </>
+  );
+}
 
 /** Placement photos are offered only for items actually in the booking. */
 const PHOTO_ROWS: Array<{ key: string; label: string; match: RegExp }> = [
@@ -56,6 +98,9 @@ export function Checkout({
   // Guest checkout is the default; creating an account (for points + a next-
   // booking voucher) is opt-in.
   const [wantAccount, setWantAccount] = useState(false);
+  // Visual payment choice. Both Card and Apple Pay settle through the same live
+  // wallet rail (Ziina), which presents the chosen method on its secure page.
+  const [payChoice, setPayChoice] = useState<'card' | 'applepay'>('applepay');
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [forgotMsg, setForgotMsg] = useState<string | null>(null);
@@ -239,6 +284,12 @@ export function Checkout({
   const canPay =
     Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && agreed &&
     (Boolean(account) || (authMode === 'register' && guestReady));
+
+  // The live wallet rail (Card + Apple Pay both settle through it).
+  const walletName =
+    catalogue.paymentMethods.find((p) => p.name === 'ziina')?.name ??
+    catalogue.paymentMethods[0]?.name ??
+    'ziina';
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
@@ -685,71 +736,50 @@ export function Checkout({
         </div>
       )}
 
-      {/* ---------------- payment ---------------- */}
+      {/* ---------------- payment (radio list) ---------------- */}
       <div style={{ fontWeight: 700, fontSize: 14, margin: '18px 0 10px' }}>{t('checkout.payWith')}</div>
-      <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
-        {catalogue.paymentMethods.map((pm) => {
-          const active = draft.provider === pm.name;
-          // Ziina is the wallet/card rail — show what the customer actually pays
-          // with (Apple Pay / Card / Google Pay), never the provider's name.
-          const isWallet = pm.name === 'ziina';
+      <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${C.pinkLine}`, overflow: 'hidden' }}>
+        {[
+          { key: 'card', label: t('checkout.pmCard'), logos: <CardLogos />, disabled: false },
+          { key: 'applepay', label: 'Apple Pay', logos: <ApplePayMark />, disabled: false },
+          { key: 'bnpl', label: t('checkout.bnpl'), logos: <TabbyTamara />, disabled: true },
+        ].map((row, i) => {
+          const selected = !row.disabled && payChoice === row.key;
           return (
             <div
-              key={pm.name}
-              onClick={() => update({ provider: pm.name })}
+              key={row.key}
+              onClick={row.disabled ? undefined : () => { setPayChoice(row.key as 'card' | 'applepay'); update({ provider: walletName }); }}
               style={{
-                flex: 1, minWidth: isWallet ? '100%' : 0, textAlign: 'center', background: '#fff',
-                border: `2px solid ${active ? C.pink : C.pinkLine}`,
-                borderRadius: 16, padding: '13px 8px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px',
+                cursor: row.disabled ? 'default' : 'pointer', opacity: row.disabled ? 0.55 : 1,
+                borderTop: i === 0 ? 'none' : `1px solid ${C.pinkLine}`,
               }}
             >
-              {isWallet ? (
-                <>
-                  <div style={{ display: 'flex', gap: 7, justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <span style={payBadge}>
-                      <svg viewBox="0 0 384 512" width="12" height="12" fill="currentColor" style={{ marginInlineEnd: 4, verticalAlign: '-1px' }}>
-                        <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
-                      </svg>
-                      Pay
+              <span
+                style={{
+                  width: 20, height: 20, borderRadius: '50%', flex: 'none',
+                  border: `2px solid ${selected ? C.pink : '#d5c6ce'}`,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {selected && <span style={{ width: 10, height: 10, borderRadius: '50%', background: C.pink }} />}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13.5 }}>{row.label}</span>
+                  {row.disabled && (
+                    <span style={{ fontSize: 9, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 6, padding: '2px 6px' }}>
+                      {t('checkout.comingSoon')}
                     </span>
-                    <span style={payBadge}>{t('checkout.pmCard')}</span>
-                    <span style={payBadge}><span style={{ color: '#4285F4', fontWeight: 800, marginInlineEnd: 3 }}>G</span> Pay</span>
-                  </div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 7 }}>
-                    {t('checkout.pmSecure')}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>{pm.label}</div>
-                  <div style={{ fontSize: 9.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>{pm.tagline}</div>
-                </>
-              )}
-              {pm.mode === 'simulated' && (
-                <div style={{ fontSize: 8.5, fontWeight: 700, color: C.yellowInk, marginTop: 3, letterSpacing: '.3px' }}>
-                  SANDBOX
+                  )}
                 </div>
-              )}
+                <div style={{ display: 'flex', gap: 5, marginTop: 7, flexWrap: 'wrap', alignItems: 'center' }}>{row.logos}</div>
+              </div>
             </div>
           );
         })}
       </div>
-
-      {/* Buy-now-pay-later — not live yet. */}
-      <div style={{ display: 'flex', gap: 9, marginTop: 9 }}>
-        {['Tabby', 'Tamara'].map((b) => (
-          <div
-            key={b}
-            style={{
-              flex: 1, textAlign: 'center', background: '#faf6f8',
-              border: `1.5px dashed ${C.pinkLine}`, borderRadius: 16, padding: '11px 6px', opacity: 0.8,
-            }}
-          >
-            <div style={{ fontWeight: 800, fontSize: 13, color: C.muted }}>{b}</div>
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: C.pinkDeep, marginTop: 2 }}>{t('checkout.comingSoon')}</div>
-          </div>
-        ))}
-      </div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 8, textAlign: 'center' }}>{t('checkout.pmSecure')}</div>
       <div style={{ marginTop: 10 }}>
         <Notice tone="info">{t('checkout.cashNote')}</Notice>
       </div>
