@@ -27,7 +27,8 @@ import { nextEventId } from './orders.js';
 import { makeVoucherCode, NEXT_BOOKING_VOUCHER_PERCENT } from './discounts.js';
 
 export interface ConfirmResult {
-  eventId: string;
+  /** Null for orders that create no event (e.g. standalone shop orders). */
+  eventId: string | null;
   created: boolean;
 }
 
@@ -124,6 +125,37 @@ export async function confirmBooking(
       );
     }
     return { eventId: order.event_id, created: false };
+  }
+
+  if (order.kind === 'shop') {
+    // A standalone shop order (printed/digital goods, no party): mark it paid
+    // and raise an ops alert with everything the team needs to fulfil it — no
+    // event, no crew, no calendar. Idempotent (guarded by NOT EXISTS).
+    await db.query(
+      `UPDATE orders SET status = 'paid', updated_at = now() WHERE id = $1 AND status <> 'paid'`,
+      [order.id],
+    );
+    const shopCart = order.cart as Record<string, unknown>;
+    await db.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       SELECT NULL, 'ops_alert', 'shop_order', now(), $1
+        WHERE NOT EXISTS (
+          SELECT 1 FROM notifications WHERE template = 'shop_order' AND payload->>'orderId' = $2)`,
+      [
+        JSON.stringify({
+          orderId: order.id,
+          totalFils: Number(order.total_fils),
+          customerId: order.customer_id,
+          items: shopCart.items ?? [],
+          emirate: shopCart.emirate ?? null,
+          address: shopCart.address ?? null,
+          customization: shopCart.customization ?? null,
+          readyBy: shopCart.readyBy ?? null,
+        }),
+        order.id,
+      ],
+    );
+    return { eventId: null, created: false };
   }
 
   const cart = order.cart as CartInput & {

@@ -103,7 +103,7 @@ export function orderStatusFor(payment: PaymentStatus): OrderStatus {
 
 export interface CreateOrderInput {
   id: string;
-  kind: 'booking' | 'addon' | 'tip';
+  kind: 'booking' | 'addon' | 'tip' | 'shop';
   customerId: string;
   eventId?: string | null;
   totalFils: number;

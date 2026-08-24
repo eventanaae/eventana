@@ -15,9 +15,12 @@ import {
   isCancelled,
   quote as computeQuote,
   quoteAddons,
+  quoteShop,
+  SHOP_READY_DAYS,
   type AddonRequest,
   type CartInput,
   type Quote,
+  type ShopItem,
 } from '@eventana/shared';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { config } from '../config.js';
@@ -309,6 +312,141 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       source: 'api',
       note: `Session creation failed: ${(err as Error).message}`,
     });
+    throw new CheckoutError(
+      'We could not start the payment. Please try again or choose another method.',
+      'session_failed',
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Standalone shop (custom printed & digital goods, no party)          */
+/* ------------------------------------------------------------------ */
+
+export interface ShopCheckoutRequest {
+  items: ShopItem[];
+  emirate: string | null;
+  address?: { area?: string; street?: string; villa?: string; details?: string } | null;
+  /** The guest's drawing(s) to print, or the request that we draw one. */
+  customization?: { refImages?: string[]; wantDraw?: boolean } | null;
+  customerId: string | null;
+  guest?: { name: string; phone: string; backupPhone: string; email: string };
+  provider: string;
+  lang?: 'en' | 'ar';
+  termsAccepted?: boolean;
+}
+
+export interface ShopCheckoutResult {
+  orderId: string;
+  checkoutUrl: string | null;
+  embeddedUrl?: string | null;
+  eligible: boolean;
+  totalFils: number;
+  /** ISO date the made-to-order items are ready by (booking + ~2 weeks). */
+  readyBy: string;
+}
+
+/**
+ * Checkout for a standalone shop order — no event, no inventory holds, no crew.
+ * Digital goods are emailed; printed goods ship after ~2 weeks. On payment the
+ * webhook marks it paid and notifies the team (see confirm.ts `shop` branch).
+ */
+export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopCheckoutResult> {
+  if (req.termsAccepted !== true) {
+    throw new CheckoutError('Please accept the terms to continue.', 'terms_required');
+  }
+
+  const cfg = await loadConfig();
+  const q = quoteShop(req.items ?? [], req.emirate, cfg.services);
+  if (!q.bookable) {
+    throw new CheckoutError('This order cannot be completed yet.', 'not_bookable', { problems: q.problems });
+  }
+
+  const customerId = req.customerId ?? (req.guest ? await createGuestCustomer(req.guest) : null);
+  if (!customerId) {
+    throw new CheckoutError('Please sign in or enter your details to continue.', 'auth_required');
+  }
+
+  if (config.providers[req.provider as keyof typeof config.providers]?.mode === 'disabled') {
+    throw new CheckoutError('This payment method is not currently available.', 'unavailable');
+  }
+  const provider = getProvider(req.provider);
+
+  const readyBy = new Date(Date.now() + SHOP_READY_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const cart = {
+    kind: 'shop',
+    items: q.lines.map((l) => ({ serviceId: l.serviceId, quantity: l.quantity })),
+    emirate: req.emirate,
+    address: req.address ?? null,
+    customization: req.customization ?? null,
+    readyBy: q.hasPrinted ? readyBy : null,
+  };
+
+  const orderId = await nextOrderId(pool);
+  await createOrder(pool, {
+    id: orderId,
+    kind: 'shop',
+    customerId,
+    totalFils: q.totalFils,
+    cart,
+    quote: q as unknown as Quote,
+  });
+
+  const customer = await loadCustomer(customerId);
+  const paymentId = randomUUID();
+
+  try {
+    const session = await provider.createSession({
+      orderId,
+      amountFils: q.totalFils,
+      currency: 'AED',
+      customer,
+      items: q.lines.map((l) => ({
+        title: l.name,
+        quantity: l.quantity,
+        unitPriceFils: l.unitFils,
+        referenceId: l.serviceId,
+        category: 'events',
+      })),
+      shippingFils: q.deliveryFils,
+      discountFils: 0,
+      city: String(req.emirate ?? ''),
+      address: [req.address?.area, req.address?.street, req.address?.villa].filter(Boolean).join(', '),
+      lang: req.lang ?? 'en',
+      successUrl: `${config.publicAppUrl}/pay/return?order=${orderId}`,
+      cancelUrl: `${config.publicAppUrl}/pay/cancel?order=${orderId}`,
+      failureUrl: `${config.publicAppUrl}/pay/failure?order=${orderId}`,
+      orderHistory: await loadOrderHistory(customerId),
+    });
+
+    await createPayment(pool, {
+      id: paymentId,
+      orderId,
+      provider: provider.name,
+      amountFils: q.totalFils,
+      providerPaymentId: session.providerPaymentId || null,
+      checkoutUrl: session.checkoutUrl,
+      raw: session.raw,
+    });
+    await recordPaymentEvent(pool, {
+      paymentId,
+      orderId,
+      provider: provider.name,
+      newStatus: session.eligible ? 'created' : 'failed',
+      source: 'api',
+      note: session.eligible ? 'Shop checkout session created' : 'Provider declined at session creation',
+    });
+
+    return {
+      orderId,
+      checkoutUrl: session.eligible ? session.checkoutUrl : null,
+      embeddedUrl: session.embeddedUrl ?? null,
+      eligible: session.eligible,
+      totalFils: q.totalFils,
+      readyBy,
+    };
+  } catch (err) {
+    await pool.query(`UPDATE orders SET status = 'failed', updated_at = now() WHERE id = $1`, [orderId]);
     throw new CheckoutError(
       'We could not start the payment. Please try again or choose another method.',
       'session_failed',

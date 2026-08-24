@@ -21,7 +21,7 @@ import { config } from '../config.js';
 import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
-import { CheckoutError, previewQuote, startCheckout } from '../domain/checkout.js';
+import { CheckoutError, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
 import { makeReferralCode, REFERRAL_CREDIT_FILS, validatePromo } from '../domain/discounts.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
@@ -326,6 +326,75 @@ export async function publicRoutes(app: FastifyInstance) {
         return reply.status(status).send({ error: err.code, message: err.message, details: err.details });
       }
       request.log.error({ err }, 'checkout failed');
+      return reply.status(500).send({ error: 'checkout_failed' });
+    }
+  });
+
+  /**
+   * Standalone shop checkout — custom printed/digital goods with no party.
+   * Guests allowed (same as /api/checkout). No date/time/venue/map pin.
+   */
+  app.post('/api/shop/checkout', async (request, reply) => {
+    const schema = z.object({
+      items: z
+        .array(z.object({ serviceId: z.string().max(40), quantity: z.number().int().min(0).max(9999) }))
+        .min(1),
+      emirate: z.string().max(40).nullable().optional(),
+      address: z
+        .object({
+          area: z.string().max(120).optional(),
+          street: z.string().max(120).optional(),
+          villa: z.string().max(120).optional(),
+          details: z.string().max(300).optional(),
+        })
+        .nullable()
+        .optional(),
+      customization: z
+        .object({
+          refImages: z.array(z.string().url().max(500)).max(3).optional(),
+          wantDraw: z.boolean().optional(),
+        })
+        .nullable()
+        .optional(),
+      provider: z.enum(['tabby', 'tamara', 'ziina']),
+      lang: z.enum(['en', 'ar']).optional(),
+      termsAccepted: z.boolean().optional(),
+      guest: z
+        .object({
+          name: z.string().trim().min(2).max(120),
+          phone: z.string().trim().min(6).max(30),
+          backupPhone: z.string().trim().min(6).max(30),
+          email: z.string().trim().email(),
+        })
+        .optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    }
+    const customerId = customerFromRequest(request);
+    if (!customerId && !parsed.data.guest) {
+      return reply.status(401).send({ error: 'auth_required', message: 'Please sign in or enter your details.' });
+    }
+    try {
+      const result = await startShopCheckout({
+        items: parsed.data.items,
+        emirate: parsed.data.emirate ?? null,
+        address: parsed.data.address ?? null,
+        customization: parsed.data.customization ?? null,
+        customerId: customerId ?? null,
+        guest: parsed.data.guest,
+        provider: parsed.data.provider,
+        lang: parsed.data.lang,
+        termsAccepted: parsed.data.termsAccepted,
+      });
+      return result;
+    } catch (err) {
+      if (err instanceof CheckoutError) {
+        const status = err.code === 'unavailable' ? 409 : 422;
+        return reply.status(status).send({ error: err.code, message: err.message, details: err.details });
+      }
+      request.log.error({ err }, 'shop checkout failed');
       return reply.status(500).send({ error: 'checkout_failed' });
     }
   });
