@@ -170,9 +170,22 @@ export function PaymentReturn({
       <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
         {t('pay.confirmingBody')}
       </div>
-      {waited > 20 && (
+      {waited > 20 && waited <= 60 && (
         <div style={{ marginTop: 20 }}>
           <Notice tone="info">{t('pay.stillConfirming')}</Notice>
+        </div>
+      )}
+      {waited > 60 && (
+        <div style={{ marginTop: 20 }}>
+          <Notice tone="warn">{t('pay.takingLong')}</Notice>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginTop: 12, letterSpacing: 1 }}>{t('pay.orderRef')}</div>
+          <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 16, fontWeight: 700, marginTop: 2 }}>{orderId}</div>
+          <a
+            href="https://wa.me/971564500777"
+            style={{ display: 'inline-block', marginTop: 14, background: C.ink, color: '#fff', fontWeight: 700, fontSize: 13, padding: '12px 24px', borderRadius: 18, textDecoration: 'none' }}
+          >
+            {t('pay.contactUs')}
+          </a>
         </div>
       )}
     </div>

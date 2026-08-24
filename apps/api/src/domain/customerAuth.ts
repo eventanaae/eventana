@@ -37,12 +37,19 @@ export function verifyCustomerToken(token: string | undefined | null): string | 
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
-    const cid = Buffer.from(body, 'base64url').toString('utf8').split('.')[0];
+    const [cid, issuedAtRaw] = Buffer.from(body, 'base64url').toString('utf8').split('.');
+    // Bound a session's (and any leaked token's) lifetime: expire after 90 days,
+    // after which the customer signs in again.
+    const issuedAt = Number(issuedAtRaw);
+    if (Number.isFinite(issuedAt) && Date.now() - issuedAt > SESSION_TTL_MS) return null;
     return cid || null;
   } catch {
     return null;
   }
 }
+
+/** How long a signed-in session stays valid before re-login. */
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * The customer id for a request, from its signed token. Empty string when

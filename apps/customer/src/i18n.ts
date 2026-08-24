@@ -438,6 +438,9 @@ const en: Dict = {
   // payment return
   'pay.tipThanks': 'Thank you for your tip! 💐',
   'pay.addonAdded': 'Added to your event! ✨',
+  'pay.takingLong': 'This is taking longer than usual. If money left your account, your booking is safe — save the reference below and contact us and we\'ll confirm it right away.',
+  'pay.orderRef': 'YOUR ORDER REFERENCE',
+  'pay.contactUs': 'Contact us on WhatsApp',
   'pay.shopThanks': 'Order confirmed! 🎁',
   'pay.shopSub': 'Payment verified. Digital items arrive by email within 3 days; printed items are made to order (~2 weeks) and shipped to you.',
   'pay.shopDone': 'Done',
@@ -937,6 +940,9 @@ const ar: Dict = {
   // payment return
   'pay.tipThanks': 'شكراً على بقشيشك! 💐',
   'pay.addonAdded': 'أُضيف إلى مناسبتك! ✨',
+  'pay.takingLong': 'التأكيد ياخذ وقت أطول من المعتاد. إذا خُصم المبلغ من حسابك فحجزك محفوظ — احفظي الرقم المرجعي تحت وتواصلي معنا ونأكّده لك فوراً.',
+  'pay.orderRef': 'الرقم المرجعي لطلبك',
+  'pay.contactUs': 'تواصلي معنا على واتساب',
   'pay.shopThanks': 'تم تأكيد طلبك! 🎁',
   'pay.shopSub': 'تم تأكيد الدفع. المنتجات الديجيتال توصل على الإيميل خلال ٣ أيام؛ والمطبوعات تُجهَّز حسب الطلب (أسبوعين تقريباً) وتُشحن لك.',
   'pay.shopDone': 'تمام',

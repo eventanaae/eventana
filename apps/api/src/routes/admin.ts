@@ -166,7 +166,9 @@ export async function adminRoutes(app: FastifyInstance) {
               p.name AS package_name, e.celebration_type
          FROM events e
          JOIN customers c ON c.id = e.customer_id
+         JOIN orders o ON o.id = e.order_id
          LEFT JOIN packages p ON p.id = e.package_id
+        WHERE o.status = 'paid'
         ORDER BY e.created_at DESC LIMIT 1`,
     );
     return rows[0] ?? null;
@@ -644,7 +646,7 @@ export async function adminRoutes(app: FastifyInstance) {
       [
         d.category, d.description, d.amountFils, d.vendor ?? null, d.eventId ?? null,
         d.spentOn ?? null, d.receiptUrl ?? null,
-        String((request.headers['x-staff-name'] as string) ?? 'Staff'),
+        String((request as any).staff?.name ?? 'Staff'),
       ],
     );
     return reply.status(201).send({ ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) });
@@ -1171,7 +1173,7 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     }
-    const staff = String(request.headers['x-staff-name'] ?? 'dashboard');
+    const staff = String((request as any).staff?.name ?? 'dashboard');
     return savePricingRules(parsed.data, staff);
   });
 

@@ -293,7 +293,19 @@ export function Checkout({
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
-      <button onClick={() => go('theme')} style={backStyle}>{t('common.back')}</button>
+      <button
+        onClick={() => {
+          // Go back to where the customer actually came from, not always the
+          // Themes screen (spa/movie/food-only flows never opened it).
+          const usedTheme =
+            Boolean(draft.themeId) || draft.customTheme ||
+            Object.keys(draft.services).some((id) => catalogue.services.find((s) => s.id === id)?.categoryId === 'backdrop');
+          go(usedTheme ? 'theme' : draft.packageId ? 'package' : 'build');
+        }}
+        style={backStyle}
+      >
+        {t('common.back')}
+      </button>
       <div style={{ ...fredoka(24), margin: '8px 0 16px' }}>{t('checkout.title')}</div>
 
       {/* --------- who the celebration is for (not the account holder) --------- */}
@@ -506,7 +518,15 @@ export function Checkout({
               .map((id) => catalogue.services.find((s) => s.id === id))
               .filter((s): s is NonNullable<typeof s> => Boolean(s) && !draft.services[s!.id])
           : catalogue.services
-              .filter((s) => s.celebrationTypes.includes(draft.celebrationType) && !draft.services[s.id])
+              // Castle & mascot need a colour/character that can only be chosen
+              // in Build — never surface them as a blind checkout quick-add.
+              .filter(
+                (s) =>
+                  s.celebrationTypes.includes(draft.celebrationType) &&
+                  !draft.services[s.id] &&
+                  s.id !== 'castle' &&
+                  s.id !== 'mascot',
+              )
               .sort((a, b) => {
                 const rank = (s: typeof a) =>
                   hasInflatable && s.id === 'socks' ? 2 : Number(Boolean(s.isFoodStation || s.badge));
