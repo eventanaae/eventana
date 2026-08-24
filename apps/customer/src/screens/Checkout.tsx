@@ -415,6 +415,11 @@ export function Checkout({
             <Notice tone="error">{t('checkout.tooSoon')}</Notice>
           </div>
         )}
+        {quote?.problems.some((p) => p.code === 'item_needs_lead') && (
+          <div style={{ marginBottom: 12 }}>
+            <Notice tone="error">{t('checkout.itemNeedsLead')}</Notice>
+          </div>
+        )}
         {quote?.lines.some((l) => l.kind === 'surcharge') && (
           <div style={{ marginBottom: 12 }}>
             <Notice tone="warn">{t('checkout.rushNote')}</Notice>
