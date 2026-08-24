@@ -84,55 +84,66 @@ export function MapPicker({
     authListeners.add(onAuthFail);
     loadMaps(mapsKey)
       .then((google) => {
-        if (cancelled || authFailed || !boxRef.current) return;
-        const start = value ?? UAE_CENTER;
-        const map = new google.maps.Map(boxRef.current, {
-          center: start,
-          zoom: value ? 16 : 10,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-          clickableIcons: false,
-          gestureHandling: 'greedy',
-        });
-        const marker = new google.maps.Marker({
-          position: start,
-          map,
-          draggable: true,
-          animation: value ? null : google.maps.Animation.DROP,
-        });
-        const geocoder = new google.maps.Geocoder();
-        mapRef.current = map;
-        markerRef.current = marker;
-        geocoderRef.current = geocoder;
-
-        const commit = (pin: Pin) => {
-          marker.setPosition(pin);
-          map.panTo(pin);
-          geocoder.geocode({ location: pin }, (results: any[], gStatus: string) => {
-            const label = gStatus === 'OK' && results?.[0] ? results[0].formatted_address : undefined;
-            if (!cancelled) setAddress(label ?? null);
-            onChange(pin, label);
+        if (cancelled) return;
+        // Build the map only AFTER the checkout card's entrance animation has
+        // settled. On iOS Safari a map created inside a still-animating, clipped
+        // ancestor paints a blank grey tile layer. A freshly downloaded SDK
+        // outlasts the ~350ms animation on its own, but a cached SDK resolves
+        // instantly — so wait explicitly, then repaint once tiles settle.
+        window.setTimeout(() => {
+          if (cancelled || authFailed || !boxRef.current) return;
+          const start = value ?? UAE_CENTER;
+          const map = new google.maps.Map(boxRef.current, {
+            center: start,
+            zoom: value ? 16 : 10,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            clickableIcons: false,
+            gestureHandling: 'greedy',
           });
-        };
+          const marker = new google.maps.Marker({
+            position: start,
+            map,
+            draggable: true,
+            animation: value ? null : google.maps.Animation.DROP,
+          });
+          const geocoder = new google.maps.Geocoder();
+          mapRef.current = map;
+          markerRef.current = marker;
+          geocoderRef.current = geocoder;
 
-        marker.addListener('dragend', (e: any) => commit({ lat: e.latLng.lat(), lng: e.latLng.lng() }));
-        map.addListener('click', (e: any) => {
-          if (map.getZoom() < 15) map.setZoom(16);
-          commit({ lat: e.latLng.lat(), lng: e.latLng.lng() });
-        });
-        // iOS Safari can leave the map blank ("opens then disappears") when it
-        // renders while the checkout card's entrance animation is still running
-        // and the tile layer is measured at the wrong size. Force Google to
-        // remeasure and repaint a few times once the animation has settled.
-        [150, 450, 900].forEach((d) =>
-          window.setTimeout(() => {
+          const commit = (pin: Pin) => {
+            marker.setPosition(pin);
+            map.panTo(pin);
+            geocoder.geocode({ location: pin }, (results: any[], gStatus: string) => {
+              const label = gStatus === 'OK' && results?.[0] ? results[0].formatted_address : undefined;
+              if (!cancelled) setAddress(label ?? null);
+              onChange(pin, label);
+            });
+          };
+
+          marker.addListener('dragend', (e: any) => commit({ lat: e.latLng.lat(), lng: e.latLng.lng() }));
+          map.addListener('click', (e: any) => {
+            if (map.getZoom() < 15) map.setZoom(16);
+            commit({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+          });
+          // Remeasure/repaint once the first tiles settle, then again shortly
+          // after — corrects a layer measured mid-animation or mid-scroll.
+          google.maps.event.addListenerOnce(map, 'idle', () => {
             if (cancelled) return;
             google.maps.event.trigger(map, 'resize');
             map.setCenter(start);
-          }, d),
-        );
-        setStatus('ready');
+          });
+          [250, 700].forEach((d) =>
+            window.setTimeout(() => {
+              if (cancelled) return;
+              google.maps.event.trigger(map, 'resize');
+              map.setCenter(start);
+            }, d),
+          );
+          setStatus('ready');
+        }, 420);
       })
       .catch((err) => {
         if (!cancelled) setStatus(err?.message === 'no-key' ? 'nokey' : 'error');
