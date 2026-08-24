@@ -201,6 +201,24 @@ export function Checkout({
     }
   };
 
+  // Re-validate an applied promo whenever the cart total changes, so a code that
+  // no longer meets its minimum (or whose value changed) can't show a stale
+  // discount the server will reject at pay.
+  useEffect(() => {
+    if (!promo) return;
+    let alive = true;
+    api
+      .checkPromo(promo.code, subtotalFils)
+      .then((r) => {
+        if (!alive) return;
+        if (r.ok && r.code) setPromo({ code: r.code, amountFils: r.amountFils ?? 0 });
+        else { setPromo(null); setPromoError(r.reason ?? null); }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotalFils, promo?.code]);
+
   const zone = catalogue.deliveryZones.find((z) => z.emirate === draft.emirate);
   const blocked = zone && (!zone.available || zone.feeFils === null);
 
