@@ -410,14 +410,25 @@ export async function confirmBooking(
   );
   const ref = refRows[0];
   if (ref?.referred_by && !ref.referral_rewarded) {
-    const { rowCount } = await db.query(
-      `UPDATE customers SET referral_credit_fils = referral_credit_fils + 25000
-        WHERE referral_code = $1 AND referral_code <> COALESCE((SELECT referral_code FROM customers WHERE id = $2), '')`,
-      [ref.referred_by, order.customer_id],
+    const { rows: selfRows } = await db.query(
+      `SELECT referral_code FROM customers WHERE id = $1`,
+      [order.customer_id],
     );
+    const isSelfReferral = selfRows[0]?.referral_code === ref.referred_by;
+    if (!isSelfReferral) {
+      // Both sides earn AED 250 store credit — but only now, on the referee's
+      // FIRST real booking (not at signup), so throwaway accounts earn nothing.
+      await db.query(
+        `UPDATE customers SET referral_credit_fils = referral_credit_fils + 25000 WHERE referral_code = $1`,
+        [ref.referred_by],
+      );
+      await db.query(
+        `UPDATE customers SET referral_credit_fils = referral_credit_fils + 25000 WHERE id = $1`,
+        [order.customer_id],
+      );
+    }
     // Mark rewarded regardless, so a missing/self referrer isn't retried forever.
     await db.query(`UPDATE customers SET referral_rewarded = TRUE WHERE id = $1`, [order.customer_id]);
-    void rowCount;
   }
 
   await db.query(`UPDATE orders SET event_id = $2, updated_at = now() WHERE id = $1`, [

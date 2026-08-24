@@ -24,7 +24,7 @@ import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
 import { orderViewTokenValid } from '../domain/orders.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
-import { makeReferralCode, REFERRAL_CREDIT_FILS, validatePromo } from '../domain/discounts.js';
+import { makeReferralCode, validatePromo } from '../domain/discounts.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { allProviders } from '../payments/index.js';
@@ -100,6 +100,44 @@ function describeWeather(symbol: string): { label: string; emoji: string; outdoo
 const weatherCache = new Map<string, { at: number; value: unknown }>();
 
 export async function publicRoutes(app: FastifyInstance) {
+  // ---- Lightweight in-memory rate limiting (single instance) ----
+  // Protects the unauthenticated, abuse-prone endpoints: checkout (inventory-
+  // hold DoS), registration (referral farming), login/forgot (mailbomb /
+  // credential spray), promo (code brute-force) and the Cloudinary upload
+  // signer. Keyed by the real client IP behind the proxy.
+  const rlBuckets = new Map<string, { count: number; reset: number }>();
+  const RL_RULES: Array<{ test: RegExp; max: number; windowMs: number }> = [
+    { test: /^\/api\/(checkout|shop\/checkout)$/, max: 15, windowMs: 60_000 },
+    { test: /^\/api\/customers\/(register|forgot|login)$/, max: 8, windowMs: 60_000 },
+    { test: /^\/api\/promo\/check$/, max: 25, windowMs: 60_000 },
+    { test: /^\/api\/customers\/uploads\/sign$/, max: 25, windowMs: 60_000 },
+  ];
+  app.addHook('onRequest', async (request, reply) => {
+    const path = request.url.split('?')[0];
+    const rule = RL_RULES.find((r) => r.test.test(path));
+    if (!rule) return;
+    const ip =
+      (request.headers['cf-connecting-ip'] as string | undefined) ||
+      ((request.headers['x-forwarded-for'] as string | undefined) ?? '').split(',')[0].trim() ||
+      request.ip;
+    const key = `${ip}:${path}`;
+    const now = Date.now();
+    let b = rlBuckets.get(key);
+    if (!b || b.reset <= now) {
+      b = { count: 0, reset: now + rule.windowMs };
+      rlBuckets.set(key, b);
+    }
+    b.count += 1;
+    if (b.count > rule.max) {
+      reply.header('retry-after', Math.ceil((b.reset - now) / 1000));
+      return reply.status(429).send({ error: 'rate_limited', message: 'Too many requests — please wait a moment.' });
+    }
+  });
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, b] of rlBuckets) if (b.reset <= now) rlBuckets.delete(k);
+  }, 300_000).unref();
+
   /** Ops probe: is the Google Calendar link actually working? Status only. */
   app.get('/api/calendar/check', async () => checkCalendarConnection());
 
@@ -636,7 +674,10 @@ export async function publicRoutes(app: FastifyInstance) {
     if (referralCode) {
       const norm = referralCode.toUpperCase();
       const { rows } = await pool.query(`SELECT id FROM customers WHERE referral_code = $1`, [norm]);
-      if (rows[0]) { referredBy = norm; welcomeCredit = REFERRAL_CREDIT_FILS; }
+      // Record the link only. The referee's AED 250 is granted at their FIRST
+      // confirmed booking (see confirm.ts), not instantly — otherwise anyone
+      // could mint spendable credit by registering throwaway accounts.
+      if (rows[0]) referredBy = norm;
     }
 
     const id = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;

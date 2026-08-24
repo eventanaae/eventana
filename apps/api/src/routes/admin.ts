@@ -249,6 +249,10 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get('/api/admin/events', async (request) => {
     const { status } = request.query as { status?: string };
+    // A driver may only see the events they're assigned to — never the whole
+    // customer/PII list. Everyone else (owner/manager/employee) sees all.
+    const staff = (request as any).staff as { id?: string; role?: string };
+    const driverOnly = staff?.role === 'driver';
     const { rows } = await pool.query(
       `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.emirate,
               e.celebration_type, c.name AS customer, c.phone, o.id AS order_id,
@@ -257,15 +261,26 @@ export async function adminRoutes(app: FastifyInstance) {
          JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id
         WHERE ($1::text IS NULL OR o.status = $1)
+          AND ($2::text IS NULL OR EXISTS (
+                SELECT 1 FROM event_team et WHERE et.event_id = e.id AND et.member_id = $2))
         ORDER BY e.event_date DESC
         LIMIT 200`,
-      [status ?? null],
+      [status ?? null, driverOnly ? (staff?.id ?? '__none__') : null],
     );
     return rows.map((r) => ({ ...r, totalDisplay: formatAed(Number(r.total_fils)) }));
   });
 
   app.get('/api/admin/events/:eventId', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
+    // Drivers can only open an event they're on.
+    const staff = (request as any).staff as { id?: string; role?: string };
+    if (staff?.role === 'driver') {
+      const { rows: onCrew } = await pool.query(
+        `SELECT 1 FROM event_team WHERE event_id = $1 AND member_id = $2`,
+        [eventId, staff?.id ?? '__none__'],
+      );
+      if (!onCrew[0]) return reply.status(403).send({ error: 'forbidden' });
+    }
     const { rows } = await pool.query(
       `SELECT e.*, c.name AS customer, c.phone, c.email, o.id AS order_id,
               o.status AS order_status, o.total_fils, o.quote, o.cart

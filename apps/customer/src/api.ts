@@ -55,12 +55,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       }
       break;
     } catch (err) {
-      if (attempt < COLD_START_BACKOFF_MS.length) { await sleep(COLD_START_BACKOFF_MS[attempt++]); continue; }
+      // Only retry idempotent (GET) requests — a thrown fetch on a POST may have
+      // reached the server and been applied, so re-sending could double-book.
+      if (idempotent && attempt < COLD_START_BACKOFF_MS.length) { await sleep(COLD_START_BACKOFF_MS[attempt++]); continue; }
       throw err;
     }
   }
   const text = await res.text();
-  const body = text ? JSON.parse(text) : null;
+  // A non-JSON body (proxy/WAF HTML error page) must not crash with a raw
+  // SyntaxError — fall back to null and let the status drive the message.
+  let body: any = null;
+  if (text) { try { body = JSON.parse(text); } catch { body = null; } }
   if (!res.ok) {
     const err = new Error(body?.message ?? body?.error ?? `Request failed (${res.status})`);
     Object.assign(err, { status: res.status, body });
