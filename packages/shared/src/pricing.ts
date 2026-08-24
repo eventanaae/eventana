@@ -333,6 +333,10 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
   // Time: 4-hour event (6 for Build-Your-Own with decor/inflatables/machines)
   // that must finish by midnight.
   const baseHours = effectiveEventHours(cart, rules);
+  if (!cart.eventDate) {
+    problems.push({ code: 'missing_date', message: 'Choose your event date.' });
+  }
+
   let endTime: string | null = null;
   if (!cart.startTime) {
     problems.push({ code: 'missing_time', message: 'Pick a start time for your event.' });

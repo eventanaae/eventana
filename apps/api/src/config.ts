@@ -301,6 +301,16 @@ export function readinessSummary() {
 export function assertProductionReady(): void {
   if (config.nodeEnv !== 'production') return;
 
+  // STAFF_TOKEN is the single HMAC/trust anchor for admin auth AND customer
+  // session/reset/order-view tokens. The default is public knowledge, so a
+  // production deploy that ships it is fully compromised — refuse to start.
+  if (!env.STAFF_TOKEN || env.STAFF_TOKEN === 'dev-staff-token') {
+    throw new Error(
+      'Refusing to start: STAFF_TOKEN is unset or the public default. ' +
+        'Set a strong, random STAFF_TOKEN in the environment.',
+    );
+  }
+
   const providers = Object.values(config.providers);
   const declaredLive = (env.EVENTANA_PAYMENT_MODE ?? '').toLowerCase() === 'live';
 

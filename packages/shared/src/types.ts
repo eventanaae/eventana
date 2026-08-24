@@ -172,6 +172,7 @@ export interface QuoteProblem {
     | 'empty_cart'
     | 'unknown_service'
     | 'missing_map_pin'
+    | 'missing_date'
     | 'too_soon'
     | 'item_needs_lead';
   message: string;

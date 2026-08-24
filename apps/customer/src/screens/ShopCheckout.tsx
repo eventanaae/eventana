@@ -13,7 +13,6 @@ import { quoteShop, SHOP_DRAWING_IDS, SHOP_EMIRATES, SHOP_READY_DAYS } from '@ev
 export function ShopCheckout({
   catalogue,
   shopCart,
-  setShopCart,
   go,
   t,
   onOrder,
@@ -93,7 +92,8 @@ export function ShopCheckout({
         setPaying(false);
         return;
       }
-      setShopCart({});
+      // Keep the cart until the order is CONFIRMED (cleared in onShopDone) so a
+      // failed/cancelled payment can be retried with the items still in place.
       if (result.checkoutUrl) {
         onOrder(result.orderId);
         window.location.href = result.checkoutUrl;

@@ -401,8 +401,8 @@ export default function App() {
             token={orderToken}
             embedUrl={payUrl}
             onConfirmed={(id) => { setEventId(id); setPayUrl(null); reset(); go('myevent'); }}
-            onShopDone={() => { setPayUrl(null); go('home'); }}
-            onRetry={() => { setPayUrl(null); go('checkout'); }}
+            onShopDone={() => { setPayUrl(null); setShopCart({}); go('home'); }}
+            onRetry={(k) => { setPayUrl(null); go(k === 'shop' ? 'shopcheckout' : 'checkout'); }}
             t={t}
           />
         )}

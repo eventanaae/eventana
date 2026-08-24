@@ -28,7 +28,7 @@ export function PaymentReturn({
   onConfirmed: (eventId: string) => void;
   /** A confirmed standalone shop order has no event — just finish. */
   onShopDone: () => void;
-  onRetry: () => void;
+  onRetry: (kind: string) => void;
   t: TFn;
 }) {
   const [status, setStatus] = useState<string>('checking');
@@ -116,7 +116,7 @@ export function PaymentReturn({
         <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 24 }}>
           {t('pay.failedBody')}
         </div>
-        <PrimaryButton onClick={onRetry}>{t('pay.tryAnother')}</PrimaryButton>
+        <PrimaryButton onClick={() => onRetry(kind)}>{t('pay.tryAnother')}</PrimaryButton>
       </div>
     );
   }
@@ -153,7 +153,7 @@ export function PaymentReturn({
         )}
         <div style={{ textAlign: 'center', marginTop: 14 }}>
           <button
-            onClick={onRetry}
+            onClick={() => onRetry(kind)}
             style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}
           >
             {t('pay.cancelPay')}
