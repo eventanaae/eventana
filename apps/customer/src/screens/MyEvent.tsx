@@ -36,6 +36,7 @@ export function MyEvent({
 }) {
   const [list, setList] = useState<any[] | null>(null);
   const [event, setEvent] = useState<any>(null);
+  const [loadError, setLoadError] = useState(false);
   const [pending, setPending] = useState({ hours: 0, socks: 0, servings: {} as Record<string, number> });
   const [addonQuote, setAddonQuote] = useState<any>(null);
   const [chat, setChat] = useState('');
@@ -56,7 +57,8 @@ export function MyEvent({
   }, [eventId, onPickEvent]);
 
   useEffect(() => {
-    load().catch(() => setList([]));
+    setLoadError(false);
+    load().catch(() => { setLoadError(true); setList((l) => l ?? []); });
   }, [load]);
 
   // Live price for whatever extras are currently selected.
@@ -90,7 +92,22 @@ export function MyEvent({
     );
   }
 
-  if (!event) return <Spinner label={t('me.loading')} />;
+  if (!event) {
+    if (loadError) {
+      return (
+        <div style={{ padding: '60px 30px', textAlign: 'center' }}>
+          <div style={{ fontSize: 34, marginBottom: 8 }}>🎈</div>
+          <div style={{ ...fredoka(20) }}>{t('me.loadFailed')}</div>
+          <div style={{ marginTop: 16 }}>
+            <PrimaryButton onClick={() => { setLoadError(false); setEvent(null); load().catch(() => setLoadError(true)); }}>
+              {t('common.tryAgain')}
+            </PrimaryButton>
+          </div>
+        </div>
+      );
+    }
+    return <Spinner label={t('me.loading')} />;
+  }
 
   const cancelled = Boolean(event.cancelled);
   const phaseIndex = PHASES.indexOf(event.phase);

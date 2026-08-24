@@ -51,6 +51,16 @@ export function ResetPassword({ token, t }: { token: string; t: TFn }) {
       <PrimaryButton disabled={password.length < 6 || busy} onClick={submit}>
         {busy ? t('reset.saving') : t('reset.submit')}
       </PrimaryButton>
+      {error && (
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <a
+            onClick={() => { window.location.href = window.location.pathname; }}
+            style={{ cursor: 'pointer', color: C.muted, fontSize: 12, fontWeight: 700 }}
+          >
+            {t('reset.backToApp')}
+          </a>
+        </div>
+      )}
     </div>
   );
 }
