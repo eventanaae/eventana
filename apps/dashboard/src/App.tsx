@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, hasStaffToken, setStaffToken, clearStaffToken } from './api';
+import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler } from './api';
 import { C, fredoka } from './ui';
 import { BookingNotifier } from './BookingNotifier';
 import { Today } from './views/Today';
@@ -54,6 +54,19 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Surface any failed API request (broken load / failed action) as a toast so
+  // nothing fails silently.
+  useEffect(() => {
+    setApiErrorHandler((msg) => setToast(msg));
+    return () => setApiErrorHandler(null);
+  }, []);
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   useEffect(() => {
     if (!authed) return;
@@ -127,10 +140,25 @@ export default function App() {
     <EventDrawer eventId={openEventId} onClose={() => setOpenEventId(null)} />
   );
 
+  const toastEl = toast ? (
+    <div
+      onClick={() => setToast(null)}
+      style={{
+        position: 'fixed', left: 12, right: 12, bottom: 90, zIndex: 40, cursor: 'pointer',
+        background: C.ink, color: '#fff', borderRadius: 14, padding: '13px 16px',
+        fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, boxShadow: '0 8px 24px rgba(0,0,0,.3)',
+        maxWidth: 520, margin: '0 auto',
+      }}
+    >
+      ⚠️ {toast}
+    </div>
+  ) : null;
+
   // ---------------- phone: compact bar of primary tabs + a More sheet -------
   if (mobile) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
+        {toastEl}
         <BookingNotifier enabled={authed} />
         <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: `1px solid ${C.line}`, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -210,6 +238,7 @@ export default function App() {
   // ---------------- desktop: sidebar ---------------------------------------
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
+      {toastEl}
       <BookingNotifier enabled={authed} />
       <div
         style={{

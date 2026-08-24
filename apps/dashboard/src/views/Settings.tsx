@@ -46,11 +46,14 @@ export function Settings() {
 
   const saveRules = async () => {
     const patch: Record<string, number | boolean> = {};
+    const blank = (v: unknown) => v === '' || v === null || v === undefined;
     for (const { key } of MONEY_RULES) {
-      const value = Math.round(Number(draft[key]) );
+      if (blank(draft[key])) continue; // a cleared field must not silently save as 0
+      const value = Math.round(Number(draft[key]));
       if (Number.isFinite(value)) patch[key] = value;
     }
     for (const { key } of NUMBER_RULES) {
+      if (blank(draft[key])) continue;
       const value = Number(draft[key]);
       if (Number.isFinite(value)) patch[key] = value;
     }

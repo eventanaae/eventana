@@ -57,6 +57,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // for idempotent GETs.
 const COLD_START_BACKOFF_MS = [2000, 4000, 6000, 8000, 10000, 12000];
 
+// A single place the UI can hook to surface any failed request, so a broken
+// load or a failed action is never silent (spinner-forever / no-op button).
+let onApiError: ((message: string) => void) | null = null;
+export function setApiErrorHandler(fn: ((message: string) => void) | null): void {
+  onApiError = fn;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const idempotent = (init.method ?? 'GET').toUpperCase() === 'GET';
   const opts: RequestInit = {
@@ -80,13 +87,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       }
       break;
     } catch (err) {
-      if (attempt < COLD_START_BACKOFF_MS.length) { await sleep(COLD_START_BACKOFF_MS[attempt++]); continue; }
+      // Only retry idempotent (GET) requests — re-sending a POST could double-apply.
+      if (idempotent && attempt < COLD_START_BACKOFF_MS.length) { await sleep(COLD_START_BACKOFF_MS[attempt++]); continue; }
+      onApiError?.('Network error — please check your connection and try again.');
       throw err;
     }
   }
   const text = await res.text();
-  const body = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(body?.message ?? body?.error ?? `Request failed (${res.status})`);
+  let body: any = null;
+  if (text) { try { body = JSON.parse(text); } catch { body = null; } }
+  if (!res.ok) {
+    const message = body?.message ?? body?.error ?? `Request failed (${res.status})`;
+    onApiError?.(message);
+    throw new Error(message);
+  }
   return body as T;
 }
 
