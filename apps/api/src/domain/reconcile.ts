@@ -17,6 +17,7 @@ import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
 import { sweepScheduledCampaigns, sweepVoucherReminders } from './marketing.js';
 import { sweepMonthlyReport } from './financeReport.js';
+import { deliverPendingNotifications } from './notify.js';
 
 export interface ReconcileReport {
   expiredHolds: number;
@@ -56,7 +57,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
         report.alerted += 1;
         await pool.query(
           `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-           VALUES (NULL, 'ops_alert', 'payment_unresolved', now(), $1)`,
+           SELECT NULL, 'ops_alert', 'payment_unresolved', now(), $1
+            WHERE NOT EXISTS (
+              SELECT 1 FROM notifications
+               WHERE template = 'payment_unresolved' AND payload->>'orderId' = $2)`,
           [
             JSON.stringify({
               orderId: row.order_id,
@@ -64,6 +68,7 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
               minutesStuck: Math.round(age / 60_000),
               outcome,
             }),
+            row.order_id,
           ],
         );
       }
@@ -89,6 +94,14 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // Mail the previous month's finance report once the month turns over.
   await sweepMonthlyReport().catch((err) => console.error('[finance-report] sweep failed:', err));
 
+  // Deliver queued customer emails (booking confirmation, reminders,
+  // cancellation) and staff tip pushes. Non-fatal.
+  await deliverPendingNotifications()
+    .then((r) => {
+      if (r.emails || r.pushes) console.log(`[notify] delivered ${r.emails} email(s), ${r.pushes} push(es)`);
+    })
+    .catch((err) => console.error('[notify] delivery failed:', err));
+
   return report;
 }
 
@@ -96,6 +109,11 @@ let timer: NodeJS.Timeout | null = null;
 
 export function startReconciliation(): void {
   if (timer) return;
+  // Run once shortly after boot so a fresh/restarted instance doesn't wait a
+  // full interval before delivering queued emails or chasing stuck payments.
+  setTimeout(() => {
+    reconcileOnce().catch((err) => console.error('[reconcile] boot sweep failed:', err));
+  }, 15_000).unref();
   timer = setInterval(() => {
     reconcileOnce().catch((err) => {
       console.error('[reconcile] sweep failed:', err);
