@@ -382,14 +382,17 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
     readyBy: q.hasPrinted ? readyBy : null,
   };
 
-  const orderId = await nextOrderId(pool);
-  await createOrder(pool, {
-    id: orderId,
-    kind: 'shop',
-    customerId,
-    totalFils: q.totalFils,
-    cart,
-    quote: q as unknown as Quote,
+  const orderId = await withTransaction(async (db) => {
+    const id = await nextOrderId(db);
+    await createOrder(db, {
+      id,
+      kind: 'shop',
+      customerId,
+      totalFils: q.totalFils,
+      cart,
+      quote: q as unknown as Quote,
+    });
+    return id;
   });
 
   const customer = await loadCustomer(customerId);
