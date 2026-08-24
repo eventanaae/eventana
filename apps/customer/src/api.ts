@@ -143,6 +143,21 @@ export const api = {
       body: JSON.stringify({ cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest }),
     }),
 
+  /** Standalone shop checkout — custom printed & digital goods, no party. */
+  shopCheckout: (body: {
+    items: Array<{ serviceId: string; quantity: number }>;
+    emirate: string | null;
+    address?: { area?: string; street?: string; villa?: string; details?: string } | null;
+    customization?: { refImages?: string[]; wantDraw?: boolean } | null;
+    provider: string;
+    termsAccepted: boolean;
+    guest?: { name: string; phone: string; backupPhone: string; email: string };
+  }) =>
+    request<{
+      orderId: string; checkoutUrl: string | null; embeddedUrl?: string | null;
+      eligible: boolean; totalFils: number; readyBy: string;
+    }>('/api/shop/checkout', { method: 'POST', body: JSON.stringify(body) }),
+
   checkPromo: (code: string, subtotalFils: number) =>
     request<{ ok: boolean; code?: string; amountFils?: number; reason?: string }>(
       '/api/promo/check',

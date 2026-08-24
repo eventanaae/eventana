@@ -83,6 +83,13 @@ export function Home({ catalogue, draft, update, go, customerName, t }: ScreenPr
           sub={t('home.buildSub')}
           onClick={() => go('build')}
         />
+        <OptionCard
+          icon="🛍️"
+          tint="linear-gradient(135deg,#F3E9FB,#D9B8E8)"
+          title={t('home.shopTitle')}
+          sub={t('home.shopSub')}
+          onClick={() => go('shop')}
+        />
       </div>
 
       <SectionTitle style={{ marginBottom: 4 }}>{t('home.celebrating')}</SectionTitle>

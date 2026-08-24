@@ -16,12 +16,15 @@ import { Profile } from './screens/Profile';
 import { Onboarding } from './screens/Onboarding';
 import { MovieSelect } from './screens/MovieSelect';
 import { ResetPassword } from './screens/ResetPassword';
+import { Shop } from './screens/Shop';
+import { ShopCheckout } from './screens/ShopCheckout';
 import { useProfile } from './profile';
 import { useLang, makeT, type Lang, type TFn } from './i18n';
 
 export type Screen =
   | 'home' | 'explore' | 'package' | 'buildIntake' | 'build' | 'theme' | 'custom'
-  | 'assistant' | 'movieselect' | 'checkout' | 'confirming' | 'myevent' | 'profile';
+  | 'assistant' | 'movieselect' | 'checkout' | 'confirming' | 'myevent' | 'profile'
+  | 'shop' | 'shopcheckout';
 
 export interface Draft {
   celebrationType: string;
@@ -150,6 +153,9 @@ export default function App() {
   const t = useMemo(() => makeT(lang), [lang]);
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
   const [screen, setScreen] = useState<Screen>('home');
+  // Standalone shop cart (custom printed & digital goods) — kept apart from the
+  // party draft: service id → quantity.
+  const [shopCart, setShopCart] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState<Draft>(() => loadDraft() ?? emptyDraft);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   // True when the live price couldn't be fetched (e.g. a mobile network blip),
@@ -300,8 +306,10 @@ export default function App() {
       lang,
       t,
       social,
+      shopCart,
+      setShopCart,
     }),
-    [catalogue, draft, update, quote, quoteError, retryQuote, go, reset, startBuild, profile?.name, lang, t, social],
+    [catalogue, draft, update, quote, quoteError, retryQuote, go, reset, startBuild, profile?.name, lang, t, social, shopCart],
   );
 
   // Password reset takes precedence over everything (deep link from email).
@@ -393,6 +401,10 @@ export default function App() {
         )}
         {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} t={t} lang={lang} />}
         {screen === 'profile' && <Profile go={go} onRebook={rebook} t={t} lang={lang} setLang={setLang} />}
+        {screen === 'shop' && <Shop {...shared} />}
+        {screen === 'shopcheckout' && (
+          <ShopCheckout {...shared} onOrder={(id, embed) => { setOrderId(id); setPayUrl(embed ?? null); go('confirming'); }} />
+        )}
       </div>
 
       {showTabs && (
@@ -510,4 +522,9 @@ export interface ScreenProps {
     overall: { avg: number; count: number };
     testimonials: Array<{ stars: number; feedback: string; name: string }>;
   } | null;
+  /** Standalone shop cart: service id → quantity. */
+  shopCart: Record<string, number>;
+  setShopCart: (
+    updater: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>),
+  ) => void;
 }
