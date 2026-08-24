@@ -12,7 +12,7 @@ import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import { getProvider, integrationStatus } from '../payments/index.js';
 import { invalidateConfigCache, loadConfig, savePricingRules } from '../domain/settings.js';
-import { applyPaymentStatus, recordPaymentEvent } from '../domain/orders.js';
+import { applyPaymentStatus, orderStatusFor, recordPaymentEvent } from '../domain/orders.js';
 import { withTransaction } from '../db/pool.js';
 import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
@@ -1267,63 +1267,87 @@ export async function adminRoutes(app: FastifyInstance) {
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
 
-    const { rows } = await pool.query(
-      `SELECT p.*, o.total_fils, o.event_id, o.customer_id
-         FROM payments p JOIN orders o ON o.id = p.order_id
-        WHERE p.order_id = $1 ORDER BY p.created_at DESC LIMIT 1`,
-      [orderId],
-    );
-    const payment = rows[0];
-    if (!payment) return reply.status(404).send({ error: 'not_found' });
-    if (!payment.provider_payment_id) {
-      return reply.status(409).send({ error: 'no_provider_payment' });
-    }
-    if (payment.status !== 'paid' && payment.status !== 'captured' && payment.status !== 'partially_refunded') {
-      return reply.status(409).send({ error: 'not_refundable', status: payment.status });
-    }
-    const alreadyRefunded = Number(payment.refunded_fils);
-    if (alreadyRefunded + parsed.data.amountFils > Number(payment.amount_fils)) {
-      return reply.status(422).send({ error: 'exceeds_paid_amount' });
-    }
+    // Everything runs inside ONE transaction with the payment row LOCKED, so
+    // the ceiling check reads a fresh refunded_fils and concurrent refunds
+    // serialise. A further partial refund is a same-status increment that
+    // applyPaymentStatus/canTransition would wrongly reject, so the refunded
+    // total is written here directly.
+    let outcome:
+      | { ok: false; code: number; error: string; extra?: Record<string, unknown> }
+      | { ok: true; status: string; refundedFils: number; providerStatus: string | null };
+    try {
+      outcome = await withTransaction(async (db) => {
+        const { rows } = await db.query(
+          `SELECT p.*, o.total_fils, o.event_id, o.customer_id
+             FROM payments p JOIN orders o ON o.id = p.order_id
+            WHERE p.order_id = $1 ORDER BY p.created_at DESC LIMIT 1
+            FOR UPDATE OF p`,
+          [orderId],
+        );
+        const payment = rows[0];
+        if (!payment) return { ok: false as const, code: 404, error: 'not_found' };
+        if (!payment.provider_payment_id) return { ok: false as const, code: 409, error: 'no_provider_payment' };
+        if (payment.status !== 'paid' && payment.status !== 'captured' && payment.status !== 'partially_refunded') {
+          return { ok: false as const, code: 409, error: 'not_refundable', extra: { status: payment.status } };
+        }
+        const alreadyRefunded = Number(payment.refunded_fils);
+        if (alreadyRefunded + parsed.data.amountFils > Number(payment.amount_fils)) {
+          return { ok: false as const, code: 422, error: 'exceeds_paid_amount' };
+        }
 
-    const provider = getProvider(payment.provider);
-    const verified = await provider.refund(
-      payment.provider_payment_id,
-      parsed.data.amountFils,
-      parsed.data.reason,
-    );
+        // Money moves here, under the lock.
+        const provider = getProvider(payment.provider);
+        const verified = await provider.refund(
+          payment.provider_payment_id,
+          parsed.data.amountFils,
+          parsed.data.reason,
+        );
 
-    const refundedTotal = alreadyRefunded + parsed.data.amountFils;
-    const nextStatus =
-      refundedTotal >= Number(payment.amount_fils) ? 'refunded' : 'partially_refunded';
+        const refundedTotal = alreadyRefunded + parsed.data.amountFils;
+        const nextStatus: 'refunded' | 'partially_refunded' =
+          refundedTotal >= Number(payment.amount_fils) ? 'refunded' : 'partially_refunded';
 
-    await withTransaction(async (db) => {
-      await applyPaymentStatus(db, {
-        paymentId: payment.id,
-        nextStatus,
-        source: 'admin',
-        providerStatus: verified.providerStatus,
-        payload: verified.raw,
-        refundedFils: refundedTotal,
-        note: `Refund ${formatAed(parsed.data.amountFils)} AED — ${parsed.data.reason}`,
-      });
-
-      // Reverse the loyalty points the booking earned, proportionally.
-      const cfg = await loadConfig();
-      const points = Math.floor((parsed.data.amountFils / 100) * cfg.rules.loyaltyPointsPerAed);
-      if (points > 0) {
         await db.query(
-          `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
-           VALUES ($1,$2,$3,$4,'Refund reversal')`,
-          [payment.customer_id, payment.event_id, orderId, -points],
+          `UPDATE payments
+              SET status = $2, refunded_fils = $3,
+                  last_provider_status = COALESCE($4, last_provider_status),
+                  raw = COALESCE($5, raw), updated_at = now()
+            WHERE id = $1`,
+          [payment.id, nextStatus, refundedTotal, verified.providerStatus ?? null, verified.raw ? JSON.stringify(verified.raw) : null],
         );
         await db.query(
-          `UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`,
-          [payment.customer_id, points],
+          `UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`,
+          [orderId, orderStatusFor(nextStatus)],
         );
-      }
+        await recordPaymentEvent(db, {
+          paymentId: payment.id,
+          orderId,
+          provider: payment.provider,
+          oldStatus: payment.status,
+          newStatus: nextStatus,
+          source: 'admin',
+          providerStatus: verified.providerStatus,
+          amountFils: payment.amount_fils,
+          payload: verified.raw,
+          note: `Refund ${formatAed(parsed.data.amountFils)} — ${parsed.data.reason}`,
+        });
 
-      if (nextStatus === 'refunded') {
+        // Reverse the loyalty points the booking earned, proportionally.
+        const cfg = await loadConfig();
+        const points = Math.floor((parsed.data.amountFils / 100) * cfg.rules.loyaltyPointsPerAed);
+        if (points > 0) {
+          await db.query(
+            `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
+             VALUES ($1,$2,$3,$4,'Refund reversal')`,
+            [payment.customer_id, payment.event_id, orderId, -points],
+          );
+          await db.query(
+            `UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`,
+            [payment.customer_id, points],
+          );
+        }
+
+        if (nextStatus === 'refunded') {
         // A fully refunded booking is a cancelled event: release the
         // reservations, stop the scheduled emails, and move the event to
         // the terminal Cancelled phase so the customer app stops offering
@@ -1352,10 +1376,29 @@ export async function adminRoutes(app: FastifyInstance) {
             [payment.event_id],
           );
         }
-      }
-    });
+        }
 
-    return { orderId, status: nextStatus, refundedFils: refundedTotal, provider: verified.providerStatus };
+        return {
+          ok: true as const,
+          status: nextStatus,
+          refundedFils: refundedTotal,
+          providerStatus: verified.providerStatus,
+        };
+      });
+    } catch (err) {
+      request.log.error({ err }, 'refund failed');
+      return reply.status(502).send({ error: 'refund_failed' });
+    }
+
+    if (!outcome.ok) {
+      return reply.status(outcome.code).send({ error: outcome.error, ...(outcome.extra ?? {}) });
+    }
+    return {
+      orderId,
+      status: outcome.status,
+      refundedFils: outcome.refundedFils,
+      provider: outcome.providerStatus,
+    };
   });
 
   /* -------------------------- Audit + ops ------------------------- */
