@@ -31,6 +31,13 @@ import {
 const SIX_HOUR_CATEGORIES = new Set(['backdrop', 'inflatables', 'machines']);
 
 /**
+ * Online/digital deliverables: emailed to the customer within a few days, never
+ * set up at the party. They can be ordered at any lead time and never carry the
+ * urgent (rush) surcharge.
+ */
+export const DIGITAL_SERVICE_IDS = new Set(['invite-image', 'invite-video', 'drawing']);
+
+/**
  * Effective event length in hours. Packages ALWAYS run the standard 4 hours,
  * even with add-ons. Build-Your-Own runs 6 hours when it includes decor/stands,
  * inflatables or machines (which need a longer window); otherwise 4.
@@ -244,7 +251,7 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
         });
       } else if (hoursToEvent < rules.urgentWindowHours) {
         const partyNetFils = lines
-          .filter((l) => l.kind !== 'delivery')
+          .filter((l) => l.kind !== 'delivery' && !(l.refId && DIGITAL_SERVICE_IDS.has(l.refId)))
           .reduce((sum, l) => sum + l.amountFils, 0);
         const rushFils = percentOf(partyNetFils, rules.rushSurchargePercent);
         if (rushFils > 0) {
