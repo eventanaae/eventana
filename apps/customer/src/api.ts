@@ -141,7 +141,7 @@ export const api = {
     guest?: { name: string; phone: string; backupPhone: string; email: string },
   ) =>
     request<{
-      orderId: string; checkoutUrl: string | null; embeddedUrl?: string | null; eligible: boolean;
+      orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null; eligible: boolean;
       totalFils: number; holdExpiresAt: string;
     }>('/api/checkout', {
       method: 'POST',
@@ -159,7 +159,7 @@ export const api = {
     guest?: { name: string; phone: string; backupPhone: string; email: string };
   }) =>
     request<{
-      orderId: string; checkoutUrl: string | null; embeddedUrl?: string | null;
+      orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
       eligible: boolean; totalFils: number; readyBy: string;
     }>('/api/shop/checkout', { method: 'POST', body: JSON.stringify(body) }),
 

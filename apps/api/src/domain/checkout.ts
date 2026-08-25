@@ -125,6 +125,9 @@ export async function previewQuote(cart: CartInput): Promise<Quote & { unavailab
 
 export interface CheckoutResult {
   orderId: string;
+  /** The order-view token, so the app can poll status even in the in-app
+   *  (embedded) flow where there is no provider return URL to carry it. */
+  orderToken: string;
   paymentId: string;
   provider: string;
   checkoutUrl: string | null;
@@ -290,6 +293,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       // The hold stays alive: the customer can still pay another way (§7).
       return {
         orderId,
+        orderToken: orderViewToken(orderId),
         paymentId,
         provider: provider.name,
         checkoutUrl: null,
@@ -304,6 +308,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
 
     return {
       orderId,
+      orderToken: orderViewToken(orderId),
       paymentId,
       provider: provider.name,
       checkoutUrl: session.checkoutUrl,
@@ -478,6 +483,7 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
 
     return {
       orderId,
+      orderToken: orderViewToken(orderId),
       checkoutUrl: session.eligible ? session.checkoutUrl : null,
       embeddedUrl: session.embeddedUrl ?? null,
       eligible: session.eligible,
@@ -589,6 +595,7 @@ export async function startAddonCheckout(args: {
 
   return {
     orderId,
+    orderToken: orderViewToken(orderId),
     paymentId,
     provider: provider.name,
     checkoutUrl: session.checkoutUrl,
@@ -697,6 +704,7 @@ export async function startTipCheckout(args: {
 
   return {
     orderId,
+    orderToken: orderViewToken(orderId),
     paymentId,
     provider: provider.name,
     checkoutUrl: session.checkoutUrl,

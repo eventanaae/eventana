@@ -401,7 +401,7 @@ export default function App() {
         {screen === 'assistant' && <Assistant {...shared} />}
         {screen === 'movieselect' && <MovieSelect {...shared} />}
         {screen === 'checkout' && (
-          <Checkout {...shared} onOrder={(id, embed) => { setOrderId(id); setPayUrl(embed ?? null); go('confirming'); }} />
+          <Checkout {...shared} onOrder={(id, embed, tok) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); go('confirming'); }} />
         )}
         {screen === 'confirming' && orderId && (
           <PaymentReturn
@@ -418,7 +418,7 @@ export default function App() {
         {screen === 'profile' && <Profile go={go} onRebook={rebook} t={t} lang={lang} setLang={setLang} />}
         {screen === 'shop' && <Shop {...shared} />}
         {screen === 'shopcheckout' && (
-          <ShopCheckout {...shared} onOrder={(id, embed) => { setOrderId(id); setPayUrl(embed ?? null); go('confirming'); }} />
+          <ShopCheckout {...shared} onOrder={(id, embed, tok) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); go('confirming'); }} />
         )}
       </div>
 

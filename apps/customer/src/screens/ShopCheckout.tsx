@@ -16,7 +16,7 @@ export function ShopCheckout({
   go,
   t,
   onOrder,
-}: ScreenProps & { onOrder: (orderId: string, embedUrl?: string) => void }) {
+}: ScreenProps & { onOrder: (orderId: string, embedUrl?: string, token?: string) => void }) {
   const services = useMemo(
     () => new Map(catalogue.services.map((s) => [s.id, s])),
     [catalogue],
@@ -96,10 +96,10 @@ export function ShopCheckout({
       // Keep the cart until the order is CONFIRMED (cleared in onShopDone) so a
       // failed/cancelled payment can be retried with the items still in place.
       if (result.checkoutUrl) {
-        onOrder(result.orderId);
+        onOrder(result.orderId, undefined, result.orderToken);
         window.location.href = result.checkoutUrl;
       } else if (result.embeddedUrl) {
-        onOrder(result.orderId, result.embeddedUrl);
+        onOrder(result.orderId, result.embeddedUrl, result.orderToken);
       }
     } catch (e: unknown) {
       const err = e as { body?: { message?: string }; message?: string };

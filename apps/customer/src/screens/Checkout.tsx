@@ -77,7 +77,7 @@ export function Checkout({
   onOrder,
   t,
   lang,
-}: ScreenProps & { onOrder: (orderId: string, embedUrl?: string | null) => void }) {
+}: ScreenProps & { onOrder: (orderId: string, embedUrl?: string | null, token?: string) => void }) {
   const [times, setTimes] = useState<Array<{ value: string; allowed: boolean }>>([]);
   const [paying, setPaying] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -305,10 +305,10 @@ export function Checkout({
       // embedded widget when no redirect URL is available. Nothing is confirmed
       // here — the app returns and waits for the server's webhook view.
       if (result.checkoutUrl) {
-        onOrder(result.orderId);
+        onOrder(result.orderId, undefined, result.orderToken);
         window.location.href = result.checkoutUrl;
       } else if (result.embeddedUrl) {
-        onOrder(result.orderId, result.embeddedUrl);
+        onOrder(result.orderId, result.embeddedUrl, result.orderToken);
       }
     } catch (e: any) {
       // A thrown fetch (no server body) is a connection problem — show a clear,
