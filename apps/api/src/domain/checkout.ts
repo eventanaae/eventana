@@ -391,7 +391,11 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
     throw new CheckoutError('Add a delivery address for your printed items.', 'address_required');
   }
 
-  const customerId = req.customerId ?? (req.guest ? await createGuestCustomer(req.guest) : null);
+  // A standalone shop order grants no account access and spends nothing, so a
+  // registered email may check out as a guest — the order attaches to that
+  // account without modifying it (no sign-in dead-end for a simple purchase).
+  const customerId =
+    req.customerId ?? (req.guest ? await createGuestCustomer(req.guest, { reuseRegistered: true }) : null);
   if (!customerId) {
     throw new CheckoutError('Please sign in or enter your details to continue.', 'auth_required');
   }
@@ -705,12 +709,15 @@ export async function startTipCheckout(args: {
  * email already belongs to an account we reuse it — a returning guest keeps
  * one identity (and their loyalty/vouchers) instead of fragmenting.
  */
-async function createGuestCustomer(g: {
-  name: string;
-  phone: string;
-  backupPhone: string;
-  email: string;
-}): Promise<string> {
+async function createGuestCustomer(
+  g: {
+    name: string;
+    phone: string;
+    backupPhone: string;
+    email: string;
+  },
+  opts: { reuseRegistered?: boolean } = {},
+): Promise<string> {
   const existing = await pool.query<{ id: string; password_hash: string | null }>(
     `SELECT id, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1`,
     [g.email],
@@ -719,8 +726,15 @@ async function createGuestCustomer(g: {
     // Security: if this email already belongs to a REGISTERED account (it has a
     // password), a guest must not be able to take it over. Reusing it here would
     // let anyone knowing the email rewrite the account's name/phones and spend
-    // its loyalty points / store credit. Require a real sign-in instead.
+    // its loyalty points / store credit.
     if (existing.rows[0].password_hash) {
+      // A standalone shop order is the exception: it grants no account access
+      // and spends nothing, so it attaches to the account WITHOUT touching its
+      // profile (name/phones untouched) rather than dead-ending on sign-in.
+      if (opts.reuseRegistered) {
+        return existing.rows[0].id;
+      }
+      // A party booking must sign in instead (that checkout offers a login tab).
       throw new CheckoutError(
         'This email already has an Eventana account. Please sign in to continue.',
         'account_exists',
