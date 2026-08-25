@@ -127,7 +127,7 @@ export const api = {
       body: JSON.stringify({ email }),
     }),
   previewResendConfirmations: () =>
-    request<{ dryRun: true; count: number; recipients: Array<{ eventId: string; name: string | null; email: string | null }> }>(
+    request<{ dryRun: true; count: number; recipients: Array<{ id: string; kind: string; name: string | null; email: string | null }> }>(
       '/api/admin/notifications/resend-confirmations',
       { method: 'POST', body: JSON.stringify({ dryRun: true }) },
     ),

@@ -31,7 +31,7 @@ export function Settings() {
   const [sampleEmail, setSampleEmail] = useState('');
   const [sending, setSending] = useState(false);
   const [resendPreview, setResendPreview] = useState<
-    { count: number; recipients: Array<{ eventId: string; name: string | null; email: string | null }> } | null
+    { count: number; recipients: Array<{ id: string; kind: string; name: string | null; email: string | null }> } | null
   >(null);
   const [resendBusy, setResendBusy] = useState(false);
 
@@ -256,12 +256,13 @@ export function Settings() {
             <div style={{ maxHeight: 220, overflowY: 'auto', border: `1px solid ${C.lineSoft}`, borderRadius: 10 }}>
               {resendPreview.recipients.map((r) => (
                 <div
-                  key={r.eventId}
-                  style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, fontSize: 12.5 }}
+                  key={r.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, fontSize: 12.5 }}
                 >
+                  <Badge tone={r.kind === 'Shop' ? 'info' : 'ok'}>{r.kind}</Badge>
                   <span style={{ fontWeight: 700 }}>{r.name || '—'}</span>
-                  <span style={{ color: C.muted }}>{r.email}</span>
-                  <span style={{ color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{r.eventId}</span>
+                  <span style={{ color: C.muted, flex: 1 }}>{r.email}</span>
+                  <span style={{ color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{r.id}</span>
                 </div>
               ))}
             </div>
