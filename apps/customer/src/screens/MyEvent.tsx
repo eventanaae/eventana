@@ -4,6 +4,8 @@ import type { Screen } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Spinner, timeLabel } from '../ui';
 import type { Lang, TFn } from '../i18n';
 import { TermsSheet } from './Terms';
+import { loadAccount } from '../account';
+import { AuthSheet } from './AuthSheet';
 
 const PHASES = [
   'Booking Confirmed',
@@ -44,6 +46,7 @@ export function MyEvent({
   const [designNote, setDesignNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [addonError, setAddonError] = useState<string | null>(null);
+  const [showAuth, setShowAuth] = useState(false);
 
   const load = useCallback(async () => {
     // Always keep the full list so a customer with several bookings can switch
@@ -89,6 +92,17 @@ export function MyEvent({
           {t('me.noEventsBody')}
         </div>
         <PrimaryButton onClick={() => go('explore')}>{t('me.explorePackages')}</PrimaryButton>
+        {!loadAccount() && (
+          <button
+            onClick={() => setShowAuth(true)}
+            style={{ display: 'block', margin: '18px auto 0', background: 'none', border: 'none', color: C.pinkDeep, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+          >
+            {t('auth.haveAccount')}
+          </button>
+        )}
+        {showAuth && (
+          <AuthSheet t={t} lang={lang} onClose={() => setShowAuth(false)} onSignedIn={() => window.location.reload()} />
+        )}
       </div>
     );
   }

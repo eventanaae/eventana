@@ -3,7 +3,9 @@ import { api } from '../api';
 import type { Screen } from '../App';
 import { C, fredoka, Spinner } from '../ui';
 import { loadProfile } from '../profile';
+import { loadAccount, clearAccount } from '../account';
 import { LangToggle } from '../LangToggle';
+import { AuthSheet } from './AuthSheet';
 import type { Lang, TFn } from '../i18n';
 
 export function Profile({
@@ -24,8 +26,10 @@ export function Profile({
   const [rewards, setRewards] = useState<Awaited<ReturnType<typeof api.rewards>> | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const account = loadAccount();
   const profile = loadProfile();
-  const name = profile?.name?.trim() || t('profile.guest');
+  const name = account?.name?.trim() || profile?.name?.trim() || t('profile.guest');
   const initial = (name[0] || '☺').toUpperCase();
   const subline = profile?.birthday
     ? `🎂 ${new Date(profile.birthday).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'long' })}`
@@ -53,6 +57,22 @@ export function Profile({
         </div>
         <LangToggle lang={lang} setLang={setLang} />
       </div>
+
+      {!account ? (
+        <button
+          onClick={() => setShowAuth(true)}
+          style={{ width: '100%', background: C.pink, color: '#fff', border: 'none', fontWeight: 800, fontSize: 14, padding: '13px', borderRadius: 16, cursor: 'pointer', marginBottom: 16 }}
+        >
+          {t('auth.login')}
+        </button>
+      ) : (
+        <button
+          onClick={() => { clearAccount(); window.location.reload(); }}
+          style={{ width: '100%', background: '#fff', color: C.muted, border: `1px solid ${C.pinkLine}`, fontWeight: 700, fontSize: 12.5, padding: '11px', borderRadius: 14, cursor: 'pointer', marginBottom: 16 }}
+        >
+          {t('auth.logout')}
+        </button>
+      )}
 
       <div style={{ background: 'linear-gradient(135deg,#5BCFC5,#3aa79d)', borderRadius: 24, padding: '20px 22px', color: '#fff', marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -203,6 +223,15 @@ export function Profile({
       <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, fontWeight: 600, color: C.faint }}>
         @eventana.uae · +971 56 450 0777
       </div>
+
+      {showAuth && (
+        <AuthSheet
+          t={t}
+          lang={lang}
+          onClose={() => setShowAuth(false)}
+          onSignedIn={() => window.location.reload()}
+        />
+      )}
     </div>
   );
 }
