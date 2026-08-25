@@ -358,6 +358,8 @@ export interface ShopCheckoutRequest {
 
 export interface ShopCheckoutResult {
   orderId: string;
+  /** Order-view token so the app can poll status without a provider return URL. */
+  orderToken: string;
   checkoutUrl: string | null;
   embeddedUrl?: string | null;
   eligible: boolean;
