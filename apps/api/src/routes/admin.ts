@@ -17,6 +17,7 @@ import { withTransaction } from '../db/pool.js';
 import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
+import { renderEmail, type EmailRow } from '../domain/notify.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -445,6 +446,48 @@ export async function adminRoutes(app: FastifyInstance) {
       if (line) void pushToOwner('customer', ev.customer_id, 'Eventana', line, { eventId });
     }
     return ev;
+  });
+
+  /**
+   * Owner/Manager: send the real customer transactional email templates to a
+   * chosen inbox, so the team can review exactly what customers receive. Uses
+   * the SAME render + Resend path as production — only the data is a sample and
+   * the subject is prefixed so it can't be mistaken for a real booking.
+   * (Manager+Owner via the /api/admin/notifications gate.)
+   */
+  app.post('/api/admin/notifications/test', async (request, reply) => {
+    const body = (request.body ?? {}) as { email?: string };
+    const email = (body.email ?? '').trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return reply.status(400).send({ error: 'invalid_email', message: 'Enter a valid email address.' });
+    }
+    if (!emailEnabled()) {
+      return reply
+        .status(503)
+        .send({ error: 'email_disabled', message: 'Email is not configured on the server (RESEND_API_KEY).' });
+    }
+    const staffName = (request as any).staff?.name ?? 'there';
+    const templates = ['booking_confirmation', 'three_day_reminder', 'event_day', 'event_cancelled'];
+    const sample: EmailRow = {
+      id: 0,
+      template: '',
+      event_id: 'EVT-ORD-000123',
+      event_date: '2026-09-15',
+      start_time: '16:00:00',
+      emirate: 'Dubai',
+      customer_name: staffName,
+      customer_email: email,
+    };
+    let sent = 0;
+    const failed: string[] = [];
+    for (const template of templates) {
+      const msg = renderEmail({ ...sample, template });
+      if (!msg) continue;
+      const res = await sendEmail({ to: email, subject: `[Sample] ${msg.subject}`, html: msg.html });
+      if (res.ok) sent += 1;
+      else failed.push(`${template}: ${res.error ?? 'failed'}`);
+    }
+    return { sent, total: templates.length, failed };
   });
 
   /**

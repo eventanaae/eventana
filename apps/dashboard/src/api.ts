@@ -118,6 +118,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ phase, eta }),
     }),
+  sendSampleEmails: (email: string) =>
+    request<{ sent: number; total: number; failed: string[] }>('/api/admin/notifications/test', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
   reply: (id: string, body: string) =>
     request<any>(`/api/admin/events/${id}/messages`, {
       method: 'POST',

@@ -28,6 +28,8 @@ export function Settings() {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [zoneDraft, setZoneDraft] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<string | null>(null);
+  const [sampleEmail, setSampleEmail] = useState('');
+  const [sending, setSending] = useState(false);
 
   const load = () =>
     api.settings().then((d) => {
@@ -152,6 +154,43 @@ export function Settings() {
               </div>
             </div>
           ))}
+        </div>
+      </Panel>
+
+      <Panel title="Preview customer emails">
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
+          Send the four real customer email templates — booking confirmation, 3-day reminder,
+          event-day, and cancellation — to any inbox to review exactly what customers receive.
+          They go through the live email system with sample data; subjects are prefixed “[Sample]”.
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            value={sampleEmail}
+            placeholder="name@example.com"
+            onChange={(e) => setSampleEmail(e.target.value)}
+            style={{ ...inputStyle, flex: 1, minWidth: 0, marginTop: 0 }}
+          />
+          <Button
+            disabled={sending || !sampleEmail.trim()}
+            onClick={async () => {
+              setSending(true);
+              try {
+                const r = await api.sendSampleEmails(sampleEmail.trim());
+                setSaved(
+                  r.failed?.length
+                    ? `Sent ${r.sent}/${r.total}. Issues: ${r.failed.join('; ')}`
+                    : `Sent ${r.sent} sample emails to ${sampleEmail.trim()} ✓`,
+                );
+              } catch (e: any) {
+                setSaved(e?.message || 'Could not send sample emails.');
+              } finally {
+                setSending(false);
+                setTimeout(() => setSaved(null), 6000);
+              }
+            }}
+          >
+            {sending ? 'Sending…' : 'Send samples'}
+          </Button>
         </div>
       </Panel>
 

@@ -16,7 +16,7 @@ import { pool } from '../db/pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { pushToStaff } from '../integrations/push.js';
 
-interface EmailRow {
+export interface EmailRow {
   id: number;
   template: string;
   event_id: string;
@@ -55,7 +55,7 @@ function longDate(dateStr: string | null): string {
   }
 }
 
-function renderEmail(row: EmailRow): { subject: string; html: string } | null {
+export function renderEmail(row: EmailRow): { subject: string; html: string } | null {
   const first = (row.customer_name || 'there').split(' ')[0];
   const date = longDate(row.event_date);
   const time = row.start_time ? row.start_time.slice(0, 5) : '';
