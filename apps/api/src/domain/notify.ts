@@ -39,14 +39,28 @@ export interface EmailRow {
   refund_reference?: string | null;
 }
 
-// Brand palette — kept in sync with the customer app.
-const BRAND = '#E94F9C';
-const DEEP = '#C026A6';
-const INK = '#3B3641';
-const MUTED = '#9a8f97';
-const CREAM = '#FAF6F2';
-const PANEL = '#FDF4FA';
-const HAIR = '#F4E1EF';
+// Brand palette — matched to Eventana's Canva email designs: soft-pink ground,
+// white rounded cards, a bright-pink pill CTA, pastel-rainbow accents and a
+// playful rounded display face.
+const BRAND = '#EF5D95'; // bright brand pink (CTA, links)
+const INK = '#4A3540'; // soft plum-dark, not pure black
+const MUTED = '#9B8A94';
+const GROUND = '#FBEAF2'; // soft pink page background
+const PANEL = '#FCEEF6'; // detail-card fill
+const HAIR = '#F4DDEC';
+// Pastel rainbow used for the card's top strip (mint→lime→yellow→peach→pink→lilac).
+const RAINBOW = 'linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0)';
+// Rounded, playful display face (Fredoka, same as the app), with safe fallbacks.
+const DISPLAY = "'Fredoka','Baloo 2','Segoe UI',Arial,sans-serif";
+
+/** The multicolour "Eventana" wordmark (pastel letters), matching the logo. */
+function wordmark(): string {
+  const colors = ['#F080A8', '#F7A98C', '#F7CE68', '#8FD6C4', '#6FC7D6', '#B79BE0', '#F080A8', '#F7A98C'];
+  return 'Eventana'
+    .split('')
+    .map((ch, i) => `<span style="color:${colors[i % colors.length]}">${ch}</span>`)
+    .join('');
+}
 
 /** Deep link into the customer app's "My Event" tab to follow a booking. */
 function trackUrl(eventId: string): string | null {
@@ -62,11 +76,14 @@ function appLink(label: string): string {
     : label;
 }
 
-/** Bulletproof, centred pill button (solid colour — no gradient, for Outlook). */
+/**
+ * Bulletproof, centred pill button — bright pink with an uppercase, letter-spaced
+ * white label, matching the "SHOP NOW" buttons in the brand's email designs.
+ */
 function button(href: string, label: string): string {
-  return `<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:24px auto 4px">
-      <tr><td style="border-radius:999px;background:${BRAND}">
-        <a href="${href}" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:800;color:#ffffff;text-decoration:none;border-radius:999px">${label}</a>
+  return `<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:26px auto 4px">
+      <tr><td style="border-radius:999px;background:${BRAND};box-shadow:0 6px 16px rgba(239,93,149,.28)">
+        <a href="${href}" style="display:inline-block;padding:14px 32px;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#ffffff;text-decoration:none;border-radius:999px;font-family:${DISPLAY}">${label}</a>
       </td></tr></table>`;
 }
 
@@ -87,36 +104,39 @@ function detailCard(rows: Array<[string, string]>): string {
 interface Shell {
   first: string;
   emoji: string;
+  eyebrow: string;
   heading: string;
   bodyHtml: string;
   cta?: { href: string; label: string };
-  accent?: string;
 }
 
-function shell({ first, emoji, heading, bodyHtml, cta, accent = BRAND }: Shell): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-  <body style="margin:0;padding:0;background:${CREAM};font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:${INK};-webkit-font-smoothing:antialiased">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:${CREAM}">${heading}</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM}">
-      <tr><td align="center" style="padding:28px 16px 42px">
+function shell({ first, emoji, eyebrow, heading, bodyHtml, cta }: Shell): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet"></head>
+  <body style="margin:0;padding:0;background:${GROUND};font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:${INK};-webkit-font-smoothing:antialiased">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:${GROUND}">${heading}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${GROUND}">
+      <tr><td align="center" style="padding:30px 16px 44px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
-          <tr><td style="text-align:center;padding:4px 0 22px">
-            <span style="font-size:25px;font-weight:800;color:${BRAND};letter-spacing:.4px">Eventana</span>
+          <tr><td style="text-align:center;padding:2px 0 22px">
+            <div style="font-family:${DISPLAY};font-size:30px;font-weight:700;letter-spacing:.5px">${wordmark()}</div>
+            <div style="font-family:${DISPLAY};font-size:13px;font-weight:500;color:${BRAND};letter-spacing:3px;text-transform:uppercase;margin-top:2px">Events</div>
           </td></tr>
-          <tr><td style="background:#ffffff;border-radius:22px;overflow:hidden;border:1px solid #F3E7EF">
-            <div style="height:6px;background:${accent};background:linear-gradient(90deg,#F9A8D4,${BRAND},${DEEP})"></div>
-            <div style="padding:32px 30px 34px">
-              <div style="text-align:center;font-size:46px;line-height:1;margin-bottom:8px">${emoji}</div>
-              <h1 style="margin:0;text-align:center;font-size:21px;font-weight:800;color:${INK};line-height:1.3">${heading}</h1>
+          <tr><td style="background:#ffffff;border-radius:26px;overflow:hidden;border:1px solid #F6E4EF;box-shadow:0 10px 34px rgba(214,49,127,.10)">
+            <div style="height:7px;background:${BRAND};background:${RAINBOW}"></div>
+            <div style="padding:34px 30px 36px">
+              <div style="text-align:center;font-size:48px;line-height:1;margin-bottom:10px">${emoji}</div>
+              ${eyebrow ? `<div style="text-align:center;font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:8px">${eyebrow}</div>` : ''}
+              <h1 style="margin:0;text-align:center;font-family:${DISPLAY};font-size:25px;font-weight:700;color:${INK};line-height:1.25">${heading}</h1>
               <p style="margin:20px 0 14px;font-size:15px;line-height:1.6">Hi ${first} 👋</p>
               ${bodyHtml}
               ${cta ? button(cta.href, cta.label) : ''}
             </div>
           </td></tr>
-          <tr><td style="text-align:center;color:#b8ada6;font-size:11.5px;padding:22px 12px 0;line-height:1.8">
+          <tr><td style="text-align:center;color:#b8a6b0;font-size:11.5px;padding:24px 12px 0;line-height:1.8">
             Eventana Events · Abu Dhabi &amp; Dubai, UAE<br>
             Need to make a change or follow up? Manage everything in the ${appLink('Eventana app')}. 💛<br>
-            <span style="color:#c9bfb8">This inbox isn't monitored — please don't reply.</span>
+            <span style="color:#cbbcc5">This inbox isn't monitored — please don't reply.</span>
           </td></tr>
         </table>
       </td></tr>
@@ -194,6 +214,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         html: shell({
           first,
           emoji: '🎉',
+          eyebrow: 'Booking Confirmed',
           heading: honour ? `${honour}'s celebration is confirmed!` : 'Your celebration is confirmed!',
           bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Yay — it's official! 🎉 We've saved every detail for <b>${occasionPhrase}</b>, and our team is already busy planning the magic. Here's your booking at a glance:</p>
             ${detailCard(partyRows)}
@@ -207,6 +228,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         html: shell({
           first,
           emoji: '🎈',
+          eyebrow: '3 Days To Go',
           heading: honour ? `${honour}'s party is in 3 days!` : 'Your party is in 3 days!',
           bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">The countdown is on — just 3 days until <b>${occasionPhrase}</b>, and we're getting everything ready! 🎉 Here's a quick reminder of your booking:</p>
             ${detailCard(partyRows)}
@@ -220,6 +242,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         html: shell({
           first,
           emoji: '🥳',
+          eyebrow: 'Today',
           heading: honour && eventType ? `Today is ${honour}'s ${eventType}!` : "It's party day!",
           bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day and we couldn't be more excited! 🥳 <b>${cap(occasionPhrase)}</b> starts at <b>${time || 'your booked time'}</b>, and our team is already on the way with all the magic. 🚚✨</p>
             <p style="margin:14px 0 0;font-size:15px;line-height:1.6">Everything you need is in the app. Have the most wonderful time — you've earned it! 💛</p>`,
@@ -232,6 +255,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         html: shell({
           first,
           emoji: '🌸',
+          eyebrow: 'Cancelled',
           heading: 'Your booking was cancelled',
           bodyHtml: `<p style="margin:0;font-size:15px;line-height:1.6">We're sorry to see this celebration go. 🌸 Your booking <b>${row.event_id}</b> for ${date} has been cancelled. If anything doesn't look right, you can review your bookings or message our team anytime in the app — we're always here for you. 💛</p>`,
         }),
@@ -247,6 +271,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         html: shell({
           first,
           emoji: '🌸',
+          eyebrow: 'Cancelled',
           heading: 'Your booking has been cancelled',
           bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Your booking has been <b>successfully cancelled</b>. We're sorry to see this celebration go. 💛</p>
            ${detailCard([
@@ -275,6 +300,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         html: shell({
           first,
           emoji: '💸',
+          eyebrow: 'Refund Processed',
           heading: 'Your refund has been processed',
           bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Good news — your refund has been <b>processed</b>. 💛</p>
            ${detailCard(rows)}
