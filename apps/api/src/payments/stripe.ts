@@ -111,6 +111,10 @@ export class StripeProvider implements PaymentProvider {
       body: {
         ui_mode: 'embedded',
         mode: 'payment',
+        // Cards (Apple Pay / Google Pay are presented automatically as card
+        // wallets). Specified explicitly so the session doesn't depend on the
+        // account's automatic-payment-method configuration.
+        payment_method_types: ['card'],
         // On completion Stripe returns the parent page to our confirming
         // screen, which polls the server for the real status.
         return_url: input.successUrl,

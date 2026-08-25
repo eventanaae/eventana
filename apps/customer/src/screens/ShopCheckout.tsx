@@ -60,11 +60,13 @@ export function ShopCheckout({
   const [error, setError] = useState<string | null>(null);
 
   const emailOk = /.+@.+\..+/.test(reg.email.trim());
+  // Full name must be at least two words (first + last).
+  const fullNameOk = reg.name.trim().split(/\s+/).filter((w) => w.length >= 1).length >= 2;
   const phoneN = uaeMobile(reg.phone);
   const backupN = uaeMobile(reg.backupPhone);
   const phonesDiffer = Boolean(phoneN) && Boolean(backupN) && phoneN !== backupN;
   const guestReady =
-    reg.name.trim().length >= 2 && emailOk && Boolean(phoneN) && Boolean(backupN) && phonesDiffer;
+    fullNameOk && emailOk && Boolean(phoneN) && Boolean(backupN) && phonesDiffer;
   const noDelivery = hasPrinted && Boolean(emirate) && q.problems.some((p) => p.code === 'no_delivery');
   const addressReady = !hasPrinted || (Boolean(emirate) && addr.area.trim().length > 0 && !noDelivery);
   const customizationReady = !needsDrawing || wantDraw || refs.length > 0;
@@ -195,6 +197,9 @@ export function ShopCheckout({
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('shopco.yourDetails')}</div>
         <Field placeholder={`${t('checkout.phFullName')} *`} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
+        {reg.name.trim().length > 0 && !fullNameOk && (
+          <div style={hintErr}>{t('shopco.nameTwo')}</div>
+        )}
         <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
         <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
         <Field placeholder={`${t('checkout.phBackup')} *`} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} />
