@@ -23,6 +23,7 @@ import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
 import { orderViewTokenValid } from '../domain/orders.js';
+import { processDelivery } from '../domain/webhooks.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
 import { makeReferralCode, validatePromo } from '../domain/discounts.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
@@ -466,18 +467,32 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!orderViewTokenValid(orderId, t)) {
       return reply.status(404).send({ error: 'not_found' });
     }
-    const { rows } = await pool.query(
-      `SELECT o.id, o.status, o.total_fils, o.event_id, o.kind,
-              p.provider, p.status AS payment_status, p.checkout_url
+    const selectOrder = `SELECT o.id, o.status, o.total_fils, o.event_id, o.kind,
+              p.provider, p.provider_payment_id, p.status AS payment_status, p.checkout_url
          FROM orders o
          LEFT JOIN LATERAL (
            SELECT * FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1
          ) p ON TRUE
-        WHERE o.id = $1`,
-      [orderId],
-    );
-    const order = rows[0];
+        WHERE o.id = $1`;
+    const { rows } = await pool.query(selectOrder, [orderId]);
+    let order = rows[0];
     if (!order) return reply.status(404).send({ error: 'not_found' });
+
+    // If the payment is still settling, re-verify with the provider right now —
+    // an authenticated API call + amount check through the SAME confirmation
+    // path as a webhook. This confirms the order within seconds of the customer
+    // returning even when the provider webhook was missed or rejected, instead
+    // of waiting for the 10-minute reconcile sweep. Failures are swallowed: the
+    // order stays 'processing' and reconcile will still chase it.
+    if (order.status === 'processing' && order.provider && order.provider_payment_id) {
+      try {
+        await processDelivery(null, order.provider, order.provider_payment_id);
+        const refreshed = await pool.query(selectOrder, [orderId]);
+        if (refreshed.rows[0]) order = refreshed.rows[0];
+      } catch {
+        /* leave as processing; the reconcile sweep is the backstop */
+      }
+    }
 
     return {
       orderId: order.id,
