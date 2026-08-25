@@ -75,6 +75,11 @@ export class StripeProvider implements PaymentProvider {
         headers: {
           authorization: `Bearer ${this.cfg.secretKey}`,
           'content-type': 'application/x-www-form-urlencoded',
+          // Pin a stable API version: the account default is very new and
+          // renamed ui_mode 'embedded' -> 'embedded_page'. Pinning keeps
+          // Embedded Checkout ('embedded' + Stripe.js initEmbeddedCheckout)
+          // working exactly as implemented, regardless of the account default.
+          'stripe-version': '2024-06-20',
         },
         body: init.body ? formEncode(init.body).join('&') : undefined,
         signal: controller.signal,
