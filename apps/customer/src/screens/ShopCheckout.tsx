@@ -6,6 +6,18 @@ import { C, Field, fredoka, money, Notice, PrimaryButton } from '../ui';
 import { quoteShop, SHOP_DRAWING_IDS, SHOP_EMIRATES, SHOP_READY_DAYS } from '@eventana/shared';
 
 /**
+ * A UAE mobile number, normalized to 5XXXXXXXX (or null if not valid). Accepts
+ * 05XXXXXXXX, +9715XXXXXXXX, 9715XXXXXXXX or 5XXXXXXXX. Used to require a real
+ * Emirati number and to compare the primary against the backup.
+ */
+export function uaeMobile(raw: string): string | null {
+  let d = (raw || '').replace(/\D/g, '');
+  if (d.startsWith('971')) d = d.slice(3);
+  if (d.startsWith('0')) d = d.slice(1);
+  return /^5\d{8}$/.test(d) ? d : null;
+}
+
+/**
  * Checkout for the standalone shop. No party (no date/time/venue/map pin):
  * digital goods are emailed, printed goods ship to an address for a flat fee
  * and are ready in ~2 weeks. Drawing-based items need the guest's picture or a
@@ -48,8 +60,11 @@ export function ShopCheckout({
   const [error, setError] = useState<string | null>(null);
 
   const emailOk = /.+@.+\..+/.test(reg.email.trim());
+  const phoneN = uaeMobile(reg.phone);
+  const backupN = uaeMobile(reg.backupPhone);
+  const phonesDiffer = Boolean(phoneN) && Boolean(backupN) && phoneN !== backupN;
   const guestReady =
-    reg.name.trim().length >= 2 && emailOk && reg.phone.trim().length >= 6 && reg.backupPhone.trim().length >= 6;
+    reg.name.trim().length >= 2 && emailOk && Boolean(phoneN) && Boolean(backupN) && phonesDiffer;
   const noDelivery = hasPrinted && Boolean(emirate) && q.problems.some((p) => p.code === 'no_delivery');
   const addressReady = !hasPrinted || (Boolean(emirate) && addr.area.trim().length > 0 && !noDelivery);
   const customizationReady = !needsDrawing || wantDraw || refs.length > 0;
@@ -183,6 +198,15 @@ export function ShopCheckout({
         <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
         <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
         <Field placeholder={`${t('checkout.phBackup')} *`} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} />
+        {reg.phone.trim().length > 0 && !phoneN && (
+          <div style={hintErr}>{t('shopco.phoneUae')}</div>
+        )}
+        {reg.backupPhone.trim().length > 0 && !backupN && (
+          <div style={hintErr}>{t('shopco.backupUae')}</div>
+        )}
+        {phoneN && backupN && !phonesDiffer && (
+          <div style={hintErr}>{t('shopco.phonesSame')}</div>
+        )}
       </div>
 
       {/* delivery address (printed only) */}
@@ -263,4 +287,7 @@ const cardStyle: React.CSSProperties = {
 };
 const backStyle: React.CSSProperties = {
   background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0,
+};
+const hintErr: React.CSSProperties = {
+  color: C.red, fontSize: 11, fontWeight: 700, marginTop: -3, marginBottom: 6, lineHeight: 1.4,
 };
