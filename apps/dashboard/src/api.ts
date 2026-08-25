@@ -107,6 +107,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const api = {
   today: () => request<any>('/api/admin/today'),
   shopOrders: () => request<any[]>('/api/admin/shop-orders'),
+  whatsappLeads: (status?: string) =>
+    request<any>(`/api/admin/whatsapp/leads${status && status !== 'all' ? `?status=${status}` : ''}`),
+  whatsappFunnel: () => request<any>('/api/admin/whatsapp/funnel'),
   events: (status?: string) =>
     request<any[]>(`/api/admin/events${status ? `?status=${status}` : ''}`),
   event: (id: string) => request<any>(`/api/admin/events/${id}`),
@@ -122,6 +125,16 @@ export const api = {
     request<{ sent: number; total: number; failed: string[] }>('/api/admin/notifications/test', {
       method: 'POST',
       body: JSON.stringify({ email }),
+    }),
+  previewResendConfirmations: () =>
+    request<{ dryRun: true; count: number; recipients: Array<{ eventId: string; name: string | null; email: string | null }> }>(
+      '/api/admin/notifications/resend-confirmations',
+      { method: 'POST', body: JSON.stringify({ dryRun: true }) },
+    ),
+  resendConfirmations: () =>
+    request<{ sent: number; total: number; failed: string[] }>('/api/admin/notifications/resend-confirmations', {
+      method: 'POST',
+      body: JSON.stringify({ confirm: true }),
     }),
   reply: (id: string, body: string) =>
     request<any>(`/api/admin/events/${id}/messages`, {

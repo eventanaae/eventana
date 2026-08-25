@@ -30,6 +30,10 @@ export function Settings() {
   const [saved, setSaved] = useState<string | null>(null);
   const [sampleEmail, setSampleEmail] = useState('');
   const [sending, setSending] = useState(false);
+  const [resendPreview, setResendPreview] = useState<
+    { count: number; recipients: Array<{ eventId: string; name: string | null; email: string | null }> } | null
+  >(null);
+  const [resendBusy, setResendBusy] = useState(false);
 
   const load = () =>
     api.settings().then((d) => {
@@ -193,6 +197,76 @@ export function Settings() {
             {sending ? 'Sending…' : 'Send samples'}
           </Button>
         </div>
+      </Panel>
+
+      <Panel title="Resend confirmation to all bookings">
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
+          Sends the real booking-confirmation email to every active (non-cancelled) booking that
+          has a customer email. First press <b>Preview recipients</b> to see exactly who will
+          receive it — nothing is sent until you press <b>Send to all</b>.
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Button
+            disabled={resendBusy}
+            onClick={async () => {
+              setResendBusy(true);
+              try {
+                const r = await api.previewResendConfirmations();
+                setResendPreview({ count: r.count, recipients: r.recipients });
+              } catch (e: any) {
+                setSaved(e?.message || 'Could not load recipients.');
+                setTimeout(() => setSaved(null), 6000);
+              } finally {
+                setResendBusy(false);
+              }
+            }}
+          >
+            {resendBusy && !resendPreview ? 'Loading…' : 'Preview recipients'}
+          </Button>
+          {resendPreview && (
+            <Button
+              disabled={resendBusy || resendPreview.count === 0}
+              onClick={async () => {
+                setResendBusy(true);
+                try {
+                  const r = await api.resendConfirmations();
+                  setSaved(
+                    r.failed?.length
+                      ? `Sent ${r.sent}/${r.total}. Issues: ${r.failed.join('; ')}`
+                      : `Confirmation resent to ${r.sent} booking(s) ✓`,
+                  );
+                  setResendPreview(null);
+                } catch (e: any) {
+                  setSaved(e?.message || 'Could not resend confirmations.');
+                } finally {
+                  setResendBusy(false);
+                  setTimeout(() => setSaved(null), 8000);
+                }
+              }}
+            >
+              {resendBusy ? 'Sending…' : `Send to all ${resendPreview.count}`}
+            </Button>
+          )}
+        </div>
+        {resendPreview && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
+              {resendPreview.count} recipient{resendPreview.count === 1 ? '' : 's'}
+            </div>
+            <div style={{ maxHeight: 220, overflowY: 'auto', border: `1px solid ${C.lineSoft}`, borderRadius: 10 }}>
+              {resendPreview.recipients.map((r) => (
+                <div
+                  key={r.eventId}
+                  style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, fontSize: 12.5 }}
+                >
+                  <span style={{ fontWeight: 700 }}>{r.name || '—'}</span>
+                  <span style={{ color: C.muted }}>{r.email}</span>
+                  <span style={{ color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{r.eventId}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Panel>
 
       <Panel title="Integrations">
