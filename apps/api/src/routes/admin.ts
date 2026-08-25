@@ -584,6 +584,49 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /**
+   * Resend the booking-confirmation email to every active (non-cancelled) booking
+   * that has a customer email. Two-step by design:
+   *   { dryRun: true }  → returns the recipient list only (nothing is sent).
+   *   { confirm: true } → actually sends. Requires confirm to avoid accidents.
+   * This is a real, outward-facing bulk send, so it never sends without confirm.
+   */
+  app.post('/api/admin/notifications/resend-confirmations', async (request, reply) => {
+    const body = (request.body ?? {}) as { dryRun?: boolean; confirm?: boolean };
+    if (!emailEnabled()) {
+      return reply
+        .status(503)
+        .send({ error: 'email_disabled', message: 'Email is not configured on the server (RESEND_API_KEY).' });
+    }
+    const { rows } = await pool.query<EmailRow & { customer_email: string | null }>(
+      `SELECT e.id AS event_id, 'booking_confirmation'::text AS template,
+              e.event_date, e.start_time, e.emirate,
+              e.celebration_type, e.custom_theme, o.cart, o.quote, o.total_fils, p.name AS package_name,
+              c.name AS customer_name, c.email AS customer_email
+         FROM events e
+         JOIN customers c ON c.id = e.customer_id
+         LEFT JOIN orders o   ON o.id = e.order_id
+         LEFT JOIN packages p ON p.id = e.package_id
+        WHERE e.phase <> 'Cancelled' AND c.email IS NOT NULL AND c.email <> ''
+        ORDER BY e.event_date DESC
+        LIMIT 500`,
+    );
+    const recipients = rows.map((r) => ({ eventId: r.event_id, name: r.customer_name, email: r.customer_email }));
+    if (!body.confirm || body.dryRun) {
+      return { dryRun: true, count: recipients.length, recipients };
+    }
+    let sent = 0;
+    const failed: string[] = [];
+    for (const row of rows) {
+      const msg = renderEmail(row);
+      if (!msg || !row.customer_email) continue;
+      const res = await sendEmail({ to: row.customer_email, subject: msg.subject, html: msg.html });
+      if (res.ok) sent += 1;
+      else failed.push(`${row.event_id}: ${res.error ?? 'failed'}`);
+    }
+    return { sent, total: recipients.length, failed };
+  });
+
+  /**
    * Cancels an event. Terminal for the customer: live tracking stops, the
    * timeline collapses to Confirmed → Cancelled, and every self-service
    * purchase and location change is refused from this point.
