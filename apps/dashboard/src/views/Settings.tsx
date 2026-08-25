@@ -159,9 +159,10 @@ export function Settings() {
 
       <Panel title="Preview customer emails">
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
-          Send the four real customer email templates — booking confirmation, 3-day reminder,
-          event-day, and cancellation — to any inbox to review exactly what customers receive.
-          They go through the live email system with sample data; subjects are prefixed “[Sample]”.
+          Send the real customer email templates — booking confirmation, 3-day reminder,
+          event-day, cancellation, and shop-order confirmation — to any inbox to review exactly
+          what customers receive. They go through the live email system with sample data;
+          subjects are prefixed “[Sample]”.
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
