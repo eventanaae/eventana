@@ -521,8 +521,9 @@ export async function adminRoutes(app: FastifyInstance) {
         .status(503)
         .send({ error: 'email_disabled', message: 'Email is not configured on the server (RESEND_API_KEY).' });
     }
-    const staffName = (request as any).staff?.name ?? 'there';
     const templates = ['booking_confirmation', 'three_day_reminder', 'event_day', 'event_cancelled'];
+    // Realistic sample: a parent (the customer we greet) booking for their child
+    // (the guest of honour). Real emails use the booking's own customer name.
     const sample: EmailRow = {
       id: 0,
       template: '',
@@ -530,7 +531,7 @@ export async function adminRoutes(app: FastifyInstance) {
       event_date: '2026-09-15',
       start_time: '16:00:00',
       emirate: 'Dubai',
-      customer_name: staffName,
+      customer_name: 'Mariam',
       customer_email: email,
       celebration_type: 'Birthday',
       custom_theme: false,
