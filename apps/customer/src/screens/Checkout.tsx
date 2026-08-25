@@ -77,7 +77,14 @@ export function Checkout({
   onOrder,
   t,
   lang,
-}: ScreenProps & { onOrder: (orderId: string, embedUrl?: string | null, token?: string) => void }) {
+}: ScreenProps & {
+  onOrder: (
+    orderId: string,
+    embedUrl?: string | null,
+    token?: string,
+    stripe?: { clientSecret: string; publishableKey: string },
+  ) => void;
+}) {
   const [times, setTimes] = useState<Array<{ value: string; allowed: boolean }>>([]);
   const [paying, setPaying] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -294,7 +301,7 @@ export function Checkout({
         useCredit,
         redeemPoints,
       }, agreed, guest);
-      if (!result.eligible || (!result.embeddedUrl && !result.checkoutUrl)) {
+      if (!result.eligible || (!result.embeddedUrl && !result.checkoutUrl && !result.clientSecret)) {
         setError(t('checkout.providerUnavailable', { provider: draft.provider }));
         setPaying(false);
         return;
@@ -304,7 +311,12 @@ export function Checkout({
       // (embedded/iframe payments are not enabled), so only fall back to the
       // embedded widget when no redirect URL is available. Nothing is confirmed
       // here — the app returns and waits for the server's webhook view.
-      if (result.checkoutUrl) {
+      if (result.clientSecret && result.publishableKey) {
+        onOrder(result.orderId, undefined, result.orderToken, {
+          clientSecret: result.clientSecret,
+          publishableKey: result.publishableKey,
+        });
+      } else if (result.checkoutUrl) {
         onOrder(result.orderId, undefined, result.orderToken);
         window.location.href = result.checkoutUrl;
       } else if (result.embeddedUrl) {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { C, fredoka, Notice, PrimaryButton, Spinner } from '../ui';
 import type { TFn } from '../i18n';
+import { mountStripeCheckout } from '../stripe';
 
 /**
  * The return screen.
@@ -15,6 +16,7 @@ export function PaymentReturn({
   orderId,
   token,
   embedUrl,
+  stripe,
   onConfirmed,
   onShopDone,
   onRetry,
@@ -25,6 +27,8 @@ export function PaymentReturn({
   token?: string | null;
   /** When set, pay inside the app via this embedded widget (no redirect). */
   embedUrl?: string | null;
+  /** When set, mount Stripe's in-page embedded checkout (no redirect). */
+  stripe?: { clientSecret: string; publishableKey: string } | null;
   onConfirmed: (eventId: string) => void;
   /** A confirmed standalone shop order has no event — just finish. */
   onShopDone: () => void;
@@ -130,6 +134,13 @@ export function PaymentReturn({
     );
   }
 
+  // Stripe embedded checkout — the card / Apple Pay form renders in-page. On
+  // completion Stripe returns the page to our /?order=… screen, which polls
+  // until the server confirms. The customer never leaves the app to pay.
+  if (stripe) {
+    return <StripeEmbed stripe={stripe} t={t} onCancel={() => onRetry(kind)} />;
+  }
+
   // In-app payment: show the provider's embedded widget in an iframe and keep
   // polling our server underneath. The customer never leaves the app.
   if (embedUrl) {
@@ -187,6 +198,58 @@ export function PaymentReturn({
             {t('pay.contactUs')}
           </a>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Mounts Stripe's in-page embedded checkout (card / Apple Pay / Google Pay). */
+function StripeEmbed({
+  stripe,
+  t,
+  onCancel,
+}: {
+  stripe: { clientSecret: string; publishableKey: string };
+  t: TFn;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let handle: { destroy: () => void } | null = null;
+    let alive = true;
+    if (ref.current) {
+      void mountStripeCheckout({
+        el: ref.current,
+        publishableKey: stripe.publishableKey,
+        clientSecret: stripe.clientSecret,
+        onError: (m) => { if (alive) setError(m); },
+      }).then((h) => { if (alive) handle = h; else h.destroy(); });
+    }
+    return () => { alive = false; handle?.destroy(); };
+  }, [stripe.clientSecret, stripe.publishableKey]);
+
+  return (
+    <div style={{ padding: '10px 12px 24px', animation: 'rise .3s ease' }}>
+      <div style={{ ...fredoka(18), textAlign: 'center', margin: '4px 0 12px' }}>{t('pay.securePay')}</div>
+      {error ? (
+        <div style={{ textAlign: 'center' }}>
+          <Notice tone="error">{error}</Notice>
+          <PrimaryButton onClick={onCancel} style={{ marginTop: 14 }}>{t('pay.tryAnother')}</PrimaryButton>
+        </div>
+      ) : (
+        <>
+          <div ref={ref} style={{ minHeight: '58vh' }} />
+          <div style={{ textAlign: 'center', marginTop: 14 }}>
+            <button
+              onClick={onCancel}
+              style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              {t('pay.cancelPay')}
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

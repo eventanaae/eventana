@@ -67,6 +67,13 @@ export interface CreateSessionResult {
    */
   embeddedUrl?: string | null;
   /**
+   * Client secret for an in-page (embedded) payment form — Stripe. The app
+   * mounts Stripe.js with this; there is no redirect and no iframe URL.
+   */
+  clientSecret?: string | null;
+  /** Stripe publishable key (safe to expose) so the app can init Stripe.js. */
+  publishableKey?: string | null;
+  /**
    * False when the provider declined this customer up front. The caller
    * hides the method and offers another — never an error screen (§7).
    */
@@ -91,7 +98,7 @@ export interface WebhookParseResult {
 }
 
 export interface PaymentProvider {
-  readonly name: 'tabby' | 'tamara' | 'ziina';
+  readonly name: 'tabby' | 'tamara' | 'ziina' | 'stripe';
   readonly mode: ProviderConfig['mode'];
   /** Human label for the customer app's payment picker. */
   readonly label: string;

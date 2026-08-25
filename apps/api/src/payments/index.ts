@@ -8,8 +8,9 @@ import { SimulatedProvider } from './simulated.js';
 import { TabbyProvider, mapTabbyStatus } from './tabby.js';
 import { TamaraProvider, mapTamaraStatus } from './tamara.js';
 import { ZiinaProvider, mapZiinaStatus } from './ziina.js';
+import { StripeProvider } from './stripe.js';
 
-export type ProviderName = 'tabby' | 'tamara' | 'ziina';
+export type ProviderName = 'tabby' | 'tamara' | 'ziina' | 'stripe';
 
 function build(name: ProviderName): PaymentProvider {
   const cfg = config.providers[name];
@@ -30,13 +31,15 @@ function build(name: ProviderName): PaymentProvider {
       return new TamaraProvider(cfg);
     case 'ziina':
       return new ZiinaProvider(cfg);
+    case 'stripe':
+      return new StripeProvider(cfg);
   }
 }
 
 const registry = new Map<ProviderName, PaymentProvider>();
 
 export function getProvider(name: string): PaymentProvider {
-  if (name !== 'tabby' && name !== 'tamara' && name !== 'ziina') {
+  if (name !== 'tabby' && name !== 'tamara' && name !== 'ziina' && name !== 'stripe') {
     throw new Error(`Unknown payment provider: ${name}`);
   }
   let provider = registry.get(name);
@@ -50,14 +53,14 @@ export function getProvider(name: string): PaymentProvider {
 export function allProviders(): PaymentProvider[] {
   // A disabled provider (not production-ready in a live deployment) is not
   // offered to customers at all.
-  return (['tabby', 'tamara', 'ziina'] as const)
+  return (['stripe', 'tabby', 'tamara', 'ziina'] as const)
     .filter((name) => config.providers[name].mode !== 'disabled')
     .map(getProvider);
 }
 
 /** Honest integration status for the dashboard's settings screen. */
 export function integrationStatus() {
-  return (['tabby', 'tamara', 'ziina'] as const).map((name) => {
+  return (['stripe', 'tabby', 'tamara', 'ziina'] as const).map((name) => {
     const cfg = config.providers[name];
     return {
       name,

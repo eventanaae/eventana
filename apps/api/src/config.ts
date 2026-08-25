@@ -19,7 +19,7 @@ const env = process.env;
 export type ProviderMode = 'live' | 'sandbox' | 'simulated' | 'disabled';
 
 export interface ProviderConfig {
-  name: 'tabby' | 'tamara' | 'ziina';
+  name: 'tabby' | 'tamara' | 'ziina' | 'stripe';
   mode: ProviderMode;
   publicKey: string | null;
   secretKey: string | null;
@@ -245,6 +245,15 @@ export const config = {
       sandboxUrl: 'https://api-v2.ziina.com/api',
       liveUrl: 'https://api-v2.ziina.com/api',
       requires: ['secretKey'],
+    }),
+    stripe: providerConfig('stripe', {
+      publicKey: env.STRIPE_PUBLISHABLE_KEY,
+      secretKey: env.STRIPE_SECRET_KEY,
+      webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+      // Stripe uses one base URL for both test and live — the key decides.
+      sandboxUrl: 'https://api.stripe.com',
+      liveUrl: 'https://api.stripe.com',
+      requires: ['secretKey', 'webhookSecret'],
     }),
   },
 } as const;

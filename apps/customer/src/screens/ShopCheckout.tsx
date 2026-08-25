@@ -16,7 +16,14 @@ export function ShopCheckout({
   go,
   t,
   onOrder,
-}: ScreenProps & { onOrder: (orderId: string, embedUrl?: string, token?: string) => void }) {
+}: ScreenProps & {
+  onOrder: (
+    orderId: string,
+    embedUrl?: string,
+    token?: string,
+    stripe?: { clientSecret: string; publishableKey: string },
+  ) => void;
+}) {
   const services = useMemo(
     () => new Map(catalogue.services.map((s) => [s.id, s])),
     [catalogue],
@@ -88,14 +95,22 @@ export function ShopCheckout({
         termsAccepted: agreed,
         guest,
       });
-      if (!result.eligible || (!result.checkoutUrl && !result.embeddedUrl)) {
+      if (
+        !result.eligible ||
+        (!result.checkoutUrl && !result.embeddedUrl && !result.clientSecret)
+      ) {
         setError(t('shopco.payUnavailable'));
         setPaying(false);
         return;
       }
       // Keep the cart until the order is CONFIRMED (cleared in onShopDone) so a
       // failed/cancelled payment can be retried with the items still in place.
-      if (result.checkoutUrl) {
+      if (result.clientSecret && result.publishableKey) {
+        onOrder(result.orderId, undefined, result.orderToken, {
+          clientSecret: result.clientSecret,
+          publishableKey: result.publishableKey,
+        });
+      } else if (result.checkoutUrl) {
         onOrder(result.orderId, undefined, result.orderToken);
         window.location.href = result.checkoutUrl;
       } else if (result.embeddedUrl) {

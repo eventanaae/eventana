@@ -177,6 +177,7 @@ export default function App() {
   const retryQuote = useCallback(() => setQuoteNonce((n) => n + 1), []);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [orderToken, setOrderToken] = useState<string | null>(null);
+  const [stripeInfo, setStripeInfo] = useState<{ clientSecret: string; publishableKey: string } | null>(null);
   const [payUrl, setPayUrl] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -401,16 +402,17 @@ export default function App() {
         {screen === 'assistant' && <Assistant {...shared} />}
         {screen === 'movieselect' && <MovieSelect {...shared} />}
         {screen === 'checkout' && (
-          <Checkout {...shared} onOrder={(id, embed, tok) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); go('confirming'); }} />
+          <Checkout {...shared} onOrder={(id, embed, tok, stripe) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); setStripeInfo(stripe ?? null); go('confirming'); }} />
         )}
         {screen === 'confirming' && orderId && (
           <PaymentReturn
             orderId={orderId}
             token={orderToken}
             embedUrl={payUrl}
-            onConfirmed={(id) => { setEventId(id); setPayUrl(null); reset(); go('myevent'); }}
-            onShopDone={() => { setPayUrl(null); setShopCart({}); go('home'); }}
-            onRetry={(k) => { setPayUrl(null); go(k === 'shop' ? 'shopcheckout' : 'checkout'); }}
+            stripe={stripeInfo}
+            onConfirmed={(id) => { setEventId(id); setPayUrl(null); setStripeInfo(null); reset(); go('myevent'); }}
+            onShopDone={() => { setPayUrl(null); setStripeInfo(null); setShopCart({}); go('home'); }}
+            onRetry={(k) => { setPayUrl(null); setStripeInfo(null); go(k === 'shop' ? 'shopcheckout' : 'checkout'); }}
             t={t}
           />
         )}
@@ -418,7 +420,7 @@ export default function App() {
         {screen === 'profile' && <Profile go={go} onRebook={rebook} t={t} lang={lang} setLang={setLang} />}
         {screen === 'shop' && <Shop {...shared} />}
         {screen === 'shopcheckout' && (
-          <ShopCheckout {...shared} onOrder={(id, embed, tok) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); go('confirming'); }} />
+          <ShopCheckout {...shared} onOrder={(id, embed, tok, stripe) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); setStripeInfo(stripe ?? null); go('confirming'); }} />
         )}
       </div>
 

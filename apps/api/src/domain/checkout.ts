@@ -133,6 +133,10 @@ export interface CheckoutResult {
   checkoutUrl: string | null;
   /** In-app iframe widget URL (Ziina); null when only a hosted redirect exists. */
   embeddedUrl?: string | null;
+  /** Stripe embedded-checkout client secret; the app mounts Stripe.js with it. */
+  clientSecret?: string | null;
+  /** Stripe publishable key so the app can init Stripe.js. */
+  publishableKey?: string | null;
   eligible: boolean;
   totalFils: number;
   holdExpiresAt: string;
@@ -313,6 +317,8 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       provider: provider.name,
       checkoutUrl: session.checkoutUrl,
       embeddedUrl: session.embeddedUrl ?? null,
+      clientSecret: session.clientSecret ?? null,
+      publishableKey: session.publishableKey ?? null,
       eligible: true,
       totalFils: serverQuote.totalFils,
       holdExpiresAt: new Date(Date.now() + cfg.rules.inventoryHoldMinutes * 60_000).toISOString(),
@@ -360,6 +366,10 @@ export interface ShopCheckoutResult {
   orderId: string;
   /** Order-view token so the app can poll status without a provider return URL. */
   orderToken: string;
+  /** Stripe embedded-checkout client secret; the app mounts Stripe.js with it. */
+  clientSecret?: string | null;
+  /** Stripe publishable key so the app can init Stripe.js. */
+  publishableKey?: string | null;
   checkoutUrl: string | null;
   embeddedUrl?: string | null;
   eligible: boolean;
@@ -488,6 +498,8 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
       orderToken: orderViewToken(orderId),
       checkoutUrl: session.eligible ? session.checkoutUrl : null,
       embeddedUrl: session.embeddedUrl ?? null,
+      clientSecret: session.clientSecret ?? null,
+      publishableKey: session.publishableKey ?? null,
       eligible: session.eligible,
       totalFils: q.totalFils,
       readyBy,
