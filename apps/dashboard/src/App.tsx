@@ -14,10 +14,11 @@ import { Finance } from './views/Finance';
 import { Marketing } from './views/Marketing';
 import { Settings } from './views/Settings';
 import { ShopOrders } from './views/ShopOrders';
+import { Leads } from './views/Leads';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'finance' | 'marketing' | 'settings' | 'shop';
+  | 'alerts' | 'team' | 'kpis' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads';
 
 type Group = 'primary' | 'more';
 
@@ -26,6 +27,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'schedule', label: 'Schedule', icon: '▦', title: 'Schedule', sub: 'Jobs, events and calendar', group: 'primary' },
   { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Work by department', group: 'primary' },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets and reservations', group: 'primary' },
+  { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', group: 'more' },
   { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Stock, leave, reviews and tips', group: 'more' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', group: 'more' },
   { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', group: 'more' },
@@ -132,6 +134,7 @@ export default function App() {
       {view === 'finance' && <Finance />}
       {view === 'marketing' && <Marketing />}
       {view === 'shop' && <ShopOrders />}
+      {view === 'leads' && <Leads />}
       {view === 'settings' && <Settings />}
     </>
   );

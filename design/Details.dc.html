@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&family=Almarai:wght@400;700;800&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #E94F9C; } a:hover { color: #C43A7E; }
+  </style>
+</helmet>
+
+<div style="width: 1080px; height: 1500px; position: relative; overflow: hidden; direction: rtl; background: #EFE9E4; font-family: 'Almarai', system-ui, sans-serif; padding: 56px 60px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px;">
+
+  <!-- compact header: this version is read up close, so the price can share the stage -->
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 28px; background: linear-gradient(120deg, #1B6FD1, #58C7F0); border-radius: 34px; padding: 34px 44px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-family: 'Baloo Bhaijaan 2', system-ui, sans-serif; font-weight: 800; font-size: 62px; line-height: 1.1; color: #FFFFFF;">حفلة صيفية كاملة</span>
+      <span style="font-size: 27px; font-weight: 700; color: #D8EEFB;">تشمل كل شيء · لأي تاريخ تحبونه</span>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 10px; background: #FFD84F; padding: 14px 30px 18px; border-radius: 22px; white-space: nowrap;">
+      <span style="font-family: 'Baloo Bhaijaan 2', system-ui, sans-serif; font-weight: 800; font-size: 62px; line-height: 1; color: #17324F;">2,200</span>
+      <span style="font-family: 'Baloo Bhaijaan 2', system-ui, sans-serif; font-weight: 700; font-size: 28px; color: #17324F;">درهم</span>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-family: 'Baloo Bhaijaan 2', system-ui, sans-serif; font-weight: 700; font-size: 40px; color: #3B3641; margin-bottom: 26px;">يشمل العرض</div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;">
+      <sc-for list="{{items}}" as="item" hint-placeholder-count="7">
+        <div style="display: flex; align-items: center; gap: 20px; background: #FFFFFF; border-radius: 22px; padding: 22px 26px;">
+          <div style="width: 60px; height: 60px; border-radius: 16px; background: #FCE7F1; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#E94F9C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 6L9 17l-5-5"></path>
+            </svg>
+          </div>
+          <span style="font-size: 29px; font-weight: 700; color: #3B3641; line-height: 1.45;">{{item.label}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- terms stated plainly: fewer wrong-fit enquiries reaching the team -->
+  <div style="display: flex; gap: 18px;">
+    <div style="flex-grow: 1; display: flex; align-items: center; gap: 16px; background: #FFFFFF; border-radius: 22px; padding: 24px 28px;">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#B93878" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9.2"></circle>
+        <path d="M15.2 8.8l-6.4 6.4M8.8 8.8l6.4 6.4"></path>
+      </svg>
+      <span style="font-size: 27px; font-weight: 700; color: #3B3641; line-height: 1.45;">لا يشمل الجمعة والسبت</span>
+    </div>
+    <div style="flex-grow: 1; display: flex; align-items: center; gap: 16px; background: #FFFFFF; border-radius: 22px; padding: 24px 28px;">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#1B6FD1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2.8 15.5V7.2h11v8.3M13.8 10h3.6l3.8 3.4v2.1h-7.4"></path>
+        <circle cx="6.6" cy="17.4" r="1.9"></circle>
+        <circle cx="17.2" cy="17.4" r="1.9"></circle>
+      </svg>
+      <span style="font-size: 27px; font-weight: 700; color: #3B3641; line-height: 1.45;">رسوم التوصيل حسب الإمارة</span>
+    </div>
+  </div>
+
+  <div style="margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 20px; background: #E94F9C; border-radius: 28px; padding: 30px 44px;">
+    <svg width="50" height="50" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true">
+      <path d="M12.04 2C6.6 2 2.2 6.4 2.2 11.84c0 1.9.53 3.68 1.46 5.2L2 22l5.1-1.62a9.8 9.8 0 0 0 4.94 1.33h.01c5.43 0 9.84-4.4 9.84-9.84S17.47 2 12.04 2Zm5.72 13.9c-.24.68-1.4 1.3-1.93 1.35-.5.05-.97.23-3.27-.68-2.75-1.08-4.5-3.9-4.64-4.08-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27a1 1 0 0 1 .72-.34h.52c.17 0 .4-.06.62.47.24.56.8 1.94.87 2.08.07.14.11.3.02.48-.09.18-.13.29-.26.45-.13.15-.28.34-.4.46-.13.13-.27.28-.12.54.15.27.67 1.1 1.44 1.79.99.88 1.82 1.16 2.08 1.29.26.13.41.11.56-.07.15-.18.65-.76.83-1.02.17-.26.35-.22.58-.13.24.09 1.5.71 1.76.84.26.13.43.2.5.31.06.11.06.63-.18 1.31Z"></path>
+    </svg>
+    <div style="display: flex; flex-direction: column;">
+      <span style="font-family: 'Baloo Bhaijaan 2', system-ui, sans-serif; font-weight: 800; font-size: 48px; color: #FFFFFF; line-height: 1.15;">احجزي تاريخك الحين</span>
+      <span style="font-size: 26px; font-weight: 700; color: #FBD3E6;">آخر موعد للحجز 30 سبتمبر</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      items: [
+        { label: 'زحليقة مائية كبيرة' },
+        { label: 'كوشك سلاش' },
+        { label: 'كوشك بوبكورن' },
+        { label: 'طاولات وكراسي ٢٠ طفل مع التنسيقات' },
+        { label: 'مهرجين مع ألعاب وفعاليات تفاعلية' },
+        { label: 'سماعة أغاني' },
+        { label: 'ستاند بالونات بالثيم اللي تختارونه' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

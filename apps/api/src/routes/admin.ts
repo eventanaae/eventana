@@ -265,7 +265,11 @@ export async function adminRoutes(app: FastifyInstance) {
    * date, the emirate, whether the customer confirmed, and the ad that
    * started the conversation.
    */
-  app.get('/api/admin/whatsapp/leads', async (request) => {
+  app.get('/api/admin/whatsapp/leads', async (request, reply) => {
+    // Every row is a customer phone number. Same rule as the shop orders and
+    // the event list: drivers and employees never see the whole PII list.
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const q = request.query as { status?: string; limit?: string };
     return {
       leads: await listLeads({
@@ -284,7 +288,11 @@ export async function adminRoutes(app: FastifyInstance) {
    * the largest share of ad spend, and until now nothing could say whether
    * those enquiries ever became parties.
    */
-  app.get('/api/admin/whatsapp/funnel', async () => leadFunnel());
+  app.get('/api/admin/whatsapp/funnel', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    return leadFunnel();
+  });
 
   /* ------------------------------ Events -------------------------- */
 
