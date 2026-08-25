@@ -98,20 +98,39 @@ async function accessToken(sa: ServiceAccount): Promise<string> {
   return json.access_token;
 }
 
+/**
+ * Normalise an events.event_date to a plain `YYYY-MM-DD`. node-postgres returns
+ * a DATE column as a JS Date, and `String(date)` yields `"Fri Aug 30 2026 …"`,
+ * so slicing that gives Google a garbage date and a bare 400. Handle both a
+ * Date object and an already-ISO string. The server runs in UTC, so the Date is
+ * at UTC midnight and toISOString keeps the calendar day.
+ */
+function ymd(eventDate: unknown): string {
+  if (eventDate instanceof Date) return eventDate.toISOString().slice(0, 10);
+  const s = String(eventDate);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : new Date(s).toISOString().slice(0, 10);
+}
+
+/** 'HH:MM' or 'HH:MM:SS' → 'HH:MM:SS' (local wall time, paired with a timeZone). */
+function hms(time: string): string {
+  const [h = '0', m = '0'] = String(time).split(':');
+  return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`;
+}
+
 /** '24:00' (midnight end) → the next day at 00:00; otherwise same day. */
 function endDateTime(eventDate: string, endTime: string): string {
   const [h] = endTime.split(':').map(Number);
   if (h >= 24) {
-    const d = new Date(`${eventDate}T00:00:00`);
-    d.setDate(d.getDate() + 1);
+    const d = new Date(`${eventDate}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
     return `${d.toISOString().slice(0, 10)}T00:00:00`;
   }
-  return `${eventDate}T${endTime.length === 5 ? endTime : `${String(h).padStart(2, '0')}:00`}:00`;
+  return `${eventDate}T${hms(endTime)}`;
 }
 
 function buildEventBody(ev: any) {
   const cart = (ev.cart ?? {}) as { eventFor?: string; address?: { details?: string } };
-  const date = String(ev.event_date).slice(0, 10);
+  const date = ymd(ev.event_date);
   const who = cart.eventFor ? `${cart.eventFor}'s ` : '';
   const what = ev.package_name ?? (ev.custom_theme ? `${ev.celebration_type} · custom theme` : ev.celebration_type);
   const lat = Number(ev.map_lat);
@@ -133,7 +152,7 @@ function buildEventBody(ev: any) {
     summary: `🎉 ${who}${what}`.trim(),
     location: hasPin ? `${addressText} (${lat},${lng})` : addressText,
     description: lines.join('\n'),
-    start: { dateTime: `${date}T${ev.start_time}:00`, timeZone: 'Asia/Dubai' },
+    start: { dateTime: `${date}T${hms(ev.start_time)}`, timeZone: 'Asia/Dubai' },
     end: { dateTime: endDateTime(date, ev.base_end_time), timeZone: 'Asia/Dubai' },
     status: ev.phase === 'Cancelled' ? 'cancelled' : 'confirmed',
   };
