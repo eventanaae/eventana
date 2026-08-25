@@ -222,7 +222,7 @@ export type PaymentStatus =
   | 'partially_refunded'
   | 'needs_review';
 
-export type ProviderName = 'tabby' | 'tamara' | 'ziina';
+export type ProviderName = 'tabby' | 'tamara' | 'ziina' | 'stripe';
 
 export type OrderKind = 'booking' | 'addon';
 
