@@ -14,6 +14,7 @@ import { getProvider } from '../payments/index.js';
 import { confirmBooking } from './confirm.js';
 import { syncEventToCalendar } from '../integrations/googleCalendar.js';
 import { pushToStaff } from '../integrations/push.js';
+import { reportPurchaseToMeta } from './attribution.js';
 import { holdsStillValid, releaseHolds } from './inventory.js';
 import {
   applyPaymentStatus,
@@ -188,6 +189,7 @@ export async function processDelivery(
 
   let confirmedEventId: string | null = null;
   let newBooking = false;
+  let paidNow = false;
   const outcome = await withTransaction(async (db) => {
     const { applied } = await applyPaymentStatus(db, {
       paymentId: payment.id,
@@ -212,6 +214,7 @@ export async function processDelivery(
       });
       confirmedEventId = confirmed.eventId;
       newBooking = confirmed.created;
+      paidNow = true;
     }
 
     if (verified.status === 'failed' || verified.status === 'cancelled') {
@@ -237,6 +240,15 @@ export async function processDelivery(
         eventId: confirmedEventId,
       });
     }
+  }
+
+  // Tell the ad account a booking actually happened, and what it was worth.
+  // Deliberately outside the transaction and un-awaited for the same reason
+  // as the calendar sync: Meta being slow or down must never affect a paid
+  // booking. `applyPaymentStatus` only returns applied once per transition,
+  // so this fires once — and Meta de-duplicates on the order id regardless.
+  if (outcome === 'accepted' && paidNow) {
+    void reportPurchaseToMeta(payment.order_id);
   }
 
   await finish(deliveryId, outcome);

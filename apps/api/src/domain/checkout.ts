@@ -46,6 +46,8 @@ export interface CheckoutRequest {
   idempotencyKey?: string;
   termsAccepted?: boolean;
   discounts?: DiscountInput;
+  /** Ad-click parameters the app captured on landing (see metaCapi.ts). */
+  attribution?: unknown;
 }
 
 /**
@@ -222,6 +224,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       cart,
       quote: serverQuote,
       idempotencyKey: req.idempotencyKey ?? null,
+      attribution: req.attribution ?? null,
     });
 
     await acquireHolds(db, {
@@ -360,6 +363,8 @@ export interface ShopCheckoutRequest {
   provider: string;
   lang?: 'en' | 'ar';
   termsAccepted?: boolean;
+  /** Ad-click parameters the app captured on landing (see metaCapi.ts). */
+  attribution?: unknown;
 }
 
 export interface ShopCheckoutResult {
@@ -446,6 +451,7 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
       totalFils: q.totalFils,
       cart,
       quote: q as unknown as Quote,
+      attribution: req.attribution ?? null,
     });
     return id;
   });

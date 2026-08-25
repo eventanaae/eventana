@@ -130,12 +130,14 @@ export interface CreateOrderInput {
   cart: unknown;
   quote: Quote | unknown;
   idempotencyKey?: string | null;
+  /** Ad-click parameters the app captured on landing. Null when absent. */
+  attribution?: unknown;
 }
 
 export async function createOrder(db: PoolClient, input: CreateOrderInput) {
   const { rows } = await db.query(
-    `INSERT INTO orders (id, kind, customer_id, event_id, status, total_fils, cart, quote, idempotency_key)
-     VALUES ($1,$2,$3,$4,'awaiting_payment',$5,$6,$7,$8)
+    `INSERT INTO orders (id, kind, customer_id, event_id, status, total_fils, cart, quote, idempotency_key, attribution)
+     VALUES ($1,$2,$3,$4,'awaiting_payment',$5,$6,$7,$8,$9)
      RETURNING *`,
     [
       input.id,
@@ -146,6 +148,7 @@ export async function createOrder(db: PoolClient, input: CreateOrderInput) {
       JSON.stringify(input.cart),
       JSON.stringify(input.quote),
       input.idempotencyKey ?? null,
+      input.attribution ? JSON.stringify(input.attribution) : null,
     ],
   );
   return rows[0];

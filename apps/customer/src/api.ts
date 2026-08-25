@@ -7,6 +7,7 @@
  */
 import type { CartInput, Quote } from '@eventana/shared';
 import { currentCustomerId, currentToken } from './account';
+import { attributionPayload } from './attribution';
 
 /**
  * Render blueprints can only inject another service's HOST, not a full
@@ -146,7 +147,12 @@ export const api = {
       totalFils: number; holdExpiresAt: string;
     }>('/api/checkout', {
       method: 'POST',
-      body: JSON.stringify({ cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest }),
+      body: JSON.stringify({
+        cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest,
+        // Which ad brought them here, if any — the server reports the paid
+        // booking back to Meta against it.
+        attribution: attributionPayload(),
+      }),
     }),
 
   /** Standalone shop checkout — custom printed & digital goods, no party. */
@@ -163,7 +169,10 @@ export const api = {
       orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
       clientSecret?: string | null; publishableKey?: string | null;
       eligible: boolean; totalFils: number; readyBy: string;
-    }>('/api/shop/checkout', { method: 'POST', body: JSON.stringify(body) }),
+    }>('/api/shop/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ ...body, attribution: attributionPayload() }),
+    }),
 
   checkPromo: (code: string, subtotalFils: number) =>
     request<{ ok: boolean; code?: string; amountFils?: number; reason?: string }>(

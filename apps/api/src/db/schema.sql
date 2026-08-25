@@ -204,6 +204,13 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS orders_status_idx ON orders (status, updated_at);
 CREATE INDEX IF NOT EXISTS orders_event_idx ON orders (event_id);
 
+-- Additive: where this order came from. Captured by the app on the landing
+-- click (fbclid / utm_* / the Meta browser cookies) and carried through to
+-- checkout, so a paid booking can be posted back to Meta against the exact
+-- ad that produced it. NULL for every order taken before this existed, and
+-- for anyone who arrives without campaign parameters.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS attribution JSONB;
+
 CREATE TABLE IF NOT EXISTS payments (
   id                   TEXT PRIMARY KEY,
   order_id             TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,

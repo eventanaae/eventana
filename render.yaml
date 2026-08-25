@@ -94,6 +94,21 @@ services:
       - key: GOOGLE_MAPS_API_KEY
         sync: false
 
+      # --- Meta ads attribution ----------------------------------------
+      # Reports each PAID booking back to the ad account (Conversions API),
+      # so Ads Manager can finally show bookings and ROAS instead of only
+      # WhatsApp conversations. META_PIXEL_ID is the dataset id from Events
+      # Manager; the token is generated against that same dataset. Either
+      # absent → reporting is a silent no-op and nothing else changes.
+      - key: META_PIXEL_ID
+        sync: false
+      - key: META_CAPI_ACCESS_TOKEN
+        sync: false
+      # Set ONLY while verifying in Events Manager → Test Events. Leave it
+      # unset in production or real bookings land in the test bucket.
+      - key: META_TEST_EVENT_CODE
+        sync: false
+
   # ----------------------------------------------------- customer app
   - type: web
     name: eventana-customer
@@ -110,6 +125,12 @@ services:
           name: eventana-api
           type: web
           property: host
+      # Meta pixel. Build-time, so a rebuild is needed after setting it.
+      # Absent → the app ships no tracking script at all. Present → page
+      # views and checkout starts are reported, which is what makes website
+      # retargeting audiences possible.
+      - key: VITE_META_PIXEL_ID
+        sync: false
     routes:
       # The payment return lands on /pay/return?order=… — serve the app
       # for any path so a refresh there does not 404.

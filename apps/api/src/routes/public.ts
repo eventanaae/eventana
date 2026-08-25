@@ -31,6 +31,40 @@ import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { allProviders } from '../payments/index.js';
 import { answerAssistant } from '../domain/assistant.js';
 
+/**
+ * Where the visitor came from, as captured by the app on the landing click.
+ *
+ * Everything here is advertising metadata, never anything the price or the
+ * booking depends on — a forged value can only mis-credit an ad, so the
+ * fields are simply length-capped and stored. The user agent and IP are
+ * deliberately NOT taken from the body; the server reads its own.
+ */
+const attributionSchema = z
+  .object({
+    fbc: z.string().max(255).nullable().optional(),
+    fbp: z.string().max(255).nullable().optional(),
+    utmSource: z.string().max(120).nullable().optional(),
+    utmMedium: z.string().max(120).nullable().optional(),
+    utmCampaign: z.string().max(180).nullable().optional(),
+    utmContent: z.string().max(180).nullable().optional(),
+    utmTerm: z.string().max(180).nullable().optional(),
+    landingUrl: z.string().max(600).nullable().optional(),
+  })
+  .optional();
+
+/** Merges the app's attribution with the request's own user agent and IP. */
+function attributionFrom(
+  request: { headers: Record<string, string | string[] | undefined>; ip: string },
+  body: unknown,
+): Record<string, unknown> | null {
+  const ua = request.headers['user-agent'];
+  const merged: Record<string, unknown> = { ...((body as Record<string, unknown> | undefined) ?? {}) };
+  if (typeof ua === 'string' && ua) merged.userAgent = ua.slice(0, 400);
+  if (request.ip) merged.clientIp = request.ip;
+  const meaningful = Object.values(merged).some((v) => typeof v === 'string' && v.length > 0);
+  return meaningful ? merged : null;
+}
+
 const cartSchema = z.object({
   celebrationType: z.enum(['kids', 'graduation', 'bride', 'baby', 'gender', 'adult', 'customc']),
   packageId: z.string().nullable().default(null),
@@ -343,6 +377,7 @@ export async function publicRoutes(app: FastifyInstance) {
           redeemPoints: z.boolean().optional(),
         })
         .optional(),
+      attribution: attributionSchema,
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
@@ -367,6 +402,7 @@ export async function publicRoutes(app: FastifyInstance) {
         idempotencyKey: parsed.data.idempotencyKey,
         termsAccepted: parsed.data.termsAccepted,
         discounts: parsed.data.discounts,
+        attribution: attributionFrom(request, parsed.data.attribution),
       });
       return result;
     } catch (err) {
@@ -421,6 +457,7 @@ export async function publicRoutes(app: FastifyInstance) {
           email: z.string().trim().email(),
         })
         .optional(),
+      attribution: attributionSchema,
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
@@ -441,6 +478,7 @@ export async function publicRoutes(app: FastifyInstance) {
         provider: parsed.data.provider,
         lang: parsed.data.lang,
         termsAccepted: parsed.data.termsAccepted,
+        attribution: attributionFrom(request, parsed.data.attribution),
       });
       return result;
     } catch (err) {

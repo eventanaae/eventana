@@ -221,6 +221,29 @@ export const config = {
     projectId: env.FCM_PROJECT_ID ?? null,
   },
 
+  /**
+   * Meta Conversions API — the server half of ad attribution.
+   *
+   * Every ad Eventana runs is click-to-WhatsApp, so Ads Manager can only
+   * ever report "a conversation started"; it has never known which ad
+   * produced a BOOKING. Posting a server-side Purchase closes that gap:
+   * the ad account starts optimising for paid bookings and reporting a
+   * real ROAS instead of a chat count.
+   *
+   * META_PIXEL_ID is the dataset (Events Manager → Data sources) and
+   * META_CAPI_ACCESS_TOKEN the token generated against it. Either absent
+   * → sending is a silent no-op, exactly like email and calendar sync.
+   * META_TEST_EVENT_CODE routes events to the Test Events tab instead of
+   * production; set it only while verifying, never in a live deployment.
+   */
+  meta: {
+    pixelId: env.META_PIXEL_ID ?? null,
+    capiAccessToken: env.META_CAPI_ACCESS_TOKEN ?? null,
+    testEventCode: env.META_TEST_EVENT_CODE ?? null,
+    /** Graph API version the CAPI endpoint is called on. */
+    graphVersion: env.META_GRAPH_VERSION ?? 'v21.0',
+  },
+
   providers: {
     tabby: providerConfig('tabby', {
       publicKey: env.TABBY_PUBLIC_KEY,

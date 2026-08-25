@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SHOP_DRAWING_IDS } from '@eventana/shared';
 import { api } from '../api';
+import { trackInitiateCheckout } from '../attribution';
 import { toCart, type ScreenProps } from '../App';
 import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPreOrderCategory } from '../ui';
 import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
@@ -306,6 +307,9 @@ export function Checkout({
         setPaying(false);
         return;
       }
+      // Reached the payment provider. Builds the "started checkout but never
+      // paid" audience — the warmest list there is to retarget.
+      trackInitiateCheckout(result.totalFils);
       // Use the provider's hosted checkout (redirect) — the reliable path.
       // Ziina's embedded iframe widget returns "Forbidden" for this account
       // (embedded/iframe payments are not enabled), so only fall back to the
