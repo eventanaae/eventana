@@ -357,7 +357,7 @@ export async function publicRoutes(app: FastifyInstance) {
       // The customer is taken from the signed token, not the body — a client
       // can no longer check out as someone else by sending their id.
       customerId: z.string().optional(),
-      provider: z.enum(['tabby', 'tamara', 'ziina']),
+      provider: z.enum(['tabby', 'tamara', 'ziina', 'stripe']),
       lang: z.enum(['en', 'ar']).optional(),
       idempotencyKey: z.string().optional(),
       termsAccepted: z.boolean().optional(),
@@ -446,7 +446,7 @@ export async function publicRoutes(app: FastifyInstance) {
         })
         .nullable()
         .optional(),
-      provider: z.enum(['tabby', 'tamara', 'ziina']),
+      provider: z.enum(['tabby', 'tamara', 'ziina', 'stripe']),
       lang: z.enum(['en', 'ar']).optional(),
       termsAccepted: z.boolean().optional(),
       guest: z

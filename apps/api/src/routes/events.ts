@@ -634,7 +634,7 @@ export async function eventRoutes(app: FastifyInstance) {
   app.post('/api/events/:eventId/addons/checkout', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const schema = z.object({
-      provider: z.enum(['tabby', 'tamara', 'ziina']),
+      provider: z.enum(['tabby', 'tamara', 'ziina', 'stripe']),
       additionalHours: z.number().int().min(0).max(6).default(0),
       socksPairs: z.number().int().min(0).max(500).default(0),
       extraServings: z.record(z.string(), z.number().int().min(0).max(50)).default({}),
@@ -753,7 +753,7 @@ export async function eventRoutes(app: FastifyInstance) {
     const schema = z.object({
       amountFils: z.number().int().min(500).max(5_000_00),
       memberId: z.string().nullable().optional(),
-      provider: z.enum(['tabby', 'tamara', 'ziina']).default('ziina'),
+      provider: z.enum(['tabby', 'tamara', 'ziina', 'stripe']).default('ziina'),
       lang: z.enum(['en', 'ar']).optional(),
     });
     const parsed = schema.safeParse(request.body);
