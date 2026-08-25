@@ -22,6 +22,7 @@ import {
   recordPaymentEvent,
 } from './orders.js';
 import { loadConfig } from './settings.js';
+import { config } from '../config.js';
 
 export type WebhookOutcome =
   | 'accepted'
@@ -58,15 +59,35 @@ export async function receiveWebhook(args: {
   }
 
   // (1) Signature first — before the body is trusted for anything.
-  if (!provider.verifyWebhook(args.headers, args.rawBody)) {
+  let signatureOk = provider.verifyWebhook(args.headers, args.rawBody);
+  if (!signatureOk) {
+    const providerCfg = (config.providers as Record<string, { webhookSecret: string | null } | undefined>)[
+      args.providerName
+    ];
+    const hasSecret = Boolean(providerCfg?.webhookSecret);
+    if (hasSecret) {
+      // A shared secret IS configured but the signature didn't match — reject.
+      await recordPaymentEvent(pool, {
+        provider: args.providerName,
+        newStatus: 'rejected_signature',
+        source: 'webhook',
+        note: 'Webhook rejected: shared-secret header did not match',
+        payload: { headersPresent: Object.keys(args.headers) },
+      });
+      return { httpStatus: 401, outcome: 'unsigned' };
+    }
+    // No shared webhook secret exists for this provider (e.g. Ziina does not
+    // issue one), so signature verification is impossible. This is still safe:
+    // processDelivery re-verifies EVERY delivery against the provider's
+    // authenticated API (real status + amount) before confirming, so a forged
+    // webhook cannot confirm an unpaid order. Proceed, recording that this
+    // delivery is API-verified rather than signature-verified.
     await recordPaymentEvent(pool, {
       provider: args.providerName,
-      newStatus: 'rejected_signature',
+      newStatus: 'unsigned_api_verified',
       source: 'webhook',
-      note: 'Webhook rejected: shared-secret header did not match',
-      payload: { headersPresent: Object.keys(args.headers) },
+      note: 'No webhook signing secret configured; verifying via provider API instead.',
     });
-    return { httpStatus: 401, outcome: 'unsigned' };
   }
 
   let body: unknown;
@@ -84,10 +105,10 @@ export async function receiveWebhook(args: {
   const inserted = await pool.query<{ id: number }>(
     `INSERT INTO webhook_deliveries
        (provider, provider_payment_id, provider_status, signature_ok, payload)
-     VALUES ($1,$2,$3,TRUE,$4)
+     VALUES ($1,$2,$3,$5,$4)
      ON CONFLICT (provider, provider_payment_id, provider_status) DO NOTHING
      RETURNING id`,
-    [provider.name, parsed.providerPaymentId, parsed.providerStatus, args.rawBody],
+    [provider.name, parsed.providerPaymentId, parsed.providerStatus, args.rawBody, signatureOk],
   );
 
   if (inserted.rowCount === 0) {
