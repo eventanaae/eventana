@@ -36,10 +36,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
     headers: {
       'content-type': 'application/json',
-      // The signed token identifies the customer; the raw id is no longer
-      // trusted for scoping and is sent only as a harmless hint.
+      // The signed token identifies the customer. (The old x-customer-id header
+      // is gone: the server never read it for scoping, and sending it tripped
+      // CORS preflight because it isn't in the API's allowed-headers list.)
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      'x-customer-id': currentCustomerId(),
       ...(init.headers ?? {}),
     },
   };
@@ -285,7 +285,6 @@ export const api = {
     const res = await fetch(`${BASE}/api/events/${eventId}/pass`, {
       headers: {
         ...(token ? { authorization: `Bearer ${token}` } : {}),
-        'x-customer-id': currentCustomerId(),
       },
     });
     if (!res.ok) throw new Error('Pass not available yet.');
