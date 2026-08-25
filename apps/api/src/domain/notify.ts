@@ -26,6 +26,11 @@ export interface EmailRow {
   emirate: string | null;
   customer_name: string | null;
   customer_email: string | null;
+  // Party context — for a warmer, personalised confirmation.
+  celebration_type?: string | null;
+  custom_theme?: boolean | null;
+  package_name?: string | null;
+  cart?: { eventFor?: string } | null;
   // Cancellation / refund fields (present only for a cancelled order).
   order_ref?: string | null;
   total_paid_fils?: number | null;
@@ -141,38 +146,49 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
   const time = row.start_time ? row.start_time.slice(0, 5) : '';
   const place = row.emirate || 'UAE';
   const track = trackUrl(row.event_id);
+  // Guest of honour and occasion, drawn from the booking so the email feels
+  // personal. `occasion` prefers the chosen package, else the celebration type.
+  const honour = (row.cart?.eventFor || '').trim();
+  const occasion =
+    row.package_name ||
+    (row.celebration_type
+      ? row.custom_theme
+        ? `${row.celebration_type} · custom theme`
+        : row.celebration_type
+      : '');
+  // Rows shared by confirmation and the 3-day reminder.
+  const partyRows: Array<[string, string]> = [
+    ...(honour ? ([['Guest of honour', honour]] as Array<[string, string]>) : []),
+    ...(occasion ? ([['Occasion', occasion]] as Array<[string, string]>) : []),
+    ['Date', date],
+    ['Time', time || '—'],
+    ['Location', place],
+    ['Reference', row.event_id],
+  ];
   switch (row.template) {
     case 'booking_confirmation':
       return {
-        subject: 'Your Eventana celebration is confirmed 🎉',
+        subject: honour
+          ? `${honour}'s Eventana celebration is confirmed 🎉`
+          : 'Your Eventana celebration is confirmed 🎉',
         html: shell({
           first,
           emoji: '🎉',
-          heading: 'Your celebration is confirmed!',
+          heading: honour ? `${honour}'s celebration is confirmed!` : 'Your celebration is confirmed!',
           bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Everything's set — here are your booking details. Our team is already getting ready to make it magical. ✨</p>
-            ${detailCard([
-              ['Date', date],
-              ['Time', time || '—'],
-              ['Location', place],
-              ['Reference', row.event_id],
-            ])}`,
+            ${detailCard(partyRows)}`,
           cta: track ? { href: track, label: 'Track your booking →' } : undefined,
         }),
       };
     case 'three_day_reminder':
       return {
-        subject: 'Your Eventana party is in 3 days 🎈',
+        subject: honour ? `${honour}'s Eventana party is in 3 days 🎈` : 'Your Eventana party is in 3 days 🎈',
         html: shell({
           first,
           emoji: '🎈',
-          heading: 'Your party is in 3 days!',
+          heading: honour ? `${honour}'s party is in 3 days!` : 'Your party is in 3 days!',
           bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Just a little reminder — the big day is almost here. We can't wait! 💖</p>
-            ${detailCard([
-              ['Date', date],
-              ['Time', time || '—'],
-              ['Location', place],
-              ['Reference', row.event_id],
-            ])}`,
+            ${detailCard(partyRows)}`,
           cta: track ? { href: track, label: 'View your booking →' } : undefined,
         }),
       };
@@ -258,12 +274,15 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     const { rows } = await pool.query<EmailRow>(
       `SELECT n.id, n.template, n.event_id,
               e.event_date, e.start_time, e.emirate,
+              e.celebration_type, e.custom_theme, o.cart, p.name AS package_name,
               c.name AS customer_name, c.email AS customer_email,
               cx.order_id AS order_ref, cx.total_paid_fils, cx.refund_percent,
               cx.refund_amount_fils, cx.refund_reference
          FROM notifications n
          JOIN events e ON e.id = n.event_id
          JOIN customers c ON c.id = e.customer_id
+         LEFT JOIN orders o ON o.id = e.order_id
+         LEFT JOIN packages p ON p.id = e.package_id
          LEFT JOIN cancellations cx ON cx.event_id = e.id
         WHERE n.channel = 'email' AND n.sent_at IS NULL AND n.cancelled_at IS NULL
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
