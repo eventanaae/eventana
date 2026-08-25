@@ -49,13 +49,11 @@ function ApplePayMark() {
     </span>
   );
 }
-function TabbyTamara() {
-  return (
-    <>
-      <span style={{ ...brandBox, background: '#c2f5e1', color: '#0a3d2a', border: 'none', letterSpacing: '.2px' }}>tabby</span>
-      <span style={{ ...brandBox, background: 'linear-gradient(90deg,#ff7aa8,#8a5cf6)', color: '#fff', border: 'none', letterSpacing: '.2px' }}>tamara</span>
-    </>
-  );
+function TabbyMark() {
+  return <span style={{ ...brandBox, background: '#c2f5e1', color: '#0a3d2a', border: 'none', letterSpacing: '.2px' }}>tabby</span>;
+}
+function TamaraMark() {
+  return <span style={{ ...brandBox, background: 'linear-gradient(90deg,#ff7aa8,#8a5cf6)', color: '#fff', border: 'none', letterSpacing: '.2px' }}>tamara</span>;
 }
 
 /** Placement photos are offered only for items actually in the booking. */
@@ -875,7 +873,8 @@ export function Checkout({
         {[
           { key: 'card', label: t('checkout.pmCard'), logos: <CardLogos />, disabled: false },
           { key: 'applepay', label: 'Apple Pay', logos: <ApplePayMark />, disabled: false },
-          { key: 'bnpl', label: t('checkout.bnpl'), logos: <TabbyTamara />, disabled: true },
+          { key: 'tabby', label: 'Tabby', logos: <TabbyMark />, disabled: true },
+          { key: 'tamara', label: 'Tamara', logos: <TamaraMark />, disabled: true },
         ].map((row, i) => {
           const selected = !row.disabled && payChoice === row.key;
           return (
