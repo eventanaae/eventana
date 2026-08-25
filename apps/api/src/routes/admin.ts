@@ -537,6 +537,16 @@ export async function adminRoutes(app: FastifyInstance) {
       custom_theme: false,
       package_name: 'Princess Castle',
       cart: { eventFor: 'Sara' },
+      total_fils: 185000,
+      quote: {
+        lines: [
+          { label: 'Princess Castle package', quantity: 1, amountFils: 150000 },
+          { label: 'Balloon Garland add-on', quantity: 1, amountFils: 25000 },
+          { label: 'Custom Theme Design', quantity: 1, amountFils: 20000 },
+          { label: 'Delivery — Dubai', quantity: 1, amountFils: 5000 },
+          { label: '15% Build Your Own discount', quantity: 1, amountFils: -15000 },
+        ],
+      },
     };
     // A standalone shop-order confirmation sample too.
     const shopSample: ShopEmailRow = {

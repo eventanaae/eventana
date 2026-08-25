@@ -119,6 +119,13 @@ export const config = {
   publicApiUrl: toUrl(env.PUBLIC_API_URL ?? env.PUBLIC_API_HOST, 'http://localhost:4000'),
   /** Public base URL of the customer app — used for provider redirects. */
   publicAppUrl: toUrl(env.PUBLIC_APP_URL ?? env.PUBLIC_APP_HOST, 'http://localhost:5173'),
+  /**
+   * Hosted Eventana logo shown at the top of customer emails. Set EMAIL_LOGO_URL
+   * once the logo file is hosted (e.g. apps/customer/public/email-logo.png served
+   * by the customer app). Empty → fall back to the multicolour text wordmark, so
+   * a missing file never shows a broken image.
+   */
+  emailLogoUrl: env.EMAIL_LOGO_URL ?? '',
   /** Public base URL of the internal dashboard. */
   publicDashboardUrl: toUrl(
     env.PUBLIC_DASHBOARD_URL ?? env.PUBLIC_DASHBOARD_HOST,

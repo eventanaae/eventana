@@ -31,6 +31,9 @@ export interface EmailRow {
   custom_theme?: boolean | null;
   package_name?: string | null;
   cart?: { eventFor?: string } | null;
+  // Itemised invoice for the confirmation (from the paid order's quote).
+  quote?: { lines?: Array<{ label: string; quantity: number; amountFils: number }> } | null;
+  total_fils?: number | null;
   // Cancellation / refund fields (present only for a cancelled order).
   order_ref?: string | null;
   total_paid_fils?: number | null;
@@ -119,8 +122,12 @@ function shell({ first, emoji, eyebrow, heading, bodyHtml, cta }: Shell): string
       <tr><td align="center" style="padding:30px 16px 44px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
           <tr><td style="text-align:center;padding:2px 0 22px">
-            <div style="font-family:${DISPLAY};font-size:30px;font-weight:700;letter-spacing:.5px">${wordmark()}</div>
-            <div style="font-family:${DISPLAY};font-size:13px;font-weight:500;color:${BRAND};letter-spacing:3px;text-transform:uppercase;margin-top:2px">Events</div>
+            ${
+              config.emailLogoUrl
+                ? `<img src="${config.emailLogoUrl}" alt="Eventana Events" width="230" style="display:inline-block;width:230px;max-width:72%;height:auto">`
+                : `<div style="font-family:${DISPLAY};font-size:30px;font-weight:700;letter-spacing:.5px">${wordmark()}</div>
+                   <div style="font-family:${DISPLAY};font-size:13px;font-weight:500;color:${BRAND};letter-spacing:3px;text-transform:uppercase;margin-top:2px">Events</div>`
+            }
           </td></tr>
           <tr><td style="background:#ffffff;border-radius:26px;overflow:hidden;border:1px solid #F6E4EF;box-shadow:0 10px 34px rgba(214,49,127,.10)">
             <div style="height:7px;background:${BRAND};background:${RAINBOW}"></div>
@@ -144,8 +151,34 @@ function shell({ first, emoji, eyebrow, heading, bodyHtml, cta }: Shell): string
   </body></html>`;
 }
 
-function fils(n: number | null | undefined): string {
-  return formatAed(Number(n ?? 0));
+/** Money for emails — always with the AED prefix (formatAed omits the currency). */
+function aed(n: number | null | undefined): string {
+  return `AED ${formatAed(Number(n ?? 0))}`;
+}
+
+/**
+ * An itemised invoice table (each booked line + a Total). Discount lines show a
+ * green minus. Used by the booking confirmation so it doubles as a receipt.
+ */
+function invoiceTable(
+  lines: Array<{ label: string; quantity: number; amountFils: number }>,
+  totalFils: number,
+): string {
+  const rows = lines
+    .map((l) => {
+      const qty = l.quantity > 1 ? `<b>${l.quantity}×</b> ` : '';
+      const neg = Number(l.amountFils) < 0;
+      const colour = neg ? '#2E9E6B' : INK;
+      return (
+        `<tr><td style="padding:9px 2px;font-size:14px;color:${INK};border-bottom:1px solid ${HAIR}">${qty}${l.label}</td>` +
+        `<td style="padding:9px 2px;text-align:right;font-size:13.5px;font-weight:700;color:${colour};border-bottom:1px solid ${HAIR};white-space:nowrap">${neg ? '−' : ''}${aed(Math.abs(Number(l.amountFils)))}</td></tr>`
+      );
+    })
+    .join('');
+  const total =
+    `<tr><td style="padding:13px 2px 2px;font-size:15px;font-weight:800;color:${INK}">Total</td>` +
+    `<td style="padding:13px 2px 2px;text-align:right;font-size:16px;font-weight:800;color:${BRAND};white-space:nowrap">${aed(totalFils)}</td></tr>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0 2px">${rows}${total}</table>`;
 }
 
 /**
@@ -205,6 +238,9 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
     ['Location', place],
     ['Reference', row.event_id],
   ];
+  // Itemised invoice lines from the paid order's quote (package, add-ons, theme,
+  // surcharge, discount, delivery — each carries a label and amount).
+  const invoiceLines = (row.quote?.lines ?? []).filter((l) => l && l.label);
   switch (row.template) {
     case 'booking_confirmation':
       return {
@@ -218,7 +254,8 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           heading: honour ? `${honour}'s celebration is confirmed!` : 'Your celebration is confirmed!',
           bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Yay — it's official! 🎉 We've saved every detail for <b>${occasionPhrase}</b>, and our team is already busy planning the magic. Here's your booking at a glance:</p>
             ${detailCard(partyRows)}
-            <p style="margin:16px 0 0;font-size:15px;line-height:1.6">Want to add a little extra or check something? You can manage it all in the app. We can't wait to celebrate with you! 💕</p>`,
+            ${invoiceLines.length ? `<div style="margin-top:22px;font-size:11.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${BRAND}">Order Summary</div>${invoiceTable(invoiceLines, Number(row.total_fils ?? 0))}` : ''}
+            <p style="margin:18px 0 0;font-size:15px;line-height:1.6">Want to add a little extra or check something? You can manage it all in the app. We can't wait to celebrate with you! 💕</p>`,
           cta: track ? { href: track, label: 'Track your booking →' } : undefined,
         }),
       };
@@ -262,9 +299,9 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
       };
     case 'cancellation_refund': {
       const ref = row.order_ref || row.event_id;
-      const paid = fils(row.total_paid_fils);
+      const paid = aed(row.total_paid_fils);
       const pct = Number(row.refund_percent ?? 0);
-      const refund = fils(row.refund_amount_fils);
+      const refund = aed(row.refund_amount_fils);
       const today = longDate(new Date().toISOString().slice(0, 10));
       return {
         subject: 'Your Eventana booking has been cancelled',
@@ -288,7 +325,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
     }
     case 'refund_processed': {
       const ref = row.order_ref || row.event_id;
-      const refund = fils(row.refund_amount_fils);
+      const refund = aed(row.refund_amount_fils);
       const rows: Array<[string, string]> = [
         ['Order Number', ref],
         ['Refund Amount', refund],
@@ -334,7 +371,7 @@ export function renderShopEmail(row: ShopEmailRow): { subject: string; html: str
         .map(
           (l) =>
             `<tr><td style="padding:8px 2px;font-size:14px;color:${INK};border-bottom:1px solid ${HAIR}"><b>${l.quantity}×</b> ${l.name}</td>` +
-            `<td style="padding:8px 2px;text-align:right;font-size:13.5px;font-weight:700;color:${INK};border-bottom:1px solid ${HAIR}">${fils(l.amountFils)}</td></tr>`,
+            `<td style="padding:8px 2px;text-align:right;font-size:13.5px;font-weight:700;color:${INK};border-bottom:1px solid ${HAIR}">${aed(l.amountFils)}</td></tr>`,
         )
         .join('') +
       `</table>`
@@ -343,8 +380,8 @@ export function renderShopEmail(row: ShopEmailRow): { subject: string; html: str
   const detail: Array<[string, string]> = [['Order Number', row.order_id]];
   if (row.cart?.readyBy) detail.push(['Ready by', longDate(row.cart.readyBy)]);
   if (row.cart?.emirate) detail.push(['Delivering to', row.cart.emirate]);
-  if (delivery > 0) detail.push(['Delivery', fils(delivery)]);
-  detail.push(['Total', fils(row.total_fils)]);
+  if (delivery > 0) detail.push(['Delivery', aed(delivery)]);
+  detail.push(['Total', aed(row.total_fils)]);
   const app = (config.publicAppUrl || '').replace(/\/$/, '') || null;
   return {
     subject: 'Your Eventana order is confirmed 🎁',
@@ -372,7 +409,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     const { rows } = await pool.query<EmailRow>(
       `SELECT n.id, n.template, n.event_id,
               e.event_date, e.start_time, e.emirate,
-              e.celebration_type, e.custom_theme, o.cart, p.name AS package_name,
+              e.celebration_type, e.custom_theme, o.cart, o.quote, o.total_fils, p.name AS package_name,
               c.name AS customer_name, c.email AS customer_email,
               cx.order_id AS order_ref, cx.total_paid_fils, cx.refund_percent,
               cx.refund_amount_fils, cx.refund_reference
