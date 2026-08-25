@@ -54,6 +54,14 @@ function trackUrl(eventId: string): string | null {
   return base ? `${base}/?event=${encodeURIComponent(eventId)}` : null;
 }
 
+/** A text link to the app (falls back to plain text if no URL is configured). */
+function appLink(label: string): string {
+  const base = (config.publicAppUrl || '').replace(/\/$/, '');
+  return base
+    ? `<a href="${base}" style="color:${BRAND};text-decoration:none;font-weight:700">${label}</a>`
+    : label;
+}
+
 /** Bulletproof, centred pill button (solid colour — no gradient, for Outlook). */
 function button(href: string, label: string): string {
   return `<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:24px auto 4px">
@@ -107,7 +115,8 @@ function shell({ first, emoji, heading, bodyHtml, cta, accent = BRAND }: Shell):
           </td></tr>
           <tr><td style="text-align:center;color:#b8ada6;font-size:11.5px;padding:22px 12px 0;line-height:1.8">
             Eventana Events · Abu Dhabi &amp; Dubai, UAE<br>
-            Questions? Just reply to this email — we're happy to help. 💌
+            Need to make a change or follow up? Manage everything in the ${appLink('Eventana app')}. 💛<br>
+            <span style="color:#c9bfb8">This inbox isn't monitored — please don't reply.</span>
           </td></tr>
         </table>
       </td></tr>
@@ -175,8 +184,9 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           first,
           emoji: '🎉',
           heading: honour ? `${honour}'s celebration is confirmed!` : 'Your celebration is confirmed!',
-          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Everything's set — here are your booking details. Our team is already getting ready to make it magical. ✨</p>
-            ${detailCard(partyRows)}`,
+          bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Yay — it's official! 🎉 We've saved every detail${honour ? ` for ${honour}'s big day` : ''}, and our team is already busy planning the magic. Here's your booking at a glance:</p>
+            ${detailCard(partyRows)}
+            <p style="margin:16px 0 0;font-size:15px;line-height:1.6">Want to add a little extra or check something? You can manage it all in the app. We can't wait to celebrate with you! 💕</p>`,
           cta: track ? { href: track, label: 'Track your booking →' } : undefined,
         }),
       };
@@ -187,8 +197,9 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           first,
           emoji: '🎈',
           heading: honour ? `${honour}'s party is in 3 days!` : 'Your party is in 3 days!',
-          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Just a little reminder — the big day is almost here. We can't wait! 💖</p>
-            ${detailCard(partyRows)}`,
+          bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">The countdown is on — just 3 days to go and we're getting everything ready! 🎉 Here's a quick reminder of your booking:</p>
+            ${detailCard(partyRows)}
+            <p style="margin:16px 0 0;font-size:15px;line-height:1.6">Need to tweak anything before the day? It's all in the app — quick and easy. See you very soon! 💖</p>`,
           cta: track ? { href: track, label: 'View your booking →' } : undefined,
         }),
       };
@@ -199,7 +210,8 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           first,
           emoji: '🥳',
           heading: "It's party day!",
-          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day! Your Eventana celebration starts at <b>${time || 'your booked time'}</b> and our team is on the way. 🚚✨</p>`,
+          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day and we couldn't be more excited! 🥳 ${honour ? `${honour}'s` : 'Your'} celebration starts at <b>${time || 'your booked time'}</b>, and our team is already on the way with all the magic. 🚚✨</p>
+            <p style="margin:14px 0 0;font-size:15px;line-height:1.6">Everything you need is in the app. Have the most wonderful time — you've earned it! 💛</p>`,
           cta: track ? { href: track, label: 'View your booking →' } : undefined,
         }),
       };
@@ -210,7 +222,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           first,
           emoji: '🌸',
           heading: 'Your booking was cancelled',
-          bodyHtml: `<p style="margin:0;font-size:15px;line-height:1.6">Your booking <b>${row.event_id}</b> for ${date} has been cancelled. If this wasn't expected, just reply to this email or message us on WhatsApp and we'll sort it out.</p>`,
+          bodyHtml: `<p style="margin:0;font-size:15px;line-height:1.6">We're sorry to see this celebration go. 🌸 Your booking <b>${row.event_id}</b> for ${date} has been cancelled. If anything doesn't look right, you can review your bookings or message our team anytime in the app — we're always here for you. 💛</p>`,
         }),
       };
     case 'cancellation_refund': {
