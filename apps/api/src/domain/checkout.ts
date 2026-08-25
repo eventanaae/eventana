@@ -48,15 +48,20 @@ export interface CheckoutRequest {
   discounts?: DiscountInput;
 }
 
-/** Provider return URLs, each carrying the unguessable order-view token. */
+/**
+ * Provider return URLs, each carrying the unguessable order-view token.
+ *
+ * These point at the app ROOT (with the order in the query) rather than a
+ * /pay/* deep path: the static host does not rewrite deep paths to index.html,
+ * so a /pay/return URL 404s ("Not Found") after payment. The app reads the
+ * `order` param on any path and then polls the SERVER for the real status
+ * (paid / failed / cancelled), so one root URL serves all three outcomes.
+ */
 function payReturnUrls(orderId: string): { successUrl: string; cancelUrl: string; failureUrl: string } {
   const t = orderViewToken(orderId);
   const base = config.publicAppUrl;
-  return {
-    successUrl: `${base}/pay/return?order=${orderId}&t=${t}`,
-    cancelUrl: `${base}/pay/cancel?order=${orderId}&t=${t}`,
-    failureUrl: `${base}/pay/failure?order=${orderId}&t=${t}`,
-  };
+  const ret = `${base}/?order=${orderId}&t=${t}`;
+  return { successUrl: ret, cancelUrl: ret, failureUrl: ret };
 }
 
 export class CheckoutError extends Error {
