@@ -156,6 +156,16 @@ function aed(n: number | null | undefined): string {
   return `AED ${formatAed(Number(n ?? 0))}`;
 }
 
+/** "16:00" → "4:00 PM" — friendly 12-hour time for customers. */
+function time12(hhmm: string | null | undefined): string {
+  if (!hhmm) return '';
+  const [h, m] = String(hhmm).split(':').map(Number);
+  if (Number.isNaN(h)) return String(hhmm);
+  const suffix = h >= 12 && h < 24 ? 'PM' : 'AM';
+  const hr = ((h + 11) % 12) + 1;
+  return `${hr}:${String(m || 0).padStart(2, '0')} ${suffix}`;
+}
+
 /**
  * An itemised invoice table (each booked line + a Total). Discount lines show a
  * green minus. Used by the booking confirmation so it doubles as a receipt.
@@ -209,7 +219,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
   // celebration is for. Plus the event type (Birthday, Gender Reveal, …).
   const first = (row.customer_name || 'there').split(' ')[0];
   const date = longDate(row.event_date);
-  const time = row.start_time ? row.start_time.slice(0, 5) : '';
+  const time = time12(row.start_time);
   const place = row.emirate || 'UAE';
   const track = trackUrl(row.event_id);
   const honour = (row.cart?.eventFor || '').trim();
