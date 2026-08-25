@@ -526,12 +526,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const sample: EmailRow = {
       id: 0,
       template: '',
-      event_id: 'EVT-ORD-000123',
+      event_id: 'EV-2026-0123',
       event_date: '2026-09-15',
       start_time: '16:00:00',
       emirate: 'Dubai',
       customer_name: staffName,
       customer_email: email,
+      celebration_type: 'Birthday',
+      custom_theme: false,
+      package_name: 'Princess Castle',
+      cart: { eventFor: 'Sara' },
     };
     let sent = 0;
     const failed: string[] = [];
