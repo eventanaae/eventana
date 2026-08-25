@@ -193,14 +193,20 @@ export default function App() {
     api.socialProof().then(setSocial).catch(() => setSocial(null));
   }, []);
 
-  // Returning from a provider's hosted checkout.
+  // Returning from a provider's hosted checkout, or opening a booking straight
+  // from an email's "Track your booking" button (?event=<id>).
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const returned = params.get('order');
+    const openEvent = params.get('event');
     if (returned) {
       setOrderId(returned);
       setOrderToken(params.get('t'));
       setScreen('confirming');
+      history.replaceState({}, '', location.pathname);
+    } else if (openEvent) {
+      setEventId(openEvent);
+      setScreen('myevent');
       history.replaceState({}, '', location.pathname);
     }
   }, []);
