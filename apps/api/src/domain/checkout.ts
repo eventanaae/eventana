@@ -493,6 +493,12 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
       readyBy,
     };
   } catch (err) {
+    console.error(
+      '[shop-checkout] session creation failed:',
+      (err as Error).message,
+      'status=', (err as any).status,
+      'body=', JSON.stringify((err as any).body ?? null).slice(0, 500),
+    );
     await pool.query(`UPDATE orders SET status = 'failed', updated_at = now() WHERE id = $1`, [orderId]);
     throw new CheckoutError(
       'We could not start the payment. Please try again or choose another method.',
