@@ -419,6 +419,29 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE INDEX IF NOT EXISTS notifications_pending_idx
   ON notifications (scheduled_for) WHERE sent_at IS NULL AND cancelled_at IS NULL;
 
+-- ── Cancellations & refunds ──────────────────────────────────────────────
+-- One row per cancelled order. The refund amount is computed on the server
+-- from the approved policy (see packages/shared/src/refund.ts) at cancellation
+-- time and frozen here, so the customer, the team and the eventual money-out
+-- all agree on one number. refund_status: pending → processing → processed /
+-- failed. The actual money-out is still the staff-only refund route.
+CREATE TABLE IF NOT EXISTS cancellations (
+  order_id            TEXT PRIMARY KEY REFERENCES orders(id),
+  event_id            TEXT,
+  cancelled_by        TEXT NOT NULL DEFAULT 'customer',   -- customer | staff
+  reason              TEXT,
+  total_paid_fils     INTEGER NOT NULL,
+  delivery_fils       INTEGER NOT NULL DEFAULT 0,
+  non_refundable_fils INTEGER NOT NULL DEFAULT 0,
+  party_value_fils    INTEGER NOT NULL DEFAULT 0,
+  refund_percent      INTEGER NOT NULL DEFAULT 0,
+  refund_amount_fils  INTEGER NOT NULL DEFAULT 0,
+  refund_status       TEXT NOT NULL DEFAULT 'pending',    -- pending|processing|processed|failed|none
+  refund_reference    TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  processed_at        TIMESTAMPTZ
+);
+
 -- Sequences for the human-facing identifiers.
 CREATE SEQUENCE IF NOT EXISTS order_ref_seq START 1;
 CREATE SEQUENCE IF NOT EXISTS event_ref_seq START 187;

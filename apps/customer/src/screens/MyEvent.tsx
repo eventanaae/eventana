@@ -3,6 +3,7 @@ import { api } from '../api';
 import type { Screen } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Spinner, timeLabel } from '../ui';
 import type { Lang, TFn } from '../i18n';
+import { TermsSheet } from './Terms';
 
 const PHASES = [
   'Booking Confirmed',
@@ -224,6 +225,15 @@ export function MyEvent({
         <Reschedule eventId={event.id} t={t} onDone={async () => setEvent(await api.event(event.id))} />
       )}
 
+      {!cancelled && event.canCancel && (
+        <CancelBooking
+          event={event}
+          t={t}
+          lang={lang}
+          onDone={async () => setEvent(await api.event(event.id))}
+        />
+      )}
+
       {cancelled && (
         <div style={{ marginBottom: 14 }}>
           <Notice tone="error">
@@ -233,6 +243,20 @@ export function MyEvent({
               {t('me.cancelledBody')}
             </div>
           </Notice>
+          {event.cancellation && (
+            <div style={{ ...card, marginTop: 12 }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5, color: C.ink, marginBottom: 8 }}>
+                💳 {t('cancel.refundTitle')}
+              </div>
+              <SummaryRow label={t('cancel.refundStatus')} value={t(`cancel.status_${event.cancellation.refundStatus}` as any)} strong />
+              {event.cancellation.refundAmountFils > 0 && (
+                <SummaryRow label={t('cancel.expectedRefund')} value={`${event.cancellation.refundAmountDisplay} ${t('common.aed')}`} />
+              )}
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+                {t('cancel.eta7days')}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -968,6 +992,153 @@ const stepBtn: React.CSSProperties = {
 const card: React.CSSProperties = {
   background: '#fff', borderRadius: 22, padding: '18px 20px',
   boxShadow: C.shadow, marginBottom: 14,
+};
+
+function SummaryRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', fontSize: 12.5 }}>
+      <span style={{ color: C.muted, fontWeight: 600 }}>{label}</span>
+      <span style={{ fontWeight: strong ? 800 : 700, color: C.ink }}>{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Cancel Booking flow: policy + server-computed refund preview → final
+ * confirmation → cancel. The refund figure comes from the server and is what
+ * the team will honour; the app never computes it locally.
+ */
+function CancelBooking({
+  event,
+  t,
+  lang,
+  onDone,
+}: {
+  event: any;
+  t: TFn;
+  lang: Lang;
+  onDone: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<'intro' | 'confirm'>('intro');
+  const [quote, setQuote] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [terms, setTerms] = useState(false);
+
+  const expand = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !quote) {
+      setLoading(true);
+      try {
+        setQuote(await api.cancellationQuote(event.id));
+      } catch (e: any) {
+        setError(e?.message ?? t('cancel.err'));
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const confirm = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.cancelEvent(event.id);
+      await onDone();
+    } catch (e: any) {
+      setError(e?.body?.error === 'already_cancelled' ? t('cancel.errRetry') : e?.message ?? t('cancel.err'));
+      setBusy(false);
+    }
+  };
+
+  const r = quote?.refund;
+  const aed = t('common.aed');
+
+  return (
+    <div style={{ ...card, border: `1px solid ${C.pinkLine}` }}>
+      <button
+        onClick={expand}
+        style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 0 }}
+      >
+        <span style={{ fontWeight: 700, fontSize: 13.5, color: C.ink }}>⚠️ {t('cancel.manage')}</span>
+        <span style={{ color: C.pinkDeep, fontWeight: 700, fontSize: 16 }}>{open ? '−' : '＋'}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          {loading && <Spinner label={t('cancel.loading')} />}
+          {!loading && r && step === 'intro' && (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.ink, marginBottom: 6 }}>{t('cancel.policyTitle')}</div>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, lineHeight: 1.7, marginBottom: 10 }}>
+                {t('cancel.tier1')}<br />{t('cancel.tier2')}<br />{t('cancel.tier3')}<br />{t('cancel.tierExtras')}
+              </div>
+              <div style={{ background: C.cream, borderRadius: 14, padding: '12px 14px', marginBottom: 10 }}>
+                <SummaryRow label={t('cancel.totalPaid')} value={`${r.totalPaidDisplay} ${aed}`} />
+                <SummaryRow label={t('cancel.refundPct')} value={`${r.percent}%`} />
+                <SummaryRow label={t('cancel.deduction')} value={`${r.deductionDisplay} ${aed}`} />
+                <div style={{ borderTop: `1px solid ${C.pinkLine}`, marginTop: 4, paddingTop: 4 }}>
+                  <SummaryRow label={t('cancel.refundAmount')} value={`${r.refundDisplay} ${aed}`} strong />
+                </div>
+              </div>
+              {r.refundFils === 0 && (
+                <div style={{ marginBottom: 10 }}><Notice tone="error">{t('cancel.noRefundWarn')}</Notice></div>
+              )}
+              <button
+                onClick={() => setTerms(true)}
+                style={{ background: 'none', border: 'none', color: C.pinkDeep, fontWeight: 700, fontSize: 11.5, cursor: 'pointer', padding: 0, marginBottom: 12, textDecoration: 'underline' }}
+              >
+                {t('cancel.viewTerms')}
+              </button>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>{t('cancel.eta7days')}</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setOpen(false)} style={cancelKeepBtn}>{t('cancel.keep')}</button>
+                <button onClick={() => setStep('confirm')} style={cancelDangerOutlineBtn}>{t('cancel.continue')}</button>
+              </div>
+            </>
+          )}
+          {!loading && r && step === 'confirm' && (
+            <>
+              <div style={{ fontWeight: 800, fontSize: 14, color: C.ink, marginBottom: 8 }}>{t('cancel.confirmTitle')}</div>
+              <div style={{ background: C.cream, borderRadius: 14, padding: '12px 14px', marginBottom: 10 }}>
+                <SummaryRow label={t('cancel.event')} value={event.packageName ?? t('me.celebration')} />
+                <SummaryRow label={t('cancel.date')} value={new Date(event.date).toLocaleDateString()} />
+                <SummaryRow label={t('cancel.order')} value={event.orderId} />
+                <SummaryRow label={t('cancel.totalPaid')} value={`${r.totalPaidDisplay} ${aed}`} />
+                <SummaryRow label={t('cancel.refundPct')} value={`${r.percent}%`} />
+                <SummaryRow label={t('cancel.refundAmount')} value={`${r.refundDisplay} ${aed}`} strong />
+              </div>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>{t('cancel.eta7days')}</div>
+              {error && <div style={{ marginBottom: 10 }}><Notice tone="error">{error}</Notice></div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setStep('intro'); setError(null); }} disabled={busy} style={cancelKeepBtn}>{t('cancel.keep')}</button>
+                <button onClick={confirm} disabled={busy} style={{ ...cancelDangerBtn, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+                  {busy ? t('cancel.cancelling') : t('cancel.confirmBtn')}
+                </button>
+              </div>
+            </>
+          )}
+          {error && !r && <div style={{ marginTop: 8 }}><Notice tone="error">{error}</Notice></div>}
+        </div>
+      )}
+      {terms && <TermsSheet lang={lang} onClose={() => setTerms(false)} />}
+    </div>
+  );
+}
+
+const cancelKeepBtn: React.CSSProperties = {
+  flex: 1, background: C.pinkSoft, color: C.pinkDeep, border: 'none',
+  fontWeight: 700, fontSize: 12.5, padding: '12px 0', borderRadius: 14, cursor: 'pointer',
+};
+const cancelDangerOutlineBtn: React.CSSProperties = {
+  flex: 1, background: '#fff', color: C.red, border: `1.5px solid ${C.red}`,
+  fontWeight: 700, fontSize: 12.5, padding: '12px 0', borderRadius: 14, cursor: 'pointer',
+};
+const cancelDangerBtn: React.CSSProperties = {
+  flex: 1, background: C.red, color: '#fff', border: 'none',
+  fontWeight: 700, fontSize: 12.5, padding: '12px 0', borderRadius: 14,
 };
 
 void timeLabel;

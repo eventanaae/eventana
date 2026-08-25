@@ -201,6 +201,15 @@ export const api = {
 
   rebook: (eventId: string) => request<Record<string, unknown>>(`/api/events/${eventId}/rebook`),
 
+  cancellationQuote: (eventId: string) =>
+    request<any>(`/api/events/${eventId}/cancellation-quote`),
+
+  cancelEvent: (eventId: string, reason?: string) =>
+    request<any>(`/api/events/${eventId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    }),
+
   reschedule: (eventId: string, date: string, startTime: string) =>
     request<{ ok: boolean; date: string; startTime: string; endTime: string }>(
       `/api/events/${eventId}/reschedule`,

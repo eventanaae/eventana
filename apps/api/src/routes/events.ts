@@ -5,18 +5,20 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  computeRefund,
   formatAed,
   formatHour,
   isCancelled,
   parseHour,
   purchasableExtraHours,
   quoteAddons,
+  REFUND_TIERS,
   suggestedSocksPairs,
 } from '@eventana/shared';
 
 /** "17:00" -> "5:00 PM". Times are stored 24h and displayed 12h. */
 const display = (time: string) => formatHour(parseHour(time));
-import { pool } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, startAddonCheckout, startTipCheckout } from '../domain/checkout.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -225,16 +227,221 @@ export async function eventRoutes(app: FastifyInstance) {
     }
   });
 
+  /**
+   * Cancellation refund preview — server-authoritative, no changes made. The
+   * app shows exactly this before the customer confirms, so the number they
+   * see is the number that will be honoured. Refund policy lives in
+   * packages/shared/src/refund.ts (Terms & Conditions §7).
+   */
+  const startMsOf = (ev: { event_date: unknown; start_time: string }): number =>
+    Date.parse(
+      `${new Date(ev.event_date as string).toISOString().slice(0, 10)}T${ev.start_time}:00+04:00`,
+    );
+
+  const refundView = (ev: {
+    event_date: unknown;
+    start_time: string;
+    total_fils: unknown;
+    quote: any;
+  }) => {
+    const hoursToEvent = (startMsOf(ev) - Date.now()) / 3_600_000;
+    const b = computeRefund({
+      lines: ev.quote?.lines ?? [],
+      totalPaidFils: Number(ev.total_fils),
+      hoursToEvent,
+    });
+    return {
+      ...b,
+      totalPaidDisplay: formatAed(b.totalPaidFils),
+      deliveryDisplay: formatAed(b.deliveryFils),
+      nonRefundableExtrasDisplay: formatAed(b.nonRefundableExtrasFils),
+      partyValueDisplay: formatAed(b.partyValueFils),
+      refundDisplay: formatAed(b.refundFils),
+      deductionDisplay: formatAed(b.deductionFils),
+    };
+  };
+
+  app.get('/api/events/:eventId/cancellation-quote', async (request, reply) => {
+    const customerId = customerIdOf(request);
+    if (!customerId) return reply.status(401).send({ error: 'auth_required' });
+    const { eventId } = request.params as { eventId: string };
+    const { rows } = await pool.query(
+      `SELECT e.phase, e.event_date, e.start_time, o.status AS order_status, o.total_fils, o.quote
+         FROM events e JOIN orders o ON o.id = e.order_id
+        WHERE e.id = $1 AND e.customer_id = $2`,
+      [eventId, customerId],
+    );
+    const ev = rows[0];
+    if (!ev) return reply.status(404).send({ error: 'not_found' });
+
+    const alreadyCancelled = isCancelled(ev.phase);
+    const started = ['Party Started', 'Event Completed'].includes(ev.phase);
+    const passed = startMsOf(ev) - Date.now() <= 0;
+    const cancellable = !alreadyCancelled && ev.order_status === 'paid' && !started && !passed;
+
+    return {
+      cancellable,
+      reason: alreadyCancelled
+        ? 'already_cancelled'
+        : ev.order_status !== 'paid'
+          ? 'not_paid'
+          : started || passed
+            ? 'event_started'
+            : null,
+      refund: refundView(ev),
+      refundEta: 'approximately 7 business days',
+      policy: REFUND_TIERS,
+    };
+  });
+
+  /**
+   * Customer-initiated cancellation. This cancels the event and records the
+   * refund the policy owes — it does NOT move money. The actual refund is a
+   * separate, staff-reviewed step (the existing admin refund route), which is
+   * what flips the refund to "processed" and sends the refund email. Guarded
+   * against double-clicks and stale clients by the phase check under a row lock.
+   */
+  app.post('/api/events/:eventId/cancel', async (request, reply) => {
+    const customerId = customerIdOf(request);
+    if (!customerId) return reply.status(401).send({ error: 'auth_required' });
+    const { eventId } = request.params as { eventId: string };
+    const schema = z.object({ reason: z.string().max(500).optional() });
+    const parsed = schema.safeParse(request.body ?? {});
+    const reason =
+      (parsed.success && parsed.data.reason?.trim()) || 'Customer cancelled from the app';
+
+    const result = await withTransaction(async (db) => {
+      const { rows } = await db.query(
+        `SELECT e.*, o.id AS order_id, o.status AS order_status, o.total_fils, o.quote
+           FROM events e JOIN orders o ON o.id = e.order_id
+          WHERE e.id = $1 AND e.customer_id = $2
+          FOR UPDATE OF e`,
+        [eventId, customerId],
+      );
+      const ev = rows[0];
+      if (!ev) return { code: 404 as const, error: 'not_found' };
+      if (isCancelled(ev.phase)) return { code: 409 as const, error: 'already_cancelled' };
+      if (ev.order_status !== 'paid') return { code: 409 as const, error: 'not_paid' };
+      if (['Party Started', 'Event Completed'].includes(ev.phase)) {
+        return { code: 409 as const, error: 'event_started' };
+      }
+      if (startMsOf(ev) - Date.now() <= 0) return { code: 409 as const, error: 'event_passed' };
+
+      const hoursToEvent = (startMsOf(ev) - Date.now()) / 3_600_000;
+      const b = computeRefund({
+        lines: ev.quote?.lines ?? [],
+        totalPaidFils: Number(ev.total_fils),
+        hoursToEvent,
+      });
+
+      // Freeze the event.
+      await db.query(
+        `UPDATE events SET phase = 'Cancelled', eta = NULL, cancelled_at = now(),
+                cancellation_reason = $2 WHERE id = $1`,
+        [eventId, reason],
+      );
+      await db.query(
+        `UPDATE inventory_holds SET status = 'released'
+          WHERE event_id = $1 AND status IN ('held','reserved')`,
+        [eventId],
+      );
+      await db.query(
+        `UPDATE notifications SET cancelled_at = now()
+          WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL`,
+        [eventId],
+      );
+      await db.query(
+        `UPDATE event_tasks SET status = 'done' WHERE event_id = $1 AND status <> 'done'`,
+        [eventId],
+      );
+
+      // Record the cancellation + the refund we owe. A 0% refund is recorded
+      // as 'none' so the team isn't asked to process a zero payout.
+      const refundStatus = b.refundFils > 0 ? 'pending' : 'none';
+      await db.query(
+        `INSERT INTO cancellations
+           (order_id, event_id, cancelled_by, reason, total_paid_fils, delivery_fils,
+            non_refundable_fils, party_value_fils, refund_percent, refund_amount_fils, refund_status)
+         VALUES ($1,$2,'customer',$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (order_id) DO NOTHING`,
+        [
+          ev.order_id,
+          eventId,
+          reason,
+          b.totalPaidFils,
+          b.deliveryFils,
+          b.nonRefundableExtrasFils,
+          b.partyValueFils,
+          b.percent,
+          b.refundFils,
+          refundStatus,
+        ],
+      );
+
+      // Ops: a finance task to action the refund, plus a dashboard alert.
+      await db.query(
+        `INSERT INTO event_tasks (event_id, department, title)
+         VALUES ($1,'finance',$2)`,
+        [
+          eventId,
+          b.refundFils > 0
+            ? `Customer cancelled — process ${b.percent}% refund (${formatAed(b.refundFils)})`
+            : `Customer cancelled — no refund due per policy`,
+        ],
+      );
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES ($1,'ops_alert','order_cancelled', now(), $2)`,
+        [
+          eventId,
+          JSON.stringify({
+            orderId: ev.order_id,
+            refundFils: b.refundFils,
+            percent: b.percent,
+          }),
+        ],
+      );
+
+      // Customer: the cancellation email (with the refund breakdown).
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES ($1,'email','cancellation_refund', now(), $2)`,
+        [eventId, JSON.stringify({ orderId: ev.order_id })],
+      );
+
+      return { code: 200 as const, breakdown: b, refundStatus };
+    });
+
+    if (result.code !== 200) {
+      return reply.status(result.code).send({ error: result.error });
+    }
+    return {
+      ok: true,
+      refundStatus: result.refundStatus,
+      refund: {
+        percent: result.breakdown.percent,
+        refundFils: result.breakdown.refundFils,
+        refundDisplay: formatAed(result.breakdown.refundFils),
+        totalPaidDisplay: formatAed(result.breakdown.totalPaidFils),
+      },
+      refundEta: 'approximately 7 business days',
+    };
+  });
+
   app.get('/api/events/:eventId', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const customerId = customerIdOf(request);
     const cfg = await loadConfig();
 
     const { rows } = await pool.query(
-      `SELECT e.*, o.total_fils, o.status AS order_status, p.name AS package_name
+      `SELECT e.*, o.total_fils, o.status AS order_status, p.name AS package_name,
+              cx.cancelled_by, cx.refund_percent, cx.refund_amount_fils,
+              cx.total_paid_fils AS cx_total_paid, cx.refund_status, cx.refund_reference,
+              cx.processed_at AS refund_processed_at
          FROM events e
          JOIN orders o ON o.id = e.order_id
          LEFT JOIN packages p ON p.id = e.package_id
+         LEFT JOIN cancellations cx ON cx.order_id = e.order_id
         WHERE e.id = $1 AND e.customer_id = $2`,
       [eventId, customerId],
     );
@@ -312,6 +519,25 @@ export async function eventRoutes(app: FastifyInstance) {
       canReschedule,
       cancelledAt: event.cancelled_at,
       cancellationReason: event.cancellation_reason,
+      // Whether the customer may cancel from the app right now, and (once
+      // cancelled) the refund the server computed and its progress.
+      canCancel:
+        !cancelled &&
+        event.order_status === 'paid' &&
+        !['Party Started', 'Event Completed'].includes(event.phase) &&
+        startMs - Date.now() > 0,
+      cancellation: event.refund_status
+        ? {
+            cancelledBy: event.cancelled_by,
+            refundPercent: Number(event.refund_percent ?? 0),
+            refundAmountFils: Number(event.refund_amount_fils ?? 0),
+            refundAmountDisplay: formatAed(Number(event.refund_amount_fils ?? 0)),
+            totalPaidDisplay: formatAed(Number(event.cx_total_paid ?? 0)),
+            refundStatus: event.refund_status,
+            refundReference: event.refund_reference,
+            processedAt: event.refund_processed_at,
+          }
+        : null,
       // Live tracking is suppressed outright rather than left to the app
       // to hide — a cancelled event has no team on the way.
       eta: cancelled ? null : event.eta,

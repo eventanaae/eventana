@@ -437,6 +437,54 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                 </div>
               </Panel>
 
+              {data.event.cancellation && (
+                <Panel title="Cancellation & refund">
+                  {(() => {
+                    const cx = data.event.cancellation;
+                    const statusTone =
+                      cx.refundStatus === 'processed'
+                        ? 'ok'
+                        : cx.refundStatus === 'failed'
+                          ? 'error'
+                          : cx.refundStatus === 'none'
+                            ? 'neutral'
+                            : 'warn';
+                    const row = (k: string, v: string) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '3px 0' }}>
+                        <span style={{ color: C.muted, fontWeight: 700 }}>{k}</span>
+                        <span style={{ fontWeight: 700, color: C.ink }}>{v}</span>
+                      </div>
+                    );
+                    return (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <Badge tone={statusTone}>Refund {cx.refundStatus}</Badge>
+                          <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>
+                            cancelled by {cx.cancelledBy}
+                          </span>
+                        </div>
+                        {row('Total paid', cx.totalPaidDisplay)}
+                        {row('Refund %', `${cx.refundPercent}%`)}
+                        {row('Refund owed', cx.refundAmountDisplay)}
+                        {cx.refundReference ? row('Reference', String(cx.refundReference)) : null}
+                        {cx.refundStatus === 'pending' && cx.refundAmountFils > 0 && (
+                          <Button
+                            tone="ghost"
+                            style={{ marginTop: 10, fontSize: 11.5, padding: '8px 12px' }}
+                            onClick={() => {
+                              setRefundAmount(String(cx.refundAmountFils / 100));
+                              setRefundReason(`Customer cancellation — ${cx.refundPercent}% per policy`);
+                            }}
+                          >
+                            Use policy amount ({cx.refundAmountDisplay}) →
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </Panel>
+              )}
+
               <Panel title="Refund">
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
                   Refunds can only be started here, by a staff account. The status is set from the

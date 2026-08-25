@@ -25,6 +25,12 @@ export interface EmailRow {
   emirate: string | null;
   customer_name: string | null;
   customer_email: string | null;
+  // Cancellation / refund fields (present only for a cancelled order).
+  order_ref?: string | null;
+  total_paid_fils?: number | null;
+  refund_percent?: number | null;
+  refund_amount_fils?: number | null;
+  refund_reference?: string | null;
 }
 
 function shell(first: string, bodyHtml: string): string {
@@ -42,6 +48,22 @@ function shell(first: string, bodyHtml: string): string {
       </div>
     </div>
   </body></html>`;
+}
+
+function fils(n: number | null | undefined): string {
+  return formatAed(Number(n ?? 0));
+}
+
+/** A small, email-safe label/value table for booking & refund details. */
+function detailTable(rows: Array<[string, string]>): string {
+  const body = rows
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:6px 0;color:#8a7f88;font-size:13px">${k}</td>` +
+        `<td style="padding:6px 0;text-align:right;font-weight:700;font-size:13px">${v}</td></tr>`,
+    )
+    .join('');
+  return `<table style="width:100%;border-collapse:collapse;border-top:1px solid #efe7ee;margin-top:6px">${body}</table>`;
 }
 
 function longDate(dateStr: string | null): string {
@@ -82,6 +104,48 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         subject: 'Your Eventana booking was cancelled',
         html: shell(first, `<p style="margin:0 0 14px">Your booking <b>${row.event_id}</b> for ${date} has been cancelled. If this wasn't expected, please reply to this email or contact us on WhatsApp.</p>`),
       };
+    case 'cancellation_refund': {
+      const ref = row.order_ref || row.event_id;
+      const paid = fils(row.total_paid_fils);
+      const pct = Number(row.refund_percent ?? 0);
+      const refund = fils(row.refund_amount_fils);
+      const today = longDate(new Date().toISOString().slice(0, 10));
+      return {
+        subject: 'Your Eventana booking has been cancelled',
+        html: shell(
+          first,
+          `<p style="margin:0 0 14px">Your booking has been <b>successfully cancelled</b>. We're sorry to see this celebration go. 💛</p>
+           ${detailTable([
+             ['Order Number', ref],
+             ['Event Date', date],
+             ['Cancellation Date', today],
+             ['Amount Paid', paid],
+             ['Refund Percentage', `${pct}%`],
+             ['Expected Refund', refund],
+           ])}
+           <p style="margin:14px 0 0;color:#8a7f88;font-size:13px">Your refund may take approximately <b>7 business days</b> to appear in your account, depending on your bank or payment provider.</p>`,
+        ),
+      };
+    }
+    case 'refund_processed': {
+      const ref = row.order_ref || row.event_id;
+      const refund = fils(row.refund_amount_fils);
+      const rows: Array<[string, string]> = [
+        ['Order Number', ref],
+        ['Refund Amount', refund],
+        ['Refund Status', 'Processed'],
+      ];
+      if (row.refund_reference) rows.push(['Refund Reference', String(row.refund_reference)]);
+      return {
+        subject: 'Your Eventana refund has been processed',
+        html: shell(
+          first,
+          `<p style="margin:0 0 14px">Good news — your refund has been <b>processed</b>. 💛</p>
+           ${detailTable(rows)}
+           <p style="margin:14px 0 0;color:#8a7f88;font-size:13px">Please allow approximately <b>7 business days</b> for the amount to appear in your account, depending on your bank or payment provider.</p>`,
+        ),
+      };
+    }
     default:
       return null;
   }
@@ -97,10 +161,13 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     const { rows } = await pool.query<EmailRow>(
       `SELECT n.id, n.template, n.event_id,
               e.event_date, e.start_time, e.emirate,
-              c.name AS customer_name, c.email AS customer_email
+              c.name AS customer_name, c.email AS customer_email,
+              cx.order_id AS order_ref, cx.total_paid_fils, cx.refund_percent,
+              cx.refund_amount_fils, cx.refund_reference
          FROM notifications n
          JOIN events e ON e.id = n.event_id
          JOIN customers c ON c.id = e.customer_id
+         LEFT JOIN cancellations cx ON cx.event_id = e.id
         WHERE n.channel = 'email' AND n.sent_at IS NULL AND n.cancelled_at IS NULL
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST

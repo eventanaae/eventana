@@ -292,10 +292,15 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     const { rows } = await pool.query(
       `SELECT e.*, c.name AS customer, c.phone, c.email, o.id AS order_id,
-              o.status AS order_status, o.total_fils, o.quote, o.cart
+              o.status AS order_status, o.total_fils, o.quote, o.cart,
+              cx.cancelled_by, cx.reason AS cancellation_note, cx.total_paid_fils AS cx_total_paid,
+              cx.delivery_fils AS cx_delivery, cx.non_refundable_fils AS cx_non_refundable,
+              cx.party_value_fils AS cx_party_value, cx.refund_percent, cx.refund_amount_fils,
+              cx.refund_status, cx.refund_reference, cx.processed_at AS refund_processed_at
          FROM events e
          JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id
+         LEFT JOIN cancellations cx ON cx.order_id = o.id
         WHERE e.id = $1`,
       [eventId],
     );
@@ -352,6 +357,24 @@ export async function adminRoutes(app: FastifyInstance) {
         // exact door, not just the free-text note (#M3).
         address:
           (rows[0].cart as { address?: Record<string, string> } | null)?.address ?? null,
+        // Cancellation + refund (present only when the order was cancelled).
+        cancellation: rows[0].refund_status
+          ? {
+              cancelledBy: rows[0].cancelled_by,
+              reason: rows[0].cancellation_note,
+              totalPaidFils: Number(rows[0].cx_total_paid ?? 0),
+              totalPaidDisplay: formatAed(Number(rows[0].cx_total_paid ?? 0)),
+              deliveryFils: Number(rows[0].cx_delivery ?? 0),
+              nonRefundableFils: Number(rows[0].cx_non_refundable ?? 0),
+              partyValueFils: Number(rows[0].cx_party_value ?? 0),
+              refundPercent: Number(rows[0].refund_percent ?? 0),
+              refundAmountFils: Number(rows[0].refund_amount_fils ?? 0),
+              refundAmountDisplay: formatAed(Number(rows[0].refund_amount_fils ?? 0)),
+              refundStatus: rows[0].refund_status,
+              refundReference: rows[0].refund_reference,
+              processedAt: rows[0].refund_processed_at,
+            }
+          : null,
       },
       services: services.rows,
       tasks: tasks.rows,
@@ -1402,6 +1425,25 @@ export async function adminRoutes(app: FastifyInstance) {
           note: `Refund ${formatAed(parsed.data.amountFils)} — ${parsed.data.reason}`,
         });
 
+        // If this refund settles a recorded customer cancellation, mark it
+        // processed and email the customer their refund is on its way. Only
+        // rows still awaiting money-out are touched (idempotent on retries).
+        const cx = await db.query(
+          `UPDATE cancellations
+              SET refund_status = 'processed', processed_at = now(),
+                  refund_reference = COALESCE($2, refund_reference)
+            WHERE order_id = $1 AND refund_status <> 'processed'
+            RETURNING order_id`,
+          [orderId, verified.providerStatus ?? null],
+        );
+        if (cx.rowCount && payment.event_id) {
+          await db.query(
+            `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+             VALUES ($1,'email','refund_processed', now(), $2)`,
+            [payment.event_id, JSON.stringify({ orderId })],
+          );
+        }
+
         // Reverse the loyalty points the booking earned, proportionally.
         const cfg = await loadConfig();
         const points = Math.floor((parsed.data.amountFils / 100) * cfg.rules.loyaltyPointsPerAed);
@@ -1457,6 +1499,15 @@ export async function adminRoutes(app: FastifyInstance) {
       });
     } catch (err) {
       request.log.error({ err }, 'refund failed');
+      // Surface the failure on any pending customer cancellation so the team
+      // can see it needs another attempt (best-effort, outside the rolled-back tx).
+      await pool
+        .query(
+          `UPDATE cancellations SET refund_status = 'failed'
+            WHERE order_id = $1 AND refund_status IN ('pending','processing')`,
+          [orderId],
+        )
+        .catch(() => {});
       return reply.status(502).send({ error: 'refund_failed' });
     }
 
