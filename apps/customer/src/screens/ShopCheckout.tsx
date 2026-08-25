@@ -87,12 +87,16 @@ export function ShopCheckout({
         backupPhone: reg.backupPhone.trim(),
         email: reg.email.trim(),
       };
+      const provider =
+        catalogue.paymentMethods.find((p) => p.name === 'stripe')?.name ??
+        catalogue.paymentMethods.find((p) => p.name === 'ziina')?.name ??
+        'stripe';
       const result = await api.shopCheckout({
         items,
         emirate: hasPrinted ? emirate : null,
         address: hasPrinted ? addr : null,
         customization: needsDrawing ? { refImages: refs, wantDraw } : null,
-        provider: 'ziina',
+        provider,
         termsAccepted: agreed,
         guest,
       });
