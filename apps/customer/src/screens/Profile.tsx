@@ -6,6 +6,7 @@ import { loadProfile } from '../profile';
 import { loadAccount, clearAccount } from '../account';
 import { LangToggle } from '../LangToggle';
 import { AuthSheet } from './AuthSheet';
+import { EditProfileSheet } from './EditProfileSheet';
 import type { Lang, TFn } from '../i18n';
 
 export function Profile({
@@ -27,6 +28,7 @@ export function Profile({
   const [copied, setCopied] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const account = loadAccount();
   const profile = loadProfile();
   const name = account?.name?.trim() || profile?.name?.trim() || t('profile.guest');
@@ -66,12 +68,20 @@ export function Profile({
           {t('auth.login')}
         </button>
       ) : (
-        <button
-          onClick={() => { clearAccount(); window.location.reload(); }}
-          style={{ width: '100%', background: '#fff', color: C.muted, border: `1px solid ${C.pinkLine}`, fontWeight: 700, fontSize: 12.5, padding: '11px', borderRadius: 14, cursor: 'pointer', marginBottom: 16 }}
-        >
-          {t('auth.logout')}
-        </button>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button
+            onClick={() => setShowEdit(true)}
+            style={{ flex: 1, background: C.pinkSoft, color: C.pinkDeep, border: 'none', fontWeight: 700, fontSize: 12.5, padding: '12px', borderRadius: 14, cursor: 'pointer' }}
+          >
+            {t('auth.editProfile')}
+          </button>
+          <button
+            onClick={() => { clearAccount(); window.location.reload(); }}
+            style={{ flex: 1, background: '#fff', color: C.muted, border: `1px solid ${C.pinkLine}`, fontWeight: 700, fontSize: 12.5, padding: '12px', borderRadius: 14, cursor: 'pointer' }}
+          >
+            {t('auth.logout')}
+          </button>
+        </div>
       )}
 
       <div style={{ background: 'linear-gradient(135deg,#5BCFC5,#3aa79d)', borderRadius: 24, padding: '20px 22px', color: '#fff', marginBottom: 16 }}>
@@ -230,6 +240,14 @@ export function Profile({
           lang={lang}
           onClose={() => setShowAuth(false)}
           onSignedIn={() => window.location.reload()}
+        />
+      )}
+      {showEdit && (
+        <EditProfileSheet
+          t={t}
+          lang={lang}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => window.location.reload()}
         />
       )}
     </div>

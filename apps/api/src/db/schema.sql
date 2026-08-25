@@ -134,6 +134,10 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_hash TEXT;
 -- A mandatory backup contact number, captured at checkout (guest or account).
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS backup_phone TEXT;
 
+-- Date of birth (optional): powers birthday greetings/automation and age-based
+-- marketing segments. Collected at registration and editable in the profile.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS date_of_birth DATE;
+
 -- Referral programme + store credit.
 --  referral_code: this customer's own shareable code.
 --  referred_by: the code they signed up with (credits its owner on first booking).

@@ -180,11 +180,19 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ code, subtotalFils }) },
     ),
 
-  register: (body: { name: string; email: string; phone: string; backupPhone?: string; password: string; referralCode?: string }) =>
+  register: (body: { name: string; email: string; phone: string; backupPhone?: string; password: string; referralCode?: string; dateOfBirth?: string }) =>
     request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number }>(
       '/api/customers/register',
       { method: 'POST', body: JSON.stringify(body) },
     ),
+
+  me: () =>
+    request<{ name: string; email: string; phone: string; backupPhone: string | null; dateOfBirth: string | null }>(
+      '/api/customers/me',
+    ),
+
+  updateMe: (body: { name?: string; phone?: string; backupPhone?: string; dateOfBirth?: string }) =>
+    request<{ ok: boolean }>('/api/customers/me', { method: 'PATCH', body: JSON.stringify(body) }),
 
   login: (body: { email: string; password: string }) =>
     request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string | null }>(

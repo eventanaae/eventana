@@ -715,12 +715,13 @@ export async function publicRoutes(app: FastifyInstance) {
       backupPhone: z.string().trim().min(6).max(30).optional(),
       password: z.string().min(6).max(200),
       referralCode: z.string().trim().max(40).optional(),
+      dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     }
-    const { name, email, phone, backupPhone, password, referralCode } = parsed.data;
+    const { name, email, phone, backupPhone, password, referralCode, dateOfBirth } = parsed.data;
     const existing = await pool.query('SELECT id FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
     if (existing.rowCount) {
       return reply.status(409).send({ error: 'email_taken', message: 'An account with this email already exists — please sign in.' });
@@ -749,14 +750,54 @@ export async function publicRoutes(app: FastifyInstance) {
     }
 
     await pool.query(
-      `INSERT INTO customers (id, name, phone, backup_phone, email, password_hash, referral_code, referred_by, referral_credit_fils)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [id, name, phone, backupPhone ?? null, email, hashPassword(password), myCode, referredBy, welcomeCredit],
+      `INSERT INTO customers (id, name, phone, backup_phone, email, password_hash, referral_code, referred_by, referral_credit_fils, date_of_birth)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [id, name, phone, backupPhone ?? null, email, hashPassword(password), myCode, referredBy, welcomeCredit, dateOfBirth ?? null],
     );
     return {
       customerId: id, name, email, phone, token: issueCustomerToken(id),
       referralCode: myCode, welcomeCreditFils: welcomeCredit,
     };
+  });
+
+  /** The signed-in customer's own profile, for the edit-profile screen. */
+  app.get('/api/customers/me', async (request, reply) => {
+    const customerId = customerFromRequest(request);
+    if (!customerId) return reply.status(401).send({ error: 'auth_required' });
+    const { rows } = await pool.query(
+      `SELECT name, email, phone, backup_phone,
+              to_char(date_of_birth, 'YYYY-MM-DD') AS date_of_birth
+         FROM customers WHERE id = $1`,
+      [customerId],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    const c = rows[0];
+    return { name: c.name, email: c.email, phone: c.phone, backupPhone: c.backup_phone, dateOfBirth: c.date_of_birth };
+  });
+
+  /** Update the signed-in customer's editable profile fields. */
+  app.patch('/api/customers/me', async (request, reply) => {
+    const customerId = customerFromRequest(request);
+    if (!customerId) return reply.status(401).send({ error: 'auth_required' });
+    const schema = z.object({
+      name: z.string().trim().min(2).max(120).optional(),
+      phone: z.string().trim().min(6).max(30).optional(),
+      backupPhone: z.string().trim().min(6).max(30).optional(),
+      dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const d = parsed.data;
+    await pool.query(
+      `UPDATE customers SET
+         name = COALESCE($2, name),
+         phone = COALESCE($3, phone),
+         backup_phone = COALESCE($4, backup_phone),
+         date_of_birth = COALESCE($5::date, date_of_birth)
+       WHERE id = $1`,
+      [customerId, d.name ?? null, d.phone ?? null, d.backupPhone ?? null, d.dateOfBirth ?? null],
+    );
+    return { ok: true };
   });
 
   /**

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { saveAccount, type Account } from '../account';
+import { loadProfile, saveProfile } from '../profile';
 import { C, fredoka, Notice, PrimaryButton } from '../ui';
 import { uaeMobile } from './ShopCheckout';
 import type { Lang, TFn } from '../i18n';
@@ -31,6 +32,7 @@ export function AuthSheet({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState(initialEmail ?? '');
+  const [dob, setDob] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +51,21 @@ export function AuthSheet({
       const acc =
         mode === 'login'
           ? await api.login({ email: email.trim(), password })
-          : await api.register({ name: name.trim(), email: email.trim(), phone: phone.trim(), password });
+          : await api.register({
+              name: name.trim(),
+              email: email.trim(),
+              phone: phone.trim(),
+              password,
+              dateOfBirth: dob || undefined,
+            });
       saveAccount(acc);
+      // Mirror the name (and birthday) into the on-device profile so the Home
+      // greeting and avatar show the signed-in customer immediately.
+      const existing = loadProfile();
+      saveProfile({
+        name: acc.name,
+        birthday: mode === 'register' ? dob : existing?.birthday ?? '',
+      });
       onSignedIn(acc);
     } catch (e: any) {
       setError(
@@ -110,6 +125,12 @@ export function AuthSheet({
         <input placeholder={`${t('auth.email')} *`} value={email} onChange={(e) => setEmail(e.target.value)} autoCapitalize="none" style={field} />
         {mode === 'register' && (
           <input placeholder={`${t('auth.phone')} *`} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" style={field} />
+        )}
+        {mode === 'register' && (
+          <div style={{ marginBottom: 11 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 5 }}>{t('auth.dob')}</div>
+            <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={new Date().toISOString().slice(0, 10)} style={{ ...field, marginBottom: 0 }} />
+          </div>
         )}
         <input type="password" placeholder={`${t('auth.password')} *`} value={password} onChange={(e) => setPassword(e.target.value)} style={field} />
 
