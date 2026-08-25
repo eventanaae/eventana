@@ -162,6 +162,14 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
       continue;
     }
 
+    // A per-piece line with no positive quantity is not on the order at all —
+    // skip it so it is never billed at the catalogue minimum (matches the shop
+    // engine, which drops quantity<=0 lines). Per-child activities are billed by
+    // the live guest count, not this quantity, so they are not affected here.
+    if (service.pricing.kind === 'per_piece' && line.quantity <= 0) {
+      continue;
+    }
+
     const qty = billableQuantity(service, line.quantity, cart.childrenCount);
 
     if (service.pricing.kind === 'per_piece' && line.quantity > 0 && line.quantity < service.pricing.minQuantity) {

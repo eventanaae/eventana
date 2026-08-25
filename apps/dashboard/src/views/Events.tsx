@@ -123,7 +123,8 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               <div style={{ flex: 1 }}>
                 <div style={fredoka(20)}>{data.event.id}</div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-                  {data.event.customer} · {data.event.phone} ·{' '}
+                  {data.event.customer} · {data.event.phone}
+                  {data.event.email ? ` · ${data.event.email}` : ''} ·{' '}
                   {new Date(data.event.event_date).toDateString()} · {data.event.start_time}–
                   {data.event.base_end_time}
                 </div>
@@ -145,6 +146,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <LocationPanel event={data.event} />
+              <PartyDetailsPanel event={data.event} />
               {(data.rating || (data.tips && data.tips.length > 0)) && (
                 <RatingTipsPanel rating={data.rating} tips={data.tips} />
               )}
@@ -491,6 +493,28 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
  * Maps" are Google's universal deep links — they open the driver's native
  * Google Maps app with turn-by-turn navigation, no API key required.
  */
+function PartyDetailsPanel({ event }: { event: any }) {
+  const rows: Array<[string, string]> = [];
+  if (event.children_count) rows.push(['👶 Children', String(event.children_count)]);
+  if (event.movie_id) rows.push(['🎬 Movie', String(event.movie_id)]);
+  if (event.custom_theme) rows.push(['🎨 Theme', 'Custom design (see brief / design panel)']);
+  else if (event.theme_id) rows.push(['🎨 Theme', String(event.theme_id)]);
+  if (event.castle_variant) rows.push(['🏰 Castle colour', String(event.castle_variant)]);
+  if (rows.length === 0) return null;
+  return (
+    <Panel title="Party details">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {rows.map(([k, v]) => (
+          <div key={k} style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>
+            <span style={{ color: C.muted, fontWeight: 700 }}>{k}: </span>
+            {v}
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
 function LocationPanel({ event }: { event: any }) {
   const pin = event.mapPin as { lat: number; lng: number } | null;
   if (!pin) {
@@ -517,6 +541,17 @@ function LocationPanel({ event }: { event: any }) {
         📍 {event.emirate ?? 'UAE'}
         <span style={{ color: C.muted, fontWeight: 600 }}> · {q}</span>
       </div>
+      {(() => {
+        const a = (event.address ?? {}) as Record<string, string>;
+        const parts = [a.area, a.street, a.villa && `Villa/House ${a.villa}`]
+          .filter(Boolean)
+          .join(' · ');
+        return parts ? (
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 4, lineHeight: 1.5 }}>
+            🏠 {parts}
+          </div>
+        ) : null;
+      })()}
       {event.addressDetails && (
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.5 }}>
           {event.addressDetails}

@@ -117,6 +117,12 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/alerts') ||
       path.startsWith('/api/admin/marketing') ||
       path === '/api/admin/team' ||
+      // Editing catalogue prices / availability / inventory is a money change:
+      // only mutations (not reads) are Manager+Owner (#security-M1).
+      (request.method !== 'GET' &&
+        (/^\/api\/admin\/services\/[^/]+$/.test(path) ||
+          /^\/api\/admin\/themes\/[^/]+$/.test(path) ||
+          /^\/api\/admin\/inventory\/[^/]+$/.test(path))) ||
       /^\/api\/admin\/orders\/[^/]+\/(refund|audit)$/.test(path) ||
       /^\/api\/admin\/events\/[^/]+\/(cancel|reinstate)$/.test(path);
     if (managerOnly && staff.role !== 'manager') {
@@ -341,6 +347,10 @@ export async function adminRoutes(app: FastifyInstance) {
         mapPin: (rows[0].cart as { mapPin?: { lat: number; lng: number } } | null)?.mapPin ?? null,
         addressDetails:
           (rows[0].cart as { address?: { details?: string } } | null)?.address?.details ?? null,
+        // Full structured address (area / street / villa) so ops can find the
+        // exact door, not just the free-text note (#M3).
+        address:
+          (rows[0].cart as { address?: Record<string, string> } | null)?.address ?? null,
       },
       services: services.rows,
       tasks: tasks.rows,

@@ -114,7 +114,7 @@ export async function publicRoutes(app: FastifyInstance) {
   const rlBuckets = new Map<string, { count: number; reset: number }>();
   const RL_RULES: Array<{ test: RegExp; max: number; windowMs: number }> = [
     { test: /^\/api\/(checkout|shop\/checkout)$/, max: 15, windowMs: 60_000 },
-    { test: /^\/api\/customers\/(register|forgot|login)$/, max: 8, windowMs: 60_000 },
+    { test: /^\/api\/customers\/(register|forgot|login|reset)$/, max: 8, windowMs: 60_000 },
     { test: /^\/api\/promo\/check$/, max: 25, windowMs: 60_000 },
     { test: /^\/api\/customers\/uploads\/sign$/, max: 25, windowMs: 60_000 },
   ];
