@@ -149,26 +149,37 @@ function longDate(value: unknown): string {
   });
 }
 
+const cap = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
 export function renderEmail(row: EmailRow): { subject: string; html: string } | null {
+  // Two distinct people: the booker we greet, and the guest of honour the
+  // celebration is for. Plus the event type (Birthday, Gender Reveal, …).
   const first = (row.customer_name || 'there').split(' ')[0];
   const date = longDate(row.event_date);
   const time = row.start_time ? row.start_time.slice(0, 5) : '';
   const place = row.emirate || 'UAE';
   const track = trackUrl(row.event_id);
-  // Guest of honour and occasion, drawn from the booking so the email feels
-  // personal. `occasion` prefers the chosen package, else the celebration type.
   const honour = (row.cart?.eventFor || '').trim();
-  const occasion =
-    row.package_name ||
-    (row.celebration_type
-      ? row.custom_theme
-        ? `${row.celebration_type} · custom theme`
-        : row.celebration_type
-      : '');
+  const eventType = cap((row.celebration_type || '').trim()); // e.g. "Birthday"
+  // Natural phrase for sentences: "Sara's Birthday" / "Sara's celebration" / "the celebration".
+  const occasionPhrase = honour
+    ? eventType
+      ? `${honour}'s ${eventType}`
+      : `${honour}'s celebration`
+    : eventType
+      ? `the ${eventType}`
+      : 'your celebration';
+  // Detail-card "Occasion" value: event type + chosen package/custom theme.
+  const occasionLabel = [
+    eventType,
+    row.package_name || (row.custom_theme ? 'custom theme' : ''),
+  ]
+    .filter(Boolean)
+    .join(' · ');
   // Rows shared by confirmation and the 3-day reminder.
   const partyRows: Array<[string, string]> = [
     ...(honour ? ([['Guest of honour', honour]] as Array<[string, string]>) : []),
-    ...(occasion ? ([['Occasion', occasion]] as Array<[string, string]>) : []),
+    ...(occasionLabel ? ([['Occasion', occasionLabel]] as Array<[string, string]>) : []),
     ['Date', date],
     ['Time', time || '—'],
     ['Location', place],
@@ -184,7 +195,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           first,
           emoji: '🎉',
           heading: honour ? `${honour}'s celebration is confirmed!` : 'Your celebration is confirmed!',
-          bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Yay — it's official! 🎉 We've saved every detail${honour ? ` for ${honour}'s big day` : ''}, and our team is already busy planning the magic. Here's your booking at a glance:</p>
+          bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Yay — it's official! 🎉 We've saved every detail for <b>${occasionPhrase}</b>, and our team is already busy planning the magic. Here's your booking at a glance:</p>
             ${detailCard(partyRows)}
             <p style="margin:16px 0 0;font-size:15px;line-height:1.6">Want to add a little extra or check something? You can manage it all in the app. We can't wait to celebrate with you! 💕</p>`,
           cta: track ? { href: track, label: 'Track your booking →' } : undefined,
@@ -197,7 +208,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           first,
           emoji: '🎈',
           heading: honour ? `${honour}'s party is in 3 days!` : 'Your party is in 3 days!',
-          bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">The countdown is on — just 3 days to go and we're getting everything ready! 🎉 Here's a quick reminder of your booking:</p>
+          bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">The countdown is on — just 3 days until <b>${occasionPhrase}</b>, and we're getting everything ready! 🎉 Here's a quick reminder of your booking:</p>
             ${detailCard(partyRows)}
             <p style="margin:16px 0 0;font-size:15px;line-height:1.6">Need to tweak anything before the day? It's all in the app — quick and easy. See you very soon! 💖</p>`,
           cta: track ? { href: track, label: 'View your booking →' } : undefined,
@@ -209,8 +220,8 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         html: shell({
           first,
           emoji: '🥳',
-          heading: "It's party day!",
-          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day and we couldn't be more excited! 🥳 ${honour ? `${honour}'s` : 'Your'} celebration starts at <b>${time || 'your booked time'}</b>, and our team is already on the way with all the magic. 🚚✨</p>
+          heading: honour && eventType ? `Today is ${honour}'s ${eventType}!` : "It's party day!",
+          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day and we couldn't be more excited! 🥳 <b>${cap(occasionPhrase)}</b> starts at <b>${time || 'your booked time'}</b>, and our team is already on the way with all the magic. 🚚✨</p>
             <p style="margin:14px 0 0;font-size:15px;line-height:1.6">Everything you need is in the app. Have the most wonderful time — you've earned it! 💛</p>`,
           cta: track ? { href: track, label: 'View your booking →' } : undefined,
         }),
