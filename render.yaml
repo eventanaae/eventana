@@ -109,6 +109,29 @@ services:
       - key: META_TEST_EVENT_CODE
         sync: false
 
+      # --- WhatsApp Cloud API ------------------------------------------
+      # Records every enquiry as a lead (who asked, for which party date,
+      # and which ad sent them) and can answer on the business number.
+      # Webhook URL to register with Meta:
+      #   https://<api host>/api/webhooks/whatsapp
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      # A string you invent; Meta echoes it back when registering the hook.
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      # The Meta app secret — proves an inbound payload really came from
+      # Meta. Without it every webhook is rejected as untrusted.
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      # THE SAFETY SWITCH. Every message here reaches a real customer.
+      #   off   — read and record only (default, and where to start)
+      #   greet — one automatic reply to a first-time enquiry
+      #   full  — also answers catalogue questions
+      - key: WHATSAPP_AGENT_MODE
+        value: "off"
+
   # ----------------------------------------------------- customer app
   - type: web
     name: eventana-customer

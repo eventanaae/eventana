@@ -9,17 +9,21 @@
 import { pool } from '../db/pool.js';
 import { sendPurchaseEvent, metaCapiEnabled, type Attribution } from '../integrations/metaCapi.js';
 import { recordPaymentEvent } from './orders.js';
+import { linkOrderToLead } from './whatsappLeads.js';
 
 /**
- * Posts one Purchase for a paid order.
+ * Closes the loop on a paid order: marks the WhatsApp lead as booked, and
+ * posts the Purchase to Meta.
  *
- * Never throws: attribution reporting is bookkeeping for the ad account,
- * and nothing about a confirmed booking may depend on it. Outcomes land in
- * the payment_events audit log so a silent failure is still visible.
+ * The lead link happens even when Meta CAPI is unconfigured — knowing which
+ * enquiry turned into money is worth having on its own, and is what makes
+ * "cost per booking" computable at all.
+ *
+ * Never throws: this is bookkeeping, and nothing about a confirmed booking
+ * may depend on it. Outcomes land in the payment_events audit log so a
+ * silent failure is still visible.
  */
 export async function reportPurchaseToMeta(orderId: string): Promise<void> {
-  if (!metaCapiEnabled()) return;
-
   try {
     const { rows } = await pool.query(
       `SELECT o.id, o.kind, o.total_fils, o.attribution,
@@ -32,9 +36,16 @@ export async function reportPurchaseToMeta(orderId: string): Promise<void> {
     const order = rows[0];
     if (!order) return;
 
+    // Close the loop on the WhatsApp side too: the enquiry that started on
+    // an ad and the money that arrived here are the same person.
+    if (order.customer_phone) {
+      await linkOrderToLead(order.id, order.customer_phone).catch(() => {});
+    }
+
     // A tip is money for the crew, not revenue from an ad — reporting it as
     // a Purchase would teach Meta to optimise for the wrong thing.
     if (order.kind === 'tip') return;
+    if (!metaCapiEnabled()) return;
 
     const result = await sendPurchaseEvent({
       orderId: order.id,

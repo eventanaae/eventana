@@ -612,3 +612,57 @@ CREATE TABLE IF NOT EXISTS finance_reports (
   sent_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   recipients INT NOT NULL DEFAULT 0
 );
+
+-- ── WhatsApp leads (#32) ─────────────────────────────────────────────────
+-- Every enquiry that arrives on WhatsApp, keyed by the customer's number.
+--
+-- This is the record Eventana has never had: the ads buy conversations, but
+-- until now nothing wrote down who asked, for WHICH DATE, and whether it
+-- turned into a booking. `ctwa_clid` is the click id Meta attaches to a
+-- click-to-WhatsApp message, so a lead here can be traced to the exact ad —
+-- and joined to `orders` once the same number pays.
+--
+-- One row per phone number: a customer who asks again about a second party
+-- updates their row rather than creating a duplicate lead.
+CREATE TABLE IF NOT EXISTS whatsapp_leads (
+  id               BIGSERIAL PRIMARY KEY,
+  phone            TEXT NOT NULL UNIQUE,     -- digits only, with country code
+  name             TEXT,                     -- WhatsApp profile name
+  event_date       DATE,                     -- the party date, once known
+  emirate          TEXT,
+  -- new: just messaged · quoted: given a price · confirmed: said yes on
+  -- WhatsApp · booked: an order was paid · lost: went quiet or declined
+  status           TEXT NOT NULL DEFAULT 'new',
+  ctwa_clid        TEXT,                     -- Meta click-to-WhatsApp click id
+  source_ad_id     TEXT,                     -- the ad that produced the click
+  source_headline  TEXT,
+  notes            TEXT,
+  message_count    INT NOT NULL DEFAULT 0,
+  first_message_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_message_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  confirmed_at     TIMESTAMPTZ,
+  -- Set when this number later completes a paid order, which is what turns
+  -- "cost per conversation" into "cost per booking".
+  order_id         TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS whatsapp_leads_status_idx ON whatsapp_leads (status, last_message_at DESC);
+CREATE INDEX IF NOT EXISTS whatsapp_leads_event_date_idx ON whatsapp_leads (event_date);
+CREATE INDEX IF NOT EXISTS whatsapp_leads_ad_idx ON whatsapp_leads (source_ad_id);
+
+-- Every inbound/outbound WhatsApp message, so a lead's history survives even
+-- though the chat itself lives in Meta's app. Append-only.
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id           BIGSERIAL PRIMARY KEY,
+  phone        TEXT NOT NULL,
+  wa_message_id TEXT UNIQUE,              -- Meta's id; makes replays a no-op
+  direction    TEXT NOT NULL,             -- in | out
+  body         TEXT,
+  -- 'agent' when this app sent it automatically, 'staff' when a human did.
+  sent_by      TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS whatsapp_messages_phone_idx ON whatsapp_messages (phone, created_at);

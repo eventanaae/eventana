@@ -22,6 +22,8 @@ import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
+import { listLeads, leadFunnel } from '../domain/whatsappLeads.js';
+import { agentMode, whatsappEnabled } from '../integrations/whatsapp.js';
 
 /**
  * Moves an event to the terminal Cancelled phase and stands its
@@ -253,6 +255,36 @@ export async function adminRoutes(app: FastifyInstance) {
       integrations: integrationStatus(),
     };
   });
+
+  /* --------------------------- WhatsApp leads --------------------- */
+
+  /**
+   * Every enquiry that came in on WhatsApp, newest first.
+   *
+   * This is the list the ad account cannot produce: it carries the party
+   * date, the emirate, whether the customer confirmed, and the ad that
+   * started the conversation.
+   */
+  app.get('/api/admin/whatsapp/leads', async (request) => {
+    const q = request.query as { status?: string; limit?: string };
+    return {
+      leads: await listLeads({
+        status: q.status && q.status !== 'all' ? q.status : undefined,
+        limit: q.limit ? Number(q.limit) : undefined,
+      }),
+      agentMode: agentMode(),
+      connected: whatsappEnabled(),
+    };
+  });
+
+  /**
+   * Conversation → confirmation → booking, plus the same split by emirate.
+   *
+   * The emirate split is the one that decides real money: Abu Dhabi takes
+   * the largest share of ad spend, and until now nothing could say whether
+   * those enquiries ever became parties.
+   */
+  app.get('/api/admin/whatsapp/funnel', async () => leadFunnel());
 
   /* ------------------------------ Events -------------------------- */
 

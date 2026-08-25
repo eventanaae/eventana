@@ -244,6 +244,29 @@ export const config = {
     graphVersion: env.META_GRAPH_VERSION ?? 'v21.0',
   },
 
+  /**
+   * WhatsApp Cloud API — the business number the ads point at.
+   *
+   * WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN come from the Meta
+   * app's WhatsApp product; WHATSAPP_VERIFY_TOKEN is a string of your own
+   * choosing that Meta echoes back when it registers the webhook, and
+   * WHATSAPP_APP_SECRET is what proves an inbound payload really came from
+   * Meta. Absent → the webhook rejects everything and nothing is sent.
+   *
+   * agentMode is the safety switch, and it defaults to OFF: with no value
+   * the agent reads and records leads but never messages a customer.
+   *   off   — silent (default)
+   *   greet — one automatic reply to a first-time enquiry
+   *   full  — also answers catalogue questions
+   */
+  whatsapp: {
+    phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID ?? null,
+    accessToken: env.WHATSAPP_ACCESS_TOKEN ?? null,
+    verifyToken: env.WHATSAPP_VERIFY_TOKEN ?? null,
+    appSecret: env.WHATSAPP_APP_SECRET ?? null,
+    agentMode: env.WHATSAPP_AGENT_MODE ?? 'off',
+  },
+
   providers: {
     tabby: providerConfig('tabby', {
       publicKey: env.TABBY_PUBLIC_KEY,

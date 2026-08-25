@@ -13,8 +13,86 @@ import { SimulatedProvider } from '../payments/simulated.js';
 import { receiveWebhook } from '../domain/webhooks.js';
 import { pool } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
+import { parseInbound, verifyWebhookSignature } from '../integrations/whatsapp.js';
+import { recordInboundMessage } from '../domain/whatsappLeads.js';
+import { respondToLead } from '../domain/whatsappAgent.js';
 
 export async function webhookRoutes(app: FastifyInstance) {
+  /* ---------------- WhatsApp Cloud API ---------------------------- */
+
+  /**
+   * Meta's one-time webhook handshake: it calls with a token we chose and
+   * expects the challenge echoed back verbatim as plain text.
+   *
+   * Registered before the generic `/api/webhooks/:provider` route below —
+   * Fastify prefers the static segment, so "whatsapp" never reaches the
+   * payment-provider lookup.
+   */
+  app.get('/api/webhooks/whatsapp', async (request, reply) => {
+    const q = request.query as Record<string, string | undefined>;
+    const expected = config.whatsapp.verifyToken;
+    if (expected && q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === expected) {
+      return reply.type('text/plain').send(q['hub.challenge'] ?? '');
+    }
+    return reply.status(403).send({ error: 'verification_failed' });
+  });
+
+  /**
+   * Inbound messages.
+   *
+   * Meta retries anything it doesn't get a fast 200 for, so this
+   * acknowledges immediately and does the work after — the same shape as
+   * the payment webhook above. Every step downstream is idempotent on
+   * Meta's message id, so a retry changes nothing.
+   */
+  app.post('/api/webhooks/whatsapp', async (request, reply) => {
+    const rawBody = typeof request.body === 'string' ? request.body : JSON.stringify(request.body);
+    const signature = request.headers['x-hub-signature-256'];
+
+    // Unverifiable means untrusted: anyone can POST here, only Meta can sign.
+    if (!verifyWebhookSignature(typeof signature === 'string' ? signature : undefined, rawBody)) {
+      request.log.warn('whatsapp webhook rejected: bad or missing signature');
+      return reply.status(401).send({ error: 'bad_signature' });
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return reply.status(400).send({ error: 'unparseable' });
+    }
+
+    const messages = parseInbound(body);
+    reply.status(200).send({ received: messages.length });
+
+    for (const msg of messages) {
+      setImmediate(() => {
+        void (async () => {
+          try {
+            const result = await recordInboundMessage(msg);
+            if (!result) return; // replayed delivery — already handled
+            request.log.info(
+              {
+                lead: result.lead.phone,
+                status: result.lead.status,
+                eventDate: result.lead.eventDate,
+                ad: result.lead.sourceAdId,
+                isNew: result.isNew,
+              },
+              'whatsapp lead updated',
+            );
+            await respondToLead(msg, result);
+          } catch (err) {
+            request.log.error({ err }, 'whatsapp webhook processing failed');
+          }
+        })();
+      });
+    }
+    return reply;
+  });
+
+  /* ---------------- payment providers ----------------------------- */
+
   app.post('/api/webhooks/:provider', async (request, reply) => {
     const { provider } = request.params as { provider: string };
     const rawBody = typeof request.body === 'string' ? request.body : JSON.stringify(request.body);
