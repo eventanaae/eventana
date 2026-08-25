@@ -155,6 +155,15 @@ export async function confirmBooking(
         order.id,
       ],
     );
+    // Customer confirmation email for the shop order (no event, so it carries the
+    // order id in its payload and is delivered by a dedicated sweep). Idempotent.
+    await db.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       SELECT NULL, 'email', 'shop_confirmation', now(), $1
+        WHERE NOT EXISTS (
+          SELECT 1 FROM notifications WHERE template = 'shop_confirmation' AND payload->>'orderId' = $2)`,
+      [JSON.stringify({ orderId: order.id }), order.id],
+    );
     return { eventId: null, created: false };
   }
 

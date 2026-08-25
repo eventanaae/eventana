@@ -313,6 +313,55 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
   }
 }
 
+/** A standalone shop order (printed/digital goods) — no event attached. */
+export interface ShopEmailRow {
+  id: number;
+  order_id: string;
+  customer_name: string | null;
+  customer_email: string | null;
+  cart: { emirate?: string | null; readyBy?: string | null } | null;
+  quote: { lines?: Array<{ name: string; quantity: number; amountFils: number }>; deliveryFils?: number } | null;
+  total_fils: number | null;
+}
+
+/** Customer confirmation for a standalone shop order. */
+export function renderShopEmail(row: ShopEmailRow): { subject: string; html: string } | null {
+  const first = (row.customer_name || 'there').split(' ')[0];
+  const lines = row.quote?.lines ?? [];
+  const itemsHtml = lines.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 2px">` +
+      lines
+        .map(
+          (l) =>
+            `<tr><td style="padding:8px 2px;font-size:14px;color:${INK};border-bottom:1px solid ${HAIR}"><b>${l.quantity}×</b> ${l.name}</td>` +
+            `<td style="padding:8px 2px;text-align:right;font-size:13.5px;font-weight:700;color:${INK};border-bottom:1px solid ${HAIR}">${fils(l.amountFils)}</td></tr>`,
+        )
+        .join('') +
+      `</table>`
+    : '';
+  const delivery = Number(row.quote?.deliveryFils ?? 0);
+  const detail: Array<[string, string]> = [['Order Number', row.order_id]];
+  if (row.cart?.readyBy) detail.push(['Ready by', longDate(row.cart.readyBy)]);
+  if (row.cart?.emirate) detail.push(['Delivering to', row.cart.emirate]);
+  if (delivery > 0) detail.push(['Delivery', fils(delivery)]);
+  detail.push(['Total', fils(row.total_fils)]);
+  const app = (config.publicAppUrl || '').replace(/\/$/, '') || null;
+  return {
+    subject: 'Your Eventana order is confirmed 🎁',
+    html: shell({
+      first,
+      emoji: '🎁',
+      eyebrow: 'Order Confirmed',
+      heading: 'Your order is confirmed!',
+      bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Thank you for your order! 🎁 We've received it and our team is already getting everything ready for you. Here's your summary:</p>
+        ${itemsHtml}
+        ${detailCard(detail)}
+        <p style="margin:16px 0 0;font-size:15px;line-height:1.6">We'll let you know as soon as it's on its way. 💕</p>`,
+      cta: app ? { href: app, label: 'Open Eventana →' } : undefined,
+    }),
+  };
+}
+
 /** Deliver all due notifications. Returns how many of each channel were sent. */
 export async function deliverPendingNotifications(): Promise<{ emails: number; pushes: number }> {
   let emails = 0;
@@ -351,6 +400,34 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
         emails++;
       }
       // Transient failure: leave sent_at NULL — the next sweep retries.
+    }
+  }
+
+  // ---- Email (shop-order confirmations: no event, keyed by order id) ----
+  if (emailEnabled()) {
+    const { rows } = await pool.query<ShopEmailRow>(
+      `SELECT n.id, o.id AS order_id, o.cart, o.quote, o.total_fils,
+              c.name AS customer_name, c.email AS customer_email
+         FROM notifications n
+         JOIN orders o    ON o.id = (n.payload->>'orderId')
+         JOIN customers c ON c.id = o.customer_id
+        WHERE n.channel = 'email' AND n.template = 'shop_confirmation'
+          AND n.sent_at IS NULL AND n.cancelled_at IS NULL
+          AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
+        ORDER BY n.created_at
+        LIMIT 100`,
+    );
+    for (const row of rows) {
+      const msg = renderShopEmail(row);
+      if (!msg || !row.customer_email) {
+        await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
+        continue;
+      }
+      const res = await sendEmail({ to: row.customer_email, subject: msg.subject, html: msg.html });
+      if (res.ok) {
+        await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
+        emails++;
+      }
     }
   }
 

@@ -17,7 +17,7 @@ import { withTransaction } from '../db/pool.js';
 import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
-import { renderEmail, type EmailRow } from '../domain/notify.js';
+import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '../domain/notify.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -538,6 +538,23 @@ export async function adminRoutes(app: FastifyInstance) {
       package_name: 'Princess Castle',
       cart: { eventFor: 'Sara' },
     };
+    // A standalone shop-order confirmation sample too.
+    const shopSample: ShopEmailRow = {
+      id: 0,
+      order_id: 'EVT-ORD-000123',
+      customer_name: 'Mariam',
+      customer_email: email,
+      cart: { emirate: 'Dubai', readyBy: '2026-09-29' },
+      quote: {
+        lines: [
+          { name: 'Custom Name Banner', quantity: 1, amountFils: 12000 },
+          { name: 'Themed Cupcake Toppers', quantity: 12, amountFils: 9000 },
+        ],
+        deliveryFils: 3000,
+      },
+      total_fils: 24000,
+    };
+    const total = templates.length + 1;
     let sent = 0;
     const failed: string[] = [];
     for (const template of templates) {
@@ -547,7 +564,13 @@ export async function adminRoutes(app: FastifyInstance) {
       if (res.ok) sent += 1;
       else failed.push(`${template}: ${res.error ?? 'failed'}`);
     }
-    return { sent, total: templates.length, failed };
+    const shopMsg = renderShopEmail(shopSample);
+    if (shopMsg) {
+      const res = await sendEmail({ to: email, subject: `[Sample] ${shopMsg.subject}`, html: shopMsg.html });
+      if (res.ok) sent += 1;
+      else failed.push(`shop_confirmation: ${res.error ?? 'failed'}`);
+    }
+    return { sent, total, failed };
   });
 
   /**
