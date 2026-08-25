@@ -71,6 +71,21 @@ function trackUrl(eventId: string): string | null {
   return base ? `${base}/?event=${encodeURIComponent(eventId)}` : null;
 }
 
+/** Deep link that opens the Terms & Conditions sheet in the customer app. */
+function termsUrl(): string | null {
+  const base = (config.publicAppUrl || '').replace(/\/$/, '');
+  return base ? `${base}/?terms=1` : null;
+}
+
+/** A small "you agree to our Terms" line, linked to the app's Terms sheet. */
+function termsNote(): string {
+  const url = termsUrl();
+  const terms = url
+    ? `<a href="${url}" style="color:${BRAND};font-weight:700;text-decoration:none">Terms &amp; Conditions</a>`
+    : 'Terms &amp; Conditions';
+  return `<p style="margin:14px 0 0;font-size:12px;color:${MUTED};line-height:1.6">By booking with Eventana you agree to our ${terms}, including our cancellation &amp; refund policy.</p>`;
+}
+
 /** A text link to the app (falls back to plain text if no URL is configured). */
 function appLink(label: string): string {
   const base = (config.publicAppUrl || '').replace(/\/$/, '');
@@ -264,7 +279,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           heading: honour ? `${honour}'s celebration is confirmed!` : 'Your celebration is confirmed!',
           bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Yay — it's official! 🎉 We've saved every detail for <b>${occasionPhrase}</b>, and our team is already busy planning the magic. Here's your booking at a glance:</p>
             ${detailCard(partyRows)}
-            ${invoiceLines.length ? `<div style="margin-top:22px;font-size:11.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${BRAND}">Order Summary</div>${invoiceTable(invoiceLines, Number(row.total_fils ?? 0))}` : ''}
+            ${invoiceLines.length ? `<div style="margin-top:22px;font-size:11.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${BRAND}">Order Summary</div>${invoiceTable(invoiceLines, Number(row.total_fils ?? 0))}${termsNote()}` : ''}
             <p style="margin:18px 0 0;font-size:15px;line-height:1.6">Want to add a little extra or check something? You can manage it all in the app. We can't wait to celebrate with you! 💕</p>`,
           cta: track ? { href: track, label: 'Track your booking →' } : undefined,
         }),
@@ -403,6 +418,7 @@ export function renderShopEmail(row: ShopEmailRow): { subject: string; html: str
       bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Thank you for your order! 🎁 We've received it and our team is already getting everything ready for you. Here's your summary:</p>
         ${itemsHtml}
         ${detailCard(detail)}
+        ${termsNote()}
         <p style="margin:16px 0 0;font-size:15px;line-height:1.6">We'll let you know as soon as it's on its way. 💕</p>`,
       cta: app ? { href: app, label: 'Open Eventana →' } : undefined,
     }),

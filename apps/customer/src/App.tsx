@@ -18,6 +18,7 @@ import { MovieSelect } from './screens/MovieSelect';
 import { ResetPassword } from './screens/ResetPassword';
 import { Shop } from './screens/Shop';
 import { ShopCheckout } from './screens/ShopCheckout';
+import { TermsSheet } from './screens/Terms';
 import { useProfile } from './profile';
 import { useLang, makeT, type Lang, type TFn } from './i18n';
 
@@ -193,8 +194,11 @@ export default function App() {
     api.socialProof().then(setSocial).catch(() => setSocial(null));
   }, []);
 
-  // Returning from a provider's hosted checkout, or opening a booking straight
-  // from an email's "Track your booking" button (?event=<id>).
+  // Terms & Conditions deep link (?terms=1), e.g. from an email invoice.
+  const [showTerms, setShowTerms] = useState(false);
+
+  // Returning from a provider's hosted checkout, opening a booking straight from
+  // an email's "Track your booking" button (?event=<id>), or the Terms link.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const returned = params.get('order');
@@ -207,6 +211,10 @@ export default function App() {
     } else if (openEvent) {
       setEventId(openEvent);
       setScreen('myevent');
+      history.replaceState({}, '', location.pathname);
+    }
+    if (params.get('terms')) {
+      setShowTerms(true);
       history.replaceState({}, '', location.pathname);
     }
   }, []);
@@ -429,6 +437,8 @@ export default function App() {
           <ShopCheckout {...shared} onOrder={(id, embed, tok, stripe) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); setStripeInfo(stripe ?? null); go('confirming'); }} />
         )}
       </div>
+
+      {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
 
       {showTabs && (
         <div
