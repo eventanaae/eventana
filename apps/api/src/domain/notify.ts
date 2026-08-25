@@ -11,7 +11,7 @@
  * `sent_at` NULL so the next sweep retries; a permanent skip (unknown template,
  * no recipient) is stamped so the queue can't back up forever.
  */
-import { formatAed } from '@eventana/shared';
+import { formatAed, celebrationLabel } from '@eventana/shared';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
@@ -238,16 +238,14 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
   const place = row.emirate || 'UAE';
   const track = trackUrl(row.event_id);
   const honour = (row.cart?.eventFor || '').trim();
-  const eventType = cap((row.celebration_type || '').trim()); // e.g. "Birthday"
-  // Natural phrase for sentences: "Sara's Birthday" / "Sara's celebration" / "the celebration".
-  const occasionPhrase = honour
-    ? eventType
-      ? `${honour}'s ${eventType}`
-      : `${honour}'s celebration`
-    : eventType
-      ? `the ${eventType}`
-      : 'your celebration';
-  // Detail-card "Occasion" value: event type + chosen package/custom theme.
+  // Proper label for the stored type id ('gender' → 'Gender Reveal', 'customc' →
+  // 'Custom Celebration', 'kids' → 'Kids Birthday', …). Never a raw id.
+  const eventType = celebrationLabel(row.celebration_type);
+  // Prose phrase, kept grammatically safe for EVERY type (incl. "Bride to Be",
+  // "Custom Celebration"): always "<name>'s celebration" / "your celebration".
+  // The precise type is shown in the Occasion row instead.
+  const occasionPhrase = honour ? `${honour}'s celebration` : 'your celebration';
+  // Detail-card "Occasion" value: exact event type + chosen package/custom theme.
   const occasionLabel = [
     eventType,
     row.package_name || (row.custom_theme ? 'custom theme' : ''),
@@ -305,7 +303,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           first,
           emoji: '🥳',
           eyebrow: 'Today',
-          heading: honour && eventType ? `Today is ${honour}'s ${eventType}!` : "It's party day!",
+          heading: honour ? `Today is ${honour}'s big day!` : "It's party day!",
           bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day and we couldn't be more excited! 🥳 <b>${cap(occasionPhrase)}</b> starts at <b>${time || 'your booked time'}</b>, and our team is already on the way with all the magic. 🚚✨</p>
             <p style="margin:14px 0 0;font-size:15px;line-height:1.6">Everything you need is in the app. Have the most wonderful time — you've earned it! 💛</p>`,
           cta: track ? { href: track, label: 'View your booking →' } : undefined,

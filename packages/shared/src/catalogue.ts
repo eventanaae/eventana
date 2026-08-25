@@ -492,6 +492,16 @@ export const CELEBRATION_TYPES = [
 ];
 
 /**
+ * Human label for a stored celebration type id (events.celebration_type holds
+ * the id — 'gender', 'bride', 'customc' …). Falls back to the raw value so an
+ * unknown/legacy id never renders empty.
+ */
+export function celebrationLabel(id: string | null | undefined): string {
+  if (!id) return '';
+  return CELEBRATION_TYPES.find((c) => c.id === id)?.label ?? id;
+}
+
+/**
  * Service groups Eventana has not priced yet for the non-kids
  * celebrations. Shown as an explicit "needs Eventana input" card rather
  * than filled with invented services.

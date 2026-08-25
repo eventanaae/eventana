@@ -11,6 +11,7 @@
  * updated. Auth uses node:crypto (RS256) and global fetch, no extra deps.
  */
 import { createSign } from 'node:crypto';
+import { celebrationLabel } from '@eventana/shared';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 
@@ -132,7 +133,8 @@ function buildEventBody(ev: any) {
   const cart = (ev.cart ?? {}) as { eventFor?: string; address?: { details?: string } };
   const date = ymd(ev.event_date);
   const who = cart.eventFor ? `${cart.eventFor}'s ` : '';
-  const what = ev.package_name ?? (ev.custom_theme ? `${ev.celebration_type} · custom theme` : ev.celebration_type);
+  const typeLabel = celebrationLabel(ev.celebration_type);
+  const what = ev.package_name ?? (ev.custom_theme ? `${typeLabel} · custom theme` : typeLabel);
   const lat = Number(ev.map_lat);
   const lng = Number(ev.map_lng);
   const hasPin = lat !== 0 || lng !== 0;

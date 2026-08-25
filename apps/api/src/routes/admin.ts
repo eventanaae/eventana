@@ -533,7 +533,7 @@ export async function adminRoutes(app: FastifyInstance) {
       emirate: 'Dubai',
       customer_name: 'Mariam',
       customer_email: email,
-      celebration_type: 'Birthday',
+      celebration_type: 'kids', // stored as an id; email maps it to "Kids Birthday"
       custom_theme: false,
       package_name: 'Princess Castle',
       cart: { eventFor: 'Sara' },
