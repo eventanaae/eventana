@@ -20,6 +20,7 @@ import { Shop } from './screens/Shop';
 import { ShopCheckout } from './screens/ShopCheckout';
 import { PayLink } from './screens/PayLink';
 import { TermsSheet } from './screens/Terms';
+import { PrivacySheet } from './screens/Privacy';
 import { Landing } from './screens/Landing';
 import { landingFromPath, type LandingRoute } from './landing';
 import { useProfile } from './profile';
@@ -216,6 +217,8 @@ export default function App() {
 
   // Terms & Conditions deep link (?terms=1), e.g. from an email invoice.
   const [showTerms, setShowTerms] = useState(false);
+  // Privacy Policy deep link (?privacy=1) — also the policy URL Meta requires.
+  const [showPrivacy, setShowPrivacy] = useState(false);
   // Manual-order payment link (?pay=<id>&t=<token>), sent by the team over WhatsApp.
   const [payLink, setPayLink] = useState<{ orderId: string; token: string } | null>(null);
 
@@ -243,6 +246,10 @@ export default function App() {
     }
     if (params.get('terms')) {
       setShowTerms(true);
+      history.replaceState({}, '', location.pathname);
+    }
+    if (params.get('privacy')) {
+      setShowPrivacy(true);
       history.replaceState({}, '', location.pathname);
     }
   }, []);
@@ -486,6 +493,7 @@ export default function App() {
       </div>
 
       {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
+      {showPrivacy && <PrivacySheet lang={lang} onClose={() => setShowPrivacy(false)} />}
 
       {showTabs && (
         <div

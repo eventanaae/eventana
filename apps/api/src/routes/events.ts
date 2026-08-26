@@ -434,13 +434,17 @@ export async function eventRoutes(app: FastifyInstance) {
     const cfg = await loadConfig();
 
     const { rows } = await pool.query(
-      `SELECT e.*, o.total_fils, o.status AS order_status, p.name AS package_name,
+      `SELECT e.*, o.total_fils, o.status AS order_status, o.cart, o.quote, p.name AS package_name,
+              th.name AS theme_name,
+              c.name AS contact_name, c.phone AS contact_phone, c.email AS contact_email,
               cx.cancelled_by, cx.refund_percent, cx.refund_amount_fils,
               cx.total_paid_fils AS cx_total_paid, cx.refund_status, cx.refund_reference,
               cx.processed_at AS refund_processed_at
          FROM events e
          JOIN orders o ON o.id = e.order_id
+         JOIN customers c ON c.id = e.customer_id
          LEFT JOIN packages p ON p.id = e.package_id
+         LEFT JOIN themes th ON th.id = e.theme_id
          LEFT JOIN cancellations cx ON cx.order_id = e.order_id
         WHERE e.id = $1 AND e.customer_id = $2`,
       [eventId, customerId],
@@ -448,7 +452,7 @@ export async function eventRoutes(app: FastifyInstance) {
     const event = rows[0];
     if (!event) return reply.status(404).send({ error: 'not_found' });
 
-    const [services, team, messages, designs, tasks, rating] = await Promise.all([
+    const [services, team, messages, designs, tasks, rating, payment] = await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(
         `SELECT m.id, m.name, m.role, m.color FROM event_team et
@@ -468,6 +472,12 @@ export async function eventRoutes(app: FastifyInstance) {
         [eventId],
       ),
       pool.query(`SELECT stars, feedback FROM event_ratings WHERE event_id = $1`, [eventId]),
+      pool.query(
+        `SELECT provider, captured_fils, amount_fils, created_at, raw FROM payments
+          WHERE order_id = $1 AND status IN ('captured','paid','confirmed','succeeded')
+          ORDER BY created_at DESC LIMIT 1`,
+        [event.order_id],
+      ),
     ]);
 
     const serviceIds = services.rows.map((s) => s.service_id).filter(Boolean) as string[];
@@ -550,12 +560,78 @@ export async function eventRoutes(app: FastifyInstance) {
       celebrationType: event.celebration_type,
       packageName: event.package_name,
       themeId: event.theme_id,
+      themeName: event.theme_name ?? null,
       customTheme: event.custom_theme,
+      // Custom-theme brief (concept / colours / notes) the customer submitted —
+      // a JSONB blob, surfaced so the receipt can echo what was requested.
+      customThemeBrief: event.custom_theme_brief ?? null,
+      movie: event.movie_id ?? null,
+      // Guest of honour ("who it's for") + age band live only in the order cart.
+      eventFor: (event.cart as any)?.eventFor ?? null,
+      ageBand: (event.cart as any)?.ageBand ?? null,
       childrenCount: event.children_count,
       emirate: event.emirate,
       address: event.address,
       mapPin: { lat: event.map_lat, lng: event.map_lng },
       castleVariant: event.castle_variant,
+      // The customer's own contact on file (backup phone only if it was captured
+      // into the cart — the customers table has no column for it).
+      contact: {
+        name: event.contact_name ?? null,
+        phone: event.contact_phone ?? null,
+        backupPhone:
+          (event.cart as any)?.guest?.backupPhone ?? (event.cart as any)?.backupPhone ?? null,
+        email: event.contact_email ?? null,
+      },
+      // Full price breakdown straight from the stored quote, so the receipt
+      // mirrors exactly what was charged at checkout (items, discount, delivery).
+      pricing: (() => {
+        const q = (event.quote as any) || {};
+        const delivery = Number(q.deliveryFils ?? 0);
+        const discount = Number(q.discountFils ?? 0);
+        const total = Number(event.total_fils);
+        const items = Array.isArray(q.lines)
+          ? q.lines
+              .filter((l: any) => l.kind !== 'discount' && l.kind !== 'delivery')
+              .map((l: any) => ({
+                label: l.label,
+                quantity: l.quantity,
+                amountFils: Number(l.amountFils),
+                amountDisplay: formatAed(Number(l.amountFils)),
+              }))
+          : [];
+        const subtotal = items.reduce((s: number, l: any) => s + l.amountFils, 0);
+        return {
+          items,
+          subtotalFils: subtotal,
+          subtotalDisplay: formatAed(subtotal),
+          discountFils: discount,
+          discountDisplay: formatAed(discount),
+          deliveryFils: delivery,
+          deliveryDisplay: formatAed(delivery),
+          totalFils: total,
+          totalDisplay: formatAed(total),
+        };
+      })(),
+      payment: payment.rows[0]
+        ? (() => {
+            const p = payment.rows[0] as any;
+            const raw = (p.raw as any) || {};
+            const card = raw?.card ?? raw?.payment_method_details?.card ?? {};
+            const providerLabel: Record<string, string> = {
+              stripe: 'Card', tabby: 'Tabby', tamara: 'Tamara', cash: 'Cash', link: 'Payment link',
+            };
+            const paid = Number(p.captured_fils || p.amount_fils || 0);
+            return {
+              method: providerLabel[p.provider] ?? p.provider,
+              brand: card?.brand ?? null,
+              last4: card?.last4 ?? null,
+              paidFils: paid,
+              paidDisplay: formatAed(paid),
+              paidAt: p.created_at,
+            };
+          })()
+        : null,
       totalDisplay: formatAed(Number(event.total_fils)),
       orderStatus: event.order_status,
       services: services.rows.map((s) => ({
