@@ -118,6 +118,13 @@ export const api = {
   events: (status?: string) =>
     request<any[]>(`/api/admin/events${status ? `?status=${status}` : ''}`),
   event: (id: string) => request<any>(`/api/admin/events/${id}`),
+  // Unpaid manual orders with the booking details kept inside cart, for back-filling
+  // theme / celebration type / guest-of-honour we already know from WhatsApp.
+  pendingOrderDetails: () => request<any>('/api/admin/orders/pending-details'),
+  patchOrderDetails: (
+    id: string,
+    body: { celebrationType?: string; themeId?: string | null; eventFor?: string },
+  ) => request<any>(`/api/admin/orders/${id}/details`, { method: 'PATCH', body: JSON.stringify(body) }),
   uploadDesign: (id: string, imageUrl: string) =>
     request<any>(`/api/admin/events/${id}/design`, { method: 'POST', body: JSON.stringify({ imageUrl }) }),
 
@@ -343,3 +350,8 @@ export const api = {
 export function apiOrigin(): string {
   return BASE;
 }
+
+// Expose the authenticated client for one-off ops tasks from the browser console
+// (e.g. back-filling booking details). The staff token stays inside request();
+// nothing here reads or returns it.
+(window as unknown as { eventanaApi?: typeof api }).eventanaApi = api;
