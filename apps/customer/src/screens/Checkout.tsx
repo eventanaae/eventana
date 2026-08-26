@@ -300,7 +300,7 @@ export function Checkout({
         promoCode: promo?.code ?? null,
         useCredit,
         redeemPoints,
-      }, agreed, guest);
+      }, agreed, guest, draft.offerToken);
       if (!result.eligible || (!result.embeddedUrl && !result.checkoutUrl && !result.clientSecret)) {
         setError(t('checkout.providerUnavailable', { provider: draft.provider }));
         setPaying(false);

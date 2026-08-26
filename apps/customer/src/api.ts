@@ -132,6 +132,18 @@ export const api = {
   quote: (cart: CartInput) =>
     request<QuoteResult>('/api/quote', { method: 'POST', body: JSON.stringify(cart) }),
 
+  /** A manual-order offer link — the products the team pre-selected. */
+  getOffer: (token: string) =>
+    request<{
+      status: 'open' | 'used';
+      celebrationType: string;
+      packageId: string | null;
+      services: Array<{ serviceId: string; quantity: number }>;
+      themeId: string | null;
+      items: Array<{ label: string; quantity: number; amountDisplay: string }>;
+      subtotalDisplay: string;
+    }>(`/api/offer/${encodeURIComponent(token)}`),
+
   startTimes: () => request<Array<{ value: string; allowed: boolean }>>('/api/start-times'),
 
   checkout: (
@@ -140,6 +152,7 @@ export const api = {
     discounts?: { promoCode?: string | null; useCredit?: boolean; redeemPoints?: boolean },
     termsAccepted?: boolean,
     guest?: { name: string; phone: string; backupPhone: string; email: string },
+    offerToken?: string | null,
   ) =>
     request<{
       orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
@@ -149,6 +162,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest,
+        offerToken: offerToken || undefined,
         // Which ad brought them here, if any — the server reports the paid
         // booking back to Meta against it.
         attribution: attributionPayload(),

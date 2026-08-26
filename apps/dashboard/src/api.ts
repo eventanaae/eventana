@@ -274,6 +274,17 @@ export const api = {
       '/api/admin/orders/manual',
       { method: 'POST', body: JSON.stringify(body) },
     ),
+  /** Product-only manual-order link: the customer completes their own checkout. */
+  createOffer: (body: {
+    celebrationType: string;
+    packageId?: string | null;
+    services: Array<{ serviceId: string; quantity: number }>;
+    themeId?: string | null;
+  }) =>
+    request<{ token: string; link: string; subtotalFils: number; subtotalDisplay: string; items: Array<{ label: string; quantity: number; amountDisplay: string }> }>(
+      '/api/admin/orders/offer',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   ceo: (params: { from?: string; to?: string; emirate?: string; eventType?: string; packageId?: string } = {}) => {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));

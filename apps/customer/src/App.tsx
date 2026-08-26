@@ -67,6 +67,10 @@ export interface Draft {
   } | null;
   /** Who the celebration is for — stored separately from the account holder. */
   eventFor: string;
+  /** Set when the party was pre-selected by the team via a manual-order link
+   *  (?offer=…). Sent at checkout so the booking is tagged 'manual' and the
+   *  offer is consumed on payment. */
+  offerToken: string | null;
 }
 
 const emptyDraft: Draft = {
@@ -92,6 +96,7 @@ const emptyDraft: Draft = {
   movie: null,
   themeBrief: null,
   eventFor: '',
+  offerToken: null,
 };
 
 /**
@@ -221,6 +226,8 @@ export default function App() {
   const [showPrivacy, setShowPrivacy] = useState(false);
   // Manual-order payment link (?pay=<id>&t=<token>), sent by the team over WhatsApp.
   const [payLink, setPayLink] = useState<{ orderId: string; token: string } | null>(null);
+  // Manual-order offer link (?offer=<token>): a used/invalid link shows a notice.
+  const [offerError, setOfferError] = useState<'used' | 'invalid' | null>(null);
 
   // Returning from a provider's hosted checkout, opening a booking straight from
   // an email's "Track your booking" button (?event=<id>), the Terms link, or a
@@ -243,6 +250,29 @@ export default function App() {
       setEventId(openEvent);
       setScreen('myevent');
       history.replaceState({}, '', location.pathname);
+    } else if (params.get('offer')) {
+      // Manual-order link: preload the team's chosen products, then drop the
+      // customer into the NORMAL checkout to complete their own details and pay.
+      const token = params.get('offer')!;
+      history.replaceState({}, '', location.pathname);
+      api
+        .getOffer(token)
+        .then((o) => {
+          if (!o) { setOfferError('invalid'); return; }
+          if (o.status === 'used') { setOfferError('used'); return; }
+          setDraft((d) => ({
+            ...emptyDraft,
+            celebrationType: o.celebrationType || 'kids',
+            celebrationTypeChosen: true,
+            buildAnswered: true,
+            packageId: o.packageId ?? null,
+            services: Object.fromEntries((o.services ?? []).map((s: any) => [s.serviceId, Number(s.quantity) || 1])),
+            themeId: o.themeId ?? null,
+            offerToken: token,
+          }));
+          setScreen('checkout');
+        })
+        .catch(() => setOfferError('invalid'));
     }
     if (params.get('terms')) {
       setShowTerms(true);
@@ -501,6 +531,30 @@ export default function App() {
 
       {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
       {showPrivacy && <PrivacySheet lang={lang} onClose={() => setShowPrivacy(false)} />}
+
+      {offerError && (
+        <div
+          onClick={() => { setOfferError(null); setScreen('home'); }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(60,40,52,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 60 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 22, padding: '26px 22px', maxWidth: 360, textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <div style={{ fontSize: 40 }}>{offerError === 'used' ? '✅' : '🔗'}</div>
+            <div style={{ ...fredoka(19), margin: '10px 0 6px', color: C.pinkDeep }}>
+              {offerError === 'used'
+                ? (lang === 'ar' ? 'تم حجز هذا الرابط' : 'This link is already booked')
+                : (lang === 'ar' ? 'رابط غير صالح' : 'Link not available')}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
+              {offerError === 'used'
+                ? (lang === 'ar' ? 'هذا الرابط استُخدم لحجز سابق. لأي تعديل تواصلي مع فريق إيفنتانا 💕' : 'This link was already used for a booking. Contact the Eventana team for any change 💕')
+                : (lang === 'ar' ? 'الرابط غير صحيح أو منتهي. تواصلي مع فريق إيفنتانا لإرسال رابط جديد.' : 'This link is invalid or expired. Please ask the Eventana team for a new one.')}
+            </div>
+            <button onClick={() => { setOfferError(null); setScreen('home'); }} style={{ marginTop: 18, background: C.pink, color: '#fff', border: 'none', borderRadius: 16, padding: '12px 26px', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>
+              {lang === 'ar' ? 'حسناً' : 'OK'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {showTabs && (
         <div
