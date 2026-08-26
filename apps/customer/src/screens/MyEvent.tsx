@@ -478,7 +478,7 @@ export function MyEvent({
                       color: m.confirmed ? '#fff' : C.muted,
                       fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center',
                       justifyContent: 'center', margin: '0 auto 7px',
-                      border: m.confirmed ? 'none' : `2px dashed ${C.line}`,
+                      border: m.confirmed ? 'none' : `2px dashed ${C.pinkLine}`,
                     }}
                   >
                     {m.isLeader ? '👑' : m.confirmed ? String(m.name)[0] : '★'}
