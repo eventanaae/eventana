@@ -566,5 +566,15 @@ async function applyAddonOrder(db: PoolClient, order: any, rules: PricingRules):
     );
   }
 
+  // Email the customer an UPDATED invoice: what they just added + the new event
+  // total. Keyed by this add-on order so a replayed webhook never double-sends.
+  await db.query(
+    `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+     SELECT $1, 'email', 'addon_invoice', now(), $2
+      WHERE NOT EXISTS (
+        SELECT 1 FROM notifications WHERE template = 'addon_invoice' AND payload->>'orderId' = $3)`,
+    [eventId, JSON.stringify({ orderId: order.id }), order.id],
+  );
+
   void parseHour;
 }

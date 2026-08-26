@@ -524,6 +524,67 @@ export function renderShopEmail(row: ShopEmailRow): { subject: string; html: str
   };
 }
 
+/** A paid add-on attached to an existing event — an "updated invoice" email. */
+export interface AddonEmailRow {
+  id: number;
+  event_id: string;
+  event_date: unknown;
+  start_time: string;
+  emirate: string | null;
+  event_cart: { eventFor?: string | null } | null;
+  package_name: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  addon_quote: { lines?: Array<{ label: string; quantity: number; amountFils: number }> } | null;
+  addon_total: number | null;
+  new_total: number | null;
+}
+
+/** Updated-invoice email after a customer (or the team) adds to a booking. */
+export function renderAddonEmail(row: AddonEmailRow): { subject: string; html: string } | null {
+  const first = (row.customer_name || 'there').split(' ')[0];
+  const honour = (row.event_cart?.eventFor || '').trim();
+  const track = trackUrl(row.event_id);
+  const lines = (row.addon_quote?.lines ?? []).filter((l) => l && l.label && Number(l.amountFils) !== 0);
+  const itemsHtml = lines.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 2px">` +
+      lines
+        .map(
+          (l) =>
+            `<tr><td style="padding:8px 2px;font-size:14px;color:${INK};border-bottom:1px solid ${HAIR}"><b>${l.quantity}×</b> ${l.label}</td>` +
+            `<td style="padding:8px 2px;text-align:right;font-size:13.5px;font-weight:700;color:${INK};border-bottom:1px solid ${HAIR}">${aed(l.amountFils)}</td></tr>`,
+        )
+        .join('') +
+      `</table>`
+    : '';
+  const detail: Array<[string, string]> = [];
+  if (honour) detail.push(['Guest of honour', honour]);
+  detail.push(['Date', longDate(row.event_date)]);
+  detail.push(['Time', time12(row.start_time) || '—']);
+  if (row.emirate) detail.push(['Location', row.emirate]);
+  detail.push(['Reference', row.event_id]);
+  detail.push(['Added now', aed(row.addon_total)]);
+  detail.push(['New booking total', aed(row.new_total)]);
+  return {
+    subject: honour
+      ? `${honour}'s Eventana booking — updated invoice 🧾`
+      : 'Your Eventana booking — updated invoice 🧾',
+    html: shell({
+      first,
+      emoji: '🧾',
+      eyebrow: 'Booking Updated',
+      heading: honour ? `${honour}'s booking has been updated!` : 'Your booking has been updated!',
+      bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">Great news — we've added a little more magic to ${honour ? `<b>${honour}'s celebration</b>` : 'your celebration'}! 🎉 Here's what was just added:</p>
+        ${itemsHtml}
+        <div style="margin-top:18px;font-size:11.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${BRAND}">Updated Booking</div>
+        ${detailCard(detail)}
+        ${termsNote()}
+        <p style="margin:16px 0 0;font-size:15px;line-height:1.6">Everything is saved to your booking — no need to do a thing. We can't wait to celebrate with you! 💕</p>`,
+      cta: track ? { href: track, label: 'View your booking →' } : undefined,
+    }),
+  };
+}
+
 /** Deliver all due notifications. Returns how many of each channel were sent. */
 export async function deliverPendingNotifications(): Promise<{ emails: number; pushes: number }> {
   let emails = 0;
@@ -545,6 +606,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
          LEFT JOIN packages p ON p.id = e.package_id
          LEFT JOIN cancellations cx ON cx.event_id = e.id
         WHERE n.channel = 'email' AND n.sent_at IS NULL AND n.cancelled_at IS NULL
+          AND n.template <> 'addon_invoice'
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST
         LIMIT 100`,
@@ -581,6 +643,42 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     );
     for (const row of rows) {
       const msg = renderShopEmail(row);
+      if (!msg || !row.customer_email) {
+        await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
+        continue;
+      }
+      const res = await sendEmail({ to: row.customer_email, subject: msg.subject, html: msg.html });
+      if (res.ok) {
+        await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
+        emails++;
+      }
+    }
+  }
+
+  // ---- Email (add-on updated invoice: keyed by the add-on order id) ----
+  if (emailEnabled()) {
+    const { rows } = await pool.query<AddonEmailRow>(
+      `SELECT n.id, e.id AS event_id, to_char(e.event_date,'YYYY-MM-DD') AS event_date,
+              e.start_time, e.emirate, oc.cart AS event_cart, p.name AS package_name,
+              c.name AS customer_name, c.email AS customer_email,
+              ao.quote AS addon_quote, ao.total_fils AS addon_total,
+              (SELECT COALESCE(SUM(x.total_fils),0) FROM orders x
+                 WHERE x.status IN ('paid','captured','confirmed','succeeded')
+                   AND (x.id = e.order_id OR (x.kind = 'addon' AND x.event_id = e.id))) AS new_total
+         FROM notifications n
+         JOIN orders ao   ON ao.id = (n.payload->>'orderId')
+         JOIN events e    ON e.id = n.event_id
+         JOIN customers c ON c.id = e.customer_id
+         LEFT JOIN orders oc   ON oc.id = e.order_id
+         LEFT JOIN packages p  ON p.id = e.package_id
+        WHERE n.channel = 'email' AND n.template = 'addon_invoice'
+          AND n.sent_at IS NULL AND n.cancelled_at IS NULL
+          AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
+        ORDER BY n.created_at
+        LIMIT 100`,
+    );
+    for (const row of rows) {
+      const msg = renderAddonEmail(row);
       if (!msg || !row.customer_email) {
         await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
         continue;
