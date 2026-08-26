@@ -16,10 +16,12 @@ const navBtn: CSSProperties = {
 
 const RANK = ['🥇', '🥈', '🥉'];
 
-export function Kpis() {
+export function Kpis({ role }: { role?: string }) {
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${pad(now.getMonth() + 1)}`);
   const [data, setData] = useState<any>(null);
+  // The API returns personal:true for an employee — only their own numbers.
+  const personal = data?.personal || role === 'employee';
 
   useEffect(() => {
     setData(null);
@@ -35,7 +37,7 @@ export function Kpis() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Panel
-        title={`Team KPIs — ${monthLabel(month)}`}
+        title={`${personal ? 'My KPIs & Tips' : 'Team KPIs'} — ${monthLabel(month)}`}
         action={
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => shift(-1)} style={navBtn}>‹</button>
@@ -54,11 +56,12 @@ export function Kpis() {
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 8 }}>
-              <Tile label="Tips this month" value={`AED ${data.overall.tipsDisplay}`} accent={C.pinkDeep} />
-              <Tile label="Team-pool tips" value={`AED ${data.overall.teamPoolDisplay}`} />
-              <Tile label="Events completed" value={String(data.overall.eventsDone)} />
+              <Tile label={personal ? 'My tips this month' : 'Tips this month'} value={`AED ${data.overall.tipsDisplay}`} accent={C.pinkDeep} />
+              {!personal && <Tile label="Team-pool tips" value={`AED ${data.overall.teamPoolDisplay}`} />}
+              {personal && data.staff[0] && <Tile label="My points" value={String(data.staff[0].points)} accent={C.pinkDeep} />}
+              <Tile label={personal ? 'My events completed' : 'Events completed'} value={String(data.overall.eventsDone)} />
               <Tile
-                label={`Avg rating · ${data.overall.ratingsCount} reviews`}
+                label={`${personal ? 'My rating' : 'Avg rating'} · ${data.overall.ratingsCount} reviews`}
                 value={data.overall.avgRating > 0 ? `${data.overall.avgRating} ★` : '—'}
               />
             </div>
@@ -66,7 +69,7 @@ export function Kpis() {
         )}
       </Panel>
 
-      {data && (
+      {data && !personal && (
         <Panel title="Leaderboard">
           {data.staff.length === 0 ? (
             <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>No active staff.</div>

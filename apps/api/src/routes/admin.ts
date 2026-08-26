@@ -127,7 +127,6 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/import') ||
       path.startsWith('/api/admin/orders') ||
       path.startsWith('/api/admin/expenses') ||
-      path.startsWith('/api/admin/kpis') ||
       path.startsWith('/api/admin/settings') ||
       path.startsWith('/api/admin/delivery-zones') ||
       path.startsWith('/api/admin/needs-review') ||
@@ -923,7 +922,12 @@ export async function adminRoutes(app: FastifyInstance) {
             JOIN event_team et ON et.event_id = r.event_id
             JOIN events e ON e.id = r.event_id
             WHERE et.member_id = tm.id AND r.stars = 5
-              AND e.event_date >= $1 AND e.event_date < $2) AS five_stars
+              AND e.event_date >= $1 AND e.event_date < $2) AS five_stars,
+         (SELECT COUNT(*) FROM event_ratings r
+            JOIN event_team et ON et.event_id = r.event_id
+            JOIN events e ON e.id = r.event_id
+            WHERE et.member_id = tm.id
+              AND e.event_date >= $1 AND e.event_date < $2) AS ratings_count
        FROM team_members tm
        WHERE tm.active
        ORDER BY tips_fils DESC, events_done DESC, tm.name`,
@@ -947,6 +951,7 @@ export async function adminRoutes(app: FastifyInstance) {
         tipsCount: Number(r.tips_count),
         avgRating: Number(r.avg_rating),
         fiveStars,
+        ratingsCount: Number(r.ratings_count),
         points,
       };
     });
@@ -968,6 +973,29 @@ export async function adminRoutes(app: FastifyInstance) {
       [start, endStr],
     );
     const t = totals.rows[0];
+
+    // An employee (or driver) sees ONLY their own numbers — no leaderboard of
+    // the team, no whole-team tip pool. The top tiles become their personal
+    // stats; the "staff" list is just them.
+    const reqRole = (request as any).staff?.role as string | undefined;
+    const reqId = (request as any).staff?.id as string | undefined;
+    if (reqRole === 'employee' || reqRole === 'driver') {
+      const mine = staff.find((s) => s.id === reqId) ?? null;
+      return {
+        month: monthStr,
+        personal: true,
+        staff: mine ? [mine] : [],
+        overall: {
+          tipsFils: mine?.tipsFils ?? 0,
+          tipsDisplay: mine ? mine.tipsDisplay : formatAed(0),
+          teamPoolFils: 0,
+          teamPoolDisplay: null,
+          eventsDone: mine?.eventsDone ?? 0,
+          avgRating: mine?.avgRating ?? 0,
+          ratingsCount: mine?.ratingsCount ?? 0,
+        },
+      };
+    }
 
     return {
       month: monthStr,

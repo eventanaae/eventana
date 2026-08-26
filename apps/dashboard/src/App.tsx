@@ -63,7 +63,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
   manager: ['today', 'schedule', 'tasks', 'inventory', 'alerts', 'neworder', 'leads', 'shop', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings'],
-  employee: ['today', 'schedule', 'tasks', 'inventory'],
+  employee: ['today', 'schedule', 'tasks', 'inventory', 'kpis'],
   driver: ['today', 'schedule'],
 };
 
@@ -152,7 +152,7 @@ export default function App() {
       {view === 'inventory' && <Inventory />}
       {view === 'alerts' && <Alerts onOpenEvent={openEvent} />}
       {view === 'team' && <Team role={role} />}
-      {view === 'kpis' && <Kpis />}
+      {view === 'kpis' && <Kpis role={role} />}
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}
       {view === 'financials' && <Financials />}
