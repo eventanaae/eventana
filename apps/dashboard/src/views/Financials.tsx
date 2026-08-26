@@ -185,14 +185,22 @@ function PackageMerge() {
   const load = () => api.importProducts().then(setProducts).catch(() => setProducts([]));
   useEffect(() => { load(); }, []);
 
-  // Normalise a package name so a renamed duplicate collapses onto one canonical
-  // spelling: fix the "Pakage" typo, drop a leading "New ", tidy spacing.
-  const canon = (name: string) =>
-    name.trim().replace(/\s+/g, ' ').replace(/pakage/gi, 'Package').replace(/^new\s+/i, '').trim();
-
   const groups = useMemo(() => {
+    const list = products ?? [];
+    // Safe typo fix, always applied.
+    const fix = (name: string) => name.trim().replace(/\s+/g, ' ').replace(/pakage/gi, 'Package');
+    const fixedSet = new Set(list.map((p) => fix(p.product).toLowerCase()));
+    // Drop a leading "New " ONLY when a real counterpart package exists — so a
+    // renamed "New Bronze Package" merges into "Bronze Package", but a genuine
+    // "New Born Set Up" (a newborn setup) is left untouched.
+    const canon = (name: string) => {
+      const f = fix(name);
+      const stripped = f.replace(/^new\s+/i, '').trim();
+      if (/^new\s+/i.test(f) && stripped && fixedSet.has(stripped.toLowerCase())) return stripped;
+      return f;
+    };
     const m = new Map<string, { target: string; names: any[] }>();
-    for (const p of products ?? []) {
+    for (const p of list) {
       const key = canon(p.product).toLowerCase();
       if (!m.has(key)) m.set(key, { target: canon(p.product), names: [] });
       m.get(key)!.names.push(p);
