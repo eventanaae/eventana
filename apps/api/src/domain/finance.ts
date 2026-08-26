@@ -74,8 +74,8 @@ type DocInput = {
   customerId?: number | null; customerName: string;
   items: LineItem[]; discountFils?: number; shippingFils?: number;
   message?: string;
-  // Party details echoed on the receipt (guest-of-honour / baby name + theme).
-  eventFor?: string | null; theme?: string | null;
+  // Party details echoed on the receipt (guest-of-honour / baby name + theme + age).
+  eventFor?: string | null; theme?: string | null; age?: string | null;
 };
 
 export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string }) {
@@ -128,9 +128,9 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null],
+    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null],
   );
   return decorateReceipt(rows[0]);
 }
@@ -238,13 +238,13 @@ export async function recordSaleFromOrder(
     await db.query(
       `INSERT INTO finance_receipts
          (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils,
-          shipping_fils, total_fils, paid_with, source, order_id, event_for, theme)
-       VALUES ($1,$2,$3,COALESCE($4::date,current_date),$5,$6,$7,$8,$9,'Card',$10,$11,$12,$13)
+          shipping_fils, total_fils, paid_with, source, order_id, event_for, theme, age)
+       VALUES ($1,$2,$3,COALESCE($4::date,current_date),$5,$6,$7,$8,$9,'Card',$10,$11,$12,$13,$14)
        ON CONFLICT (order_id) DO NOTHING`,
       [
         number, financeCustomerId, customerName, cart.eventDate ?? null, JSON.stringify(items),
         subtotal, discount, shipping, total, source, order.id,
-        cart.eventFor ?? null, theme,
+        cart.eventFor ?? null, theme, cart.ageBand ?? null,
       ],
     );
     await db.query('RELEASE SAVEPOINT fin_sale');
@@ -315,9 +315,9 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   const { rows } = await pool.query(
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
-       event_for=$12, theme=$13
+       event_for=$12, theme=$13, age=$14
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null],
+    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null],
   );
   return rows[0] ? decorateReceipt(rows[0]) : null;
 }
@@ -352,8 +352,9 @@ export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
       ${kind === 'receipt' ? '<div style="margin-top:6px;font-weight:800;letter-spacing:1px">PAID</div>' : ''}
     </div>
     <div style="font-size:14px;margin-bottom:14px"><b>${escapeHtml(doc.customer_name ?? '')}</b><br><span style="color:#999">${dateStr}</span></div>
-    ${doc.event_for || doc.theme ? `<table style="width:100%;font-size:13px;margin-bottom:12px;color:#3B3641">
+    ${doc.event_for || doc.theme || doc.age ? `<table style="width:100%;font-size:13px;margin-bottom:12px;color:#3B3641">
       ${doc.event_for ? `<tr><td style="color:#999;padding:2px 0">Celebration for</td><td style="text-align:right;font-weight:700">${escapeHtml(doc.event_for)}</td></tr>` : ''}
+      ${doc.age ? `<tr><td style="color:#999;padding:2px 0">Age</td><td style="text-align:right;font-weight:700">${escapeHtml(doc.age)}</td></tr>` : ''}
       ${doc.theme ? `<tr><td style="color:#999;padding:2px 0">Theme</td><td style="text-align:right;font-weight:700">${escapeHtml(doc.theme)}</td></tr>` : ''}
     </table>` : ''}
     <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>

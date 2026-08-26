@@ -1064,6 +1064,7 @@ function ReceiptCard({ event, t, lang }: { event: any; t: TFn; lang: Lang }) {
       <SummaryRow label={t('pay.eventId')} value={event.id} />
       {typeLabel && <SummaryRow label={t('me.rcType')} value={typeLabel} />}
       {event.eventFor && <SummaryRow label={t('me.rcFor')} value={event.eventFor} />}
+      {event.ageBand && <SummaryRow label={t('me.rcAge')} value={String(event.ageBand)} />}
       {theme && <SummaryRow label={t('me.rcTheme')} value={theme} />}
       {event.packageName && <SummaryRow label={t('me.rcPackage')} value={event.packageName} />}
       {dateStr && <SummaryRow label={t('me.rcDate')} value={dateStr} />}

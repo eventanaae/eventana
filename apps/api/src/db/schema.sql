@@ -819,6 +819,7 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAU
 -- guest-of-honour / baby name and the chosen theme.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_for TEXT;
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS theme TEXT;
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS age TEXT;
 -- Link back to the source order so every paid order (web / app / shop / manual
 -- pay-link) auto-appears here as a sale exactly once. Partial-unique so manual
 -- dashboard receipts (no order) are unaffected.

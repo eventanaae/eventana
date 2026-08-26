@@ -315,6 +315,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' 
   const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10));
   const [message, setMessage] = useState(initial?.message ?? '');
   const [eventFor, setEventFor] = useState(initial?.eventFor ?? '');
+  const [age, setAge] = useState(initial?.age ?? '');
   const [theme, setTheme] = useState(initial?.theme ?? '');
   const [pickCustomer, setPickCustomer] = useState(false);
   const [pickItem, setPickItem] = useState(false);
@@ -330,7 +331,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' 
     if (!customer) { setErr('Choose a customer.'); return; }
     if (items.length === 0) { setErr('Add at least one item.'); return; }
     setBusy(true); setErr(null);
-    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, theme: theme.trim() || null };
+    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null };
     try {
       if (kind === 'invoice') {
         if (editId) await api.finUpdateInvoice(editId, { ...body, dueDate: dueDate || null });
@@ -375,9 +376,10 @@ function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' 
         ? <Field label="Due date"><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={input} /></Field>
         : <Field label="Date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} /></Field>}
 
-      {/* Party details echoed on the receipt — guest of honour + theme. */}
+      {/* Party details echoed on the receipt — guest of honour + age + theme. */}
       <div style={{ marginTop: 4, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Field label="Baby / celebrant name"><input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={input} placeholder="e.g. Sara" /></Field>
+        <Field label="Age"><input value={age} onChange={(e) => setAge(e.target.value)} style={input} placeholder="e.g. 3" /></Field>
         <Field label="Theme"><input value={theme} onChange={(e) => setTheme(e.target.value)} style={input} placeholder="e.g. Mermaid" /></Field>
       </div>
 
@@ -413,6 +415,7 @@ function DocDetail({ doc, kind, onClose, onChanged }: { doc: any; kind: 'invoice
     date: doc.date ? String(doc.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
     message: doc.message ?? '',
     eventFor: doc.event_for ?? '',
+    age: doc.age ?? '',
     theme: doc.theme ?? '',
   });
 
@@ -451,9 +454,10 @@ function DocDetail({ doc, kind, onClose, onChanged }: { doc: any; kind: 'invoice
         {kind === 'receipt' ? 'SALES RECEIPT' : 'INVOICE'} #{doc.number} · {fmtDate(doc.date ?? doc.issue_date)}
       </div>
       {kind === 'receipt' && <div style={{ fontSize: 12, color: C.muted2, marginBottom: 10 }}>Deposit to: <b style={{ color: C.ink }}>Cash on hand</b></div>}
-      {(doc.event_for || doc.theme) && (
+      {(doc.event_for || doc.age || doc.theme) && (
         <div style={{ marginBottom: 6 }}>
           {doc.event_for && <Row label="Celebration for" value={doc.event_for} />}
+          {doc.age && <Row label="Age" value={String(doc.age)} />}
           {doc.theme && <Row label="Theme" value={doc.theme} />}
         </div>
       )}
@@ -495,8 +499,9 @@ function docHtml(doc: any, kind: 'invoice' | 'receipt') {
       ${kind === 'receipt' ? '<div style="margin-top:4px;font-weight:800;letter-spacing:1px">PAID</div>' : ''}
     </div>
     <div style="font-size:14px;margin-bottom:12px"><b>${esc(doc.customer_name)}</b><br><span style="color:#999">${fmtDate(doc.date ?? doc.issue_date)}</span></div>
-    ${doc.event_for || doc.theme ? `<table style="width:100%;font-size:13px;margin-bottom:12px">
+    ${doc.event_for || doc.theme || doc.age ? `<table style="width:100%;font-size:13px;margin-bottom:12px">
       ${doc.event_for ? `<tr><td style="color:#999;padding:2px 0">Celebration for</td><td style="text-align:right;font-weight:700">${esc(doc.event_for)}</td></tr>` : ''}
+      ${doc.age ? `<tr><td style="color:#999;padding:2px 0">Age</td><td style="text-align:right;font-weight:700">${esc(doc.age)}</td></tr>` : ''}
       ${doc.theme ? `<tr><td style="color:#999;padding:2px 0">Theme</td><td style="text-align:right;font-weight:700">${esc(doc.theme)}</td></tr>` : ''}
     </table>` : ''}
     <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>
