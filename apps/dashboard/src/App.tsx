@@ -45,7 +45,8 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Stock, leave, reviews and tips', section: 'ops' },
   { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
-  { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', section: 'sales' },
+  // Shop orders already flow into Sales (finance) and the dashboard, so there's
+  // no separate Shop tab — removed from the nav on purpose.
   { id: 'overview', label: 'Overview', icon: '📊', title: 'Overview', sub: 'Orders, emirates & themes at a glance', section: 'business', mobile: true },
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
   { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance', sub: 'Invoices, receipts, expenses & accounts', section: 'business' },
@@ -62,7 +63,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'tasks', 'inventory', 'alerts', 'neworder', 'leads', 'shop', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings'],
+  manager: ['today', 'schedule', 'tasks', 'inventory', 'alerts', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings'],
   employee: ['today', 'schedule', 'tasks', 'inventory', 'kpis'],
   driver: ['today', 'schedule'],
 };
