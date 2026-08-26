@@ -657,8 +657,8 @@ export async function eventRoutes(app: FastifyInstance) {
         ? []
         : (() => {
             const LABEL: Record<string, string> = {
-              leader: 'Event Leader', balloon_artist: 'Balloon Artist', clown: 'Entertainer',
-              face_painting: 'Face Painter', helper: 'Party Helper', balloon_twisting: 'Balloon Artist',
+              leader: 'Event Leader', balloon_artist: 'Balloon Décor Artist', clown: 'Entertainer',
+              face_painting: 'Face Painter', helper: 'Party Star', balloon_twisting: 'Balloon Magician',
               staff: 'Party Crew', acrobat_clown: 'Acrobat Entertainer',
             };
             const HIDE = new Set(['design', 'driver']);

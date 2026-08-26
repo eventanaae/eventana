@@ -132,9 +132,14 @@ function serviceReqs(s: ServiceInput): RoleReq[] {
 }
 
 /** Compute the full role requirement list for an order. */
-export function computeRequirements(input: { packageName?: string | null; services: ServiceInput[] }): RoleReq[] {
+export function computeRequirements(input: { packageName?: string | null; services: ServiceInput[]; customTheme?: boolean }): RoleReq[] {
   const reqs: RoleReq[] = [];
   const pk = packageKey(input.packageName);
+  // Custom theme designed by the customer → Marsha designs/visualises the event
+  // (an internal, back-office task; never shown to the customer).
+  if (input.customTheme) {
+    reqs.push({ role: 'design', count: 1, reason: 'Design & visualise the custom theme', source: 'Custom theme', needsDesign: true });
+  }
   if (pk) {
     for (const c of PACKAGE_CREW[pk]) {
       reqs.push({ role: c.role, count: c.count, reason: `${input.packageName} package crew`, source: input.packageName ?? 'Package' });
@@ -189,7 +194,7 @@ export interface StaffingPlan {
 export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan | null> {
   const evRes = await pool.query(
     `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS date, e.start_time, e.base_end_time,
-            o.cart, p.name AS package_name
+            e.custom_theme, o.cart, p.name AS package_name
        FROM events e JOIN orders o ON o.id = e.order_id
        LEFT JOIN packages p ON p.id = e.package_id
       WHERE e.id = $1`,
@@ -219,7 +224,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
       services.push({ serviceId: row.service_id ?? '', name: svc?.name ?? label, categoryId: (svc as any)?.categoryId, isInflatable: (svc as any)?.isInflatable, isFoodStation: (svc as any)?.isFoodStation, quantity: Number(row.quantity) || 1, fromPackage: false });
     }
   }
-  const reqs = computeRequirements({ packageName, services });
+  const reqs = computeRequirements({ packageName, services, customTheme: !!ev.custom_theme });
 
   // Internal staff + skills + current workload.
   const staffRows = await pool.query(
