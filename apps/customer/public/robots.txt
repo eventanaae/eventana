@@ -5,4 +5,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://app.eventanauae.com/sitemap.xml
+Sitemap: https://eventanauae.com/sitemap.xml

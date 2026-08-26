@@ -18,6 +18,14 @@ import { landingCopy, type LandingRoute } from '../landing';
  * well as a phone, and media queries cannot be expressed inline. The rules are
  * namespaced under `.lp` so they cannot leak into the app screens.
  */
+/**
+ * The address Google is asked to index. The app answers on both
+ * eventanauae.com and app.eventanauae.com — the second still serves booking
+ * links already sent to customers, so it is not redirected away, which is
+ * exactly why the canonical has to be stated.
+ */
+const CANONICAL_ORIGIN = 'https://eventanauae.com';
+
 export function Landing({
   route,
   lang,
@@ -39,18 +47,30 @@ export function Landing({
   const copy = landingCopy(route, lang);
   const ar = lang === 'ar';
 
-  // The <title> and description are per-route: this is the only place the app
-  // has ever had something specific to say to a crawler or a shared link.
+  // The <title>, description and canonical are per-route: this is the only
+  // place the app has ever had something specific to say to a crawler or a
+  // shared link. The canonical matters because the same page answers on both
+  // eventanauae.com and app.eventanauae.com; without it the two hosts compete
+  // as duplicates and neither ranks.
   useEffect(() => {
     document.title = copy.title;
-    let tag = document.querySelector('meta[name="description"]');
-    if (!tag) {
-      tag = document.createElement('meta');
-      tag.setAttribute('name', 'description');
-      document.head.appendChild(tag);
+
+    let desc = document.querySelector('meta[name="description"]');
+    if (!desc) {
+      desc = document.createElement('meta');
+      desc.setAttribute('name', 'description');
+      document.head.appendChild(desc);
     }
-    tag.setAttribute('content', copy.description);
-  }, [copy.title, copy.description]);
+    desc.setAttribute('content', copy.description);
+
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute('href', `${CANONICAL_ORIGIN}/${route.slug}`);
+  }, [copy.title, copy.description, route.slug]);
 
   const testimonials = (social?.testimonials ?? []).filter((x) => x.feedback).slice(0, 3);
   const rating = social?.overall;

@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  One entry per landing route (see src/landing.ts). Update the host here if the
-  apex domain eventanauae.com becomes the canonical address.
+  One entry per landing route (see src/landing.ts). The host here is the canonical one; app.eventanauae.com still serves the
+  same app but is not the address we ask Google to index.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://app.eventanauae.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://app.eventanauae.com/kids-birthday</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://app.eventanauae.com/balloon-decoration</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://app.eventanauae.com/baby-shower</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://app.eventanauae.com/graduation</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://app.eventanauae.com/corporate-events</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://app.eventanauae.com/rentals</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://eventanauae.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://eventanauae.com/kids-birthday</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://eventanauae.com/balloon-decoration</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://eventanauae.com/baby-shower</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://eventanauae.com/graduation</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://eventanauae.com/corporate-events</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://eventanauae.com/rentals</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
 </urlset>
