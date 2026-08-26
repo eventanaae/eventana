@@ -140,45 +140,11 @@ export function Financials() {
         </div>
       </Panel>
 
-      <ProfitByYear />
       <RevenueByYear />
       <AddYear onSaved={load} />
       <MigrationPanel />
       <PackageMerge />
     </div>
-  );
-}
-
-/** Profit per year: invoice revenue − imported expenses. */
-function ProfitByYear() {
-  const [data, setData] = useState<any[] | null>(null);
-  useEffect(() => { api.pnlByYear().then(setData).catch(() => setData([])); }, []);
-  if (!data || data.length === 0) return null;
-  const anyExpenses = data.some((d) => d.hasExpenses);
-  return (
-    <Panel title="Profit by year — revenue minus expenses">
-      {!anyExpenses && (
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.yellowInk, background: C.yellowSoft, border: '1px solid #f0dca8', borderRadius: 12, padding: '10px 12px', marginBottom: 12 }}>
-          Upload an expense report (Expenses tile below) to fill in expenses and see profit per year.
-        </div>
-      )}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
-          <thead><tr><ColH>Year</ColH><ColH right>Revenue</ColH><ColH right>Expenses</ColH><ColH right>Profit</ColH><ColH right>Margin</ColH></tr></thead>
-          <tbody>
-            {data.map((d) => (
-              <tr key={d.year}>
-                <Cell><span style={{ ...fredoka(14), color: C.ink }}>{d.year}</span></Cell>
-                <Cell right>AED {d.revenueDisplay}</Cell>
-                <Cell right>{d.hasExpenses ? `AED ${d.expensesDisplay}` : <span style={{ color: C.muted }}>—</span>}</Cell>
-                <Cell right>{d.hasExpenses ? <span style={{ fontWeight: 800, color: d.profitFils < 0 ? C.red : C.green }}>AED {d.profitDisplay}</span> : <span style={{ color: C.muted }}>—</span>}</Cell>
-                <Cell right>{d.hasExpenses ? `${d.marginPct}%` : <span style={{ color: C.muted }}>—</span>}</Cell>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
   );
 }
 
