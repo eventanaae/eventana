@@ -115,10 +115,56 @@ function InvoicesList() {
   );
 }
 
+/**
+ * Add-on flow: pick an upcoming paid booking (or one passed in), then build the
+ * extra products for it. Reused from the Sales page and a receipt's detail view.
+ */
+export function AddonFlow({ onClose, initialEventId }: { onClose: () => void; initialEventId?: string }) {
+  const [eventId, setEventId] = useState(initialEventId ?? '');
+  const [events, setEvents] = useState<any[] | null>(initialEventId ? [] : null);
+  useEffect(() => {
+    if (initialEventId) return;
+    const today = new Date().toISOString().slice(0, 10);
+    api.events()
+      .then((list: any[]) => setEvents(
+        (list || [])
+          .filter((e) => String(e.event_date).slice(0, 10) >= today && e.order_status === 'paid' && e.phase !== 'Cancelled')
+          .sort((a, b) => String(a.event_date).localeCompare(String(b.event_date))),
+      ))
+      .catch(() => setEvents([]));
+  }, [initialEventId]);
+
+  if (eventId) {
+    return (
+      <Modal title="Add-on — build the extras" onClose={onClose}>
+        <NewOrder addonEventId={eventId} />
+      </Modal>
+    );
+  }
+  return (
+    <Modal title="Add-on — pick the booking" onClose={onClose}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10 }}>Choose the upcoming booking to add to.</div>
+      {!events ? <Spinner /> : events.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, padding: 8 }}>No upcoming paid bookings to add to.</div>
+      ) : (
+        <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+          {events.map((e) => (
+            <button key={e.id} onClick={() => setEventId(e.id)} style={{ ...rowBtn }}>
+              <span style={{ fontWeight: 700, color: C.ink }}>{e.customer} · {fmtDate(e.event_date)}</span>
+              <span style={{ fontSize: 11, color: C.muted }}>{e.id} · {e.emirate}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function ReceiptsList() {
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [newOrder, setNewOrder] = useState(false);
+  const [addon, setAddon] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [sel, setSel] = useState<any>(null);
   const load = () => api.finReceipts().then(setData).catch(() => setData({ receipts: [] }));
@@ -161,6 +207,7 @@ function ReceiptsList() {
       action={
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button tone="ghost" onClick={() => setNewOrder(true)}>+ New order</Button>
+          <Button tone="ghost" onClick={() => setAddon(true)}>+ Add-on</Button>
           <Button onClick={() => setCreating(true)}>+ New receipt</Button>
         </div>
       }
@@ -193,6 +240,7 @@ function ReceiptsList() {
           <NewOrder />
         </Modal>
       )}
+      {addon && <AddonFlow onClose={() => setAddon(false)} />}
       {sel && <DocDetail doc={sel} kind="receipt" onClose={() => setSel(null)} onChanged={load} />}
     </Panel>
   );
@@ -354,6 +402,7 @@ function DocDetail({ doc, kind, onClose, onChanged }: { doc: any; kind: 'invoice
   const [mode, setMode] = useState<'view' | 'edit' | 'copy'>('view');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [addon, setAddon] = useState(false);
 
   const toInitial = () => ({
     customer: { id: doc.customer_id ?? null, name: doc.customer_name },
@@ -426,9 +475,11 @@ function DocDetail({ doc, kind, onClose, onChanged }: { doc: any; kind: 'invoice
         <Button tone="ghost" onClick={email} disabled={busy}>📧 Email</Button>
         <Button tone="ghost" onClick={() => setMode('edit')}>✏️ Edit</Button>
         <Button tone="ghost" onClick={() => setMode('copy')}>⧉ Copy</Button>
+        {kind === 'receipt' && <Button tone="ghost" onClick={() => setAddon(true)}>➕ Add-on</Button>}
         <Button tone="danger" onClick={del}>🗑 Delete</Button>
       </div>
       {msg && <div style={{ marginTop: 10, fontWeight: 700, fontSize: 12.5, color: msg.startsWith('✓') ? C.green : C.red }}>{msg}</div>}
+      {addon && <AddonFlow onClose={() => setAddon(false)} />}
     </Modal>
   );
 }
