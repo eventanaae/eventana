@@ -46,6 +46,16 @@ export async function buildServer(): Promise<FastifyInstance> {
   );
 
   /**
+   * The QuickBooks migration collector POSTs from the qbo.intuit.com page as a
+   * "simple" cross-origin request, which forces Content-Type: text/plain (any
+   * other type would trigger a CORS preflight the browser can't satisfy there).
+   * Accept it as a raw string; the /api/import route JSON-parses it itself.
+   */
+  app.addContentTypeParser('text/plain', { parseAs: 'string' }, (_request, body: string, done) => {
+    done(null, body);
+  });
+
+  /**
    * Health check. Render polls this; it also states plainly whether this
    * deployment can take real money, so nobody has to guess from the URL.
    */

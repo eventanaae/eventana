@@ -715,6 +715,57 @@ CREATE TABLE IF NOT EXISTS historical_financials (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ── Historical customers (from QuickBooks) ──────────────────────────────────
+-- The business's real customer book (≈595 contacts) lived only in QuickBooks —
+-- every party was sold on WhatsApp. We migrate it here (name, phone(s), email,
+-- emirate) so the CRM and marketing (anniversary/past-customer campaigns) can
+-- reach them, WITHOUT polluting the live `customers` table that drives accounts,
+-- loyalty and bookings. Deduped by phone where present, else by lower(name).
+-- Data is piped straight from the owner's QuickBooks browser into this table via
+-- the import endpoint; it never passes through a third party.
+CREATE TABLE IF NOT EXISTS historical_customers (
+  id           BIGSERIAL PRIMARY KEY,
+  full_name    TEXT NOT NULL,
+  phone        TEXT,
+  phone_alt    TEXT,
+  email        TEXT,
+  emirate      TEXT,
+  bill_address TEXT,
+  ship_address TEXT,
+  dedupe_key   TEXT NOT NULL,          -- lower(phone digits) or lower(name)
+  source       TEXT NOT NULL DEFAULT 'quickbooks',
+  imported_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS historical_customers_dedupe_idx ON historical_customers (dedupe_key);
+CREATE INDEX IF NOT EXISTS historical_customers_emirate_idx ON historical_customers (emirate);
+
+-- ── Historical orders / invoices (from QuickBooks) ───────────────────────────
+-- Every invoice the business raised (all WhatsApp sales) lived only in
+-- QuickBooks. We migrate them here so the dashboard can show real order history,
+-- reconstruct revenue per year, and reconcile discounts against what was charged
+-- — kept separate from live `orders` (which drive live payments/production).
+-- Amounts are fils. dedupe_key is the QuickBooks document number (or a synthetic
+-- key) so re-running the import updates rather than duplicates.
+CREATE TABLE IF NOT EXISTS historical_orders (
+  id            BIGSERIAL PRIMARY KEY,
+  doc_number    TEXT,                    -- QuickBooks invoice/sales-receipt no.
+  txn_type      TEXT,                    -- Invoice | Sales Receipt | Payment | ...
+  customer_name TEXT,
+  txn_date      DATE,
+  product       TEXT,                    -- product/service (e.g. package name)
+  memo          TEXT,
+  subtotal_fils BIGINT NOT NULL DEFAULT 0,
+  discount_fils BIGINT NOT NULL DEFAULT 0,
+  tax_fils      BIGINT NOT NULL DEFAULT 0,
+  total_fils    BIGINT NOT NULL DEFAULT 0,
+  status        TEXT,                    -- Paid | Open | Overdue | ...
+  dedupe_key    TEXT NOT NULL,
+  source        TEXT NOT NULL DEFAULT 'quickbooks',
+  imported_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS historical_orders_dedupe_idx ON historical_orders (dedupe_key);
+CREATE INDEX IF NOT EXISTS historical_orders_date_idx ON historical_orders (txn_date);
+
 -- Seed: FY2026 year-to-date (Jan 1 – Aug 26 2026), taken straight from the
 -- owner's QuickBooks "Profit and Loss by Month" report. ON CONFLICT DO NOTHING
 -- so a later dashboard edit (or a full-year restate) is never clobbered on boot.

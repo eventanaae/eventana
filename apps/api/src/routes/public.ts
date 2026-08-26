@@ -26,6 +26,7 @@ import { orderViewTokenValid } from '../domain/orders.js';
 import { processDelivery } from '../domain/webhooks.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
 import { makeReferralCode, validatePromo } from '../domain/discounts.js';
+import { isImportTicketValid } from '../domain/importTicket.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { allProviders } from '../payments/index.js';
@@ -178,6 +179,96 @@ export async function publicRoutes(app: FastifyInstance) {
     const now = Date.now();
     for (const [k, b] of rlBuckets) if (b.reset <= now) rlBuckets.delete(k);
   }, 300_000).unref();
+
+  /**
+   * One-time data migration sink. The owner's QuickBooks browser tab scrapes
+   * customers / invoices and POSTs them straight here (as a simple text/plain
+   * request, so it works cross-origin from qbo.intuit.com) carrying a
+   * short-lived ticket minted by the authenticated dashboard. This keeps the
+   * staff token off the QuickBooks page and routes the data directly into the
+   * owner's own database. Idempotent: re-sending updates by dedupe key.
+   */
+  const digits = (s: unknown) => String(s ?? '').replace(/\D/g, '');
+  const safeJson = (s: string): any => { try { return JSON.parse(s); } catch { return undefined; } };
+  app.post('/api/import/:kind', async (request, reply) => {
+    const kind = (request.params as { kind: string }).kind;
+    const body = (typeof request.body === 'string' ? safeJson(request.body) : request.body) as
+      | { ticket?: string; rows?: any[] }
+      | undefined;
+    if (!body || !isImportTicketValid(body.ticket)) {
+      return reply.status(403).send({ error: 'invalid_ticket' });
+    }
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    if (rows.length === 0) return { inserted: 0 };
+    if (rows.length > 1000) return reply.status(413).send({ error: 'too_many_rows' });
+
+    let inserted = 0;
+    if (kind === 'customers') {
+      for (const r of rows) {
+        const fullName = String(r.fullName ?? r.name ?? '').trim();
+        if (!fullName) continue;
+        const phone = digits(r.phone);
+        const dedupe = (phone || fullName.toLowerCase()).slice(0, 200);
+        await pool.query(
+          `INSERT INTO historical_customers (full_name, phone, phone_alt, email, emirate, bill_address, ship_address, dedupe_key)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           ON CONFLICT (dedupe_key) DO UPDATE SET
+             full_name = EXCLUDED.full_name,
+             phone = COALESCE(EXCLUDED.phone, historical_customers.phone),
+             phone_alt = COALESCE(EXCLUDED.phone_alt, historical_customers.phone_alt),
+             email = COALESCE(EXCLUDED.email, historical_customers.email),
+             emirate = COALESCE(EXCLUDED.emirate, historical_customers.emirate),
+             bill_address = COALESCE(EXCLUDED.bill_address, historical_customers.bill_address),
+             ship_address = COALESCE(EXCLUDED.ship_address, historical_customers.ship_address)`,
+          [
+            fullName,
+            phone || null,
+            (digits(r.phoneAlt) || null),
+            (String(r.email ?? '').trim() || null),
+            (String(r.emirate ?? '').trim() || null),
+            (String(r.billAddress ?? '').trim() || null),
+            (String(r.shipAddress ?? '').trim() || null),
+            dedupe,
+          ],
+        );
+        inserted += 1;
+      }
+    } else if (kind === 'orders') {
+      const toFils = (v: unknown) => Math.round((Number(String(v ?? '').replace(/[^\d.-]/g, '')) || 0) * 100);
+      for (const r of rows) {
+        const doc = String(r.docNumber ?? '').trim();
+        const cust = String(r.customerName ?? '').trim();
+        const date = String(r.txnDate ?? '').trim();
+        const dedupe = (doc || `${cust}|${date}|${r.product ?? ''}`).slice(0, 200);
+        if (!dedupe.trim()) continue;
+        const dateVal = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+        await pool.query(
+          `INSERT INTO historical_orders (doc_number, txn_type, customer_name, txn_date, product, memo, subtotal_fils, discount_fils, tax_fils, total_fils, status, dedupe_key)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+           ON CONFLICT (dedupe_key) DO UPDATE SET
+             txn_type = EXCLUDED.txn_type, customer_name = EXCLUDED.customer_name, txn_date = EXCLUDED.txn_date,
+             product = EXCLUDED.product, memo = EXCLUDED.memo, subtotal_fils = EXCLUDED.subtotal_fils,
+             discount_fils = EXCLUDED.discount_fils, tax_fils = EXCLUDED.tax_fils, total_fils = EXCLUDED.total_fils,
+             status = EXCLUDED.status`,
+          [
+            doc || null,
+            (String(r.txnType ?? '').trim() || null),
+            cust || null,
+            dateVal,
+            (String(r.product ?? '').trim() || null),
+            (String(r.memo ?? '').trim() || null),
+            toFils(r.subtotal), toFils(r.discount), toFils(r.tax), toFils(r.total),
+            (String(r.status ?? '').trim() || null),
+            dedupe,
+          ],
+        );
+        inserted += 1;
+      }
+    } else {
+      return reply.status(404).send({ error: 'unknown_kind' });
+    }
+    return { inserted };
+  });
 
   /** Ops probe: is the Google Calendar link actually working? Status only. */
   app.get('/api/calendar/check', async () => checkCalendarConnection());

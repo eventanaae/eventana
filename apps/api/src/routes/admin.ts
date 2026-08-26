@@ -19,6 +19,7 @@ import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCale
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '../domain/notify.js';
 import { createManualOrder, CheckoutError } from '../domain/checkout.js';
+import { issueImportTicket } from '../domain/importTicket.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -113,6 +114,7 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/finance') ||
       path.startsWith('/api/admin/ceo') ||
       path.startsWith('/api/admin/financials') ||
+      path.startsWith('/api/admin/import') ||
       path.startsWith('/api/admin/orders') ||
       path.startsWith('/api/admin/expenses') ||
       path.startsWith('/api/admin/kpis') ||
@@ -1035,6 +1037,23 @@ export async function adminRoutes(app: FastifyInstance) {
     const period = String((request.params as { period: string }).period);
     await pool.query(`DELETE FROM historical_financials WHERE period = $1`, [period]);
     return { deleted: true };
+  });
+
+  // ── Data migration from QuickBooks ─────────────────────────────────────────
+  // Mint a short-lived ticket so the owner's QuickBooks browser tab can pipe
+  // scraped rows (customers, invoices) straight into the PUBLIC /api/import
+  // route without exposing the staff token to the qbo.intuit.com page.
+  app.post('/api/admin/import/ticket', async () => issueImportTicket());
+
+  // Progress counters so the migration can be verified without reading any PII.
+  app.get('/api/admin/import/status', async () => {
+    const cust = await pool.query(
+      `SELECT count(*)::int AS n, count(email)::int AS with_email, count(DISTINCT emirate)::int AS emirates FROM historical_customers`,
+    );
+    const ord = await pool.query(
+      `SELECT count(*)::int AS n, count(txn_date)::int AS with_date, coalesce(sum(total_fils),0)::bigint AS total_fils FROM historical_orders`,
+    );
+    return { customers: cust.rows[0], orders: ord.rows[0] };
   });
 
   /**
