@@ -114,8 +114,13 @@ export default function App() {
   const allowed = ROLE_VIEWS[role] ?? 'all';
   const isVisible = (id: View) => allowed === 'all' || allowed.includes(id);
   const visibleNav = NAV.filter((n) => isVisible(n.id));
-  const primaryNav = visibleNav.filter((n) => n.mobile);
-  const moreNav = visibleNav.filter((n) => !n.mobile);
+  // The Owner's bottom bar shows the CEO Dashboard where the Manager sees the
+  // money-free Overview — the Overview is a manager tool.
+  const ceoItem = NAV.find((n) => n.id === 'ceo')!;
+  const primaryNav = visibleNav
+    .filter((n) => n.mobile)
+    .map((n) => (role === 'owner' && n.id === 'overview' ? ceoItem : n));
+  const moreNav = visibleNav.filter((n) => !n.mobile && !(role === 'owner' && n.id === 'ceo'));
   const canSeeAll = role !== 'driver';
 
   // If the current tab isn't allowed for this role, snap to the first that is.

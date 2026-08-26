@@ -106,7 +106,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   today: () => request<any>('/api/admin/today'),
-  overview: () => request<any>('/api/admin/overview'),
+  overview: (period?: string) => request<any>(`/api/admin/overview${period ? `?period=${period}` : ''}`),
   assignStaff: (eventId: string) => request<any>(`/api/admin/staffing/assign/${eventId}`, { method: 'POST' }),
   staffingPlan: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}`),
   assignAllStaff: () => request<any>('/api/admin/staffing/assign-all', { method: 'POST' }),

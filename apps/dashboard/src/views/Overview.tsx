@@ -7,26 +7,39 @@ import { ACCENTS, Badge, C, Panel, SectionHeader, Spinner, StatCard, useCountUp 
  * Manager overview — a mini, money-free operational dashboard: how many orders
  * this month, what they are, and the busiest emirate & theme. No revenue.
  */
+const PERIODS: [string, string][] = [['month', 'This month'], ['quarter', 'Last 3 months'], ['year', 'This year']];
+
 export function Overview({ onOpenEvent, onGoto }: { onOpenEvent: (id: string) => void; onGoto: (v: View) => void }) {
+  const [period, setPeriod] = useState<string>('month');
   const [d, setD] = useState<any>(null);
-  useEffect(() => { api.overview().then(setD).catch(() => setD({ error: true })); }, []);
+  useEffect(() => { setD(null); api.overview(period).then(setD).catch(() => setD({ error: true })); }, [period]);
 
-  const ordersThisMonth = useCountUp(Number(d?.ordersThisMonth) || 0);
-  const upcoming = useCountUp(Number(d?.upcomingCount) || 0);
-
-  if (!d) return <Spinner />;
-  if (d.error) return <Panel><div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>Couldn't load the overview.</div></Panel>;
+  const orders = useCountUp(Number(d?.orders) || 0);
+  const periodLabel = PERIODS.find(([p]) => p === period)?.[1] ?? 'This month';
 
   const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* period filter */}
+      <div style={{ display: 'flex', gap: 4, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: 4 }}>
+        {PERIODS.map(([p, label]) => (
+          <button key={p} onClick={() => setPeriod(p)} style={{
+            flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '9px 0', fontWeight: 700, fontSize: 12,
+            background: period === p ? C.pink : 'transparent', color: period === p ? '#fff' : C.muted2,
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {!d ? <Spinner /> : d.error ? (
+        <Panel><div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>Couldn't load the overview.</div></Panel>
+      ) : (
+      <>
       {/* headline stats — counts only, no money */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
-        <StatCard i={0} label="Orders this month" value={Math.round(ordersThisMonth)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
-        <StatCard i={1} label="Upcoming" value={Math.round(upcoming)} icon="✨" accent={ACCENTS[1]} onClick={() => onGoto('schedule')} />
-        <StatCard i={2} label="Top emirate" value={d.topEmirate?.label ?? '—'} icon="📍" accent={ACCENTS[4]} hint={d.topEmirate ? `${d.topEmirate.count} order(s)` : undefined} />
-        <StatCard i={3} label="Top theme" value={d.topTheme?.label ?? '—'} icon="🎨" accent={ACCENTS[3]} hint={d.topTheme ? `${d.topTheme.count} order(s)` : undefined} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
+        <StatCard i={0} label={`Total orders · ${periodLabel}`} value={Math.round(orders)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
+        <StatCard i={1} label="Top emirate" value={d.topEmirate?.label ?? '—'} icon="📍" accent={ACCENTS[4]} hint={d.topEmirate ? `${d.topEmirate.count} order(s)` : undefined} />
+        <StatCard i={2} label="Top theme" value={d.topTheme?.label ?? '—'} icon="🎨" accent={ACCENTS[3]} hint={d.topTheme ? `${d.topTheme.count} order(s)` : undefined} />
       </div>
 
       {/* breakdowns */}
@@ -36,15 +49,15 @@ export function Overview({ onOpenEvent, onGoto }: { onOpenEvent: (id: string) =>
         <Breakdown title="By event type" rows={d.byType} accent={ACCENTS[1]} />
       </div>
 
-      {/* upcoming orders — what they are */}
+      {/* the orders in this period */}
       <div>
-        <SectionHeader action={<span onClick={() => onGoto('schedule')} className="tap" style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, cursor: 'pointer' }}>Open schedule ›</span>}>Upcoming orders</SectionHeader>
+        <SectionHeader action={<span onClick={() => onGoto('schedule')} className="tap" style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, cursor: 'pointer' }}>Open events ›</span>}>Orders · {periodLabel}</SectionHeader>
         <Panel>
-          {(d.upcoming ?? []).length === 0 ? (
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>No upcoming orders.</div>
+          {(d.list ?? []).length === 0 ? (
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>No orders in this period.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {d.upcoming.map((o: any, i: number) => {
+              {d.list.map((o: any, i: number) => {
                 const ac = ACCENTS[i % ACCENTS.length];
                 return (
                   <div key={o.id} onClick={() => onOpenEvent(o.id)} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', padding: '9px 4px', borderRadius: 12 }}>
@@ -62,6 +75,8 @@ export function Overview({ onOpenEvent, onGoto }: { onOpenEvent: (id: string) =>
           )}
         </Panel>
       </div>
+      </>
+      )}
     </div>
   );
 }

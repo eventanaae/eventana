@@ -284,28 +284,30 @@ export async function adminRoutes(app: FastifyInstance) {
    * Manager overview — a mini, money-free operational dashboard: how many orders
    * this month, what they are, and the busiest emirate / theme. No revenue.
    */
-  app.get('/api/admin/overview', async () => {
+  app.get('/api/admin/overview', async (request) => {
+    // Period filter (by event date): this month · last 3 months · this year.
+    const period = ((request.query as { period?: string }).period ?? 'month');
     const now = new Date();
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
-    const monthStart = iso(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
-    const nextMonth = iso(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)));
-    const today = iso(now);
+    const y = now.getUTCFullYear(); const mo = now.getUTCMonth();
+    const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
+    let startT: number; let endT: number;
+    if (period === 'year') { startT = Date.UTC(y, 0, 1); endT = Date.UTC(y + 1, 0, 1); }
+    else if (period === 'quarter') { startT = Date.UTC(y, mo - 2, 1); endT = Date.UTC(y, mo + 1, 1); }
+    else { startT = Date.UTC(y, mo, 1); endT = Date.UTC(y, mo + 1, 1); }
+    const startS = iso(startT); const endS = iso(endT);
+
     const { rows } = await pool.query(
       `SELECT e.id, e.emirate, e.celebration_type,
               to_char(e.event_date,'YYYY-MM-DD') AS date, e.phase,
-              c.name AS customer, p.name AS package_name, th.name AS theme_name,
-              (e.event_date >= $3) AS upcoming,
-              (e.event_date >= $1 AND e.event_date < $2) AS this_month
+              c.name AS customer, p.name AS package_name, th.name AS theme_name
          FROM events e
          JOIN customers c ON c.id = e.customer_id
          LEFT JOIN packages p ON p.id = e.package_id
          LEFT JOIN themes th ON th.id = e.theme_id
-        WHERE e.phase <> 'Cancelled' AND (e.event_date >= $1 OR e.event_date >= $3)
+        WHERE e.phase <> 'Cancelled' AND e.event_date >= $1 AND e.event_date < $2
         ORDER BY e.event_date`,
-      [monthStart, nextMonth, today],
+      [startS, endS],
     );
-    const thisMonth = rows.filter((r) => r.this_month);
-    const upcoming = rows.filter((r) => r.upcoming);
     const topBy = (keyFn: (r: any) => string) => {
       const m = new Map<string, number>();
       for (const r of rows) { const k = keyFn(r) || '—'; m.set(k, (m.get(k) ?? 0) + 1); }
@@ -316,15 +318,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const byType = topBy((r) => celebrationLabel(r.celebration_type));
     const slim = (r: any) => ({ id: r.id, date: r.date, customer: r.customer, emirate: r.emirate, theme: r.theme_name, package: r.package_name, type: celebrationLabel(r.celebration_type), phase: r.phase });
     return {
-      ordersThisMonth: thisMonth.length,
-      upcomingCount: upcoming.length,
+      period,
+      orders: rows.length,
+      // kept for backward compatibility
+      ordersThisMonth: rows.length,
       topEmirate: byEmirate[0] ?? null,
       topTheme: byTheme[0] ?? null,
       byEmirate: byEmirate.slice(0, 6),
       byTheme: byTheme.slice(0, 6),
       byType: byType.slice(0, 6),
-      thisMonth: thisMonth.map(slim),
-      upcoming: upcoming.map(slim),
+      list: rows.map(slim),
     };
   });
 
