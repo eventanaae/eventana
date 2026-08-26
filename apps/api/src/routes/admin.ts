@@ -510,6 +510,23 @@ export async function adminRoutes(app: FastifyInstance) {
               ? 'Everything is set up and ready — enjoy your celebration! ✨'
               : null;
       if (line) void pushToOwner('customer', ev.customer_id, 'Eventana', line, { eventId });
+      // Also send an email version so a customer without push still gets the
+      // live update. Delivered by the same notification sweep. Idempotent per
+      // (event, phase) so re-advancing the same phase doesn't double-send.
+      const emailTemplate =
+        ev.phase === 'On The Way' ? 'team_on_the_way'
+          : ev.phase === 'Arrived' ? 'team_arrived'
+            : ev.phase === 'Setup Ready' ? 'setup_ready'
+              : null;
+      if (emailTemplate) {
+        await pool.query(
+          `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+           SELECT $1,'email',$2, now(), $3
+            WHERE NOT EXISTS (
+              SELECT 1 FROM notifications WHERE event_id = $1 AND template = $2)`,
+          [eventId, emailTemplate, JSON.stringify({ eventId })],
+        );
+      }
     }
     return ev;
   });
@@ -532,7 +549,7 @@ export async function adminRoutes(app: FastifyInstance) {
         .status(503)
         .send({ error: 'email_disabled', message: 'Email is not configured on the server (RESEND_API_KEY).' });
     }
-    const templates = ['booking_confirmation', 'three_day_reminder', 'event_day', 'feedback_request', 'event_cancelled'];
+    const templates = ['booking_confirmation', 'three_day_reminder', 'event_day', 'team_on_the_way', 'team_arrived', 'setup_ready', 'feedback_request', 'event_cancelled'];
     // Realistic sample: a parent (the customer we greet) booking for their child
     // (the guest of honour). Real emails use the booking's own customer name.
     const sample: EmailRow = {
@@ -542,6 +559,7 @@ export async function adminRoutes(app: FastifyInstance) {
       event_date: '2026-09-15',
       start_time: '16:00:00',
       emirate: 'Dubai',
+      eta: '3:30 PM',
       customer_name: 'Mariam',
       customer_email: email,
       celebration_type: 'kids', // stored as an id; email maps it to "Kids Birthday"

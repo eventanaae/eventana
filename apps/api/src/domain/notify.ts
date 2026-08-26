@@ -24,6 +24,7 @@ export interface EmailRow {
   event_date: string | null;
   start_time: string | null;
   emirate: string | null;
+  eta?: string | null;
   customer_name: string | null;
   customer_email: string | null;
   // Party context — for a warmer, personalised confirmation.
@@ -321,6 +322,40 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           cta: track ? { href: track, label: 'Leave your feedback →' } : undefined,
         }),
       };
+    case 'team_on_the_way':
+      return {
+        subject: 'Your Eventana team is on the way! 🚐',
+        html: shell({
+          first,
+          emoji: '🚐',
+          eyebrow: 'On the way',
+          heading: 'Your team is on the way!',
+          bodyHtml: `<p style="margin:0;font-size:15px;line-height:1.6">Our Eventana crew is heading to you now${row.eta ? ` — estimated arrival around <b>${row.eta}</b>` : ''} to set up ${honour ? `${honour}'s` : 'your'} celebration. 🎈 See you very soon!</p>`,
+          cta: track ? { href: track, label: 'View your booking →' } : undefined,
+        }),
+      };
+    case 'team_arrived':
+      return {
+        subject: 'Your Eventana team has arrived! 🎉',
+        html: shell({
+          first,
+          emoji: '📍',
+          eyebrow: 'Arrived',
+          heading: 'Your team has arrived!',
+          bodyHtml: `<p style="margin:0;font-size:15px;line-height:1.6">Our crew is at your location and starting the magic now. ✨ Everything will be ready shortly — thank you for choosing Eventana! 💕</p>`,
+        }),
+      };
+    case 'setup_ready':
+      return {
+        subject: 'Everything is ready — enjoy! ✨',
+        html: shell({
+          first,
+          emoji: '✨',
+          eyebrow: 'Ready',
+          heading: 'Everything is set up and ready!',
+          bodyHtml: `<p style="margin:0;font-size:15px;line-height:1.6">${honour ? `${honour}'s` : 'Your'} celebration is all set up and ready to go. 🎉 Have the most wonderful time — we can't wait to hear how it went! 💕</p>`,
+        }),
+      };
     case 'event_cancelled':
       return {
         subject: 'Your Eventana booking was cancelled',
@@ -444,7 +479,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
   if (emailEnabled()) {
     const { rows } = await pool.query<EmailRow>(
       `SELECT n.id, n.template, n.event_id,
-              e.event_date, e.start_time, e.emirate,
+              e.event_date, e.start_time, e.emirate, e.eta,
               e.celebration_type, e.custom_theme, o.cart, o.quote, o.total_fils, p.name AS package_name,
               c.name AS customer_name, c.email AS customer_email,
               cx.order_id AS order_ref, cx.total_paid_fils, cx.refund_percent,
