@@ -22,7 +22,7 @@ import { nextOrderId, nextEventId } from './orders.js';
  */
 const CANON_EMIRATES = [
   'Abu Dhabi', 'Al Ain', 'Dubai', 'Sharjah', 'Ajman',
-  'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah', 'Khor Fakkan', 'Kalba',
+  'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah',
 ] as const;
 
 export function normalizeEmirate(raw: string | null | undefined): string | null {
@@ -35,8 +35,8 @@ export function normalizeEmirate(raw: string | null | undefined): string | null 
   const has = (...ks: string[]) => ks.some((k) => s.includes(k));
   // City-level zones first (they sit inside a parent emirate).
   if (has('alain', 'al ain', 'al alain')) return 'Al Ain';
-  if (has('khor fakkan', 'khorfakkan', 'khor fakan', 'khorfakan', 'khour fakkan')) return 'Khor Fakkan';
-  if (has('kalba', 'khalba')) return 'Kalba';
+  // Khor Fakkan & Kalba (east coast) are grouped with Fujairah per the owner.
+  if (has('khor fakkan', 'khorfakkan', 'khor fakan', 'khorfakan', 'khour fakkan', 'kalba', 'khalba')) return 'Fujairah';
   // Parent emirates.
   if (has('abu dhabi', 'abudhabi', 'abu dhbai', 'abudhbai', 'shakbout', 'baniyas', 'khalifa city', 'blue resort', 'rahbah', 'rahba', 'mussafah', 'mussaffah')) return 'Abu Dhabi';
   if (has('dubai', 'dubay')) return 'Dubai';
