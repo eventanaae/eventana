@@ -843,6 +843,17 @@ CREATE TABLE IF NOT EXISTS manual_offers (
   created_by       TEXT,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Manual price overrides the team can set on an offer: a discount, a fixed
+-- delivery value (overrides the emirate-based calc when set), and a manual
+-- custom-theme charge. NULL delivery = use the normal automatic delivery.
+ALTER TABLE manual_offers ADD COLUMN IF NOT EXISTS discount_fils     BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE manual_offers ADD COLUMN IF NOT EXISTS delivery_fils     BIGINT;
+ALTER TABLE manual_offers ADD COLUMN IF NOT EXISTS custom_theme_fils BIGINT NOT NULL DEFAULT 0;
+-- Ad-hoc products the team typed in that aren't in the catalogue: [{name, priceFils, qty}].
+ALTER TABLE manual_offers ADD COLUMN IF NOT EXISTS custom_items JSONB NOT NULL DEFAULT '[]';
+-- Reference images the team attached, carried onto the booking so the design
+-- team sees them on the event/task: [url, …].
+ALTER TABLE manual_offers ADD COLUMN IF NOT EXISTS ref_images JSONB NOT NULL DEFAULT '[]';
 
 -- Extra fields on the existing expense log to match the QuickBooks expense form.
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ref_no TEXT;

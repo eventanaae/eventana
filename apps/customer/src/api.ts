@@ -129,8 +129,8 @@ export const api = {
       emoji?: string; label?: string; outdoorNote?: string;
     }>(`/api/weather?lat=${lat}&lng=${lng}&date=${date}`),
 
-  quote: (cart: CartInput) =>
-    request<QuoteResult>('/api/quote', { method: 'POST', body: JSON.stringify(cart) }),
+  quote: (cart: CartInput, offerToken?: string | null) =>
+    request<QuoteResult>('/api/quote', { method: 'POST', body: JSON.stringify(offerToken ? { ...cart, offerToken } : cart) }),
 
   /** A manual-order offer link — the products the team pre-selected. */
   getOffer: (token: string) =>

@@ -432,6 +432,9 @@ export async function adminRoutes(app: FastifyInstance) {
         totalDisplay: formatAed(Number(rows[0].total_fils)),
         // Who the party is for — distinct from the account holder (#23/#24).
         eventFor: (rows[0].cart as { eventFor?: string } | null)?.eventFor ?? null,
+        // Reference images the team attached when they built a manual order —
+        // shown on the job so the design team has them.
+        referenceImages: (rows[0].cart as { referenceImages?: string[] } | null)?.referenceImages ?? [],
         // Exact location for driver routing (#driver / Google Maps link).
         mapPin: (rows[0].cart as { mapPin?: { lat: number; lng: number } } | null)?.mapPin ?? null,
         addressDetails:
@@ -1459,11 +1462,16 @@ export async function adminRoutes(app: FastifyInstance) {
       packageId: z.string().max(60).nullable().optional(),
       services: z.array(z.object({ serviceId: z.string().min(1).max(60), quantity: z.number().int().min(1).max(500) })).default([]),
       themeId: z.string().max(80).nullable().optional(),
+      customItems: z.array(z.object({ name: z.string().min(1).max(120), priceFils: z.number().int().min(0).max(100_000_000), qty: z.number().int().min(1).max(500).default(1) })).default([]),
+      discountFils: z.number().int().min(0).max(100_000_000).default(0),
+      deliveryFils: z.number().int().min(0).max(100_000_000).nullable().optional(),
+      customThemeFils: z.number().int().min(0).max(100_000_000).default(0),
+      refImages: z.array(z.string().url().max(500)).max(8).default([]),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
-    if (!parsed.data.packageId && parsed.data.services.length === 0) {
-      return reply.status(422).send({ error: 'empty_selection', message: 'Pick a package or at least one add-on.' });
+    if (!parsed.data.packageId && parsed.data.services.length === 0 && parsed.data.customItems.length === 0) {
+      return reply.status(422).send({ error: 'empty_selection', message: 'Pick a package, an add-on, or add a product.' });
     }
     try {
       const offer = await createOffer({
@@ -1471,15 +1479,24 @@ export async function adminRoutes(app: FastifyInstance) {
         packageId: parsed.data.packageId ?? null,
         services: parsed.data.services,
         themeId: parsed.data.themeId ?? null,
+        customItems: parsed.data.customItems,
+        discountFils: parsed.data.discountFils,
+        deliveryFils: parsed.data.deliveryFils ?? null,
+        customThemeFils: parsed.data.customThemeFils,
+        refImages: parsed.data.refImages,
         createdBy: String((request as any).staff?.name ?? 'Manager'),
       });
       const base = (config.publicAppUrl || '').replace(/\/$/, '');
       return reply.status(201).send({
         token: offer.token,
         link: `${base}/?offer=${offer.token}`,
-        subtotalFils: offer.subtotalFils,
-        subtotalDisplay: offer.subtotalDisplay,
         items: offer.items,
+        productsDisplay: offer.productsDisplay,
+        discountDisplay: offer.discountDisplay,
+        deliveryDisplay: offer.deliveryDisplay,
+        deliveryAuto: offer.deliveryAuto,
+        totalFils: offer.totalFils,
+        totalDisplay: offer.totalDisplay,
       });
     } catch (err) {
       request.log.error({ err }, 'offer create failed');

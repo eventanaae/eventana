@@ -32,7 +32,7 @@ import { getProvider } from '../payments/index.js';
 import { ConflictError, acquireHolds, releaseHolds, unavailableAssets } from './inventory.js';
 import { createOrder, createPayment, nextOrderId, orderViewToken, recordPaymentEvent } from './orders.js';
 import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
-import { offerIsOpen } from './offers.js';
+import { offerIsOpen, getOfferAdjustments, applyOfferToQuote } from './offers.js';
 import { computeDiscounts, makeReferralCode, type DiscountInput } from './discounts.js';
 
 export interface CheckoutRequest {
@@ -113,7 +113,7 @@ export function resolveRequiredAssets(cart: CartInput, cfg: LoadedConfig): strin
 }
 
 /** Read-only quote for the app's live total. Never creates anything. */
-export async function previewQuote(cart: CartInput): Promise<Quote & { unavailable: string[] }> {
+export async function previewQuote(cart: CartInput, offerToken?: string | null): Promise<Quote & { unavailable: string[] }> {
   const cfg = await loadConfig();
   let taken = new Set<string>();
 
@@ -129,6 +129,12 @@ export async function previewQuote(cart: CartInput): Promise<Quote & { unavailab
   }
 
   const result = computeQuote(cart, { ...toPricingContext(cfg, taken), nowMs: Date.now() });
+  // Same manual offer pieces as the final checkout, so the live total the
+  // customer sees on a manual-order link matches exactly what they will pay.
+  if (offerToken) {
+    const adj = await getOfferAdjustments(offerToken);
+    if (adj) applyOfferToQuote(result, adj);
+  }
   return { ...result, unavailable: [...taken] };
 }
 
@@ -184,6 +190,18 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   // (1) The server recomputes everything. A total submitted by the
   // device is not read at all — it is not even a parameter here.
   const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now() });
+
+  // A manual-order link layers the team's manual pieces (custom products, a
+  // discount, a fixed delivery, a custom-theme charge) on top of the engine
+  // price — identically to the live quote, so the charge matches what was shown.
+  // Reference images ride onto the booking so the design team sees them.
+  if (req.offerToken) {
+    const adj = await getOfferAdjustments(req.offerToken);
+    if (adj) {
+      applyOfferToQuote(serverQuote, adj);
+      if (adj.refImages?.length) (cart as unknown as Record<string, unknown>).referenceImages = adj.refImages;
+    }
+  }
 
   // The map pin is required to complete a booking (spec item 7).
   if (!cart.mapPin || typeof cart.mapPin.lat !== 'number' || typeof cart.mapPin.lng !== 'number') {

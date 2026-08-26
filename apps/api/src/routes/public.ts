@@ -382,7 +382,10 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: 'invalid_cart', details: parsed.error.flatten() });
     }
-    const result = await previewQuote(parsed.data as unknown as CartInput);
+    // The cart schema strips unknown keys, so read the optional offer token off
+    // the raw body — it layers the manual-order pieces onto the live total.
+    const offerToken = typeof (request.body as any)?.offerToken === 'string' ? (request.body as any).offerToken : null;
+    const result = await previewQuote(parsed.data as unknown as CartInput, offerToken);
     return {
       ...result,
       totalDisplay: formatAed(result.totalFils),

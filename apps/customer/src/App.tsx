@@ -307,7 +307,7 @@ export default function App() {
     const mine = ++seq.current;
     const timer = setTimeout(() => {
       api
-        .quote(cart)
+        .quote(cart, draft.offerToken)
         .then((q) => {
           if (mine === seq.current) { setQuote(q); setQuoteError(false); }
         })

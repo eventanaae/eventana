@@ -134,6 +134,18 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     <span style={{ fontWeight: 600, color: C.muted }}> · booked by {data.event.customer}</span>
                   </div>
                 )}
+                {(data.event.referenceImages ?? []).length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>📎 Reference images</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(data.event.referenceImages ?? []).map((u: string, i: number) => (
+                        <a key={i} href={u} target="_blank" rel="noreferrer">
+                          <img src={u} alt="reference" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line}` }} />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <Button tone="ghost" onClick={onClose}>Close</Button>
             </div>

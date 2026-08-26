@@ -280,11 +280,18 @@ export const api = {
     packageId?: string | null;
     services: Array<{ serviceId: string; quantity: number }>;
     themeId?: string | null;
+    customItems?: Array<{ name: string; priceFils: number; qty: number }>;
+    discountFils?: number;
+    deliveryFils?: number | null;
+    customThemeFils?: number;
+    refImages?: string[];
   }) =>
-    request<{ token: string; link: string; subtotalFils: number; subtotalDisplay: string; items: Array<{ label: string; quantity: number; amountDisplay: string }> }>(
-      '/api/admin/orders/offer',
-      { method: 'POST', body: JSON.stringify(body) },
-    ),
+    request<{
+      token: string; link: string;
+      items: Array<{ label: string; quantity: number; amountDisplay: string }>;
+      productsDisplay: string; discountDisplay: string; deliveryDisplay: string; deliveryAuto: boolean;
+      totalFils: number; totalDisplay: string;
+    }>('/api/admin/orders/offer', { method: 'POST', body: JSON.stringify(body) }),
   ceo: (params: { from?: string; to?: string; emirate?: string; eventType?: string; packageId?: string } = {}) => {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
