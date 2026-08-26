@@ -311,7 +311,8 @@ export async function recordSaleFromOrder(
  */
 export async function ensureEventForReceipt(receiptId: number): Promise<string | null> {
   const { rows } = await pool.query(
-    `SELECT r.*, hc.phone AS hc_phone, hc.email AS hc_email, hc.emirate AS hc_emirate
+    `SELECT r.*, to_char(r.date,'YYYY-MM-DD') AS date_str,
+            hc.phone AS hc_phone, hc.email AS hc_email, hc.emirate AS hc_emirate
        FROM finance_receipts r
        LEFT JOIN historical_customers hc
          ON hc.id = r.customer_id OR (r.customer_id IS NULL AND lower(hc.full_name) = lower(r.customer_name))
@@ -321,7 +322,7 @@ export async function ensureEventForReceipt(receiptId: number): Promise<string |
   const r = rows[0];
   if (!r) return null;
   if (r.event_id) return r.event_id; // already converted
-  const dateStr = r.date ? String(r.date).slice(0, 10) : null;
+  const dateStr: string | null = r.date_str ?? null;
   const today = new Date().toISOString().slice(0, 10);
   if (!dateStr || dateStr < today) return null; // only upcoming sales become events
 
