@@ -216,7 +216,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               {data.event.custom_theme && (
                 <DesignPanel eventId={eventId} designs={data.designs ?? []} onChange={load} />
               )}
-              <StaffingPanel eventId={eventId} />
+              {data.event.phase !== 'Cancelled' && <StaffingPanel eventId={eventId} />}
 
               <Panel title="Advance status">
                 {data.event.phase !== 'Cancelled' && (

@@ -26,6 +26,7 @@ import { registerDevice, pushToStaff } from '../integrations/push.js';
 import { generateEventPass, walletEnabled } from '../integrations/wallet.js';
 import { customerFromRequest } from '../domain/customerAuth.js';
 import { rescheduleEvent, RescheduleError, RESCHEDULE_MIN_HOURS } from '../domain/reschedule.js';
+import { refundOrderMoney } from '../domain/refund.js';
 
 /**
  * The customer is identified by their signed session token — never a raw
@@ -409,15 +410,31 @@ export async function eventRoutes(app: FastifyInstance) {
         [eventId, JSON.stringify({ orderId: ev.order_id })],
       );
 
-      return { code: 200 as const, breakdown: b, refundStatus };
+      return { code: 200 as const, breakdown: b, refundStatus, orderId: ev.order_id };
     });
 
     if (result.code !== 200) {
       return reply.status(result.code).send({ error: result.error });
     }
+
+    // Auto-refund the money straight away through the payment provider (Stripe
+    // etc.) and email the customer. Runs after the cancellation is committed so
+    // a slow/failed provider call never rolls back the cancellation; on failure
+    // the refund stays 'pending'/'failed' for the team to complete by hand.
+    let refundStatus = result.refundStatus;
+    if (result.refundStatus === 'pending' && result.breakdown.refundFils > 0) {
+      const r = await refundOrderMoney({
+        orderId: result.orderId,
+        amountFils: result.breakdown.refundFils,
+        reason: `Customer cancellation — ${result.breakdown.percent}% per policy`,
+        source: 'customer_cancel',
+      });
+      refundStatus = r.ok ? 'processed' : 'pending';
+    }
+
     return {
       ok: true,
-      refundStatus: result.refundStatus,
+      refundStatus,
       refund: {
         percent: result.breakdown.percent,
         refundFils: result.breakdown.refundFils,
