@@ -484,7 +484,20 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
      WHERE id=$1 RETURNING *`,
     [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null],
   );
-  return rows[0] ? decorateReceipt(rows[0]) : null;
+  const saved = rows[0];
+  if (saved && d.date) {
+    if (saved.event_id) {
+      // The receipt was converted to an operational Event — keep the calendar
+      // and schedule in sync by moving the linked event's date too (times are
+      // preserved). Uses the raw YYYY-MM-DD to avoid any timezone drift.
+      await pool.query(`UPDATE events SET event_date = $2::date WHERE id = $1`, [saved.event_id, d.date]).catch(() => {});
+    } else {
+      // No event yet (was past-dated): if it's now upcoming, convert it so it
+      // appears on the board. No-op when still past-dated.
+      void ensureEventForReceipt(saved.id).catch(() => {});
+    }
+  }
+  return saved ? decorateReceipt(saved) : null;
 }
 
 export async function updateInvoice(id: number, d: DocInput & { dueDate?: string | null; issueDate?: string | null }) {
