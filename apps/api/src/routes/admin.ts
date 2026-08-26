@@ -1061,6 +1061,62 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // Progress counters so the migration can be verified without reading any PII.
+  // Distinct product/package names in the imported invoices, with line counts
+  // and totals — so duplicate names (a package renamed in QuickBooks, e.g.
+  // "Bronze" vs "New Silver Pakage") can be spotted and merged.
+  app.get('/api/admin/import/products', async () => {
+    const { rows } = await pool.query(
+      `SELECT product, count(*)::int AS lines, coalesce(sum(total_fils),0)::bigint AS total_fils
+         FROM historical_orders
+        WHERE product IS NOT NULL AND product <> ''
+        GROUP BY product
+        ORDER BY lower(product)`,
+    );
+    return rows.map((r) => ({ ...r, totalDisplay: formatAed(Number(r.total_fils)) }));
+  });
+
+  // Merge product names: { map: { "old name": "canonical name", ... } }.
+  app.post('/api/admin/import/products/merge', async (request, reply) => {
+    const schema = z.object({ map: z.record(z.string().min(1).max(200)) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    let updated = 0;
+    for (const [from, to] of Object.entries(parsed.data.map)) {
+      if (from === to) continue;
+      const { rowCount } = await pool.query(
+        `UPDATE historical_orders SET product = $2 WHERE product = $1`,
+        [from, to],
+      );
+      updated += rowCount ?? 0;
+    }
+    return { updated };
+  });
+
+  // Revenue per year, computed straight from the imported invoice lines — the
+  // real income history, no manual entry needed. (Discount lines are negative,
+  // so the sum is net revenue.)
+  app.get('/api/admin/import/revenue-by-year', async () => {
+    const { rows } = await pool.query(
+      `SELECT extract(year FROM txn_date)::int AS year,
+              count(DISTINCT doc_number)::int AS invoices,
+              count(*)::int AS lines,
+              coalesce(sum(total_fils),0)::bigint AS revenue_fils,
+              coalesce(-sum(discount_fils),0)::bigint AS discount_fils
+         FROM historical_orders
+        WHERE txn_date IS NOT NULL
+        GROUP BY 1 ORDER BY 1`,
+    );
+    return rows.map((r) => ({
+      year: r.year,
+      invoices: r.invoices,
+      lines: r.lines,
+      revenueFils: Number(r.revenue_fils),
+      revenueDisplay: formatAed(Number(r.revenue_fils)),
+      discountFils: Number(r.discount_fils),
+      discountDisplay: formatAed(Number(r.discount_fils)),
+    }));
+  });
+
   app.get('/api/admin/import/status', async () => {
     const cust = await pool.query(
       `SELECT count(*)::int AS n, count(email)::int AS with_email, count(DISTINCT emirate)::int AS emirates FROM historical_customers`,

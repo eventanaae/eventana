@@ -140,9 +140,112 @@ export function Financials() {
         </div>
       </Panel>
 
+      <RevenueByYear />
       <AddYear onSaved={load} />
       <MigrationPanel />
+      <PackageMerge />
     </div>
+  );
+}
+
+/** Revenue per year, computed live from the imported invoice lines. */
+function RevenueByYear() {
+  const [data, setData] = useState<any[] | null>(null);
+  useEffect(() => { api.revenueByYear().then(setData).catch(() => setData([])); }, []);
+  if (!data || data.length === 0) return null;
+  const max = Math.max(1, ...data.map((d) => d.revenueFils));
+  return (
+    <Panel title="Revenue by year — from your QuickBooks invoices">
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 14 }}>
+        Calculated straight from the {data.reduce((s, d) => s + d.lines, 0).toLocaleString()} imported invoice lines — your real sales history.
+      </div>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', height: 160, paddingTop: 8 }}>
+        {data.map((d) => {
+          const h = Math.round((d.revenueFils / max) * 120) + 4;
+          return (
+            <div key={d.year} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: C.ink }}>AED {money(d.revenueFils)}</div>
+              <div style={{ width: '100%', maxWidth: 70, height: h, borderRadius: 10, background: `linear-gradient(180deg, ${C.pink}, ${C.pinkDeep})` }} />
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>{d.year}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{d.invoices} invoices</div>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+/** Lists the package/product names from invoices and merges renamed duplicates. */
+function PackageMerge() {
+  const [products, setProducts] = useState<any[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = () => api.importProducts().then(setProducts).catch(() => setProducts([]));
+  useEffect(() => { load(); }, []);
+
+  // Normalise a package name so a renamed duplicate collapses onto one canonical
+  // spelling: fix the "Pakage" typo, drop a leading "New ", tidy spacing.
+  const canon = (name: string) =>
+    name.trim().replace(/\s+/g, ' ').replace(/pakage/gi, 'Package').replace(/^new\s+/i, '').trim();
+
+  const groups = useMemo(() => {
+    const m = new Map<string, { target: string; names: any[] }>();
+    for (const p of products ?? []) {
+      const key = canon(p.product).toLowerCase();
+      if (!m.has(key)) m.set(key, { target: canon(p.product), names: [] });
+      m.get(key)!.names.push(p);
+    }
+    return [...m.values()];
+  }, [products]);
+
+  const dupes = groups.filter((g) => g.names.length > 1 || g.names[0].product !== g.target);
+
+  const mergeAll = async () => {
+    setBusy(true); setMsg(null);
+    const map: Record<string, string> = {};
+    for (const g of dupes) for (const n of g.names) if (n.product !== g.target) map[n.product] = g.target;
+    try {
+      const r = await api.mergeProducts(map);
+      setMsg(`Merged — ${r.updated} invoice lines updated across ${Object.keys(map).length} renamed packages.`);
+      load();
+    } finally { setBusy(false); }
+  };
+
+  if (!products) return null;
+
+  return (
+    <Panel title={`Package names (${products.length})`}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 12 }}>
+        Package names from your invoices. Renamed duplicates (e.g. “New Silver Pakage” → “Silver Package”) can be merged into one.
+      </div>
+      {dupes.length > 0 && (
+        <div style={{ background: C.yellowSoft, border: '1px solid #f0dca8', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.yellowInk, marginBottom: 8 }}>
+            {dupes.length} package{dupes.length > 1 ? 's have' : ' has'} duplicate names to merge:
+          </div>
+          {dupes.slice(0, 12).map((g) => (
+            <div key={g.target} style={{ fontSize: 12, fontWeight: 600, color: C.yellowInk, padding: '2px 0' }}>
+              {g.names.map((n: any) => `“${n.product}”`).join(' + ')} → <b>{g.target}</b>
+            </div>
+          ))}
+          <div style={{ marginTop: 10 }}>
+            <Button onClick={mergeAll} disabled={busy}>{busy ? 'Merging…' : 'Merge duplicates'}</Button>
+          </div>
+        </div>
+      )}
+      {dupes.length === 0 && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginBottom: 8 }}>No duplicate package names — all clean ✓</div>}
+      <div style={{ maxHeight: 260, overflowY: 'auto', border: `1px solid ${C.line}`, borderRadius: 12 }}>
+        {[...(products ?? [])].sort((a, b) => b.total_fils - a.total_fils).map((p) => (
+          <div key={p.product} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, fontSize: 12.5, fontWeight: 600 }}>
+            <span style={{ color: C.ink }}>{p.product}</span>
+            <span style={{ color: C.muted2, whiteSpace: 'nowrap' }}>{p.lines}× · AED {p.totalDisplay}</span>
+          </div>
+        ))}
+      </div>
+      {msg && <div style={{ marginTop: 10, color: C.green, fontWeight: 700, fontSize: 12.5 }}>{msg}</div>}
+    </Panel>
   );
 }
 

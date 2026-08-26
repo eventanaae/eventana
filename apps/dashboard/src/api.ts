@@ -294,6 +294,14 @@ export const api = {
 
   importRows: (kind: 'customers' | 'orders', rows: any[]) =>
     request<{ inserted: number }>('/api/admin/import/rows', { method: 'POST', body: JSON.stringify({ kind, rows }) }),
+  revenueByYear: () =>
+    request<Array<{ year: number; invoices: number; lines: number; revenueFils: number; revenueDisplay: string; discountFils: number; discountDisplay: string }>>(
+      '/api/admin/import/revenue-by-year',
+    ),
+  importProducts: () =>
+    request<Array<{ product: string; lines: number; total_fils: number; totalDisplay: string }>>('/api/admin/import/products'),
+  mergeProducts: (map: Record<string, string>) =>
+    request<{ updated: number }>('/api/admin/import/products/merge', { method: 'POST', body: JSON.stringify({ map }) }),
   importTicket: () => request<{ ticket: string; expiresInMs: number }>('/api/admin/import/ticket', { method: 'POST' }),
   importStatus: () =>
     request<{ customers: { n: number; with_email: number; emirates: number }; orders: { n: number; with_date: number; total_fils: number } }>(
