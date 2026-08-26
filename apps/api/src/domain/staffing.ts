@@ -246,7 +246,10 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     if (st.name === 'Marsha') return false;          // remote only, no on-site work
     const held = rolesByStaff.get(st.id);
     const heldSize = held?.size ?? 0;
-    if (role === 'staff') return heldSize === 0;      // generic on-site, no concurrent doubling
+    // Generic on-site body — anyone with a real on-site skill (not the driver,
+    // whose job is transport), and no concurrent doubling.
+    if (role === 'staff') return heldSize === 0 && [...st.skills].some((s) => s !== 'driver');
+    if (role === 'driver') return st.skills.has('driver');
     if (!st.skills.has(role)) return false;
     if (heldSize > 0) {                                // only balloon_artist + clown may combine
       const combo = new Set<Skill>([...held!, role]);
@@ -255,11 +258,22 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     return true;
   };
 
-  // Expand requirements into individual slots and fill the skilled ones first.
+  // Expand requirements into individual slots and fill the SCARCEST skills
+  // first. Face painting (only Jane) and balloon twisting (only Jane) must be
+  // assigned before balloon artist (Jane OR Dindo) — otherwise Jane gets taken
+  // for balloons and the only face painter falls to part-time. Supply = how
+  // many internal on-site staff hold the skill; fewer → filled earlier.
   const slots: Array<RoleReq & { slot: number }> = [];
   for (const req of reqs) for (let i = 0; i < req.count; i++) slots.push({ ...req, slot: i + 1 });
-  const order: Skill[] = ['balloon_artist', 'face_painting', 'balloon_twisting', 'clown', 'helper', 'staff', 'acrobat_clown', 'design', 'driver'];
-  slots.sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role));
+  const onsite = staff.filter((st) => st.name !== 'Marsha');
+  const supplyOf = (role: Skill): number => {
+    if (role === 'acrobat_clown') return 0;                         // part-time only
+    if (role === 'design') return staff.filter((st) => st.skills.has('design')).length;
+    if (role === 'staff') return onsite.filter((st) => [...st.skills].some((s) => s !== 'driver')).length;
+    return onsite.filter((st) => st.skills.has(role)).length;
+  };
+  const tie: Skill[] = ['face_painting', 'balloon_twisting', 'balloon_artist', 'clown', 'helper', 'staff', 'driver', 'acrobat_clown', 'design'];
+  slots.sort((a, b) => (supplyOf(a.role) - supplyOf(b.role)) || (tie.indexOf(a.role) - tie.indexOf(b.role)));
 
   const assigned: AssignedSlot[] = [];
   for (const s of slots) {
