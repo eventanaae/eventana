@@ -123,7 +123,12 @@ function ReceiptsList() {
       <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 12 }}>
         Total collected: <b style={{ color: C.green }}>AED {data.totalDisplay ?? '0'}</b> → Cash on hand
       </div>
-      {(data.receipts ?? []).length === 0 && <Empty>No receipts yet. Record a paid sale.</Empty>}
+      {(data.receipts ?? []).length === 0 && (
+        <div style={{ textAlign: 'center', padding: '14px 4px' }}>
+          <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, marginBottom: 10 }}>No receipts yet.</div>
+          <Button tone="ghost" onClick={async () => { const r = await api.finImportHistory(); alert(`Loaded ${r.receipts} sales from your QuickBooks history.`); load(); }}>Load sales history from QuickBooks</Button>
+        </div>
+      )}
       {(data.receipts ?? []).map((r: any) => (
         <DocRow key={r.id}
           title={r.customer_name} sub={`Receipt ${r.number} · ${fmtDate(r.date)}`}
@@ -279,7 +284,7 @@ function CustomerPicker({ onPick, onClose }: { onPick: (c: { id: number | null; 
   const [q, setQ] = useState('');
   const [list, setList] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
-  const [nc, setNc] = useState({ fullName: '', email: '', phone: '' });
+  const [nc, setNc] = useState({ fullName: '', email: '', phone: '', backupPhone: '', emirate: '' });
   useEffect(() => { const t = setTimeout(() => api.finCustomers(q).then(setList).catch(() => setList([])), 250); return () => clearTimeout(t); }, [q]);
   return (
     <Modal title="Add customer" onClose={onClose}>
@@ -301,7 +306,16 @@ function CustomerPicker({ onPick, onClose }: { onPick: (c: { id: number | null; 
         <>
           <Field label="Customer name *"><input value={nc.fullName} onChange={(e) => setNc((s) => ({ ...s, fullName: e.target.value }))} style={input} autoFocus /></Field>
           <Field label="Email"><input value={nc.email} onChange={(e) => setNc((s) => ({ ...s, email: e.target.value }))} style={input} /></Field>
-          <Field label="Phone"><input value={nc.phone} onChange={(e) => setNc((s) => ({ ...s, phone: e.target.value }))} style={input} /></Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Phone"><input value={nc.phone} onChange={(e) => setNc((s) => ({ ...s, phone: e.target.value }))} style={input} placeholder="05XXXXXXXX" /></Field>
+            <Field label="Backup number"><input value={nc.backupPhone} onChange={(e) => setNc((s) => ({ ...s, backupPhone: e.target.value }))} style={input} placeholder="Optional" /></Field>
+          </div>
+          <Field label="Emirate">
+            <select value={nc.emirate} onChange={(e) => setNc((s) => ({ ...s, emirate: e.target.value }))} style={input}>
+              <option value="">— Select emirate —</option>
+              {['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah', 'Al Ain'].map((em) => <option key={em} value={em}>{em}</option>)}
+            </select>
+          </Field>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button tone="ghost" onClick={() => setAdding(false)}>Back</Button>
             <div style={{ flex: 1 }} />

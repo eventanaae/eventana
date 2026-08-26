@@ -33,18 +33,18 @@ export async function listCustomers(search?: string) {
   return rows;
 }
 
-export async function addCustomer(d: { fullName: string; email?: string; phone?: string; billAddress?: string; shipAddress?: string }) {
+export async function addCustomer(d: { fullName: string; email?: string; phone?: string; backupPhone?: string; emirate?: string }) {
   const dedupe = ((d.phone ?? '').replace(/\D/g, '') || d.fullName.toLowerCase()).slice(0, 200);
   const { rows } = await pool.query(
-    `INSERT INTO historical_customers (full_name, phone, email, bill_address, ship_address, dedupe_key, source)
+    `INSERT INTO historical_customers (full_name, phone, phone_alt, email, emirate, dedupe_key, source)
      VALUES ($1,$2,$3,$4,$5,$6,'dashboard')
      ON CONFLICT (dedupe_key) DO UPDATE SET
        full_name = EXCLUDED.full_name,
+       phone_alt = COALESCE(EXCLUDED.phone_alt, historical_customers.phone_alt),
        email = COALESCE(EXCLUDED.email, historical_customers.email),
-       bill_address = COALESCE(EXCLUDED.bill_address, historical_customers.bill_address),
-       ship_address = COALESCE(EXCLUDED.ship_address, historical_customers.ship_address)
-     RETURNING id, full_name, email, phone, emirate`,
-    [d.fullName.trim(), (d.phone ?? '').trim() || null, (d.email ?? '').trim() || null, (d.billAddress ?? '').trim() || null, (d.shipAddress ?? '').trim() || null, dedupe],
+       emirate = COALESCE(EXCLUDED.emirate, historical_customers.emirate)
+     RETURNING id, full_name, email, phone, phone_alt, emirate`,
+    [d.fullName.trim(), (d.phone ?? '').trim() || null, (d.backupPhone ?? '').trim() || null, (d.email ?? '').trim() || null, (d.emirate ?? '').trim() || null, dedupe],
   );
   return rows[0];
 }
@@ -130,6 +130,49 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   return decorateReceipt(rows[0]);
 }
 
+/**
+ * One-time: turn the migrated QuickBooks sale lines (historical_orders) into
+ * real sales-receipt records grouped by document number, so the whole sales
+ * history shows in the Sales receipts list. Marked source='quickbooks' so it
+ * does NOT double-count against the Cash on hand opening balance. Idempotent.
+ */
+export async function importReceiptsFromHistory() {
+  const { rows } = await pool.query(
+    `SELECT doc_number, customer_name, txn_date, product, memo, total_fils
+       FROM historical_orders
+      WHERE doc_number IS NOT NULL AND doc_number <> '' AND txn_date IS NOT NULL
+      ORDER BY doc_number, id`,
+  );
+  const groups = new Map<string, { customer: string; date: string; lines: any[] }>();
+  for (const r of rows) {
+    const key = String(r.doc_number);
+    if (!groups.has(key)) groups.set(key, { customer: r.customer_name || 'Customer', date: String(r.txn_date).slice(0, 10), lines: [] });
+    groups.get(key)!.lines.push(r);
+  }
+  let inserted = 0;
+  for (const [doc, g] of groups) {
+    const items: LineItem[] = [];
+    let discount = 0, shipping = 0;
+    for (const l of g.lines) {
+      const text = `${l.product ?? ''} ${l.memo ?? ''}`.toLowerCase();
+      const amt = Number(l.total_fils);
+      if (/discount/.test(text)) discount += Math.abs(amt);
+      else if (/shipping|delivery/.test(text)) shipping += amt;
+      else items.push({ name: (l.product || l.memo || 'Item').slice(0, 200), qty: 1, priceFils: amt });
+    }
+    const subtotal = items.reduce((s, i) => s + i.priceFils, 0);
+    const total = subtotal - discount + shipping;
+    const res = await pool.query(
+      `INSERT INTO finance_receipts (number, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Cash','quickbooks')
+       ON CONFLICT (number) DO NOTHING`,
+      [doc, g.customer, g.date, JSON.stringify(items), subtotal, discount, shipping, total],
+    );
+    inserted += res.rowCount ?? 0;
+  }
+  return { receipts: inserted, groups: groups.size };
+}
+
 export async function listReceipts() {
   const { rows } = await pool.query(`SELECT * FROM finance_receipts ORDER BY date DESC, id DESC`);
   const list = rows.map(decorateReceipt);
@@ -156,7 +199,7 @@ function decorateReceipt(r: any) {
 export async function accountingSummary() {
   const [opening, receipts, paidInv, unpaidInv, expenses] = await Promise.all([
     pool.query(`SELECT value FROM settings WHERE key = 'finance.cashOpeningFils'`),
-    pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_receipts`),
+    pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_receipts WHERE source <> 'quickbooks'`),
     pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_invoices WHERE status = 'paid'`),
     pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v, count(*)::int c FROM finance_invoices WHERE status <> 'paid'`),
     pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM expenses`),

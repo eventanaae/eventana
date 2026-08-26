@@ -1,0 +1,565 @@
+<title>Eventana Corporate Profile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito+Sans:ital,opsz,wght@0,6..12,300;0,6..12,400;0,6..12,600;0,6..12,700;1,6..12,400&family=Caveat:wght@500;600&display=swap">
+
+<style>
+:root{
+  --cream:#FAF6F2;
+  --paper:#FFFDFB;
+  --ink:#3B3641;
+  --ink-soft:#6B6069;
+  --taupe:#B3A8A0;
+  --pink:#E94F9C;
+  --teal:#5BCFC5;
+  --coral:#F7A98C;
+  --lavender:#B79BE0;
+  --blush:#F9C6DC;
+  --gold:#F7D06B;
+  --mint:#8FD6C4;
+  --rule:rgba(59,54,65,.13);
+  --rule-soft:rgba(59,54,65,.07);
+
+  --display:"Fredoka","Trebuchet MS",sans-serif;
+  --body:"Nunito Sans","Segoe UI",Arial,sans-serif;
+  --script:"Caveat","Segoe Script",cursive;
+}
+
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{
+  margin:0;
+  background:#E8E2DC;
+  color:var(--ink);
+  font-family:var(--body);
+  font-weight:400;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- sheet ---------- */
+.sheet{
+  position:relative;
+  width:210mm;
+  height:297mm;
+  margin:8mm auto;
+  padding:20mm 22mm 18mm;
+  background:var(--cream);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  box-shadow:0 2mm 8mm rgba(59,54,65,.18);
+}
+
+/* ---------- running head ---------- */
+.head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  padding-bottom:3.5mm;
+  border-bottom:1px solid var(--rule-soft);
+  flex:0 0 auto;
+}
+.head .mark{
+  font-family:var(--display);
+  font-weight:600;
+  font-size:9pt;
+  letter-spacing:.22em;
+  color:var(--pink);
+}
+.head .sec{
+  font-size:7.5pt;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--taupe);
+  font-weight:600;
+}
+.foot{
+  margin-top:auto;
+  padding-top:5mm;
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  font-size:7.5pt;
+  color:var(--taupe);
+  letter-spacing:.1em;
+  flex:0 0 auto;
+}
+.foot .num{font-variant-numeric:tabular-nums;font-weight:600}
+
+.body{flex:1 1 auto;padding-top:11mm;min-height:0}
+
+/* ---------- type ---------- */
+h1,h2,h3{margin:0;font-family:var(--display);text-wrap:balance;font-weight:600}
+.kicker{
+  font-size:7.5pt;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--pink);font-weight:700;margin:0 0 5mm;
+}
+h2.title{
+  font-size:27pt;line-height:1.12;letter-spacing:-.01em;
+  max-width:15em;margin-bottom:6mm;
+}
+h2.title.sm{font-size:22pt}
+.accent-rule{width:22mm;height:2.4pt;border-radius:2pt;background:var(--coral);margin:0 0 8mm}
+.accent-rule.teal{background:var(--teal)}
+.accent-rule.pink{background:var(--pink)}
+
+p{margin:0 0 4.2mm;font-size:10pt;line-height:1.62;max-width:62ch;color:var(--ink)}
+p.lead{font-size:12pt;line-height:1.55;color:var(--ink);max-width:54ch}
+p.small{font-size:9pt;line-height:1.58;color:var(--ink-soft)}
+strong{font-weight:700}
+em{font-style:italic}
+.script{
+  font-family:var(--script);font-size:19pt;color:var(--teal);
+  font-weight:600;line-height:1;margin:0 0 3mm;
+}
+
+/* ---------- blocks ---------- */
+.stack{display:flex;flex-direction:column;gap:5mm}
+.block{max-width:62ch}
+.block h3{font-size:11pt;margin-bottom:1.4mm;color:var(--ink)}
+.block p{margin:0;font-size:9.5pt;line-height:1.58}
+
+.facts{display:flex;flex-direction:column;gap:0;margin-top:7mm;max-width:120mm}
+.facts div{
+  display:flex;gap:6mm;padding:2.6mm 0;
+  border-bottom:1px solid var(--rule-soft);font-size:9.5pt;
+}
+.facts dt{flex:0 0 34mm;color:var(--taupe);font-weight:700;
+  font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;padding-top:.9mm}
+.facts dd{margin:0;color:var(--ink)}
+
+/* contents */
+.toc{display:flex;flex-direction:column;gap:0;max-width:118mm;margin-top:2mm}
+.toc a,.toc div{
+  display:flex;align-items:baseline;gap:5mm;
+  padding:3.4mm 0;border-bottom:1px solid var(--rule-soft);
+  text-decoration:none;color:var(--ink);
+}
+.toc .n{
+  font-family:var(--display);font-size:9pt;font-weight:600;color:var(--pink);
+  font-variant-numeric:tabular-nums;flex:0 0 9mm;
+}
+.toc .t{font-size:11pt;font-family:var(--display);font-weight:400}
+
+/* service list */
+.svc{display:flex;flex-direction:column;gap:4.4mm}
+.svc .row{max-width:62ch}
+.svc h3{
+  font-size:10.5pt;margin-bottom:1.2mm;
+  display:flex;align-items:center;gap:3mm;
+}
+.svc h3::before{
+  content:"";width:3.6mm;height:3.6mm;border-radius:50%;
+  background:var(--blush);flex:0 0 auto;
+}
+.svc .row:nth-child(3n+2) h3::before{background:var(--mint)}
+.svc .row:nth-child(3n+3) h3::before{background:var(--lavender)}
+.svc p{margin:0;font-size:9.3pt;line-height:1.55;padding-left:6.6mm}
+
+/* portfolio two-column */
+.cols{column-count:2;column-gap:11mm}
+.cols .item{break-inside:avoid;margin-bottom:4.6mm}
+.cols h3{font-size:9.5pt;margin-bottom:1mm;color:var(--pink)}
+.cols p{font-size:8.8pt;line-height:1.5;margin:0;max-width:none;color:var(--ink)}
+
+/* process */
+.steps{display:flex;flex-direction:column;gap:4.6mm}
+.step{display:flex;gap:6mm;align-items:flex-start;max-width:64ch}
+.step .n{
+  font-family:var(--display);font-weight:600;font-size:10pt;
+  color:var(--teal);flex:0 0 8mm;padding-top:.4mm;
+  font-variant-numeric:tabular-nums;
+}
+.step h3{font-size:10.5pt;margin-bottom:1.2mm}
+.step p{margin:0;font-size:9.3pt;line-height:1.55}
+
+/* reasons */
+.reasons{display:flex;flex-direction:column;gap:4.6mm}
+.reason{max-width:63ch;padding-left:6mm;border-left:1.6pt solid var(--blush)}
+.reason:nth-child(2n){border-left-color:var(--mint)}
+.reason:nth-child(3n){border-left-color:var(--lavender)}
+.reason h3{font-size:10.5pt;margin-bottom:1.2mm}
+.reason p{margin:0;font-size:9.3pt;line-height:1.55}
+
+/* checklist */
+.checks{display:flex;flex-direction:column;gap:3.4mm;max-width:64ch}
+.check{display:flex;gap:4.5mm;align-items:flex-start}
+.check .tick{
+  flex:0 0 auto;width:4.2mm;height:4.2mm;margin-top:.9mm;
+  border-radius:50%;border:1.4pt solid var(--teal);
+}
+.check p{margin:0;font-size:9.6pt;line-height:1.55}
+
+/* gallery */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6mm;margin-top:2mm}
+.frame{
+  aspect-ratio:4/3;border-radius:4mm;
+  border:1.2pt dashed rgba(59,54,65,.28);
+  background:var(--paper);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:6mm;gap:2mm;
+}
+.frame .lbl{
+  font-family:var(--display);font-size:9.5pt;font-weight:500;color:var(--ink);
+}
+.frame .hint{font-size:7.8pt;color:var(--taupe);line-height:1.45;max-width:22em}
+
+/* cover */
+.cover{
+  padding:0;background:var(--cream);
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.cover .band{height:52mm;background:var(--blush);position:relative;flex:0 0 auto}
+.cover .band::after{
+  content:"";position:absolute;left:22mm;bottom:-13mm;
+  width:26mm;height:26mm;border-radius:50%;background:var(--mint);
+}
+.cover .mid{padding:0 22mm;flex:1 1 auto;display:flex;flex-direction:column;justify-content:center}
+.cover .lock{margin-bottom:14mm}
+.cover .word{
+  font-family:var(--display);font-weight:600;font-size:34pt;
+  letter-spacing:.14em;color:var(--pink);line-height:1;
+}
+.cover .sub{font-family:var(--script);font-size:22pt;color:var(--teal);line-height:1;margin-top:1mm;margin-left:2mm}
+.cover h1{
+  font-size:38pt;line-height:1.05;letter-spacing:-.015em;
+  max-width:12em;margin-bottom:7mm;font-weight:500;
+}
+.cover .meta{font-size:9.5pt;color:var(--ink-soft);letter-spacing:.03em;line-height:1.7}
+.cover .btm{
+  padding:0 22mm 20mm;display:flex;justify-content:space-between;align-items:flex-end;
+  font-size:8pt;color:var(--taupe);letter-spacing:.14em;text-transform:uppercase;flex:0 0 auto;
+}
+
+/* contact */
+.contact{display:flex;flex-direction:column;gap:0;max-width:110mm;margin-top:4mm}
+.contact div{
+  display:flex;gap:6mm;padding:3.4mm 0;border-bottom:1px solid var(--rule-soft);
+}
+.contact dt{
+  flex:0 0 26mm;font-size:7.5pt;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--taupe);font-weight:700;padding-top:.9mm;
+}
+.contact dd{margin:0;font-size:10.5pt;color:var(--ink)}
+.note{margin-top:9mm;font-size:8.5pt;color:var(--taupe);font-style:italic}
+
+/* ---------- print ---------- */
+@page{size:A4;margin:0}
+@media print{
+  body{background:none}
+  .sheet{margin:0;box-shadow:none;break-after:page;page-break-after:always}
+  .sheet:last-child{break-after:auto;page-break-after:auto}
+  .noprint{display:none}
+}
+.noprint{
+  max-width:210mm;margin:10mm auto 0;padding:6mm 8mm;
+  background:var(--paper);border-radius:3mm;border:1px solid var(--rule);
+  font-size:10pt;line-height:1.6;color:var(--ink);
+}
+.noprint h4{margin:0 0 2mm;font-family:var(--display);font-size:11pt}
+.noprint code{
+  background:#F1EAE4;padding:.5mm 1.5mm;border-radius:1mm;font-size:9pt;
+}
+</style>
+
+<div class="noprint">
+  <h4>To save as PDF</h4>
+  Press <code>Ctrl</code>+<code>P</code> (or <code>&#8984;</code>+<code>P</code>), choose <strong>Save as PDF</strong>, set paper to <strong>A4</strong>, margins to <strong>None</strong>, and tick <strong>Background graphics</strong>. This box will not appear in the PDF.
+</div>
+
+<!-- 01 COVER -->
+<section class="sheet cover">
+  <div class="band"></div>
+  <div class="mid">
+    <div class="lock">
+      <div class="word">EVENTANA</div>
+      <div class="sub">Events</div>
+    </div>
+    <h1>Corporate Profile</h1>
+    <div class="meta">
+      Emirati-led event design &amp; production<br>
+      United Arab Emirates &middot; Established 2021
+    </div>
+  </div>
+  <div class="btm">
+    <span>eventanauae.com</span>
+    <span>Dubai, UAE</span>
+  </div>
+</section>
+
+<!-- 02 CONTENTS -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">Contents</span></div>
+  <div class="body">
+    <p class="kicker">Inside this profile</p>
+    <h2 class="title sm">Contents</h2>
+    <div class="toc">
+      <div><span class="n">01</span><span class="t">Introduction</span></div>
+      <div><span class="n">02</span><span class="t">About Eventana</span></div>
+      <div><span class="n">03</span><span class="t">What Makes Us Different</span></div>
+      <div><span class="n">04</span><span class="t">Corporate Services</span></div>
+      <div><span class="n">05</span><span class="t">Our Experience</span></div>
+      <div><span class="n">06</span><span class="t">Service Portfolio</span></div>
+      <div><span class="n">07</span><span class="t">How We Work</span></div>
+      <div><span class="n">08</span><span class="t">Why Eventana</span></div>
+      <div><span class="n">09</span><span class="t">Safety &amp; Assurance</span></div>
+      <div><span class="n">10</span><span class="t">Selected Work</span></div>
+      <div><span class="n">11</span><span class="t">Contact</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">02</span></div>
+</section>
+
+<!-- 03 INTRODUCTION -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">01 &nbsp;Introduction</span></div>
+  <div class="body">
+    <p class="script">Hello there&hellip;</p>
+    <h2 class="title">Events that belong here.</h2>
+    <div class="accent-rule"></div>
+    <p class="lead">Eventana Events is an Emirati woman-led event design and production company, established in 2021 and based in Dubai.</p>
+    <p>We plan, design and deliver events across the UAE &mdash; for private companies, government organisations, schools and private clients. Over the past five years we have built our reputation on a simple standard: the event opens on time, looks exactly as approved, and reflects the people it was made for.</p>
+    <p>We are not a booking agency. We design the concept, produce the setup, own the equipment, train the team, and run the event on the day. One company, from first brief to final handover.</p>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">03</span></div>
+</section>
+
+<!-- 04 ABOUT -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">02 &nbsp;About Eventana</span></div>
+  <div class="body">
+    <p class="kicker">About us</p>
+    <h2 class="title">Built in the UAE, for the UAE.</h2>
+    <div class="accent-rule teal"></div>
+    <p>Eventana was founded in 2021 by an Emirati businesswoman who saw the same gap at event after event: productions that were technically competent but culturally hollow &mdash; designs that could have been dropped into any city in the world.</p>
+    <p>Five years on, Eventana is a full-service production house with its own warehouse, its own equipment and its own trained crews, serving clients in every emirate.</p>
+    <dl class="facts">
+      <div><dt>Established</dt><dd>2021 &middot; Dubai, United Arab Emirates</dd></div>
+      <div><dt>Ownership</dt><dd>Emirati woman-led</dd></div>
+      <div><dt>Coverage</dt><dd>All seven emirates and Al Ain</dd></div>
+      <div><dt>Sectors</dt><dd>Corporate &middot; Government &middot; Education &middot; Community &middot; Private</dd></div>
+      <div><dt>Model</dt><dd>In-house design, in-house equipment, in-house crew</dd></div>
+    </dl>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">04</span></div>
+</section>
+
+<!-- 05 DIFFERENT -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">03 &nbsp;What Makes Us Different</span></div>
+  <div class="body">
+    <p class="kicker">Our advantage</p>
+    <h2 class="title">We understand where we are.</h2>
+    <div class="accent-rule pink"></div>
+    <p>Most event companies in the UAE deliver a global template. We deliver an event that belongs to this country.</p>
+    <p>Being Emirati-led is not a line on our licence &mdash; it is how we read a brief. We know what a majlis-style welcome signals to senior guests. We know how to design for Ramadan and Eid without reducing them to decoration. We know which gestures read as generous here, and which read as careless. And we know how to bring all of it into a design that feels current, elegant and premium &mdash; not traditional for the sake of it.</p>
+    <div class="stack" style="margin-top:7mm">
+      <div class="block">
+        <h3>Cultural fluency, by default</h3>
+        <p>Protocol, seating, hosting order, timing around prayer, the tone of a welcome. Our clients do not have to explain these things to us, or check them afterwards.</p>
+      </div>
+      <div class="block">
+        <h3>Heritage, made modern</h3>
+        <p>Emirati motifs, palettes and hospitality traditions interpreted through a clean, contemporary design language.</p>
+      </div>
+      <div class="block">
+        <h3>Fully bilingual</h3>
+        <p>Arabic and English across our team, our design work and our client communication &mdash; with Arabic treated as a first language, not a translation.</p>
+      </div>
+      <div class="block">
+        <h3>The right instinct for the room</h3>
+        <p>Government protocol, a corporate client&rsquo;s brand governance and a family celebration each demand a different register. We read the room before we design for it.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">05</span></div>
+</section>
+
+<!-- 06 CORPORATE SERVICES -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">04 &nbsp;Corporate Services</span></div>
+  <div class="body">
+    <p class="kicker">For organisations</p>
+    <h2 class="title sm">What we deliver for organisations.</h2>
+    <div class="accent-rule"></div>
+    <div class="svc">
+      <div class="row"><h3>Corporate &amp; employee family days</h3>
+        <p>Full-day programmes for staff and their families &mdash; activity zones, attended food stations, entertainment and branded theming across the venue.</p></div>
+      <div class="row"><h3>Government &amp; national occasions</h3>
+        <p>National Day, Union Day, Eid and Ramadan programmes, ceremonies and community celebrations, delivered with the protocol and cultural accuracy these occasions require.</p></div>
+      <div class="row"><h3>Corporate celebrations &amp; milestones</h3>
+        <p>Anniversaries, achievement ceremonies, long-service recognition, branch openings and staff appreciation events.</p></div>
+      <div class="row"><h3>Brand activations &amp; public engagement</h3>
+        <p>Interactive installations, attended attractions and customer-facing experiences for retail, mall and community environments.</p></div>
+      <div class="row"><h3>Children&rsquo;s &amp; family programming</h3>
+        <p>Supervised entertainment, structured creative workshops and safe active play &mdash; the specialism most corporate providers cannot deliver in-house.</p></div>
+      <div class="row"><h3>Conferences, seminars &amp; launches</h3>
+        <p>Concept, staging, theming, styling and full on-site coordination.</p></div>
+      <div class="row"><h3>Branded production &amp; giveaways</h3>
+        <p>Backdrops, signage, printed personalisation and custom giveaways produced to your brand guidelines &mdash; not a stock theme.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">06</span></div>
+</section>
+
+<!-- 07 EXPERIENCE (restrained) -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">05 &nbsp;Our Experience</span></div>
+  <div class="body">
+    <h2 class="title">Trusted by private and government organisations across the UAE.</h2>
+    <div class="accent-rule teal"></div>
+    <p>Since 2021 we have delivered events for private companies and government organisations across the Emirates, alongside schools, community bodies and private clients.</p>
+    <p>That mix matters. A government occasion demands protocol and cultural precision. A corporate client demands brand governance, security clearance and a delivery record that survives scrutiny. A family celebration demands warmth. Each is a different discipline &mdash; and we have built the company to hold all three.</p>
+    <div class="stack" style="margin-top:8mm">
+      <div class="block"><h3>Arrive early, always</h3>
+        <p>Institutional venues have access windows, security procedures and facilities teams. We plan around them rather than discover them.</p></div>
+      <div class="block"><h3>Approve before producing</h3>
+        <p>Nothing is built, printed or installed before it is signed off. At this level, a surprise is a failure.</p></div>
+      <div class="block"><h3>Design to the brief, not to a template</h3>
+        <p>Corporate work is produced to the client&rsquo;s brand guidelines. Government occasions are designed to the standard the occasion deserves.</p></div>
+      <div class="block"><h3>Leave nothing behind</h3>
+        <p>Full dismantle, full site clearance, photographic handover. Facilities teams remember who does this properly.</p></div>
+    </div>
+    <p class="note" style="margin-top:9mm">References available on request.</p>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">07</span></div>
+</section>
+
+<!-- 08 PORTFOLIO -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">06 &nbsp;Service Portfolio</span></div>
+  <div class="body">
+    <p class="kicker">Everything in-house</p>
+    <h2 class="title sm">Our full portfolio.</h2>
+    <div class="accent-rule"></div>
+    <div class="cols">
+      <div class="item"><h3>Design &amp; theming</h3>
+        <p>Custom backdrops in three scales, balloon installations in your brand colours, character cut-outs, welcome signage, cake and display staging, fully styled themed seating.</p></div>
+      <div class="item"><h3>Food &amp; beverage stations</h3>
+        <p>Popcorn, cotton candy, slush, corn, ice cream, hot dogs, mini pancakes, nachos, burger sliders, chocolate fountain and hot chocolate. Every station staffed by an Eventana attendant &mdash; guests never operate the equipment.</p></div>
+      <div class="item"><h3>Inflatables &amp; active play</h3>
+        <p>Bouncy castles, bubble house, ball-pool slide, water slides, and a 12&times;6 m slippery football pitch. Supervised, capacity-limited, safely anchored.</p></div>
+      <div class="item"><h3>Carnival games</h3>
+        <p>Attended skill-and-prize games run by our crew, with prizes included.</p></div>
+      <div class="item"><h3>Entertainment</h3>
+        <p>Acrobatic performers, stilt walkers, balloon artists, face painters and costumed mascot characters.</p></div>
+      <div class="item"><h3>Creative workshops</h3>
+        <p>Slime, cupcake and cookie decorating, canvas and pottery painting, T-shirt and tote painting, bracelet and doll making. All materials and assistants included.</p></div>
+      <div class="item"><h3>Special effects</h3>
+        <p>Foam, bubble and snow machines, deployed to suit the venue.</p></div>
+      <div class="item"><h3>Branded giveaways</h3>
+        <p>Custom-printed T-shirts, hats, banners, wristbands and bespoke artwork, produced to your brand.</p></div>
+      <div class="item"><h3>Digital design</h3>
+        <p>Themed digital invitations, animated video invitations, event artwork and custom illustration.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">08</span></div>
+</section>
+
+<!-- 09 PROCESS -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">07 &nbsp;How We Work</span></div>
+  <div class="body">
+    <p class="kicker">Brief to handover</p>
+    <h2 class="title sm">How we work.</h2>
+    <div class="accent-rule teal"></div>
+    <div class="steps">
+      <div class="step"><span class="n">01</span><div><h3>Brief</h3>
+        <p>We meet, and we listen. Occasion, audience, venue, attendance, protocol requirements, brand guidelines, budget.</p></div></div>
+      <div class="step"><span class="n">02</span><div><h3>Design</h3>
+        <p>We return a full visual concept with the recommended service mix, layout and a written scope. Nothing is produced before you approve it.</p></div></div>
+      <div class="step"><span class="n">03</span><div><h3>Plan</h3>
+        <p>Date secured, equipment reserved against it, delivery and setup windows agreed with your venue and facilities team.</p></div></div>
+      <div class="step"><span class="n">04</span><div><h3>Produce</h3>
+        <p>Custom theming, branded items and printed personalisation enter production with lead time built in.</p></div></div>
+      <div class="step"><span class="n">05</span><div><h3>Deliver</h3>
+        <p>Our crew install ahead of guest arrival. Attendants run the stations, entertainers run their programmes, and one supervisor holds the schedule as your single point of contact.</p></div></div>
+      <div class="step"><span class="n">06</span><div><h3>Handover</h3>
+        <p>We dismantle, clear the site and return the venue as we found it &mdash; followed by a photographic handover.</p></div></div>
+    </div>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">09</span></div>
+</section>
+
+<!-- 10 WHY -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">08 &nbsp;Why Eventana</span></div>
+  <div class="body">
+    <p class="kicker">Why organisations stay</p>
+    <h2 class="title sm">Six reasons clients stay with us.</h2>
+    <div class="accent-rule"></div>
+    <div class="reasons">
+      <div class="reason"><h3>We understand the culture</h3>
+        <p>Emirati-led, bilingual, and fluent in the traditions and expectations of the UAE &mdash; brought into every event in a modern, creative way.</p></div>
+      <div class="reason"><h3>We own what we promise</h3>
+        <p>Our own warehouse, our own equipment, our own trained crew. Nothing critical is sub-contracted to a company we cannot vouch for.</p></div>
+      <div class="reason"><h3>We work to institutional standards</h3>
+        <p>Government protocol, corporate brand governance, security and access requirements &mdash; met as a matter of routine.</p></div>
+      <div class="reason"><h3>One company, one contact</h3>
+        <p>A twelve-element event is one scope, one quotation, one account manager and one crew &mdash; not six vendors arriving at six different times.</p></div>
+      <div class="reason"><h3>We hold the schedule</h3>
+        <p>Our own booking and operations system tracks equipment availability in real time, so a date is never double-committed and a setup time is a commitment, not an estimate.</p></div>
+      <div class="reason"><h3>Everything in writing</h3>
+        <p>Scope, inclusions, timings and costs are fixed before the event. Nothing is renegotiated on the day.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">10</span></div>
+</section>
+
+<!-- 11 SAFETY (restrained) -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">09 &nbsp;Safety &amp; Assurance</span></div>
+  <div class="body">
+    <h2 class="title sm">The standards behind the event.</h2>
+    <div class="accent-rule teal"></div>
+    <p>Children are a primary audience at many of our events, and our procedures reflect that.</p>
+    <div class="checks" style="margin-top:7mm">
+      <div class="check"><span class="tick"></span><p>Equipment inspected before every deployment, with anchoring appropriate to the surface and conditions.</p></div>
+      <div class="check"><span class="tick"></span><p>Capacity limits enforced per ride, with an Eventana supervisor present at active-play equipment throughout.</p></div>
+      <div class="check"><span class="tick"></span><p>Food stations operated exclusively by trained Eventana attendants &mdash; never by guests or children.</p></div>
+      <div class="check"><span class="tick"></span><p>Child-safe consumables and age-appropriate materials across all activities.</p></div>
+      <div class="check"><span class="tick"></span><p>Uniformed, briefed and identifiable crew on site for the full duration of the event.</p></div>
+      <div class="check"><span class="tick"></span><p>Venue protection and complete site clearance as standard, not as an extra.</p></div>
+      <div class="check"><span class="tick"></span><p>Written scope, confirmed timings and a photographic handover on completion.</p></div>
+    </div>
+    <p class="note" style="margin-top:9mm">Company documentation available on request.</p>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">11</span></div>
+</section>
+
+<!-- 12 SELECTED WORK -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">10 &nbsp;Selected Work</span></div>
+  <div class="body">
+    <p class="kicker">Selected work</p>
+    <h2 class="title sm">A look at what we build.</h2>
+    <div class="accent-rule"></div>
+    <div class="grid">
+      <div class="frame"><span class="lbl">Corporate family day</span><span class="hint">Wide shot of a full setup with guests. Caption with attendance, e.g. &ldquo;400 guests&rdquo;.</span></div>
+      <div class="frame"><span class="lbl">Government occasion</span><span class="hint">National Day, Union Day or a ceremony. Protocol setting, no faces needing clearance.</span></div>
+      <div class="frame"><span class="lbl">Attended food stations</span><span class="hint">Crew in uniform operating a station &mdash; shows staffing, not just equipment.</span></div>
+      <div class="frame"><span class="lbl">Theming &amp; backdrop</span><span class="hint">Your strongest backdrop build. Brand-matched work is better here than a character theme.</span></div>
+    </div>
+    <p class="note" style="margin-top:7mm">Replace these four frames with photographs before issuing this profile. Caption each with the occasion and scale rather than the theme name.</p>
+  </div>
+  <div class="foot"><span>Eventana Events</span><span class="num">12</span></div>
+</section>
+
+<!-- 13 CONTACT -->
+<section class="sheet">
+  <div class="head"><span class="mark">EVENTANA</span><span class="sec">11 &nbsp;Contact</span></div>
+  <div class="body">
+    <p class="script">Let&rsquo;s talk</p>
+    <h2 class="title">Eventana Events</h2>
+    <div class="accent-rule pink"></div>
+    <dl class="contact">
+      <div><dt>Address</dt><dd>41 9B Street, Al Barsha 2<br>Dubai, United Arab Emirates</dd></div>
+      <div><dt>Telephone</dt><dd>+971 56 450 0777</dd></div>
+      <div><dt>Email</dt><dd>sheem@eventanauae.com</dd></div>
+      <div><dt>Website</dt><dd>eventanauae.com</dd></div>
+      <div><dt>Instagram</dt><dd>@eventana.uae</dd></div>
+    </dl>
+    <p class="note">Company documentation available on request.</p>
+  </div>
+  <div class="foot"><span>Emirati-led &middot; Established 2021</span><span class="num">13</span></div>
+</section>

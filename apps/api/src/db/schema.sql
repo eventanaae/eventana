@@ -811,6 +811,10 @@ CREATE TABLE IF NOT EXISTS finance_receipts (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS finance_receipts_date_idx ON finance_receipts (date DESC);
+-- 'quickbooks' rows are the migrated history — already baked into the Cash on
+-- hand opening balance, so they populate the list but must NOT move the balance
+-- again. 'dashboard' rows are new sales made here and DO move Cash on hand.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'dashboard';
 
 -- Extra fields on the existing expense log to match the QuickBooks expense form.
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ref_no TEXT;

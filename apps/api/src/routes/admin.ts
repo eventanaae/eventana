@@ -1195,8 +1195,8 @@ export async function adminRoutes(app: FastifyInstance) {
       fullName: z.string().min(1).max(200),
       email: z.string().max(200).optional(),
       phone: z.string().max(60).optional(),
-      billAddress: z.string().max(300).optional(),
-      shipAddress: z.string().max(300).optional(),
+      backupPhone: z.string().max(60).optional(),
+      emirate: z.string().max(60).optional(),
     });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -1232,6 +1232,7 @@ export async function adminRoutes(app: FastifyInstance) {
     finance.deleteReceipt(Number((request.params as { id: string }).id)));
 
   app.get('/api/admin/finance/accounting', async () => finance.accountingSummary());
+  app.post('/api/admin/finance/import-history', async () => finance.importReceiptsFromHistory());
 
   app.get('/api/admin/import/status', async () => {
     const cust = await pool.query(
