@@ -322,19 +322,26 @@ function MigrationPanel() {
       // here (before batching) so a batch boundary can never split a group.
       let payload = rows;
       if (kind === 'orders') {
-        const dateOf = (o: any) => String(o['Transaction date'] ?? o['Date'] ?? '').trim();
-        const isDate = (s: string) => /^\d{1,2}\/\d{1,2}\/\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(s);
+        // The report groups by customer: a row with the customer NAME in the
+        // first (label) column — which has an empty header — then that customer's
+        // line items, then a "Total for …" row. Read the raw grid so the name in
+        // column 0 isn't lost, and stamp each line with its customer.
+        const isDate = (s: string) => /^\d{1,2}\/\d{1,2}\/\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(String(s).trim());
+        const dateCol = header.findIndex((h) => /transaction date|^date$/i.test(h));
+        const amountCol = header.findIndex((h) => /^amount$|^total$/i.test(h));
         let current = '';
         const out: any[] = [];
-        for (const o of rows) {
-          const d = dateOf(o);
-          const amount = String(o['Amount'] ?? o['Total'] ?? '').trim();
-          const first = String(o['Transaction date'] ?? o['Name'] ?? o['Customer'] ?? '').trim();
-          if (!isDate(d) && !amount && first && !/^total\b/i.test(first)) {
-            current = first.replace(/\s*\(\d+\)\s*$/, '').trim();
+        for (const row of grid.slice(headerIdx + 1)) {
+          const label = String(row[0] ?? '').trim();
+          const dateVal = dateCol >= 0 ? String(row[dateCol] ?? '').trim() : (row.find((c) => isDate(c)) ?? '');
+          const amount = amountCol >= 0 ? String(row[amountCol] ?? '').trim() : '';
+          if (!isDate(dateVal) && !amount && label && !/^total\b/i.test(label)) {
+            current = label.replace(/\s*\(\d+\)\s*$/, '').trim();
             continue;
           }
-          if (!isDate(d)) continue; // subtotal / grand-total row
+          if (!isDate(dateVal)) continue; // subtotal / grand-total / blank
+          const o: Record<string, any> = {};
+          header.forEach((h, i) => { if (h) o[h] = row[i]; });
           out.push({ ...o, customerName: current });
         }
         payload = out;

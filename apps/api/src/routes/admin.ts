@@ -1233,6 +1233,22 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get('/api/admin/finance/accounting', async () => finance.accountingSummary());
   app.post('/api/admin/finance/import-history', async () => finance.importReceiptsFromHistory());
+  // Attribute customer names to receipts/orders from a { docNumber: name } map
+  // (rebuilt in the browser from the Sales-by-Customer report). Fixes the sales
+  // whose customer grouping was lost on the first import.
+  app.post('/api/admin/finance/attribute', async (request, reply) => {
+    const p = z.object({ map: z.record(z.string().max(200)) }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    let updated = 0;
+    for (const [doc, name] of Object.entries(p.data.map)) {
+      const nm = name.trim();
+      if (!doc || !nm) continue;
+      const r = await pool.query(`UPDATE finance_receipts SET customer_name = $2 WHERE number = $1`, [doc, nm]);
+      await pool.query(`UPDATE historical_orders SET customer_name = $2 WHERE doc_number = $1`, [doc, nm]);
+      updated += r.rowCount ?? 0;
+    }
+    return { updated };
+  });
 
   app.get('/api/admin/import/status', async () => {
     const cust = await pool.query(

@@ -165,7 +165,7 @@ export async function importReceiptsFromHistory() {
     const res = await pool.query(
       `INSERT INTO finance_receipts (number, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, source)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Cash','quickbooks')
-       ON CONFLICT (number) DO NOTHING`,
+       ON CONFLICT (number) DO UPDATE SET customer_name = EXCLUDED.customer_name`,
       [doc, g.customer, g.date, JSON.stringify(items), subtotal, discount, shipping, total],
     );
     inserted += res.rowCount ?? 0;

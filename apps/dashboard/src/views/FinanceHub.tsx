@@ -115,14 +115,52 @@ function InvoicesList() {
 function ReceiptsList() {
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
+  const [fixing, setFixing] = useState(false);
   const load = () => api.finReceipts().then(setData).catch(() => setData({ receipts: [] }));
   useEffect(() => { load(); }, []);
+
+  const fixNames = async (file: File | undefined) => {
+    if (!file) return;
+    setFixing(true);
+    try {
+      const { parseSheetFile } = await import('../sheet');
+      const grid = await parseSheetFile(file);
+      const headerIdx = grid.findIndex((r) => r.some((c) => /transaction date|number|amount/i.test(String(c))));
+      if (headerIdx < 0) { alert('Could not read that report.'); return; }
+      const header = grid[headerIdx].map((c) => String(c).trim());
+      const isDate = (s: any) => /^\d{1,2}\/\d{1,2}\/\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(String(s).trim());
+      const dateCol = header.findIndex((h) => /transaction date|^date$/i.test(h));
+      const numCol = header.findIndex((h) => /number|^num$|^no\.?$/i.test(h));
+      let current = '';
+      const map: Record<string, string> = {};
+      for (const row of grid.slice(headerIdx + 1)) {
+        const label = String(row[0] ?? '').trim();
+        const dateVal = dateCol >= 0 ? String(row[dateCol] ?? '').trim() : '';
+        if (!isDate(dateVal) && label && !/^total\b/i.test(label)) { current = label.replace(/\s*\(\d+\)\s*$/, '').trim(); continue; }
+        if (!isDate(dateVal)) continue;
+        const doc = numCol >= 0 ? String(row[numCol] ?? '').trim() : '';
+        if (doc && current) map[doc] = current;
+      }
+      const entries = Object.entries(map);
+      let updated = 0;
+      for (let i = 0; i < entries.length; i += 400) { const r = await api.finAttribute(Object.fromEntries(entries.slice(i, i + 400))); updated += r.updated; }
+      alert(`Fixed customer names on ${updated} receipts.`);
+      load();
+    } catch (e: any) { alert('Could not fix names: ' + (e?.message || '')); } finally { setFixing(false); }
+  };
+
   if (!data) return <Spinner />;
   return (
     <Panel title="Sales receipts" action={<Button onClick={() => setCreating(true)}>+ New receipt</Button>}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 12 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>
         Total collected: <b style={{ color: C.green }}>AED {data.totalDisplay ?? '0'}</b> → Cash on hand
       </div>
+      {(data.receipts ?? []).some((r: any) => r.customer_name === 'Customer') && (
+        <label style={{ display: 'inline-block', marginBottom: 12, fontSize: 11.5, fontWeight: 700, color: C.pinkDeep, cursor: fixing ? 'wait' : 'pointer' }}>
+          {fixing ? 'Fixing names…' : '⚙ Fix customer names (upload the Sales by Customer Detail CSV)'}
+          <input type="file" accept=".csv,.xlsx" disabled={fixing} style={{ display: 'none' }} onChange={(e) => fixNames(e.target.files?.[0])} />
+        </label>
+      )}
       {(data.receipts ?? []).length === 0 && (
         <div style={{ textAlign: 'center', padding: '14px 4px' }}>
           <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, marginBottom: 10 }}>No receipts yet.</div>

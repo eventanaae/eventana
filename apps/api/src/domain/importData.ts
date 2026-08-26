@@ -93,7 +93,9 @@ export async function importOrders(rows: any[]): Promise<number> {
     const memo = pick(r, ['memo', 'Description', 'Memo', 'Memo/Description']);
     const total = toFils(pick(r, ['total', 'Amount', 'Total']));
     const isDiscount = /discount/i.test(memo) || /discount/i.test(product);
-    const dedupe = `${doc}|${cust}|${date}|${product}|${memo}|${total}`.slice(0, 200);
+    // Dedupe WITHOUT the customer, so a re-import that finally attributes the
+    // customer updates the existing line (via DO UPDATE) rather than duplicating.
+    const dedupe = `${doc}|${date}|${product}|${memo}|${total}`.slice(0, 200);
 
     await pool.query(
       `INSERT INTO historical_orders (doc_number, txn_type, customer_name, txn_date, product, memo, subtotal_fils, discount_fils, tax_fils, total_fils, status, dedupe_key)
