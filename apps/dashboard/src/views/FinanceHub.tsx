@@ -255,13 +255,40 @@ function ReceiptsList() {
         if (s && list.length === 0) {
           return <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, padding: '10px 2px' }}>No receipts match “{q}”.</div>;
         }
-        return list.map((r: any) => (
-          <DocRow key={r.id} onClick={() => setSel(r)}
-            title={r.customer_name} sub={`Receipt ${r.number} · ${fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
-            amount={r.totalDisplay}
-            badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
-          />
-        ));
+        // Group into months (list is already newest-first). The Owner sees a
+        // per-month collected total in each divider; the Manager sees the
+        // divider + count only (income totals stay the Owner's alone).
+        const showTotals = data.totalDisplay != null;
+        const monthKey = (d: any) => { const t = new Date(d); return isNaN(+t) ? '—' : `${t.getFullYear()}-${String(t.getMonth()).padStart(2, '0')}`; };
+        const monthLabel = (d: any) => { const t = new Date(d); return isNaN(+t) ? 'Undated' : t.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); };
+        const totals: Record<string, number> = {};
+        const counts: Record<string, number> = {};
+        for (const r of list) { const k = monthKey(r.date); totals[k] = (totals[k] ?? 0) + Number(r.total_fils || 0); counts[k] = (counts[k] ?? 0) + 1; }
+        const out: ReactNode[] = [];
+        let cur: string | null = null;
+        for (const r of list) {
+          const k = monthKey(r.date);
+          if (k !== cur) {
+            cur = k;
+            out.push(
+              <div key={`m-${k}`} style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: out.length ? 16 : 4, marginBottom: 6, paddingBottom: 6, borderBottom: `2px solid ${C.line}` }}>
+                <span style={{ ...fredoka(14), color: C.ink }}>{monthLabel(r.date)}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>· {counts[k]} receipt{counts[k] > 1 ? 's' : ''}</span>
+                {showTotals && (
+                  <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, color: C.green }}>AED {money(totals[k])}</span>
+                )}
+              </div>,
+            );
+          }
+          out.push(
+            <DocRow key={r.id} onClick={() => setSel(r)}
+              title={r.customer_name} sub={`Receipt ${r.number} · ${fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
+              amount={r.totalDisplay}
+              badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
+            />,
+          );
+        }
+        return out;
       })()}
       {creating && <DocForm kind="receipt" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
       {newOrder && (
