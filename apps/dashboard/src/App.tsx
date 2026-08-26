@@ -38,7 +38,7 @@ const SECTIONS: Array<{ id: Section; label: string }> = [
 
 // `mobile: true` marks the handful of top tabs shown in the phone bottom bar.
 const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string; section: Section; mobile?: boolean }> = [
-  { id: 'today', label: 'Today', icon: '◉', title: 'Today', sub: 'Your day at a glance', section: 'ops', mobile: true },
+  { id: 'today', label: 'Home', icon: '◉', title: 'Home', sub: 'Your day at a glance', section: 'ops', mobile: true },
   { id: 'schedule', label: 'Schedule', icon: '▦', title: 'Schedule', sub: 'Jobs, events and calendar', section: 'ops', mobile: true },
   { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Work by department', section: 'ops', mobile: true },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets and reservations', section: 'ops' },
