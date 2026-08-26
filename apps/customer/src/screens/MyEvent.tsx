@@ -1053,6 +1053,9 @@ const RC_TYPE: Record<string, { en: string; ar: string }> = {
  * actually has, never a guessed or blank field.
  */
 function ReceiptCard({ event, t, lang }: { event: any; t: TFn; lang: Lang }) {
+  // Collapsed by default — the celebration card above already shows the key
+  // facts, so the full order details open only when the customer wants them.
+  const [open, setOpen] = useState(false);
   const aed = t('common.aed');
   const p = event.pricing ?? {};
   const items: any[] = Array.isArray(p.items) ? p.items : [];
@@ -1075,7 +1078,21 @@ function ReceiptCard({ event, t, lang }: { event: any; t: TFn; lang: Lang }) {
   };
   return (
     <div style={card}>
-      <div style={{ ...fredoka(15), marginBottom: 4 }}>{t('me.rcTitle')}</div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          all: 'unset', boxSizing: 'border-box', display: 'flex', alignItems: 'center',
+          width: '100%', cursor: 'pointer', gap: 8,
+        }}
+      >
+        <span style={{ ...fredoka(15), flex: 1 }}>{t('me.rcTitle')}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 800, color: C.pinkDeep }}>
+          {open ? t('me.rcHide') : t('me.rcShow')}
+        </span>
+        <span style={{ color: C.pinkDeep, fontWeight: 800, fontSize: 13, display: 'inline-block', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>⌄</span>
+      </button>
+      {!open ? null : (
+      <div style={{ marginTop: 8 }}>
       <SummaryRow label={t('pay.eventId')} value={event.id} />
       {typeLabel && <SummaryRow label={t('me.rcType')} value={typeLabel} />}
       {event.eventFor && <SummaryRow label={t('me.rcFor')} value={event.eventFor} />}
@@ -1136,6 +1153,8 @@ function ReceiptCard({ event, t, lang }: { event: any; t: TFn; lang: Lang }) {
           />
           {pay.paidDisplay && <SummaryRow label={t('me.rcPaid')} value={`${pay.paidDisplay} ${aed}`} />}
         </>
+      )}
+      </div>
       )}
     </div>
   );

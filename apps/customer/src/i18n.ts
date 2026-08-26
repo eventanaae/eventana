@@ -523,6 +523,8 @@ const en: Dict = {
   'me.cancelled': 'Cancelled',
   // Order receipt — a full echo of everything booked at checkout.
   'me.rcTitle': 'Order details',
+  'me.rcShow': 'View',
+  'me.rcHide': 'Hide',
   'me.rcType': 'Event type',
   'me.rcFor': 'Celebration for',
   'me.rcAge': 'Age',
@@ -1132,6 +1134,8 @@ const ar: Dict = {
   'me.paidInFull': 'مدفوعة بالكامل',
   'me.cancelled': 'ملغاة',
   'me.rcTitle': 'تفاصيل الطلب',
+  'me.rcShow': 'عرض',
+  'me.rcHide': 'إخفاء',
   'me.rcType': 'نوع المناسبة',
   'me.rcFor': 'المناسبة لـ',
   'me.rcAge': 'العمر',
