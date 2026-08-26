@@ -1401,6 +1401,10 @@ export async function adminRoutes(app: FastifyInstance) {
   // One-time (safe to re-run): turn every upcoming sale that has no event yet
   // into an operational event so it appears on the schedule/board.
   app.post('/api/admin/finance/convert-upcoming', async () => finance.convertUpcomingReceiptsToEvents());
+  // One-time (safe to re-run): normalise every emirate value to a canonical zone
+  // (Al Ain / Khor Fakkan / Kalba kept as their own zones) across the customer
+  // book, live customers and events. Cleans the Sales page's "city" column.
+  app.post('/api/admin/finance/normalize-emirates', async () => finance.normalizeAllEmirates());
   // Attribute customer names to receipts/orders from a { docNumber: name } map
   // (rebuilt in the browser from the Sales-by-Customer report). Fixes the sales
   // whose customer grouping was lost on the first import.

@@ -13,6 +13,66 @@ import { nextOrderId, nextEventId } from './orders.js';
  * short form per document, Cash on hand as the only account.
  */
 
+/**
+ * Normalise a free-typed / imported emirate value to one of Eventana's canonical
+ * delivery zones. Al Ain, Khor Fakkan and Kalba are kept as their OWN zones (per
+ * the owner) rather than folded into Abu Dhabi / Sharjah. Order matters: the more
+ * specific city is matched before its parent emirate. Returns null when nothing
+ * recognisable is present (caller leaves the value untouched).
+ */
+const CANON_EMIRATES = [
+  'Abu Dhabi', 'Al Ain', 'Dubai', 'Sharjah', 'Ajman',
+  'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah', 'Khor Fakkan', 'Kalba',
+] as const;
+
+export function normalizeEmirate(raw: string | null | undefined): string | null {
+  const s = String(raw ?? '')
+    .replace(/[‎‏‪-‮]/g, '') // strip bidi marks (‏ etc.)
+    .replace(/[\r\n]+/g, ' ')
+    .toLowerCase()
+    .trim();
+  if (!s) return null;
+  const has = (...ks: string[]) => ks.some((k) => s.includes(k));
+  // City-level zones first (they sit inside a parent emirate).
+  if (has('alain', 'al ain', 'al alain')) return 'Al Ain';
+  if (has('khor fakkan', 'khorfakkan', 'khor fakan', 'khorfakan', 'khour fakkan')) return 'Khor Fakkan';
+  if (has('kalba', 'khalba')) return 'Kalba';
+  // Parent emirates.
+  if (has('abu dhabi', 'abudhabi', 'abu dhbai', 'abudhbai', 'shakbout', 'baniyas', 'khalifa city', 'blue resort', 'rahbah', 'rahba', 'mussafah', 'mussaffah')) return 'Abu Dhabi';
+  if (has('dubai', 'dubay')) return 'Dubai';
+  if (has('sharjah', 'sharjha', 'sharja', 'shariah', 'shrjah')) return 'Sharjah';
+  if (has('ajman')) return 'Ajman';
+  if (has('umm al', 'um al', 'umalq', 'um alq', 'quwain', 'qaiwain', 'qeween', 'quween', 'qaween', 'qiwain', 'qaiwan', 'qaween')) return 'Umm Al Quwain';
+  if (has('ras al', 'rasal', 'raz al', 'rak al', 'ras l')) return 'Ras Al Khaimah';
+  if (has('fujairah', 'fujaira', 'fujeirah', 'fujayrah')) return 'Fujairah';
+  return null;
+}
+
+/**
+ * One-time data hygiene: rewrite every recognisable emirate value to its
+ * canonical zone across the customer book, live customers and events. The
+ * receipt "city" reads from historical_customers.emirate, so cleaning that
+ * column tidies the whole Sales page. Idempotent — re-running changes nothing.
+ */
+export async function normalizeAllEmirates(): Promise<{ tables: Record<string, number>; canonical: string[] }> {
+  const tables: Record<string, number> = {};
+  for (const [table, col] of [['historical_customers', 'emirate'], ['customers', 'emirate'], ['events', 'emirate']] as const) {
+    const { rows } = await pool.query<{ id: string; v: string }>(
+      `SELECT id, ${col} AS v FROM ${table} WHERE ${col} IS NOT NULL AND ${col} <> ''`,
+    );
+    let updated = 0;
+    for (const r of rows) {
+      const canon = normalizeEmirate(r.v);
+      if (canon && canon !== r.v) {
+        await pool.query(`UPDATE ${table} SET ${col} = $2 WHERE id = $1`, [r.id, canon]);
+        updated++;
+      }
+    }
+    tables[table] = updated;
+  }
+  return { tables, canonical: [...CANON_EMIRATES] };
+}
+
 export type LineItem = { name: string; qty: number; priceFils: number };
 
 function computeTotals(items: LineItem[], discountFils: number, shippingFils: number) {

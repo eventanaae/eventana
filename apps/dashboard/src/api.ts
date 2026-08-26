@@ -353,6 +353,7 @@ export const api = {
   finConvertUpcoming: () =>
     request<{ created: string[]; considered: number }>('/api/admin/finance/convert-upcoming', { method: 'POST' }),
   finImportHistory: () => request<{ receipts: number; groups: number }>('/api/admin/finance/import-history', { method: 'POST' }),
+  finNormalizeEmirates: () => request<{ tables: Record<string, number>; canonical: string[] }>('/api/admin/finance/normalize-emirates', { method: 'POST' }),
   finAttribute: (map: Record<string, string>) => request<{ updated: number }>('/api/admin/finance/attribute', { method: 'POST', body: JSON.stringify({ map }) }),
 
   financials: () => request<any>('/api/admin/financials'),
