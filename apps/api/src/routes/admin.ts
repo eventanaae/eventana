@@ -2125,9 +2125,109 @@ export async function adminRoutes(app: FastifyInstance) {
       latestYear,
     } : null;
 
+    // ── CEO brief extensions (all from REAL data; "Not enough data yet" where none) ──
+    const nowY = now.getUTCFullYear();
+    const yearStartS = `${nowY}-01-01`;
+    const yearEndS = `${nowY + 1}-01-01`;
+    const todayS = isoDate(now);
+    const [cashSum, cancelReasonsRes, prepEventsArr, understaffRes, latePrepRes, up7Res, bdayRes, topCustRes, ytdRes, bookedFutureRes] = await Promise.all([
+      import('../domain/finance.js').then((m) => m.accountingSummary()).catch(() => null),
+      pool.query(`SELECT COALESCE(NULLIF(TRIM(c.reason),''),'—') reason, COUNT(*)::int n
+                    FROM cancellations c JOIN events e ON e.id=c.event_id
+                   WHERE e.event_date >= $1 AND e.event_date < $2 ${F}
+                   GROUP BY 1 ORDER BY n DESC LIMIT 6`, params),
+      import('../domain/prep.js').then((m) => m.getPrepEvents()).catch(() => [] as any[]),
+      pool.query(`SELECT COUNT(DISTINCT es.event_id)::int n FROM event_staff es JOIN events e ON e.id=es.event_id
+                   WHERE es.status='part_time_required' AND e.phase<>'Cancelled' AND e.event_date>=current_date`),
+      pool.query(`SELECT COUNT(*)::int n FROM prep_tasks pt JOIN events e ON e.id=pt.event_id
+                   WHERE pt.status NOT IN ('completed') AND pt.due_date < current_date AND e.phase<>'Cancelled' AND e.event_date>=current_date`),
+      pool.query(`SELECT COUNT(*)::int n FROM events WHERE phase<>'Cancelled' AND event_date>=current_date AND event_date<=current_date + interval '7 days'`),
+      pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char(now(),'MM-DD')`),
+      pool.query(`SELECT c.name, SUM(o.total_fils)::bigint v, COUNT(*)::int n
+                    FROM orders o JOIN customers c ON c.id=o.customer_id
+                   WHERE o.status='paid' AND o.kind IN ('booking','addon') AND o.source IS DISTINCT FROM 'converted'
+                   GROUP BY c.id,c.name ORDER BY v DESC LIMIT 5`),
+      pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>=$1 AND e.event_date<=$2`, [yearStartS, todayS]),
+      pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>$1 AND e.event_date<$2`, [todayS, yearEndS]),
+    ]);
+
+    const cashOnHandFils = (cashSum as any)?.cashOnHandFils ?? null;
+    const arFils = (cashSum as any)?.arFils ?? null;
+    // "Available after commitments" = cash on hand + expected incoming (A/R and
+    // unsettled orders) − upcoming refunds owed.
+    const upcomingRefundsRes = await pool.query(
+      `SELECT COALESCE(SUM(refund_amount_fils),0)::bigint v FROM cancellations WHERE refund_status IN ('pending','processing')`,
+    ).catch(() => ({ rows: [{ v: 0 }] }));
+    const upcomingRefunds = Number(upcomingRefundsRes.rows[0].v);
+    const expectedIn = Number(outstandingRow.rows[0].v) + Number(arFils ?? 0);
+    const cash = cashSum ? {
+      cashOnHandFils, cashOnHandDisplay: cashOnHandFils != null ? formatAed(cashOnHandFils) : null,
+      receivableFils: arFils, receivableDisplay: arFils != null ? formatAed(arFils) : null,
+      expectedInFils: expectedIn, expectedInDisplay: formatAed(expectedIn),
+      upcomingRefundsFils: upcomingRefunds, upcomingRefundsDisplay: formatAed(upcomingRefunds),
+      availableFils: (cashOnHandFils ?? 0) + expectedIn - upcomingRefunds,
+      availableDisplay: formatAed((cashOnHandFils ?? 0) + expectedIn - upcomingRefunds),
+    } : null;
+
+    const cancelReasons = cancelReasonsRes.rows.map((r: any) => ({ reason: r.reason, count: Number(r.n) }));
+
+    // Operational health (next 7 days).
+    const prepEvents = prepEventsArr as any[];
+    const upcoming7 = Number(up7Res.rows[0].n);
+    const readyNext7 = prepEvents.filter((e) => e.daysToEvent >= 0 && e.daysToEvent <= 7 && e.progressPct === 100).length;
+    const opsHealth = {
+      upcoming7,
+      fullyReady: readyNext7,
+      withMissingItems: prepEvents.filter((e) => e.issues > 0).length,
+      understaffed: Number(understaffRes.rows[0].n),
+      latePrep: Number(latePrepRes.rows[0].n),
+      atRisk: prepEvents.filter((e) => e.atRisk).length,
+      readinessPct: upcoming7 > 0 ? Math.round((readyNext7 / upcoming7) * 100) : (prepEvents.length ? 100 : null),
+    };
+
+    const birthdays = bdayRes.rows.map((r: any) => r.name);
+    const topCustomers = topCustRes.rows.map((r: any) => ({ name: r.name, revenueFils: Number(r.v), revenueDisplay: formatAed(Number(r.v)), orders: Number(r.n) }));
+
+    // Year-end forecast (estimate). Blends year-to-date run-rate with already-
+    // booked future revenue this year; net applies the current company margin.
+    const ytdRevenue = Number(ytdRes.rows[0].v);
+    const bookedFuture = Number(bookedFutureRes.rows[0].v);
+    const dayOfYear = Math.max(1, Math.floor((now.getTime() - Date.UTC(nowY, 0, 1)) / 86_400_000) + 1);
+    const daysRemaining = Math.max(0, 365 - dayOfYear);
+    const runRateDaily = ytdRevenue / dayOfYear;
+    const runRateRemaining = Math.round(runRateDaily * daysRemaining);
+    const marginRatio = (business?.latestYear?.marginPct ?? (revenue > 0 ? (profit / revenue) * 100 : 20)) / 100;
+    const mkScenario = (remaining: number) => {
+      const rev = ytdRevenue + remaining;
+      const net = Math.round(rev * marginRatio);
+      return { revenueFils: rev, revenueDisplay: formatAed(rev), netFils: net, netDisplay: formatAed(net) };
+    };
+    const forecast = ytdRevenue > 0 ? {
+      ytdRevenueFils: ytdRevenue, ytdRevenueDisplay: formatAed(ytdRevenue),
+      bookedFutureFils: bookedFuture, bookedFutureDisplay: formatAed(bookedFuture),
+      marginPct: Math.round(marginRatio * 1000) / 10,
+      conservative: mkScenario(bookedFuture),
+      expected: mkScenario(Math.max(bookedFuture, runRateRemaining)),
+      optimistic: mkScenario(Math.round(Math.max(bookedFuture, runRateRemaining) * 1.15)),
+    } : null;
+
+    // Prioritised alerts (Critical → High → Medium → Low).
+    type Alert = { level: 'critical' | 'high' | 'medium' | 'low'; icon: string; text: string; view?: string };
+    const alerts: Alert[] = [];
+    if (opsHealth.understaffed > 0) alerts.push({ level: 'critical', icon: '🚨', text: `${opsHealth.understaffed} upcoming event(s) understaffed — a part-timer still needs confirming.`, view: 'schedule' });
+    if (opsHealth.withMissingItems > 0) alerts.push({ level: 'critical', icon: '⚠️', text: `${opsHealth.withMissingItems} event(s) have a missing item / preparation issue.`, view: 'tasks' });
+    if (opsHealth.atRisk > 0) alerts.push({ level: 'high', icon: '🧰', text: `${opsHealth.atRisk} event(s) within 3 days aren't fully prepared yet.`, view: 'tasks' });
+    if (opsHealth.latePrep > 0) alerts.push({ level: 'high', icon: '⏰', text: `${opsHealth.latePrep} preparation task(s) are past their due date.`, view: 'tasks' });
+    if (Number(outstandingRow.rows[0].c) > 0) alerts.push({ level: 'high', icon: '💰', text: `AED ${formatAed(Number(outstandingRow.rows[0].v))} across ${outstandingRow.rows[0].c} order(s) not yet settled.`, view: 'finance' });
+    if (cancelRatePct > 15) alerts.push({ level: 'medium', icon: '❌', text: `Cancellation rate is ${cancelRatePct}% — above the healthy range.` });
+    if (revenueChangePct !== null && revenueChangePct < -10) alerts.push({ level: 'medium', icon: '📉', text: `Revenue is down ${Math.abs(revenueChangePct)}% vs the previous period.` });
+    const order = { critical: 0, high: 1, medium: 2, low: 3 } as const;
+    alerts.sort((a, b) => order[a.level] - order[b.level]);
+
     return {
       from, to,
       business,
+      cash, cancelReasons, opsHealth, birthdays, topCustomers, forecast, alerts,
       pipeline, funnel,
       collectedFils: revenue, collectedDisplay: formatAed(revenue),
       filters: { emirate: q.emirate ?? null, eventType: q.eventType ?? null, packageId: q.packageId ?? null },
