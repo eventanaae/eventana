@@ -445,9 +445,12 @@ export async function importReceiptsFromHistory() {
   return { receipts: inserted, groups: groups.size };
 }
 
-export async function listReceipts() {
-  // Pull the customer's city (emirate), phone and email alongside each receipt —
-  // matched by id, or by name for the migrated QuickBooks history that has no id.
+export async function listReceipts(role?: string) {
+  // The Owner sees the whole book with the collected total. A Manager sees only
+  // the recent + upcoming sales (from the start of last month) and NO income
+  // total — money totals are the Owner's alone.
+  const ownerView = role === 'owner' || role === undefined;
+  const dateFilter = ownerView ? '' : `WHERE r.date >= date_trunc('month', now()) - interval '1 month'`;
   const { rows } = await pool.query(
     `SELECT r.*, hc.id AS hc_id, hc.emirate AS city, hc.phone AS customer_phone, hc.email AS customer_email
        FROM finance_receipts r
@@ -458,9 +461,11 @@ export async function listReceipts() {
           ORDER BY (h.id = r.customer_id) DESC NULLS LAST
           LIMIT 1
        ) hc ON true
+      ${dateFilter}
       ORDER BY r.date DESC, r.id DESC`,
   );
   const list = rows.map(decorateReceipt);
+  if (!ownerView) return { receipts: list, totalFils: null, totalDisplay: null };
   const total = list.reduce((s, r) => s + r.total_fils, 0);
   return { receipts: list, totalFils: total, totalDisplay: formatAed(total) };
 }

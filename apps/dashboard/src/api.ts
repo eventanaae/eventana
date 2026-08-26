@@ -106,6 +106,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   today: () => request<any>('/api/admin/today'),
+  overview: () => request<any>('/api/admin/overview'),
   shopOrders: () => request<any[]>('/api/admin/shop-orders'),
   whatsappLeads: (status?: string) =>
     request<any>(`/api/admin/whatsapp/leads${status && status !== 'all' ? `?status=${status}` : ''}`),

@@ -3,6 +3,7 @@ import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler 
 import { C, fredoka } from './ui';
 import { BookingNotifier } from './BookingNotifier';
 import { Today } from './views/Today';
+import { Overview } from './views/Overview';
 import { Schedule } from './views/Schedule';
 import { EventDrawer } from './views/Events';
 import { Inventory } from './views/Inventory';
@@ -21,7 +22,7 @@ import { Leads } from './views/Leads';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder';
 
 type Section = 'ops' | 'sales' | 'business' | 'admin';
 
@@ -45,7 +46,8 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
   { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', section: 'sales' },
-  { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business', mobile: true },
+  { id: 'overview', label: 'Overview', icon: '📊', title: 'Overview', sub: 'Orders, emirates & themes at a glance', section: 'business', mobile: true },
+  { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
   { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance', sub: 'Invoices, receipts, expenses & accounts', section: 'business' },
   { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (P&L)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
   { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', section: 'business' },
@@ -58,7 +60,9 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
 // hiding a tab is convenience, not the guard.
 const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
-  manager: 'all',
+  // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
+  // money views). Gets the money-free Overview instead.
+  manager: ['today', 'schedule', 'tasks', 'inventory', 'alerts', 'neworder', 'leads', 'shop', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings'],
   employee: ['today', 'schedule', 'tasks', 'inventory'],
   driver: ['today', 'schedule'],
 };
@@ -141,7 +145,8 @@ export default function App() {
     </div>
   ) : (
     <>
-      {view === 'today' && <Today onOpenEvent={openEvent} onGoto={go} staffName={staffName} />}
+      {view === 'today' && <Today onOpenEvent={openEvent} onGoto={go} staffName={staffName} role={role} />}
+      {view === 'overview' && <Overview onOpenEvent={openEvent} onGoto={go} />}
       {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} />}
       {view === 'tasks' && <Tasks />}
       {view === 'inventory' && <Inventory />}
@@ -149,7 +154,7 @@ export default function App() {
       {view === 'team' && <Team role={role} />}
       {view === 'kpis' && <Kpis />}
       {view === 'ceo' && <Ceo />}
-      {view === 'finance' && <FinanceHub />}
+      {view === 'finance' && <FinanceHub role={role} />}
       {view === 'financials' && <Financials />}
       {view === 'marketing' && <Marketing />}
       {view === 'shop' && <ShopOrders />}

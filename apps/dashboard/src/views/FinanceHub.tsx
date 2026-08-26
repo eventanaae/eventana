@@ -14,18 +14,20 @@ import { NewOrder } from './NewOrder';
 
 type Tab = 'sales' | 'expenses' | 'accounting';
 
-export function FinanceHub() {
+export function FinanceHub({ role }: { role?: string }) {
   const [tab, setTab] = useState<Tab>('sales');
+  // Accounting (cash-on-hand balance) is an income total — Owner only.
+  const canSeeAccounting = role === 'owner';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 900 }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <TabBtn on={tab === 'sales'} onClick={() => setTab('sales')}>💸 Sales &amp; Get Paid</TabBtn>
         <TabBtn on={tab === 'expenses'} onClick={() => setTab('expenses')}>🧾 Expenses</TabBtn>
-        <TabBtn on={tab === 'accounting'} onClick={() => setTab('accounting')}>🏦 Accounting</TabBtn>
+        {canSeeAccounting && <TabBtn on={tab === 'accounting'} onClick={() => setTab('accounting')}>🏦 Accounting</TabBtn>}
       </div>
       {tab === 'sales' && <SalesTab />}
       {tab === 'expenses' && <ExpensesTab />}
-      {tab === 'accounting' && <AccountingTab />}
+      {tab === 'accounting' && canSeeAccounting && <AccountingTab />}
     </div>
   );
 }
@@ -212,9 +214,11 @@ function ReceiptsList() {
         </div>
       }
     >
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>
-        Total collected: <b style={{ color: C.green }}>AED {data.totalDisplay ?? '0'}</b> → Cash on hand
-      </div>
+      {data.totalDisplay != null && (
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>
+          Total collected: <b style={{ color: C.green }}>AED {data.totalDisplay}</b> → Cash on hand
+        </div>
+      )}
       {(data.receipts ?? []).some((r: any) => r.customer_name === 'Customer') && (
         <label style={{ display: 'inline-block', marginBottom: 12, fontSize: 11.5, fontWeight: 700, color: C.pinkDeep, cursor: fixing ? 'wait' : 'pointer' }}>
           {fixing ? 'Fixing names…' : '⚙ Fix customer names (upload the Sales by Customer Detail CSV)'}
