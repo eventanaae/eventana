@@ -661,9 +661,11 @@ export async function eventRoutes(app: FastifyInstance) {
               face_painting: 'Face Painter', helper: 'Party Star', balloon_twisting: 'Balloon Magician',
               staff: 'Party Crew', acrobat_clown: 'Acrobat Entertainer',
             };
-            const HIDE = new Set(['design', 'driver']);
+            // The event leader, designer and driver are internal roles — never
+            // surfaced to the customer.
+            const HIDE = new Set(['design', 'driver', 'leader']);
             return staffing.rows
-              .filter((r) => !HIDE.has(r.role))
+              .filter((r) => !HIDE.has(r.role) && !r.is_leader)
               .map((r) => {
                 const name =
                   r.status === 'assigned' ? r.assignee_name
