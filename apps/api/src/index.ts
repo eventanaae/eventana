@@ -37,6 +37,10 @@ async function main() {
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
+    // Ensure the internal crew + their skills exist for the smart staff-assignment
+    // engine (Jane, Dindo, Gloria, Diana, Marsha). Idempotent.
+    const { seedStaffSkills } = await import('./domain/staffing.js');
+    await seedStaffSkills().catch((err) => console.error('[staff-skills] failed:', err));
     // Attach real theme cover photos + inspiration galleries. No-op if the
     // generated data file is empty.
     await applyThemeGallery();

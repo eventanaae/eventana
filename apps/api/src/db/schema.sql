@@ -890,3 +890,33 @@ VALUES (
   'quickbooks',
   'FY2026 year-to-date (Jan 1 – Aug 26 2026), from QuickBooks Profit & Loss.'
 ) ON CONFLICT (period) DO NOTHING;
+
+-- ── Smart staff assignment ──────────────────────────────────────────────────
+-- Which skills each internal staff member holds (see the staffing rules memo).
+CREATE TABLE IF NOT EXISTS staff_skills (
+  member_id TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  skill     TEXT NOT NULL,   -- face_painting | clown | helper | balloon_artist | balloon_twisting | design | leader
+  PRIMARY KEY (member_id, skill)
+);
+
+-- One staffing slot per required role on an event. The auto-assign engine fills
+-- assignee_id from internal staff first; a slot with no internal fit becomes
+-- 'part_time_required' until the manager enters part_time_name.
+CREATE TABLE IF NOT EXISTS event_staff (
+  id             BIGSERIAL PRIMARY KEY,
+  event_id       TEXT NOT NULL,
+  role           TEXT NOT NULL,        -- skill/role for this slot
+  slot           INT  NOT NULL DEFAULT 1,
+  assignee_id    TEXT,                 -- internal team_member id, when assigned
+  part_time_name TEXT,                 -- entered by owner/manager for a part-timer
+  is_leader      BOOLEAN NOT NULL DEFAULT FALSE,
+  status         TEXT NOT NULL DEFAULT 'to_confirm', -- to_confirm | assigned | part_time_required | confirmed
+  reason         TEXT,
+  source         TEXT,                 -- which service/package created this slot
+  needs_design   BOOLEAN NOT NULL DEFAULT FALSE,     -- Marsha design step
+  start_min      INT,                  -- optional operational window (minutes from midnight)
+  end_min        INT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS event_staff_event_idx ON event_staff (event_id);
+CREATE INDEX IF NOT EXISTS event_staff_assignee_idx ON event_staff (assignee_id);
