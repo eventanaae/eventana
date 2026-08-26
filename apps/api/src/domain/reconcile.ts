@@ -15,7 +15,7 @@ import { pool } from '../db/pool.js';
 import { expireStaleHolds } from './inventory.js';
 import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
-import { sweepScheduledCampaigns, sweepVoucherReminders } from './marketing.js';
+import { sweepScheduledCampaigns, sweepVoucherReminders, sweepAnniversarySuggestions } from './marketing.js';
 import { sweepMonthlyReport } from './financeReport.js';
 import { deliverPendingNotifications } from './notify.js';
 
@@ -90,6 +90,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
 
   // Nudge customers about an unused 20%-off reward every ~6 months.
   await sweepVoucherReminders().catch((err) => console.error('[marketing] voucher reminders failed:', err));
+
+  // Once a month, draft an anniversary re-engagement campaign for review (never
+  // auto-sent — it waits for Manager/CEO approval).
+  await sweepAnniversarySuggestions().catch((err) => console.error('[marketing] anniversary sweep failed:', err));
 
   // Mail the previous month's finance report once the month turns over.
   await sweepMonthlyReport().catch((err) => console.error('[finance-report] sweep failed:', err));

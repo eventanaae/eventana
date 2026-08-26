@@ -10,6 +10,11 @@ const AUDIENCES = [
   { id: 'no_recent_booking', label: 'No booking in 90 days' },
 ] as const;
 
+const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> = {
+  sent: 'ok', approved: 'ok', scheduled: 'info', sending: 'info',
+  pending_approval: 'warn', rejected: 'error', failed: 'error', draft: 'neutral',
+};
+
 const TEMPLATES: Record<string, string> = {
   seasonal: 'Hi {name},\n\nThe season for celebrations is here! 🎉 Book your Eventana party this month and let us bring the magic — themed setups, inflatables, food stations and a team that handles everything.\n\nReply to this email or open the app to start.\n\nWith love,\nThe Eventana Team',
   comeback: 'Hi {name},\n\nWe miss planning parties with you! 💐 Here’s a little nudge to celebrate your next occasion with Eventana. Tap into the app and we’ll make it unforgettable.\n\nSee you soon,\nThe Eventana Team',
@@ -31,7 +36,7 @@ export function Marketing() {
 
   const audienceCount = data.audiences[audience] ?? 0;
 
-  const create = async (send: boolean) => {
+  const create = async (submit: boolean) => {
     if (!subject.trim() || !body.trim()) return;
     setBusy(true);
     setMsg(null);
@@ -41,13 +46,13 @@ export function Marketing() {
         subject: subject.trim(),
         bodyHtml,
         audience,
-        scheduledFor: !send && schedule ? new Date(schedule).toISOString() : undefined,
+        scheduledFor: schedule ? new Date(schedule).toISOString() : undefined,
       });
-      if (send) {
-        const r = await api.sendCampaign(c.id);
-        setMsg(`Sent to ${r.sent} of ${r.recipients} recipients.`);
+      if (submit) {
+        await api.submitCampaign(c.id);
+        setMsg('Submitted for approval — a manager or the CEO can review and approve it below.');
       } else {
-        setMsg(schedule ? 'Campaign scheduled.' : 'Draft saved.');
+        setMsg(schedule ? 'Draft saved with a send time.' : 'Draft saved.');
       }
       setSubject(''); setBody(''); setSchedule('');
       load();
@@ -56,6 +61,14 @@ export function Marketing() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const act = async (fn: () => Promise<any>, okMsg: string) => {
+    setBusy(true);
+    setMsg(null);
+    try { await fn(); setMsg(okMsg); load(); }
+    catch (e: any) { setMsg(e?.message ?? 'Action failed.'); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -71,6 +84,7 @@ export function Marketing() {
         <Tile label="All subscribers" value={data.audiences.all} />
         <Tile label="Past customers" value={data.audiences.past_customers} />
         <Tile label="Lapsed (90d)" value={data.audiences.no_recent_booking} />
+        <Tile label="Anniversary due" value={data.audiences.anniversary ?? 0} />
         <Tile label="Unsubscribed" value={data.audiences.optedOut} />
       </div>
 
@@ -99,11 +113,14 @@ export function Marketing() {
             </label>
             <div style={{ flex: 1 }} />
             <Button tone="ghost" onClick={() => create(false)} disabled={busy || !subject.trim() || !body.trim()}>
-              {schedule ? 'Schedule' : 'Save draft'}
+              Save draft
             </Button>
-            <Button onClick={() => create(true)} disabled={busy || !data.emailConfigured || !subject.trim() || !body.trim()}>
-              {busy ? 'Working…' : `Send now to ${audienceCount}`}
+            <Button onClick={() => create(true)} disabled={busy || !subject.trim() || !body.trim()}>
+              {busy ? 'Working…' : `Submit for approval · ${audienceCount}`}
             </Button>
+          </div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
+            Campaigns are never sent automatically — after you submit, a manager or the CEO approves (or edits/rejects) before anything goes out.
           </div>
           {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green }}>{msg}</div>}
         </div>
@@ -118,24 +135,38 @@ export function Marketing() {
               <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
-                  <Badge tone={c.status === 'sent' ? 'ok' : c.status === 'failed' ? 'error' : c.status === 'scheduled' ? 'info' : 'neutral'}>{c.status}</Badge>
+                  {c.source === 'anniversary' && <Badge tone="info">auto</Badge>}
+                  <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
                 </div>
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 0' }}>
                   {c.audience.replace(/_/g, ' ')}
                   {c.status === 'sent' && ` · ${c.sent_count}/${c.recipient_count} sent`}
+                  {c.created_by && ` · by ${c.created_by}`}
+                  {c.approved_by && ` · approved by ${c.approved_by}`}
                   {' · '}
                   {c.sent_at ? new Date(c.sent_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
                     : c.scheduled_for ? `⏰ ${new Date(c.scheduled_for).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
                     : new Date(c.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                 </div>
-                {(c.status === 'draft' || c.status === 'scheduled' || c.status === 'failed') && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                    {data.emailConfigured && (
-                      <button onClick={async () => { await api.sendCampaign(c.id); load(); }} style={miniBtn}>Send</button>
-                    )}
-                    <button onClick={async () => { await api.deleteCampaign(c.id); load(); }} style={{ ...miniBtn, color: C.red }}>Delete</button>
-                  </div>
+                {c.status === 'rejected' && c.rejection_reason && (
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.red, marginTop: 4 }}>Rejected: {c.rejection_reason}</div>
                 )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  {(c.status === 'draft' || c.status === 'rejected') && (
+                    <button onClick={() => act(() => api.submitCampaign(c.id), 'Submitted for approval.')} disabled={busy} style={miniBtn}>Submit for approval</button>
+                  )}
+                  {c.status === 'pending_approval' && (
+                    <>
+                      <button onClick={() => act(() => api.approveCampaign(c.id), 'Approved.')} disabled={busy || !data.emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>
+                        ✓ Approve &amp; {c.scheduled_for && new Date(c.scheduled_for).getTime() > Date.now() ? 'schedule' : 'send'}
+                      </button>
+                      <button onClick={() => { const r = window.prompt('Reason for rejecting?') ?? ''; if (r !== null) act(() => api.rejectCampaign(c.id, r), 'Rejected.'); }} disabled={busy} style={{ ...miniBtn, color: C.red }}>Reject</button>
+                    </>
+                  )}
+                  {(c.status === 'draft' || c.status === 'rejected' || c.status === 'scheduled' || c.status === 'failed') && (
+                    <button onClick={() => act(() => api.deleteCampaign(c.id), 'Deleted.')} disabled={busy} style={{ ...miniBtn, color: C.red }}>Delete</button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -1923,7 +1923,8 @@ export async function adminRoutes(app: FastifyInstance) {
       audienceCounts(),
       pool.query(
         `SELECT id, subject, audience, status, scheduled_for, sent_at,
-                recipient_count, sent_count, created_at
+                recipient_count, sent_count, created_at, created_by,
+                approved_by, approved_at, rejection_reason, source
            FROM email_campaigns ORDER BY created_at DESC LIMIT 50`,
       ),
     ]);
@@ -1940,13 +1941,66 @@ export async function adminRoutes(app: FastifyInstance) {
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     const d = parsed.data;
-    const status = d.scheduledFor ? 'scheduled' : 'draft';
+    // New campaigns always start as a draft and must be approved before sending,
+    // even if a send time is chosen. The schedule is stored for the approver.
     const { rows } = await pool.query(
-      `INSERT INTO email_campaigns (subject, body_html, audience, status, scheduled_for, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [d.subject, d.bodyHtml, d.audience, status, d.scheduledFor ?? null, (request as any).staff?.name ?? 'Staff'],
+      `INSERT INTO email_campaigns (subject, body_html, audience, status, scheduled_for, created_by, source)
+       VALUES ($1,$2,$3,'draft',$4,$5,'manual') RETURNING *`,
+      [d.subject, d.bodyHtml, d.audience, d.scheduledFor ?? null, (request as any).staff?.name ?? 'Staff'],
     );
     return reply.status(201).send(rows[0]);
+  });
+
+  /** Submit a draft for Manager/CEO approval. */
+  app.post('/api/admin/marketing/campaigns/:id/submit', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const { rows } = await pool.query(
+      `UPDATE email_campaigns SET status = 'pending_approval', rejection_reason = NULL
+        WHERE id = $1 AND status IN ('draft','rejected') RETURNING *`,
+      [id],
+    );
+    if (!rows[0]) return reply.status(409).send({ error: 'invalid_state', message: 'Only a draft can be submitted.' });
+    return rows[0];
+  });
+
+  /** Approve a pending campaign and send it now (or schedule it). Manager/CEO. */
+  app.post('/api/admin/marketing/campaigns/:id/approve', async (request, reply) => {
+    if (!emailEnabled()) {
+      return reply.status(409).send({ error: 'email_disabled', message: 'Set RESEND_API_KEY (and EMAIL_FROM) to send.' });
+    }
+    const id = Number((request.params as { id: string }).id);
+    const approver = String((request as any).staff?.name ?? 'Manager');
+    const { rows } = await pool.query(`SELECT * FROM email_campaigns WHERE id = $1`, [id]);
+    const camp = rows[0];
+    if (!camp) return reply.status(404).send({ error: 'not_found' });
+    if (camp.status !== 'pending_approval' && camp.status !== 'draft') {
+      return reply.status(409).send({ error: 'invalid_state', message: 'Only a pending campaign can be approved.' });
+    }
+    const future = camp.scheduled_for && new Date(camp.scheduled_for).getTime() > Date.now();
+    await pool.query(
+      `UPDATE email_campaigns SET status = $2, approved_by = $3, approved_at = now(), rejection_reason = NULL WHERE id = $1`,
+      [id, future ? 'scheduled' : 'approved', approver],
+    );
+    if (future) return { id, status: 'scheduled', approvedBy: approver };
+    try {
+      const result = await sendCampaign(id);
+      return { id, status: 'sent', approvedBy: approver, ...result };
+    } catch (e) {
+      return reply.status(400).send({ error: 'send_failed', message: (e as Error).message });
+    }
+  });
+
+  /** Reject a pending campaign back to draft, with a reason. Manager/CEO. */
+  app.post('/api/admin/marketing/campaigns/:id/reject', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const reason = String(((request.body as any)?.reason ?? '')).slice(0, 500);
+    const { rows } = await pool.query(
+      `UPDATE email_campaigns SET status = 'rejected', rejection_reason = $2
+        WHERE id = $1 AND status = 'pending_approval' RETURNING *`,
+      [id, reason || 'Not approved'],
+    );
+    if (!rows[0]) return reply.status(409).send({ error: 'invalid_state' });
+    return rows[0];
   });
 
   app.post('/api/admin/marketing/campaigns/:id/send', async (request, reply) => {

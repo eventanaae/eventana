@@ -241,6 +241,12 @@ export const api = {
     request<any>('/api/admin/marketing/campaigns', { method: 'POST', body: JSON.stringify(body) }),
   sendCampaign: (id: number) =>
     request<any>(`/api/admin/marketing/campaigns/${id}/send`, { method: 'POST' }),
+  submitCampaign: (id: number) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}/submit`, { method: 'POST' }),
+  approveCampaign: (id: number) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}/approve`, { method: 'POST' }),
+  rejectCampaign: (id: number, reason: string) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
   deleteCampaign: (id: number) =>
     request<any>(`/api/admin/marketing/campaigns/${id}`, { method: 'DELETE' }),
   testCampaign: (body: Record<string, unknown>) =>

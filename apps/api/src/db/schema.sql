@@ -591,6 +591,16 @@ CREATE TABLE IF NOT EXISTS email_campaigns (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS email_campaigns_status_idx ON email_campaigns (status, scheduled_for);
+-- Approval workflow: a campaign must be approved (Manager/CEO) before it sends.
+-- status also allows: pending_approval | approved | rejected.
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+-- Smart-marketing suggestions (e.g. event anniversary) are stored as normal
+-- campaigns; this marks the source and its target so we never suggest twice.
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS source TEXT;         -- manual | anniversary
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS dedupe_key TEXT;     -- unique-ish suggestion key
+CREATE UNIQUE INDEX IF NOT EXISTS email_campaigns_dedupe_idx ON email_campaigns (dedupe_key) WHERE dedupe_key IS NOT NULL;
 
 -- ── Push notifications (#20) ─────────────────────────────────────────────
 -- Device tokens for FCM. owner_type is 'staff' or 'customer'; a token is

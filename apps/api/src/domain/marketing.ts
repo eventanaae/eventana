@@ -8,7 +8,7 @@ import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 
-export type Audience = 'all' | 'past_customers' | 'no_recent_booking';
+export type Audience = 'all' | 'past_customers' | 'no_recent_booking' | 'anniversary';
 
 /** Deterministic, verifiable unsubscribe token — no extra column needed. */
 export function unsubToken(customerId: string): string {
@@ -28,6 +28,15 @@ function audienceWhere(audience: Audience): string {
   if (audience === 'no_recent_booking') {
     return `${base} AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status = 'paid' AND o.created_at > now() - interval '90 days')`;
   }
+  if (audience === 'anniversary') {
+    // Customers whose confirmed event was ~11–12 months ago — their yearly
+    // re-book window is now, so a timely, relevant offer makes sense.
+    return `${base} AND EXISTS (
+      SELECT 1 FROM events e
+       WHERE e.customer_id = c.id AND e.phase <> 'Cancelled'
+         AND e.event_date >= (current_date - interval '12 months')
+         AND e.event_date <  (current_date - interval '11 months'))`;
+  }
   return base;
 }
 
@@ -38,15 +47,16 @@ export async function audienceCounts(): Promise<Record<Audience, number> & { opt
     );
     return Number(rows[0].n);
   };
-  const [all, past, none, optedOut] = await Promise.all([
+  const [all, past, none, anniversary, optedOut] = await Promise.all([
     q('all'),
     q('past_customers'),
     q('no_recent_booking'),
+    q('anniversary'),
     pool
       .query<{ n: string }>(`SELECT count(*)::int AS n FROM customers WHERE email_opt_out = TRUE`)
       .then((r) => Number(r.rows[0].n)),
   ]);
-  return { all, past_customers: past, no_recent_booking: none, optedOut };
+  return { all, past_customers: past, no_recent_booking: none, anniversary, optedOut };
 }
 
 /**
@@ -60,6 +70,11 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
   if (camp.status === 'sending' || camp.status === 'sent') {
     return { recipients: camp.recipient_count, sent: camp.sent_count };
   }
+  // Approval gate: a campaign can only be sent once approved (or scheduled,
+  // which is only ever set at approval time). Nothing sends without review.
+  if (camp.status !== 'approved' && camp.status !== 'scheduled') {
+    throw new Error('not_approved');
+  }
 
   const { rows: recips } = await pool.query<{ id: string; email: string; name: string }>(
     `SELECT c.id, c.email, c.name FROM customers c WHERE ${audienceWhere(camp.audience as Audience)}`,
@@ -72,7 +87,9 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
   let sent = 0;
   for (const r of recips) {
     const unsub = `${config.email.publicBaseUrl}/api/unsubscribe?c=${encodeURIComponent(r.id)}&t=${unsubToken(r.id)}`;
-    const html = renderCampaignHtml(camp.body_html, unsub);
+    // Light personalisation: {{name}} → the customer's first name.
+    const personalised = camp.body_html.replace(/\{\{\s*name\s*\}\}/gi, (r.name || 'there').split(' ')[0]);
+    const html = renderCampaignHtml(personalised, unsub);
     const res = await sendEmail({ to: r.email, subject: camp.subject, html });
     if (res.ok) sent++;
   }
@@ -140,6 +157,44 @@ export async function sweepVoucherReminders(): Promise<number> {
     await pool.query(`UPDATE promo_codes SET last_reminded_at = now() WHERE code = $1`, [v.code]);
   }
   return sent;
+}
+
+/**
+ * Smart anniversary marketing. Once a month, if there are customers whose
+ * confirmed event was ~a year ago (their re-book window), create ONE campaign
+ * suggestion targeted at them — as `pending_approval`, never auto-sent. The
+ * Manager/CEO reviews and approves (or edits/rejects) it before anything goes
+ * out. Deduped by month so it is only ever suggested once per month.
+ */
+export async function sweepAnniversarySuggestions(): Promise<number> {
+  const now = new Date();
+  const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const dedupeKey = `anniversary-${monthKey}`;
+
+  // Already suggested this month?
+  const existing = await pool.query(`SELECT 1 FROM email_campaigns WHERE dedupe_key = $1 LIMIT 1`, [dedupeKey]);
+  if (existing.rowCount) return 0;
+
+  // Any opted-in customers in the anniversary window?
+  const { rows: cnt } = await pool.query<{ n: string }>(
+    `SELECT count(*)::int AS n FROM customers c WHERE ${audienceWhere('anniversary')}`,
+  );
+  const audienceSize = Number(cnt[0].n);
+  if (audienceSize === 0) return 0;
+
+  const body = `
+    <p style="font-size:18px;font-weight:800;margin:0 0 12px">It's almost time to celebrate again 🎉</p>
+    <p style="margin:0 0 14px">Hi {{name}}, it's been almost a year since your Eventana celebration — and if another special day is coming up, we'd love to make it magical again.</p>
+    <p style="margin:0 0 14px">As a welcome-back treat, here's a little something for your next booking. Tap below in the app to start planning.</p>
+    <p style="margin:14px 0 0">With love,<br/>The Eventana Team 💕</p>`;
+
+  await pool.query(
+    `INSERT INTO email_campaigns (subject, body_html, audience, status, created_by, source, dedupe_key)
+     VALUES ($1,$2,'anniversary','pending_approval','Eventana (auto)','anniversary',$3)
+     ON CONFLICT (dedupe_key) DO NOTHING`,
+    [`We'd love to celebrate with you again 🎉`, body, dedupeKey],
+  );
+  return 1;
 }
 
 /** Sends any scheduled campaigns whose time has come. Called from the sweep. */
