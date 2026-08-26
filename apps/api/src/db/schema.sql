@@ -826,6 +826,24 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS finance_receipts_order_idx
   ON finance_receipts (order_id) WHERE order_id IS NOT NULL;
 
+-- Manual-order "offers": the team picks the products/package/add-ons only, and
+-- the customer opens a unique link, fills in ALL their own details on the normal
+-- checkout, and pays. The offer just carries the chosen items + price; a booking
+-- is a normal order created by the customer (source 'manual'). One offer yields
+-- at most one confirmed booking (status flips to 'used' on payment).
+CREATE TABLE IF NOT EXISTS manual_offers (
+  token            TEXT PRIMARY KEY,
+  celebration_type TEXT NOT NULL,
+  package_id       TEXT,
+  services         JSONB NOT NULL DEFAULT '[]',   -- [{serviceId, quantity}]
+  theme_id         TEXT,
+  subtotal_fils    BIGINT NOT NULL DEFAULT 0,      -- items only (delivery added at checkout)
+  status           TEXT NOT NULL DEFAULT 'open',   -- open | used
+  order_id         TEXT,                           -- the confirmed booking, once paid
+  created_by       TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Extra fields on the existing expense log to match the QuickBooks expense form.
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ref_no TEXT;
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tax_fils BIGINT NOT NULL DEFAULT 0;

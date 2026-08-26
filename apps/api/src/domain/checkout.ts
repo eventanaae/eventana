@@ -32,6 +32,7 @@ import { getProvider } from '../payments/index.js';
 import { ConflictError, acquireHolds, releaseHolds, unavailableAssets } from './inventory.js';
 import { createOrder, createPayment, nextOrderId, orderViewToken, recordPaymentEvent } from './orders.js';
 import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
+import { offerIsOpen } from './offers.js';
 import { computeDiscounts, makeReferralCode, type DiscountInput } from './discounts.js';
 
 export interface CheckoutRequest {
@@ -50,6 +51,10 @@ export interface CheckoutRequest {
   discounts?: DiscountInput;
   /** Ad-click parameters the app captured on landing (see metaCapi.ts). */
   attribution?: unknown;
+  /** Set when the customer arrived from a manual-order link: the offer token.
+   *  Marks the resulting booking source 'manual' and consumes the offer on
+   *  payment so one link can only ever produce one booking. */
+  offerToken?: string | null;
 }
 
 /**
@@ -157,9 +162,20 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     throw new CheckoutError('Please accept the Terms & Conditions to continue.', 'terms_required');
   }
 
-  // Resolve the customer: a signed-in id, or a lightweight guest customer
-  // minted from the checkout contact details. Everything downstream keys off
-  // this id (order, loyalty, history) exactly as a registered customer would.
+  // A manual-order link: the offer must still be open. Once its booking is paid
+  // the offer flips to 'used' (in confirmBooking), so re-opening a used link can
+  // never create a second booking.
+  if (req.offerToken) {
+    if (!(await offerIsOpen(req.offerToken))) {
+      throw new CheckoutError('This link has already been used for a booking.', 'unavailable');
+    }
+  }
+
+  // Resolve the customer: a signed-in id, or a lightweight guest customer minted
+  // from the checkout contact details. A prior guest with the same email is reused
+  // (never duplicated); a registered account must sign in (createGuestCustomer
+  // guards that). Everything downstream keys off this id exactly as a registered
+  // customer would.
   const customerId = req.customerId ?? (req.guest ? await createGuestCustomer(req.guest) : null);
   if (!customerId) {
     throw new CheckoutError('Please sign in or enter your details to continue.', 'auth_required');
@@ -218,6 +234,9 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     // The order row first — inventory_holds references it. Both writes
     // are in this one transaction, so a hold conflict below still rolls
     // the order back with it and nothing is left half-created.
+    // A manual-order link produces a normal booking, just tagged 'manual' and
+    // carrying its offer token so confirmation can consume the offer.
+    if (req.offerToken) (cart as unknown as Record<string, unknown>).offerToken = req.offerToken;
     await createOrder(db, {
       id,
       kind: 'booking',
@@ -227,6 +246,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       quote: serverQuote,
       idempotencyKey: req.idempotencyKey ?? null,
       attribution: req.attribution ?? null,
+      source: req.offerToken ? 'manual' : null,
     });
 
     await acquireHolds(db, {

@@ -22,6 +22,7 @@ import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, createSessionForOrder, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
+import { getOffer } from '../domain/offers.js';
 import { orderViewTokenValid } from '../domain/orders.js';
 import { processDelivery } from '../domain/webhooks.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
@@ -300,6 +301,18 @@ export async function publicRoutes(app: FastifyInstance) {
   });
 
   /** Everything the apps need to render the catalogue. */
+  /**
+   * A manual-order offer, opened from the unique link the team sent. Returns the
+   * products the team chose + their price so the app can preload them into the
+   * normal checkout. `status: 'used'` means the link was already booked.
+   */
+  app.get('/api/offer/:token', async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const offer = await getOffer(token);
+    if (!offer) return reply.status(404).send({ error: 'not_found' });
+    return offer;
+  });
+
   app.get('/api/catalogue', async () => {
     const cfg = await loadConfig();
     const [themes, categories, inspo] = await Promise.all([
@@ -395,6 +408,8 @@ export async function publicRoutes(app: FastifyInstance) {
       lang: z.enum(['en', 'ar']).optional(),
       idempotencyKey: z.string().optional(),
       termsAccepted: z.boolean().optional(),
+      // Present when the customer arrived from a manual-order link.
+      offerToken: z.string().max(64).optional(),
       // Guest checkout: contact details when the customer is not signed in.
       guest: z
         .object({
@@ -437,6 +452,7 @@ export async function publicRoutes(app: FastifyInstance) {
         termsAccepted: parsed.data.termsAccepted,
         discounts: parsed.data.discounts,
         attribution: attributionFrom(request, parsed.data.attribution),
+        offerToken: parsed.data.offerToken ?? null,
       });
       return result;
     } catch (err) {

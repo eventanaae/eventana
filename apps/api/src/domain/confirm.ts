@@ -26,6 +26,7 @@ import { confirmHolds } from './inventory.js';
 import { nextEventId } from './orders.js';
 import { makeVoucherCode, NEXT_BOOKING_VOUCHER_PERCENT } from './discounts.js';
 import { recordSaleFromOrder } from './finance.js';
+import { markOfferUsed } from './offers.js';
 
 export interface ConfirmResult {
   /** Null for orders that create no event (e.g. standalone shop orders). */
@@ -90,6 +91,11 @@ export async function confirmBooking(
   // shop or manual pay-link alike. Tips are crew money, not a sale, so skip
   // them. Idempotent and failure-isolated (see recordSaleFromOrder).
   if (order.kind !== 'tip') await recordSaleFromOrder(db, order);
+
+  // A booking made through a manual-order link consumes its offer now that it is
+  // paid, so the same link can never produce a second booking.
+  const offerToken = (order.cart as { offerToken?: string } | null)?.offerToken;
+  if (offerToken) await markOfferUsed(db, offerToken, order.id);
 
   if (order.kind === 'addon') {
     // Add-ons attach to an event that already exists.

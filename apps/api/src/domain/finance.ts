@@ -158,10 +158,32 @@ export async function recordSaleFromOrder(
     const cart = (order.cart ?? {}) as Record<string, any>;
     const quote = (order.quote ?? {}) as Record<string, any>;
 
-    const cn = order.customer_id
-      ? await db.query(`SELECT name FROM customers WHERE id = $1`, [order.customer_id])
-      : { rows: [] as any[] };
-    const customerName = cn.rows[0]?.name || 'Customer';
+    const cust = order.customer_id
+      ? (await db.query(`SELECT name, phone, email FROM customers WHERE id = $1`, [order.customer_id])).rows[0]
+      : null;
+    const customerName = cust?.name || 'Customer';
+
+    // Mirror the paying customer into the finance customer book, deduped by phone
+    // (or email/name), so they appear in the dashboard Customers list like any
+    // stored customer — and link this receipt to that profile. Never duplicated.
+    let financeCustomerId: number | null = null;
+    if (cust) {
+      const dedupe = (
+        String(cust.phone ?? '').replace(/\D/g, '') ||
+        String(cust.email ?? '').toLowerCase() ||
+        customerName.toLowerCase()
+      ).slice(0, 200);
+      const up = await db.query(
+        `INSERT INTO historical_customers (full_name, phone, email, dedupe_key, source)
+         VALUES ($1,$2,$3,$4,'checkout')
+         ON CONFLICT (dedupe_key) DO UPDATE SET
+           full_name = EXCLUDED.full_name,
+           email = COALESCE(EXCLUDED.email, historical_customers.email)
+         RETURNING id`,
+        [customerName, cust.phone ?? null, cust.email ?? null, dedupe],
+      );
+      financeCustomerId = up.rows[0]?.id ?? null;
+    }
 
     // Theme as a readable name (or "Custom theme" when the customer asked for one).
     let theme: string | null = null;
@@ -217,10 +239,10 @@ export async function recordSaleFromOrder(
       `INSERT INTO finance_receipts
          (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils,
           shipping_fils, total_fils, paid_with, source, order_id, event_for, theme)
-       VALUES ($1,NULL,$2,COALESCE($3::date,current_date),$4,$5,$6,$7,$8,'Card',$9,$10,$11,$12)
+       VALUES ($1,$2,$3,COALESCE($4::date,current_date),$5,$6,$7,$8,$9,'Card',$10,$11,$12,$13)
        ON CONFLICT (order_id) DO NOTHING`,
       [
-        number, customerName, cart.eventDate ?? null, JSON.stringify(items),
+        number, financeCustomerId, customerName, cart.eventDate ?? null, JSON.stringify(items),
         subtotal, discount, shipping, total, source, order.id,
         cart.eventFor ?? null, theme,
       ],

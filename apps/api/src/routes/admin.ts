@@ -19,6 +19,7 @@ import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCale
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '../domain/notify.js';
 import { createManualOrder, CheckoutError } from '../domain/checkout.js';
+import { createOffer } from '../domain/offers.js';
 import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
 import * as finance from '../domain/finance.js';
@@ -1442,6 +1443,47 @@ export async function adminRoutes(app: FastifyInstance) {
       }
       request.log.error({ err }, 'manual order failed');
       return reply.status(500).send({ error: 'manual_order_failed' });
+    }
+  });
+
+  /**
+   * Manual-order offer link. The manager picks ONLY the products (celebration
+   * type + package + add-on services + optional theme); the system prices them
+   * and returns a unique link. The customer opens it, completes ALL their own
+   * details on the normal checkout, and pays. No customer/date/location entered
+   * here. One link → at most one booking (the offer is consumed on payment).
+   */
+  app.post('/api/admin/orders/offer', async (request, reply) => {
+    const schema = z.object({
+      celebrationType: z.string().min(1).max(40),
+      packageId: z.string().max(60).nullable().optional(),
+      services: z.array(z.object({ serviceId: z.string().min(1).max(60), quantity: z.number().int().min(1).max(500) })).default([]),
+      themeId: z.string().max(80).nullable().optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    if (!parsed.data.packageId && parsed.data.services.length === 0) {
+      return reply.status(422).send({ error: 'empty_selection', message: 'Pick a package or at least one add-on.' });
+    }
+    try {
+      const offer = await createOffer({
+        celebrationType: parsed.data.celebrationType,
+        packageId: parsed.data.packageId ?? null,
+        services: parsed.data.services,
+        themeId: parsed.data.themeId ?? null,
+        createdBy: String((request as any).staff?.name ?? 'Manager'),
+      });
+      const base = (config.publicAppUrl || '').replace(/\/$/, '');
+      return reply.status(201).send({
+        token: offer.token,
+        link: `${base}/?offer=${offer.token}`,
+        subtotalFils: offer.subtotalFils,
+        subtotalDisplay: offer.subtotalDisplay,
+        items: offer.items,
+      });
+    } catch (err) {
+      request.log.error({ err }, 'offer create failed');
+      return reply.status(500).send({ error: 'offer_failed' });
     }
   });
 
