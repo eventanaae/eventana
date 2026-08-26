@@ -28,7 +28,7 @@ export function Finance() {
   const [month, setMonth] = useState(`${now.getFullYear()}-${pad(now.getMonth() + 1)}`);
   const [fin, setFin] = useState<any>(null);
   const [exp, setExp] = useState<any>(null);
-  const [form, setForm] = useState({ category: 'inventory', description: '', amount: '', vendor: '', spentOn: '' });
+  const [form, setForm] = useState({ category: 'other', description: '', amount: '', vendor: '', spentOn: '', paymentMethod: '' });
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,8 +58,9 @@ export function Finance() {
         vendor: form.vendor.trim() || undefined,
         spentOn: form.spentOn || undefined,
         receiptUrl: receiptUrl || undefined,
+        paymentMethod: form.paymentMethod || undefined,
       });
-      setForm({ category: form.category, description: '', amount: '', vendor: '', spentOn: '' });
+      setForm({ category: form.category, description: '', amount: '', vendor: '', spentOn: '', paymentMethod: form.paymentMethod });
       setReceiptUrl(null);
       load();
     } finally {
@@ -175,6 +176,15 @@ export function Finance() {
             <input value={form.vendor} onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))} placeholder="optional" style={input} />
           </label>
           <label style={fieldWrap}>
+            <span style={fieldLabel}>Paid by</span>
+            <select value={form.paymentMethod} onChange={(e) => setForm((f) => ({ ...f, paymentMethod: e.target.value }))} style={input}>
+              <option value="">—</option>
+              {(exp?.paymentMethods ?? ['cash', 'card', 'bank_transfer', 'cheque', 'other']).map((p: string) => (
+                <option key={p} value={p}>{p.replace('_', ' ')}</option>
+              ))}
+            </select>
+          </label>
+          <label style={fieldWrap}>
             <span style={fieldLabel}>Date</span>
             <input type="date" value={form.spentOn} onChange={(e) => setForm((f) => ({ ...f, spentOn: e.target.value }))} style={input} />
           </label>
@@ -226,7 +236,7 @@ export function Finance() {
                     )}
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2, textTransform: 'capitalize' }}>
-                    {e.category} · {String(e.spent_on).slice(0, 10)}{e.vendor ? ` · ${e.vendor}` : ''}
+                    {String(e.category).replace('_', ' ')} · {String(e.spent_on).slice(0, 10)}{e.vendor ? ` · ${e.vendor}` : ''}{e.payment_method ? ` · ${String(e.payment_method).replace('_', ' ')}` : ''}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flex: 'none' }}>

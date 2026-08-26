@@ -816,10 +816,14 @@ export async function adminRoutes(app: FastifyInstance) {
 
   /* ---------------- Expenses & finance (#31) ---------------- */
 
+  // Categories tuned to an events business. Historical expenses may carry older
+  // labels — they still display and aggregate; only new entries use this list.
   const EXPENSE_CATEGORIES = [
-    'inventory', 'salaries', 'rent', 'fuel', 'marketing',
-    'maintenance', 'supplies', 'utilities', 'other',
+    'transportation', 'materials', 'printing', 'balloons', 'staff',
+    'entertainment', 'food_beverage', 'rentals', 'marketing', 'maintenance',
+    'salaries', 'rent', 'utilities', 'other',
   ] as const;
+  const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'cheque', 'other'] as const;
 
   /** List expenses (default: current month). */
   app.get('/api/admin/expenses', async (request) => {
@@ -841,6 +845,7 @@ export async function adminRoutes(app: FastifyInstance) {
     return {
       month: monthStr,
       categories: EXPENSE_CATEGORIES,
+      paymentMethods: PAYMENT_METHODS,
       expenses: rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) })),
     };
   });
@@ -855,16 +860,17 @@ export async function adminRoutes(app: FastifyInstance) {
       eventId: z.string().optional(),
       spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       receiptUrl: z.string().url().nullable().optional(),
+      paymentMethod: z.enum(PAYMENT_METHODS).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     const d = parsed.data;
     const { rows } = await pool.query(
-      `INSERT INTO expenses (category, description, amount_fils, vendor, event_id, spent_on, receipt_url, recorded_by)
-       VALUES ($1,$2,$3,$4,$5,COALESCE($6, current_date),$7,$8) RETURNING *`,
+      `INSERT INTO expenses (category, description, amount_fils, vendor, event_id, spent_on, receipt_url, payment_method, recorded_by)
+       VALUES ($1,$2,$3,$4,$5,COALESCE($6, current_date),$7,$8,$9) RETURNING *`,
       [
         d.category, d.description, d.amountFils, d.vendor ?? null, d.eventId ?? null,
-        d.spentOn ?? null, d.receiptUrl ?? null,
+        d.spentOn ?? null, d.receiptUrl ?? null, d.paymentMethod ?? null,
         String((request as any).staff?.name ?? 'Staff'),
       ],
     );
@@ -875,11 +881,14 @@ export async function adminRoutes(app: FastifyInstance) {
   app.patch('/api/admin/expenses/:id', async (request, reply) => {
     const id = Number((request.params as { id: string }).id);
     const schema = z.object({
-      category: z.enum(EXPENSE_CATEGORIES).optional(),
+      // Lenient string (not enum) so editing a historical expense with an older
+      // category label never fails validation.
+      category: z.string().min(1).max(40).optional(),
       description: z.string().min(1).max(300).optional(),
       amountFils: z.number().int().min(0).optional(),
       vendor: z.string().max(200).nullable().optional(),
       spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -890,9 +899,10 @@ export async function adminRoutes(app: FastifyInstance) {
          description = COALESCE($3, description),
          amount_fils = COALESCE($4, amount_fils),
          vendor = COALESCE($5, vendor),
-         spent_on = COALESCE($6, spent_on)
+         spent_on = COALESCE($6, spent_on),
+         payment_method = COALESCE($7, payment_method)
        WHERE id = $1 RETURNING *`,
-      [id, d.category ?? null, d.description ?? null, d.amountFils ?? null, d.vendor ?? null, d.spentOn ?? null],
+      [id, d.category ?? null, d.description ?? null, d.amountFils ?? null, d.vendor ?? null, d.spentOn ?? null, d.paymentMethod ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return { ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) };

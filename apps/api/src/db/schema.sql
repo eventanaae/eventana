@@ -548,6 +548,8 @@ CREATE TABLE IF NOT EXISTS expenses (
   recorded_by  TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- How the expense was paid (cash | card | bank_transfer | cheque | other).
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method TEXT;
 CREATE INDEX IF NOT EXISTS expenses_spent_idx ON expenses (spent_on);
 CREATE INDEX IF NOT EXISTS expenses_category_idx ON expenses (category, spent_on);
 
