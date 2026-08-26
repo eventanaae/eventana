@@ -14,19 +14,48 @@
       *, *::before, *::after { box-sizing: border-box; }
       body {
         margin: 0;
-        background: #FFF8FB;
+        background:
+          radial-gradient(1100px 620px at 100% -8%, #FFE9F4 0%, rgba(255,233,244,0) 55%),
+          radial-gradient(900px 560px at -10% 4%, #EAF7F4 0%, rgba(234,247,244,0) 52%),
+          #FFF8FB;
+        background-attachment: fixed;
         font-family: 'Quicksand', sans-serif;
         color: #3b3641;
         -webkit-font-smoothing: antialiased;
       }
       button, input, select, textarea { font-family: inherit; }
-      ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-thumb { background: #f0dce7; border-radius: 4px; }
+      ::-webkit-scrollbar { width: 9px; height: 9px; }
+      ::-webkit-scrollbar-thumb { background: #f3d3e4; border-radius: 5px; }
+      ::-webkit-scrollbar-thumb:hover { background: #eebcd5; }
+
       @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .4 } }
       @keyframes spin { to { transform: rotate(360deg) } }
-      @keyframes rise { from { opacity: 0; transform: translateY(-8px) } to { opacity: 1; transform: none } }
-      /* On phones, wide ops tables scroll horizontally instead of breaking
-         the layout. */
+      @keyframes rise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+      @keyframes pop  { 0% { opacity: 0; transform: scale(.94) } 60% { transform: scale(1.02) } 100% { opacity: 1; transform: scale(1) } }
+      @keyframes floaty { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+      @keyframes sheen { to { background-position: 200% 0 } }
+
+      /* Entrance — children rise in with a gentle stagger via --i. */
+      .rise-in { opacity: 0; animation: rise .5s cubic-bezier(.22,.9,.3,1) forwards; animation-delay: calc(var(--i, 0) * 60ms); }
+      .pop-in  { opacity: 0; animation: pop .45s cubic-bezier(.22,1.2,.4,1) forwards; animation-delay: calc(var(--i, 0) * 55ms); }
+
+      /* Tactile surfaces + controls. */
+      .lift { transition: transform .18s ease, box-shadow .18s ease; }
+      .lift:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(233,79,156,.16); }
+      .lift:active { transform: translateY(-1px); }
+      .press { transition: transform .12s ease, filter .18s ease, box-shadow .18s ease; }
+      .press:hover { filter: brightness(1.05); }
+      .press:active { transform: scale(.96); }
+      .tap { transition: background .15s ease, transform .12s ease; }
+      .tap:active { transform: scale(.985); }
+      .navi { transition: background .16s ease, color .16s ease; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .rise-in, .pop-in { animation: none; opacity: 1; }
+        .lift, .press, .tap { transition: none; }
+      }
+
+      /* On phones, wide ops tables scroll horizontally instead of breaking the layout. */
       @media (max-width: 820px) {
         table { display: block; overflow-x: auto; white-space: nowrap;
                 -webkit-overflow-scrolling: touch; }

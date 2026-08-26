@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { View } from '../App';
 import { api } from '../api';
-import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
+import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner, StatCard, useCountUp } from '../ui';
 
 /**
- * The operational home. Answers, in order: what's next, when to move, where,
- * who, and is anything waiting on me. Mobile-first and vertical — no wide
- * tables, no side-by-side columns.
+ * The operational home — a warm, lively landing that answers, at a glance:
+ * how's the day, what needs me now, what's next, and where do I jump. Greeting
+ * hero → quick actions → vibrant stats → next event → attention → today &
+ * upcoming. Mobile-first and vertical.
  */
-export function Today({ onOpenEvent, onGoto }: { onOpenEvent: (id: string) => void; onGoto: (v: View) => void }) {
+export function Today({ onOpenEvent, onGoto, staffName }: { onOpenEvent: (id: string) => void; onGoto: (v: View) => void; staffName?: string }) {
   const [data, setData] = useState<any>(null);
 
   const load = () => api.today().then(setData);
@@ -18,10 +19,16 @@ export function Today({ onOpenEvent, onGoto }: { onOpenEvent: (id: string) => vo
     return () => clearInterval(timer);
   }, []);
 
+  // Count-up targets — computed defensively so the hooks run every render
+  // (before the early return), keeping the hook order stable.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const evToday = useCountUp(Number(data?.kpis?.eventsToday) || 0);
+  const upCount = useCountUp((data?.events ?? []).filter((e: any) => String(e.event_date).slice(0, 10) !== todayStr).length);
+  const tasks = useCountUp(Number(data?.kpis?.openTasks) || 0);
+
   if (!data) return <Spinner />;
 
   const k = data.kpis;
-  const todayStr = new Date().toISOString().slice(0, 10);
   const events: any[] = [...(data.events ?? [])].sort((a, b) =>
     `${String(a.event_date).slice(0, 10)} ${a.start_time}`.localeCompare(`${String(b.event_date).slice(0, 10)} ${b.start_time}`),
   );
@@ -43,70 +50,101 @@ export function Today({ onOpenEvent, onGoto }: { onOpenEvent: (id: string) => vo
       ? `Today · ${e.start_time}`
       : `${new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} · ${e.start_time}`;
 
+  const hour = new Date().getHours();
+  const partOfDay = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const first = (staffName || '').trim().split(/\s+/)[0] || 'there';
+  const dateLine = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const line = todays.length > 0
+    ? `${todays.length} ${todays.length === 1 ? 'celebration' : 'celebrations'} on today — let's make them magical ✨`
+    : next
+      ? "No parties today — a good day to get ahead 💐"
+      : "Let's fill the calendar with celebrations 🎈";
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* quick stats — two up, the numbers a manager glances at */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <MiniStat label="Events today" value={k.eventsToday} />
-        <MiniStat label="Revenue this month" value={`AED ${k.revenueThisMonthDisplay}`} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Greeting hero */}
+      <div className="pop-in" style={{ position: 'relative', overflow: 'hidden', borderRadius: 24, background: C.gradHero, boxShadow: C.shadowLg }}>
+        <div style={{ height: 6, background: C.rainbow }} />
+        <div style={{ position: 'absolute', right: 14, top: 20, fontSize: 62, animation: 'floaty 4s ease-in-out infinite', filter: 'drop-shadow(0 8px 14px rgba(233,79,156,.2))' }}>🎉</div>
+        <div style={{ padding: '18px 20px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: C.pinkDeep }}>{dateLine}</div>
+          <div style={{ ...fredoka(26), marginTop: 6, maxWidth: '78%' }}>{partOfDay}, {first} <span style={{ display: 'inline-block', animation: 'floaty 3s ease-in-out infinite' }}>👋</span></div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#96637c', marginTop: 6, maxWidth: '86%', lineHeight: 1.5 }}>{line}</div>
+        </div>
       </div>
 
-      {/* next event — the hero */}
-      {next ? (
-        <div style={{ background: 'linear-gradient(135deg,#FDE0EE,#F9C6DC)', borderRadius: 18, padding: '16px 18px' }}>
-          <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>
-            {isToday(next) ? 'NEXT EVENT · TODAY' : 'NEXT EVENT'}
-          </div>
-          <div style={{ ...fredoka(20), marginTop: 5 }}>{next.customer}</div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: '#8b6c7a', marginTop: 3 }}>
-            {when(next)}–{next.base_end_time} · {next.emirate}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-            <Badge tone={next.phase === 'Event Completed' ? 'neutral' : 'info'}>{next.phase}</Badge>
-            <div style={{ flex: 1 }} />
-            <Button onClick={() => onOpenEvent(next.id)} style={{ background: C.pink }}>Open job →</Button>
+      {/* Quick actions */}
+      <div>
+        <SectionHeader>Quick actions</SectionHeader>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <QuickAction icon="🎀" label="New order" accent={ACCENTS[0]} onClick={() => onGoto('neworder')} />
+          <QuickAction icon="🗓️" label="Schedule" accent={ACCENTS[1]} onClick={() => onGoto('schedule')} />
+          <QuickAction icon="✅" label="Tasks" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
+          <QuickAction icon="💰" label="Finance" accent={ACCENTS[5]} onClick={() => onGoto('finance')} />
+        </div>
+      </div>
+
+      {/* Vibrant stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+        <StatCard i={0} label="Events today" value={Math.round(evToday)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
+        <StatCard i={1} label="Revenue this month" value={<span>AED {k.revenueThisMonthDisplay}</span>} icon="💸" accent={ACCENTS[1]} onClick={() => onGoto('ceo')} />
+        <StatCard i={2} label="Upcoming" value={Math.round(upCount)} icon="✨" accent={ACCENTS[4]} hint={next ? when(next).replace('Today · ', 'next today ') : undefined} onClick={() => onGoto('schedule')} />
+        <StatCard i={3} label="Open tasks" value={Math.round(tasks)} icon="📋" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
+      </div>
+
+      {/* Next event — the hero */}
+      {next && (
+        <div className="rise-in lift" style={{ ['--i' as any]: 2, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={() => onOpenEvent(next.id)}>
+          <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>{isToday(next) ? 'NEXT EVENT · TODAY' : 'NEXT EVENT'}</div>
+            </div>
+            <div style={{ ...fredoka(21), marginTop: 8 }}>{next.customer}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{when(next)}–{next.base_end_time} · {next.emirate}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
+              <Badge tone={next.phase === 'Event Completed' ? 'neutral' : 'info'}>{next.phase}</Badge>
+              <div style={{ flex: 1 }} />
+              <Button onClick={() => onOpenEvent(next.id)}>Open job →</Button>
+            </div>
           </div>
         </div>
-      ) : (
-        <Panel><div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>No upcoming events yet.</div></Panel>
       )}
 
-      {/* needs attention — one tap to the right place */}
+      {/* Needs attention */}
       {attention.length > 0 && (
-        <Panel title="Needs attention">
+        <Panel className="rise-in" style={{ ['--i' as any]: 3 } as any} title="Needs attention">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {attention.map((a) => (
-              <div
-                key={a.label}
-                onClick={a.onClick}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer' }}
-              >
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.ink }}>{a.label}</span>
-                <span style={{ background: C.pinkSoft, color: C.pinkDeep, fontWeight: 800, fontSize: 12.5, minWidth: 26, textAlign: 'center', borderRadius: 9, padding: '3px 8px' }}>{a.n}</span>
-                <span style={{ color: C.muted, fontWeight: 700 }}>›</span>
-              </div>
-            ))}
+            {attention.map((a, idx) => {
+              const ac = ACCENTS[idx % ACCENTS.length];
+              return (
+                <div key={a.label} onClick={a.onClick} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 4px', borderBottom: idx < attention.length - 1 ? `1px solid ${C.lineSoft}` : 'none', cursor: 'pointer', borderRadius: 10 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: ac.grad, flex: 'none' }} />
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.ink }}>{a.label}</span>
+                  <span style={{ background: ac.soft, color: ac.fg, fontWeight: 800, fontSize: 12.5, minWidth: 26, textAlign: 'center', borderRadius: 9, padding: '3px 9px' }}>{a.n}</span>
+                  <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
+                </div>
+              );
+            })}
           </div>
         </Panel>
       )}
 
-      {/* today's jobs */}
+      {/* Today's jobs */}
       {todays.length > 0 && (
-        <Panel title={`Today · ${todays.length} ${todays.length === 1 ? 'event' : 'events'}`}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {todays.map((e) => <EventRow key={e.id} e={e} label={when(e)} onOpen={() => onOpenEvent(e.id)} />)}
+        <Panel className="rise-in" style={{ ['--i' as any]: 4 } as any} title={`Today · ${todays.length} ${todays.length === 1 ? 'event' : 'events'}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {todays.map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx} onOpen={() => onOpenEvent(e.id)} />)}
           </div>
         </Panel>
       )}
 
-      {/* upcoming */}
+      {/* Upcoming */}
       {upcoming.length > 0 && (
-        <Panel
-          title="Upcoming"
-          action={<span onClick={() => onGoto('schedule')} style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep, cursor: 'pointer' }}>See all</span>}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {upcoming.map((e) => <EventRow key={e.id} e={e} label={when(e)} onOpen={() => onOpenEvent(e.id)} />)}
+        <Panel className="rise-in" style={{ ['--i' as any]: 5 } as any} title="Upcoming"
+          action={<span onClick={() => onGoto('schedule')} className="tap" style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, cursor: 'pointer' }}>See all ›</span>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {upcoming.map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx} onOpen={() => onOpenEvent(e.id)} />)}
           </div>
         </Panel>
       )}
@@ -114,24 +152,17 @@ export function Today({ onOpenEvent, onGoto }: { onOpenEvent: (id: string) => vo
   );
 }
 
-function EventRow({ e, label, onOpen }: { e: any; label: string; onOpen: () => void }) {
+function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; onOpen: () => void; accentIdx?: number }) {
+  const ac = ACCENTS[accentIdx % ACCENTS.length];
   return (
-    <div onClick={onOpen} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
+      <span style={{ width: 34, height: 34, borderRadius: 11, background: ac.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: 'none' }}>🎈</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.customer}</div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{label} · {e.emirate}</div>
       </div>
       <Badge tone={e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
-      <span style={{ color: C.muted, fontWeight: 700 }}>›</span>
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '.5px' }}>{label.toUpperCase()}</div>
-      <div style={{ ...fredoka(19), marginTop: 4 }}>{value}</div>
+      <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
     </div>
   );
 }

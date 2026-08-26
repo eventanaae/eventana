@@ -141,7 +141,7 @@ export default function App() {
     </div>
   ) : (
     <>
-      {view === 'today' && <Today onOpenEvent={openEvent} onGoto={go} />}
+      {view === 'today' && <Today onOpenEvent={openEvent} onGoto={go} staffName={staffName} />}
       {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} />}
       {view === 'tasks' && <Tasks />}
       {view === 'inventory' && <Inventory />}
@@ -284,9 +284,13 @@ export default function App() {
           position: 'sticky', top: 0, height: '100vh',
         }}
       >
-        <div style={{ padding: '0 20px 22px' }}>
-          <div style={{ ...fredoka(19), letterSpacing: '.3px', color: C.pinkDeep }}>Eventana</div>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 1.2, marginTop: 2 }}>
+        <div style={{ padding: '0 20px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{ width: 30, height: 30, borderRadius: 10, background: C.gradPink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, boxShadow: '0 6px 14px rgba(233,79,156,.3)' }}>🎈</span>
+            <div style={{ ...fredoka(19), color: C.pinkDeep }}>Eventana</div>
+          </div>
+          <div style={{ height: 3, borderRadius: 2, background: C.rainbow, margin: '10px 0 0', opacity: .85 }} />
+          <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, letterSpacing: 1.4, marginTop: 8 }}>
             OPERATIONS
           </div>
         </div>
@@ -307,18 +311,22 @@ export default function App() {
                     <div
                       key={n.id}
                       onClick={() => setView(n.id)}
+                      className="navi"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                        borderRadius: 12, cursor: 'pointer',
-                        background: active ? C.pinkSoft : 'transparent',
+                        borderRadius: 13, cursor: 'pointer', marginBottom: 1,
+                        background: active ? C.gradPink : 'transparent',
+                        boxShadow: active ? '0 6px 15px rgba(233,79,156,.28)' : 'none',
                       }}
+                      onMouseEnter={(ev) => { if (!active) (ev.currentTarget as HTMLElement).style.background = C.pinkSoft; }}
+                      onMouseLeave={(ev) => { if (!active) (ev.currentTarget as HTMLElement).style.background = 'transparent'; }}
                     >
                       <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{n.icon}</span>
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 600, color: active ? C.pinkDeep : C.muted2 }}>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 600, color: active ? '#fff' : C.muted2 }}>
                         {n.label}
                       </span>
                       {badge > 0 && (
-                        <span style={{ background: n.id === 'schedule' ? C.red : C.pink, color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 9 }}>
+                        <span style={{ background: active ? 'rgba(255,255,255,.9)' : (n.id === 'schedule' ? C.red : C.pink), color: active ? C.pinkDeep : '#fff', fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 9 }}>
                           {badge}
                         </span>
                       )}
@@ -390,11 +398,11 @@ function BarItem({
   icon: string; label: string; active: boolean; badge?: number; badgeColor?: string; onClick: () => void;
 }) {
   return (
-    <div onClick={onClick} style={{ flex: 1, textAlign: 'center', cursor: 'pointer', color: active ? C.pinkDeep : C.muted, position: 'relative' }}>
-      <div style={{ fontSize: 17 }}>{icon}</div>
-      <div style={{ fontSize: 9.5, fontWeight: 700, marginTop: 2 }}>{label}</div>
+    <div onClick={onClick} className="tap" style={{ flex: 1, textAlign: 'center', cursor: 'pointer', color: active ? C.pinkDeep : C.muted, position: 'relative' }}>
+      <div style={{ width: 40, height: 27, margin: '0 auto', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, background: active ? C.pinkSoft : 'transparent', transition: 'background .16s ease' }}>{icon}</div>
+      <div style={{ fontSize: 9.5, fontWeight: active ? 800 : 700, marginTop: 2 }}>{label}</div>
       {badge > 0 && (
-        <span style={{ position: 'absolute', top: -3, left: '50%', marginLeft: 4, background: badgeColor, color: '#fff', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 8 }}>
+        <span style={{ position: 'absolute', top: -3, left: '50%', marginLeft: 6, background: badgeColor, color: '#fff', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 8 }}>
           {badge}
         </span>
       )}
