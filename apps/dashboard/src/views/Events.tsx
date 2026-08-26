@@ -130,26 +130,26 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
               <div style={{ flex: 1 }}>
                 <div style={fredoka(20)}>{data.event.id}</div>
-                <div style={{ marginTop: 10, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ marginTop: 10, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {data.event.eventFor && (
-                    <div style={{ ...fredoka(15.5), color: C.pinkDeep }}>
+                    <div style={{ ...fredoka(17), color: C.pinkDeep, marginBottom: 2 }}>
                       🎉 {data.event.eventFor}
                       <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}> · guest of honour</span>
                     </div>
                   )}
-                  <HeaderRow icon="👤" label="Booked by" value={data.event.customer} />
+                  <HeaderRow icon="👤" value={data.event.customer} />
                   {data.event.phone && (
-                    <HeaderRow icon="📞" label="Call" value={
-                      <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 700, textDecoration: 'none' }}>{data.event.phone}</a>
+                    <HeaderRow icon="📞" value={
+                      <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.phone}</a>
                     } />
                   )}
                   {data.event.email && (
-                    <HeaderRow icon="✉️" label="Email" value={
-                      <a href={`mailto:${data.event.email}`} style={{ color: C.ink, fontWeight: 600, textDecoration: 'none', wordBreak: 'break-all' }}>{data.event.email}</a>
+                    <HeaderRow icon="✉️" value={
+                      <a href={`mailto:${data.event.email}`} style={{ color: C.ink, fontWeight: 600, textDecoration: 'none', wordBreak: 'break-word' }}>{data.event.email}</a>
                     } />
                   )}
-                  <HeaderRow icon="📅" label="When" value={`${new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${data.event.start_time}–${data.event.base_end_time}`} />
-                  {data.event.emirate && <HeaderRow icon="📍" label="Where" value={data.event.emirate} />}
+                  <HeaderRow icon="🕐" value={`${new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${data.event.start_time}–${data.event.base_end_time}`} />
+                  {data.event.emirate && <HeaderRow icon="📍" value={data.event.emirate} />}
                 </div>
                 {(data.event.referenceImages ?? []).length > 0 && (
                   <div style={{ marginTop: 8 }}>
@@ -568,13 +568,12 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
  * Maps" are Google's universal deep links — they open the driver's native
  * Google Maps app with turn-by-turn navigation, no API key required.
  */
-/** A clean icon · label · value row for the event header. */
-function HeaderRow({ icon, label, value }: { icon: string; label: string; value: React.ReactNode }) {
+/** A clean icon + value row for the event header (no cramped label column). */
+function HeaderRow({ icon, value }: { icon: string; value: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12.5 }}>
-      <span style={{ width: 16, flex: 'none' }}>{icon}</span>
-      <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, minWidth: 60, letterSpacing: '.3px' }}>{label}</span>
-      <span style={{ flex: 1, fontWeight: 600, color: C.ink }}>{value}</span>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, fontSize: 13 }}>
+      <span style={{ width: 18, flex: 'none', textAlign: 'center' }}>{icon}</span>
+      <span style={{ flex: 1, minWidth: 0, fontWeight: 600, color: C.ink, lineHeight: 1.45 }}>{value}</span>
     </div>
   );
 }
