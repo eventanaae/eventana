@@ -946,17 +946,28 @@ export async function adminRoutes(app: FastifyInstance) {
     const { rows } = await pool.query(
       `SELECT * FROM historical_financials ORDER BY period DESC`,
     );
-    const withDisplay = rows.map((r) => ({
-      ...r,
-      incomeDisplay: formatAed(Number(r.income_fils)),
-      cogsDisplay: formatAed(Number(r.cogs_fils)),
-      expensesDisplay: formatAed(Number(r.expenses_fils)),
-      grossProfitDisplay: formatAed(Number(r.gross_profit_fils)),
-      netIncomeDisplay: formatAed(Number(r.net_income_fils)),
-      marginPct: Number(r.income_fils) > 0
-        ? Math.round((Number(r.net_income_fils) / Number(r.income_fils)) * 1000) / 10
-        : 0,
-    }));
+    const withDisplay = rows.map((r) => {
+      // node-pg returns BIGINT as a string; coerce so the client can do maths.
+      const income = Number(r.income_fils);
+      const cogs = Number(r.cogs_fils);
+      const expenses = Number(r.expenses_fils);
+      const gross = Number(r.gross_profit_fils);
+      const net = Number(r.net_income_fils);
+      return {
+        ...r,
+        income_fils: income,
+        cogs_fils: cogs,
+        expenses_fils: expenses,
+        gross_profit_fils: gross,
+        net_income_fils: net,
+        incomeDisplay: formatAed(income),
+        cogsDisplay: formatAed(cogs),
+        expensesDisplay: formatAed(expenses),
+        grossProfitDisplay: formatAed(gross),
+        netIncomeDisplay: formatAed(net),
+        marginPct: income > 0 ? Math.round((net / income) * 1000) / 10 : 0,
+      };
+    });
     // Year-over-year net-income growth, oldest→newest, for the annual rows.
     const years = [...withDisplay].filter((r) => r.period_kind === 'year').sort((a, b) => a.period.localeCompare(b.period));
     const yoy = years.map((r, i) => {
