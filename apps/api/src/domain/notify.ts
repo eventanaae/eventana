@@ -15,7 +15,7 @@ import { formatAed, celebrationLabel } from '@eventana/shared';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
-import { pushToStaff } from '../integrations/push.js';
+import { pushToStaff, pushToOwner } from '../integrations/push.js';
 
 export interface EmailRow {
   id: number;
@@ -703,9 +703,15 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     try {
       if (row.template === 'tip_received') {
         const amt = Number(row.payload?.amountFils ?? 0);
-        await pushToStaff('Tip received 💐', `A tip of ${formatAed(amt)} just arrived — thank you!`, {
-          eventId: String(row.payload?.eventId ?? ''),
-        });
+        const memberId = row.payload?.memberId ? String(row.payload.memberId) : '';
+        const data = { eventId: String(row.payload?.eventId ?? '') };
+        if (memberId) {
+          // A tip aimed at one crew member — notify only THEM ("you received…").
+          await pushToOwner('staff', memberId, 'You received a tip! 💐', `A ${formatAed(amt)} tip just arrived for you — thank you!`, data);
+        } else {
+          // A whole-team tip goes to everyone.
+          await pushToStaff('Team tip received 💐', `A tip of ${formatAed(amt)} just arrived for the team — thank you!`, data);
+        }
         pushes++;
       }
       // payment_failed / others carry no deliverable recipient — just clear them
