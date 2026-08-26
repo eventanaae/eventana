@@ -64,7 +64,7 @@ export function Today({ onOpenEvent, onGoto }: { onOpenEvent: (id: string) => vo
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
             <Badge tone={next.phase === 'Event Completed' ? 'neutral' : 'info'}>{next.phase}</Badge>
             <div style={{ flex: 1 }} />
-            <Button onClick={() => onOpenEvent(next.id)} style={{ background: C.ink }}>Open job →</Button>
+            <Button onClick={() => onOpenEvent(next.id)} style={{ background: C.pink }}>Open job →</Button>
           </div>
         </div>
       ) : (

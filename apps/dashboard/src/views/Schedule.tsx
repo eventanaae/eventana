@@ -35,7 +35,7 @@ export function Schedule({
               style={{
                 flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '9px 0',
                 fontWeight: 700, fontSize: 12.5,
-                background: active ? C.ink : 'transparent',
+                background: active ? C.pink : 'transparent',
                 color: active ? '#fff' : C.muted2,
               }}
             >

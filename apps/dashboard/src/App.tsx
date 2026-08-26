@@ -151,8 +151,8 @@ export default function App() {
       onClick={() => setToast(null)}
       style={{
         position: 'fixed', left: 12, right: 12, bottom: 90, zIndex: 40, cursor: 'pointer',
-        background: C.ink, color: '#fff', borderRadius: 14, padding: '13px 16px',
-        fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, boxShadow: '0 8px 24px rgba(0,0,0,.3)',
+        background: C.pinkDeep, color: '#fff', borderRadius: 14, padding: '13px 16px',
+        fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, boxShadow: '0 10px 30px rgba(214,49,127,.28)',
         maxWidth: 520, margin: '0 auto',
       }}
     >
@@ -180,7 +180,7 @@ export default function App() {
 
         <div style={{ flex: 1, padding: 14, paddingBottom: 84, minWidth: 0 }}>{body}</div>
 
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 10, background: C.ink, display: 'flex', padding: '8px 4px calc(8px + env(safe-area-inset-bottom))' }}>
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 10, background: '#fff', borderTop: `1px solid ${C.line}`, display: 'flex', padding: '8px 4px calc(8px + env(safe-area-inset-bottom))' }}>
           {primaryNav.map((n) => (
             <BarItem
               key={n.id}
@@ -248,14 +248,15 @@ export default function App() {
       <BookingNotifier enabled={authed} />
       <div
         style={{
-          width: 212, flex: 'none', background: C.ink, color: '#fff',
+          width: 212, flex: 'none', background: '#fff', color: C.ink,
+          borderRight: `1px solid ${C.line}`,
           display: 'flex', flexDirection: 'column', padding: '20px 0',
           position: 'sticky', top: 0, height: '100vh',
         }}
       >
         <div style={{ padding: '0 20px 22px' }}>
-          <div style={{ ...fredoka(19), letterSpacing: '.3px' }}>Eventana</div>
-          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.sidebarMuted, letterSpacing: 1.2, marginTop: 2 }}>
+          <div style={{ ...fredoka(19), letterSpacing: '.3px', color: C.pinkDeep }}>Eventana</div>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 1.2, marginTop: 2 }}>
             OPERATIONS
           </div>
         </div>
@@ -267,17 +268,17 @@ export default function App() {
             const firstMore = n.group === 'more' && visibleNav[i - 1]?.group === 'primary';
             return (
               <div key={n.id}>
-                {firstMore && <div style={{ height: 1, background: 'rgba(255,255,255,.09)', margin: '8px 12px' }} />}
+                {firstMore && <div style={{ height: 1, background: C.line, margin: '8px 12px' }} />}
                 <div
                   onClick={() => setView(n.id)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                     borderRadius: 12, cursor: 'pointer',
-                    background: active ? 'rgba(255,255,255,.12)' : 'transparent',
+                    background: active ? C.pinkSoft : 'transparent',
                   }}
                 >
                   <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{n.icon}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 600, color: active ? '#fff' : C.sidebarMuted }}>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 600, color: active ? C.pinkDeep : C.muted2 }}>
                     {n.label}
                   </span>
                   {badge > 0 && (
@@ -292,19 +293,19 @@ export default function App() {
         </div>
 
         <div style={{ flex: 1 }} />
-        <div style={{ padding: '16px 20px 0', borderTop: '1px solid rgba(255,255,255,.09)', margin: '0 10px' }}>
+        <div style={{ padding: '16px 20px 0', borderTop: `1px solid ${C.line}`, margin: '0 10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: C.pink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flex: 'none' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: C.pink, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flex: 'none' }}>
               {staffName[0]?.toUpperCase() ?? 'E'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{staffName}</div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: C.sidebarMuted, textTransform: 'capitalize' }}>{role}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: 'capitalize' }}>{role}</div>
             </div>
             <button
               onClick={() => { clearStaffToken(); setAuthed(false); }}
               title="Sign out"
-              style={{ border: 'none', background: 'transparent', color: C.sidebarMuted, fontSize: 15, cursor: 'pointer', flex: 'none' }}
+              style={{ border: 'none', background: 'transparent', color: C.muted, fontSize: 15, cursor: 'pointer', flex: 'none' }}
             >
               ⏻
             </button>
@@ -351,7 +352,7 @@ function BarItem({
   icon: string; label: string; active: boolean; badge?: number; badgeColor?: string; onClick: () => void;
 }) {
   return (
-    <div onClick={onClick} style={{ flex: 1, textAlign: 'center', cursor: 'pointer', color: active ? '#fff' : C.sidebarMuted, position: 'relative' }}>
+    <div onClick={onClick} style={{ flex: 1, textAlign: 'center', cursor: 'pointer', color: active ? C.pinkDeep : C.muted, position: 'relative' }}>
       <div style={{ fontSize: 17 }}>{icon}</div>
       <div style={{ fontSize: 9.5, fontWeight: 700, marginTop: 2 }}>{label}</div>
       {badge > 0 && (
