@@ -216,11 +216,13 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
       pool.query(
         `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta,
-                e.emirate, c.name AS customer, p.name AS package_name, o.total_fils
+                e.emirate, c.name AS customer, p.name AS package_name, o.total_fils,
+                th.name AS theme_name, e.custom_theme
            FROM events e
            JOIN customers c ON c.id = e.customer_id
            JOIN orders o ON o.id = e.order_id
            LEFT JOIN packages p ON p.id = e.package_id
+           LEFT JOIN themes th ON th.id = e.theme_id
           WHERE e.event_date >= CURRENT_DATE
           ORDER BY e.event_date, e.start_time
           LIMIT 25`,

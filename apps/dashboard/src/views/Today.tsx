@@ -104,6 +104,9 @@ export function Today({ onOpenEvent, onGoto, staffName, role }: { onOpenEvent: (
             </div>
             <div style={{ ...fredoka(21), marginTop: 8 }}>{next.customer}</div>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{when(next)}–{next.base_end_time} · {next.emirate}</div>
+            {themeOf(next) && (
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(next)}</div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
               <Badge tone={next.phase === 'Event Completed' ? 'neutral' : 'info'}>{next.phase}</Badge>
               <div style={{ flex: 1 }} />
@@ -154,6 +157,12 @@ export function Today({ onOpenEvent, onGoto, staffName, role }: { onOpenEvent: (
   );
 }
 
+/** The theme label for an event row: the booked theme name, or "Custom theme". */
+function themeOf(e: any): string | null {
+  if (e.custom_theme) return 'Custom theme';
+  return e.theme_name || null;
+}
+
 function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; onOpen: () => void; accentIdx?: number }) {
   const ac = ACCENTS[accentIdx % ACCENTS.length];
   return (
@@ -162,6 +171,9 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.customer}</div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{label} · {e.emirate}</div>
+        {themeOf(e) && (
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {themeOf(e)}</div>
+        )}
       </div>
       <Badge tone={e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
       <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
