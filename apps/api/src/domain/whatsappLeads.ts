@@ -376,3 +376,52 @@ export async function leadFunnel(): Promise<{
   );
   return { ...(totals[0] as any), byEmirate: byEmirate as any };
 }
+
+/**
+ * Backfill leads from an external record — in practice, the labels the team
+ * kept by hand in the WhatsApp Business app for years before this existed.
+ *
+ * Idempotent, and deliberately conservative: a lead already marked `booked`
+ * never gets demoted, and an existing date/emirate is never overwritten with
+ * a blank. Re-running the same import changes nothing.
+ */
+export async function importLeads(
+  rows: Array<{
+    phone: string;
+    name?: string | null;
+    eventDate?: string | null;
+    emirate?: string | null;
+    status?: string | null;
+    notes?: string | null;
+  }>,
+): Promise<{ received: number; imported: number; skipped: number }> {
+  let imported = 0;
+  let skipped = 0;
+  for (const r of rows) {
+    const phone = normalizePhone(r.phone ?? '');
+    // A UAE mobile is 12 digits with the country code; anything shorter is a
+    // malformed row, not a customer.
+    if (phone.length < 10) {
+      skipped += 1;
+      continue;
+    }
+    const status = ['new', 'quoted', 'confirmed', 'booked', 'lost'].includes(r.status ?? '')
+      ? (r.status as string)
+      : 'new';
+    await pool.query(
+      `INSERT INTO whatsapp_leads (phone, name, event_date, emirate, status, notes, message_count)
+            VALUES ($1, $2, $3::date, $4, $5, $6, 0)
+       ON CONFLICT (phone) DO UPDATE SET
+            name       = COALESCE(whatsapp_leads.name, EXCLUDED.name),
+            event_date = COALESCE(whatsapp_leads.event_date, EXCLUDED.event_date),
+            emirate    = COALESCE(whatsapp_leads.emirate, EXCLUDED.emirate),
+            status     = CASE WHEN whatsapp_leads.status = 'booked'
+                              THEN whatsapp_leads.status ELSE EXCLUDED.status END,
+            notes      = COALESCE(whatsapp_leads.notes, EXCLUDED.notes),
+            updated_at = now()`,
+      [phone, r.name || null, r.eventDate || null, r.emirate || null, status, r.notes || null],
+    );
+    imported += 1;
+  }
+  return { received: rows.length, imported, skipped };
+}

@@ -26,7 +26,7 @@ import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
-import { listLeads, leadFunnel } from '../domain/whatsappLeads.js';
+import { listLeads, leadFunnel, importLeads } from '../domain/whatsappLeads.js';
 import { agentMode, whatsappEnabled } from '../integrations/whatsapp.js';
 
 /**
@@ -300,6 +300,40 @@ export async function adminRoutes(app: FastifyInstance) {
     const role = (request as any).staff?.role;
     if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     return leadFunnel();
+  });
+
+  /**
+   * Backfill leads from outside this system.
+   *
+   * The team labelled WhatsApp chats by hand for years — "Order complete",
+   * "New order" — and named each contact after the party date. That record is
+   * the only place the booking truth ever lived, so this pulls it in rather
+   * than starting the history at zero.
+   */
+  app.post('/api/admin/whatsapp/leads/import', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const schema = z.object({
+      leads: z
+        .array(
+          z.object({
+            phone: z.string().trim().min(6).max(24),
+            name: z.string().trim().max(160).nullish(),
+            eventDate: z
+              .string()
+              .regex(/^\d{4}-\d{2}-\d{2}$/)
+              .nullish(),
+            emirate: z.string().trim().max(40).nullish(),
+            status: z.enum(['new', 'quoted', 'confirmed', 'booked', 'lost']).nullish(),
+            notes: z.string().trim().max(500).nullish(),
+          }),
+        )
+        .min(1)
+        .max(1000),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    return importLeads(parsed.data.leads);
   });
 
   /* ------------------------------ Events -------------------------- */
