@@ -234,6 +234,14 @@ export async function processDelivery(
   // roll back a paid booking; it's a silent no-op when calendar sync is off.
   if (outcome === 'accepted' && confirmedEventId) {
     await syncEventToCalendar(confirmedEventId);
+    // Smart staff assignment: analyse the booked services, assign internal crew
+    // first, and raise a part-time alert if we can't fully staff it. Runs after
+    // commit (reads the freshly-committed event) and never blocks the booking.
+    if (newBooking) {
+      void import('./staffing.js')
+        .then(({ assignStaffForEvent }) => assignStaffForEvent(confirmedEventId!))
+        .catch((err) => console.error('[staffing] auto-assign failed:', err));
+    }
     // Buzz the team's phones the moment a real new booking lands.
     if (newBooking) {
       void pushToStaff('New booking 🎉', `${confirmedEventId} just booked — tap to view.`, {

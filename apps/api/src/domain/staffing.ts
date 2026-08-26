@@ -13,7 +13,7 @@ import { loadConfig } from './settings.js';
 
 export type Skill =
   | 'balloon_artist' | 'clown' | 'face_painting' | 'helper'
-  | 'balloon_twisting' | 'acrobat_clown' | 'design' | 'staff';
+  | 'balloon_twisting' | 'acrobat_clown' | 'design' | 'staff' | 'driver';
 
 export interface RoleReq {
   role: Skill;
@@ -34,6 +34,7 @@ export const STAFF_SKILLS: Record<string, Skill[]> = {
   Gloria: ['clown', 'helper'],
   Diana: ['clown', 'helper'],
   Marsha: ['design'],
+  Shan: ['driver'],
 };
 // Who can lead an event on-site (Marsha leads remotely as a fallback).
 export const ONSITE_LEADERS = ['Jane', 'Dindo'];
@@ -51,7 +52,7 @@ export async function seedStaffSkills(): Promise<void> {
       await pool.query(
         `INSERT INTO team_members (id, name, role, active) VALUES ($1,$2,$3,true)
          ON CONFLICT (id) DO NOTHING`,
-        [id, name, name === 'Marsha' ? 'Design & Remote Lead' : 'Crew'],
+        [id, name, name === 'Marsha' ? 'Design & Remote Lead' : name === 'Shan' ? 'Driver' : 'Crew'],
       );
     }
     for (const skill of skills) {
@@ -144,6 +145,16 @@ export function computeRequirements(input: { packageName?: string | null; servic
     // crew above — don't double-count them. Operational items still need staff.
     if (s.fromPackage && (s.categoryId === 'entertainment')) continue;
     reqs.push(...serviceReqs(s));
+  }
+  // Delivery & collection — any event with physical equipment/setup (a package,
+  // backdrop, inflatable, machine, food station, games or giveaways) needs a
+  // driver to transport and collect the gear. Shan handles this.
+  const EQUIP_CATS = new Set(['backdrop', 'inflatables', 'machines', 'food', 'games', 'giveaways', 'extras', 'activities']);
+  const needsDriver = !!pk || input.services.some(
+    (s) => s.isInflatable || s.isFoodStation || (s.categoryId ? EQUIP_CATS.has(s.categoryId) : false),
+  );
+  if (needsDriver) {
+    reqs.push({ role: 'driver', count: 1, reason: 'Equipment delivery & collection', source: 'Logistics' });
   }
   return reqs;
 }
@@ -247,14 +258,16 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   // Expand requirements into individual slots and fill the skilled ones first.
   const slots: Array<RoleReq & { slot: number }> = [];
   for (const req of reqs) for (let i = 0; i < req.count; i++) slots.push({ ...req, slot: i + 1 });
-  const order: Skill[] = ['balloon_artist', 'face_painting', 'balloon_twisting', 'clown', 'helper', 'staff', 'acrobat_clown', 'design'];
+  const order: Skill[] = ['balloon_artist', 'face_painting', 'balloon_twisting', 'clown', 'helper', 'staff', 'acrobat_clown', 'design', 'driver'];
   slots.sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role));
 
   const assigned: AssignedSlot[] = [];
   for (const s of slots) {
     if (s.partTimeOnly) { assigned.push({ role: s.role, slot: s.slot, reason: s.reason, source: s.source, status: 'part_time_required' }); continue; }
     const cands = staff
-      .filter((st) => !busy.has(st.id) && canTake(st, s.role))
+      // The driver runs multiple deliveries a day, so same-date booking doesn't
+      // make him unavailable; every other role is exclusive per date.
+      .filter((st) => (s.role === 'driver' || !busy.has(st.id)) && canTake(st, s.role))
       .sort((a, b) => (a.workload + (rolesByStaff.get(a.id)?.size ?? 0)) - (b.workload + (rolesByStaff.get(b.id)?.size ?? 0)));
     const pick = cands[0];
     if (pick) {
@@ -295,6 +308,19 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   }
 
   const shortages = assigned.filter((a) => a.status !== 'assigned').length;
+  // Raise a single ops alert for the Owner/Manager when we can't fully staff
+  // internally (part-time / prep needed). Not repeated if one already stands.
+  if (shortages > 0) {
+    await pool.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       SELECT $1,'ops_alert','staffing_required', now(), $2
+        WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template = 'staffing_required' AND event_id = $1)`,
+      [eventId, JSON.stringify({ eventId, shortages, roles: assigned.filter((a) => a.status !== 'assigned').map((a) => ({ role: a.role, reason: a.reason, source: a.source, noPartTime: a.noPartTime })) })],
+    ).catch(() => {});
+  } else {
+    // Fully staffed now — clear any stale staffing alert.
+    await pool.query(`DELETE FROM notifications WHERE template = 'staffing_required' AND event_id = $1`, [eventId]).catch(() => {});
+  }
   return { eventId, assigned, leader, shortages, staffingIncomplete: shortages > 0 };
 }
 
