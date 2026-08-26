@@ -116,6 +116,7 @@ export const api = {
   prepGenerate: (eventId: string) => request<any>(`/api/admin/prep/${eventId}/generate`, { method: 'POST' }),
   prepGenerateAll: () => request<any>('/api/admin/prep/generate-all', { method: 'POST' }),
   prepBoard: () => request<any[]>('/api/admin/prep-board'),
+  prepEvents: () => request<any[]>('/api/admin/prep-events'),
   prepMine: () => request<any[]>('/api/admin/prep-mine'),
   prepComplete: (taskId: string, photoUrl?: string) =>
     request<any>(`/api/admin/prep/task/${taskId}/complete`, { method: 'POST', body: JSON.stringify({ photoUrl }) }),

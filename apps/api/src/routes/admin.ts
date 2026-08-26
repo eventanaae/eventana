@@ -415,6 +415,10 @@ export async function adminRoutes(app: FastifyInstance) {
     const { getPrepByPerson } = await import('../domain/prep.js');
     return getPrepByPerson();
   });
+  app.get('/api/admin/prep-events', async () => {
+    const { getPrepEvents } = await import('../domain/prep.js');
+    return getPrepEvents();
+  });
   app.get('/api/admin/prep-mine', async (request) => {
     const { getPrepTasksForMember } = await import('../domain/prep.js');
     const staff = (request as any).staff as { id?: string };

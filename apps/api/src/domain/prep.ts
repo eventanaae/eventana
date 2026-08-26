@@ -378,6 +378,32 @@ export async function getPrepByPerson() {
   return rows;
 }
 
+/** Per-event preparation progress summaries (upcoming events with prep tasks). */
+export async function getPrepEvents() {
+  const { rows } = await pool.query(
+    `SELECT pt.event_id, to_char(e.event_date,'YYYY-MM-DD') AS event_date, c.name AS customer, e.emirate,
+            count(*)::int AS total,
+            count(*) FILTER (WHERE pt.status = 'completed')::int AS completed,
+            count(*) FILTER (WHERE pt.status = 'issue')::int AS issues,
+            count(*) FILTER (WHERE pt.status = 'waiting_design')::int AS waiting
+       FROM prep_tasks pt
+       JOIN events e ON e.id = pt.event_id
+       JOIN customers c ON c.id = e.customer_id
+      WHERE e.phase <> 'Cancelled' AND e.event_date >= CURRENT_DATE - interval '1 day'
+      GROUP BY pt.event_id, e.event_date, c.name, e.emirate
+      ORDER BY e.event_date`,
+  );
+  const today = Date.now();
+  return rows.map((r: any) => {
+    const total = Number(r.total); const done = Number(r.completed);
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const daysToEvent = Math.ceil((Date.parse(`${r.event_date}T00:00:00+04:00`) - today) / 86_400_000);
+    // "At risk" when the event is within 3 days and prep isn't finished.
+    const atRisk = daysToEvent <= 3 && done < total;
+    return { ...r, total, completed: done, issues: Number(r.issues), waiting: Number(r.waiting), progressPct: pct, daysToEvent, atRisk };
+  });
+}
+
 /** Read an event's prep plan with assignees + progress. Internal only. */
 export async function getPrepPlan(eventId: string) {
   const { rows } = await pool.query(

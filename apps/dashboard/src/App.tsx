@@ -148,7 +148,7 @@ export default function App() {
       {view === 'today' && <Today onOpenEvent={openEvent} onGoto={go} staffName={staffName} role={role} />}
       {view === 'overview' && <Overview onOpenEvent={openEvent} onGoto={go} />}
       {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} />}
-      {view === 'tasks' && <Tasks />}
+      {view === 'tasks' && <Tasks role={role} />}
       {view === 'inventory' && <Inventory />}
       {view === 'alerts' && <Alerts onOpenEvent={openEvent} />}
       {view === 'team' && <Team role={role} />}
