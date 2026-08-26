@@ -79,12 +79,141 @@ const daysUntil = (iso: string | null): number | null => {
 
 const pct = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : '—');
 
+/* ---------------------------------------------------------------- import --
+ * The team's real booking record lives in the WhatsApp Business app: chats
+ * labelled "Order complete" / "New order", each contact renamed after the
+ * party date and theme ("25/07/26 Unicorn"). Exported as label,phone,name,
+ * that file is years of history this screen would otherwise never show.
+ */
+const LABEL_STATUS: Record<string, string> = {
+  'order complete': 'booked',
+  'order completed': 'booked',
+  confirmed: 'confirmed',
+  'pending payment': 'confirmed',
+  'new order': 'quoted',
+  'new customer': 'new',
+  cancelled: 'lost',
+  refund: 'lost',
+};
+
+const EMIRATES: Array<[RegExp, string]> = [
+  [/dubai|دبي/i, 'Dubai'],
+  [/sharjah|shsrjah|الشارقة/i, 'Sharjah'],
+  [/al ?ain|العين/i, 'Al Ain'],
+  [/\brak\b|ras al/i, 'Ras Al Khaimah'],
+  [/abu ?dhabi|أبوظبي|ابوظبي/i, 'Abu Dhabi'],
+  [/ajman|عجمان/i, 'Ajman'],
+  [/fujairah|الفجيرة/i, 'Fujairah'],
+  [/umm al|\buaq\b/i, 'Umm Al Quwain'],
+];
+
+/** "25/07/26 Unicorn" → 2026-07-25. Day-first, the way the team writes it. */
+function partyDate(name: string): string | null {
+  const m = name.match(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
+  if (!m) return null;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  let year = Number(m[3]);
+  if (year < 100) year += 2000;
+  if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2015 || year > 2035) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Splits a CSV row, honouring "quoted, fields". */
+function csvRow(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const c = line[i];
+    if (quoted) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i += 1; }
+      else if (c === '"') quoted = false;
+      else cur += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+function parseExport(text: string) {
+  const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim());
+  if (!lines.length) return [];
+  const head = csvRow(lines[0]).map((h) => h.toLowerCase());
+  const iLabel = head.indexOf('label');
+  const iPhone = head.indexOf('phone');
+  const iName = head.indexOf('name');
+  if (iPhone < 0) return [];
+  const seen = new Set<string>();
+  const out: Array<Record<string, unknown>> = [];
+  for (const line of lines.slice(1)) {
+    const cells = csvRow(line);
+    const phone = (cells[iPhone] || '').replace(/\D+/g, '');
+    if (phone.length < 10 || seen.has(phone)) continue;
+    const label = (iLabel >= 0 ? cells[iLabel] : '').trim();
+    const status = LABEL_STATUS[label.toLowerCase()];
+    // Only rows that say something about a booking — vendors, drivers and
+    // team chats are not customers and must not land in the funnel.
+    if (!status) continue;
+    seen.add(phone);
+    const name = iName >= 0 ? cells[iName] || '' : '';
+    const emirate = EMIRATES.find(([re]) => re.test(name))?.[1] ?? null;
+    out.push({
+      phone,
+      name: name || null,
+      eventDate: partyDate(name),
+      emirate,
+      status,
+      notes: label ? `WhatsApp label: ${label}` : null,
+    });
+  }
+  return out;
+}
+
 export function Leads() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [funnel, setFunnel] = useState<Funnel | null>(null);
   const [agentMode, setAgentMode] = useState<string>('off');
   const [connected, setConnected] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const runImport = async (file: File) => {
+    setImportError(null);
+    setImportMsg(null);
+    let rows: Array<Record<string, unknown>>;
+    try {
+      rows = parseExport(await file.text());
+    } catch {
+      return setImportError('Could not read that file. It should be a .csv.');
+    }
+    if (!rows.length) {
+      return setImportError(
+        'No customer rows found. The file needs label, phone and name columns, and only booking labels are imported.',
+      );
+    }
+    setImporting(true);
+    let imported = 0;
+    try {
+      // Chunked so one oversized request can't time out the whole import.
+      for (let i = 0; i < rows.length; i += 150) {
+        const res = await api.importWhatsappLeads(rows.slice(i, i + 150));
+        imported += res.imported;
+        setImportMsg(`Importing… ${imported} of ${rows.length}`);
+      }
+      setImportMsg(`Imported ${imported} customers. Existing bookings were left as they were.`);
+      setReloadKey((k) => k + 1);
+    } catch (e: any) {
+      setImportError(e?.message ?? 'The import failed part way. Re-running it is safe.');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -106,7 +235,7 @@ export function Leads() {
       live = false;
       clearInterval(t);
     };
-  }, [filter]);
+  }, [filter, reloadKey]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -141,6 +270,39 @@ export function Leads() {
           </div>
         </Panel>
       )}
+
+      {/* Years of booking history live only in the WhatsApp app's labels. */}
+      <Panel title="Import from WhatsApp labels">
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2, lineHeight: 1.65, marginBottom: 12 }}>
+          Export your WhatsApp Business labels as a <b>.csv</b> with <b>label</b>, <b>phone</b> and{' '}
+          <b>name</b> columns. Chats labelled <i>Order complete</i> become bookings, and a party date
+          written in the contact name (<i>25/07/26 Unicorn</i>) is read automatically.
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            disabled={importing}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) void runImport(f);
+            }}
+            style={{ fontSize: 12.5, fontWeight: 600 }}
+          />
+          {importing && <span style={{ fontSize: 12.5, fontWeight: 700, color: C.muted }}>Working…</span>}
+        </div>
+        {importMsg && (
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginTop: 10 }}>{importMsg}</div>
+        )}
+        {importError && (
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: C.red, marginTop: 10 }}>{importError}</div>
+        )}
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.6 }}>
+          Safe to run more than once — a customer already marked as booked is never downgraded, and a
+          date already on file is never overwritten. Vendor, driver and team labels are ignored.
+        </div>
+      </Panel>
 
       <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
         {FILTERS.map((f) => (

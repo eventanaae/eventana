@@ -110,6 +110,11 @@ export const api = {
   whatsappLeads: (status?: string) =>
     request<any>(`/api/admin/whatsapp/leads${status && status !== 'all' ? `?status=${status}` : ''}`),
   whatsappFunnel: () => request<any>('/api/admin/whatsapp/funnel'),
+  importWhatsappLeads: (leads: unknown[]) =>
+    request<{ received: number; imported: number; skipped: number }>('/api/admin/whatsapp/leads/import', {
+      method: 'POST',
+      body: JSON.stringify({ leads }),
+    }),
   events: (status?: string) =>
     request<any[]>(`/api/admin/events${status ? `?status=${status}` : ''}`),
   event: (id: string) => request<any>(`/api/admin/events/${id}`),
