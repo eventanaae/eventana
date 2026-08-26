@@ -375,6 +375,13 @@ export default function App() {
     [catalogue, draft, update, quote, quoteError, retryQuote, go, reset, startBuild, profile?.name, lang, t, social, shopCart],
   );
 
+  // The policy answers before every other screen, onboarding included. This
+  // URL is what Meta and the app stores are pointed at, and a visitor who
+  // followed it came to read the policy — not to be asked their name first.
+  if (showPrivacy) {
+    return <PrivacySheet lang={lang} onClose={() => setShowPrivacy(false)} />;
+  }
+
   // A search-ad arrival is answered before anything else — ahead of the
   // onboarding questions especially. Someone who clicked "balloon decoration
   // dubai" has not agreed to tell us their name yet; asking first is how a
