@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { api } from '../api';
 import { Button, C, Panel, Spinner, fredoka, money } from '../ui';
+import { NewOrder } from './NewOrder';
 
 /**
  * The dashboard's finance hub — a lean, QuickBooks-style set of tools:
@@ -117,6 +118,7 @@ function InvoicesList() {
 function ReceiptsList() {
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
+  const [newOrder, setNewOrder] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [sel, setSel] = useState<any>(null);
   const load = () => api.finReceipts().then(setData).catch(() => setData({ receipts: [] }));
@@ -154,7 +156,15 @@ function ReceiptsList() {
 
   if (!data) return <Spinner />;
   return (
-    <Panel title="Sales receipts" action={<Button onClick={() => setCreating(true)}>+ New receipt</Button>}>
+    <Panel
+      title="Sales receipts"
+      action={
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button tone="ghost" onClick={() => setNewOrder(true)}>+ New order</Button>
+          <Button onClick={() => setCreating(true)}>+ New receipt</Button>
+        </div>
+      }
+    >
       <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>
         Total collected: <b style={{ color: C.green }}>AED {data.totalDisplay ?? '0'}</b> → Cash on hand
       </div>
@@ -178,6 +188,11 @@ function ReceiptsList() {
         />
       ))}
       {creating && <DocForm kind="receipt" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {newOrder && (
+        <Modal title="New order — send a link" onClose={() => setNewOrder(false)}>
+          <NewOrder />
+        </Modal>
+      )}
       {sel && <DocDetail doc={sel} kind="receipt" onClose={() => setSel(null)} onChanged={load} />}
     </Panel>
   );
