@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CELEBRATION_TYPES } from '@eventana/shared';
 import { api } from '../api';
-import { Badge, Button, C, Panel, Spinner, fredoka } from '../ui';
+import { C, Panel, Spinner, fredoka } from '../ui';
 
 /**
- * CEO Executive Dashboard — decision-support, not operations. Revenue, growth vs
- * the previous period, AOV, confirmed vs cancelled, outstanding, profitability,
- * top emirate/type/package/theme, repeat-customer rate, and actionable insights.
- * Filterable by period, emirate and event type. All figures come from the live
- * /api/admin/ceo endpoint (no invented numbers).
+ * CEO Executive Dashboard — a premium, decision-first view. In under a minute:
+ * headline KPIs with growth vs the previous period and sparklines, an
+ * auto-generated "needs your attention" summary (risks / opportunities), a
+ * revenue & profit chart, cash + pipeline + sales-funnel health, and the
+ * best-performing emirates / event types / packages / themes. All from the live
+ * /api/admin/ceo endpoint — no invented numbers.
  */
 
 const EMIRATES = ['Dubai', 'Abu Dhabi', 'Al Ain', 'Ajman', 'Sharjah', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah', 'Al Gharbia'];
@@ -24,10 +25,10 @@ function presetRange(preset: string): { from: string; to: string } {
     case 'q': return { from: iso(new Date(Date.UTC(y, m - 2, 1))), to: firstNextMonth };
     case 'year': return { from: iso(new Date(Date.UTC(y, 0, 1))), to: iso(new Date(Date.UTC(y + 1, 0, 1))) };
     case 'all': return { from: '2020-01-01', to: iso(new Date(Date.UTC(y + 1, 0, 1))) };
-    default: return { from: iso(new Date(Date.UTC(y, m - 11, 1))), to: firstNextMonth }; // 12m
+    default: return { from: iso(new Date(Date.UTC(y, m - 11, 1))), to: firstNextMonth };
   }
 }
-const PRESETS: Array<{ id: string; label: string }> = [
+const PRESETS = [
   { id: 'month', label: 'This month' },
   { id: 'q', label: 'Last 3 months' },
   { id: '12m', label: 'Last 12 months' },
@@ -55,12 +56,8 @@ export function Ceo() {
       .finally(() => setLoading(false));
   }, [range.from, range.to, emirate, eventType]);
 
-  const chg = (v: number | null) =>
-    v === null ? null : (
-      <span style={{ fontSize: 12, fontWeight: 700, color: v >= 0 ? C.green : C.red }}>
-        {v >= 0 ? '▲' : '▼'} {Math.abs(v)}%
-      </span>
-    );
+  const revSpark: number[] = (data?.trend ?? []).map((t: any) => t.revenueFils);
+  const bookSpark: number[] = (data?.trend ?? []).map((t: any) => t.bookings);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -72,10 +69,10 @@ export function Ceo() {
               key={p.id}
               onClick={() => setPreset(p.id)}
               style={{
-                border: `1px solid ${preset === p.id ? C.pink : C.line}`,
+                border: `1.5px solid ${preset === p.id ? C.pink : C.line}`,
                 background: preset === p.id ? C.pinkSoft : '#fff',
                 color: preset === p.id ? C.pinkDeep : C.muted2,
-                fontWeight: 700, fontSize: 12.5, padding: '7px 12px', borderRadius: 999, cursor: 'pointer',
+                fontWeight: 700, fontSize: 12.5, padding: '7px 13px', borderRadius: 999, cursor: 'pointer',
               }}
             >
               {p.label}
@@ -98,52 +95,73 @@ export function Ceo() {
 
       {data && !loading && (
         <>
-          {/* KPI cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
-            <Kpi label="Revenue" value={`AED ${data.revenueDisplay}`} sub={chg(data.revenueChangePct)} accent={C.pink} />
-            <Kpi label="Bookings" value={String(data.bookings)} sub={chg(data.bookingsChangePct)} />
-            <Kpi label="Avg order value" value={`AED ${data.aovDisplay}`} />
-            <Kpi
+          {/* Hero KPIs with growth + sparkline */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+            <HeroKpi label="Revenue" value={`AED ${data.revenueDisplay}`} delta={data.revenueChangePct} spark={revSpark} accent={C.pink} />
+            <HeroKpi label="Bookings" value={String(data.bookings)} delta={data.bookingsChangePct} spark={bookSpark} accent={C.mint} />
+            <HeroKpi label="Avg order value" value={`AED ${data.aovDisplay}`} accent={C.yellow} />
+            <HeroKpi
               label={data.profitNegative ? 'Net loss' : 'Net profit'}
               value={`AED ${data.profitDisplay}`}
-              sub={<span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{data.marginPct}% margin</span>}
+              caption={`${data.marginPct}% margin`}
               accent={data.profitNegative ? C.red : C.green}
             />
-            <Kpi label="Outstanding" value={`AED ${data.outstandingDisplay}`} sub={<span style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>{data.outstandingCount} order(s)</span>} accent={data.outstandingCount > 0 ? C.yellow : undefined} />
-            <Kpi label="Cancelled" value={`${data.cancelled}`} sub={<span style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>{data.cancelRatePct}% · AED {data.refundDisplay} refunded</span>} />
-            <Kpi label="Repeat customers" value={`${data.repeatRatePct}%`} sub={<span style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>{data.repeatCustomers} of {data.totalCustomers}</span>} />
-            <Kpi label="Expenses" value={`AED ${data.expensesDisplay}`} />
           </div>
 
-          {/* Insights */}
+          {/* Executive summary — needs your attention */}
           {data.insights?.length > 0 && (
-            <Panel title="What needs your attention">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {data.insights.map((ins: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ marginTop: 2 }}>
-                      <Badge tone={ins.tone === 'good' ? 'ok' : ins.tone === 'warn' ? 'warn' : 'info'}>
-                        {ins.tone === 'good' ? '✓' : ins.tone === 'warn' ? '!' : 'i'}
-                      </Badge>
-                    </span>
-                    <span style={{ fontSize: 13.5, fontWeight: 600, color: C.muted2, lineHeight: 1.5 }}>{ins.text}</span>
-                  </div>
-                ))}
+            <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+              <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.pinkDeep})` }} />
+              <div style={{ padding: '16px 20px' }}>
+                <div style={{ ...fredoka(15), marginBottom: 12 }}>Executive summary — what needs your attention</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 10 }}>
+                  {data.insights.map((ins: any, i: number) => {
+                    const tone = ins.tone === 'good' ? C.green : ins.tone === 'warn' ? C.red : C.pinkDeep;
+                    const soft = ins.tone === 'good' ? C.greenSoft : ins.tone === 'warn' ? C.redSoft : C.pinkSoft;
+                    const icon = ins.tone === 'good' ? '↑' : ins.tone === 'warn' ? '!' : 'i';
+                    return (
+                      <div key={i} style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: soft, borderRadius: 14, padding: '11px 13px' }}>
+                        <span style={{ flex: 'none', width: 22, height: 22, borderRadius: '50%', background: tone, color: '#fff', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</span>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2, lineHeight: 1.5 }}>{ins.text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </Panel>
+            </div>
           )}
 
-          {/* Trend */}
-          <Panel title="Revenue & bookings by month">
-            <TrendChart trend={data.trend} />
+          {/* Revenue & profit chart */}
+          <Panel title="Revenue by month">
+            <RevenueChart trend={data.trend} />
           </Panel>
+
+          {/* Cash · pipeline · funnel */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
+            <Panel title="Cash">
+              <MiniRow label="Collected (paid)" value={`AED ${data.collectedDisplay}`} tone={C.green} />
+              <MiniRow label="Outstanding" value={`AED ${data.outstandingDisplay}`} sub={`${data.outstandingCount} order(s)`} tone={data.outstandingCount > 0 ? C.yellowInk : C.muted} />
+              <MiniRow label="Expenses" value={`AED ${data.expensesDisplay}`} tone={C.muted2} />
+              <MiniRow label="Refunded" value={`AED ${data.refundDisplay}`} tone={C.muted2} last />
+            </Panel>
+            <Panel title="Pipeline (upcoming)">
+              <div style={{ ...fredoka(28), color: C.pinkDeep }}>AED {data.pipeline?.revenueDisplay ?? '0'}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, marginTop: 2 }}>{data.pipeline?.events ?? 0} confirmed event(s) ahead</div>
+              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <MiniRow label="Repeat customers" value={`${data.repeatRatePct}%`} sub={`${data.repeatCustomers} of ${data.totalCustomers}`} tone={C.pinkDeep} last />
+              </div>
+            </Panel>
+            <Panel title="Sales funnel (WhatsApp)">
+              <Funnel funnel={data.funnel} />
+            </Panel>
+          </div>
 
           {/* Breakdowns */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
-            <Breakdown title="By emirate" rows={data.byEmirate} />
-            <Breakdown title="By event type" rows={data.byEventType} />
-            <Breakdown title="By package" rows={data.byPackage} />
-            <Breakdown title="By theme" rows={data.byTheme} />
+            <Breakdown title="Top emirates" rows={data.byEmirate} />
+            <Breakdown title="Top event types" rows={data.byEventType} />
+            <Breakdown title="Top packages" rows={data.byPackage} />
+            <Breakdown title="Top themes" rows={data.byTheme} />
           </div>
         </>
       )}
@@ -151,28 +169,105 @@ export function Ceo() {
   );
 }
 
-function Kpi({ label, value, sub, accent }: { label: string; value: string; sub?: React.ReactNode; accent?: string }) {
+function DeltaChip({ v }: { v: number | null | undefined }) {
+  if (v === null || v === undefined) return null;
+  const up = v >= 0;
   return (
-    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, padding: '16px 18px', boxShadow: C.shadow, borderTop: accent ? `3px solid ${accent}` : undefined }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: C.muted }}>{label}</div>
-      <div style={{ ...fredoka(23), marginTop: 6, color: C.ink }}>{value}</div>
-      {sub && <div style={{ marginTop: 4 }}>{sub}</div>}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 800, color: up ? C.green : C.red, background: up ? C.greenSoft : C.redSoft, padding: '2px 8px', borderRadius: 999 }}>
+      {up ? '▲' : '▼'} {Math.abs(v)}%
+    </span>
+  );
+}
+
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const W = 104, H = 34;
+  if (!data || data.length < 2) return <div style={{ width: W, height: H }} />;
+  const max = Math.max(...data), min = Math.min(...data);
+  const range = max - min || 1;
+  let lastY = H / 2;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * W;
+    const y = H - ((v - min) / range) * (H - 6) - 3;
+    lastY = y;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ flex: 'none' }}>
+      <polygon points={`0,${H} ${pts} ${W},${H}`} fill={color} opacity={0.1} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={W} cy={lastY} r={2.6} fill={color} />
+    </svg>
+  );
+}
+
+function HeroKpi({ label, value, delta, caption, spark, accent }: { label: string; value: string; delta?: number | null; caption?: string; spark?: number[]; accent: string }) {
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, padding: '16px 18px', boxShadow: C.shadow, borderTop: `3px solid ${accent}` }}>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', color: C.muted }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ ...fredoka(25), color: C.ink, whiteSpace: 'nowrap' }}>{value}</div>
+          <div style={{ marginTop: 5, minHeight: 18 }}>
+            {delta !== undefined ? <DeltaChip v={delta} /> : caption ? <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{caption}</span> : null}
+          </div>
+        </div>
+        {spark && <Sparkline data={spark} color={accent} />}
+      </div>
     </div>
   );
 }
 
-function TrendChart({ trend }: { trend: Array<{ month: string; revenueFils: number; revenueDisplay: string; bookings: number }> }) {
+function MiniRow({ label, value, sub, tone, last }: { label: string; value: string; sub?: string; tone?: string; last?: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderBottom: last ? 'none' : `1px solid ${C.lineSoft}` }}>
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2 }}>{label}</span>
+      <span style={{ textAlign: 'right' }}>
+        <span style={{ fontSize: 13.5, fontWeight: 800, color: tone ?? C.ink, whiteSpace: 'nowrap' }}>{value}</span>
+        {sub && <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{sub}</div>}
+      </span>
+    </div>
+  );
+}
+
+function RevenueChart({ trend }: { trend: Array<{ month: string; revenueFils: number; revenueDisplay: string; bookings: number }> }) {
   if (!trend || trend.length === 0) return <div style={{ color: C.muted, fontSize: 13, fontWeight: 600 }}>No data in this range.</div>;
   const max = Math.max(1, ...trend.map((t) => t.revenueFils));
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 200, overflowX: 'auto', paddingTop: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 210, overflowX: 'auto', paddingTop: 8 }}>
       {trend.map((t) => (
-        <div key={t.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 46, flex: 1 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted2 }}>{t.bookings}</div>
-          <div style={{ width: '100%', maxWidth: 40, height: `${Math.round((t.revenueFils / max) * 140)}px`, minHeight: 3, background: `linear-gradient(180deg,${C.pink},${C.pinkDeep})`, borderRadius: 6 }} title={`AED ${t.revenueDisplay}`} />
+        <div key={t.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 44, flex: 1 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: C.pinkDeep }}>{t.revenueFils > 0 ? t.revenueDisplay : ''}</div>
+          <div style={{ width: '100%', maxWidth: 40, height: `${Math.round((t.revenueFils / max) * 150)}px`, minHeight: 3, background: `linear-gradient(180deg,${C.pink},${C.pinkDeep})`, borderRadius: '8px 8px 4px 4px' }} title={`AED ${t.revenueDisplay} · ${t.bookings} bookings`} />
           <div style={{ fontSize: 10, fontWeight: 700, color: C.muted }}>{t.month.slice(2)}</div>
+          <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted2 }}>{t.bookings}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function Funnel({ funnel }: { funnel?: { leads: number; quoted: number; booked: number; conversionPct: number } }) {
+  if (!funnel || funnel.leads === 0) return <div style={{ color: C.muted, fontSize: 13, fontWeight: 600 }}>No WhatsApp leads yet.</div>;
+  const stages = [
+    { label: 'Leads', value: funnel.leads, color: C.pink },
+    { label: 'Quoted', value: funnel.quoted, color: C.yellow },
+    { label: 'Booked', value: funnel.booked, color: C.green },
+  ];
+  const max = Math.max(1, funnel.leads);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {stages.map((s) => (
+        <div key={s.label}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{s.label}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: C.muted2 }}>{s.value}</span>
+          </div>
+          <div style={{ height: 10, background: C.lineSoft, borderRadius: 999 }}>
+            <div style={{ width: `${Math.round((s.value / max) * 100)}%`, height: '100%', background: s.color, borderRadius: 999 }} />
+          </div>
+        </div>
+      ))}
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep, marginTop: 2 }}>{funnel.conversionPct}% lead → booking conversion</div>
     </div>
   );
 }
@@ -204,6 +299,6 @@ function Breakdown({ title, rows }: { title: string; rows: Array<{ key: string; 
 }
 
 const selectStyle: React.CSSProperties = {
-  border: `1px solid ${C.line}`, borderRadius: 999, padding: '7px 12px', fontWeight: 700, fontSize: 12.5,
+  border: `1.5px solid ${C.line}`, borderRadius: 999, padding: '7px 13px', fontWeight: 700, fontSize: 12.5,
   color: C.muted2, background: '#fff', cursor: 'pointer', outline: 'none',
 };

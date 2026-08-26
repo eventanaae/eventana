@@ -1124,6 +1124,34 @@ export async function adminRoutes(app: FastifyInstance) {
       .sort((a, b) => a.month.localeCompare(b.month))
       .map((t) => ({ ...t, revenueDisplay: formatAed(t.revenueFils) }));
 
+    // Forward-looking pipeline (upcoming confirmed events + booked revenue) and
+    // the WhatsApp sales funnel — global business health, not range-filtered.
+    const [pipelineRow, funnelRow] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::int c, COALESCE(SUM(${evRevSub}),0) v
+           FROM events e WHERE e.phase <> 'Cancelled' AND e.event_date >= current_date`,
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int total,
+                COUNT(*) FILTER (WHERE status IN ('quoted','confirmed','booked'))::int quoted,
+                COUNT(*) FILTER (WHERE status = 'booked')::int booked
+           FROM whatsapp_leads`,
+      ),
+    ]);
+    const pipeline = {
+      events: Number(pipelineRow.rows[0].c),
+      revenueFils: Number(pipelineRow.rows[0].v),
+      revenueDisplay: formatAed(Number(pipelineRow.rows[0].v)),
+    };
+    const funnel = {
+      leads: Number(funnelRow.rows[0].total),
+      quoted: Number(funnelRow.rows[0].quoted),
+      booked: Number(funnelRow.rows[0].booked),
+      conversionPct: Number(funnelRow.rows[0].total) > 0
+        ? Math.round((Number(funnelRow.rows[0].booked) / Number(funnelRow.rows[0].total)) * 1000) / 10
+        : 0,
+    };
+
     const expenses = Number(expRow.rows[0].v);
     const profit = revenue - expenses;
     const refundFils = Number(refundRow.rows[0].v);
@@ -1152,9 +1180,13 @@ export async function adminRoutes(app: FastifyInstance) {
     if (Number(outstandingRow.rows[0].c) > 0) insights.push({ tone: 'warn', text: `${outstandingRow.rows[0].c} order(s) with payment not settled — AED ${formatAed(Number(outstandingRow.rows[0].v))} outstanding.` });
     insights.push({ tone: profit >= 0 ? 'good' : 'warn', text: `Net ${profit >= 0 ? 'profit' : 'loss'} of AED ${formatAed(Math.abs(profit))} (margin ${revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0}%) after AED ${formatAed(expenses)} expenses.` });
     if (custTotal > 0) insights.push({ tone: repeatRatePct >= 20 ? 'good' : 'info', text: `${repeatRatePct}% of customers have booked more than once (${repeats} of ${custTotal}).` });
+    if (pipeline.events > 0) insights.push({ tone: 'good', text: `AED ${pipeline.revenueDisplay} in the pipeline — ${pipeline.events} upcoming confirmed event(s).` });
+    if (funnel.leads > 0) insights.push({ tone: funnel.conversionPct >= 20 ? 'good' : 'info', text: `${funnel.booked} of ${funnel.leads} WhatsApp leads booked (${funnel.conversionPct}% conversion).` });
 
     return {
       from, to,
+      pipeline, funnel,
+      collectedFils: revenue, collectedDisplay: formatAed(revenue),
       filters: { emirate: q.emirate ?? null, eventType: q.eventType ?? null, packageId: q.packageId ?? null },
       revenueFils: revenue, revenueDisplay: formatAed(revenue),
       bookings, aovFils: aov, aovDisplay: formatAed(aov),
