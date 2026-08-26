@@ -21,22 +21,33 @@ export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
   | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads';
 
-type Group = 'primary' | 'more';
+type Section = 'ops' | 'sales' | 'business' | 'admin';
 
-const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string; group: Group }> = [
-  { id: 'today', label: 'Today', icon: '◉', title: 'Today', sub: 'Your day at a glance', group: 'primary' },
-  { id: 'schedule', label: 'Schedule', icon: '▦', title: 'Schedule', sub: 'Jobs, events and calendar', group: 'primary' },
-  { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Work by department', group: 'primary' },
-  { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets and reservations', group: 'primary' },
-  { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', group: 'more' },
-  { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Stock, leave, reviews and tips', group: 'more' },
-  { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', group: 'more' },
-  { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', group: 'more' },
-  { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', group: 'more' },
-  { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance — Owner view', sub: 'Revenue, expenses and profit', group: 'more' },
-  { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns', group: 'more' },
-  { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', group: 'more' },
-  { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', group: 'more' },
+// Sidebar sections, in priority order. Every view lives in exactly one section
+// so the whole app is visible and one click away on desktop, and grouped with
+// clear labels on mobile — no "lost in More".
+const SECTIONS: Array<{ id: Section; label: string }> = [
+  { id: 'ops', label: 'Operations' },
+  { id: 'sales', label: 'Sales & Customers' },
+  { id: 'business', label: 'Business' },
+  { id: 'admin', label: 'Team & Setup' },
+];
+
+// `mobile: true` marks the handful of top tabs shown in the phone bottom bar.
+const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string; section: Section; mobile?: boolean }> = [
+  { id: 'today', label: 'Today', icon: '◉', title: 'Today', sub: 'Your day at a glance', section: 'ops', mobile: true },
+  { id: 'schedule', label: 'Schedule', icon: '▦', title: 'Schedule', sub: 'Jobs, events and calendar', section: 'ops', mobile: true },
+  { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Work by department', section: 'ops', mobile: true },
+  { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets and reservations', section: 'ops' },
+  { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Stock, leave, reviews and tips', section: 'ops' },
+  { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
+  { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', section: 'sales' },
+  { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business', mobile: true },
+  { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance', sub: 'Revenue, expenses and profit', section: 'business' },
+  { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', section: 'business' },
+  { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'business' },
+  { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'admin' },
+  { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', section: 'admin' },
 ];
 
 // Which views each access level sees. The API enforces the same rules, so
@@ -95,8 +106,8 @@ export default function App() {
   const allowed = ROLE_VIEWS[role] ?? 'all';
   const isVisible = (id: View) => allowed === 'all' || allowed.includes(id);
   const visibleNav = NAV.filter((n) => isVisible(n.id));
-  const primaryNav = visibleNav.filter((n) => n.group === 'primary');
-  const moreNav = visibleNav.filter((n) => n.group === 'more');
+  const primaryNav = visibleNav.filter((n) => n.mobile);
+  const moreNav = visibleNav.filter((n) => !n.mobile);
   const canSeeAll = role !== 'driver';
 
   // If the current tab isn't allowed for this role, snap to the first that is.
@@ -201,21 +212,34 @@ export default function App() {
           <div onClick={() => setMoreOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.4)', zIndex: 15, display: 'flex', alignItems: 'flex-end' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: '#fff', borderRadius: '20px 20px 0 0', padding: '10px 14px calc(18px + env(safe-area-inset-bottom))' }}>
               <div style={{ width: 40, height: 4, borderRadius: 3, background: C.line, margin: '4px auto 12px' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {moreNav.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => go(n.id)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left', cursor: 'pointer',
-                      border: `1px solid ${view === n.id ? C.pink : C.line}`, background: view === n.id ? C.pinkSoft : '#fff',
-                      borderRadius: 14, padding: '13px 14px',
-                    }}
-                  >
-                    <span style={{ fontSize: 17 }}>{n.icon}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{n.label}</span>
-                  </button>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {SECTIONS.map((sec) => {
+                  const items = moreNav.filter((n) => n.section === sec.id);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={sec.id}>
+                      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase', color: C.muted, margin: '0 2px 6px' }}>
+                        {sec.label}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {items.map((n) => (
+                          <button
+                            key={n.id}
+                            onClick={() => go(n.id)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left', cursor: 'pointer',
+                              border: `1px solid ${view === n.id ? C.pink : C.line}`, background: view === n.id ? C.pinkSoft : '#fff',
+                              borderRadius: 14, padding: '13px 14px',
+                            }}
+                          >
+                            <span style={{ fontSize: 17 }}>{n.icon}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: view === n.id ? C.pinkDeep : C.ink }}>{n.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
                 <div style={{ width: 34, height: 34, borderRadius: '50%', background: C.pink, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flex: 'none' }}>
@@ -262,31 +286,39 @@ export default function App() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '0 10px', overflowY: 'auto' }}>
-          {visibleNav.map((n, i) => {
-            const active = view === n.id;
-            const badge = n.id === 'tasks' ? counts.tasks : n.id === 'schedule' ? counts.review : 0;
-            const firstMore = n.group === 'more' && visibleNav[i - 1]?.group === 'primary';
+          {SECTIONS.map((sec) => {
+            const items = visibleNav.filter((n) => n.section === sec.id);
+            if (items.length === 0) return null;
             return (
-              <div key={n.id}>
-                {firstMore && <div style={{ height: 1, background: C.line, margin: '8px 12px' }} />}
-                <div
-                  onClick={() => setView(n.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                    borderRadius: 12, cursor: 'pointer',
-                    background: active ? C.pinkSoft : 'transparent',
-                  }}
-                >
-                  <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{n.icon}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 600, color: active ? C.pinkDeep : C.muted2 }}>
-                    {n.label}
-                  </span>
-                  {badge > 0 && (
-                    <span style={{ background: n.id === 'schedule' ? C.red : C.pink, color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 9 }}>
-                      {badge}
-                    </span>
-                  )}
+              <div key={sec.id} style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: C.muted, padding: '10px 12px 4px' }}>
+                  {sec.label}
                 </div>
+                {items.map((n) => {
+                  const active = view === n.id;
+                  const badge = n.id === 'tasks' ? counts.tasks : n.id === 'schedule' ? counts.review : 0;
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => setView(n.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                        borderRadius: 12, cursor: 'pointer',
+                        background: active ? C.pinkSoft : 'transparent',
+                      }}
+                    >
+                      <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{n.icon}</span>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 600, color: active ? C.pinkDeep : C.muted2 }}>
+                        {n.label}
+                      </span>
+                      {badge > 0 && (
+                        <span style={{ background: n.id === 'schedule' ? C.red : C.pink, color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 9 }}>
+                          {badge}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
