@@ -1,8 +1,10 @@
 import type { PoolClient } from 'pg';
-import { pool } from '../db/pool.js';
+import { randomBytes } from 'node:crypto';
+import { pool, withTransaction } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 import { renderFinanceDocEmail } from './notify.js';
+import { nextOrderId, nextEventId } from './orders.js';
 
 /**
  * The dashboard's simple QuickBooks-style finance module: customers, items,
@@ -171,6 +173,9 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
      VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
     [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null],
   );
+  // An upcoming sale becomes an operational event automatically, so it shows on
+  // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.
+  void ensureEventForReceipt(rows[0].id).catch(() => {});
   return decorateReceipt(rows[0]);
 }
 
@@ -292,6 +297,108 @@ export async function recordSaleFromOrder(
     // sale and let the confirmation carry on.
     await db.query('ROLLBACK TO SAVEPOINT fin_sale').catch(() => {});
   }
+}
+
+/**
+ * Turn a sale into an operational Event so it shows on the schedule/board.
+ *
+ * Only for a receipt dated today or later (an upcoming booking) that isn't
+ * already linked to an event. Builds the customer + a booking order (tagged
+ * source 'converted' so it never double-counts against CEO revenue — the money
+ * already lives in the receipt) + the event + its booked-item lines. Location &
+ * exact time start as placeholders the team completes on the job. Idempotent.
+ * Returns the new event id, or null when nothing was created.
+ */
+export async function ensureEventForReceipt(receiptId: number): Promise<string | null> {
+  const { rows } = await pool.query(
+    `SELECT r.*, hc.phone AS hc_phone, hc.email AS hc_email, hc.emirate AS hc_emirate
+       FROM finance_receipts r
+       LEFT JOIN historical_customers hc
+         ON hc.id = r.customer_id OR (r.customer_id IS NULL AND lower(hc.full_name) = lower(r.customer_name))
+      WHERE r.id = $1`,
+    [receiptId],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  if (r.event_id) return r.event_id; // already converted
+  const dateStr = r.date ? String(r.date).slice(0, 10) : null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (!dateStr || dateStr < today) return null; // only upcoming sales become events
+
+  return withTransaction(async (db) => {
+    // Customer in the app customers table (find by phone/name, else create).
+    const phone = String(r.hc_phone ?? '').trim() || '00000000';
+    const name = String(r.customer_name ?? 'Customer').trim() || 'Customer';
+    const email = r.hc_email ?? null;
+    let customerId: string;
+    const found = await db.query(
+      `SELECT id FROM customers WHERE (phone = $1 AND phone <> '00000000') OR lower(name) = lower($2) LIMIT 1`,
+      [phone, name],
+    );
+    if (found.rows[0]) customerId = found.rows[0].id;
+    else {
+      customerId = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
+      await db.query(`INSERT INTO customers (id, name, phone, email) VALUES ($1,$2,$3,$4)`, [customerId, name, phone, email]);
+    }
+
+    // Best-effort match of package + theme from the sale.
+    const items = Array.isArray(r.line_items) ? r.line_items : [];
+    let packageId: string | null = null;
+    for (const it of items) {
+      const pk = await db.query(`SELECT id FROM packages WHERE lower(name) = lower($1) LIMIT 1`, [String(it.name ?? '')]);
+      if (pk.rows[0]) { packageId = pk.rows[0].id; break; }
+    }
+    let themeId: string | null = null;
+    if (r.theme) {
+      const th = await db.query(`SELECT id FROM themes WHERE lower(name) = lower($1) LIMIT 1`, [String(r.theme)]);
+      themeId = th.rows[0]?.id ?? null;
+    }
+    const emirate = String(r.city ?? r.hc_emirate ?? 'Dubai').trim() || 'Dubai';
+    const total = Number(r.total_fils) || 0;
+
+    const orderId = await nextOrderId(db);
+    await db.query(
+      `INSERT INTO orders (id, kind, customer_id, status, total_fils, cart, quote, source)
+       VALUES ($1,'booking',$2,'paid',$3,$4,'{}'::jsonb,'converted')`,
+      [orderId, customerId, total, JSON.stringify({ converted: true, eventDate: dateStr, emirate, eventFor: r.event_for ?? null, themeId })],
+    );
+
+    const eventId = await nextEventId(db);
+    await db.query(
+      `INSERT INTO events
+         (id, order_id, customer_id, celebration_type, package_id, theme_id, custom_theme,
+          event_date, start_time, base_end_time, extra_hours, children_count, emirate,
+          address, map_lat, map_lng, phase)
+       VALUES ($1,$2,$3,'kids',$4,$5,false,$6,'17:00','21:00',0,0,$7,'{}'::jsonb,0,0,'Booking Confirmed')`,
+      [eventId, orderId, customerId, packageId, themeId, dateStr, emirate],
+    );
+
+    // Booked items → event_services so the job shows what's going out.
+    for (const it of items) {
+      await db.query(
+        `INSERT INTO event_services (event_id, service_id, label, quantity, amount_fils, source, order_id)
+         VALUES ($1,NULL,$2,$3,$4,'converted',$5)`,
+        [eventId, String(it.name ?? 'Item').slice(0, 200), Number(it.qty ?? 1) || 1, Number(it.priceFils ?? 0), orderId],
+      );
+    }
+    await db.query(`UPDATE finance_receipts SET event_id = $2 WHERE id = $1`, [receiptId, eventId]);
+    return eventId;
+  }).catch(() => null);
+}
+
+/** One-time (and safe to re-run): convert every upcoming sale that has no event yet. */
+export async function convertUpcomingReceiptsToEvents(): Promise<{ created: string[]; considered: number }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { rows } = await pool.query(
+    `SELECT id FROM finance_receipts WHERE event_id IS NULL AND date >= $1 ORDER BY date`,
+    [today],
+  );
+  const created: string[] = [];
+  for (const row of rows) {
+    const ev = await ensureEventForReceipt(row.id);
+    if (ev) created.push(ev);
+  }
+  return { created, considered: rows.length };
 }
 
 /**

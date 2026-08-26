@@ -820,6 +820,9 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAU
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_for TEXT;
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS theme TEXT;
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS age TEXT;
+-- When an upcoming sale is turned into an operational event, we link it here so
+-- it is never converted twice.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_id TEXT;
 -- Link back to the source order so every paid order (web / app / shop / manual
 -- pay-link) auto-appears here as a sale exactly once. Partial-unique so manual
 -- dashboard receipts (no order) are unaffected.

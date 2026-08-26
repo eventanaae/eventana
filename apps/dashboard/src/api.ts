@@ -341,6 +341,8 @@ export const api = {
   finCreateReceipt: (body: Record<string, unknown>) => request<any>('/api/admin/finance/receipts', { method: 'POST', body: JSON.stringify(body) }),
   finDeleteReceipt: (id: number) => request<any>(`/api/admin/finance/receipts/${id}`, { method: 'DELETE' }),
   finAccounting: () => request<any>('/api/admin/finance/accounting'),
+  finConvertUpcoming: () =>
+    request<{ created: string[]; considered: number }>('/api/admin/finance/convert-upcoming', { method: 'POST' }),
   finImportHistory: () => request<{ receipts: number; groups: number }>('/api/admin/finance/import-history', { method: 'POST' }),
   finAttribute: (map: Record<string, string>) => request<{ updated: number }>('/api/admin/finance/attribute', { method: 'POST', body: JSON.stringify({ map }) }),
 

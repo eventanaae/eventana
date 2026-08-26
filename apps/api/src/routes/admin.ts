@@ -199,9 +199,9 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(
         `SELECT
            (SELECT count(*)::int FROM events WHERE event_date = CURRENT_DATE) AS events_today,
-           (SELECT count(*)::int FROM orders WHERE status = 'paid'
+           (SELECT count(*)::int FROM orders WHERE status = 'paid' AND source IS DISTINCT FROM 'converted'
               AND created_at >= date_trunc('month', now())) AS bookings_month,
-           (SELECT COALESCE(sum(total_fils),0)::bigint FROM orders WHERE status = 'paid'
+           (SELECT COALESCE(sum(total_fils),0)::bigint FROM orders WHERE status = 'paid' AND source IS DISTINCT FROM 'converted'
               AND created_at >= date_trunc('month', now())) AS revenue_month,
            (SELECT count(*)::int FROM event_tasks WHERE status = 'open') AS open_tasks,
            (SELECT count(*)::int FROM orders WHERE status = 'needs_review') AS needs_review,
@@ -1293,6 +1293,9 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get('/api/admin/finance/accounting', async () => finance.accountingSummary());
   app.post('/api/admin/finance/import-history', async () => finance.importReceiptsFromHistory());
+  // One-time (safe to re-run): turn every upcoming sale that has no event yet
+  // into an operational event so it appears on the schedule/board.
+  app.post('/api/admin/finance/convert-upcoming', async () => finance.convertUpcomingReceiptsToEvents());
   // Attribute customer names to receipts/orders from a { docNumber: name } map
   // (rebuilt in the browser from the Sales-by-Customer report). Fixes the sales
   // whose customer grouping was lost on the first import.
@@ -1343,7 +1346,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const [rev, exp, byCat, tipsRow, revTrend, expTrend] = await Promise.all([
       pool.query(
         `SELECT COALESCE(SUM(total_fils),0) AS v FROM orders
-          WHERE status='paid' AND kind IN ('booking','addon')
+          WHERE status='paid' AND kind IN ('booking','addon') AND source IS DISTINCT FROM 'converted'
             AND created_at >= $1 AND created_at < $2`,
         [start, end],
       ),
@@ -1360,7 +1363,7 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
       pool.query(
         `SELECT to_char(date_trunc('month', created_at),'YYYY-MM') AS m, SUM(total_fils) AS v
-           FROM orders WHERE status='paid' AND kind IN ('booking','addon') AND created_at >= $1
+           FROM orders WHERE status='paid' AND kind IN ('booking','addon') AND source IS DISTINCT FROM 'converted' AND created_at >= $1
           GROUP BY 1`,
         [sixStart],
       ),
@@ -1655,7 +1658,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     // Per-event revenue (booking order + its addons), with dimensions.
     const evRevSub = `(SELECT COALESCE(SUM(o.total_fils),0) FROM orders o
-        WHERE o.status='paid' AND o.kind IN ('booking','addon')
+        WHERE o.status='paid' AND o.kind IN ('booking','addon') AND o.source IS DISTINCT FROM 'converted'
           AND (o.id = e.order_id OR o.event_id = e.id))`;
 
     // Previous equal-length window for period comparison.
