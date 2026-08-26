@@ -56,7 +56,7 @@ export function normalizeEmirate(raw: string | null | undefined): string | null 
  */
 export async function normalizeAllEmirates(): Promise<{ tables: Record<string, number>; canonical: string[] }> {
   const tables: Record<string, number> = {};
-  for (const [table, col] of [['historical_customers', 'emirate'], ['customers', 'emirate'], ['events', 'emirate']] as const) {
+  for (const [table, col] of [['historical_customers', 'emirate'], ['events', 'emirate']] as const) {
     const { rows } = await pool.query<{ id: string; v: string }>(
       `SELECT id, ${col} AS v FROM ${table} WHERE ${col} IS NOT NULL AND ${col} <> ''`,
     );
