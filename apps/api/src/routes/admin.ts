@@ -1443,6 +1443,84 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /**
+   * Enrichment read: every unpaid/pending manual order with the booking details
+   * that live inside its cart (celebration type, theme, and the guest-of-honour
+   * name the customer normally fills at pay time). Used to back-fill data we
+   * already know from WhatsApp so notifications render the full template. Also
+   * returns the theme list (id ↔ name) so a theme name can be mapped to its id.
+   */
+  app.get('/api/admin/orders/pending-details', async () => {
+    const [orders, themes] = await Promise.all([
+      pool.query(
+        `SELECT o.id, o.status, o.created_at, c.name AS customer, c.phone,
+                to_char((o.cart->>'eventDate')::date,'YYYY-MM-DD') AS event_date,
+                o.cart->>'startTime'       AS start_time,
+                o.cart->>'emirate'         AS emirate,
+                o.cart->>'celebrationType' AS celebration_type,
+                o.cart->>'themeId'         AS theme_id,
+                o.cart->>'eventFor'        AS event_for,
+                o.cart->>'packageId'       AS package_id,
+                (o.cart->>'customTheme')::boolean AS custom_theme
+           FROM orders o JOIN customers c ON c.id = o.customer_id
+          WHERE o.status IN ('awaiting_payment','processing','needs_review')
+          ORDER BY (o.cart->>'eventDate')::date NULLS LAST`,
+      ),
+      pool.query(`SELECT id, name, celebration_type, active FROM themes ORDER BY name`),
+    ]);
+    return { orders: orders.rows, themes: themes.rows };
+  });
+
+  /**
+   * Back-fill booking details onto an unpaid order's cart. Only three fields —
+   * celebration type, theme, and guest-of-honour name — and only while the order
+   * is still pending (never rewrite a paid booking here). Every change is audited.
+   */
+  app.patch('/api/admin/orders/:orderId/details', async (request, reply) => {
+    const { orderId } = request.params as { orderId: string };
+    const schema = z.object({
+      celebrationType: z.string().min(1).max(40).optional(),
+      themeId: z.string().min(1).max(80).nullable().optional(),
+      eventFor: z.string().min(1).max(120).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    if (Object.keys(parsed.data).length === 0) return reply.status(400).send({ error: 'nothing_to_update' });
+
+    const { rows } = await pool.query(`SELECT cart, status FROM orders WHERE id = $1`, [orderId]);
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    if (!['awaiting_payment', 'processing', 'needs_review'].includes(rows[0].status)) {
+      return reply.status(409).send({ error: 'not_editable', status: rows[0].status });
+    }
+    const before = (rows[0].cart ?? {}) as Record<string, unknown>;
+    const cart = { ...before };
+    const p = parsed.data;
+    if (p.celebrationType !== undefined) cart.celebrationType = p.celebrationType;
+    if (p.themeId !== undefined) cart.themeId = p.themeId;
+    if (p.eventFor !== undefined) cart.eventFor = p.eventFor;
+    await pool.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [orderId, cart]);
+    await pool.query(
+      `INSERT INTO payment_events (order_id, provider, new_status, source, note, payload)
+       VALUES ($1,'system','details_enriched','admin',$2,$3)`,
+      [
+        orderId,
+        `Booking details back-filled by ${String((request as any).staff?.name ?? 'Manager')}`,
+        JSON.stringify({
+          celebrationType: { from: before.celebrationType ?? null, to: cart.celebrationType ?? null },
+          themeId: { from: before.themeId ?? null, to: cart.themeId ?? null },
+          eventFor: { from: before.eventFor ?? null, to: cart.eventFor ?? null },
+        }),
+      ],
+    ).catch(() => {});
+    return {
+      ok: true,
+      id: orderId,
+      celebrationType: cart.celebrationType ?? null,
+      themeId: cart.themeId ?? null,
+      eventFor: cart.eventFor ?? null,
+    };
+  });
+
+  /**
    * CEO executive dashboard — decision-support analytics over an event-date
    * range with optional filters (emirate, event type, package). Revenue is
    * every paid booking/addon order tied to an event in range; expenses are by
