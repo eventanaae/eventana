@@ -2145,7 +2145,7 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char(now(),'MM-DD')`),
       pool.query(`SELECT c.name, SUM(o.total_fils)::bigint v, COUNT(*)::int n
                     FROM orders o JOIN customers c ON c.id=o.customer_id
-                   WHERE o.status='paid' AND o.kind IN ('booking','addon') AND o.source IS DISTINCT FROM 'converted'
+                   WHERE o.status='paid' AND o.kind IN ('booking','addon')
                    GROUP BY c.id,c.name ORDER BY v DESC LIMIT 5`),
       pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>=$1 AND e.event_date<=$2`, [yearStartS, todayS]),
       pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>$1 AND e.event_date<$2`, [todayS, yearEndS]),
@@ -2188,9 +2188,12 @@ export async function adminRoutes(app: FastifyInstance) {
     const birthdays = bdayRes.rows.map((r: any) => r.name);
     const topCustomers = topCustRes.rows.map((r: any) => ({ name: r.name, revenueFils: Number(r.v), revenueDisplay: formatAed(Number(r.v)), orders: Number(r.n) }));
 
-    // Year-end forecast (estimate). Blends year-to-date run-rate with already-
-    // booked future revenue this year; net applies the current company margin.
-    const ytdRevenue = Number(ytdRes.rows[0].v);
+    // Year-end forecast (estimate). Uses the REAL year-to-date revenue from the
+    // QuickBooks 2026 P&L (the app itself only holds future-dated bookings, so
+    // its event-date revenue understates YTD), blended with already-booked
+    // future revenue; net applies the current company margin.
+    const histYtd = business?.latestYear?.revenueFils ?? 0;
+    const ytdRevenue = histYtd > 0 ? histYtd : Number(ytdRes.rows[0].v);
     const bookedFuture = Number(bookedFutureRes.rows[0].v);
     const dayOfYear = Math.max(1, Math.floor((now.getTime() - Date.UTC(nowY, 0, 1)) / 86_400_000) + 1);
     const daysRemaining = Math.max(0, 365 - dayOfYear);
