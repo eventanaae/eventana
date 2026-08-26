@@ -836,7 +836,7 @@ export async function createSessionForOrder(orderId: string): Promise<{
     customer,
     items: quote.lines
       .filter((l) => l.kind !== 'discount' && l.kind !== 'delivery')
-      .map((l) => ({ title: l.label, quantity: l.quantity, unitPriceFils: l.unitFils, referenceId: l.refId ?? undefined, category: 'events' })),
+      .map((l) => ({ title: l.label, quantity: l.quantity, unitPriceFils: l.unitFils, referenceId: l.refId, category: 'events' as const })),
     shippingFils: quote.deliveryFils ?? 0,
     discountFils: quote.discountFils ?? 0,
     city: String(cart.emirate ?? ''),
