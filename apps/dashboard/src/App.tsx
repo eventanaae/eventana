@@ -10,7 +10,7 @@ import { Tasks } from './views/Tasks';
 import { Team } from './views/Team';
 import { Kpis } from './views/Kpis';
 import { Alerts } from './views/Alerts';
-import { Finance } from './views/Finance';
+import { FinanceHub } from './views/FinanceHub';
 import { Financials } from './views/Financials';
 import { Ceo } from './views/Ceo';
 import { NewOrder } from './views/NewOrder';
@@ -46,8 +46,8 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
   { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', section: 'sales' },
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business', mobile: true },
-  { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance', sub: 'Revenue, expenses and profit', section: 'business' },
-  { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (QuickBooks)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
+  { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance', sub: 'Invoices, receipts, expenses & accounts', section: 'business' },
+  { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (P&L)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
   { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', section: 'business' },
   { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'business' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'admin' },
@@ -149,7 +149,7 @@ export default function App() {
       {view === 'team' && <Team role={role} />}
       {view === 'kpis' && <Kpis />}
       {view === 'ceo' && <Ceo />}
-      {view === 'finance' && <Finance />}
+      {view === 'finance' && <FinanceHub />}
       {view === 'financials' && <Financials />}
       {view === 'marketing' && <Marketing />}
       {view === 'shop' && <ShopOrders />}

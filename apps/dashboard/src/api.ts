@@ -279,6 +279,18 @@ export const api = {
   deleteExpense: (id: number) =>
     request<any>(`/api/admin/expenses/${id}`, { method: 'DELETE' }),
 
+  // ── Finance module ──
+  finCustomers: (q?: string) => request<any[]>(`/api/admin/finance/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  finAddCustomer: (body: Record<string, unknown>) => request<any>('/api/admin/finance/customers', { method: 'POST', body: JSON.stringify(body) }),
+  finItems: () => request<Array<{ name: string; priceFils: number; kind: string }>>('/api/admin/finance/items'),
+  finInvoices: () => request<any>('/api/admin/finance/invoices'),
+  finCreateInvoice: (body: Record<string, unknown>) => request<any>('/api/admin/finance/invoices', { method: 'POST', body: JSON.stringify(body) }),
+  finSetInvoiceStatus: (id: number, status: string) => request<any>(`/api/admin/finance/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  finReceipts: () => request<any>('/api/admin/finance/receipts'),
+  finCreateReceipt: (body: Record<string, unknown>) => request<any>('/api/admin/finance/receipts', { method: 'POST', body: JSON.stringify(body) }),
+  finDeleteReceipt: (id: number) => request<any>(`/api/admin/finance/receipts/${id}`, { method: 'DELETE' }),
+  finAccounting: () => request<any>('/api/admin/finance/accounting'),
+
   financials: () => request<any>('/api/admin/financials'),
   saveFinancials: (body: {
     period: string;
