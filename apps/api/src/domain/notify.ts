@@ -230,6 +230,56 @@ function longDate(value: unknown): string {
 
 const cap = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+/**
+ * A sales receipt / invoice email in the SAME branded design as the booking
+ * emails (logo, rainbow strip, itemised invoice table, pill CTA) — used by the
+ * Finance module's "Email" action so what the customer gets matches the samples.
+ */
+export function renderFinanceDocEmail(
+  doc: {
+    number: string; customer_name?: string | null; date?: unknown; issue_date?: unknown; due_date?: unknown;
+    lineItems?: Array<{ name: string; qty: number; priceFils: number }>;
+    discount_fils?: number; shipping_fils?: number; total_fils: number; message?: string | null;
+  },
+  kind: 'receipt' | 'invoice',
+): { subject: string; html: string } {
+  const first = cap(String(doc.customer_name ?? 'there').trim().split(/\s+/)[0] || 'there');
+  const lines = (doc.lineItems ?? []).map((l) => ({ label: l.name, quantity: Number(l.qty), amountFils: Math.round(Number(l.qty) * Number(l.priceFils)) }));
+  if (Number(doc.discount_fils) > 0) lines.push({ label: 'Discount', quantity: 1, amountFils: -Number(doc.discount_fils) });
+  if (Number(doc.shipping_fils) > 0) lines.push({ label: 'Shipping & delivery', quantity: 1, amountFils: Number(doc.shipping_fils) });
+
+  const detailRows: Array<[string, string]> = [
+    [kind === 'receipt' ? 'Receipt no.' : 'Invoice no.', `#${doc.number}`],
+    ['Date', longDate(doc.date ?? doc.issue_date)],
+  ];
+  if (kind === 'receipt') detailRows.push(['Status', 'Paid ✓']);
+  else if (doc.due_date) detailRows.push(['Payment due', longDate(doc.due_date)]);
+
+  const intro = kind === 'receipt'
+    ? `Thank you so much! Here's your receipt for your celebration with Eventana. 💛`
+    : `Here's your invoice — we can't wait to celebrate with you! 🎀`;
+  const body =
+    `<p style="margin:0 0 8px;font-size:15px;line-height:1.6">${intro}</p>` +
+    detailCard(detailRows) +
+    `<div style="margin:20px 0 4px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${MUTED}">${kind === 'receipt' ? 'Receipt' : 'Invoice'}</div>` +
+    invoiceTable(lines, Number(doc.total_fils)) +
+    (doc.message ? `<p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:${INK}">${doc.message}</p>` : '') +
+    termsNote();
+
+  const appBase = (config.publicAppUrl || '').replace(/\/$/, '');
+  const cta = appBase ? { href: appBase, label: 'Open in the App' } : undefined;
+  const html = shell({
+    first,
+    emoji: kind === 'receipt' ? '🧾' : '🎀',
+    eyebrow: kind === 'receipt' ? 'Sales Receipt' : 'Invoice',
+    heading: kind === 'receipt' ? 'Your receipt is ready' : 'Here’s your invoice',
+    bodyHtml: body,
+    cta,
+  });
+  const subject = kind === 'receipt' ? `Your Eventana receipt #${doc.number} 🎉` : `Invoice #${doc.number} from Eventana`;
+  return { subject, html };
+}
+
 export function renderEmail(row: EmailRow): { subject: string; html: string } | null {
   // Two distinct people: the booker we greet, and the guest of honour the
   // celebration is for. Plus the event type (Birthday, Gender Reveal, …).

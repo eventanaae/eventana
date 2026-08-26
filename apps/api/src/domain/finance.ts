@@ -1,6 +1,7 @@
 import { pool } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
+import { renderFinanceDocEmail } from './notify.js';
 
 /**
  * The dashboard's simple QuickBooks-style finance module: customers, items,
@@ -255,8 +256,8 @@ export async function emailDoc(kind: 'receipt' | 'invoice', id: number): Promise
   );
   const to = em.rows[0]?.email;
   if (!to) return { sent: false, reason: 'no_email' };
-  const subject = kind === 'receipt' ? `Your Eventana receipt ${doc.number}` : `Invoice ${doc.number} from Eventana`;
-  await sendEmail({ to, subject, html: renderDocHtml(doc, kind) });
+  const { subject, html } = renderFinanceDocEmail(doc, kind);
+  await sendEmail({ to, subject, html });
   return { sent: true, to };
 }
 
