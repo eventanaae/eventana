@@ -140,11 +140,45 @@ export function Financials() {
         </div>
       </Panel>
 
+      <ProfitByYear />
       <RevenueByYear />
       <AddYear onSaved={load} />
       <MigrationPanel />
       <PackageMerge />
     </div>
+  );
+}
+
+/** Profit per year: invoice revenue − imported expenses. */
+function ProfitByYear() {
+  const [data, setData] = useState<any[] | null>(null);
+  useEffect(() => { api.pnlByYear().then(setData).catch(() => setData([])); }, []);
+  if (!data || data.length === 0) return null;
+  const anyExpenses = data.some((d) => d.hasExpenses);
+  return (
+    <Panel title="Profit by year — revenue minus expenses">
+      {!anyExpenses && (
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.yellowInk, background: C.yellowSoft, border: '1px solid #f0dca8', borderRadius: 12, padding: '10px 12px', marginBottom: 12 }}>
+          Upload an expense report (Expenses tile below) to fill in expenses and see profit per year.
+        </div>
+      )}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+          <thead><tr><ColH>Year</ColH><ColH right>Revenue</ColH><ColH right>Expenses</ColH><ColH right>Profit</ColH><ColH right>Margin</ColH></tr></thead>
+          <tbody>
+            {data.map((d) => (
+              <tr key={d.year}>
+                <Cell><span style={{ ...fredoka(14), color: C.ink }}>{d.year}</span></Cell>
+                <Cell right>AED {d.revenueDisplay}</Cell>
+                <Cell right>{d.hasExpenses ? `AED ${d.expensesDisplay}` : <span style={{ color: C.muted }}>—</span>}</Cell>
+                <Cell right>{d.hasExpenses ? <span style={{ fontWeight: 800, color: d.profitFils < 0 ? C.red : C.green }}>AED {d.profitDisplay}</span> : <span style={{ color: C.muted }}>—</span>}</Cell>
+                <Cell right>{d.hasExpenses ? `${d.marginPct}%` : <span style={{ color: C.muted }}>—</span>}</Cell>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
   );
 }
 
@@ -273,7 +307,7 @@ function MigrationPanel() {
   const refresh = () => api.importStatus().then(setStatus).catch(() => {});
   useEffect(() => { refresh(); }, []);
 
-  const onFile = async (kind: 'customers' | 'orders', file: File | undefined) => {
+  const onFile = async (kind: 'customers' | 'orders' | 'expenses', file: File | undefined) => {
     if (!file) return;
     setBusy(true); setErr(null); setMsg(null);
     try {
@@ -294,6 +328,29 @@ function MigrationPanel() {
           return o;
         });
       if (rows.length === 0) { setErr('No data rows found in that file.'); return; }
+      // Expenses: sum each line's amount by year (every expense report is a list
+      // of dated line items). Skip group/subtotal rows (no date). Store per-year
+      // totals — that's all the profit calculation needs.
+      if (kind === 'expenses') {
+        const isDate = (s: string) => /^\d{1,2}\/\d{1,2}\/\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(s);
+        const toFils = (v: any) => Math.round((Number(String(v ?? '').replace(/[^\d.-]/g, '')) || 0) * 100);
+        const byYear: Record<string, number> = {};
+        let lines = 0;
+        for (const o of rows) {
+          const d = String(o['Transaction date'] ?? o['Date'] ?? '').trim();
+          if (!isDate(d)) continue;
+          const year = d.includes('/') ? d.split('/')[2] : d.slice(0, 4);
+          byYear[year] = (byYear[year] ?? 0) + toFils(o['Amount'] ?? o['Total'] ?? '');
+          lines += 1;
+        }
+        // Expenses are costs — store the magnitude per year.
+        for (const y of Object.keys(byYear)) byYear[y] = Math.abs(byYear[y]);
+        if (lines === 0) { setErr('No dated expense lines found in that file.'); return; }
+        const res = await api.saveExpensesByYear(byYear);
+        setMsg(`Saved expenses for ${res.saved} year(s) (${lines} lines) from “${file.name}”.`);
+        refresh();
+        return;
+      }
       // "Sales by Customer Detail" is grouped: a bare customer-name row, then its
       // line items, then a "Total for …" row. Stamp each line with its customer
       // here (before batching) so a batch boundary can never split a group.
@@ -348,8 +405,10 @@ function MigrationPanel() {
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
         <UploadTile label="Customers" hint="Customer Contact List → Export to Excel" disabled={busy}
           onPick={(f) => onFile('customers', f)} />
-        <UploadTile label="Invoices" hint="Sales/Invoice list → Export to Excel" disabled={busy}
+        <UploadTile label="Invoices" hint="Sales by Customer Detail → Export as CSV" disabled={busy}
           onPick={(f) => onFile('orders', f)} />
+        <UploadTile label="Expenses" hint="An expense report (by year) → Export as CSV" disabled={busy}
+          onPick={(f) => onFile('expenses', f)} />
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
         <Button tone="ghost" onClick={refresh} disabled={busy}>Refresh counts</Button>

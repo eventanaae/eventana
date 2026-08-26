@@ -294,6 +294,12 @@ export const api = {
 
   importRows: (kind: 'customers' | 'orders', rows: any[]) =>
     request<{ inserted: number }>('/api/admin/import/rows', { method: 'POST', body: JSON.stringify({ kind, rows }) }),
+  saveExpensesByYear: (byYear: Record<string, number>) =>
+    request<{ saved: number }>('/api/admin/import/expenses', { method: 'POST', body: JSON.stringify({ byYear }) }),
+  pnlByYear: () =>
+    request<Array<{ year: number; revenueFils: number; revenueDisplay: string; expensesFils: number; expensesDisplay: string; profitFils: number; profitDisplay: string; marginPct: number; hasExpenses: boolean }>>(
+      '/api/admin/import/pnl-by-year',
+    ),
   revenueByYear: () =>
     request<Array<{ year: number; invoices: number; lines: number; revenueFils: number; revenueDisplay: string; discountFils: number; discountDisplay: string }>>(
       '/api/admin/import/revenue-by-year',

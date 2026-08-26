@@ -1117,6 +1117,60 @@ export async function adminRoutes(app: FastifyInstance) {
     }));
   });
 
+  // Save total expenses per year (summed on the client from a QuickBooks
+  // expense report). { byYear: { "2023": fils, ... } }.
+  app.post('/api/admin/import/expenses', async (request, reply) => {
+    const schema = z.object({ byYear: z.record(z.number().int().min(0)) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    let saved = 0;
+    for (const [y, fils] of Object.entries(parsed.data.byYear)) {
+      const year = Number(y);
+      if (!Number.isInteger(year) || year < 2000 || year > 2100) continue;
+      await pool.query(
+        `INSERT INTO expense_years (year, expenses_fils, updated_at) VALUES ($1,$2, now())
+         ON CONFLICT (year) DO UPDATE SET expenses_fils = EXCLUDED.expenses_fils, updated_at = now()`,
+        [year, fils],
+      );
+      saved += 1;
+    }
+    return { saved };
+  });
+
+  // Profit & loss per year: revenue from the imported invoices, expenses from
+  // expense_years, and the derived profit + margin. This is the "no manual
+  // entry" P&L the owner asked for.
+  app.get('/api/admin/import/pnl-by-year', async () => {
+    const { rows } = await pool.query(
+      `SELECT y.year,
+              coalesce(r.revenue_fils, 0)::bigint AS revenue_fils,
+              coalesce(e.expenses_fils, 0)::bigint AS expenses_fils
+         FROM (
+                SELECT DISTINCT extract(year FROM txn_date)::int AS year FROM historical_orders WHERE txn_date IS NOT NULL
+                UNION SELECT year FROM expense_years
+              ) y
+         LEFT JOIN (
+                SELECT extract(year FROM txn_date)::int AS year, sum(total_fils) AS revenue_fils
+                  FROM historical_orders WHERE txn_date IS NOT NULL GROUP BY 1
+              ) r ON r.year = y.year
+         LEFT JOIN expense_years e ON e.year = y.year
+        ORDER BY y.year`,
+    );
+    return rows.map((r) => {
+      const revenue = Number(r.revenue_fils);
+      const expenses = Number(r.expenses_fils);
+      const profit = revenue - expenses;
+      return {
+        year: r.year,
+        revenueFils: revenue, revenueDisplay: formatAed(revenue),
+        expensesFils: expenses, expensesDisplay: formatAed(expenses),
+        profitFils: profit, profitDisplay: formatAed(profit),
+        marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
+        hasExpenses: expenses > 0,
+      };
+    });
+  });
+
   app.get('/api/admin/import/status', async () => {
     const cust = await pool.query(
       `SELECT count(*)::int AS n, count(email)::int AS with_email, count(DISTINCT emirate)::int AS emirates FROM historical_customers`,

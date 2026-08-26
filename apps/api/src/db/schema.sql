@@ -766,6 +766,15 @@ CREATE TABLE IF NOT EXISTS historical_orders (
 CREATE UNIQUE INDEX IF NOT EXISTS historical_orders_dedupe_idx ON historical_orders (dedupe_key);
 CREATE INDEX IF NOT EXISTS historical_orders_date_idx ON historical_orders (txn_date);
 
+-- Total expenses per year, summed from a QuickBooks expense report on import.
+-- Kept apart from the invoice income so the dashboard can compute real profit
+-- per year = (revenue from invoices) − (expenses here), for every year we have.
+CREATE TABLE IF NOT EXISTS expense_years (
+  year          INT PRIMARY KEY,
+  expenses_fils BIGINT NOT NULL DEFAULT 0,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Seed: FY2026 year-to-date (Jan 1 – Aug 26 2026), taken straight from the
 -- owner's QuickBooks "Profit and Loss by Month" report. ON CONFLICT DO NOTHING
 -- so a later dashboard edit (or a full-year restate) is never clobbered on boot.
