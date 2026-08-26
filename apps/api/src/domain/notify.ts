@@ -309,6 +309,18 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           cta: track ? { href: track, label: 'View your booking →' } : undefined,
         }),
       };
+    case 'feedback_request':
+      return {
+        subject: honour ? `How was ${honour}'s celebration? ⭐` : 'How was your Eventana celebration? ⭐',
+        html: shell({
+          first,
+          emoji: '⭐',
+          eyebrow: 'We would love your feedback',
+          heading: honour ? `How was ${honour}'s big day?` : 'How was your celebration?',
+          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">We hope everyone had the most wonderful time! 💕 Your feedback means the world to us and helps us make every Eventana celebration even better. It only takes a minute:</p>`,
+          cta: track ? { href: track, label: 'Leave your feedback →' } : undefined,
+        }),
+      };
     case 'event_cancelled':
       return {
         subject: 'Your Eventana booking was cancelled',
