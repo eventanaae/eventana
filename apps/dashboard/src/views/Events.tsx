@@ -595,14 +595,27 @@ function StaffingPanel({ eventId }: { eventId: string }) {
   const [busy, setBusy] = useState(false);
   const [names, setNames] = useState<Record<string, string>>({});
   const [openOverride, setOpenOverride] = useState<string | null>(null);
+  const [manual, setManual] = useState<any[]>([]);
 
   const load = async () => {
-    setPlan(await api.staffingPlan(eventId).catch(() => []));
+    const [p, m] = await Promise.all([
+      api.staffingPlan(eventId).catch(() => []),
+      api.staffingRequirements(eventId).catch(() => []),
+    ]);
+    setPlan(p);
+    setManual(m);
   };
   useEffect(() => {
     load();
     api.staffingCrew().then(setCrew).catch(() => setCrew([]));
   }, [eventId]);
+
+  const manualCount = (role: string) => Number(manual.find((x) => x.role === role)?.count ?? 0);
+  const addRole = async (role: string, delta: number) => {
+    setBusy(true);
+    try { setPlan(await api.setStaffingRequirement(eventId, role, Math.max(0, manualCount(role) + delta))); await load(); }
+    finally { setBusy(false); }
+  };
 
   const leader = (plan ?? []).find((s) => s.is_leader);
   const slots = (plan ?? []).filter((s) => !s.is_leader);
@@ -706,6 +719,33 @@ function StaffingPanel({ eventId }: { eventId: string }) {
           <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
             Internal crew is assigned automatically by skill, availability and fairness. The customer
             never sees “part-time” — only confirmed names or “to be confirmed”.
+          </div>
+        </div>
+      )}
+
+      {/* Manual roles — for events the engine can't read (e.g. a custom offer). */}
+      {plan !== null && (
+        <div style={{ borderTop: `1px dashed ${C.line}`, marginTop: 12, paddingTop: 10 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.4px', marginBottom: 7 }}>➕ ADD A ROLE MANUALLY</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {([['balloon_artist', '🎈 Balloon'], ['clown', '🤡 Clown'], ['face_painting', '🎨 Face Painter'], ['helper', '🧍 Helper'], ['balloon_twisting', '🎈 Twisting'], ['driver', '🚐 Driver']] as [string, string][]).map(([r, label]) => (
+              <Button key={r} tone="ghost" onClick={() => addRole(r, +1)}>
+                {busy ? '…' : `+ ${label}${manualCount(r) > 0 ? ` (${manualCount(r)})` : ''}`}
+              </Button>
+            ))}
+          </div>
+          {manual.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+              {manual.map((m) => (
+                <button key={m.role} onClick={() => addRole(m.role, -1)}
+                  style={{ border: `1px solid ${C.line}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  {(ROLE_LABEL[m.role] ?? m.role)} × {m.count} · remove one
+                </button>
+              ))}
+            </div>
+          )}
+          <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>
+            For a custom offer the engine can't read — e.g. an “AED 2,900 Offer” that needs 1 Balloon Artist + 2 Clowns.
           </div>
         </div>
       )}

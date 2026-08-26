@@ -350,6 +350,22 @@ export async function adminRoutes(app: FastifyInstance) {
     const { listInternalStaff } = await import('../domain/staffing.js');
     return listInternalStaff();
   });
+  // Manual role requirements the team adds for an event the engine can't read
+  // (e.g. a custom offer). Setting a role re-runs the plan; count 0 removes it.
+  app.get('/api/admin/staffing/:eventId/requirements', async (request) => {
+    const { getManualRequirements } = await import('../domain/staffing.js');
+    return getManualRequirements((request.params as { eventId: string }).eventId);
+  });
+  app.post('/api/admin/staffing/:eventId/requirements', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const { role, count } = (request.body ?? {}) as { role?: string; count?: number };
+    const ROLES = ['balloon_artist', 'clown', 'face_painting', 'helper', 'balloon_twisting', 'staff', 'driver', 'design'];
+    if (!role || !ROLES.includes(role)) return reply.status(400).send({ error: 'invalid_role' });
+    const { setManualRequirement } = await import('../domain/staffing.js');
+    const plan = await setManualRequirement(eventId, role, Math.max(0, Math.min(10, Number(count) || 0)));
+    if (!plan) return reply.status(404).send({ error: 'not_found' });
+    return plan;
+  });
   // Confirm a part-timer's name for an open slot → status "Confirmed – [Name]".
   app.post('/api/admin/staffing/slot/:slotId/confirm', async (request, reply) => {
     const { slotId } = request.params as { slotId: string };

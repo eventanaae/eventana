@@ -920,3 +920,13 @@ CREATE TABLE IF NOT EXISTS event_staff (
 );
 CREATE INDEX IF NOT EXISTS event_staff_event_idx ON event_staff (event_id);
 CREATE INDEX IF NOT EXISTS event_staff_assignee_idx ON event_staff (assignee_id);
+
+-- Manual staffing requirements the owner/manager adds for an event the engine
+-- can't read automatically — e.g. a custom "AED 2,900 Offer" that needs
+-- 1 balloon artist + 2 clowns. Read on top of the derived requirements.
+CREATE TABLE IF NOT EXISTS event_manual_staff (
+  event_id  TEXT NOT NULL,
+  role      TEXT NOT NULL,
+  count     INT  NOT NULL DEFAULT 1,
+  PRIMARY KEY (event_id, role)
+);

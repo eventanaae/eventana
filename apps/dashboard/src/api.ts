@@ -111,6 +111,9 @@ export const api = {
   staffingPlan: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}`),
   assignAllStaff: () => request<any>('/api/admin/staffing/assign-all', { method: 'POST' }),
   staffingCrew: () => request<any[]>('/api/admin/staffing-crew'),
+  staffingRequirements: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}/requirements`),
+  setStaffingRequirement: (eventId: string, role: string, count: number) =>
+    request<any[]>(`/api/admin/staffing/${eventId}/requirements`, { method: 'POST', body: JSON.stringify({ role, count }) }),
   confirmPartTime: (slotId: string, name: string) =>
     request<any[]>(`/api/admin/staffing/slot/${slotId}/confirm`, { method: 'POST', body: JSON.stringify({ name }) }),
   overrideSlot: (slotId: string, assigneeId: string) =>

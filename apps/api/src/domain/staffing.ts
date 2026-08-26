@@ -228,6 +228,15 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     }
   }
   const reqs = computeRequirements({ packageName, services, customTheme: !!ev.custom_theme });
+  // Manual requirements the owner/manager added for this event (e.g. a custom
+  // offer the engine can't read) are layered on top of whatever we derived.
+  const manual = await pool.query<{ role: string; count: number }>(
+    `SELECT role, count FROM event_manual_staff WHERE event_id = $1`,
+    [eventId],
+  );
+  for (const m of manual.rows) {
+    reqs.push({ role: m.role as Skill, count: Number(m.count) || 1, reason: 'Added by the team', source: 'Manual' });
+  }
 
   // Internal staff + skills + current workload.
   const staffRows = await pool.query(
@@ -380,6 +389,26 @@ export async function overrideSlotAssignee(slotId: string, assigneeId: string): 
     [slotId, assigneeId],
   );
   return rows[0] ? { eventId: rows[0].event_id } : null;
+}
+
+/** Add/replace a manual staffing requirement for an event, then re-run the plan. */
+export async function setManualRequirement(eventId: string, role: string, count: number) {
+  if (count <= 0) {
+    await pool.query(`DELETE FROM event_manual_staff WHERE event_id = $1 AND role = $2`, [eventId, role]);
+  } else {
+    await pool.query(
+      `INSERT INTO event_manual_staff (event_id, role, count) VALUES ($1,$2,$3)
+       ON CONFLICT (event_id, role) DO UPDATE SET count = EXCLUDED.count`,
+      [eventId, role, count],
+    );
+  }
+  return assignStaffForEvent(eventId);
+}
+
+/** The manual requirements currently set for an event. */
+export async function getManualRequirements(eventId: string) {
+  const { rows } = await pool.query(`SELECT role, count FROM event_manual_staff WHERE event_id = $1 ORDER BY role`, [eventId]);
+  return rows;
 }
 
 /** The internal crew (for the manual-override picker). */
