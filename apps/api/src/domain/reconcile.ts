@@ -98,6 +98,12 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // Mail the previous month's finance report once the month turns over.
   await sweepMonthlyReport().catch((err) => console.error('[finance-report] sweep failed:', err));
 
+  // Flag any event within 3 days whose preparation isn't finished, so the
+  // Owner + Manager see "Event Preparation At Risk" in time to act.
+  await import('./prep.js')
+    .then(({ sweepPrepAtRisk }) => sweepPrepAtRisk())
+    .catch((err) => console.error('[prep] at-risk sweep failed:', err));
+
   // Deliver queued customer emails (booking confirmation, reminders,
   // cancellation) and staff tip pushes. Non-fatal.
   await deliverPendingNotifications()

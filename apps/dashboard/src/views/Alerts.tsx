@@ -31,7 +31,29 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         <Stat label="Leave to approve" value={data.counts.pendingLeave} tone={data.counts.pendingLeave > 0 ? 'warn' : 'ok'} />
         <Stat label="Orders in review" value={data.counts.needsReview} tone={data.counts.needsReview > 0 ? 'error' : 'ok'} />
         <Stat label="Staffing to confirm" value={data.counts?.staffingGaps ?? 0} tone={(data.counts?.staffingGaps ?? 0) > 0 ? 'error' : 'ok'} />
+        <Stat label="Prep at risk" value={data.counts?.prepAtRisk ?? 0} tone={(data.counts?.prepAtRisk ?? 0) > 0 ? 'error' : 'ok'} />
       </div>
+
+      <Panel title="🧰 Preparation at risk">
+        {(!data.prepAtRisk || data.prepAtRisk.length === 0) ? (
+          <Empty>Every upcoming event is on track for preparation. 🎉</Empty>
+        ) : (
+          data.prepAtRisk.map((e: any) => (
+            <div key={e.event_id} style={{ ...row, cursor: 'pointer' }} onClick={() => onOpenEvent?.(e.event_id)}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, flex: 'none' }} />
+              <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 120 }}>
+                {new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
+                {e.customer} · {e.completed}/{e.total} done{e.issues > 0 ? ` · ${e.issues} issue(s)` : ''}
+              </span>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: C.red, minWidth: 60, textAlign: 'right' }}>
+                {e.progressPct}%
+              </span>
+            </div>
+          ))
+        )}
+      </Panel>
 
       <Panel title="🎭 Staffing — action required">
         {(!data.staffingGaps || data.staffingGaps.length === 0) ? (

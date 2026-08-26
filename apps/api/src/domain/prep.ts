@@ -378,6 +378,37 @@ export async function getPrepByPerson() {
   return rows;
 }
 
+/**
+ * Alert the Owner + Manager about any event within 3 days whose preparation
+ * isn't finished ("Event Preparation At Risk"). One alert per event; runs from
+ * the reconciliation sweep. Internal only.
+ */
+export async function sweepPrepAtRisk(): Promise<number> {
+  const { rows } = await pool.query<{ event_id: string; total: number; done: number }>(
+    `SELECT pt.event_id,
+            count(*)::int AS total,
+            count(*) FILTER (WHERE pt.status = 'completed')::int AS done
+       FROM prep_tasks pt
+       JOIN events e ON e.id = pt.event_id
+      WHERE e.phase <> 'Cancelled'
+        AND e.event_date >= CURRENT_DATE
+        AND e.event_date <= CURRENT_DATE + interval '3 days'
+      GROUP BY pt.event_id
+      HAVING count(*) FILTER (WHERE pt.status = 'completed') < count(*)`,
+  );
+  let alerted = 0;
+  for (const r of rows) {
+    const res = await pool.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       SELECT $1,'ops_alert','prep_at_risk', now(), $2
+        WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template='prep_at_risk' AND event_id=$1)`,
+      [r.event_id, JSON.stringify({ eventId: r.event_id, done: Number(r.done), total: Number(r.total) })],
+    );
+    if (res.rowCount) alerted++;
+  }
+  return alerted;
+}
+
 /** Per-event preparation progress summaries (upcoming events with prep tasks). */
 export async function getPrepEvents() {
   const { rows } = await pool.query(

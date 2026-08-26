@@ -2842,6 +2842,10 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
     ]);
 
+    // Events whose pre-event preparation is behind and the day is near.
+    const prepAtRisk = (await import('../domain/prep.js').then((m) => m.getPrepEvents()).catch(() => []))
+      .filter((e: any) => e.atRisk || e.issues > 0);
+
     return {
       lowStock: lowStock.rows,
       pendingLeave: pendingLeave.rows,
@@ -2849,11 +2853,13 @@ export async function adminRoutes(app: FastifyInstance) {
       recentTips: tips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
       recentRatings: ratings.rows,
       staffingGaps: staffingGaps.rows,
+      prepAtRisk,
       counts: {
         lowStock: lowStock.rowCount,
         pendingLeave: pendingLeave.rowCount,
         needsReview: needsReview.rows[0].n,
         staffingGaps: staffingGaps.rowCount,
+        prepAtRisk: prepAtRisk.length,
       },
     };
   });
