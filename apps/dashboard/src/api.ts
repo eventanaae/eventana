@@ -292,6 +292,8 @@ export const api = {
   deleteFinancials: (period: string) =>
     request<any>(`/api/admin/financials/${encodeURIComponent(period)}`, { method: 'DELETE' }),
 
+  importRows: (kind: 'customers' | 'orders', rows: any[]) =>
+    request<{ inserted: number }>('/api/admin/import/rows', { method: 'POST', body: JSON.stringify({ kind, rows }) }),
   importTicket: () => request<{ ticket: string; expiresInMs: number }>('/api/admin/import/ticket', { method: 'POST' }),
   importStatus: () =>
     request<{ customers: { n: number; with_email: number; emirates: number }; orders: { n: number; with_date: number; total_fils: number } }>(

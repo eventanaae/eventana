@@ -154,44 +154,91 @@ export function Financials() {
  * to re-run.
  */
 function MigrationPanel() {
-  const [ticket, setTicket] = useState<string | null>(null);
   const [status, setStatus] = useState<any>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = () => api.importStatus().then(setStatus).catch(() => {});
   useEffect(() => { refresh(); }, []);
 
-  const gen = async () => {
-    setBusy(true);
-    try { const t = await api.importTicket(); setTicket(t.ticket); }
-    finally { setBusy(false); }
+  const onFile = async (kind: 'customers' | 'orders', file: File | undefined) => {
+    if (!file) return;
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      const { parseSheetFile } = await import('../sheet');
+      const grid = await parseSheetFile(file);
+      // QuickBooks reports carry a few title rows before the header; find the row
+      // that looks like the column header and parse from there.
+      const headerIdx = grid.findIndex((row) =>
+        row.some((c) => /customer full name|phone|email|^name$|date|product|amount|total/i.test(String(c))),
+      );
+      if (headerIdx < 0) { setErr('Could not find a header row in that file. Make sure it is the exported report.'); return; }
+      const header = grid[headerIdx].map((c) => String(c).trim());
+      const rows = grid.slice(headerIdx + 1)
+        .filter((r) => r.some((c) => String(c).trim() !== ''))
+        .map((r) => {
+          const o: Record<string, any> = {};
+          header.forEach((h, i) => { if (h) o[h] = r[i]; });
+          return o;
+        });
+      if (rows.length === 0) { setErr('No data rows found in that file.'); return; }
+      // Upload in batches to stay well under the request size limit.
+      let inserted = 0;
+      for (let i = 0; i < rows.length; i += 400) {
+        const res = await api.importRows(kind, rows.slice(i, i + 400));
+        inserted += res.inserted;
+      }
+      setMsg(`Imported ${inserted} ${kind} from “${file.name}”.`);
+      refresh();
+    } catch (e: any) {
+      setErr(e?.message || 'Could not read that file.');
+    } finally { setBusy(false); }
   };
 
   return (
     <Panel title="Data migration — QuickBooks">
       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 12 }}>
-        Imports your full customer book and invoice history from QuickBooks straight into Eventana.
-        Only totals are shown here — no names, emails or numbers pass through anything in between.
+        Brings your full customer book and invoice history from QuickBooks into Eventana. In QuickBooks open the
+        report (Customer Contact List, or an invoice/sales list), click <b>Export&nbsp;▾ → Export to Excel</b>, then
+        upload the file below. Safe to re-run — it updates, never duplicates.
       </div>
       {status && (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
           <Stat label="Customers imported" value={status.customers?.n ?? 0} />
           <Stat label="With email" value={status.customers?.with_email ?? 0} />
           <Stat label="Invoices imported" value={status.orders?.n ?? 0} />
           <Stat label="Invoiced total" value={<>AED {money(Number(status.orders?.total_fils ?? 0))}</>} />
         </div>
       )}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Button onClick={gen} disabled={busy}>{busy ? 'Generating…' : 'Generate import ticket'}</Button>
-        <Button tone="ghost" onClick={refresh}>Refresh counts</Button>
-        <span data-api-origin={apiOrigin()} style={{ fontSize: 11, color: C.muted }}>API: {apiOrigin()}</span>
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <UploadTile label="Customers" hint="Customer Contact List → Export to Excel" disabled={busy}
+          onPick={(f) => onFile('customers', f)} />
+        <UploadTile label="Invoices" hint="Sales/Invoice list → Export to Excel" disabled={busy}
+          onPick={(f) => onFile('orders', f)} />
       </div>
-      {ticket && (
-        <div data-import-ticket={ticket} style={{ marginTop: 12, padding: '10px 12px', background: C.pinkSoft, borderRadius: 12, fontSize: 12, fontWeight: 700, color: C.pinkDeep, wordBreak: 'break-all' }}>
-          Ticket ready (valid ~30 min): {ticket}
-        </div>
-      )}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
+        <Button tone="ghost" onClick={refresh} disabled={busy}>Refresh counts</Button>
+        {busy && <span style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep }}>Working…</span>}
+      </div>
+      {msg && <div style={{ marginTop: 10, color: C.green, fontWeight: 700, fontSize: 12.5 }}>{msg}</div>}
+      {err && <div style={{ marginTop: 10, color: C.red, fontWeight: 700, fontSize: 12.5 }}>{err}</div>}
+      <div data-api-origin={apiOrigin()} style={{ display: 'none' }} />
     </Panel>
+  );
+}
+
+function UploadTile({ label, hint, onPick, disabled }: { label: string; hint: string; onPick: (f: File | undefined) => void; disabled?: boolean }) {
+  return (
+    <label style={{
+      flex: 1, minWidth: 220, border: `1.5px dashed ${C.line}`, borderRadius: 14, padding: '16px 18px',
+      cursor: disabled ? 'not-allowed' : 'pointer', background: C.pinkSoft, opacity: disabled ? 0.6 : 1, display: 'block',
+    }}>
+      <div style={{ ...fredoka(15), color: C.ink }}>⬆ Upload {label}</div>
+      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 4 }}>{hint}</div>
+      <input type="file" accept=".xlsx,.xls,.csv" disabled={disabled} style={{ display: 'none' }}
+        onChange={(e) => onPick(e.target.files?.[0])} />
+    </label>
   );
 }
 

@@ -20,6 +20,7 @@ import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/ema
 import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '../domain/notify.js';
 import { createManualOrder, CheckoutError } from '../domain/checkout.js';
 import { issueImportTicket } from '../domain/importTicket.js';
+import { importRows } from '../domain/importData.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -1044,6 +1045,20 @@ export async function adminRoutes(app: FastifyInstance) {
   // scraped rows (customers, invoices) straight into the PUBLIC /api/import
   // route without exposing the staff token to the qbo.intuit.com page.
   app.post('/api/admin/import/ticket', async () => issueImportTicket());
+
+  // Dashboard file upload: the browser parses the exported QuickBooks sheet into
+  // rows and posts them here (authenticated). Same idempotent upsert as the
+  // public sink. This is the simplest path for the owner — export, then upload.
+  app.post('/api/admin/import/rows', async (request, reply) => {
+    const body = request.body as { kind?: string; rows?: any[] } | undefined;
+    const rows = Array.isArray(body?.rows) ? body!.rows : [];
+    if (rows.length > 5000) return reply.status(413).send({ error: 'too_many_rows' });
+    try {
+      return await importRows(String(body?.kind ?? ''), rows);
+    } catch {
+      return reply.status(400).send({ error: 'unknown_kind' });
+    }
+  });
 
   // Progress counters so the migration can be verified without reading any PII.
   app.get('/api/admin/import/status', async () => {
