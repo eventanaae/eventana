@@ -458,26 +458,41 @@ export function MyEvent({
       </div>
 
       {/* ---------------- team ---------------- */}
-      <div style={card}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 13 }}>{t('me.yourTeam')}</div>
-        <div style={{ display: 'flex', gap: 16 }}>
-          {event.team.map((m: any) => (
-            <div key={m.id} style={{ textAlign: 'center', flex: 1 }}>
-              <div
-                style={{
-                  width: 52, height: 52, borderRadius: '50%', background: m.color, color: '#fff',
-                  fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', margin: '0 auto 7px',
-                }}
-              >
-                {m.name[0]}
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 12 }}>{m.name}</div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 1 }}>{m.role}</div>
+      {(() => {
+        // Prefer the smart-staffing crew (names + "to be confirmed"); fall back
+        // to the legacy team list. The customer never sees internal status.
+        const crew: any[] = (event.crew && event.crew.length ? event.crew : null)
+          ?? event.team.map((m: any) => ({ role: m.role, name: m.name, confirmed: true, isLeader: false }));
+        if (!crew.length) return null;
+        const AV = ['#ff8fab', '#8ecae6', '#ffb703', '#a3d977', '#c8a2ff', '#ff9f7a'];
+        return (
+          <div style={card}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 13 }}>{t('me.yourTeam')}</div>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+              {crew.map((m: any, i: number) => (
+                <div key={i} style={{ textAlign: 'center', width: 74 }}>
+                  <div
+                    style={{
+                      width: 52, height: 52, borderRadius: '50%',
+                      background: m.confirmed ? AV[i % AV.length] : '#eee',
+                      color: m.confirmed ? '#fff' : C.muted,
+                      fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', margin: '0 auto 7px',
+                      border: m.confirmed ? 'none' : `2px dashed ${C.line}`,
+                    }}
+                  >
+                    {m.isLeader ? '👑' : m.confirmed ? String(m.name)[0] : '★'}
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 12, lineHeight: 1.2 }}>
+                    {m.confirmed ? m.name : t('me.toBeConfirmed')}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 1 }}>{m.role}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        );
+      })()}
 
       {/* ---------------- setup-spot photos ---------------- */}
       {!cancelled && <SetupSpotPhotos eventId={event.id} t={t} />}

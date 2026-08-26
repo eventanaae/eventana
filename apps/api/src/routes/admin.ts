@@ -344,6 +344,31 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     return { assigned: results.length, results };
   });
+  // The internal crew (for the manual-override picker).
+  app.get('/api/admin/staffing-crew', async () => {
+    const { listInternalStaff } = await import('../domain/staffing.js');
+    return listInternalStaff();
+  });
+  // Confirm a part-timer's name for an open slot → status "Confirmed – [Name]".
+  app.post('/api/admin/staffing/slot/:slotId/confirm', async (request, reply) => {
+    const { slotId } = request.params as { slotId: string };
+    const { name } = (request.body ?? {}) as { name?: string };
+    if (!name || !name.trim()) return reply.status(400).send({ error: 'name_required' });
+    const { confirmPartTimeSlot } = await import('../domain/staffing.js');
+    const res = await confirmPartTimeSlot(slotId, name);
+    if (!res) return reply.status(404).send({ error: 'not_found' });
+    return getStaffingPlan(res.eventId);
+  });
+  // Manually assign an internal staff member to a slot (owner/manager override).
+  app.post('/api/admin/staffing/slot/:slotId/assign', async (request, reply) => {
+    const { slotId } = request.params as { slotId: string };
+    const { assigneeId } = (request.body ?? {}) as { assigneeId?: string };
+    if (!assigneeId) return reply.status(400).send({ error: 'assignee_required' });
+    const { overrideSlotAssignee } = await import('../domain/staffing.js');
+    const res = await overrideSlotAssignee(slotId, assigneeId);
+    if (!res) return reply.status(404).send({ error: 'not_found' });
+    return getStaffingPlan(res.eventId);
+  });
 
   /* --------------------------- WhatsApp leads --------------------- */
 
@@ -2636,7 +2661,7 @@ export async function adminRoutes(app: FastifyInstance) {
    * of tips and ratings. Manager/owner only (gated in the preHandler).
    */
   app.get('/api/admin/alerts', async () => {
-    const [lowStock, pendingLeave, needsReview, tips, ratings] = await Promise.all([
+    const [lowStock, pendingLeave, needsReview, tips, ratings, staffingGaps] = await Promise.all([
       pool.query(
         `SELECT id, name, unit, on_hand, reorder_level FROM consumables
           WHERE active AND on_hand <= reorder_level
@@ -2658,6 +2683,19 @@ export async function adminRoutes(app: FastifyInstance) {
         `SELECT r.id, r.stars, r.feedback, r.created_at, r.event_id
            FROM event_ratings r ORDER BY r.created_at DESC LIMIT 8`,
       ),
+      // Events the smart-staffing engine couldn't fully staff internally — a
+      // part-timer (or internal prep) still needs confirming. Upcoming only.
+      pool.query(
+        `SELECT e.id AS event_id, to_char(e.event_date,'YYYY-MM-DD') AS event_date,
+                e.start_time, e.emirate,
+                count(*) FILTER (WHERE es.status IN ('part_time_required','to_confirm'))::int AS open,
+                array_agg(DISTINCT es.role) FILTER (WHERE es.status IN ('part_time_required','to_confirm')) AS roles
+           FROM events e JOIN event_staff es ON es.event_id = e.id
+          WHERE e.phase <> 'Cancelled' AND e.event_date >= CURRENT_DATE
+          GROUP BY e.id, e.event_date, e.start_time, e.emirate
+         HAVING count(*) FILTER (WHERE es.status IN ('part_time_required','to_confirm')) > 0
+          ORDER BY e.event_date LIMIT 30`,
+      ),
     ]);
 
     return {
@@ -2666,10 +2704,12 @@ export async function adminRoutes(app: FastifyInstance) {
       needsReview: needsReview.rows[0].n,
       recentTips: tips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
       recentRatings: ratings.rows,
+      staffingGaps: staffingGaps.rows,
       counts: {
         lowStock: lowStock.rowCount,
         pendingLeave: pendingLeave.rowCount,
         needsReview: needsReview.rows[0].n,
+        staffingGaps: staffingGaps.rowCount,
       },
     };
   });

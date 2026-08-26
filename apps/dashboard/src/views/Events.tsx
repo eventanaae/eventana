@@ -184,6 +184,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               {data.event.custom_theme && (
                 <DesignPanel eventId={eventId} designs={data.designs ?? []} onChange={load} />
               )}
+              <StaffingPanel eventId={eventId} />
 
               <Panel title="Advance status">
                 {data.event.phase === 'Cancelled' ? (
@@ -572,6 +573,141 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
  * Maps" are Google's universal deep links — they open the driver's native
  * Google Maps app with turn-by-turn navigation, no API key required.
  */
+const ROLE_LABEL: Record<string, string> = {
+  leader: '👑 Event Leader', balloon_artist: '🎈 Balloon Artist', clown: '🤡 Clown',
+  face_painting: '🎨 Face Painter', helper: '🧍 Helper', balloon_twisting: '🎈 Balloon Twisting',
+  staff: '👷 Staff', acrobat_clown: '🤸 Acrobat Clown', design: '🖌️ Design (Marsha)', driver: '🚐 Driver',
+};
+
+/**
+ * Smart staff assignment for this event: who the engine put on the crew, and
+ * any slot still needing a part-timer. The manager types the part-timer's name
+ * to confirm it, or overrides any slot with an internal member.
+ */
+function StaffingPanel({ eventId }: { eventId: string }) {
+  const [plan, setPlan] = useState<any[] | null>(null);
+  const [crew, setCrew] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [openOverride, setOpenOverride] = useState<string | null>(null);
+
+  const load = async () => {
+    setPlan(await api.staffingPlan(eventId).catch(() => []));
+  };
+  useEffect(() => {
+    load();
+    api.staffingCrew().then(setCrew).catch(() => setCrew([]));
+  }, [eventId]);
+
+  const leader = (plan ?? []).find((s) => s.is_leader);
+  const slots = (plan ?? []).filter((s) => !s.is_leader);
+  const open = slots.filter((s) => s.status === 'part_time_required' || s.status === 'to_confirm').length;
+
+  const reassign = async () => {
+    setBusy(true);
+    try { await api.assignStaff(eventId); await load(); } finally { setBusy(false); }
+  };
+
+  return (
+    <Panel
+      title="Team assignment 🎭"
+      action={<Button tone="ghost" onClick={reassign}>{busy ? 'Assigning…' : 'Re-assign'}</Button>}
+    >
+      {plan === null ? (
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Loading the crew…</div>
+      ) : plan.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Empty>No staffing plan yet.</Empty>
+          <Button onClick={reassign}>{busy ? 'Assigning…' : 'Assign staff'}</Button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {open > 0 && (
+            <div style={{ background: '#fdecea', color: C.red, borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, letterSpacing: '.3px' }}>
+              ⚠ ACTION REQUIRED — {open} slot{open > 1 ? 's' : ''} need{open > 1 ? '' : 's'} a part-timer
+            </div>
+          )}
+
+          {leader && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 11px', borderRadius: 10, background: C.pinkSoft, border: `1px solid ${C.pink}` }}>
+              <span style={{ flex: 1, fontSize: 12.5, fontWeight: 800, color: C.pinkDeep }}>
+                👑 Event Leader
+                <span style={{ fontWeight: 600, color: C.muted }}>{leader.reason === 'Remote event leader' ? ' · remote' : ''}</span>
+              </span>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>{leader.assignee_name ?? '—'}</span>
+            </div>
+          )}
+
+          {slots.map((s) => {
+            const filled = s.status === 'assigned';
+            const confirmed = s.status === 'confirmed';
+            const needsPart = s.status === 'part_time_required';
+            const needsPrep = s.status === 'to_confirm'; // internal prep, no part-time
+            return (
+              <div key={s.id} style={{ padding: '8px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{ROLE_LABEL[s.role] ?? s.role}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.reason}{s.source && s.source !== 'Leader' ? ` · ${s.source}` : ''}</div>
+                  </div>
+                  {filled && <Badge tone="ok">{s.assignee_name ?? 'Assigned'}</Badge>}
+                  {confirmed && <Badge tone="ok">{s.part_time_name} · part-timer</Badge>}
+                  {needsPart && <Badge tone="error">Part-time required</Badge>}
+                  {needsPrep && <Badge tone="warn">Confirm internal</Badge>}
+                </div>
+
+                {(needsPart) && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 7 }}>
+                    <input
+                      placeholder={`Part-time ${ROLE_LABEL[s.role]?.replace(/^\S+\s/, '') ?? s.role} name…`}
+                      value={names[s.id] ?? ''}
+                      onChange={(e) => setNames((n) => ({ ...n, [s.id]: e.target.value }))}
+                      style={{ ...inputStyle, fontSize: 12 }}
+                    />
+                    <Button
+                      disabled={!(names[s.id] ?? '').trim()}
+                      onClick={async () => { setPlan(await api.confirmPartTime(s.id, names[s.id].trim())); }}
+                    >
+                      Confirm
+                    </Button>
+                  </div>
+                )}
+
+                {(needsPart || needsPrep || filled || confirmed) && (
+                  <div style={{ marginTop: 6 }}>
+                    {openOverride === s.id ? (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {crew.map((m) => (
+                          <Button key={m.id} tone="ghost"
+                            onClick={async () => { setPlan(await api.overrideSlot(s.id, m.id)); setOpenOverride(null); }}>
+                            {m.name}
+                          </Button>
+                        ))}
+                        <Button tone="ghost" onClick={() => setOpenOverride(null)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setOpenOverride(s.id)}
+                        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                      >
+                        ✎ Assign internal instead
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+            Internal crew is assigned automatically by skill, availability and fairness. The customer
+            never sees “part-time” — only confirmed names or “to be confirmed”.
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function PartyDetailsPanel({ event }: { event: any }) {
   const rows: Array<[string, string]> = [];
   if (event.children_count) rows.push(['👶 Children', String(event.children_count)]);

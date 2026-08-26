@@ -30,7 +30,29 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         <Stat label="Low stock items" value={data.counts.lowStock} tone={data.counts.lowStock > 0 ? 'warn' : 'ok'} />
         <Stat label="Leave to approve" value={data.counts.pendingLeave} tone={data.counts.pendingLeave > 0 ? 'warn' : 'ok'} />
         <Stat label="Orders in review" value={data.counts.needsReview} tone={data.counts.needsReview > 0 ? 'error' : 'ok'} />
+        <Stat label="Staffing to confirm" value={data.counts?.staffingGaps ?? 0} tone={(data.counts?.staffingGaps ?? 0) > 0 ? 'error' : 'ok'} />
       </div>
+
+      <Panel title="🎭 Staffing — action required">
+        {(!data.staffingGaps || data.staffingGaps.length === 0) ? (
+          <Empty>Every upcoming event is fully staffed internally. 🎉</Empty>
+        ) : (
+          data.staffingGaps.map((s: any) => (
+            <div key={s.event_id} style={{ ...row, cursor: 'pointer' }} onClick={() => onOpenEvent?.(s.event_id)}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, flex: 'none' }} />
+              <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 120 }}>
+                {new Date(s.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
+                {s.emirate} · {s.start_time} · {(s.roles ?? []).join(', ').replace(/_/g, ' ')}
+              </span>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: C.red, minWidth: 74, textAlign: 'right' }}>
+                {s.open} to confirm
+              </span>
+            </div>
+          ))
+        )}
+      </Panel>
 
       <Panel title="🧴 Low stock — reorder soon">
         {data.lowStock.length === 0 ? (

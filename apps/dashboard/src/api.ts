@@ -110,6 +110,11 @@ export const api = {
   assignStaff: (eventId: string) => request<any>(`/api/admin/staffing/assign/${eventId}`, { method: 'POST' }),
   staffingPlan: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}`),
   assignAllStaff: () => request<any>('/api/admin/staffing/assign-all', { method: 'POST' }),
+  staffingCrew: () => request<any[]>('/api/admin/staffing-crew'),
+  confirmPartTime: (slotId: string, name: string) =>
+    request<any[]>(`/api/admin/staffing/slot/${slotId}/confirm`, { method: 'POST', body: JSON.stringify({ name }) }),
+  overrideSlot: (slotId: string, assigneeId: string) =>
+    request<any[]>(`/api/admin/staffing/slot/${slotId}/assign`, { method: 'POST', body: JSON.stringify({ assigneeId }) }),
   shopOrders: () => request<any[]>('/api/admin/shop-orders'),
   whatsappLeads: (status?: string) =>
     request<any>(`/api/admin/whatsapp/leads${status && status !== 'all' ? `?status=${status}` : ''}`),

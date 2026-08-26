@@ -600,6 +600,7 @@ const en: Dict = {
   'me.socksNotice': 'Your booking includes an inflatable — children must wear socks 🧦',
   'me.timeline': 'Event timeline',
   'me.yourTeam': 'Your Eventana Team ✨',
+  'me.toBeConfirmed': 'To be confirmed',
   'me.opening': 'Opening checkout…',
   'me.walletUnavailable': 'Wallet pass isn’t available yet.',
   // phases
@@ -1208,6 +1209,7 @@ const ar: Dict = {
   'me.socksNotice': 'حجزك يشمل نطاطية — يجب أن يلبس الأطفال جوارب 🧦',
   'me.timeline': 'الخط الزمني للمناسبة',
   'me.yourTeam': 'فريق Eventana ✨',
+  'me.toBeConfirmed': 'سيتم تأكيده',
   'me.opening': 'جارٍ فتح الدفع…',
   'me.walletUnavailable': 'بطاقة المحفظة غير متاحة بعد.',
   // phases

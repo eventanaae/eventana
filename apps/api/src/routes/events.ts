@@ -452,12 +452,18 @@ export async function eventRoutes(app: FastifyInstance) {
     const event = rows[0];
     if (!event) return reply.status(404).send({ error: 'not_found' });
 
-    const [services, team, messages, designs, tasks, rating, payment] = await Promise.all([
+    const [services, team, staffing, messages, designs, tasks, rating, payment] = await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(
         `SELECT m.id, m.name, m.role, m.color FROM event_team et
            JOIN team_members m ON m.id = et.member_id
           WHERE et.event_id = $1`,
+        [eventId],
+      ),
+      pool.query(
+        `SELECT es.role, es.status, es.part_time_name, es.is_leader, tm.name AS assignee_name
+           FROM event_staff es LEFT JOIN team_members tm ON tm.id = es.assignee_id
+          WHERE es.event_id = $1 ORDER BY es.is_leader DESC, es.role, es.slot`,
         [eventId],
       ),
       pool.query(
@@ -643,6 +649,34 @@ export async function eventRoutes(app: FastifyInstance) {
         source: s.source,
       })),
       team: team.rows,
+      // Customer-safe crew from the smart staffing plan. On-site roles only —
+      // never the driver or the remote designer — and NEVER the word "part-time":
+      // an unfilled or part-timer slot simply reads "To be confirmed" / the real
+      // name once entered. A cancelled event shows no crew.
+      crew: cancelled
+        ? []
+        : (() => {
+            const LABEL: Record<string, string> = {
+              leader: 'Event Leader', balloon_artist: 'Balloon Artist', clown: 'Entertainer',
+              face_painting: 'Face Painter', helper: 'Party Helper', balloon_twisting: 'Balloon Artist',
+              staff: 'Party Crew', acrobat_clown: 'Acrobat Entertainer',
+            };
+            const HIDE = new Set(['design', 'driver']);
+            return staffing.rows
+              .filter((r) => !HIDE.has(r.role))
+              .map((r) => {
+                const name =
+                  r.status === 'assigned' ? r.assignee_name
+                  : r.status === 'confirmed' ? r.part_time_name
+                  : null;
+                return {
+                  role: LABEL[r.role] ?? 'Party Crew',
+                  isLeader: r.is_leader,
+                  name: name ?? null,
+                  confirmed: !!name,
+                };
+              });
+          })(),
       // Ratings & tips open once the party is under way / done, and never on a
       // cancelled event. The crew list above is who a tip can be aimed at.
       review: {

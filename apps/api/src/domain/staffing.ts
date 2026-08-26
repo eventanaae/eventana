@@ -324,6 +324,52 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   return { eventId, assigned, leader, shortages, staffingIncomplete: shortages > 0 };
 }
 
+/**
+ * Manager/Owner confirms a part-timer for an open slot: records the name and
+ * flips the slot to "confirmed". If every slot on the event is now filled, the
+ * staffing alert is cleared. Returns the event id so the plan can be reloaded.
+ */
+export async function confirmPartTimeSlot(slotId: string, name: string): Promise<{ eventId: string } | null> {
+  const { rows } = await pool.query<{ event_id: string }>(
+    `UPDATE event_staff
+        SET part_time_name = $2, status = 'confirmed', assignee_id = NULL
+      WHERE id = $1 AND is_leader = false
+      RETURNING event_id`,
+    [slotId, name.trim()],
+  );
+  const eventId = rows[0]?.event_id;
+  if (!eventId) return null;
+  const open = await pool.query(
+    `SELECT count(*)::int c FROM event_staff WHERE event_id = $1 AND status IN ('part_time_required','to_confirm')`,
+    [eventId],
+  );
+  if ((open.rows[0]?.c ?? 0) === 0) {
+    await pool.query(`DELETE FROM notifications WHERE template = 'staffing_required' AND event_id = $1`, [eventId]).catch(() => {});
+  }
+  return { eventId };
+}
+
+/** Manually assign an internal staff member to a slot (owner/manager override). */
+export async function overrideSlotAssignee(slotId: string, assigneeId: string): Promise<{ eventId: string } | null> {
+  const { rows } = await pool.query<{ event_id: string }>(
+    `UPDATE event_staff
+        SET assignee_id = $2, part_time_name = NULL, status = 'assigned'
+      WHERE id = $1 RETURNING event_id`,
+    [slotId, assigneeId],
+  );
+  return rows[0] ? { eventId: rows[0].event_id } : null;
+}
+
+/** The internal crew (for the manual-override picker). */
+export async function listInternalStaff() {
+  const { rows } = await pool.query(
+    `SELECT tm.id, tm.name, tm.role, array_agg(ss.skill) AS skills
+       FROM team_members tm LEFT JOIN staff_skills ss ON ss.member_id = tm.id
+      WHERE tm.active GROUP BY tm.id, tm.name, tm.role ORDER BY tm.name`,
+  );
+  return rows;
+}
+
 /** Read the saved staffing plan for an event (with staff names). */
 export async function getStaffingPlan(eventId: string) {
   const { rows } = await pool.query(
