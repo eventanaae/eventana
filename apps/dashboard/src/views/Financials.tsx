@@ -181,9 +181,26 @@ function PackageMerge() {
   const [products, setProducts] = useState<any[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [target, setTarget] = useState<string>('');
 
   const load = () => api.importProducts().then(setProducts).catch(() => setProducts([]));
   useEffect(() => { load(); }, []);
+
+  const toggleSel = (name: string) => setSel((s) => { const n = new Set(s); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+  const mergeSelected = async () => {
+    const names = [...sel];
+    const into = target || names[0];
+    const map: Record<string, string> = {};
+    for (const n of names) if (n !== into) map[n] = into;
+    if (Object.keys(map).length === 0) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await api.mergeProducts(map);
+      setMsg(`Merged ${Object.keys(map).length} name(s) into “${into}” — ${r.updated} invoice lines updated.`);
+      setSel(new Set()); setTarget(''); load();
+    } finally { setBusy(false); }
+  };
 
   const groups = useMemo(() => {
     const list = products ?? [];
@@ -243,13 +260,32 @@ function PackageMerge() {
           </div>
         </div>
       )}
-      {dupes.length === 0 && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginBottom: 8 }}>No duplicate package names — all clean ✓</div>}
-      <div style={{ maxHeight: 260, overflowY: 'auto', border: `1px solid ${C.line}`, borderRadius: 12 }}>
-        {[...(products ?? [])].sort((a, b) => b.total_fils - a.total_fils).map((p) => (
-          <div key={p.product} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, fontSize: 12.5, fontWeight: 600 }}>
-            <span style={{ color: C.ink }}>{p.product}</span>
-            <span style={{ color: C.muted2, whiteSpace: 'nowrap' }}>{p.lines}× · AED {p.totalDisplay}</span>
+      {dupes.length === 0 && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginBottom: 8 }}>No auto-detected duplicates. Tick names below to merge them by hand.</div>}
+
+      {/* Manual merge — tick two or more names (e.g. “New Silver Package” + “Silver Kids Package”) and merge them into one. */}
+      {sel.size >= 2 && (
+        <div style={{ background: C.pinkSoft, border: `1px solid ${C.pink}`, borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.pinkDeep, marginBottom: 8 }}>Merge {sel.size} names into one:</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select value={target || [...sel][0]} onChange={(e) => setTarget(e.target.value)}
+              style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: '9px 11px', fontSize: 12.5, fontWeight: 700, background: '#fff', color: C.ink }}>
+              {[...sel].map((n) => <option key={n} value={n}>Keep “{n}”</option>)}
+            </select>
+            <Button onClick={mergeSelected} disabled={busy}>{busy ? 'Merging…' : 'Merge selected'}</Button>
+            <Button tone="ghost" onClick={() => { setSel(new Set()); setTarget(''); }}>Clear</Button>
           </div>
+        </div>
+      )}
+
+      <div style={{ maxHeight: 300, overflowY: 'auto', border: `1px solid ${C.line}`, borderRadius: 12 }}>
+        {[...(products ?? [])].sort((a, b) => b.total_fils - a.total_fils).map((p) => (
+          <label key={p.product} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderBottom: `1px solid ${C.lineSoft}`, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', background: sel.has(p.product) ? C.pinkSoft : 'transparent' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.ink }}>
+              <input type="checkbox" checked={sel.has(p.product)} onChange={() => toggleSel(p.product)} />
+              {p.product}
+            </span>
+            <span style={{ color: C.muted2, whiteSpace: 'nowrap' }}>{p.lines}× · AED {p.totalDisplay}</span>
+          </label>
         ))}
       </div>
       {msg && <div style={{ marginTop: 10, color: C.green, fontWeight: 700, fontSize: 12.5 }}>{msg}</div>}
