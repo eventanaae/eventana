@@ -169,6 +169,7 @@ function ReceiptsList() {
   const [addon, setAddon] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [sel, setSel] = useState<any>(null);
+  const [q, setQ] = useState('');
   const load = () => api.finReceipts().then(setData).catch(() => setData({ receipts: [] }));
   useEffect(() => { load(); }, []);
 
@@ -225,19 +226,43 @@ function ReceiptsList() {
           <input type="file" accept=".csv,.xlsx" disabled={fixing} style={{ display: 'none' }} onChange={(e) => fixNames(e.target.files?.[0])} />
         </label>
       )}
+      {(data.receipts ?? []).length > 0 && (
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="🔍 Search by name, mobile, or emirate…"
+          style={{
+            width: '100%', boxSizing: 'border-box', border: `1px solid ${C.line}`, borderRadius: 12,
+            padding: '10px 13px', fontSize: 13, fontWeight: 600, outline: 'none', background: '#fff',
+            color: C.ink, marginBottom: 12,
+          }}
+        />
+      )}
       {(data.receipts ?? []).length === 0 && (
         <div style={{ textAlign: 'center', padding: '14px 4px' }}>
           <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, marginBottom: 10 }}>No receipts yet.</div>
           <Button tone="ghost" onClick={async () => { const r = await api.finImportHistory(); alert(`Loaded ${r.receipts} sales from your QuickBooks history.`); load(); }}>Load sales history from QuickBooks</Button>
         </div>
       )}
-      {(data.receipts ?? []).map((r: any) => (
-        <DocRow key={r.id} onClick={() => setSel(r)}
-          title={r.customer_name} sub={`Receipt ${r.number} · ${fmtDate(r.date)}`}
-          amount={r.totalDisplay}
-          badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
-        />
-      ))}
+      {(() => {
+        const s = q.trim().toLowerCase();
+        const list = (data.receipts ?? []).filter((r: any) =>
+          !s ||
+          `${r.customer_name ?? ''} ${r.customer_phone ?? ''} ${r.city ?? ''} ${r.number ?? ''} ${r.event_for ?? ''} ${r.theme ?? ''}`
+            .toLowerCase()
+            .includes(s),
+        );
+        if (s && list.length === 0) {
+          return <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, padding: '10px 2px' }}>No receipts match “{q}”.</div>;
+        }
+        return list.map((r: any) => (
+          <DocRow key={r.id} onClick={() => setSel(r)}
+            title={r.customer_name} sub={`Receipt ${r.number} · ${fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
+            amount={r.totalDisplay}
+            badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
+          />
+        ));
+      })()}
       {creating && <DocForm kind="receipt" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
       {newOrder && (
         <Modal title="New order — send a link" onClose={() => setNewOrder(false)}>
