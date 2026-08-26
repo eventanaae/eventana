@@ -25,6 +25,7 @@ import {
 import { confirmHolds } from './inventory.js';
 import { nextEventId } from './orders.js';
 import { makeVoucherCode, NEXT_BOOKING_VOUCHER_PERCENT } from './discounts.js';
+import { recordSaleFromOrder } from './finance.js';
 
 export interface ConfirmResult {
   /** Null for orders that create no event (e.g. standalone shop orders). */
@@ -84,6 +85,11 @@ export async function confirmBooking(
     order.id,
   ]);
   if (existing[0]) return { eventId: existing[0].id, created: false };
+
+  // Every paid order becomes a sale on the finance Sales page — website, app,
+  // shop or manual pay-link alike. Tips are crew money, not a sale, so skip
+  // them. Idempotent and failure-isolated (see recordSaleFromOrder).
+  if (order.kind !== 'tip') await recordSaleFromOrder(db, order);
 
   if (order.kind === 'addon') {
     // Add-ons attach to an event that already exists.

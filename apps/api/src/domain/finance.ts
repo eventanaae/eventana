@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
@@ -73,6 +74,8 @@ type DocInput = {
   customerId?: number | null; customerName: string;
   items: LineItem[]; discountFils?: number; shippingFils?: number;
   message?: string;
+  // Party details echoed on the receipt (guest-of-honour / baby name + theme).
+  eventFor?: string | null; theme?: string | null;
 };
 
 export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string }) {
@@ -125,11 +128,100 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null],
+    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null],
   );
   return decorateReceipt(rows[0]);
+}
+
+/**
+ * Record a paid order as a sales receipt on the Sales page, so every order —
+ * from the website, the app, the shop, or a manual pay-link — shows up here as
+ * a sale the moment it is paid. Called from inside the confirmation transaction;
+ * wrapped in a SAVEPOINT so a finance hiccup can never roll back a paid booking.
+ * Idempotent by order_id (a replayed webhook adds no second sale). Tips are not
+ * sales and are skipped by the caller.
+ */
+export async function recordSaleFromOrder(
+  db: PoolClient,
+  order: {
+    id: string; kind?: string; source?: string | null;
+    cart?: any; quote?: any; total_fils?: unknown; customer_id?: string | null;
+  },
+): Promise<void> {
+  await db.query('SAVEPOINT fin_sale');
+  try {
+    const exists = await db.query(`SELECT 1 FROM finance_receipts WHERE order_id = $1`, [order.id]);
+    if (exists.rows[0]) { await db.query('RELEASE SAVEPOINT fin_sale'); return; }
+
+    const cart = (order.cart ?? {}) as Record<string, any>;
+    const quote = (order.quote ?? {}) as Record<string, any>;
+
+    const cn = order.customer_id
+      ? await db.query(`SELECT name FROM customers WHERE id = $1`, [order.customer_id])
+      : { rows: [] as any[] };
+    const customerName = cn.rows[0]?.name || 'Customer';
+
+    // Theme as a readable name (or "Custom theme" when the customer asked for one).
+    let theme: string | null = null;
+    if (cart.themeId) {
+      const th = await db.query(`SELECT name FROM themes WHERE id = $1`, [cart.themeId]);
+      theme = th.rows[0]?.name ?? null;
+    } else if (cart.customTheme) {
+      theme = 'Custom theme';
+    }
+
+    // Split the priced lines into items / discount / shipping so the receipt
+    // mirrors the order exactly. Falls back to shop cart items when there is no
+    // booking quote.
+    const items: LineItem[] = [];
+    let discount = 0, shipping = 0;
+    if (Array.isArray(quote.lines) && quote.lines.length) {
+      for (const l of quote.lines) {
+        const amt = Number(l.amountFils ?? 0);
+        const qty = Number(l.quantity ?? 1) || 1;
+        if (l.kind === 'discount') discount += Math.abs(amt);
+        else if (l.kind === 'delivery') shipping += amt;
+        else items.push({ name: String(l.label ?? 'Item').slice(0, 200), qty, priceFils: Math.round(amt / qty) });
+      }
+    } else if (Array.isArray(cart.items)) {
+      for (const it of cart.items) {
+        const qty = Number(it.quantity ?? 1) || 1;
+        items.push({
+          name: String(it.name ?? it.title ?? 'Item').slice(0, 200),
+          qty,
+          priceFils: Number(it.unitPriceFils ?? it.priceFils ?? 0),
+        });
+      }
+    }
+    const subtotal = items.reduce((s, i) => s + Math.round(i.qty * i.priceFils), 0);
+    const total = Number(order.total_fils ?? subtotal - discount + shipping);
+
+    const source =
+      order.source === 'manual' ? 'manual' : order.kind === 'shop' ? 'shop' : 'app';
+    const number = String(
+      (await db.query(`SELECT nextval('finance_doc_seq')::bigint AS n`)).rows[0].n,
+    );
+
+    await db.query(
+      `INSERT INTO finance_receipts
+         (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils,
+          shipping_fils, total_fils, paid_with, source, order_id, event_for, theme)
+       VALUES ($1,NULL,$2,COALESCE($3::date,current_date),$4,$5,$6,$7,$8,'Card',$9,$10,$11,$12)
+       ON CONFLICT (order_id) DO NOTHING`,
+      [
+        number, customerName, cart.eventDate ?? null, JSON.stringify(items),
+        subtotal, discount, shipping, total, source, order.id,
+        cart.eventFor ?? null, theme,
+      ],
+    );
+    await db.query('RELEASE SAVEPOINT fin_sale');
+  } catch {
+    // A finance failure must never abort a paid booking — roll back just this
+    // sale and let the confirmation carry on.
+    await db.query('ROLLBACK TO SAVEPOINT fin_sale').catch(() => {});
+  }
 }
 
 /**
@@ -191,9 +283,10 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const { rows } = await pool.query(
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
-       subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11
+       subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
+       event_for=$12, theme=$13
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null],
+    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null],
   );
   return rows[0] ? decorateReceipt(rows[0]) : null;
 }
@@ -228,6 +321,10 @@ export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
       ${kind === 'receipt' ? '<div style="margin-top:6px;font-weight:800;letter-spacing:1px">PAID</div>' : ''}
     </div>
     <div style="font-size:14px;margin-bottom:14px"><b>${escapeHtml(doc.customer_name ?? '')}</b><br><span style="color:#999">${dateStr}</span></div>
+    ${doc.event_for || doc.theme ? `<table style="width:100%;font-size:13px;margin-bottom:12px;color:#3B3641">
+      ${doc.event_for ? `<tr><td style="color:#999;padding:2px 0">Celebration for</td><td style="text-align:right;font-weight:700">${escapeHtml(doc.event_for)}</td></tr>` : ''}
+      ${doc.theme ? `<tr><td style="color:#999;padding:2px 0">Theme</td><td style="text-align:right;font-weight:700">${escapeHtml(doc.theme)}</td></tr>` : ''}
+    </table>` : ''}
     <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>
     <table style="width:100%;margin-top:12px;font-size:14px">
       <tr><td style="color:#777">Subtotal</td><td style="text-align:right">AED ${money(doc.subtotal_fils)}</td></tr>

@@ -815,6 +815,16 @@ CREATE INDEX IF NOT EXISTS finance_receipts_date_idx ON finance_receipts (date D
 -- hand opening balance, so they populate the list but must NOT move the balance
 -- again. 'dashboard' rows are new sales made here and DO move Cash on hand.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'dashboard';
+-- The party details a receipt should echo (QuickBooks never had these): the
+-- guest-of-honour / baby name and the chosen theme.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_for TEXT;
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS theme TEXT;
+-- Link back to the source order so every paid order (web / app / shop / manual
+-- pay-link) auto-appears here as a sale exactly once. Partial-unique so manual
+-- dashboard receipts (no order) are unaffected.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS finance_receipts_order_idx
+  ON finance_receipts (order_id) WHERE order_id IS NOT NULL;
 
 -- Extra fields on the existing expense log to match the QuickBooks expense form.
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ref_no TEXT;

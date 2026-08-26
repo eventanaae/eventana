@@ -1220,6 +1220,9 @@ export async function adminRoutes(app: FastifyInstance) {
     discountFils: z.number().int().min(0).default(0),
     shippingFils: z.number().int().min(0).default(0),
     message: z.string().max(1000).optional(),
+    // Guest-of-honour / baby name + theme echoed on the receipt.
+    eventFor: z.string().max(120).nullable().optional(),
+    theme: z.string().max(120).nullable().optional(),
   });
 
   app.get('/api/admin/finance/customers', async (request) =>
