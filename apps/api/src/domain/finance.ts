@@ -138,7 +138,7 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
  */
 export async function importReceiptsFromHistory() {
   const { rows } = await pool.query(
-    `SELECT doc_number, customer_name, txn_date, product, memo, total_fils
+    `SELECT doc_number, customer_name, to_char(txn_date, 'YYYY-MM-DD') AS txn_date, product, memo, total_fils
        FROM historical_orders
       WHERE doc_number IS NOT NULL AND doc_number <> '' AND txn_date IS NOT NULL
       ORDER BY doc_number, id`,
