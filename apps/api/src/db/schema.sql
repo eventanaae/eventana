@@ -930,3 +930,47 @@ CREATE TABLE IF NOT EXISTS event_manual_staff (
   count     INT  NOT NULL DEFAULT 1,
   PRIMARY KEY (event_id, role)
 );
+
+-- Pre-event preparation tasks (INTERNAL ONLY — never shown to the customer).
+-- Auto-generated from a confirmed order's package/services/theme, fair-assigned
+-- to qualified staff. Design tasks (Marsha) gate the physical prep that follows.
+CREATE TABLE IF NOT EXISTS prep_tasks (
+  id            BIGSERIAL PRIMARY KEY,
+  event_id      TEXT NOT NULL,
+  key           TEXT NOT NULL,             -- template key, unique per event
+  title         TEXT NOT NULL,
+  category      TEXT NOT NULL DEFAULT 'physical', -- design | physical
+  skill         TEXT,                      -- prep-skill the assignee must have
+  people_needed INT  NOT NULL DEFAULT 1,
+  depends_on_key TEXT,                      -- design task this waits on (dependency)
+  due_date      DATE,
+  status        TEXT NOT NULL DEFAULT 'not_started', -- not_started | in_progress | waiting_design | ready | completed | issue
+  notes         TEXT,
+  checklist     JSONB,                     -- [{ label, done }]
+  photo_url     TEXT,                      -- proof of preparation
+  completed_by  TEXT,
+  completed_at  TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id, key)
+);
+CREATE INDEX IF NOT EXISTS prep_tasks_event_idx ON prep_tasks (event_id);
+CREATE INDEX IF NOT EXISTS prep_tasks_status_idx ON prep_tasks (status);
+
+-- Who is assigned to each prep task (many, for two-person tasks).
+CREATE TABLE IF NOT EXISTS prep_task_staff (
+  task_id   BIGINT NOT NULL,
+  member_id TEXT NOT NULL,
+  PRIMARY KEY (task_id, member_id)
+);
+CREATE INDEX IF NOT EXISTS prep_task_staff_member_idx ON prep_task_staff (member_id);
+
+-- Activity log for prep-task changes (assignment overrides, completion, issues).
+CREATE TABLE IF NOT EXISTS prep_task_log (
+  id         BIGSERIAL PRIMARY KEY,
+  task_id    BIGINT,
+  event_id   TEXT,
+  action     TEXT NOT NULL,
+  detail     TEXT,
+  actor      TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

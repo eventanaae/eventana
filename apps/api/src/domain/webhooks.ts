@@ -241,6 +241,10 @@ export async function processDelivery(
       void import('./staffing.js')
         .then(({ assignStaffForEvent }) => assignStaffForEvent(confirmedEventId!))
         .catch((err) => console.error('[staffing] auto-assign failed:', err));
+      // Generate the pre-event preparation tasks and fair-assign them (internal).
+      void import('./prep.js')
+        .then(({ generatePrepTasks }) => generatePrepTasks(confirmedEventId!))
+        .catch((err) => console.error('[prep] auto-generate failed:', err));
     }
     // Buzz the team's phones the moment a real new booking lands.
     if (newBooking) {

@@ -387,6 +387,76 @@ export async function adminRoutes(app: FastifyInstance) {
     return getStaffingPlan(res.eventId);
   });
 
+  /* --------------------------- Pre-event prep --------------------- */
+  // Internal only. The customer never sees any of this.
+  app.get('/api/admin/prep/:eventId', async (request) => {
+    const { getPrepPlan } = await import('../domain/prep.js');
+    return getPrepPlan((request.params as { eventId: string }).eventId);
+  });
+  app.post('/api/admin/prep/:eventId/generate', async (request, reply) => {
+    const { generatePrepTasks, getPrepPlan } = await import('../domain/prep.js');
+    const r = await generatePrepTasks((request.params as { eventId: string }).eventId);
+    if (!r) return reply.status(404).send({ error: 'not_found' });
+    return getPrepPlan(r.eventId);
+  });
+  app.post('/api/admin/prep/generate-all', async () => {
+    const { generatePrepTasks } = await import('../domain/prep.js');
+    const { rows } = await pool.query(
+      `SELECT id FROM events WHERE phase <> 'Cancelled' AND event_date >= CURRENT_DATE ORDER BY event_date`,
+    );
+    let created = 0; let events = 0;
+    for (const r of rows) {
+      const res = await generatePrepTasks(r.id);
+      if (res) { created += res.created; events++; }
+    }
+    return { events, created };
+  });
+  app.get('/api/admin/prep-board', async () => {
+    const { getPrepByPerson } = await import('../domain/prep.js');
+    return getPrepByPerson();
+  });
+  app.get('/api/admin/prep-mine', async (request) => {
+    const { getPrepTasksForMember } = await import('../domain/prep.js');
+    const staff = (request as any).staff as { id?: string };
+    return staff.id ? getPrepTasksForMember(staff.id) : [];
+  });
+  app.post('/api/admin/prep/task/:taskId/complete', async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+    const b = (request.body ?? {}) as { completedBy?: string; photoUrl?: string };
+    const { completePrepTask } = await import('../domain/prep.js');
+    const actor = String((request as any).staff?.name ?? 'staff');
+    const r = await completePrepTask(taskId, { completedBy: b.completedBy ?? actor, photoUrl: b.photoUrl, actor });
+    if (!r) return reply.status(404).send({ error: 'not_found' });
+    const { getPrepPlan } = await import('../domain/prep.js');
+    return getPrepPlan(r.eventId);
+  });
+  app.post('/api/admin/prep/task/:taskId/status', async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+    const b = (request.body ?? {}) as { status?: string; note?: string };
+    const { setPrepTaskStatus } = await import('../domain/prep.js');
+    const r = await setPrepTaskStatus(taskId, String(b.status), b.note ?? null, String((request as any).staff?.name ?? 'staff'));
+    if (!r) return reply.status(400).send({ error: 'invalid' });
+    const { getPrepPlan } = await import('../domain/prep.js');
+    return getPrepPlan(r.eventId);
+  });
+  app.post('/api/admin/prep/task/:taskId/checklist', async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+    const b = (request.body ?? {}) as { index?: number; done?: boolean };
+    const { togglePrepChecklist } = await import('../domain/prep.js');
+    const r = await togglePrepChecklist(taskId, Number(b.index), !!b.done);
+    if (!r) return reply.status(404).send({ error: 'not_found' });
+    return r;
+  });
+  app.post('/api/admin/prep/task/:taskId/assignees', async (request, reply) => {
+    const { taskId } = request.params as { taskId: string };
+    const b = (request.body ?? {}) as { memberIds?: string[] };
+    const { setPrepAssignees } = await import('../domain/prep.js');
+    const r = await setPrepAssignees(taskId, Array.isArray(b.memberIds) ? b.memberIds : [], String((request as any).staff?.name ?? 'staff'));
+    if (!r) return reply.status(404).send({ error: 'not_found' });
+    const { getPrepPlan } = await import('../domain/prep.js');
+    return getPrepPlan(r.eventId);
+  });
+
   /* --------------------------- WhatsApp leads --------------------- */
 
   /**

@@ -111,6 +111,20 @@ export const api = {
   staffingPlan: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}`),
   assignAllStaff: () => request<any>('/api/admin/staffing/assign-all', { method: 'POST' }),
   staffingCrew: () => request<any[]>('/api/admin/staffing-crew'),
+  // Pre-event preparation (internal only)
+  prepPlan: (eventId: string) => request<any>(`/api/admin/prep/${eventId}`),
+  prepGenerate: (eventId: string) => request<any>(`/api/admin/prep/${eventId}/generate`, { method: 'POST' }),
+  prepGenerateAll: () => request<any>('/api/admin/prep/generate-all', { method: 'POST' }),
+  prepBoard: () => request<any[]>('/api/admin/prep-board'),
+  prepMine: () => request<any[]>('/api/admin/prep-mine'),
+  prepComplete: (taskId: string, photoUrl?: string) =>
+    request<any>(`/api/admin/prep/task/${taskId}/complete`, { method: 'POST', body: JSON.stringify({ photoUrl }) }),
+  prepSetStatus: (taskId: string, status: string, note?: string) =>
+    request<any>(`/api/admin/prep/task/${taskId}/status`, { method: 'POST', body: JSON.stringify({ status, note }) }),
+  prepToggleChecklist: (taskId: string, index: number, done: boolean) =>
+    request<any>(`/api/admin/prep/task/${taskId}/checklist`, { method: 'POST', body: JSON.stringify({ index, done }) }),
+  prepSetAssignees: (taskId: string, memberIds: string[]) =>
+    request<any>(`/api/admin/prep/task/${taskId}/assignees`, { method: 'POST', body: JSON.stringify({ memberIds }) }),
   staffingRequirements: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}/requirements`),
   setStaffingRequirement: (eventId: string, role: string, count: number) =>
     request<any[]>(`/api/admin/staffing/${eventId}/requirements`, { method: 'POST', body: JSON.stringify({ role, count }) }),
