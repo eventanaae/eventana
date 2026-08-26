@@ -1,30 +1,30 @@
 import type { CSSProperties, ReactNode } from 'react';
 
-// Refined Eventana identity: the brand pink kept, but elevated — a deeper
-// raspberry accent, a clean light-neutral ground with a faint pink bias,
-// generous white cards and soft shadows. Not candy.
+// Eventana identity, matched to the customer app: candy-pastel pink, warm ink,
+// soft pink-tinted borders and shadows, a gentle pink-cream ground and rounded
+// white cards — friendly, bright and easy to scan.
 export const C = {
-  ink: '#2B2631',       // deep plum-charcoal
-  bg: '#F6F4F7',        // whisper light neutral (pink-biased)
-  line: '#ECE7EF',
-  lineSoft: '#F4F1F6',
-  pink: '#D6336C',      // refined raspberry — the brand, elevated
-  pinkDeep: '#B02A63',
-  pinkSoft: '#FBEAF1',
-  mint: '#2FB0A3',      // refined teal
-  yellow: '#E7A33C',    // refined amber
-  yellowSoft: '#FCF2E1',
-  yellowInk: '#9A6A1C',
-  green: '#2E9E74',
-  greenSoft: '#E4F5EE',
-  red: '#D6455A',
-  redSoft: '#FBEAEC',
-  muted: '#8B8492',     // neutral warm-gray (chosen, not default)
-  muted2: '#5E5766',
-  sidebarMuted: '#B8AEC4',
-  // soft, layered shadows for an elevated, premium card feel
-  shadow: '0 1px 2px rgba(43,38,49,.04), 0 4px 14px rgba(43,38,49,.05)',
-  shadowLg: '0 2px 6px rgba(43,38,49,.06), 0 10px 30px rgba(43,38,49,.07)',
+  ink: '#3B3641',       // warm plum-charcoal (same as customer app)
+  bg: '#FFF8FB',        // gentle pink-cream ground
+  line: '#F0DCE7',      // soft pink border
+  lineSoft: '#F7EAF1',
+  pink: '#F06CA8',      // brand candy pink
+  pinkDeep: '#E94F9C',
+  pinkSoft: '#FDEFF6',
+  mint: '#5BCFC5',
+  yellow: '#F7C948',
+  yellowSoft: '#FFF3D6',
+  yellowInk: '#a8752a',
+  green: '#2e9e7e',
+  greenSoft: '#E3F6EF',
+  red: '#c2453a',
+  redSoft: '#FCE9E5',
+  muted: '#b3a8a0',
+  muted2: '#96888f',
+  sidebarMuted: '#b3a8a0',
+  // soft, pink-tinted shadows (same feel as the customer app)
+  shadow: '0 2px 8px rgba(233,79,156,.06)',
+  shadowLg: '0 3px 14px rgba(233,79,156,.10)',
 } as const;
 
 export const fredoka = (size: number, weight = 600): CSSProperties => ({
@@ -52,7 +52,7 @@ export function Panel({
       style={{
         background: '#fff',
         border: `1px solid ${C.line}`,
-        borderRadius: 18,
+        borderRadius: 20,
         padding: 20,
         boxShadow: C.shadow,
         ...style,
@@ -81,7 +81,7 @@ export function Badge({
     warn: { bg: C.yellowSoft, fg: C.yellowInk },
     error: { bg: C.redSoft, fg: C.red },
     info: { bg: C.pinkSoft, fg: C.pinkDeep },
-    neutral: { bg: '#f1eae5', fg: C.muted2 },
+    neutral: { bg: '#F6EDF2', fg: C.muted2 },
   }[tone];
   return (
     <span
@@ -111,7 +111,7 @@ export function Th({ children, width }: { children?: ReactNode; width?: number |
         fontWeight: 700,
         fontSize: 11.5,
         color: C.ink,
-        background: '#FBF8F5',
+        background: '#FDF5F9',
         width,
       }}
     >
@@ -165,8 +165,8 @@ export function Button({
         border: palette.border,
         fontWeight: 700,
         fontSize: 12,
-        padding: '9px 14px',
-        borderRadius: 12,
+        padding: '9px 15px',
+        borderRadius: 14,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         whiteSpace: 'nowrap',
