@@ -2,12 +2,10 @@ import { useState } from 'react';
 import { C } from '../ui';
 import { MyEvents } from './MyEvents';
 import { Events } from './Events';
-import { Calendar } from './Calendar';
 
 /**
- * One Schedule surface that replaces three separate tabs — My Jobs, All Events
- * and Calendar — with a segmented switch. Everything opens the same Event
- * Details page by id, so nothing is lost in the merge.
+ * The Events surface — "My events" and "All events" in one segmented switch.
+ * Both open the same Event Details page by id.
  */
 export function Schedule({
   onOpenEvent,
@@ -16,11 +14,10 @@ export function Schedule({
   onOpenEvent: (id: string) => void;
   canSeeAll: boolean;
 }) {
-  const [mode, setMode] = useState<'mine' | 'all' | 'calendar'>(canSeeAll ? 'all' : 'mine');
-  const tabs: Array<{ id: 'mine' | 'all' | 'calendar'; label: string }> = [
-    { id: 'mine', label: 'My jobs' },
+  const [mode, setMode] = useState<'mine' | 'all'>(canSeeAll ? 'all' : 'mine');
+  const tabs: Array<{ id: 'mine' | 'all'; label: string }> = [
+    { id: 'mine', label: 'My events' },
     ...(canSeeAll ? ([{ id: 'all', label: 'All events' }] as const) : []),
-    { id: 'calendar', label: 'Calendar' },
   ];
 
   return (
@@ -47,7 +44,6 @@ export function Schedule({
 
       {mode === 'mine' && <MyEvents onOpenEvent={onOpenEvent} />}
       {mode === 'all' && canSeeAll && <Events onOpenEvent={onOpenEvent} />}
-      {mode === 'calendar' && <Calendar onOpenEvent={onOpenEvent} />}
     </div>
   );
 }

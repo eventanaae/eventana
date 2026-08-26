@@ -72,7 +72,9 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
             >
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                 <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.customer}</span>
-                <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
+                {e.totalDisplay != null && (
+                  <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
+                )}
               </div>
               <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
                 <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
@@ -108,6 +110,10 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
   };
   useEffect(() => { load(); }, [eventId]);
 
+  // The API nulls every money figure for employees/drivers — detect that and
+  // hide the money panels (payments, refund, tip amounts) entirely.
+  const moneyHidden = !!data && data.event.totalDisplay == null;
+
   return (
     <div
       onClick={onClose}
@@ -125,8 +131,14 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               <div style={{ flex: 1 }}>
                 <div style={fredoka(20)}>{data.event.id}</div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-                  {data.event.customer} · {data.event.phone}
-                  {data.event.email ? ` · ${data.event.email}` : ''} ·{' '}
+                  {data.event.customer}
+                  {data.event.phone && (
+                    <> · <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 700, textDecoration: 'none' }}>📞 {data.event.phone}</a></>
+                  )}
+                  {data.event.email ? (
+                    <> · <a href={`mailto:${data.event.email}`} style={{ color: C.muted2, textDecoration: 'none' }}>{data.event.email}</a></>
+                  ) : ''}
+                  {' · '}
                   {new Date(data.event.event_date).toDateString()} · {data.event.start_time}–
                   {data.event.base_end_time}
                 </div>
@@ -150,7 +162,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                {data.event.order_status === 'paid' && data.event.phase !== 'Cancelled' && (
+                {!moneyHidden && data.event.order_status === 'paid' && data.event.phase !== 'Cancelled' && (
                   <Button onClick={() => setAddonOpen(true)}>➕ Add-on link</Button>
                 )}
                 <Button tone="ghost" onClick={onClose}>Close</Button>
@@ -178,8 +190,8 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <LocationPanel event={data.event} />
               <PartyDetailsPanel event={data.event} />
-              {(data.rating || (data.tips && data.tips.length > 0)) && (
-                <RatingTipsPanel rating={data.rating} tips={data.tips} />
+              {(data.rating || (!moneyHidden && data.tips && data.tips.length > 0)) && (
+                <RatingTipsPanel rating={data.rating} tips={moneyHidden ? [] : data.tips} />
               )}
               {data.event.custom_theme && (
                 <DesignPanel eventId={eventId} designs={data.designs ?? []} onChange={load} />
@@ -439,6 +451,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                 </div>
               </Panel>
 
+              {!moneyHidden && (
               <Panel title="Payments &amp; audit trail">
                 {data.orders.map((o: any) => (
                   <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
@@ -468,6 +481,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                   ))}
                 </div>
               </Panel>
+              )}
 
               {data.event.cancellation && (
                 <Panel title="Cancellation & refund">
@@ -517,6 +531,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                 </Panel>
               )}
 
+              {!moneyHidden && (
               <Panel title="Refund">
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
                   Refunds can only be started here, by a staff account. The status is set from the
@@ -559,6 +574,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                   </Button>
                 </div>
               </Panel>
+              )}
             </div>
           </>
         )}

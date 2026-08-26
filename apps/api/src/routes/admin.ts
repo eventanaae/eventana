@@ -451,6 +451,8 @@ export async function adminRoutes(app: FastifyInstance) {
     // customer/PII list. Everyone else (owner/manager/employee) sees all.
     const staff = (request as any).staff as { id?: string; role?: string };
     const driverOnly = staff?.role === 'driver';
+    // Employees (and drivers) never see order money — that's owner/manager only.
+    const hideMoney = staff?.role === 'employee' || staff?.role === 'driver';
     const { rows } = await pool.query(
       `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.emirate,
               e.celebration_type, c.name AS customer, c.phone, o.id AS order_id,
@@ -461,11 +463,15 @@ export async function adminRoutes(app: FastifyInstance) {
         WHERE ($1::text IS NULL OR o.status = $1)
           AND ($2::text IS NULL OR EXISTS (
                 SELECT 1 FROM event_team et WHERE et.event_id = e.id AND et.member_id = $2))
-        ORDER BY e.event_date DESC
+        ORDER BY e.event_date ASC, e.start_time ASC
         LIMIT 200`,
       [status ?? null, driverOnly ? (staff?.id ?? '__none__') : null],
     );
-    return rows.map((r) => ({ ...r, totalDisplay: formatAed(Number(r.total_fils)) }));
+    return rows.map((r) => ({
+      ...r,
+      total_fils: hideMoney ? null : r.total_fils,
+      totalDisplay: hideMoney ? null : formatAed(Number(r.total_fils)),
+    }));
   });
 
   app.get('/api/admin/events/:eventId', async (request, reply) => {
@@ -532,7 +538,7 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT * FROM designs WHERE event_id = $1 ORDER BY version DESC`, [eventId]),
     ]);
 
-    return {
+    const result: any = {
       event: {
         ...rows[0],
         totalDisplay: formatAed(Number(rows[0].total_fils)),
@@ -580,6 +586,20 @@ export async function adminRoutes(app: FastifyInstance) {
       tips: tips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
       designs: designs.rows,
     };
+
+    // Employees (and drivers) do their job without seeing any money — strip
+    // every price, total, payment and refund figure. Owner/manager see it all.
+    if (staff?.role === 'employee' || staff?.role === 'driver') {
+      result.event.total_fils = null;
+      result.event.totalDisplay = null;
+      result.event.quote = null;
+      result.event.cancellation = null;
+      result.services = result.services.map((s: any) => ({ ...s, amount_fils: null }));
+      result.orders = result.orders.map((o: any) => ({ ...o, total_fils: null, totalDisplay: null, quote: null }));
+      result.payments = [];
+      result.tips = result.tips.map((t: any) => ({ ...t, amount_fils: null, amountDisplay: null }));
+    }
+    return result;
   });
 
   /** Upload/attach a design image for customer approval. Updates the latest
