@@ -98,7 +98,9 @@ async function readEntry(bytes: Uint8Array, dv: DataView, e: ZipEntry): Promise<
   let out: Uint8Array;
   if (e.method === 0) out = data;
   else {
-    const ds = new DecompressionStream('deflate-raw');
+    const DS: any = (globalThis as any).DecompressionStream;
+    if (!DS) throw new Error('This browser can’t open .xlsx here — please upload a CSV instead.');
+    const ds = new DS('deflate-raw');
     const stream = new Blob([data]).stream().pipeThrough(ds);
     out = new Uint8Array(await new Response(stream).arrayBuffer());
   }
