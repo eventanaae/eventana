@@ -22,13 +22,19 @@ const st = (s: string) => STATUS_META[s] ?? { label: s, tone: 'neutral' as const
 const fmtDue = (d: string) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—');
 
 export function Tasks({ role }: { role?: string }) {
-  const [tab, setTab] = useState<'person' | 'event'>('person');
   const [openEvent, setOpenEvent] = useState<string | null>(null);
+  const canSeeAll = role === 'owner' || role === 'manager';
+  // Tabs by role: "By person" (whole-team board) is Manager+Owner only; an
+  // employee gets their own "My tasks" instead. "By event" is for everyone.
+  const tabs: [string, string][] = canSeeAll
+    ? [['person', '👤 By person'], ['event', '🎉 By event']]
+    : [['mine', '👤 My tasks'], ['event', '🎉 By event']];
+  const [tab, setTab] = useState<string>(tabs[0][0]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', gap: 4, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: 4, maxWidth: 340 }}>
-        {([['person', '👤 By person'], ['event', '🎉 By event']] as [any, string][]).map(([id, label]) => (
+        {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{
             flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '9px 0', fontWeight: 700, fontSize: 12.5,
             background: tab === id ? C.pink : 'transparent', color: tab === id ? '#fff' : C.muted2,
@@ -36,10 +42,66 @@ export function Tasks({ role }: { role?: string }) {
         ))}
       </div>
 
-      {tab === 'person' ? <ByPerson /> : <ByEvent onOpen={setOpenEvent} />}
+      {tab === 'mine' && <MyTasks />}
+      {tab === 'person' && <ByPerson />}
+      {tab === 'event' && <ByEvent onOpen={setOpenEvent} canManage={canSeeAll} />}
 
       {openEvent && <PrepEventDrawer eventId={openEvent} role={role} onClose={() => setOpenEvent(null)} />}
     </div>
+  );
+}
+
+// ── An employee's own tasks only ─────────────────────────────────────────────
+function MyTasks() {
+  const [tasks, setTasks] = useState<any[] | null>(null);
+  const load = () => api.prepMine().then(setTasks).catch(() => setTasks([]));
+  useEffect(() => { load(); }, []);
+  if (!tasks) return <Spinner />;
+  const open = tasks.filter((t) => t.status !== 'completed');
+
+  return (
+    <Panel title="My preparation tasks" action={<Badge tone={open.length > 0 ? 'warn' : 'ok'}>{open.length} open</Badge>}>
+      {tasks.length === 0 ? (
+        <Empty>No tasks assigned to you right now 🎉</Empty>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {tasks.map((t) => (
+            <div key={t.id} style={{ background: '#fff', border: `1px solid ${t.status === 'issue' ? '#f2c9c2' : C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: C.ink, flex: 1 }}>{t.category === 'design' ? '🖌️ ' : ''}{t.title}</span>
+                <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
+              </div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, margin: '4px 0 8px' }}>
+                {t.customer} · {t.event_id} · due {fmtDue(t.due)}{t.people_needed > 1 ? ` · ${t.people_needed} people` : ''}
+              </div>
+              {Array.isArray(t.checklist) && t.checklist.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '4px 0 8px' }}>
+                  {t.checklist.map((ci: any, i: number) => (
+                    <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 600, color: ci.done ? C.muted : C.ink, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!ci.done} onChange={async (e) => { await api.prepToggleChecklist(String(t.id), i, e.target.checked); load(); }} />
+                      <span style={{ textDecoration: ci.done ? 'line-through' : 'none' }}>{ci.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {t.notes && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.red, marginBottom: 6 }}>📝 {t.notes}</div>}
+              {t.status === 'waiting_design' ? (
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: '#c98a2b' }}>⏳ Waiting for the design to be ready</div>
+              ) : (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <Button onClick={async () => { await api.prepComplete(String(t.id)); load(); }}>✓ Done</Button>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '7px 11px', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}>
+                    📷 Proof
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'setup-photos'); await api.prepComplete(String(t.id), url); load(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
+                  </label>
+                  <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); load(); } }}>⚠ Issue</Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -82,7 +144,7 @@ function ByPerson() {
 }
 
 // ── By event ─────────────────────────────────────────────────────────────────
-function ByEvent({ onOpen }: { onOpen: (id: string) => void }) {
+function ByEvent({ onOpen, canManage }: { onOpen: (id: string) => void; canManage?: boolean }) {
   const [events, setEvents] = useState<any[] | null>(null);
   const [busy, setBusy] = useState(false);
   const load = () => api.prepEvents().then(setEvents).catch(() => setEvents([]));
@@ -91,11 +153,13 @@ function ByEvent({ onOpen }: { onOpen: (id: string) => void }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div>
-        <Button tone="ghost" onClick={async () => { setBusy(true); try { const r = await api.prepGenerateAll(); alert(`Generated prep for ${r.events} event(s) — ${r.created} task(s).`); load(); } finally { setBusy(false); } }}>
-          {busy ? 'Generating…' : '⚙ Generate prep for all upcoming events'}
-        </Button>
-      </div>
+      {canManage && (
+        <div>
+          <Button tone="ghost" onClick={async () => { setBusy(true); try { const r = await api.prepGenerateAll(); alert(`Generated prep for ${r.events} event(s) — ${r.created} task(s).`); load(); } finally { setBusy(false); } }}>
+            {busy ? 'Generating…' : '⚙ Generate prep for all upcoming events'}
+          </Button>
+        </div>
+      )}
       {events.length === 0 ? (
         <Panel><Empty>No prep tasks yet. Tap “Generate” above, or confirm a booking.</Empty></Panel>
       ) : (

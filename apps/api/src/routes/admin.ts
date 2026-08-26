@@ -124,6 +124,12 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/finance') ||
       path.startsWith('/api/admin/overview') ||
       path.startsWith('/api/admin/staffing') ||
+      // Prep: the whole-team "By person" board + generation are Manager+Owner.
+      // The per-event progress, an event's plan, "my tasks" and task actions
+      // stay open to employees (they act on their own work).
+      path === '/api/admin/prep-board' ||
+      path === '/api/admin/prep/generate-all' ||
+      /^\/api\/admin\/prep\/[^/]+\/generate$/.test(path) ||
       path.startsWith('/api/admin/import') ||
       path.startsWith('/api/admin/orders') ||
       path.startsWith('/api/admin/expenses') ||
