@@ -458,7 +458,9 @@ export function MyEvent({
       </div>
 
       {/* ---------------- team ---------------- */}
-      {(() => {
+      {/* A cancelled event has no team — nobody is coming — so the crew card is
+          hidden entirely. */}
+      {!cancelled && (() => {
         // Prefer the smart-staffing crew (names + "to be confirmed"); fall back
         // to the legacy team list. The customer never sees internal status.
         const crew: any[] = (event.crew && event.crew.length ? event.crew : null)
@@ -503,6 +505,8 @@ export function MyEvent({
       )}
 
       {/* ---------------- chat ---------------- */}
+      {/* Messaging closes with the booking — a cancelled event has no team chat. */}
+      {!cancelled && (
       <div style={card}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{t('me.chatTitle')}</div>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 12px' }}>
@@ -557,6 +561,7 @@ export function MyEvent({
           <Notice tone="info">{t('me.chatClosed')}</Notice>
         )}
       </div>
+      )}
 
       {/* ---------------- design approval ---------------- */}
       {design && (
