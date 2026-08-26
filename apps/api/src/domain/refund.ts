@@ -35,7 +35,6 @@ export async function refundOrderMoney(params: {
   source?: string;
 }): Promise<RefundResult> {
   const { orderId, amountFils, reason } = params;
-  const source = params.source ?? 'auto';
   if (amountFils <= 0) return { ok: false, error: 'nothing_to_refund' };
 
   try {
@@ -81,7 +80,7 @@ export async function refundOrderMoney(params: {
         provider: payment.provider,
         oldStatus: payment.status,
         newStatus: nextStatus,
-        source,
+        source: 'system',
         providerStatus: verified.providerStatus,
         amountFils: payment.amount_fils,
         payload: verified.raw,

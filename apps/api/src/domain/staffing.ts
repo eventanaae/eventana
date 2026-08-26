@@ -30,7 +30,7 @@ export interface RoleReq {
 // remote leader only, never an on-site performer/helper.
 export const STAFF_SKILLS: Record<string, Skill[]> = {
   Jane: ['balloon_artist', 'clown', 'face_painting', 'helper', 'balloon_twisting'],
-  Dindo: ['balloon_artist', 'clown'],
+  Dindo: ['balloon_artist'],
   Gloria: ['clown', 'helper'],
   Diana: ['clown', 'helper'],
   Marsha: ['design'],
@@ -61,6 +61,9 @@ export async function seedStaffSkills(): Promise<void> {
         [id, skill],
       );
     }
+    // Prune any skill that's no longer in the definition (e.g. Dindo is not a
+    // clown), so a corrected roster takes effect on the next boot.
+    await pool.query(`DELETE FROM staff_skills WHERE member_id = $1 AND skill <> ALL($2::text[])`, [id, skills]);
   }
 }
 
