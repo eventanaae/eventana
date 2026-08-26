@@ -188,12 +188,27 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   if (!ev) return null;
 
   const cfg = await loadConfig();
+  const isPkgLabel = (s: string) => /\b(gold|golden|silver|bronze|summer)\b/i.test(s) && /package|birthday|splash|silver|bronze|gold/i.test(s);
+  // Prefer the structured cart; fall back to the booked line items (event_services)
+  // so converted/imported bookings are staffed from what was actually sold.
   const cart = (ev.cart ?? {}) as { services?: Array<{ serviceId: string; quantity: number }> };
-  const addOns: ServiceInput[] = (cart.services ?? []).map((s) => {
-    const svc = cfg.services.get(s.serviceId);
-    return { serviceId: s.serviceId, name: svc?.name ?? s.serviceId, categoryId: (svc as any)?.categoryId, isInflatable: (svc as any)?.isInflatable, isFoodStation: (svc as any)?.isFoodStation, quantity: s.quantity };
-  });
-  const reqs = computeRequirements({ packageName: ev.package_name, services: addOns });
+  let packageName: string | null = ev.package_name ?? null;
+  const services: ServiceInput[] = [];
+  if (Array.isArray(cart.services) && cart.services.length) {
+    for (const s of cart.services) {
+      const svc = cfg.services.get(s.serviceId);
+      services.push({ serviceId: s.serviceId, name: svc?.name ?? s.serviceId, categoryId: (svc as any)?.categoryId, isInflatable: (svc as any)?.isInflatable, isFoodStation: (svc as any)?.isFoodStation, quantity: s.quantity, fromPackage: false });
+    }
+  } else {
+    const es = await pool.query(`SELECT label, service_id, quantity FROM event_services WHERE event_id = $1`, [eventId]);
+    for (const row of es.rows) {
+      const label = String(row.label ?? '');
+      if (!packageName && isPkgLabel(label)) { packageName = label; continue; }
+      const svc = row.service_id ? cfg.services.get(row.service_id) : null;
+      services.push({ serviceId: row.service_id ?? '', name: svc?.name ?? label, categoryId: (svc as any)?.categoryId, isInflatable: (svc as any)?.isInflatable, isFoodStation: (svc as any)?.isFoodStation, quantity: Number(row.quantity) || 1, fromPackage: false });
+    }
+  }
+  const reqs = computeRequirements({ packageName, services });
 
   // Internal staff + skills + current workload.
   const staffRows = await pool.query(
