@@ -21,6 +21,7 @@ import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '
 import { createManualOrder, CheckoutError } from '../domain/checkout.js';
 import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
+import * as finance from '../domain/finance.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -1171,6 +1172,67 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // ── Finance module (QuickBooks-style: customers, items, invoices, receipts,
+  //    accounting). All under /api/admin/finance/… so it inherits the manager gate.
+  const lineItemsSchema = z.array(z.object({
+    name: z.string().min(1).max(200),
+    qty: z.number().min(0),
+    priceFils: z.number().int(),
+  }));
+  const docSchema = z.object({
+    customerId: z.number().int().nullable().optional(),
+    customerName: z.string().min(1).max(200),
+    items: lineItemsSchema.default([]),
+    discountFils: z.number().int().min(0).default(0),
+    shippingFils: z.number().int().min(0).default(0),
+    message: z.string().max(1000).optional(),
+  });
+
+  app.get('/api/admin/finance/customers', async (request) =>
+    finance.listCustomers((request.query as { q?: string }).q));
+  app.post('/api/admin/finance/customers', async (request, reply) => {
+    const schema = z.object({
+      fullName: z.string().min(1).max(200),
+      email: z.string().max(200).optional(),
+      phone: z.string().max(60).optional(),
+      billAddress: z.string().max(300).optional(),
+      shipAddress: z.string().max(300).optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    return finance.addCustomer(p.data);
+  });
+
+  app.get('/api/admin/finance/items', async () => finance.listItems());
+
+  app.get('/api/admin/finance/invoices', async () => finance.listInvoices());
+  app.post('/api/admin/finance/invoices', async (request, reply) => {
+    const schema = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), status: z.enum(['draft', 'sent']).optional() });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
+    return reply.status(201).send(await finance.createInvoice(p.data));
+  });
+  app.patch('/api/admin/finance/invoices/:id/status', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const p = z.object({ status: z.enum(['draft', 'sent', 'viewed', 'paid']) }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const r = await finance.setInvoiceStatus(id, p.data.status);
+    if (!r) return reply.status(404).send({ error: 'not_found' });
+    return r;
+  });
+
+  app.get('/api/admin/finance/receipts', async () => finance.listReceipts());
+  app.post('/api/admin/finance/receipts', async (request, reply) => {
+    const schema = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional() });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
+    return reply.status(201).send(await finance.createReceipt(p.data));
+  });
+  app.delete('/api/admin/finance/receipts/:id', async (request) =>
+    finance.deleteReceipt(Number((request.params as { id: string }).id)));
+
+  app.get('/api/admin/finance/accounting', async () => finance.accountingSummary());
+
   app.get('/api/admin/import/status', async () => {
     const cust = await pool.query(
       `SELECT count(*)::int AS n, count(email)::int AS with_email, count(DISTINCT emirate)::int AS emirates FROM historical_customers`,
@@ -1487,8 +1549,33 @@ export async function adminRoutes(app: FastifyInstance) {
     if (pipeline.events > 0) insights.push({ tone: 'good', text: `AED ${pipeline.revenueDisplay} in the pipeline — ${pipeline.events} upcoming confirmed event(s).` });
     if (funnel.leads > 0) insights.push({ tone: funnel.conversionPct >= 20 ? 'good' : 'info', text: `${funnel.booked} of ${funnel.leads} WhatsApp leads booked (${funnel.conversionPct}% conversion).` });
 
+    // The REAL business, from the QuickBooks migration: the per-year P&L, the
+    // lifetime totals, and the full customer book — so the CEO view reflects the
+    // whole company (4 years, all WhatsApp sales), not just app-placed bookings.
+    const [histFin, histCust] = await Promise.all([
+      pool.query(`SELECT period, income_fils, net_income_fils FROM historical_financials WHERE period_kind = 'year' ORDER BY period`),
+      pool.query(`SELECT count(*)::int n, count(email)::int with_email FROM historical_customers`),
+    ]);
+    const histYears = histFin.rows.map((r) => {
+      const rev = Number(r.income_fils);
+      const net = Number(r.net_income_fils);
+      return { year: r.period, revenueFils: rev, revenueDisplay: formatAed(rev), netFils: net, netDisplay: formatAed(net), marginPct: rev > 0 ? Math.round((net / rev) * 1000) / 10 : 0 };
+    });
+    const lifetimeRevenue = histYears.reduce((s, y) => s + y.revenueFils, 0);
+    const lifetimeNet = histYears.reduce((s, y) => s + y.netFils, 0);
+    const latestYear = histYears[histYears.length - 1] ?? null;
+    const business = histYears.length > 0 ? {
+      years: histYears,
+      lifetimeRevenueFils: lifetimeRevenue, lifetimeRevenueDisplay: formatAed(lifetimeRevenue),
+      lifetimeNetFils: lifetimeNet, lifetimeNetDisplay: formatAed(lifetimeNet),
+      lifetimeMarginPct: lifetimeRevenue > 0 ? Math.round((lifetimeNet / lifetimeRevenue) * 1000) / 10 : 0,
+      customers: Number(histCust.rows[0].n), customersWithEmail: Number(histCust.rows[0].with_email),
+      latestYear,
+    } : null;
+
     return {
       from, to,
+      business,
       pipeline, funnel,
       collectedFils: revenue, collectedDisplay: formatAed(revenue),
       filters: { emirate: q.emirate ?? null, eventType: q.eventType ?? null, packageId: q.packageId ?? null },

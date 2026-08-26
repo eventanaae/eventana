@@ -766,6 +766,61 @@ CREATE TABLE IF NOT EXISTS historical_orders (
 CREATE UNIQUE INDEX IF NOT EXISTS historical_orders_dedupe_idx ON historical_orders (dedupe_key);
 CREATE INDEX IF NOT EXISTS historical_orders_date_idx ON historical_orders (txn_date);
 
+-- ── Finance module (a simple QuickBooks-style set inside the dashboard) ──────
+-- Two documents drive Sales & Get Paid:
+--   * finance_invoices  — billed, not yet paid → Accounts Receivable.
+--   * finance_receipts  — a paid sale → Cash on hand.
+-- Both carry their line items as JSONB ([{name, qty, priceFils, amountFils}]),
+-- a discount and shipping amount, and a derived total. Numbers come from one
+-- shared sequence so invoice/receipt numbers never collide (continuing past the
+-- imported QuickBooks history). Customers reference the migrated book.
+CREATE SEQUENCE IF NOT EXISTS finance_doc_seq START 1700;
+
+CREATE TABLE IF NOT EXISTS finance_invoices (
+  id            BIGSERIAL PRIMARY KEY,
+  number        TEXT NOT NULL UNIQUE,
+  customer_id   BIGINT REFERENCES historical_customers(id),
+  customer_name TEXT NOT NULL,
+  issue_date    DATE NOT NULL DEFAULT current_date,
+  due_date      DATE,
+  line_items    JSONB NOT NULL DEFAULT '[]',
+  subtotal_fils BIGINT NOT NULL DEFAULT 0,
+  discount_fils BIGINT NOT NULL DEFAULT 0,
+  shipping_fils BIGINT NOT NULL DEFAULT 0,
+  total_fils    BIGINT NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'draft',   -- draft | sent | viewed | paid | overdue
+  message       TEXT,
+  paid_at       TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS finance_invoices_status_idx ON finance_invoices (status, due_date);
+
+CREATE TABLE IF NOT EXISTS finance_receipts (
+  id            BIGSERIAL PRIMARY KEY,
+  number        TEXT NOT NULL UNIQUE,
+  customer_id   BIGINT REFERENCES historical_customers(id),
+  customer_name TEXT NOT NULL,
+  date          DATE NOT NULL DEFAULT current_date,
+  line_items    JSONB NOT NULL DEFAULT '[]',
+  subtotal_fils BIGINT NOT NULL DEFAULT 0,
+  discount_fils BIGINT NOT NULL DEFAULT 0,
+  shipping_fils BIGINT NOT NULL DEFAULT 0,
+  total_fils    BIGINT NOT NULL DEFAULT 0,
+  paid_with     TEXT NOT NULL DEFAULT 'Cash',
+  message       TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS finance_receipts_date_idx ON finance_receipts (date DESC);
+
+-- Extra fields on the existing expense log to match the QuickBooks expense form.
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ref_no TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tax_fils BIGINT NOT NULL DEFAULT 0;
+
+-- Cash on hand opening balance (the QuickBooks figure at migration time). The
+-- live balance = this + receipts + collected invoices − expenses.
+INSERT INTO settings (key, value) VALUES ('finance.cashOpeningFils', '13690395'::jsonb)
+  ON CONFLICT (key) DO NOTHING;
+
 -- Total expenses per year, summed from a QuickBooks expense report on import.
 -- Kept apart from the invoice income so the dashboard can compute real profit
 -- per year = (revenue from invoices) − (expenses here), for every year we have.
