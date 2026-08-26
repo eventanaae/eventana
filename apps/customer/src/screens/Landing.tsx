@@ -66,7 +66,7 @@ export function Landing({
             <button className="lp-lang" onClick={() => setLang(ar ? 'en' : 'ar')}>
               {ar ? 'EN' : 'ع'}
             </button>
-            <a className="lp-tel" href="tel:+971564500777">056 450 0777</a>
+            <a className="lp-tel" href="tel:+971564500777" dir="ltr">056 450 0777</a>
             <button className="lp-btn lp-btn-sm" onClick={onStart}>{copy.cta}</button>
           </nav>
         </div>
@@ -142,7 +142,7 @@ export function Landing({
         <div className="lp-wrap lp-foot-in">
           <span>Eventana Events · Al Barsha 2, Dubai</span>
           <span>
-            <a href="tel:+971564500777">056 450 0777</a>
+            <a href="tel:+971564500777" dir="ltr">056 450 0777</a>
             {' · '}
             <a href="https://wa.me/971564500777">WhatsApp</a>
             {' · '}
