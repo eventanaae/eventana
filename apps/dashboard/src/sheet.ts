@@ -101,7 +101,10 @@ async function readEntry(bytes: Uint8Array, dv: DataView, e: ZipEntry): Promise<
     const DS: any = (globalThis as any).DecompressionStream;
     if (!DS) throw new Error('This browser can’t open .xlsx here — please upload a CSV instead.');
     const ds = new DS('deflate-raw');
-    const stream = new Blob([data]).stream().pipeThrough(ds);
+    // Copy into a fresh ArrayBuffer-backed view so the Blob part type is
+    // concrete (avoids the Uint8Array<ArrayBufferLike> vs BlobPart mismatch).
+    const part = data.slice();
+    const stream = new Blob([part as unknown as BlobPart]).stream().pipeThrough(ds);
     out = new Uint8Array(await new Response(stream).arrayBuffer());
   }
   return new TextDecoder().decode(out);
