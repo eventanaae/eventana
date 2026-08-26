@@ -52,6 +52,45 @@ export async function addCustomer(d: { fullName: string; email?: string; phone?:
   return rows[0];
 }
 
+/** Full profile for one customer — for the view/edit panel opened from a receipt. */
+export async function getCustomer(id: number) {
+  const { rows } = await pool.query(
+    `SELECT id, full_name, phone, phone_alt, email, emirate, bill_address, ship_address FROM historical_customers WHERE id = $1`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+/** Find a customer by name — used to resolve the profile behind a receipt whose
+ *  customer_id is null (the migrated QuickBooks history). */
+export async function findCustomerByName(name: string) {
+  const { rows } = await pool.query(
+    `SELECT id, full_name, phone, phone_alt, email, emirate, bill_address, ship_address
+       FROM historical_customers WHERE lower(full_name) = lower($1) ORDER BY id LIMIT 1`,
+    [name],
+  );
+  return rows[0] ?? null;
+}
+
+/** Edit a customer's details (name, phones, email, emirate/city). */
+export async function updateCustomer(
+  id: number,
+  d: { fullName?: string; phone?: string; backupPhone?: string; email?: string; emirate?: string },
+) {
+  const { rows } = await pool.query(
+    `UPDATE historical_customers SET
+        full_name = COALESCE(NULLIF($2,''), full_name),
+        phone     = COALESCE($3, phone),
+        phone_alt = COALESCE($4, phone_alt),
+        email     = COALESCE($5, email),
+        emirate   = COALESCE($6, emirate)
+      WHERE id = $1
+      RETURNING id, full_name, phone, phone_alt, email, emirate`,
+    [id, (d.fullName ?? '').trim(), d.phone ?? null, d.backupPhone ?? null, d.email ?? null, d.emirate ?? null],
+  );
+  return rows[0] ?? null;
+}
+
 // ── Items (packages + services from the catalogue) ───────────────────────────
 export async function listItems() {
   const [pkgs, svcs] = await Promise.all([
@@ -299,7 +338,20 @@ export async function importReceiptsFromHistory() {
 }
 
 export async function listReceipts() {
-  const { rows } = await pool.query(`SELECT * FROM finance_receipts ORDER BY date DESC, id DESC`);
+  // Pull the customer's city (emirate), phone and email alongside each receipt —
+  // matched by id, or by name for the migrated QuickBooks history that has no id.
+  const { rows } = await pool.query(
+    `SELECT r.*, hc.id AS hc_id, hc.emirate AS city, hc.phone AS customer_phone, hc.email AS customer_email
+       FROM finance_receipts r
+       LEFT JOIN LATERAL (
+         SELECT id, emirate, phone, email FROM historical_customers h
+          WHERE h.id = r.customer_id
+             OR (r.customer_id IS NULL AND lower(h.full_name) = lower(r.customer_name))
+          ORDER BY (h.id = r.customer_id) DESC NULLS LAST
+          LIMIT 1
+       ) hc ON true
+      ORDER BY r.date DESC, r.id DESC`,
+  );
   const list = rows.map(decorateReceipt);
   const total = list.reduce((s, r) => s + r.total_fils, 0);
   return { receipts: list, totalFils: total, totalDisplay: formatAed(total) };
