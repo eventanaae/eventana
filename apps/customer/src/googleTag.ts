@@ -74,11 +74,13 @@ export function initGoogleTag(): void {
 
   window.dataLayer = window.dataLayer ?? [];
   // gtag.js reads the raw `arguments` object off dataLayer, not an array — so
-  // this has to stay a plain function and push `arguments` verbatim. Writing
-  // it as a rest-parameter arrow silently breaks every event.
-  function gtag(): void {
+  // this has to stay a plain function expression that pushes `arguments`
+  // verbatim. Writing it as a rest-parameter arrow silently breaks every
+  // event. The GtagFn annotation is what lets the calls below pass arguments
+  // to a function that declares none.
+  const gtag = function (): void {
     window.dataLayer!.push(arguments);
-  }
+  } as GtagFn;
   window.gtag = gtag;
 
   const script = document.createElement('script');
