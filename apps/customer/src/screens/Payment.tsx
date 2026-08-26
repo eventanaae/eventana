@@ -3,6 +3,7 @@ import { api } from '../api';
 import { C, fredoka, Notice, PrimaryButton, Spinner } from '../ui';
 import type { TFn } from '../i18n';
 import { mountStripeCheckout } from '../stripe';
+import { trackGooglePurchase } from '../googleTag';
 
 /**
  * The return screen.
@@ -53,6 +54,11 @@ export function PaymentReturn({
           done.current = true;
           setConfirmed(true);
           setEventId(order.eventId ?? null);
+          // The server has confirmed the money — the only moment a Purchase is
+          // true. Google Ads learns about the booking here; Meta's copy is
+          // posted server-side from the payment webhook. Reporting is
+          // de-duplicated by order id, so a refresh cannot count twice.
+          trackGooglePurchase(order.orderId, order.totalFils, order.kind);
           return;
         }
       } catch {

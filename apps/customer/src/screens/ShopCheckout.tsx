@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ScreenProps } from '../App';
 import { api } from '../api';
 import { trackInitiateCheckout } from '../attribution';
+import { trackGoogleBeginCheckout } from '../googleTag';
 import { C, Field, fredoka, money, Notice, PrimaryButton } from '../ui';
 import { quoteShop, SHOP_DRAWING_IDS, SHOP_EMIRATES, SHOP_READY_DAYS } from '@eventana/shared';
 
@@ -126,6 +127,7 @@ export function ShopCheckout({
       }
       // Reached the payment provider — see the note in Checkout.tsx.
       trackInitiateCheckout(result.totalFils);
+      trackGoogleBeginCheckout(result.totalFils);
       // Keep the cart until the order is CONFIRMED (cleared in onShopDone) so a
       // failed/cancelled payment can be retried with the items still in place.
       if (result.clientSecret && result.publishableKey) {

@@ -154,6 +154,16 @@ services:
       # retargeting audiences possible.
       - key: VITE_META_PIXEL_ID
         sync: false
+      # Google Analytics 4 measurement id, G-XXXXXXXXXX. Absent → no GA4.
+      - key: VITE_GA4_ID
+        sync: false
+      # Google Ads conversion id, AW-XXXXXXXXX, and the label of the "Booking"
+      # conversion action. BOTH are needed before a paid booking is reported
+      # to Google Ads; either one missing → the tag stays silent.
+      - key: VITE_GOOGLE_ADS_ID
+        sync: false
+      - key: VITE_GOOGLE_ADS_PURCHASE_LABEL
+        sync: false
     routes:
       # The payment return lands on /pay/return?order=… — serve the app
       # for any path so a refresh there does not 404.

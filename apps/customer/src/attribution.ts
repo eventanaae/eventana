@@ -3,8 +3,9 @@
  *
  * Two jobs, both invisible to the customer:
  *
- *  1. Capture `fbclid` / `utm_*` off the landing URL and keep them for the
- *     length of Meta's click window, so a booking made three days later is
+ *  1. Capture the ad click ids (`fbclid` for Meta, `gclid`/`gbraid`/`wbraid`
+ *     for Google) and `utm_*` off the landing URL and keep them for the
+ *     length of the click window, so a booking made three days later is
  *     still credited to the ad that started it. Checkout sends them along
  *     and the server reports the Purchase back to Meta.
  *
@@ -12,8 +13,10 @@
  *     "visited the site", "started checkout but didn't pay" — none of which
  *     exist today.
  *
- * Both halves are inert unless VITE_META_PIXEL_ID is set, so nothing here
- * changes the app until the id is in.
+ * The pixel half is inert unless VITE_META_PIXEL_ID is set, so nothing here
+ * changes the app until the id is in. The Google half lives in `googleTag.ts`;
+ * only the click-id capture is shared, because a click id is worth keeping
+ * whether or not any tag is configured.
  */
 
 const STORE_KEY = 'eventana.attribution';
@@ -22,6 +25,11 @@ const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
 export interface StoredAttribution {
   fbc?: string | null;
+  /** Google Ads click id — the join key for an imported offline conversion. */
+  gclid?: string | null;
+  /** iOS/app click ids Google sends instead of gclid when cookies are limited. */
+  gbraid?: string | null;
+  wbraid?: string | null;
   utmSource?: string | null;
   utmMedium?: string | null;
   utmCampaign?: string | null;
@@ -69,6 +77,13 @@ export function captureAttribution(): void {
   try {
     const params = new URLSearchParams(window.location.search);
     const fbclid = params.get('fbclid');
+    // Google sends exactly one of these three: gclid on the web, gbraid/wbraid
+    // when the click came through an app or an iOS privacy-limited path.
+    const google = {
+      gclid: params.get('gclid'),
+      gbraid: params.get('gbraid'),
+      wbraid: params.get('wbraid'),
+    };
     const utm = {
       utmSource: params.get('utm_source'),
       utmMedium: params.get('utm_medium'),
@@ -76,12 +91,20 @@ export function captureAttribution(): void {
       utmContent: params.get('utm_content'),
       utmTerm: params.get('utm_term'),
     };
-    const hasAnything = Boolean(fbclid) || Object.values(utm).some(Boolean);
+    const hasAnything =
+      Boolean(fbclid) || Object.values(google).some(Boolean) || Object.values(utm).some(Boolean);
     if (!hasAnything) return;
 
+    const previous = readStore();
     writeStore({
       // Meta's documented click-id format: fb.<subdomainIndex>.<ts>.<fbclid>
-      fbc: fbclid ? `fb.1.${Date.now()}.${fbclid}` : (readStore()?.fbc ?? null),
+      fbc: fbclid ? `fb.1.${Date.now()}.${fbclid}` : (previous?.fbc ?? null),
+      // A visit carrying only utm_* (a newsletter link, say) must not wipe the
+      // click id an earlier ad click left behind — that id is what makes the
+      // booking importable back into Google Ads.
+      gclid: google.gclid ?? (Object.values(google).some(Boolean) ? null : (previous?.gclid ?? null)),
+      gbraid: google.gbraid ?? (Object.values(google).some(Boolean) ? null : (previous?.gbraid ?? null)),
+      wbraid: google.wbraid ?? (Object.values(google).some(Boolean) ? null : (previous?.wbraid ?? null)),
       ...utm,
       landingUrl: window.location.href.slice(0, 600),
       at: Date.now(),

@@ -212,7 +212,7 @@ export const api = {
   order: (orderId: string, token?: string) =>
     request<{
       orderId: string; status: string; kind: string; paymentStatus: string; eventId: string | null;
-      confirmed: boolean; totalDisplay: string;
+      confirmed: boolean; totalDisplay: string; totalFils: number;
     }>(`/api/orders/${orderId}${token ? `?t=${encodeURIComponent(token)}` : ''}`),
 
   // Manual-order payment link (opened from a Manager-sent WhatsApp link).

@@ -45,6 +45,12 @@ const attributionSchema = z
   .object({
     fbc: z.string().max(255).nullable().optional(),
     fbp: z.string().max(255).nullable().optional(),
+    // Google's click ids. Stored, not yet reported: importing them back into
+    // Google Ads as offline conversions needs a developer token Eventana does
+    // not have, and an id that was never banked cannot be imported later.
+    gclid: z.string().max(255).nullable().optional(),
+    gbraid: z.string().max(255).nullable().optional(),
+    wbraid: z.string().max(255).nullable().optional(),
     utmSource: z.string().max(120).nullable().optional(),
     utmMedium: z.string().max(120).nullable().optional(),
     utmCampaign: z.string().max(180).nullable().optional(),
