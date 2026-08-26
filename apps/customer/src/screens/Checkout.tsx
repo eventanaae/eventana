@@ -344,11 +344,10 @@ export function Checkout({
     Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && agreed && customizationReady &&
     (Boolean(account) || (authMode === 'register' && guestReady));
 
-  // The live wallet rail (Card + Apple Pay both settle through it). Stripe is
-  // the in-site (embedded) rail; Ziina is the fallback if Stripe isn't live.
+  // The live wallet rail (Card + Apple Pay both settle through it) is Stripe,
+  // the in-site (embedded) rail and Eventana's only card provider.
   const walletName =
     catalogue.paymentMethods.find((p) => p.name === 'stripe')?.name ??
-    catalogue.paymentMethods.find((p) => p.name === 'ziina')?.name ??
     catalogue.paymentMethods[0]?.name ??
     'stripe';
 

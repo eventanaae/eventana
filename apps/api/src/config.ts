@@ -40,6 +40,9 @@ function providerConfig(
     sandboxUrl: string;
     liveUrl: string;
     requires: Array<'publicKey' | 'secretKey' | 'merchantCode' | 'webhookSecret'>;
+    /** Retire a provider: never offered for new payments (historical orders
+     *  can still be refunded/reconciled via getProvider). */
+    disabled?: boolean;
   },
 ): ProviderConfig {
   const values = {
@@ -59,7 +62,10 @@ function providerConfig(
   );
 
   let mode: ProviderMode;
-  if (declared === 'live') {
+  if (opts.disabled) {
+    // Retired provider — always off for new payments.
+    mode = 'disabled';
+  } else if (declared === 'live') {
     // Live deployment: activate providers that are genuinely
     // production-ready; disable the rest rather than blocking the whole app.
     mode = missing.length > 0 || looksTest ? 'disabled' : 'live';
@@ -293,12 +299,16 @@ export const config = {
       liveUrl: 'https://api.tamara.co',
       requires: ['secretKey', 'webhookSecret'],
     }),
+    // Ziina retired in favour of Stripe. Kept in the registry only so the one
+    // historical Ziina order can still be refunded/reconciled; never offered
+    // for new payments.
     ziina: providerConfig('ziina', {
       secretKey: env.ZIINA_API_KEY,
       webhookSecret: env.ZIINA_WEBHOOK_SECRET,
       sandboxUrl: 'https://api-v2.ziina.com/api',
       liveUrl: 'https://api-v2.ziina.com/api',
       requires: ['secretKey'],
+      disabled: true,
     }),
     stripe: providerConfig('stripe', {
       publicKey: env.STRIPE_PUBLISHABLE_KEY,

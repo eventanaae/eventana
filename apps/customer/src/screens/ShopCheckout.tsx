@@ -106,7 +106,6 @@ export function ShopCheckout({
       };
       const provider =
         catalogue.paymentMethods.find((p) => p.name === 'stripe')?.name ??
-        catalogue.paymentMethods.find((p) => p.name === 'ziina')?.name ??
         'stripe';
       const result = await api.shopCheckout({
         items,
