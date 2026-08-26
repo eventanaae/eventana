@@ -215,6 +215,20 @@ export const api = {
       confirmed: boolean; totalDisplay: string;
     }>(`/api/orders/${orderId}${token ? `?t=${encodeURIComponent(token)}` : ''}`),
 
+  // Manual-order payment link (opened from a Manager-sent WhatsApp link).
+  payLinkLoad: (orderId: string, t: string) =>
+    request<any>(`/api/orders/${orderId}/paylink?t=${encodeURIComponent(t)}`),
+  payLinkSave: (orderId: string, t: string, body: Record<string, unknown>) =>
+    request<{ ok: boolean }>(`/api/orders/${orderId}/paylink?t=${encodeURIComponent(t)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  payLinkPay: (orderId: string, t: string) =>
+    request<{ clientSecret?: string | null; publishableKey?: string | null; eligible?: boolean; alreadyPaid?: boolean }>(
+      `/api/orders/${orderId}/paylink/pay?t=${encodeURIComponent(t)}`,
+      { method: 'POST' },
+    ),
+
   events: () => request<any[]>('/api/events'),
   event: (eventId: string) => request<any>(`/api/events/${eventId}`),
 

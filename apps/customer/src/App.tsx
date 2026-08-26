@@ -18,6 +18,7 @@ import { MovieSelect } from './screens/MovieSelect';
 import { ResetPassword } from './screens/ResetPassword';
 import { Shop } from './screens/Shop';
 import { ShopCheckout } from './screens/ShopCheckout';
+import { PayLink } from './screens/PayLink';
 import { TermsSheet } from './screens/Terms';
 import { useProfile } from './profile';
 import { useLang, makeT, type Lang, type TFn } from './i18n';
@@ -25,7 +26,7 @@ import { useLang, makeT, type Lang, type TFn } from './i18n';
 export type Screen =
   | 'home' | 'explore' | 'package' | 'buildIntake' | 'build' | 'theme' | 'custom'
   | 'assistant' | 'movieselect' | 'checkout' | 'confirming' | 'myevent' | 'profile'
-  | 'shop' | 'shopcheckout';
+  | 'shop' | 'shopcheckout' | 'paylink';
 
 export interface Draft {
   celebrationType: string;
@@ -196,17 +197,25 @@ export default function App() {
 
   // Terms & Conditions deep link (?terms=1), e.g. from an email invoice.
   const [showTerms, setShowTerms] = useState(false);
+  // Manual-order payment link (?pay=<id>&t=<token>), sent by the team over WhatsApp.
+  const [payLink, setPayLink] = useState<{ orderId: string; token: string } | null>(null);
 
   // Returning from a provider's hosted checkout, opening a booking straight from
-  // an email's "Track your booking" button (?event=<id>), or the Terms link.
+  // an email's "Track your booking" button (?event=<id>), the Terms link, or a
+  // manual-order payment link (?pay=<id>).
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const returned = params.get('order');
     const openEvent = params.get('event');
+    const openPay = params.get('pay');
     if (returned) {
       setOrderId(returned);
       setOrderToken(params.get('t'));
       setScreen('confirming');
+      history.replaceState({}, '', location.pathname);
+    } else if (openPay) {
+      setPayLink({ orderId: openPay, token: params.get('t') ?? '' });
+      setScreen('paylink');
       history.replaceState({}, '', location.pathname);
     } else if (openEvent) {
       setEventId(openEvent);
@@ -396,7 +405,7 @@ export default function App() {
     { id: 'profile', label: t('nav.profile'), icon: '☺' },
   ];
 
-  const showTabs = screen !== 'confirming';
+  const showTabs = screen !== 'confirming' && screen !== 'paylink';
 
   return (
     <Frame lang={lang}>
@@ -435,6 +444,9 @@ export default function App() {
         {screen === 'shop' && <Shop {...shared} />}
         {screen === 'shopcheckout' && (
           <ShopCheckout {...shared} onOrder={(id, embed, tok, stripe) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); setStripeInfo(stripe ?? null); go('confirming'); }} />
+        )}
+        {screen === 'paylink' && payLink && (
+          <PayLink orderId={payLink.orderId} token={payLink.token} mapsKey={catalogue.mapsKey} lang={lang} t={t} />
         )}
       </div>
 
