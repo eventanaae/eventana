@@ -18,8 +18,11 @@ export const SHOP_SERVICE_IDS: string[] = [...SHOP_DIGITAL_IDS, ...SHOP_PRINTED_
 /** Printed goods need the guest's drawing (or a professional one we make). */
 export const SHOP_DRAWING_IDS = new Set(['tshirt10', 'hat', 'banner', 'drawing']);
 
-/** Made-to-order production time, in days. */
+/** Made-to-order production time for printed goods, in days. */
 export const SHOP_READY_DAYS = 14;
+
+/** Turnaround for digital goods (invitations, drawings), in days. */
+export const SHOP_DIGITAL_READY_DAYS = 3;
 
 /**
  * Flat delivery for standalone printed orders, in AED. Al Gharbia (the Western

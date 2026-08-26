@@ -17,6 +17,7 @@ import {
   quoteAddons,
   quoteShop,
   SHOP_READY_DAYS,
+  SHOP_DIGITAL_READY_DAYS,
   SHOP_DRAWING_IDS,
   type AddonRequest,
   type CartInput,
@@ -432,14 +433,20 @@ export async function startShopCheckout(req: ShopCheckoutRequest): Promise<ShopC
   }
   const provider = getProvider(req.provider);
 
-  const readyBy = new Date(Date.now() + SHOP_READY_DAYS * 86_400_000).toISOString().slice(0, 10);
+  // Estimated ready/delivery date — printed goods take longer than digital ones.
+  // Both now carry an estimate so the customer always sees a delivery date.
+  const leadDays = q.hasPrinted ? SHOP_READY_DAYS : SHOP_DIGITAL_READY_DAYS;
+  const readyBy =
+    q.hasPrinted || q.hasDigital
+      ? new Date(Date.now() + leadDays * 86_400_000).toISOString().slice(0, 10)
+      : null;
   const cart = {
     kind: 'shop',
     items: q.lines.map((l) => ({ serviceId: l.serviceId, quantity: l.quantity })),
     emirate: req.emirate,
     address: req.address ?? null,
     customization: req.customization ?? null,
-    readyBy: q.hasPrinted ? readyBy : null,
+    readyBy,
   };
 
   const orderId = await withTransaction(async (db) => {

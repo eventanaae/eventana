@@ -401,7 +401,7 @@ export function renderShopEmail(row: ShopEmailRow): { subject: string; html: str
     : '';
   const delivery = Number(row.quote?.deliveryFils ?? 0);
   const detail: Array<[string, string]> = [['Order Number', row.order_id]];
-  if (row.cart?.readyBy) detail.push(['Ready by', longDate(row.cart.readyBy)]);
+  if (row.cart?.readyBy) detail.push(['Estimated delivery', longDate(row.cart.readyBy)]);
   if (row.cart?.emirate) detail.push(['Delivering to', row.cart.emirate]);
   if (delivery > 0) detail.push(['Delivery', aed(delivery)]);
   detail.push(['Total', aed(row.total_fils)]);
