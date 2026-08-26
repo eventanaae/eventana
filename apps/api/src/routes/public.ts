@@ -611,7 +611,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const { t } = request.query as { t?: string };
     if (!orderViewTokenValid(orderId, t)) return reply.status(404).send({ error: 'not_found' });
     const { rows } = await pool.query(
-      `SELECT o.id, o.status, o.total_fils, o.cart, o.quote, o.event_id, o.source,
+      `SELECT o.id, o.status, o.total_fils, o.cart, o.quote, o.event_id, o.source, o.kind,
               c.name AS customer_name, c.phone, c.email
          FROM orders o JOIN customers c ON c.id = o.customer_id
         WHERE o.id = $1`,
@@ -624,7 +624,10 @@ export async function publicRoutes(app: FastifyInstance) {
     return {
       orderId: o.id,
       status: o.status,
-      confirmed: o.status === 'paid' && Boolean(o.event_id),
+      kind: o.kind,
+      // A booking is confirmed once its event exists; an add-on attaches to an
+      // existing event, so 'paid' alone is confirmation.
+      confirmed: o.status === 'paid' && (o.kind === 'addon' || Boolean(o.event_id)),
       totalFils: Number(o.total_fils),
       totalDisplay: formatAed(Number(o.total_fils)),
       items: (quote.lines ?? [])
@@ -673,12 +676,14 @@ export async function publicRoutes(app: FastifyInstance) {
     const { orderId } = request.params as { orderId: string };
     const { t } = request.query as { t?: string };
     if (!orderViewTokenValid(orderId, t)) return reply.status(404).send({ error: 'not_found' });
-    const { rows } = await pool.query(`SELECT status, cart, source FROM orders WHERE id = $1`, [orderId]);
+    const { rows } = await pool.query(`SELECT status, cart, source, kind FROM orders WHERE id = $1`, [orderId]);
     const o = rows[0];
     if (!o || o.source !== 'manual') return reply.status(404).send({ error: 'not_found' });
     if (o.status === 'paid') return { alreadyPaid: true };
     const cart = (o.cart ?? {}) as any;
-    if (!cart.eventFor || !cart.mapPin || typeof cart.mapPin.lat !== 'number') {
+    // An add-on attaches to an existing event, so it needs no customer details —
+    // only a full manual BOOKING must have its guest/location completed first.
+    if (o.kind !== 'addon' && (!cart.eventFor || !cart.mapPin || typeof cart.mapPin.lat !== 'number')) {
       return reply.status(422).send({ error: 'incomplete', message: 'Please complete your details before paying.' });
     }
     try {

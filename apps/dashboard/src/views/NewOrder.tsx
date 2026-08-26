@@ -16,7 +16,8 @@ import { Button, C, Panel, Spinner, fredoka } from '../ui';
  * appears in the dashboard with the customer's details, the amount posts to
  * Sales, and the event + team tasks (with the reference images) are created.
  */
-export function NewOrder() {
+export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
+  const isAddon = Boolean(addonEventId);
   const [cat, setCat] = useState<any>(null);
   const [celebrationType, setCelebrationType] = useState('kids');
   const [packageId, setPackageId] = useState<string>('');
@@ -92,18 +93,20 @@ export function NewOrder() {
     setBusy(true); setError(null); setResult(null);
     try {
       const del = delivery.trim() === '' ? null : toFils(delivery);
-      const r = await api.createOffer({
-        celebrationType,
-        packageId: packageId || null,
-        services: Object.entries(services).filter(([, q]) => q > 0).map(([serviceId, quantity]) => ({ serviceId, quantity })),
-        themeId: themeId || null,
-        customItems,
-        discountFils: toFils(discount),
-        deliveryFils: del,
-        customThemeFils: toFils(customTheme),
-        refImages,
-      });
-      setResult(r);
+      const services2 = Object.entries(services).filter(([, q]) => q > 0).map(([serviceId, quantity]) => ({ serviceId, quantity }));
+      if (isAddon) {
+        const r = await api.addonLink({
+          eventId: addonEventId!, celebrationType, packageId: packageId || null, services: services2,
+          customItems, discountFils: toFils(discount), deliveryFils: del, customThemeFils: toFils(customTheme), refImages,
+        });
+        setResult({ link: r.payUrl, totalDisplay: r.totalDisplay, items: null });
+      } else {
+        const r = await api.createOffer({
+          celebrationType, packageId: packageId || null, services: services2, themeId: themeId || null,
+          customItems, discountFils: toFils(discount), deliveryFils: del, customThemeFils: toFils(customTheme), refImages,
+        });
+        setResult(r);
+      }
     } catch (e: any) {
       setError(e?.message || 'Could not generate the link.');
     } finally { setBusy(false); }
@@ -112,14 +115,18 @@ export function NewOrder() {
   if (!cat) return <Spinner />;
 
   const waText = result
-    ? `Hi! 🎀 Here's your Eventana order. Open the link to choose your date, location & details and pay securely: ${result.link}`
+    ? (isAddon
+        ? `Hi! 🎀 Here's the secure payment link for the add-on to your Eventana booking: ${result.link}`
+        : `Hi! 🎀 Here's your Eventana order. Open the link to choose your date, location & details and pay securely: ${result.link}`)
     : '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
-      <Panel title="New order — build the products">
+      <Panel title={isAddon ? 'Add to order — choose the extras' : 'New order — build the products'}>
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
-          Pick what the customer wants. They'll open the link and fill in their own details, date, location and pay.
+          {isAddon
+            ? "Pick the extra products to add to this existing booking. The customer just pays the link — it attaches to their order and posts to Sales. No new booking."
+            : "Pick what the customer wants. They'll open the link and fill in their own details, date, location and pay."}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10, marginBottom: 12 }}>
@@ -227,7 +234,13 @@ export function NewOrder() {
       </Panel>
 
       {result && (
-        <Panel title="Link ready — send it to the customer">
+        <Panel title={isAddon ? 'Add-on pay link ready — send it to the customer' : 'Link ready — send it to the customer'}>
+          {isAddon ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontWeight: 800 }}>Add-on total</span>
+              <span style={{ ...fredoka(15), color: C.pinkDeep }}>AED {result.totalDisplay}</span>
+            </div>
+          ) : (
           <div style={{ marginBottom: 10 }}>
             {result.items.map((it: any, i: number) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '3px 0' }}>
@@ -242,6 +255,7 @@ export function NewOrder() {
               <span style={{ ...fredoka(15), color: C.pinkDeep }}>AED {result.totalDisplay}{result.deliveryAuto ? ' + delivery' : ''}</span>
             </div>
           </div>
+          )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input readOnly value={result.link} style={{ ...input, flex: 1, minWidth: 240, marginBottom: 0 }} onFocus={(e) => e.target.select()} />
             <Button onClick={() => { navigator.clipboard?.writeText(result.link); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>{copied ? 'Copied ✓' : 'Copy link'}</Button>
@@ -250,7 +264,9 @@ export function NewOrder() {
             </a>
           </div>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.6 }}>
-            The customer opens this link, completes all their own details, accepts the Terms, and pays. It then appears in Schedule &amp; the calendar, posts to Sales, and creates the team's tasks — automatically. One link books once.
+            {isAddon
+              ? "The customer just pays this link. It attaches to their existing booking and posts to Sales automatically — no new booking, no re-entering details."
+              : "The customer opens this link, completes all their own details, accepts the Terms, and pays. It then appears in Schedule & the calendar, posts to Sales, and creates the team's tasks — automatically. One link books once."}
           </div>
         </Panel>
       )}

@@ -18,7 +18,7 @@ import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '../domain/notify.js';
-import { createManualOrder, CheckoutError } from '../domain/checkout.js';
+import { createManualOrder, createEventAddonLink, CheckoutError } from '../domain/checkout.js';
 import { createOffer } from '../domain/offers.js';
 import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
@@ -1501,6 +1501,48 @@ export async function adminRoutes(app: FastifyInstance) {
     } catch (err) {
       request.log.error({ err }, 'offer create failed');
       return reply.status(500).send({ error: 'offer_failed' });
+    }
+  });
+
+  /**
+   * Add-on pay link for an EXISTING booking. The customer already has an order;
+   * this prices the extra products and returns a pay link that, once paid,
+   * attaches to the same event and posts to Sales — never a new booking.
+   */
+  app.post('/api/admin/orders/addon-link', async (request, reply) => {
+    const schema = z.object({
+      eventId: z.string().min(1).max(60),
+      celebrationType: z.string().max(40).optional(),
+      packageId: z.string().max(60).nullable().optional(),
+      services: z.array(z.object({ serviceId: z.string().min(1).max(60), quantity: z.number().int().min(1).max(500) })).default([]),
+      customItems: z.array(z.object({ name: z.string().min(1).max(120), priceFils: z.number().int().min(0).max(100_000_000), qty: z.number().int().min(1).max(500).default(1) })).default([]),
+      discountFils: z.number().int().min(0).max(100_000_000).default(0),
+      deliveryFils: z.number().int().min(0).max(100_000_000).nullable().optional(),
+      customThemeFils: z.number().int().min(0).max(100_000_000).default(0),
+      refImages: z.array(z.string().url().max(500)).max(8).default([]),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    try {
+      const r = await createEventAddonLink({
+        eventId: parsed.data.eventId,
+        selection: {
+          celebrationType: parsed.data.celebrationType,
+          packageId: parsed.data.packageId ?? null,
+          services: parsed.data.services,
+          customItems: parsed.data.customItems,
+          discountFils: parsed.data.discountFils,
+          deliveryFils: parsed.data.deliveryFils ?? null,
+          customThemeFils: parsed.data.customThemeFils,
+          refImages: parsed.data.refImages,
+        },
+        createdBy: String((request as any).staff?.name ?? 'Manager'),
+      });
+      return reply.status(201).send({ orderId: r.orderId, payUrl: r.payUrl, totalFils: r.totalFils, totalDisplay: r.totalDisplay });
+    } catch (err) {
+      if (err instanceof CheckoutError) return reply.status(err.code === 'not_found' ? 404 : 422).send({ error: err.code, message: err.message });
+      request.log.error({ err }, 'addon link failed');
+      return reply.status(500).send({ error: 'addon_link_failed' });
     }
   });
 

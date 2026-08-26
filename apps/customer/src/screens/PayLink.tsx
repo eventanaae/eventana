@@ -67,24 +67,30 @@ export function PayLink({
       .catch(() => setLoadErr(ar ? 'الرابط غير صالح أو منتهي.' : 'This link is invalid or has expired.'));
   }, [orderId, token]);
 
+  const isAddon = data?.kind === 'addon';
   const nameOk = fullName.trim().split(/\s+/).filter(Boolean).length >= 2;
   const phoneOk = Boolean(uaeMobile(phone));
   const emailOk = /.+@.+\..+/.test(email.trim());
-  const ready = nameOk && phoneOk && emailOk && eventFor.trim().length > 0 && pin && agreed && !busy;
+  const ready = isAddon
+    ? !busy
+    : nameOk && phoneOk && emailOk && eventFor.trim().length > 0 && pin && agreed && !busy;
 
   const pay = async () => {
     setBusy(true);
     setError(null);
     try {
-      await api.payLinkSave(orderId, token, {
-        eventFor: eventFor.trim(),
-        fullName: fullName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        address: { area, street, villa, details },
-        mapPin: pin,
-        termsAccepted: true,
-      });
+      // An add-on attaches to an existing booking — no details to complete.
+      if (!isAddon) {
+        await api.payLinkSave(orderId, token, {
+          eventFor: eventFor.trim(),
+          fullName: fullName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          address: { area, street, villa, details },
+          mapPin: pin,
+          termsAccepted: true,
+        });
+      }
       const res = await api.payLinkPay(orderId, token);
       if (res.alreadyPaid) {
         window.location.href = `/?order=${orderId}&t=${encodeURIComponent(token)}`;
@@ -128,9 +134,13 @@ export function PayLink({
   return (
     <div className="scroll" style={{ height: '100%', overflowY: 'auto', background: C.cream }} dir={ar ? 'rtl' : 'ltr'}>
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '22px 18px 40px' }}>
-        <div style={{ ...fredoka(22), color: C.pinkDeep }}>{ar ? 'إتمام الحجز والدفع' : 'Complete & pay'}</div>
+        <div style={{ ...fredoka(22), color: C.pinkDeep }}>
+          {isAddon ? (ar ? 'إضافة على حجزك' : 'Add to your order') : (ar ? 'إتمام الحجز والدفع' : 'Complete & pay')}
+        </div>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginTop: 4, marginBottom: 14 }}>
-          {ar ? 'راجع طلبك، عبّي بياناتك، وادفع بأمان.' : 'Review your order, add your details, and pay securely.'}
+          {isAddon
+            ? (ar ? 'هذي إضافة على حجزك الحالي — راجعها وادفع.' : "This adds to your existing booking — review and pay.")
+            : (ar ? 'راجع طلبك، عبّي بياناتك، وادفع بأمان.' : 'Review your order, add your details, and pay securely.')}
         </div>
 
         {/* Order summary */}
@@ -153,7 +163,8 @@ export function PayLink({
           )}
         </div>
 
-        {/* Customer details */}
+        {/* Customer details — only for a full manual booking, not an add-on. */}
+        {!isAddon && (<>
         <label style={lbl}>{ar ? 'اسم صاحب الحفلة' : 'Guest of honour'} *</label>
         <input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={field} placeholder={ar ? 'مثال: سارة' : 'e.g. Sara'} />
         <label style={lbl}>{ar ? 'اسمك الكامل (اسمين على الأقل)' : 'Your full name (2 names)'} *</label>
@@ -193,6 +204,7 @@ export function PayLink({
             </a>
           </span>
         </label>
+        </>)}
 
         {error && <div style={{ margin: '8px 0' }}><Notice tone="error">{error}</Notice></div>}
 

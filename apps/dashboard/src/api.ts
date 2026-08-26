@@ -292,6 +292,22 @@ export const api = {
       productsDisplay: string; discountDisplay: string; deliveryDisplay: string; deliveryAuto: boolean;
       totalFils: number; totalDisplay: string;
     }>('/api/admin/orders/offer', { method: 'POST', body: JSON.stringify(body) }),
+  /** Add-on pay link for an existing booking — attaches to the same event on payment. */
+  addonLink: (body: {
+    eventId: string;
+    celebrationType?: string;
+    packageId?: string | null;
+    services: Array<{ serviceId: string; quantity: number }>;
+    customItems?: Array<{ name: string; priceFils: number; qty: number }>;
+    discountFils?: number;
+    deliveryFils?: number | null;
+    customThemeFils?: number;
+    refImages?: string[];
+  }) =>
+    request<{ orderId: string; payUrl: string; totalFils: number; totalDisplay: string }>(
+      '/api/admin/orders/addon-link',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   ceo: (params: { from?: string; to?: string; emirate?: string; eventType?: string; packageId?: string } = {}) => {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));

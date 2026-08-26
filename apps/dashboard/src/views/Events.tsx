@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
+import { NewOrder } from './NewOrder';
 
 const PHASES = [
   'Booking Confirmed', 'Preparing', 'On The Way', 'Arrived',
@@ -98,6 +99,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
   const [cancelReason, setCancelReason] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [addonOpen, setAddonOpen] = useState(false);
 
   const load = async () => {
     const d = await api.event(eventId);
@@ -147,8 +149,25 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                   </div>
                 )}
               </div>
-              <Button tone="ghost" onClick={onClose}>Close</Button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {data.event.order_status === 'paid' && data.event.phase !== 'Cancelled' && (
+                  <Button onClick={() => setAddonOpen(true)}>➕ Add-on link</Button>
+                )}
+                <Button tone="ghost" onClick={onClose}>Close</Button>
+              </div>
             </div>
+
+            {addonOpen && (
+              <div onClick={() => setAddonOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.5)', zIndex: 40, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: C.bg, borderRadius: 18, padding: 18, width: 'min(720px, 100%)', margin: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={fredoka(17)}>Add-on for {data.event.id}</div>
+                    <Button tone="ghost" onClick={() => setAddonOpen(false)}>Close</Button>
+                  </div>
+                  <NewOrder addonEventId={data.event.id} />
+                </div>
+              </div>
+            )}
 
             {message && (
               <div style={{ background: C.greenSoft, color: C.green, padding: '10px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700, marginBottom: 14 }}>

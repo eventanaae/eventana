@@ -846,6 +846,79 @@ export async function createManualOrder(req: ManualOrderInput): Promise<ManualOr
 }
 
 /**
+ * Manager-built add-on pay link for an EXISTING booking.
+ *
+ * The customer already has an order/event — they just asked to add something.
+ * This prices the extra products (catalogue + custom items + a manual discount /
+ * delivery / custom-theme charge), creates an `addon` order tied to the event,
+ * and returns a pay link. On payment the add-on attaches to the same event
+ * (applyAddonOrder) and posts to Sales — never a second booking.
+ */
+export async function createEventAddonLink(req: {
+  eventId: string;
+  selection: {
+    celebrationType?: string;
+    packageId?: string | null;
+    services?: Array<{ serviceId: string; quantity: number }>;
+    customItems?: Array<{ name: string; priceFils: number; qty: number }>;
+    discountFils?: number;
+    deliveryFils?: number | null;
+    customThemeFils?: number;
+    refImages?: string[];
+  };
+  createdBy?: string;
+}): Promise<{ orderId: string; token: string; totalFils: number; totalDisplay: string; payUrl: string }> {
+  const cfg = await loadConfig(pool, { fresh: true });
+  const { rows } = await pool.query(
+    `SELECT id, customer_id, celebration_type FROM events WHERE id = $1`,
+    [req.eventId],
+  );
+  const ev = rows[0];
+  if (!ev) throw new CheckoutError('That booking was not found.', 'not_found');
+
+  const sel = req.selection;
+  const base = computeQuote(
+    {
+      celebrationType: sel.celebrationType ?? ev.celebration_type,
+      packageId: sel.packageId ?? null,
+      services: (sel.services ?? []).filter((s) => s.quantity > 0),
+      themeId: null,
+      customTheme: false,
+      startTime: '17:00',
+      childrenCount: 15,
+    } as unknown as CheckoutRequest['cart'],
+    { ...toPricingContext(cfg), nowMs: Date.now() },
+  );
+  // Add-on prices only the items — no automatic delivery/urgent (the event
+  // already exists). Manual delivery/discount/theme are layered on explicitly.
+  const lines = base.lines.filter((l) => l.kind !== 'delivery' && l.kind !== 'discount');
+  for (const ci of sel.customItems ?? []) {
+    const qty = Number(ci.qty) > 0 ? Number(ci.qty) : 1;
+    const unit = Number(ci.priceFils) || 0;
+    lines.push({ kind: 'addon', refId: null, label: ci.name || 'Item', quantity: qty, unitFils: unit, amountFils: unit * qty, discountEligible: false });
+  }
+  if (Number(sel.customThemeFils) > 0) lines.push({ kind: 'custom_theme', refId: 'custom_theme', label: 'Custom theme', quantity: 1, unitFils: sel.customThemeFils!, amountFils: sel.customThemeFils!, discountEligible: false });
+  if (Number(sel.deliveryFils) > 0) lines.push({ kind: 'delivery', refId: 'delivery', label: 'Delivery', quantity: 1, unitFils: sel.deliveryFils!, amountFils: sel.deliveryFils!, discountEligible: false });
+  if (Number(sel.discountFils) > 0) lines.push({ kind: 'discount', refId: 'manual_discount', label: 'Discount', quantity: 1, unitFils: -sel.discountFils!, amountFils: -sel.discountFils!, discountEligible: false });
+
+  const totalFils = lines.reduce((s, l) => s + l.amountFils, 0);
+  if (totalFils <= 0) throw new CheckoutError('Add at least one item to the add-on.', 'empty_selection');
+
+  const quote: Quote = { ...base, lines, deliveryFils: Number(sel.deliveryFils ?? 0), discountFils: Number(sel.discountFils ?? 0), totalFils, bookable: true, problems: [] };
+  const cart: Record<string, unknown> = { addon: true };
+  if (sel.refImages?.length) cart.referenceImages = sel.refImages.filter(Boolean).slice(0, 8);
+
+  const orderId = await withTransaction(async (db) => {
+    const id = await nextOrderId(db);
+    await createOrder(db, { id, kind: 'addon', customerId: ev.customer_id, eventId: req.eventId, totalFils, cart, quote, source: 'manual' });
+    return id;
+  });
+  const token = orderViewToken(orderId);
+  const base2 = (config.publicAppUrl || '').replace(/\/$/, '');
+  return { orderId, token, totalFils, totalDisplay: formatAed(totalFils), payUrl: `${base2}/?pay=${orderId}&t=${token}` };
+}
+
+/**
  * Create a Stripe session for an existing awaiting-payment order (used by the
  * manual-order pay link). Idempotency and confirmation are handled by the same
  * webhook/poll → confirmBooking path as a normal checkout.
