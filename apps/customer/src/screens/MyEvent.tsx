@@ -215,6 +215,8 @@ export function MyEvent({
         </div>
       </div>
 
+      <ReceiptCard event={event} t={t} lang={lang} />
+
       {!cancelled && (
         <button
           onClick={async () => {
@@ -1010,9 +1012,115 @@ const card: React.CSSProperties = {
 
 function SummaryRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', fontSize: 12.5 }}>
-      <span style={{ color: C.muted, fontWeight: 600 }}>{label}</span>
-      <span style={{ fontWeight: strong ? 800 : 700, color: C.ink }}>{value}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', fontSize: 12.5, gap: 12 }}>
+      <span style={{ color: C.muted, fontWeight: 600, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontWeight: strong ? 800 : 700, color: C.ink, textAlign: 'right', wordBreak: 'break-word' }}>{value}</span>
+    </div>
+  );
+}
+
+// Readable labels for the celebration type ids stored on the booking.
+const RC_TYPE: Record<string, { en: string; ar: string }> = {
+  kids: { en: 'Kids birthday', ar: 'عيد ميلاد أطفال' },
+  adult: { en: 'Adult celebration', ar: 'مناسبة' },
+  gender: { en: 'Gender reveal', ar: 'تحديد الجنس' },
+  graduation: { en: 'Graduation', ar: 'تخرّج' },
+  bride: { en: 'Bride to be', ar: 'عروس' },
+  baby: { en: 'Baby shower', ar: 'استقبال مولود' },
+  customc: { en: 'Custom celebration', ar: 'مناسبة مخصصة' },
+};
+
+/**
+ * Order receipt — a faithful echo of everything captured at checkout, so the
+ * customer sees the same detail we hold: event, guest of honour, theme,
+ * location, contact, the priced items, the full price breakdown and payment.
+ * Every row is conditional — an imported or partial order shows only what it
+ * actually has, never a guessed or blank field.
+ */
+function ReceiptCard({ event, t, lang }: { event: any; t: TFn; lang: Lang }) {
+  const aed = t('common.aed');
+  const p = event.pricing ?? {};
+  const items: any[] = Array.isArray(p.items) ? p.items : [];
+  const addr = event.address ?? {};
+  const addressLine = [addr.area, addr.street, addr.villa, addr.details].filter(Boolean).join(', ');
+  const typeLabel = event.celebrationType
+    ? RC_TYPE[event.celebrationType]?.[lang] ?? event.celebrationType
+    : '';
+  const theme = event.themeName ?? (event.customTheme ? t('me.rcCustomTheme') : null);
+  const c = event.contact ?? {};
+  const pay = event.payment;
+  const dateStr = event.date
+    ? new Date(event.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      })
+    : '';
+  const sectionTitle: React.CSSProperties = {
+    fontSize: 10.5, fontWeight: 800, color: C.pinkDeep, letterSpacing: 0.5,
+    textTransform: 'uppercase', margin: '13px 0 1px',
+  };
+  return (
+    <div style={card}>
+      <div style={{ ...fredoka(15), marginBottom: 4 }}>{t('me.rcTitle')}</div>
+      <SummaryRow label={t('pay.eventId')} value={event.id} />
+      {typeLabel && <SummaryRow label={t('me.rcType')} value={typeLabel} />}
+      {event.eventFor && <SummaryRow label={t('me.rcFor')} value={event.eventFor} />}
+      {theme && <SummaryRow label={t('me.rcTheme')} value={theme} />}
+      {event.packageName && <SummaryRow label={t('me.rcPackage')} value={event.packageName} />}
+      {dateStr && <SummaryRow label={t('me.rcDate')} value={dateStr} />}
+      {event.startDisplay && (
+        <SummaryRow label={t('me.rcTime')} value={`${event.startDisplay} – ${event.endDisplay}`} />
+      )}
+      {event.emirate && <SummaryRow label={t('me.rcEmirate')} value={event.emirate} />}
+      {addressLine && <SummaryRow label={t('me.rcAddress')} value={addressLine} />}
+      {event.childrenCount > 0 && (
+        <SummaryRow label={t('me.rcChildren')} value={String(event.childrenCount)} />
+      )}
+
+      {(c.name || c.phone || c.email) && (
+        <>
+          <div style={sectionTitle}>{t('me.rcContactTitle')}</div>
+          {c.name && <SummaryRow label={t('me.rcName')} value={c.name} />}
+          {c.phone && <SummaryRow label={t('me.rcPhone')} value={c.phone} />}
+          {c.backupPhone && <SummaryRow label={t('me.rcBackup')} value={c.backupPhone} />}
+          {c.email && <SummaryRow label={t('me.rcEmail')} value={c.email} />}
+        </>
+      )}
+
+      {items.length > 0 && (
+        <>
+          <div style={sectionTitle}>{t('me.rcItemsTitle')}</div>
+          {items.map((li, i) => (
+            <SummaryRow
+              key={i}
+              label={li.quantity > 1 ? `${li.label} × ${li.quantity}` : li.label}
+              value={`${li.amountDisplay} ${aed}`}
+            />
+          ))}
+        </>
+      )}
+
+      <div style={{ height: 1, background: C.pinkLine, margin: '11px 0 1px' }} />
+      {items.length > 0 && (
+        <SummaryRow label={t('me.rcSubtotal')} value={`${p.subtotalDisplay} ${aed}`} />
+      )}
+      {p.discountFils > 0 && (
+        <SummaryRow label={t('me.rcDiscount')} value={`− ${p.discountDisplay} ${aed}`} />
+      )}
+      {p.deliveryFils > 0 && (
+        <SummaryRow label={t('me.rcDelivery')} value={`${p.deliveryDisplay} ${aed}`} />
+      )}
+      <SummaryRow label={t('me.rcTotal')} value={`${event.totalDisplay} ${aed}`} strong />
+
+      {pay && (
+        <>
+          <div style={sectionTitle}>{t('me.rcPaymentTitle')}</div>
+          <SummaryRow
+            label={t('me.rcMethod')}
+            value={pay.brand ? `${pay.method} · ${pay.brand}${pay.last4 ? ' ' + pay.last4 : ''}` : pay.method}
+          />
+          {pay.paidDisplay && <SummaryRow label={t('me.rcPaid')} value={`${pay.paidDisplay} ${aed}`} />}
+        </>
+      )}
     </div>
   );
 }
