@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { pool } from '../db/pool.js';
+import { loadConfig } from './settings.js';
 
 /**
  * Smart Automatic Staff Assignment — Phase 1: the requirements engine.
@@ -145,4 +146,150 @@ export function computeRequirements(input: { packageName?: string | null; servic
     reqs.push(...serviceReqs(s));
   }
   return reqs;
+}
+
+// ── Phase 2: the assignment engine ──────────────────────────────────────────
+
+interface StaffRow { id: string; name: string; skills: Set<Skill>; workload: number; }
+
+export interface AssignedSlot {
+  role: Skill; slot: number; reason: string; source: string;
+  status: 'assigned' | 'part_time_required' | 'to_confirm';
+  assignee?: { id: string; name: string } | null;
+  partTimeName?: string | null;
+  noPartTime?: boolean; needsDesign?: boolean;
+}
+
+export interface StaffingPlan {
+  eventId: string;
+  assigned: AssignedSlot[];
+  leader: { id: string; name: string; remote: boolean } | null;
+  shortages: number;
+  staffingIncomplete: boolean;
+}
+
+/**
+ * Assign internal staff to an event per the mandatory rules, and flag any slot
+ * that needs a part-timer. Internal-first, conflict-checked (no double booking
+ * across events on the same date), multi-role aware (Jane may be
+ * balloon-artist + clown, never face-painter + clown), fairness by workload.
+ * Rebuilds the event's plan each run. Idempotent.
+ */
+export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan | null> {
+  const evRes = await pool.query(
+    `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS date, e.start_time, e.base_end_time,
+            o.cart, p.name AS package_name
+       FROM events e JOIN orders o ON o.id = e.order_id
+       LEFT JOIN packages p ON p.id = e.package_id
+      WHERE e.id = $1`,
+    [eventId],
+  );
+  const ev = evRes.rows[0];
+  if (!ev) return null;
+
+  const cfg = await loadConfig();
+  const cart = (ev.cart ?? {}) as { services?: Array<{ serviceId: string; quantity: number }> };
+  const addOns: ServiceInput[] = (cart.services ?? []).map((s) => {
+    const svc = cfg.services.get(s.serviceId);
+    return { serviceId: s.serviceId, name: svc?.name ?? s.serviceId, categoryId: (svc as any)?.categoryId, isInflatable: (svc as any)?.isInflatable, isFoodStation: (svc as any)?.isFoodStation, quantity: s.quantity };
+  });
+  const reqs = computeRequirements({ packageName: ev.package_name, services: addOns });
+
+  // Internal staff + skills + current workload.
+  const staffRows = await pool.query(
+    `SELECT tm.id, tm.name, array_agg(ss.skill) AS skills
+       FROM team_members tm JOIN staff_skills ss ON ss.member_id = tm.id
+      WHERE tm.active GROUP BY tm.id, tm.name`,
+  );
+  const wl = await pool.query(`SELECT assignee_id, count(*)::int c FROM event_staff WHERE assignee_id IS NOT NULL AND event_id <> $1 GROUP BY assignee_id`, [eventId]);
+  const wlMap = new Map<string, number>(wl.rows.map((r: any) => [r.assignee_id, r.c]));
+  // Staff already booked on ANOTHER event on the same date → unavailable.
+  const conf = await pool.query(
+    `SELECT DISTINCT es.assignee_id FROM event_staff es JOIN events e2 ON e2.id = es.event_id
+      WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1 AND to_char(e2.event_date,'YYYY-MM-DD') = $2`,
+    [eventId, ev.date],
+  );
+  const busy = new Set<string>(conf.rows.map((r: any) => r.assignee_id));
+
+  const staff: StaffRow[] = staffRows.rows.map((r: any) => ({ id: r.id, name: r.name, skills: new Set(r.skills), workload: wlMap.get(r.id) ?? 0 }));
+  const rolesByStaff = new Map<string, Set<Skill>>();
+
+  const canTake = (st: StaffRow, role: Skill): boolean => {
+    if (role === 'acrobat_clown') return false;      // part-time only
+    if (role === 'design') return st.skills.has('design');
+    if (st.name === 'Marsha') return false;          // remote only, no on-site work
+    const held = rolesByStaff.get(st.id);
+    const heldSize = held?.size ?? 0;
+    if (role === 'staff') return heldSize === 0;      // generic on-site, no concurrent doubling
+    if (!st.skills.has(role)) return false;
+    if (heldSize > 0) {                                // only balloon_artist + clown may combine
+      const combo = new Set<Skill>([...held!, role]);
+      return combo.size === 2 && combo.has('balloon_artist') && combo.has('clown');
+    }
+    return true;
+  };
+
+  // Expand requirements into individual slots and fill the skilled ones first.
+  const slots: Array<RoleReq & { slot: number }> = [];
+  for (const req of reqs) for (let i = 0; i < req.count; i++) slots.push({ ...req, slot: i + 1 });
+  const order: Skill[] = ['balloon_artist', 'face_painting', 'balloon_twisting', 'clown', 'helper', 'staff', 'acrobat_clown', 'design'];
+  slots.sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role));
+
+  const assigned: AssignedSlot[] = [];
+  for (const s of slots) {
+    if (s.partTimeOnly) { assigned.push({ role: s.role, slot: s.slot, reason: s.reason, source: s.source, status: 'part_time_required' }); continue; }
+    const cands = staff
+      .filter((st) => !busy.has(st.id) && canTake(st, s.role))
+      .sort((a, b) => (a.workload + (rolesByStaff.get(a.id)?.size ?? 0)) - (b.workload + (rolesByStaff.get(b.id)?.size ?? 0)));
+    const pick = cands[0];
+    if (pick) {
+      const held = rolesByStaff.get(pick.id) ?? new Set<Skill>();
+      held.add(s.role); rolesByStaff.set(pick.id, held);
+      assigned.push({ role: s.role, slot: s.slot, reason: s.reason, source: s.source, status: 'assigned', assignee: { id: pick.id, name: pick.name }, needsDesign: s.needsDesign });
+    } else {
+      assigned.push({ role: s.role, slot: s.slot, reason: s.reason, source: s.source, status: s.noPartTime ? 'to_confirm' : 'part_time_required', noPartTime: s.noPartTime, needsDesign: s.needsDesign });
+    }
+  }
+
+  // Event leader — Jane/Dindo on-site if working the event, else Marsha remote.
+  let leader: StaffingPlan['leader'] = null;
+  for (const name of ONSITE_LEADERS) {
+    const st = staff.find((x) => x.name === name && rolesByStaff.has(x.id));
+    if (st) { leader = { id: st.id, name: st.name, remote: false }; break; }
+  }
+  if (!leader) {
+    const marsha = staff.find((x) => x.name === 'Marsha');
+    if (marsha) leader = { id: marsha.id, name: 'Marsha', remote: true };
+  }
+
+  // Persist the plan.
+  await pool.query(`DELETE FROM event_staff WHERE event_id = $1`, [eventId]);
+  for (const a of assigned) {
+    await pool.query(
+      `INSERT INTO event_staff (event_id, role, slot, assignee_id, is_leader, status, reason, source, needs_design)
+       VALUES ($1,$2,$3,$4,false,$5,$6,$7,$8)`,
+      [eventId, a.role, a.slot, a.assignee?.id ?? null, a.status, a.reason, a.source, !!a.needsDesign],
+    );
+  }
+  if (leader) {
+    await pool.query(
+      `INSERT INTO event_staff (event_id, role, slot, assignee_id, is_leader, status, reason, source)
+       VALUES ($1,'leader',1,$2,true,'assigned',$3,'Leader')`,
+      [eventId, leader.id, leader.remote ? 'Remote event leader' : 'Event leader'],
+    );
+  }
+
+  const shortages = assigned.filter((a) => a.status !== 'assigned').length;
+  return { eventId, assigned, leader, shortages, staffingIncomplete: shortages > 0 };
+}
+
+/** Read the saved staffing plan for an event (with staff names). */
+export async function getStaffingPlan(eventId: string) {
+  const { rows } = await pool.query(
+    `SELECT es.*, tm.name AS assignee_name FROM event_staff es
+        LEFT JOIN team_members tm ON tm.id = es.assignee_id
+       WHERE es.event_id = $1 ORDER BY es.is_leader DESC, es.role, es.slot`,
+    [eventId],
+  );
+  return rows;
 }

@@ -20,6 +20,7 @@ import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/ema
 import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '../domain/notify.js';
 import { createManualOrder, createEventAddonLink, CheckoutError } from '../domain/checkout.js';
 import { createOffer } from '../domain/offers.js';
+import { assignStaffForEvent, getStaffingPlan } from '../domain/staffing.js';
 import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
 import * as finance from '../domain/finance.js';
@@ -122,6 +123,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const managerOnly =
       path.startsWith('/api/admin/finance') ||
       path.startsWith('/api/admin/overview') ||
+      path.startsWith('/api/admin/staffing') ||
       path.startsWith('/api/admin/import') ||
       path.startsWith('/api/admin/orders') ||
       path.startsWith('/api/admin/expenses') ||
@@ -317,6 +319,30 @@ export async function adminRoutes(app: FastifyInstance) {
       thisMonth: thisMonth.map(slim),
       upcoming: upcoming.map(slim),
     };
+  });
+
+  /* --------------------------- Staff assignment ------------------- */
+  // Auto-assign internal staff for one event (rebuilds the plan). Manager+Owner.
+  app.post('/api/admin/staffing/assign/:eventId', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const plan = await assignStaffForEvent(eventId);
+    if (!plan) return reply.status(404).send({ error: 'not_found' });
+    return plan;
+  });
+  // The saved plan for an event.
+  app.get('/api/admin/staffing/:eventId', async (request) =>
+    getStaffingPlan((request.params as { eventId: string }).eventId));
+  // One-time / bulk: assign staff for every upcoming, non-cancelled event.
+  app.post('/api/admin/staffing/assign-all', async () => {
+    const { rows } = await pool.query(
+      `SELECT id FROM events WHERE phase <> 'Cancelled' AND event_date >= CURRENT_DATE ORDER BY event_date`,
+    );
+    const results: Array<{ eventId: string; shortages: number }> = [];
+    for (const r of rows) {
+      const plan = await assignStaffForEvent(r.id);
+      if (plan) results.push({ eventId: r.id, shortages: plan.shortages });
+    }
+    return { assigned: results.length, results };
   });
 
   /* --------------------------- WhatsApp leads --------------------- */
