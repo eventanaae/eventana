@@ -7,7 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { formatAed, isCancelled } from '@eventana/shared';
+import { formatAed, isCancelled, celebrationLabel } from '@eventana/shared';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import { getProvider, integrationStatus } from '../payments/index.js';
@@ -110,6 +110,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // Money, configuration, review and refunds: Manager + Owner only.
     const managerOnly =
       path.startsWith('/api/admin/finance') ||
+      path.startsWith('/api/admin/ceo') ||
       path.startsWith('/api/admin/expenses') ||
       path.startsWith('/api/admin/kpis') ||
       path.startsWith('/api/admin/settings') ||
@@ -993,6 +994,173 @@ export async function adminRoutes(app: FastifyInstance) {
         expenseDisplay: formatAed(t.expenseFils),
         profitDisplay: formatAed(t.profitFils),
       })),
+    };
+  });
+
+  /**
+   * CEO executive dashboard — decision-support analytics over an event-date
+   * range with optional filters (emirate, event type, package). Revenue is
+   * every paid booking/addon order tied to an event in range; expenses are by
+   * spent_on; cancelled events are excluded from revenue but counted for the
+   * cancellation rate. Returns actionable insights, not just numbers.
+   */
+  app.get('/api/admin/ceo', async (request) => {
+    const q = request.query as {
+      from?: string; to?: string; emirate?: string; eventType?: string; packageId?: string;
+    };
+    const now = new Date();
+    const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+    // Default: trailing 12 months through end of next month (to include upcoming).
+    const defFrom = isoDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1)));
+    const defTo = isoDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 1)));
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(q.from ?? '') ? q.from! : defFrom;
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(q.to ?? '') ? q.to! : defTo;
+
+    // Optional event filters, parameterised after $1(from) and $2(to).
+    const fVals: string[] = [];
+    const fClause: string[] = [];
+    if (q.emirate) { fVals.push(q.emirate); fClause.push(`e.emirate = $${2 + fVals.length}`); }
+    if (q.eventType) { fVals.push(q.eventType); fClause.push(`e.celebration_type = $${2 + fVals.length}`); }
+    if (q.packageId) { fVals.push(q.packageId); fClause.push(`e.package_id = $${2 + fVals.length}`); }
+    const F = fClause.length ? ' AND ' + fClause.join(' AND ') : '';
+    const params: any[] = [from, to, ...fVals];
+
+    // Per-event revenue (booking order + its addons), with dimensions.
+    const evRevSub = `(SELECT COALESCE(SUM(o.total_fils),0) FROM orders o
+        WHERE o.status='paid' AND o.kind IN ('booking','addon')
+          AND (o.id = e.order_id OR o.event_id = e.id))`;
+
+    // Previous equal-length window for period comparison.
+    const spanMs = new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime();
+    const prevFrom = isoDate(new Date(new Date(`${from}T00:00:00Z`).getTime() - spanMs));
+    const prevTo = from;
+
+    const [evRows, repeatRow, outstandingRow, expRow, expByCat, refundRow, prevRow] = await Promise.all([
+      pool.query(
+        `SELECT e.id, e.emirate, e.celebration_type, e.package_id, e.theme_id,
+                to_char(e.event_date,'YYYY-MM') AS ym, e.customer_id, e.phase,
+                (e.phase = 'Cancelled' OR e.cancelled_at IS NOT NULL) AS cancelled,
+                p.name AS package_name, th.name AS theme_name,
+                ${evRevSub} AS revenue_fils
+           FROM events e
+           LEFT JOIN packages p ON p.id = e.package_id
+           LEFT JOIN themes th  ON th.id = e.theme_id
+          WHERE e.event_date >= $1 AND e.event_date < $2 ${F}`,
+        params,
+      ),
+      pool.query(
+        `SELECT COUNT(*) FILTER (WHERE n > 1) AS repeats, COUNT(*) AS total
+           FROM (SELECT customer_id, COUNT(*) n FROM events WHERE phase <> 'Cancelled' GROUP BY customer_id) s`,
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(total_fils),0) v, COUNT(*) c FROM orders
+          WHERE status IN ('awaiting_payment','processing','needs_review')`,
+      ),
+      pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [from, to]),
+      pool.query(
+        `SELECT category, SUM(amount_fils) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+        [from, to],
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(c.refund_amount_fils),0) v, COUNT(*) c FROM cancellations c
+           JOIN events e ON e.id = c.event_id
+          WHERE e.event_date >= $1 AND e.event_date < $2 ${F}`,
+        params,
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(${evRevSub}),0) revenue, COUNT(*) bookings
+           FROM events e WHERE e.phase <> 'Cancelled' AND e.event_date >= $1 AND e.event_date < $2 ${F}`,
+        [prevFrom, prevTo, ...fVals],
+      ),
+    ]);
+
+    const rows = evRows.rows as any[];
+    const confirmed = rows.filter((r) => !r.cancelled);
+    const cancelledRows = rows.filter((r) => r.cancelled);
+    const revenue = confirmed.reduce((s, r) => s + Number(r.revenue_fils), 0);
+    const bookings = confirmed.length;
+    const aov = bookings > 0 ? Math.round(revenue / bookings) : 0;
+
+    // Group helper → sorted [{key,label,bookings,revenueFils}].
+    const groupBy = (keyFn: (r: any) => string, labelFn?: (r: any) => string) => {
+      const m = new Map<string, { key: string; label: string; bookings: number; revenueFils: number }>();
+      for (const r of confirmed) {
+        const key = keyFn(r) || '—';
+        const label = (labelFn ? labelFn(r) : key) || '—';
+        const cur = m.get(key) ?? { key, label, bookings: 0, revenueFils: 0 };
+        cur.bookings += 1;
+        cur.revenueFils += Number(r.revenue_fils);
+        m.set(key, cur);
+      }
+      return [...m.values()].sort((a, b) => b.revenueFils - a.revenueFils);
+    };
+    const withDisplay = (arr: Array<{ revenueFils: number }>) =>
+      arr.map((x) => ({ ...x, revenueDisplay: formatAed(x.revenueFils) }));
+
+    const byEmirate = withDisplay(groupBy((r) => r.emirate));
+    const byEventType = withDisplay(groupBy((r) => r.celebration_type, (r) => celebrationLabel(r.celebration_type)));
+    const byPackage = withDisplay(groupBy((r) => r.package_id ?? 'none', (r) => r.package_name ?? 'Build Your Own / à la carte'));
+    const byTheme = withDisplay(groupBy((r) => r.theme_id ?? 'none', (r) => r.theme_name ?? 'No theme / custom'));
+
+    // Monthly trend across the range (bookings + revenue by event_date month).
+    const monthMap = new Map<string, { month: string; bookings: number; revenueFils: number }>();
+    for (const r of confirmed) {
+      const cur = monthMap.get(r.ym) ?? { month: r.ym, bookings: 0, revenueFils: 0 };
+      cur.bookings += 1;
+      cur.revenueFils += Number(r.revenue_fils);
+      monthMap.set(r.ym, cur);
+    }
+    const trend = [...monthMap.values()]
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .map((t) => ({ ...t, revenueDisplay: formatAed(t.revenueFils) }));
+
+    const expenses = Number(expRow.rows[0].v);
+    const profit = revenue - expenses;
+    const refundFils = Number(refundRow.rows[0].v);
+    const prevRevenue = Number(prevRow.rows[0].revenue);
+    const prevBookings = Number(prevRow.rows[0].bookings);
+    const pct = (curr: number, prev: number) => (prev > 0 ? Math.round(((curr - prev) / prev) * 1000) / 10 : null);
+    const revenueChangePct = pct(revenue, prevRevenue);
+    const bookingsChangePct = pct(bookings, prevBookings);
+    const repeats = Number(repeatRow.rows[0].repeats);
+    const custTotal = Number(repeatRow.rows[0].total);
+    const repeatRatePct = custTotal > 0 ? Math.round((repeats / custTotal) * 1000) / 10 : 0;
+    const cancelledCount = cancelledRows.length;
+    const cancelRatePct = rows.length > 0 ? Math.round((cancelledCount / rows.length) * 1000) / 10 : 0;
+
+    // Actionable insights.
+    const insights: Array<{ tone: 'good' | 'warn' | 'info'; text: string }> = [];
+    if (revenueChangePct !== null) {
+      insights.push({
+        tone: revenueChangePct >= 0 ? 'good' : 'warn',
+        text: `Revenue is ${revenueChangePct >= 0 ? 'up' : 'down'} ${Math.abs(revenueChangePct)}% vs the previous ${Math.round(spanMs / 86_400_000)} days (AED ${formatAed(revenue)} vs AED ${formatAed(prevRevenue)}).`,
+      });
+    }
+    if (byEmirate[0]) insights.push({ tone: 'info', text: `${byEmirate[0].label} is your top emirate by revenue (AED ${byEmirate[0].revenueDisplay} from ${byEmirate[0].bookings} bookings).` });
+    if (byPackage[0]) insights.push({ tone: 'info', text: `Best seller: ${byPackage[0].label} (AED ${byPackage[0].revenueDisplay}).` });
+    if (cancelledCount > 0) insights.push({ tone: cancelRatePct > 15 ? 'warn' : 'info', text: `${cancelledCount} cancelled (${cancelRatePct}% of events); AED ${formatAed(refundFils)} refunded.` });
+    if (Number(outstandingRow.rows[0].c) > 0) insights.push({ tone: 'warn', text: `${outstandingRow.rows[0].c} order(s) with payment not settled — AED ${formatAed(Number(outstandingRow.rows[0].v))} outstanding.` });
+    insights.push({ tone: profit >= 0 ? 'good' : 'warn', text: `Net ${profit >= 0 ? 'profit' : 'loss'} of AED ${formatAed(Math.abs(profit))} (margin ${revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0}%) after AED ${formatAed(expenses)} expenses.` });
+    if (custTotal > 0) insights.push({ tone: repeatRatePct >= 20 ? 'good' : 'info', text: `${repeatRatePct}% of customers have booked more than once (${repeats} of ${custTotal}).` });
+
+    return {
+      from, to,
+      filters: { emirate: q.emirate ?? null, eventType: q.eventType ?? null, packageId: q.packageId ?? null },
+      revenueFils: revenue, revenueDisplay: formatAed(revenue),
+      bookings, aovFils: aov, aovDisplay: formatAed(aov),
+      confirmed: bookings, cancelled: cancelledCount, cancelRatePct,
+      refundFils, refundDisplay: formatAed(refundFils),
+      expensesFils: expenses, expensesDisplay: formatAed(expenses),
+      profitFils: profit, profitDisplay: formatAed(Math.abs(profit)), profitNegative: profit < 0,
+      marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
+      outstandingFils: Number(outstandingRow.rows[0].v), outstandingDisplay: formatAed(Number(outstandingRow.rows[0].v)), outstandingCount: Number(outstandingRow.rows[0].c),
+      revenueChangePct, bookingsChangePct,
+      prevRevenueFils: prevRevenue, prevBookings,
+      repeatCustomers: repeats, totalCustomers: custTotal, repeatRatePct,
+      byEmirate, byEventType, byPackage, byTheme,
+      byCategory: expByCat.rows.map((r) => ({ category: r.category, amountFils: Number(r.v), amountDisplay: formatAed(Number(r.v)) })),
+      trend,
+      insights,
     };
   });
 

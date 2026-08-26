@@ -248,6 +248,12 @@ export const api = {
 
   kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
 
+  ceo: (params: { from?: string; to?: string; emirate?: string; eventType?: string; packageId?: string } = {}) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
+    const s = qs.toString();
+    return request<any>(`/api/admin/ceo${s ? `?${s}` : ''}`);
+  },
   finance: (month?: string) => request<any>(`/api/admin/finance${month ? `?month=${month}` : ''}`),
   emailFinanceReport: (month?: string) =>
     request<any>(`/api/admin/finance/report${month ? `?month=${month}` : ''}`, { method: 'POST' }),

@@ -11,6 +11,7 @@ import { Team } from './views/Team';
 import { Kpis } from './views/Kpis';
 import { Alerts } from './views/Alerts';
 import { Finance } from './views/Finance';
+import { Ceo } from './views/Ceo';
 import { Marketing } from './views/Marketing';
 import { Settings } from './views/Settings';
 import { ShopOrders } from './views/ShopOrders';
@@ -18,7 +19,7 @@ import { Leads } from './views/Leads';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads';
 
 type Group = 'primary' | 'more';
 
@@ -31,6 +32,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Stock, leave, reviews and tips', group: 'more' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', group: 'more' },
   { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', group: 'more' },
+  { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', group: 'more' },
   { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance — Owner view', sub: 'Revenue, expenses and profit', group: 'more' },
   { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns', group: 'more' },
   { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', group: 'more' },
@@ -131,6 +133,7 @@ export default function App() {
       {view === 'alerts' && <Alerts onOpenEvent={openEvent} />}
       {view === 'team' && <Team role={role} />}
       {view === 'kpis' && <Kpis />}
+      {view === 'ceo' && <Ceo />}
       {view === 'finance' && <Finance />}
       {view === 'marketing' && <Marketing />}
       {view === 'shop' && <ShopOrders />}
