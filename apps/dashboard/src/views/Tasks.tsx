@@ -202,7 +202,7 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
                           📷 Proof
                           <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
                             const f = e.target.files?.[0]; if (!f) return;
-                            try { const url = await api.uploadImage(f, 'prep'); await api.prepComplete(t.id, url); load(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); }
+                            try { const url = await api.uploadImage(f, 'setup-photos'); await api.prepComplete(t.id, url); load(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); }
                           }} />
                         </label>
                         {t.status !== 'in_progress' && t.status !== 'waiting_design' && (
@@ -228,7 +228,7 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
                         return (
                           <Button key={m.id} tone={on ? 'primary' : 'ghost'}
                             onClick={async () => {
-                              const ids = new Set((t.assignees ?? []).map((a: any) => a.id));
+                              const ids = new Set<string>((t.assignees ?? []).map((a: any) => String(a.id)));
                               if (on) ids.delete(m.id); else ids.add(m.id);
                               await api.prepSetAssignees(t.id, [...ids]); load();
                             }}>{m.name}</Button>
