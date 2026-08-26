@@ -7,7 +7,8 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { formatAed, isCancelled, celebrationLabel } from '@eventana/shared';
+import { formatAed, isCancelled, celebrationLabel, computeRefund } from '@eventana/shared';
+import { refundOrderMoney } from '../domain/refund.js';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import { getProvider, integrationStatus } from '../payments/index.js';
@@ -38,45 +39,69 @@ import { agentMode, whatsappEnabled } from '../integrations/whatsapp.js';
  */
 async function cancelEvent(eventId: string, reason: string) {
   return withTransaction(async (db) => {
+    // Lock the event + its order so we can compute the refund and freeze it
+    // atomically.
     const { rows } = await db.query(
-      `UPDATE events
-          SET phase = 'Cancelled', eta = NULL,
-              cancelled_at = now(), cancellation_reason = $2
-        WHERE id = $1
-        RETURNING *`,
+      `SELECT e.*, o.id AS oid, o.status AS ostatus, o.total_fils, o.quote
+         FROM events e JOIN orders o ON o.id = e.order_id
+        WHERE e.id = $1 FOR UPDATE OF e`,
+      [eventId],
+    );
+    const ev = rows[0];
+    if (!ev) return null;
+
+    await db.query(
+      `UPDATE events SET phase = 'Cancelled', eta = NULL, cancelled_at = now(), cancellation_reason = $2 WHERE id = $1`,
       [eventId, reason],
     );
-    if (!rows[0]) return null;
-
     // Free the physical assets for other customers immediately.
     await db.query(
-      `UPDATE inventory_holds SET status = 'released'
-        WHERE event_id = $1 AND status IN ('held','reserved')`,
+      `UPDATE inventory_holds SET status = 'released' WHERE event_id = $1 AND status IN ('held','reserved')`,
       [eventId],
     );
     // Stop anything scheduled for an event that is not happening.
     await db.query(
-      `UPDATE notifications SET cancelled_at = now()
-        WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL`,
+      `UPDATE notifications SET cancelled_at = now() WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL`,
       [eventId],
     );
     // Close outstanding preparation work.
-    await db.query(
-      `UPDATE event_tasks SET status = 'done' WHERE event_id = $1 AND status <> 'done'`,
-      [eventId],
-    );
-    await db.query(
-      `INSERT INTO event_tasks (event_id, department, title)
-       VALUES ($1,'finance',$2)`,
-      [eventId, `Cancellation — decide refund position (${reason})`],
-    );
-    await db.query(
-      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-       VALUES ($1,'email','event_cancelled', now(), $2)`,
-      [eventId, JSON.stringify({ eventId, reason })],
-    );
+    await db.query(`UPDATE event_tasks SET status = 'done' WHERE event_id = $1 AND status <> 'done'`, [eventId]);
 
-    return rows[0];
+    // Compute the refund the policy owes and record the cancellation, so the
+    // auto-refund (after commit) can move the money via the payment provider
+    // exactly like a customer-initiated cancellation.
+    let refundInfo: { orderId: string; refundFils: number; refundStatus: string } | null = null;
+    if (ev.ostatus === 'paid') {
+      const startMs = Date.parse(`${new Date(ev.event_date).toISOString().slice(0, 10)}T${ev.start_time}:00+04:00`);
+      const hoursToEvent = (startMs - Date.now()) / 3_600_000;
+      const b = computeRefund({ lines: (ev.quote as any)?.lines ?? [], totalPaidFils: Number(ev.total_fils), hoursToEvent });
+      const refundStatus = b.refundFils > 0 ? 'pending' : 'none';
+      await db.query(
+        `INSERT INTO cancellations
+           (order_id, event_id, cancelled_by, reason, total_paid_fils, delivery_fils,
+            non_refundable_fils, party_value_fils, refund_percent, refund_amount_fils, refund_status)
+         VALUES ($1,$2,'staff',$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (order_id) DO NOTHING`,
+        [ev.oid, eventId, reason, b.totalPaidFils, b.deliveryFils, b.nonRefundableExtrasFils, b.partyValueFils, b.percent, b.refundFils, refundStatus],
+      );
+      // Customer email: the cancellation + refund breakdown (auto-refund will
+      // replace it with a "processed" email once the money moves).
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES ($1,'email','cancellation_refund', now(), $2)`,
+        [eventId, JSON.stringify({ orderId: ev.oid })],
+      );
+      refundInfo = { orderId: ev.oid, refundFils: b.refundFils, refundStatus };
+    } else {
+      // Nothing was paid — a plain cancellation note.
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES ($1,'email','event_cancelled', now(), $2)`,
+        [eventId, JSON.stringify({ eventId, reason })],
+      );
+    }
+
+    return { ...ev, phase: 'Cancelled', refundInfo };
   });
 }
 
@@ -963,6 +988,20 @@ export async function adminRoutes(app: FastifyInstance) {
     const result = await cancelEvent(eventId, parsed.data.reason);
     if (!result) return reply.status(404).send({ error: 'not_found' });
     void syncEventToCalendar(eventId);
+
+    // Auto-refund the money through the payment provider (Stripe) and email the
+    // customer — same automatic flow as a customer-initiated cancellation. Runs
+    // after the cancellation is committed; on failure the refund stays pending
+    // for the manual Refund panel.
+    const rInfo = (result as any).refundInfo as { orderId: string; refundFils: number; refundStatus: string } | null;
+    if (rInfo && rInfo.refundStatus === 'pending' && rInfo.refundFils > 0) {
+      await refundOrderMoney({
+        orderId: rInfo.orderId,
+        amountFils: rInfo.refundFils,
+        reason: `Cancelled by team — ${parsed.data.reason}`,
+        source: 'admin_cancel',
+      }).catch(() => {});
+    }
     return result;
   });
 
