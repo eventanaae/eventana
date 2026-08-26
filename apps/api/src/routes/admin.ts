@@ -1593,6 +1593,9 @@ export async function adminRoutes(app: FastifyInstance) {
   // (Al Ain / Khor Fakkan / Kalba kept as their own zones) across the customer
   // book, live customers and events. Cleans the Sales page's "city" column.
   app.post('/api/admin/finance/normalize-emirates', async () => finance.normalizeAllEmirates());
+  // One-time (safe to re-run): post any paid order missing from Sales — e.g. a
+  // shop order paid before the auto-sale hook existed.
+  app.post('/api/admin/finance/backfill-sales', async () => finance.backfillMissingSales());
   // Attribute customer names to receipts/orders from a { docNumber: name } map
   // (rebuilt in the browser from the Sales-by-Customer report). Fixes the sales
   // whose customer grouping was lost on the first import.

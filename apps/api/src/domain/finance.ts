@@ -360,6 +360,27 @@ export async function recordSaleFromOrder(
 }
 
 /**
+ * Backfill: post every paid order (booking / add-on / shop / manual link) that
+ * isn't yet on the Sales page. Fixes orders paid before the auto-sale hook
+ * existed — e.g. a shop order that never appeared in Sales. Idempotent.
+ */
+export async function backfillMissingSales(): Promise<{ posted: number }> {
+  const { rows } = await pool.query(
+    `SELECT o.id, o.kind, o.source, o.cart, o.quote, o.total_fils, o.customer_id
+       FROM orders o
+      WHERE o.status = 'paid' AND o.kind IN ('booking','addon','shop')
+        AND NOT EXISTS (SELECT 1 FROM finance_receipts r WHERE r.order_id = o.id)
+      ORDER BY o.created_at`,
+  );
+  let posted = 0;
+  for (const o of rows) {
+    await withTransaction(async (db) => { await recordSaleFromOrder(db, o as any); }).catch(() => {});
+    posted++;
+  }
+  return { posted };
+}
+
+/**
  * Turn a sale into an operational Event so it shows on the schedule/board.
  *
  * Only for a receipt dated today or later (an upcoming booking) that isn't
