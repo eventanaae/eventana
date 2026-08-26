@@ -112,6 +112,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const managerOnly =
       path.startsWith('/api/admin/finance') ||
       path.startsWith('/api/admin/ceo') ||
+      path.startsWith('/api/admin/financials') ||
       path.startsWith('/api/admin/orders') ||
       path.startsWith('/api/admin/expenses') ||
       path.startsWith('/api/admin/kpis') ||
@@ -931,6 +932,97 @@ export async function adminRoutes(app: FastifyInstance) {
   app.delete('/api/admin/expenses/:id', async (request) => {
     const id = Number((request.params as { id: string }).id);
     await pool.query(`DELETE FROM expenses WHERE id = $1`, [id]);
+    return { deleted: true };
+  });
+
+  // ── Historical financials (QuickBooks P&L) ─────────────────────────────────
+  // The real money history of the business lived only in QuickBooks (every
+  // sale was WhatsApp). We import it here, one row per year (or month), so the
+  // CEO dashboard can show true revenue/expenses/profit and year-over-year —
+  // the app's own bookings cover only 2026+ and would understate everything.
+
+  /** List every imported financial period, newest first, with AED displays. */
+  app.get('/api/admin/financials', async () => {
+    const { rows } = await pool.query(
+      `SELECT * FROM historical_financials ORDER BY period DESC`,
+    );
+    const withDisplay = rows.map((r) => ({
+      ...r,
+      incomeDisplay: formatAed(Number(r.income_fils)),
+      cogsDisplay: formatAed(Number(r.cogs_fils)),
+      expensesDisplay: formatAed(Number(r.expenses_fils)),
+      grossProfitDisplay: formatAed(Number(r.gross_profit_fils)),
+      netIncomeDisplay: formatAed(Number(r.net_income_fils)),
+      marginPct: Number(r.income_fils) > 0
+        ? Math.round((Number(r.net_income_fils) / Number(r.income_fils)) * 1000) / 10
+        : 0,
+    }));
+    // Year-over-year net-income growth, oldest→newest, for the annual rows.
+    const years = [...withDisplay].filter((r) => r.period_kind === 'year').sort((a, b) => a.period.localeCompare(b.period));
+    const yoy = years.map((r, i) => {
+      const prev = i > 0 ? Number(years[i - 1].net_income_fils) : null;
+      const cur = Number(r.net_income_fils);
+      const growthPct = prev && prev !== 0 ? Math.round(((cur - prev) / Math.abs(prev)) * 1000) / 10 : null;
+      return { period: r.period, netIncomeFils: cur, growthPct };
+    });
+    return { periods: withDisplay, yoy };
+  });
+
+  /**
+   * Upsert one financial period. Income/COGS/expenses are provided; gross and
+   * net are derived server-side so they always reconcile. Breakdowns optional.
+   * This is how 2023–2025 (and full-year 2026) get added from QuickBooks.
+   */
+  app.post('/api/admin/financials', async (request, reply) => {
+    const line = z.object({ label: z.string().min(1).max(120), fils: z.number().int() });
+    const schema = z.object({
+      period: z.string().regex(/^\d{4}(-\d{2})?$/),
+      incomeFils: z.number().int(),
+      cogsFils: z.number().int().default(0),
+      expensesFils: z.number().int().min(0),
+      incomeBreakdown: z.array(line).optional(),
+      expenseBreakdown: z.array(line).optional(),
+      note: z.string().max(300).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    const d = parsed.data;
+    const periodKind = /^\d{4}$/.test(d.period) ? 'year' : 'month';
+    const grossProfit = d.incomeFils - d.cogsFils;
+    const netIncome = grossProfit - d.expensesFils;
+    const { rows } = await pool.query(
+      `INSERT INTO historical_financials
+         (period, period_kind, income_fils, cogs_fils, expenses_fils, gross_profit_fils, net_income_fils, income_breakdown, expense_breakdown, source, note, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'quickbooks',$10, now())
+       ON CONFLICT (period) DO UPDATE SET
+         period_kind = EXCLUDED.period_kind,
+         income_fils = EXCLUDED.income_fils,
+         cogs_fils = EXCLUDED.cogs_fils,
+         expenses_fils = EXCLUDED.expenses_fils,
+         gross_profit_fils = EXCLUDED.gross_profit_fils,
+         net_income_fils = EXCLUDED.net_income_fils,
+         income_breakdown = EXCLUDED.income_breakdown,
+         expense_breakdown = EXCLUDED.expense_breakdown,
+         note = EXCLUDED.note,
+         updated_at = now()
+       RETURNING *`,
+      [
+        d.period, periodKind, d.incomeFils, d.cogsFils, d.expensesFils, grossProfit, netIncome,
+        d.incomeBreakdown ? JSON.stringify(d.incomeBreakdown) : null,
+        d.expenseBreakdown ? JSON.stringify(d.expenseBreakdown) : null,
+        d.note ?? null,
+      ],
+    );
+    return reply.status(201).send({
+      ...rows[0],
+      incomeDisplay: formatAed(Number(rows[0].income_fils)),
+      netIncomeDisplay: formatAed(Number(rows[0].net_income_fils)),
+    });
+  });
+
+  app.delete('/api/admin/financials/:period', async (request) => {
+    const period = String((request.params as { period: string }).period);
+    await pool.query(`DELETE FROM historical_financials WHERE period = $1`, [period]);
     return { deleted: true };
   });
 

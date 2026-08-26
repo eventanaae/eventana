@@ -278,4 +278,17 @@ export const api = {
     request<any>(`/api/admin/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteExpense: (id: number) =>
     request<any>(`/api/admin/expenses/${id}`, { method: 'DELETE' }),
+
+  financials: () => request<any>('/api/admin/financials'),
+  saveFinancials: (body: {
+    period: string;
+    incomeFils: number;
+    cogsFils?: number;
+    expensesFils: number;
+    incomeBreakdown?: Array<{ label: string; fils: number }>;
+    expenseBreakdown?: Array<{ label: string; fils: number }>;
+    note?: string;
+  }) => request<any>('/api/admin/financials', { method: 'POST', body: JSON.stringify(body) }),
+  deleteFinancials: (period: string) =>
+    request<any>(`/api/admin/financials/${encodeURIComponent(period)}`, { method: 'DELETE' }),
 };

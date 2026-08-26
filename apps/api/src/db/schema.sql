@@ -686,3 +686,45 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
 );
 
 CREATE INDEX IF NOT EXISTS whatsapp_messages_phone_idx ON whatsapp_messages (phone, created_at);
+
+-- ── Historical financials from QuickBooks (#3) ───────────────────────────────
+-- QuickBooks is the single source of truth for the business's real financial
+-- history: every sale to date was taken on WhatsApp and booked in QuickBooks,
+-- so the live app (which only knows bookings placed THROUGH the app, 2026+)
+-- cannot show true revenue/expenses/profit on its own. We import the
+-- QuickBooks Profit & Loss here — one row per period (a whole year, or a single
+-- month) — with the income total, cost of sales, total expenses, the derived
+-- gross/net, and the full income/expense category breakdowns as JSONB. The CEO
+-- dashboard reads THIS for the money picture (revenue, expenses, profit, YoY)
+-- and keeps the app's own data for operational metrics only (bookings, emirate,
+-- event type, funnel) so nothing is ever double-counted.
+--
+-- Money is fils (1 AED = 100 fils), consistent with the rest of the schema.
+CREATE TABLE IF NOT EXISTS historical_financials (
+  period            TEXT PRIMARY KEY,               -- 'YYYY' (annual) or 'YYYY-MM'
+  period_kind       TEXT NOT NULL DEFAULT 'year',   -- year | month
+  income_fils       BIGINT NOT NULL DEFAULT 0,
+  cogs_fils         BIGINT NOT NULL DEFAULT 0,
+  expenses_fils     BIGINT NOT NULL DEFAULT 0,
+  gross_profit_fils BIGINT NOT NULL DEFAULT 0,
+  net_income_fils   BIGINT NOT NULL DEFAULT 0,
+  income_breakdown  JSONB,                           -- [{ "label": ..., "fils": ... }]
+  expense_breakdown JSONB,                           -- [{ "label": ..., "fils": ... }]
+  source            TEXT NOT NULL DEFAULT 'quickbooks',
+  note              TEXT,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Seed: FY2026 year-to-date (Jan 1 – Aug 26 2026), taken straight from the
+-- owner's QuickBooks "Profit and Loss by Month" report. ON CONFLICT DO NOTHING
+-- so a later dashboard edit (or a full-year restate) is never clobbered on boot.
+INSERT INTO historical_financials
+  (period, period_kind, income_fils, cogs_fils, expenses_fils, gross_profit_fils, net_income_fils, income_breakdown, expense_breakdown, source, note)
+VALUES (
+  '2026', 'year',
+  47562070, 2419132, 21695279, 45142938, 23447659,
+  '[{"label":"Service/Fee Income","fils":42168100},{"label":"Services","fils":9953400},{"label":"Shipping & delivery income","fils":1409970},{"label":"Kids events packages","fils":399900},{"label":"Revenue - general","fils":110000},{"label":"Uncategorised income","fils":30000},{"label":"Discounts given","fils":-6509300}]'::jsonb,
+  '[{"label":"Purchase (stock/materials)","fils":8992160},{"label":"Supplies","fils":5357808},{"label":"Stationery & printing","fils":2997200},{"label":"Advertising","fils":1764180},{"label":"Other general & admin","fils":906972},{"label":"Meals & entertainment","fils":601009},{"label":"Payroll","fils":504500},{"label":"Repairs & maintenance","fils":150745},{"label":"Dues & subscriptions","fils":129705},{"label":"Equipment rental","fils":105000},{"label":"Office expenses","fils":100000},{"label":"Travel","fils":86000}]'::jsonb,
+  'quickbooks',
+  'FY2026 year-to-date (Jan 1 – Aug 26 2026), from QuickBooks Profit & Loss.'
+) ON CONFLICT (period) DO NOTHING;

@@ -11,6 +11,7 @@ import { Team } from './views/Team';
 import { Kpis } from './views/Kpis';
 import { Alerts } from './views/Alerts';
 import { Finance } from './views/Finance';
+import { Financials } from './views/Financials';
 import { Ceo } from './views/Ceo';
 import { NewOrder } from './views/NewOrder';
 import { Marketing } from './views/Marketing';
@@ -20,7 +21,7 @@ import { Leads } from './views/Leads';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder';
 
 type Section = 'ops' | 'sales' | 'business' | 'admin';
 
@@ -46,6 +47,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', section: 'sales' },
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business', mobile: true },
   { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance', sub: 'Revenue, expenses and profit', section: 'business' },
+  { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (QuickBooks)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
   { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', section: 'business' },
   { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'business' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'admin' },
@@ -148,6 +150,7 @@ export default function App() {
       {view === 'kpis' && <Kpis />}
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <Finance />}
+      {view === 'financials' && <Financials />}
       {view === 'marketing' && <Marketing />}
       {view === 'shop' && <ShopOrders />}
       {view === 'neworder' && <NewOrder />}
