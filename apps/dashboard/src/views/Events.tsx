@@ -130,24 +130,27 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
               <div style={{ flex: 1 }}>
                 <div style={fredoka(20)}>{data.event.id}</div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-                  {data.event.customer}
-                  {data.event.phone && (
-                    <> · <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 700, textDecoration: 'none' }}>📞 {data.event.phone}</a></>
+                <div style={{ marginTop: 10, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {data.event.eventFor && (
+                    <div style={{ ...fredoka(15.5), color: C.pinkDeep }}>
+                      🎉 {data.event.eventFor}
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}> · guest of honour</span>
+                    </div>
                   )}
-                  {data.event.email ? (
-                    <> · <a href={`mailto:${data.event.email}`} style={{ color: C.muted2, textDecoration: 'none' }}>{data.event.email}</a></>
-                  ) : ''}
-                  {' · '}
-                  {new Date(data.event.event_date).toDateString()} · {data.event.start_time}–
-                  {data.event.base_end_time}
+                  <HeaderRow icon="👤" label="Booked by" value={data.event.customer} />
+                  {data.event.phone && (
+                    <HeaderRow icon="📞" label="Call" value={
+                      <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 700, textDecoration: 'none' }}>{data.event.phone}</a>
+                    } />
+                  )}
+                  {data.event.email && (
+                    <HeaderRow icon="✉️" label="Email" value={
+                      <a href={`mailto:${data.event.email}`} style={{ color: C.ink, fontWeight: 600, textDecoration: 'none', wordBreak: 'break-all' }}>{data.event.email}</a>
+                    } />
+                  )}
+                  <HeaderRow icon="📅" label="When" value={`${new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${data.event.start_time}–${data.event.base_end_time}`} />
+                  {data.event.emirate && <HeaderRow icon="📍" label="Where" value={data.event.emirate} />}
                 </div>
-                {data.event.eventFor && (
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginTop: 5 }}>
-                    🎉 Event for: {data.event.eventFor}
-                    <span style={{ fontWeight: 600, color: C.muted }}> · booked by {data.event.customer}</span>
-                  </div>
-                )}
                 {(data.event.referenceImages ?? []).length > 0 && (
                   <div style={{ marginTop: 8 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>📎 Reference images</div>
@@ -189,6 +192,23 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <LocationPanel event={data.event} />
+
+              <Panel title="Booked services">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {data.services.map((s: any) => (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{s.label}</div>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>×{s.quantity} · {s.source}</div>
+                      </div>
+                      <span style={{ fontWeight: 700, fontSize: 12.5, color: C.ink, whiteSpace: 'nowrap' }}>
+                        {s.amount_fils > 0 ? `AED ${money(Number(s.amount_fils))}` : '—'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+
               <PartyDetailsPanel event={data.event} />
               {(data.rating || (!moneyHidden && data.tips && data.tips.length > 0)) && (
                 <RatingTipsPanel rating={data.rating} tips={moneyHidden ? [] : data.tips} />
@@ -199,6 +219,11 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               <StaffingPanel eventId={eventId} />
 
               <Panel title="Advance status">
+                {data.event.phase !== 'Cancelled' && (
+                  <div style={{ background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '8px 11px', fontSize: 11.5, fontWeight: 700, marginBottom: 12, lineHeight: 1.5 }}>
+                    👑 The Event Leader is responsible for updating the status on the day.
+                  </div>
+                )}
                 {data.event.phase === 'Cancelled' ? (
                   <div>
                     <div style={{ marginBottom: 12 }}>
@@ -288,22 +313,6 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                 )}
               </Panel>
 
-              <Panel title="Booked services">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {data.services.map((s: any) => (
-                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{s.label}</div>
-                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>×{s.quantity} · {s.source}</div>
-                      </div>
-                      <span style={{ fontWeight: 700, fontSize: 12.5, color: C.ink, whiteSpace: 'nowrap' }}>
-                        {s.amount_fils > 0 ? `AED ${money(Number(s.amount_fils))}` : '—'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-
               <Panel title="Reserved inventory">
                 {data.reservations.length === 0 ? (
                   <Empty>No physical assets reserved.</Empty>
@@ -324,36 +333,6 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     ))}
                   </div>
                 )}
-              </Panel>
-
-              <Panel title="Tasks by department">
-                {['design', 'operations', 'inventory', 'logistics', 'finance'].map((dept) => {
-                  const items = data.tasks.filter((t: any) => t.department === dept);
-                  if (items.length === 0) return null;
-                  return (
-                    <div key={dept} style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '.5px', marginBottom: 6 }}>
-                        {dept.toUpperCase()}
-                      </div>
-                      {items.map((t: any) => (
-                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
-                          <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, textDecoration: t.status === 'done' ? 'line-through' : 'none', color: t.status === 'done' ? C.muted : C.ink }}>
-                            {t.title}
-                          </span>
-                          <Button
-                            tone="ghost"
-                            onClick={async () => {
-                              await api.setTask(t.id, t.status === 'done' ? 'open' : 'done');
-                              load();
-                            }}
-                          >
-                            {t.status === 'done' ? 'Reopen' : 'Done'}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
               </Panel>
 
               <Panel title="Setup placement notes">
@@ -589,6 +568,17 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
  * Maps" are Google's universal deep links — they open the driver's native
  * Google Maps app with turn-by-turn navigation, no API key required.
  */
+/** A clean icon · label · value row for the event header. */
+function HeaderRow({ icon, label, value }: { icon: string; label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12.5 }}>
+      <span style={{ width: 16, flex: 'none' }}>{icon}</span>
+      <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, minWidth: 60, letterSpacing: '.3px' }}>{label}</span>
+      <span style={{ flex: 1, fontWeight: 600, color: C.ink }}>{value}</span>
+    </div>
+  );
+}
+
 const ROLE_LABEL: Record<string, string> = {
   leader: '👑 Event Leader', balloon_artist: '🎈 Balloon Artist', clown: '🤡 Clown',
   face_painting: '🎨 Face Painter', helper: '🧍 Helper', balloon_twisting: '🎈 Balloon Twisting',
