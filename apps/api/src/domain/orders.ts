@@ -132,12 +132,14 @@ export interface CreateOrderInput {
   idempotencyKey?: string | null;
   /** Ad-click parameters the app captured on landing. Null when absent. */
   attribution?: unknown;
+  /** 'app' (default/NULL) or 'manual' (Manager-created WhatsApp order). */
+  source?: string | null;
 }
 
 export async function createOrder(db: PoolClient, input: CreateOrderInput) {
   const { rows } = await db.query(
-    `INSERT INTO orders (id, kind, customer_id, event_id, status, total_fils, cart, quote, idempotency_key, attribution)
-     VALUES ($1,$2,$3,$4,'awaiting_payment',$5,$6,$7,$8,$9)
+    `INSERT INTO orders (id, kind, customer_id, event_id, status, total_fils, cart, quote, idempotency_key, attribution, source)
+     VALUES ($1,$2,$3,$4,'awaiting_payment',$5,$6,$7,$8,$9,$10)
      RETURNING *`,
     [
       input.id,
@@ -149,6 +151,7 @@ export async function createOrder(db: PoolClient, input: CreateOrderInput) {
       JSON.stringify(input.quote),
       input.idempotencyKey ?? null,
       input.attribution ? JSON.stringify(input.attribution) : null,
+      input.source ?? null,
     ],
   );
   return rows[0];

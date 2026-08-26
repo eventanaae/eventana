@@ -18,6 +18,7 @@ import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '../domain/notify.js';
+import { createManualOrder, CheckoutError } from '../domain/checkout.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -111,6 +112,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const managerOnly =
       path.startsWith('/api/admin/finance') ||
       path.startsWith('/api/admin/ceo') ||
+      path.startsWith('/api/admin/orders') ||
       path.startsWith('/api/admin/expenses') ||
       path.startsWith('/api/admin/kpis') ||
       path.startsWith('/api/admin/settings') ||
@@ -1005,6 +1007,43 @@ export async function adminRoutes(app: FastifyInstance) {
         profitDisplay: formatAed(t.profitFils),
       })),
     };
+  });
+
+  /**
+   * Create a manual (WhatsApp) order and return a secure payment link. The
+   * manager picks the priced items + date/time/emirate; the customer completes
+   * their own details and pays through the link. Not revenue until paid.
+   */
+  app.post('/api/admin/orders/manual', async (request, reply) => {
+    const schema = z.object({
+      customer: z.object({
+        name: z.string().min(1).max(120),
+        phone: z.string().min(3).max(40),
+        email: z.string().email().optional(),
+      }),
+      cart: z.record(z.string(), z.any()),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    try {
+      const result = await createManualOrder({
+        customer: parsed.data.customer,
+        cart: parsed.data.cart as any,
+        createdBy: String((request as any).staff?.name ?? 'Manager'),
+      });
+      return reply.status(201).send({
+        orderId: result.orderId,
+        payUrl: result.payUrl,
+        totalFils: result.totalFils,
+        totalDisplay: result.totalDisplay,
+      });
+    } catch (err) {
+      if (err instanceof CheckoutError) {
+        return reply.status(422).send({ error: err.code, message: err.message, details: err.details ?? null });
+      }
+      request.log.error({ err }, 'manual order failed');
+      return reply.status(500).send({ error: 'manual_order_failed' });
+    }
   });
 
   /**

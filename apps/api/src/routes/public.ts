@@ -21,7 +21,7 @@ import { config } from '../config.js';
 import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
-import { CheckoutError, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
+import { CheckoutError, createSessionForOrder, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
 import { orderViewTokenValid } from '../domain/orders.js';
 import { processDelivery } from '../domain/webhooks.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
@@ -546,6 +546,95 @@ export async function publicRoutes(app: FastifyInstance) {
       // as soon as it is paid.
       confirmed: order.status === 'paid' && (order.kind === 'shop' || Boolean(order.event_id)),
     };
+  });
+
+  /**
+   * Manual-order payment link. A Manager creates the order (priced items +
+   * date/time/emirate); the customer opens this to complete their details and
+   * pay. All three routes require the unguessable order-view token.
+   */
+  app.get('/api/orders/:orderId/paylink', async (request, reply) => {
+    const { orderId } = request.params as { orderId: string };
+    const { t } = request.query as { t?: string };
+    if (!orderViewTokenValid(orderId, t)) return reply.status(404).send({ error: 'not_found' });
+    const { rows } = await pool.query(
+      `SELECT o.id, o.status, o.total_fils, o.cart, o.quote, o.event_id, o.source,
+              c.name AS customer_name, c.phone, c.email
+         FROM orders o JOIN customers c ON c.id = o.customer_id
+        WHERE o.id = $1`,
+      [orderId],
+    );
+    const o = rows[0];
+    if (!o || o.source !== 'manual') return reply.status(404).send({ error: 'not_found' });
+    const cart = (o.cart ?? {}) as any;
+    const quote = (o.quote ?? {}) as any;
+    return {
+      orderId: o.id,
+      status: o.status,
+      confirmed: o.status === 'paid' && Boolean(o.event_id),
+      totalFils: Number(o.total_fils),
+      totalDisplay: formatAed(Number(o.total_fils)),
+      items: (quote.lines ?? [])
+        .filter((l: any) => l.kind !== 'discount')
+        .map((l: any) => ({ label: l.label, quantity: l.quantity, amountDisplay: formatAed(Number(l.amountFils)) })),
+      event: { celebrationType: cart.celebrationType ?? null, eventDate: cart.eventDate ?? null, startTime: cart.startTime ?? null, emirate: cart.emirate ?? null },
+      customer: { name: o.customer_name, phone: o.phone, email: o.email },
+      prefill: { eventFor: cart.eventFor ?? '', address: cart.address ?? null, mapPin: cart.mapPin ?? null },
+    };
+  });
+
+  app.patch('/api/orders/:orderId/paylink', async (request, reply) => {
+    const { orderId } = request.params as { orderId: string };
+    const { t } = request.query as { t?: string };
+    if (!orderViewTokenValid(orderId, t)) return reply.status(404).send({ error: 'not_found' });
+    const schema = z.object({
+      eventFor: z.string().min(1).max(80),
+      fullName: z.string().min(1).max(120).optional(),
+      email: z.string().email().optional(),
+      phone: z.string().min(3).max(40).optional(),
+      address: z.object({ area: z.string().optional(), street: z.string().optional(), villa: z.string().optional(), details: z.string().optional() }).optional(),
+      mapPin: z.object({ lat: z.number(), lng: z.number() }),
+      termsAccepted: z.literal(true),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    const d = parsed.data;
+    const { rows } = await pool.query(`SELECT customer_id, status, cart, source FROM orders WHERE id = $1`, [orderId]);
+    const o = rows[0];
+    if (!o || o.source !== 'manual') return reply.status(404).send({ error: 'not_found' });
+    if (o.status !== 'awaiting_payment') return reply.status(409).send({ error: 'not_editable' });
+    const cart = { ...(o.cart ?? {}), eventFor: d.eventFor, address: d.address ?? (o.cart ?? {}).address ?? null, mapPin: d.mapPin };
+    await pool.query(`UPDATE orders SET cart = $2, updated_at = now() WHERE id = $1`, [orderId, JSON.stringify(cart)]);
+    await pool.query(
+      `UPDATE customers SET
+          name  = COALESCE(NULLIF($2,''), name),
+          email = COALESCE(NULLIF($3,''), email),
+          phone = COALESCE(NULLIF($4,''), phone)
+        WHERE id = $1`,
+      [o.customer_id, d.fullName ?? '', d.email ?? '', d.phone ?? ''],
+    );
+    return { ok: true };
+  });
+
+  app.post('/api/orders/:orderId/paylink/pay', async (request, reply) => {
+    const { orderId } = request.params as { orderId: string };
+    const { t } = request.query as { t?: string };
+    if (!orderViewTokenValid(orderId, t)) return reply.status(404).send({ error: 'not_found' });
+    const { rows } = await pool.query(`SELECT status, cart, source FROM orders WHERE id = $1`, [orderId]);
+    const o = rows[0];
+    if (!o || o.source !== 'manual') return reply.status(404).send({ error: 'not_found' });
+    if (o.status === 'paid') return { alreadyPaid: true };
+    const cart = (o.cart ?? {}) as any;
+    if (!cart.eventFor || !cart.mapPin || typeof cart.mapPin.lat !== 'number') {
+      return reply.status(422).send({ error: 'incomplete', message: 'Please complete your details before paying.' });
+    }
+    try {
+      const s = await createSessionForOrder(orderId);
+      return { clientSecret: s.clientSecret, publishableKey: s.publishableKey, eligible: s.eligible };
+    } catch (e) {
+      if (e instanceof CheckoutError) return reply.status(422).send({ error: e.code, message: e.message });
+      return reply.status(500).send({ error: 'pay_failed' });
+    }
   });
 
   /**

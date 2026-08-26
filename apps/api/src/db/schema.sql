@@ -215,6 +215,10 @@ CREATE INDEX IF NOT EXISTS orders_event_idx ON orders (event_id);
 -- for anyone who arrives without campaign parameters.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS attribution JSONB;
 
+-- Additive: where the ORDER was created from. 'app' (customer self-serve, the
+-- default/NULL) or 'manual' (a Manager-created WhatsApp order paid via a link).
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;
+
 CREATE TABLE IF NOT EXISTS payments (
   id                   TEXT PRIMARY KEY,
   order_id             TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,

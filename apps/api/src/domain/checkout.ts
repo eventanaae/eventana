@@ -12,6 +12,7 @@
 import {
   effectiveEventHours,
   eventEndHour,
+  formatAed,
   isCancelled,
   quote as computeQuote,
   quoteAddons,
@@ -749,6 +750,124 @@ export async function startTipCheckout(args: {
 }
 
 /* ------------------------------------------------------------------ */
+
+/**
+ * A Manager-created "manual" order (a WhatsApp booking). The manager picks the
+ * priced items (package / services / theme) and sets the date, time and
+ * emirate; the customer completes the rest (guest of honour, contact, exact
+ * location) and pays through a secure link — the session is created lazily when
+ * they pay, so the total is fixed and never a stale checkout. No inventory hold
+ * is taken until payment (the manager manages availability for these).
+ */
+export interface ManualOrderInput {
+  customer: { name: string; phone: string; backupPhone?: string; email?: string };
+  cart: CheckoutRequest['cart'];
+  createdBy?: string;
+}
+export interface ManualOrderResult {
+  orderId: string;
+  token: string;
+  totalFils: number;
+  totalDisplay: string;
+  payUrl: string;
+  quote: Quote;
+}
+
+export async function createManualOrder(req: ManualOrderInput): Promise<ManualOrderResult> {
+  const cfg = await loadConfig(pool, { fresh: true });
+  const cart = req.cart;
+  if (!cart.eventDate || !cart.startTime) {
+    throw new CheckoutError('Set the event date and time.', 'missing_time');
+  }
+  if (!cart.emirate) {
+    throw new CheckoutError('Choose the emirate — it is needed to price delivery.', 'missing_emirate');
+  }
+  const customerId = await createGuestCustomer(
+    { name: req.customer.name, phone: req.customer.phone, backupPhone: req.customer.backupPhone ?? '', email: req.customer.email ?? '' },
+    { reuseRegistered: true },
+  );
+  const quote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now() });
+  if (!quote.bookable) {
+    throw new CheckoutError('This order cannot be priced as entered.', 'not_bookable', { problems: quote.problems });
+  }
+  const orderId = await withTransaction(async (db) => {
+    const id = await nextOrderId(db);
+    await createOrder(db, { id, kind: 'booking', customerId, totalFils: quote.totalFils, cart, quote, source: 'manual' });
+    return id;
+  });
+  const token = orderViewToken(orderId);
+  const base = (config.publicAppUrl || '').replace(/\/$/, '');
+  return {
+    orderId,
+    token,
+    totalFils: quote.totalFils,
+    totalDisplay: formatAed(quote.totalFils),
+    payUrl: `${base}/?pay=${orderId}&t=${token}`,
+    quote,
+  };
+}
+
+/**
+ * Create a Stripe session for an existing awaiting-payment order (used by the
+ * manual-order pay link). Idempotency and confirmation are handled by the same
+ * webhook/poll → confirmBooking path as a normal checkout.
+ */
+export async function createSessionForOrder(orderId: string): Promise<{
+  clientSecret: string | null;
+  publishableKey: string | null;
+  eligible: boolean;
+}> {
+  const { rows } = await pool.query(`SELECT * FROM orders WHERE id = $1`, [orderId]);
+  const order = rows[0];
+  if (!order) throw new CheckoutError('Order not found.', 'not_found');
+  if (order.status === 'paid') throw new CheckoutError('This order is already paid.', 'already_paid');
+  if (config.providers.stripe.mode === 'disabled') {
+    throw new CheckoutError('Card payment is not currently available.', 'unavailable');
+  }
+  const provider = getProvider('stripe');
+  const customer = await loadCustomer(order.customer_id);
+  const quote = order.quote as Quote;
+  const cart = order.cart as { emirate?: string; address?: { area?: string; street?: string; villa?: string } };
+  const paymentId = randomUUID();
+  const session = await provider.createSession({
+    orderId,
+    amountFils: Number(order.total_fils),
+    currency: 'AED',
+    customer,
+    items: quote.lines
+      .filter((l) => l.kind !== 'discount' && l.kind !== 'delivery')
+      .map((l) => ({ title: l.label, quantity: l.quantity, unitPriceFils: l.unitFils, referenceId: l.refId ?? undefined, category: 'events' })),
+    shippingFils: quote.deliveryFils ?? 0,
+    discountFils: quote.discountFils ?? 0,
+    city: String(cart.emirate ?? ''),
+    address: [cart.address?.area, cart.address?.street, cart.address?.villa].filter(Boolean).join(', '),
+    lang: 'en',
+    ...payReturnUrls(orderId),
+    orderHistory: await loadOrderHistory(order.customer_id),
+  });
+  await createPayment(pool, {
+    id: paymentId,
+    orderId,
+    provider: provider.name,
+    amountFils: Number(order.total_fils),
+    providerPaymentId: session.providerPaymentId || null,
+    checkoutUrl: session.checkoutUrl,
+    raw: session.raw,
+  });
+  await recordPaymentEvent(pool, {
+    paymentId,
+    orderId,
+    provider: provider.name,
+    newStatus: session.eligible ? 'created' : 'failed',
+    source: 'api',
+    note: 'Manual order pay-link session',
+  });
+  return {
+    clientSecret: session.clientSecret ?? null,
+    publishableKey: session.publishableKey ?? null,
+    eligible: session.eligible,
+  };
+}
 
 /**
  * Mints a lightweight customer for a guest checkout (no password). If the
