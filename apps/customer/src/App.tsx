@@ -20,6 +20,8 @@ import { Shop } from './screens/Shop';
 import { ShopCheckout } from './screens/ShopCheckout';
 import { PayLink } from './screens/PayLink';
 import { TermsSheet } from './screens/Terms';
+import { Landing } from './screens/Landing';
+import { landingFromPath, type LandingRoute } from './landing';
 import { useProfile } from './profile';
 import { useLang, makeT, type Lang, type TFn } from './i18n';
 
@@ -190,6 +192,23 @@ export default function App() {
 
   const [social, setSocial] = useState<Awaited<ReturnType<typeof api.socialProof>> | null>(null);
 
+  /**
+   * The landing page for this URL, if the visitor arrived on one.
+   *
+   * Read once at boot from the path — an ad click is the only way to get here.
+   * Cleared when they tap the button, which also rewrites the address back to
+   * "/" so a refresh lands them in the app they were already using rather than
+   * back on the sales page.
+   */
+  const [landing, setLanding] = useState<LandingRoute | null>(() => landingFromPath());
+  const enterFromLanding = useCallback((route: LandingRoute) => {
+    setDraft((d) => ({ ...d, celebrationType: route.celebrationType, celebrationTypeChosen: true }));
+    try { history.replaceState({}, '', '/'); } catch { /* file:// or a locked-down webview */ }
+    document.title = 'Eventana';
+    setLanding(null);
+    setScreen('explore');
+  }, []);
+
   useEffect(() => {
     api.catalogue().then(setCatalogue).catch((e) => setError(e.message));
     api.socialProof().then(setSocial).catch(() => setSocial(null));
@@ -348,6 +367,22 @@ export default function App() {
     }),
     [catalogue, draft, update, quote, quoteError, retryQuote, go, reset, startBuild, profile?.name, lang, t, social, shopCart],
   );
+
+  // A search-ad arrival is answered before anything else — ahead of the
+  // onboarding questions especially. Someone who clicked "balloon decoration
+  // dubai" has not agreed to tell us their name yet; asking first is how a
+  // paid click becomes a bounce.
+  if (landing) {
+    return (
+      <Landing
+        route={landing}
+        lang={lang}
+        setLang={setLang}
+        social={social}
+        onStart={() => enterFromLanding(landing)}
+      />
+    );
+  }
 
   // Password reset takes precedence over everything (deep link from email).
   if (resetToken) {

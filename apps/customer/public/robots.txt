@@ -1,0 +1,8 @@
+# Eventana customer app.
+# The landing pages under /kids-birthday, /balloon-decoration, /baby-shower,
+# /graduation, /corporate-events and /rentals are the pages worth indexing.
+# Everything the app itself renders needs a token or a booking to be useful.
+User-agent: *
+Allow: /
+
+Sitemap: https://app.eventanauae.com/sitemap.xml
