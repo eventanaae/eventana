@@ -87,6 +87,7 @@ function SubBtn({ on, onClick, children }: { on: boolean; onClick: () => void; c
 function InvoicesList() {
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
+  const [sel, setSel] = useState<any>(null);
   const load = () => api.finInvoices().then(setData).catch(() => setData({ invoices: [] }));
   useEffect(() => { load(); }, []);
   if (!data) return <Spinner />;
@@ -100,7 +101,7 @@ function InvoicesList() {
       </div>
       {(data.invoices ?? []).length === 0 && <Empty>No invoices yet. Create one to bill a customer.</Empty>}
       {(data.invoices ?? []).map((inv: any) => (
-        <DocRow key={inv.id}
+        <DocRow key={inv.id} onClick={() => setSel(inv)}
           title={inv.customer_name} sub={`Invoice ${inv.number} · ${fmtDate(inv.issue_date)}`}
           amount={inv.totalDisplay}
           badge={<StatusBadge status={inv.status} overdueDays={inv.overdueDays} />}
@@ -108,6 +109,7 @@ function InvoicesList() {
         />
       ))}
       {creating && <DocForm kind="invoice" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {sel && <DocDetail doc={sel} kind="invoice" onClose={() => setSel(null)} onChanged={load} />}
     </Panel>
   );
 }
@@ -116,6 +118,7 @@ function ReceiptsList() {
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [fixing, setFixing] = useState(false);
+  const [sel, setSel] = useState<any>(null);
   const load = () => api.finReceipts().then(setData).catch(() => setData({ receipts: [] }));
   useEffect(() => { load(); }, []);
 
@@ -168,14 +171,14 @@ function ReceiptsList() {
         </div>
       )}
       {(data.receipts ?? []).map((r: any) => (
-        <DocRow key={r.id}
+        <DocRow key={r.id} onClick={() => setSel(r)}
           title={r.customer_name} sub={`Receipt ${r.number} · ${fmtDate(r.date)}`}
           amount={r.totalDisplay}
           badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
-          action={<button style={{ ...linkBtn, color: C.red }} onClick={async () => { if (confirm('Delete this receipt?')) { await api.finDeleteReceipt(r.id); load(); } }}>Delete</button>}
         />
       ))}
       {creating && <DocForm kind="receipt" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {sel && <DocDetail doc={sel} kind="receipt" onClose={() => setSel(null)} onChanged={load} />}
     </Panel>
   );
 }
@@ -240,14 +243,14 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
 }
 
 // ── Shared: invoice / receipt create form ────────────────────────────────────
-function DocForm({ kind, onClose, onSaved }: { kind: 'invoice' | 'receipt'; onClose: () => void; onSaved: () => void }) {
-  const [customer, setCustomer] = useState<{ id: number | null; name: string } | null>(null);
-  const [items, setItems] = useState<Array<{ name: string; qty: number; priceFils: number }>>([]);
-  const [discount, setDiscount] = useState('');
-  const [shipping, setShipping] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [message, setMessage] = useState('');
+function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' | 'receipt'; onClose: () => void; onSaved: () => void; initial?: any; editId?: number }) {
+  const [customer, setCustomer] = useState<{ id: number | null; name: string } | null>(initial?.customer ?? null);
+  const [items, setItems] = useState<Array<{ name: string; qty: number; priceFils: number }>>(initial?.items ?? []);
+  const [discount, setDiscount] = useState(initial?.discount ?? '');
+  const [shipping, setShipping] = useState(initial?.shipping ?? '');
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? '');
+  const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10));
+  const [message, setMessage] = useState(initial?.message ?? '');
   const [pickCustomer, setPickCustomer] = useState(false);
   const [pickItem, setPickItem] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -264,8 +267,13 @@ function DocForm({ kind, onClose, onSaved }: { kind: 'invoice' | 'receipt'; onCl
     setBusy(true); setErr(null);
     const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined };
     try {
-      if (kind === 'invoice') await api.finCreateInvoice({ ...body, dueDate: dueDate || null, status: 'sent' });
-      else await api.finCreateReceipt({ ...body, date, paidWith: 'Cash' });
+      if (kind === 'invoice') {
+        if (editId) await api.finUpdateInvoice(editId, { ...body, dueDate: dueDate || null });
+        else await api.finCreateInvoice({ ...body, dueDate: dueDate || null, status: 'sent' });
+      } else {
+        if (editId) await api.finUpdateReceipt(editId, { ...body, date, paidWith: 'Cash' });
+        else await api.finCreateReceipt({ ...body, date, paidWith: 'Cash' });
+      }
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
   };
@@ -316,6 +324,104 @@ function DocForm({ kind, onClose, onSaved }: { kind: 'invoice' | 'receipt'; onCl
       {pickItem && <ItemPicker onPick={(it) => { setItems((a) => [...a, { name: it.name, qty: 1, priceFils: it.priceFils }]); setPickItem(false); }} onClose={() => setPickItem(false)} />}
     </Modal>
   );
+}
+
+// ── Detail view (tap a row): full document + Print / Email / Edit / Copy / Delete
+function DocDetail({ doc, kind, onClose, onChanged }: { doc: any; kind: 'invoice' | 'receipt'; onClose: () => void; onChanged: () => void }) {
+  const [mode, setMode] = useState<'view' | 'edit' | 'copy'>('view');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const toInitial = () => ({
+    customer: { id: doc.customer_id ?? null, name: doc.customer_name },
+    items: (doc.lineItems ?? []).map((l: any) => ({ name: l.name, qty: l.qty, priceFils: l.priceFils })),
+    discount: doc.discount_fils ? String(doc.discount_fils / 100) : '',
+    shipping: doc.shipping_fils ? String(doc.shipping_fils / 100) : '',
+    dueDate: doc.due_date ? String(doc.due_date).slice(0, 10) : '',
+    date: doc.date ? String(doc.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
+    message: doc.message ?? '',
+  });
+
+  const print = () => {
+    const w = window.open('', '_blank', 'width=620,height=800');
+    if (!w) { setMsg('Allow pop-ups to download/print.'); return; }
+    w.document.write(docHtml(doc, kind));
+    w.document.close(); w.focus();
+    setTimeout(() => { try { w.print(); } catch { /* */ } }, 400);
+  };
+  const email = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = kind === 'receipt' ? await api.finEmailReceipt(doc.id) : await api.finEmailInvoice(doc.id);
+      setMsg(r.sent ? `✓ Emailed to ${r.to}` : r.reason === 'no_email' ? 'This customer has no email on file.' : r.reason === 'email_disabled' ? 'Email is not set up yet.' : 'Could not send.');
+    } catch { setMsg('Could not send.'); } finally { setBusy(false); }
+  };
+  const del = async () => {
+    if (!confirm('Delete this document?')) return;
+    if (kind === 'receipt') await api.finDeleteReceipt(doc.id); else await api.finDeleteInvoice(doc.id);
+    onChanged(); onClose();
+  };
+
+  if (mode === 'edit') return <DocForm kind={kind} editId={doc.id} initial={toInitial()} onClose={() => setMode('view')} onSaved={() => { onChanged(); onClose(); }} />;
+  if (mode === 'copy') return <DocForm kind={kind} initial={toInitial()} onClose={() => setMode('view')} onSaved={() => { onChanged(); onClose(); }} />;
+
+  const paid = kind === 'receipt' || doc.status === 'paid';
+  return (
+    <Modal title={kind === 'receipt' ? 'Sales receipt' : 'Invoice'} onClose={onClose}>
+      <div style={{ background: paid ? `linear-gradient(135deg,${C.mint},#3fb8ad)` : `linear-gradient(135deg,${C.pink},${C.pinkDeep})`, color: '#fff', borderRadius: 16, padding: '18px 20px', textAlign: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.95 }}>{doc.customer_name}</div>
+        <div style={{ ...fredoka(30), marginTop: 2 }}>AED {doc.totalDisplay}</div>
+        <div style={{ fontWeight: 800, letterSpacing: '1px', marginTop: 4, fontSize: 12 }}>{paid ? 'PAID' : (doc.status || 'SENT').toUpperCase()}</div>
+      </div>
+      <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 700, marginBottom: 4 }}>
+        {kind === 'receipt' ? 'SALES RECEIPT' : 'INVOICE'} #{doc.number} · {fmtDate(doc.date ?? doc.issue_date)}
+      </div>
+      {kind === 'receipt' && <div style={{ fontSize: 12, color: C.muted2, marginBottom: 10 }}>Deposit to: <b style={{ color: C.ink }}>Cash on hand</b></div>}
+      <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px', margin: '8px 0 4px' }}>{(doc.lineItems ?? []).length} ITEM(S)</div>
+      {(doc.lineItems ?? []).map((l: any, i: number) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+          <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{l.name}</div><div style={{ fontSize: 11, color: C.muted }}>{l.qty} × AED {money(l.priceFils)}</div></div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>AED {l.amountDisplay}</div>
+        </div>
+      ))}
+      <div style={{ marginTop: 10 }}>
+        <Row label="Subtotal" value={`AED ${money(doc.subtotal_fils)}`} />
+        {doc.discount_fils > 0 && <Row label="Discount" value={`− AED ${money(doc.discount_fils)}`} />}
+        {doc.shipping_fils > 0 && <Row label="Shipping" value={`AED ${money(doc.shipping_fils)}`} />}
+        <Row label={<b>Total</b>} value={<b style={{ ...fredoka(15), color: C.pinkDeep }}>AED {doc.totalDisplay}</b>} />
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>
+        <Button tone="ghost" onClick={print}>⬇ Download / Print</Button>
+        <Button tone="ghost" onClick={email} disabled={busy}>📧 Email</Button>
+        <Button tone="ghost" onClick={() => setMode('edit')}>✏️ Edit</Button>
+        <Button tone="ghost" onClick={() => setMode('copy')}>⧉ Copy</Button>
+        <Button tone="danger" onClick={del}>🗑 Delete</Button>
+      </div>
+      {msg && <div style={{ marginTop: 10, fontWeight: 700, fontSize: 12.5, color: msg.startsWith('✓') ? C.green : C.red }}>{msg}</div>}
+    </Modal>
+  );
+}
+
+function docHtml(doc: any, kind: 'invoice' | 'receipt') {
+  const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+  const rows = (doc.lineItems ?? []).map((l: any) => `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${esc(l.name)}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`).join('');
+  return `<!doctype html><html><head><meta charset="utf8"><title>Eventana ${kind} ${esc(doc.number)}</title></head><body style="font-family:Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
+    <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:18px;padding:22px;text-align:center;margin-bottom:20px">
+      <div style="font-size:22px;font-weight:800">Eventana</div>
+      <div style="font-size:13px;opacity:.9">${kind === 'receipt' ? 'Sales Receipt' : 'Invoice'} · ${esc(doc.number)}</div>
+      <div style="font-size:30px;font-weight:800;margin-top:8px">AED ${doc.totalDisplay}</div>
+      ${kind === 'receipt' ? '<div style="margin-top:4px;font-weight:800;letter-spacing:1px">PAID</div>' : ''}
+    </div>
+    <div style="font-size:14px;margin-bottom:12px"><b>${esc(doc.customer_name)}</b><br><span style="color:#999">${fmtDate(doc.date ?? doc.issue_date)}</span></div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>
+    <table style="width:100%;margin-top:12px;font-size:14px">
+      <tr><td style="color:#777">Subtotal</td><td style="text-align:right">AED ${money(doc.subtotal_fils)}</td></tr>
+      ${doc.discount_fils > 0 ? `<tr><td style="color:#777">Discount</td><td style="text-align:right">− AED ${money(doc.discount_fils)}</td></tr>` : ''}
+      ${doc.shipping_fils > 0 ? `<tr><td style="color:#777">Shipping</td><td style="text-align:right">AED ${money(doc.shipping_fils)}</td></tr>` : ''}
+      <tr><td style="font-weight:800;padding-top:8px">Total</td><td style="text-align:right;font-weight:800;color:#E94F9C;padding-top:8px">AED ${doc.totalDisplay}</td></tr>
+    </table>
+    <div style="margin-top:24px;color:#bbb;font-size:12px;text-align:center">Thank you for choosing Eventana 🎉</div>
+  </body></html>`;
 }
 
 function CustomerPicker({ onPick, onClose }: { onPick: (c: { id: number | null; name: string }) => void; onClose: () => void }) {
@@ -409,16 +515,16 @@ function Modal({ title, children, onClose, onSave, busy, err, saveLabel }: { tit
   );
 }
 
-function DocRow({ title, sub, amount, badge, action }: { title: string; sub: string; amount: string; badge?: ReactNode; action?: ReactNode }) {
+function DocRow({ title, sub, amount, badge, action, onClick }: { title: string; sub: string; amount: string; badge?: ReactNode; action?: ReactNode; onClick?: () => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 4px', borderBottom: `1px solid ${C.lineSoft}` }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div onClick={onClick} style={{ flex: 1, minWidth: 0, cursor: onClick ? 'pointer' : 'default' }}>
         <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink }}>{title}</div>
         <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600 }}>{sub}</div>
         {badge}
       </div>
       <div style={{ textAlign: 'right' }}>
-        <div style={{ ...fredoka(15), color: C.ink }}>AED {amount}</div>
+        <div onClick={onClick} style={{ ...fredoka(15), color: C.ink, cursor: onClick ? 'pointer' : 'default' }}>AED {amount}</div>
         {action}
       </div>
     </div>

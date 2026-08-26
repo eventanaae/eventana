@@ -1,5 +1,6 @@
 import { pool } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
+import { sendEmail, emailEnabled } from '../integrations/email.js';
 
 /**
  * The dashboard's simple QuickBooks-style finance module: customers, items,
@@ -183,6 +184,80 @@ export async function listReceipts() {
 export async function deleteReceipt(id: number) {
   await pool.query(`DELETE FROM finance_receipts WHERE id = $1`, [id]);
   return { deleted: true };
+}
+
+export async function updateReceipt(id: number, d: DocInput & { date?: string | null; paidWith?: string }) {
+  const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
+  const { rows } = await pool.query(
+    `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
+       subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11
+     WHERE id=$1 RETURNING *`,
+    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null],
+  );
+  return rows[0] ? decorateReceipt(rows[0]) : null;
+}
+
+export async function updateInvoice(id: number, d: DocInput & { dueDate?: string | null; issueDate?: string | null }) {
+  const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
+  const { rows } = await pool.query(
+    `UPDATE finance_invoices SET customer_id=$2, customer_name=$3, issue_date=COALESCE($4,issue_date), due_date=$5, line_items=$6,
+       subtotal_fils=$7, discount_fils=$8, shipping_fils=$9, total_fils=$10, message=$11
+     WHERE id=$1 RETURNING *`,
+    [id, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null],
+  );
+  return rows[0] ? decorateInvoice(rows[0]) : null;
+}
+
+export async function deleteInvoice(id: number) {
+  await pool.query(`DELETE FROM finance_invoices WHERE id = $1`, [id]);
+  return { deleted: true };
+}
+
+/** A clean, branded receipt/invoice HTML — used for the email body and print. */
+export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
+  const rows = (doc.lineItems ?? []).map((l: any) =>
+    `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${escapeHtml(l.name)}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`).join('');
+  const title = kind === 'receipt' ? 'Sales Receipt' : 'Invoice';
+  const dateStr = String(doc.date ?? doc.issue_date ?? '').slice(0, 10);
+  return `<!doctype html><html><body style="font-family:'Quicksand',Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
+    <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:18px;padding:22px 24px;text-align:center;margin-bottom:20px">
+      <div style="font-size:22px;font-weight:800;letter-spacing:.5px">Eventana</div>
+      <div style="font-size:13px;opacity:.9;margin-top:2px">${title} · ${escapeHtml(String(doc.number ?? ''))}</div>
+      <div style="font-size:30px;font-weight:800;margin-top:10px">AED ${doc.totalDisplay}</div>
+      ${kind === 'receipt' ? '<div style="margin-top:6px;font-weight:800;letter-spacing:1px">PAID</div>' : ''}
+    </div>
+    <div style="font-size:14px;margin-bottom:14px"><b>${escapeHtml(doc.customer_name ?? '')}</b><br><span style="color:#999">${dateStr}</span></div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>
+    <table style="width:100%;margin-top:12px;font-size:14px">
+      <tr><td style="color:#777">Subtotal</td><td style="text-align:right">AED ${money(doc.subtotal_fils)}</td></tr>
+      ${doc.discount_fils > 0 ? `<tr><td style="color:#777">Discount</td><td style="text-align:right">− AED ${money(doc.discount_fils)}</td></tr>` : ''}
+      ${doc.shipping_fils > 0 ? `<tr><td style="color:#777">Shipping</td><td style="text-align:right">AED ${money(doc.shipping_fils)}</td></tr>` : ''}
+      <tr><td style="font-weight:800;padding-top:8px">Total</td><td style="text-align:right;font-weight:800;color:#E94F9C;padding-top:8px">AED ${doc.totalDisplay}</td></tr>
+    </table>
+    ${doc.message ? `<div style="margin-top:18px;color:#777;font-size:13px">${escapeHtml(doc.message)}</div>` : ''}
+    <div style="margin-top:24px;color:#bbb;font-size:12px;text-align:center">Thank you for choosing Eventana 🎉</div>
+  </body></html>`;
+}
+
+const money = (fils: number) => (Number(fils) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const escapeHtml = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+
+/** Email a receipt/invoice to the customer (found by id or name). */
+export async function emailDoc(kind: 'receipt' | 'invoice', id: number): Promise<{ sent: boolean; to?: string; reason?: string }> {
+  if (!emailEnabled()) return { sent: false, reason: 'email_disabled' };
+  const table = kind === 'receipt' ? 'finance_receipts' : 'finance_invoices';
+  const { rows } = await pool.query(`SELECT * FROM ${table} WHERE id = $1`, [id]);
+  if (!rows[0]) return { sent: false, reason: 'not_found' };
+  const doc = kind === 'receipt' ? decorateReceipt(rows[0]) : decorateInvoice(rows[0]);
+  const em = await pool.query(
+    `SELECT email FROM historical_customers WHERE (id = $1 OR lower(full_name) = lower($2)) AND email IS NOT NULL AND email <> '' LIMIT 1`,
+    [doc.customer_id ?? -1, doc.customer_name ?? ''],
+  );
+  const to = em.rows[0]?.email;
+  if (!to) return { sent: false, reason: 'no_email' };
+  const subject = kind === 'receipt' ? `Your Eventana receipt ${doc.number}` : `Invoice ${doc.number} from Eventana`;
+  await sendEmail({ to, subject, html: renderDocHtml(doc, kind) });
+  return { sent: true, to };
 }
 
 function decorateReceipt(r: any) {

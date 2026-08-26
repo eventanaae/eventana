@@ -1221,7 +1221,25 @@ export async function adminRoutes(app: FastifyInstance) {
     return r;
   });
 
+  app.patch('/api/admin/finance/invoices/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const p = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional() }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const r = await finance.updateInvoice(id, p.data);
+    return r ?? reply.status(404).send({ error: 'not_found' });
+  });
+  app.delete('/api/admin/finance/invoices/:id', async (request) => finance.deleteInvoice(Number((request.params as { id: string }).id)));
+  app.post('/api/admin/finance/invoices/:id/email', async (request) => finance.emailDoc('invoice', Number((request.params as { id: string }).id)));
+
   app.get('/api/admin/finance/receipts', async () => finance.listReceipts());
+  app.patch('/api/admin/finance/receipts/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const p = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional() }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const r = await finance.updateReceipt(id, p.data);
+    return r ?? reply.status(404).send({ error: 'not_found' });
+  });
+  app.post('/api/admin/finance/receipts/:id/email', async (request) => finance.emailDoc('receipt', Number((request.params as { id: string }).id)));
   app.post('/api/admin/finance/receipts', async (request, reply) => {
     const schema = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional() });
     const p = schema.safeParse(request.body);
