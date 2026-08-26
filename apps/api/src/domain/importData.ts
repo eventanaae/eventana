@@ -51,15 +51,50 @@ export async function importCustomers(rows: any[]): Promise<number> {
 
 const toFils = (v: unknown) => Math.round((Number(String(v ?? '').replace(/[^\d.-]/g, '')) || 0) * 100);
 
+/** Normalise a QuickBooks date cell (MM/DD/YYYY or YYYY-MM-DD) to YYYY-MM-DD, else null. */
+function toDate(v: unknown): string | null {
+  const s = String(v ?? '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  return null;
+}
+
+const pick = (r: any, keys: string[]): string => {
+  for (const k of keys) {
+    const v = r[k];
+    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+  }
+  return '';
+};
+
 export async function importOrders(rows: any[]): Promise<number> {
   let n = 0;
+  // The "Sales by Customer Detail" export is grouped: customer name rows and
+  // "Total for …" rows sit between the actual line items. Track the current
+  // customer as we walk, and keep only real line items (those with a date).
+  let currentCustomer = '';
   for (const r of rows) {
-    const doc = String(r.docNumber ?? r['Num'] ?? r['No.'] ?? '').trim();
-    const cust = String(r.customerName ?? r.Customer ?? r.Name ?? '').trim();
-    const date = String(r.txnDate ?? r.Date ?? '').trim();
-    const dedupe = (doc || `${cust}|${date}|${r.product ?? r['Product/Service'] ?? ''}`).slice(0, 200);
-    if (!dedupe.trim()) continue;
-    const dateVal = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+    const date = toDate(pick(r, ['txnDate', 'Transaction date', 'Date']));
+    const first = pick(r, ['Transaction date', 'Date', 'Customer full name', 'Name', 'Customer']);
+    const amount = pick(r, ['total', 'Amount', 'Total']);
+
+    // A group header ("Aaedha Al Ahmed (2)") — no date, no money, a bare name.
+    if (!date && !amount && first && !/^total\b/i.test(first)) {
+      currentCustomer = first.replace(/\s*\(\d+\)\s*$/, '').trim();
+      continue;
+    }
+    // A subtotal / grand-total row — skip.
+    if (!date) continue;
+
+    const doc = pick(r, ['docNumber', 'Number', 'Num', 'No.']);
+    const cust = pick(r, ['customerName', 'Customer', 'Name']) || currentCustomer;
+    const product = pick(r, ['product', 'Product/Service full name', 'Product/Service']);
+    const memo = pick(r, ['memo', 'Description', 'Memo', 'Memo/Description']);
+    const total = toFils(pick(r, ['total', 'Amount', 'Total']));
+    const isDiscount = /discount/i.test(memo) || /discount/i.test(product);
+    const dedupe = `${doc}|${cust}|${date}|${product}|${memo}|${total}`.slice(0, 200);
+
     await pool.query(
       `INSERT INTO historical_orders (doc_number, txn_type, customer_name, txn_date, product, memo, subtotal_fils, discount_fils, tax_fils, total_fils, status, dedupe_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -70,14 +105,16 @@ export async function importOrders(rows: any[]): Promise<number> {
          status = EXCLUDED.status`,
       [
         doc || null,
-        String(r.txnType ?? r.Type ?? '').trim() || null,
+        pick(r, ['txnType', 'Transaction type', 'Type']) || null,
         cust || null,
-        dateVal,
-        String(r.product ?? r['Product/Service'] ?? '').trim() || null,
-        String(r.memo ?? r.Memo ?? r['Memo/Description'] ?? '').trim() || null,
-        toFils(r.subtotal ?? r.Subtotal), toFils(r.discount ?? r.Discount),
-        toFils(r.tax ?? r.Tax), toFils(r.total ?? r.Total ?? r.Amount),
-        String(r.status ?? r.Status ?? '').trim() || null,
+        date,
+        product || null,
+        memo || null,
+        toFils(pick(r, ['subtotal', 'Sales price', 'Subtotal'])),
+        isDiscount ? total : 0,
+        toFils(pick(r, ['tax', 'Tax'])),
+        total,
+        pick(r, ['status', 'Status']) || null,
         dedupe,
       ],
     );

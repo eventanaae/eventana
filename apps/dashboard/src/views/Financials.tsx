@@ -183,10 +183,33 @@ function MigrationPanel() {
           return o;
         });
       if (rows.length === 0) { setErr('No data rows found in that file.'); return; }
+      // "Sales by Customer Detail" is grouped: a bare customer-name row, then its
+      // line items, then a "Total for …" row. Stamp each line with its customer
+      // here (before batching) so a batch boundary can never split a group.
+      let payload = rows;
+      if (kind === 'orders') {
+        const dateOf = (o: any) => String(o['Transaction date'] ?? o['Date'] ?? '').trim();
+        const isDate = (s: string) => /^\d{1,2}\/\d{1,2}\/\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(s);
+        let current = '';
+        const out: any[] = [];
+        for (const o of rows) {
+          const d = dateOf(o);
+          const amount = String(o['Amount'] ?? o['Total'] ?? '').trim();
+          const first = String(o['Transaction date'] ?? o['Name'] ?? o['Customer'] ?? '').trim();
+          if (!isDate(d) && !amount && first && !/^total\b/i.test(first)) {
+            current = first.replace(/\s*\(\d+\)\s*$/, '').trim();
+            continue;
+          }
+          if (!isDate(d)) continue; // subtotal / grand-total row
+          out.push({ ...o, customerName: current });
+        }
+        payload = out;
+        if (payload.length === 0) { setErr('No invoice lines found in that file.'); return; }
+      }
       // Upload in batches to stay well under the request size limit.
       let inserted = 0;
-      for (let i = 0; i < rows.length; i += 400) {
-        const res = await api.importRows(kind, rows.slice(i, i + 400));
+      for (let i = 0; i < payload.length; i += 400) {
+        const res = await api.importRows(kind, payload.slice(i, i + 400));
         inserted += res.inserted;
       }
       setMsg(`Imported ${inserted} ${kind} from “${file.name}”.`);
