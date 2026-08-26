@@ -1094,7 +1094,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }
       return [...m.values()].sort((a, b) => b.revenueFils - a.revenueFils);
     };
-    const withDisplay = (arr: Array<{ revenueFils: number }>) =>
+    const withDisplay = <T extends { revenueFils: number }>(arr: T[]) =>
       arr.map((x) => ({ ...x, revenueDisplay: formatAed(x.revenueFils) }));
 
     const byEmirate = withDisplay(groupBy((r) => r.emirate));

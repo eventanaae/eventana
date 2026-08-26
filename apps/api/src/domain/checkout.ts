@@ -380,8 +380,8 @@ export interface ShopCheckoutResult {
   embeddedUrl?: string | null;
   eligible: boolean;
   totalFils: number;
-  /** ISO date the made-to-order items are ready by (booking + ~2 weeks). */
-  readyBy: string;
+  /** ISO estimated delivery date (printed ~2 weeks, digital ~3 days); null if neither. */
+  readyBy: string | null;
 }
 
 /**
