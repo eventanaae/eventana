@@ -178,13 +178,22 @@ export async function recordSaleFromOrder(
     const items: LineItem[] = [];
     let discount = 0, shipping = 0;
     if (Array.isArray(quote.lines) && quote.lines.length) {
+      // Two quote shapes flow through here: the booking quote (label / amountFils
+      // / kind, with delivery & discount as their own lines) and the shop quote
+      // (name / unitFils, with delivery & discount carried as separate totals).
       for (const l of quote.lines) {
-        const amt = Number(l.amountFils ?? 0);
         const qty = Number(l.quantity ?? 1) || 1;
+        const label = l.label ?? l.name ?? 'Item';
+        const amt = l.amountFils != null ? Number(l.amountFils) : Number(l.unitFils ?? 0) * qty;
         if (l.kind === 'discount') discount += Math.abs(amt);
         else if (l.kind === 'delivery') shipping += amt;
-        else items.push({ name: String(l.label ?? 'Item').slice(0, 200), qty, priceFils: Math.round(amt / qty) });
+        else items.push({ name: String(label).slice(0, 200), qty, priceFils: Math.round(amt / qty) });
       }
+      // Shop quotes keep delivery / discount as totals rather than lines — fold
+      // them in only when there was no such line (never double-count a booking).
+      const hasLine = (k: string) => quote.lines.some((l: any) => l.kind === k);
+      if (!hasLine('delivery') && Number(quote.deliveryFils) > 0) shipping += Number(quote.deliveryFils);
+      if (!hasLine('discount') && Number(quote.discountFils) > 0) discount += Number(quote.discountFils);
     } else if (Array.isArray(cart.items)) {
       for (const it of cart.items) {
         const qty = Number(it.quantity ?? 1) || 1;
