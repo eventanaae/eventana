@@ -254,6 +254,14 @@ export const api = {
 
   kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
 
+  catalogue: () => request<any>('/api/catalogue'),
+  quotePreview: (cart: Record<string, unknown>) =>
+    request<any>('/api/quote', { method: 'POST', body: JSON.stringify(cart) }),
+  manualOrder: (body: { customer: Record<string, unknown>; cart: Record<string, unknown> }) =>
+    request<{ orderId: string; payUrl: string; totalFils: number; totalDisplay: string }>(
+      '/api/admin/orders/manual',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   ceo: (params: { from?: string; to?: string; emirate?: string; eventType?: string; packageId?: string } = {}) => {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));

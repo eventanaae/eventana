@@ -12,6 +12,7 @@ import { Kpis } from './views/Kpis';
 import { Alerts } from './views/Alerts';
 import { Finance } from './views/Finance';
 import { Ceo } from './views/Ceo';
+import { NewOrder } from './views/NewOrder';
 import { Marketing } from './views/Marketing';
 import { Settings } from './views/Settings';
 import { ShopOrders } from './views/ShopOrders';
@@ -19,7 +20,7 @@ import { Leads } from './views/Leads';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder';
 
 type Section = 'ops' | 'sales' | 'business' | 'admin';
 
@@ -40,6 +41,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Work by department', section: 'ops', mobile: true },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets and reservations', section: 'ops' },
   { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Stock, leave, reviews and tips', section: 'ops' },
+  { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
   { id: 'shop', label: 'Shop', icon: '🛍️', title: 'Shop Orders', sub: 'Custom printed & digital goods', section: 'sales' },
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business', mobile: true },
@@ -148,6 +150,7 @@ export default function App() {
       {view === 'finance' && <Finance />}
       {view === 'marketing' && <Marketing />}
       {view === 'shop' && <ShopOrders />}
+      {view === 'neworder' && <NewOrder />}
       {view === 'leads' && <Leads />}
       {view === 'settings' && <Settings />}
     </>
