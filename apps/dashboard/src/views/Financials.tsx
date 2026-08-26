@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { api } from '../api';
+import { api, apiOrigin } from '../api';
 import { Button, C, Panel, Spinner, Stat, fredoka, money } from '../ui';
 
 /**
@@ -141,7 +141,57 @@ export function Financials() {
       </Panel>
 
       <AddYear onSaved={load} />
+      <MigrationPanel />
     </div>
+  );
+}
+
+/**
+ * One-time data migration from QuickBooks. "Generate ticket" mints a short-lived
+ * key; a collector running in the QuickBooks browser tab then sends the customer
+ * and invoice lists straight into this database (only counts are shown here — no
+ * contact details pass through anything in between). Idempotent, so it is safe
+ * to re-run.
+ */
+function MigrationPanel() {
+  const [ticket, setTicket] = useState<string | null>(null);
+  const [status, setStatus] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => api.importStatus().then(setStatus).catch(() => {});
+  useEffect(() => { refresh(); }, []);
+
+  const gen = async () => {
+    setBusy(true);
+    try { const t = await api.importTicket(); setTicket(t.ticket); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Panel title="Data migration — QuickBooks">
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 12 }}>
+        Imports your full customer book and invoice history from QuickBooks straight into Eventana.
+        Only totals are shown here — no names, emails or numbers pass through anything in between.
+      </div>
+      {status && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+          <Stat label="Customers imported" value={status.customers?.n ?? 0} />
+          <Stat label="With email" value={status.customers?.with_email ?? 0} />
+          <Stat label="Invoices imported" value={status.orders?.n ?? 0} />
+          <Stat label="Invoiced total" value={<>AED {money(Number(status.orders?.total_fils ?? 0))}</>} />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Button onClick={gen} disabled={busy}>{busy ? 'Generating…' : 'Generate import ticket'}</Button>
+        <Button tone="ghost" onClick={refresh}>Refresh counts</Button>
+        <span data-api-origin={apiOrigin()} style={{ fontSize: 11, color: C.muted }}>API: {apiOrigin()}</span>
+      </div>
+      {ticket && (
+        <div data-import-ticket={ticket} style={{ marginTop: 12, padding: '10px 12px', background: C.pinkSoft, borderRadius: 12, fontSize: 12, fontWeight: 700, color: C.pinkDeep, wordBreak: 'break-all' }}>
+          Ticket ready (valid ~30 min): {ticket}
+        </div>
+      )}
+    </Panel>
   );
 }
 

@@ -291,4 +291,15 @@ export const api = {
   }) => request<any>('/api/admin/financials', { method: 'POST', body: JSON.stringify(body) }),
   deleteFinancials: (period: string) =>
     request<any>(`/api/admin/financials/${encodeURIComponent(period)}`, { method: 'DELETE' }),
+
+  importTicket: () => request<{ ticket: string; expiresInMs: number }>('/api/admin/import/ticket', { method: 'POST' }),
+  importStatus: () =>
+    request<{ customers: { n: number; with_email: number; emirates: number }; orders: { n: number; with_date: number; total_fils: number } }>(
+      '/api/admin/import/status',
+    ),
 };
+
+/** The API origin, so a migration collector can POST straight to /api/import. */
+export function apiOrigin(): string {
+  return BASE;
+}
