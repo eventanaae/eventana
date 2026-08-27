@@ -412,6 +412,8 @@ export const api = {
     request<{ customers: { n: number; with_email: number; emirates: number }; orders: { n: number; with_date: number; total_fils: number } }>(
       '/api/admin/import/status',
     ),
+  // Owner-only reconciliation report (fixed read-only diagnostics).
+  auditReport: (section: string) => request<any>(`/api/admin/reports/audit?section=${encodeURIComponent(section)}`),
 };
 
 /** The API origin, so a migration collector can POST straight to /api/import. */

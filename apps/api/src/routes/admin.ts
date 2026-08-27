@@ -25,6 +25,7 @@ import { assignStaffForEvent, getStaffingPlan } from '../domain/staffing.js';
 import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
 import * as finance from '../domain/finance.js';
+import { auditReport } from '../domain/audit.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -201,6 +202,22 @@ export async function adminRoutes(app: FastifyInstance) {
   /** The signed-in staff member and their access level. */
   app.get('/api/admin/me', async (request) => {
     return (request as any).staff ?? { name: 'Staff', role: 'employee' };
+  });
+
+  /**
+   * Owner-only reconciliation report: a set of fixed, read-only diagnostics used
+   * to audit QuickBooks ↔ orders ↔ payments ↔ customers (invoice 52K breakdown,
+   * payment-method coverage, phone-format audit, duplicate customers, expenses).
+   * Each section is a fixed query — no free-form SQL. Powers the Reports view.
+   */
+  app.get('/api/admin/reports/audit', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const section = String((request.query as any)?.section ?? 'summary');
+    try {
+      return await auditReport(section);
+    } catch (e: any) {
+      return reply.status(400).send({ error: 'report_failed', message: String(e?.message ?? e) });
+    }
   });
 
   /** Register this staff device for push notifications. */
