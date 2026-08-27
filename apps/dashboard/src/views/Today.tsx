@@ -243,9 +243,13 @@ const ago2 = (ts: string) => {
  */
 function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [data, setData] = useState<any>(null);
+  const [board, setBoard] = useState<any[] | null>(null);
   useEffect(() => {
     const load = () => api.alerts().then(setData).catch(() => setData({ prepAtRisk: [], lowStock: [], recentRatings: [] }));
     load();
+    const now = new Date();
+    const mth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    api.kpis(mth).then((k: any) => setBoard(k?.board ?? [])).catch(() => setBoard([]));
     const t = setInterval(load, 30_000);
     return () => clearInterval(t);
   }, []);
@@ -253,12 +257,15 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const prep = data.prepAtRisk ?? [];
   const low = data.lowStock ?? [];
   const ratings = data.recentRatings ?? [];
+  const RANK = ['🥇', '🥈', '🥉'];
   const rowS: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` };
 
+  const nothing = prep.length === 0 && low.length === 0 && ratings.length === 0;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {prep.length > 0 && (
       <Panel title="🧰 Your preparation at risk">
-        {prep.length === 0 ? <Empty>Every one of your events is on track. 🎉</Empty> : prep.map((e: any) => (
+        {prep.map((e: any) => (
           <div key={e.event_id} style={{ ...rowS, cursor: 'pointer' }} onClick={() => onOpenEvent(e.event_id)}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, flex: 'none' }} />
             <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 96 }}>{new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
@@ -267,18 +274,22 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           </div>
         ))}
       </Panel>
+      )}
 
+      {low.length > 0 && (
       <Panel title="🧴 Low stock — reorder soon">
-        {low.length === 0 ? <Empty>All consumables above their reorder level.</Empty> : low.map((c: any) => (
+        {low.map((c: any) => (
           <div key={c.id} style={rowS}>
             <span style={{ fontWeight: 700, fontSize: 12.5, flex: 1 }}>{c.name}</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: c.on_hand === 0 ? C.red : '#c98a2b' }}>{c.on_hand} {c.unit} left</span>
           </div>
         ))}
       </Panel>
+      )}
 
+      {ratings.length > 0 && (
       <Panel title="⭐ Ratings on your events">
-        {ratings.length === 0 ? <Empty>No ratings yet — great work brings them in. 🌟</Empty> : ratings.map((r: any) => (
+        {ratings.map((r: any) => (
           <div key={r.id} style={{ ...rowS, alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => onOpenEvent(r.event_id)}>
             <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1, minWidth: 72 }}>{'★'.repeat(r.stars)}<span style={{ color: C.line }}>{'★'.repeat(5 - r.stars)}</span></span>
             <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, flex: 1, lineHeight: 1.4 }}>{r.feedback ? `“${r.feedback}”` : <span style={{ color: C.muted }}>{r.event_id}</span>}</span>
@@ -286,6 +297,31 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           </div>
         ))}
       </Panel>
+      )}
+
+      {nothing && (
+        <div style={{ background: C.greenSoft, color: C.green, borderRadius: 16, padding: '14px 18px', fontSize: 13, fontWeight: 700 }}>
+          ☀️ Nothing needs your attention right now — you're all set! 🎉
+        </div>
+      )}
+
+      {board && board.length > 0 && (
+        <Panel title="🏆 Team competition">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[...board].sort((a: any, b: any) => b.points - a.points).map((s: any, i: number) => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 2px' }}>
+                <span style={{ fontSize: 15, width: 22, textAlign: 'center', flex: 'none' }}>{RANK[i] ?? i + 1}</span>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.eventsDone} events · {s.avgRating > 0 ? `${s.avgRating}★` : '—'}</div>
+                </div>
+                <span style={{ ...fredoka(15), color: C.pinkDeep }}>{s.points}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }

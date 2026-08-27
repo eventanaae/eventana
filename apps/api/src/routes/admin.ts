@@ -3010,6 +3010,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // or already past — the figure the owner asked for.
       pool.query(`SELECT count(DISTINCT es.event_id)::int c FROM event_staff es JOIN events e ON e.id = es.event_id
                    WHERE es.assignee_id = $1
+                     AND e.phase <> 'Cancelled' AND e.cancelled_at IS NULL
                      AND e.event_date >= date_trunc('month', CURRENT_DATE)
                      AND e.event_date <  date_trunc('month', CURRENT_DATE) + interval '1 month'
                      AND (e.phase = 'Event Completed' OR e.event_date < CURRENT_DATE)`, [staff.id]),
