@@ -371,6 +371,28 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
 }
 
 /**
+ * Backfill: make event_team mirror the REAL roster (event_staff assignees) for
+ * every event that has been staffed. Fixes historical events whose event_team
+ * still holds the crude "first 3 members" placeholder from checkout, so every
+ * consumer that reads event_team (incentive KPIs, alerts, notifications, feedback
+ * rewards, the customer crew card) is correct. Idempotent — safe to run on boot.
+ */
+export async function syncAllEventTeams(): Promise<{ synced: number }> {
+  // Drop stale members that aren't on the real roster (only for staffed events).
+  await pool.query(
+    `DELETE FROM event_team et
+      WHERE EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = et.event_id AND es.assignee_id IS NOT NULL)
+        AND NOT EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = et.event_id AND es.assignee_id = et.member_id)`,
+  ).catch(() => {});
+  const r = await pool.query(
+    `INSERT INTO event_team (event_id, member_id)
+     SELECT DISTINCT event_id, assignee_id FROM event_staff WHERE assignee_id IS NOT NULL
+     ON CONFLICT DO NOTHING`,
+  ).catch(() => ({ rowCount: 0 }));
+  return { synced: r?.rowCount ?? 0 };
+}
+
+/**
  * Manager/Owner confirms a part-timer for an open slot: records the name and
  * flips the slot to "confirmed". If every slot on the event is now filled, the
  * staffing alert is cleared. Returns the event id so the plan can be reloaded.

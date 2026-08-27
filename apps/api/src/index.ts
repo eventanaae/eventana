@@ -39,8 +39,12 @@ async function main() {
     await productionReconcile();
     // Ensure the internal crew + their skills exist for the smart staff-assignment
     // engine (Jane, Dindo, Gloria, Diana, Marsha). Idempotent.
-    const { seedStaffSkills } = await import('./domain/staffing.js');
+    const { seedStaffSkills, syncAllEventTeams } = await import('./domain/staffing.js');
     await seedStaffSkills().catch((err) => console.error('[staff-skills] failed:', err));
+    // Make event_team mirror the real roster (event_staff) for all events, so
+    // "My jobs", incentive KPIs, alerts, notifications and feedback rewards read
+    // the correct crew instead of the stale checkout placeholder. Idempotent.
+    await syncAllEventTeams().then((r) => console.log(`[event-team] synced ${r.synced} membership(s)`)).catch((err) => console.error('[event-team] sync failed:', err));
     // Attach real theme cover photos + inspiration galleries. No-op if the
     // generated data file is empty.
     await applyThemeGallery();
