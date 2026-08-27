@@ -3317,11 +3317,15 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     // Owner/manager: a team member activated their login (set their password).
+    // Only for members who are still active, so test/disabled accounts never show.
     if (isMgr) {
       const acts = await pool.query(
-        `SELECT id, payload, created_at FROM notifications
-          WHERE channel='push' AND template='staff_activated' AND created_at > now() - interval '30 days'
-          ORDER BY created_at DESC LIMIT 20`);
+        `SELECT n.id, n.payload, n.created_at FROM notifications n
+           JOIN team_members tm ON tm.id = (n.payload->>'memberId')
+          WHERE n.channel='push' AND n.template='staff_activated'
+            AND n.cancelled_at IS NULL AND tm.active
+            AND n.created_at > now() - interval '30 days'
+          ORDER BY n.created_at DESC LIMIT 20`);
       for (const x of acts.rows) {
         const p = x.payload || {};
         items.push({ id: `act-${x.id}`, level: 'info', icon: '✅', title: 'Team member activated', text: `${p.name || 'A team member'} set their password — they can sign in now`, at: x.created_at });
