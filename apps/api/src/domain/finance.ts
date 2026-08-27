@@ -344,7 +344,7 @@ export async function recordSaleFromOrder(
          (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils,
           shipping_fils, total_fils, paid_with, source, order_id, event_for, theme, age)
        VALUES ($1,$2,$3,COALESCE($4::date,current_date),$5,$6,$7,$8,$9,'Card',$10,$11,$12,$13,$14)
-       ON CONFLICT (order_id) DO NOTHING`,
+       ON CONFLICT (order_id) WHERE order_id IS NOT NULL DO NOTHING`,
       [
         number, financeCustomerId, customerName, cart.eventDate ?? null, JSON.stringify(items),
         subtotal, discount, shipping, total, source, order.id,
@@ -375,9 +375,10 @@ export async function backfillMissingSales(): Promise<{ posted: number }> {
   let posted = 0;
   for (const o of rows) {
     await withTransaction(async (db) => { await recordSaleFromOrder(db, o as any); }).catch(() => {});
-    posted++;
+    const chk = await pool.query(`SELECT 1 FROM finance_receipts WHERE order_id = $1`, [o.id]);
+    if (chk.rows[0]) posted++;
   }
-  return { posted };
+  return { posted, considered: rows.length };
 }
 
 /**
