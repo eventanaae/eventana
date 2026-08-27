@@ -1032,3 +1032,20 @@ CREATE TABLE IF NOT EXISTS staff_rewards (
   UNIQUE (kind, source_ref, member_id)
 );
 CREATE INDEX IF NOT EXISTS staff_rewards_member_idx ON staff_rewards (member_id, created_at DESC);
+
+-- ── Audit log (critical actions) ────────────────────────────────────────────
+-- An append-only trail of sensitive actions (refunds, cancellations, customer
+-- edits, config/incentive changes, reconciliation runs) — who did what, when,
+-- to which record. The foundation for the security review; logins join it once
+-- the email/password system lands.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id         BIGSERIAL PRIMARY KEY,
+  actor      TEXT NOT NULL,            -- staff name / 'owner' / 'system'
+  role       TEXT,
+  action     TEXT NOT NULL,            -- refund | cancel_event | customer_update | incentive_rules | reconcile | ...
+  target     TEXT,                     -- order/event/customer id
+  detail     JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_action_idx  ON audit_log (action, created_at DESC);

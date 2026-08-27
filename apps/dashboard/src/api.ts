@@ -421,6 +421,7 @@ export const api = {
     ),
   // Owner-only reconciliation report (fixed read-only diagnostics).
   auditReport: (section: string) => request<any>(`/api/admin/reports/audit?section=${encodeURIComponent(section)}`),
+  auditLog: (action?: string) => request<{ rows: any[] }>(`/api/admin/audit-log${action ? `?action=${encodeURIComponent(action)}` : ''}`),
   normalizePhones: () => request<any>('/api/admin/reports/normalize-phones', { method: 'POST' }),
   markUnknownPayment: () => request<any>('/api/admin/reports/mark-unknown-payment', { method: 'POST' }),
   backfillRefundEmails: (dry?: boolean) => request<any>(`/api/admin/reports/backfill-refund-emails${dry ? '?dry=1' : ''}`, { method: 'POST' }),

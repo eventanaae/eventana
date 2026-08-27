@@ -28,6 +28,7 @@ import * as finance from '../domain/finance.js';
 import { auditReport } from '../domain/audit.js';
 import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, normalizeUaePhone } from '../domain/maintenance.js';
 import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
+import { logAudit, listAudit } from '../domain/auditLog.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -217,6 +218,13 @@ export async function adminRoutes(app: FastifyInstance) {
     return listAchievements({ memberId: staff.id, all });
   });
 
+  /** Audit log of critical actions (owner only). */
+  app.get('/api/admin/audit-log', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const action = (request.query as { action?: string }).action;
+    return { rows: await listAudit({ action }) };
+  });
+
   /** Incentive reward amounts (owner-editable, so nothing is hard-coded). */
   app.get('/api/admin/incentive-rules', async (request, reply) => {
     if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
@@ -236,6 +244,7 @@ export async function adminRoutes(app: FastifyInstance) {
       commissionMinFils: z.number().int().min(0).optional(),
     }).safeParse(request.body);
     if (!schema.success) return reply.status(400).send({ error: 'invalid_request' });
+    logAudit({ actor: String((request as any).staff?.name ?? 'owner'), role: 'owner', action: 'incentive_rules', detail: schema.data });
     return saveIncentiveRules(schema.data, String((request as any).staff?.name ?? 'owner'));
   });
 
@@ -1085,6 +1094,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const result = await cancelEvent(eventId, parsed.data.reason);
     if (!result) return reply.status(404).send({ error: 'not_found' });
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'cancel_event', target: eventId, detail: { reason: parsed.data.reason } });
     void syncEventToCalendar(eventId);
 
     // Auto-refund the money through the payment provider (Stripe) and email the
@@ -1772,6 +1782,7 @@ export async function adminRoutes(app: FastifyInstance) {
     if (d.phone != null && d.phone.trim()) d.phone = normalizeUaePhone(d.phone)?.value ?? d.phone;
     if (d.backupPhone != null && d.backupPhone.trim()) d.backupPhone = normalizeUaePhone(d.backupPhone)?.value ?? d.backupPhone;
     const r = await finance.updateCustomer(id, d);
+    if (r) logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'customer_update', target: String(id), detail: d });
     return r ?? reply.status(404).send({ error: 'not_found' });
   });
 
@@ -3101,6 +3112,7 @@ export async function adminRoutes(app: FastifyInstance) {
         : r.error === 'provider_error' ? 502 : 409;
       return reply.status(code).send({ error: r.error });
     }
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'refund', target: orderId, detail: { amountFils: parsed.data.amountFils, reasonCategory: parsed.data.reasonCategory, cancelEvent: parsed.data.cancelEvent } });
     return { orderId, status: r.status, refundedFils: r.refundedFils, eventCancelled: parsed.data.cancelEvent };
   });
 

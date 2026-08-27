@@ -22,10 +22,11 @@ import { Settings } from './views/Settings';
 import { ShopOrders } from './views/ShopOrders';
 import { Leads } from './views/Leads';
 import { Customers } from './views/Customers';
+import { Reports } from './views/Reports';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports';
 
 type Section = 'ops' | 'sales' | 'business' | 'admin';
 
@@ -59,6 +60,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'business' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'admin' },
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', section: 'admin' },
+  { id: 'reports', label: 'Reports & Tools', icon: '🛡️', title: 'Reports & Tools', sub: 'Reconciliation, refunds, audit log & clean-up', section: 'admin' },
 ];
 
 // Which views each access level sees. The API enforces the same rules, so
@@ -172,6 +174,7 @@ export default function App() {
       {view === 'neworder' && <NewOrder />}
       {view === 'leads' && <Leads />}
       {view === 'customers' && <Customers />}
+      {view === 'reports' && <Reports />}
       {view === 'settings' && <Settings />}
     </>
   );
