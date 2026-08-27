@@ -215,14 +215,9 @@ export default function App() {
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
         {toastEl}
         <BookingNotifier enabled={authed} />
-        <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: `1px solid ${C.line}`, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={fredoka(17)}>{current.title}</div>
-            <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {current.sub}
-            </div>
-          </div>
-          <span style={{ background: error ? C.redSoft : C.greenSoft, color: error ? C.red : C.green, fontSize: 10, fontWeight: 700, padding: '5px 9px', borderRadius: 10, flex: 'none' }}>
+        <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: `1px solid ${C.line}`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ ...fredoka(16), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current.title}</div>
+          <span style={{ background: error ? C.redSoft : C.greenSoft, color: error ? C.red : C.green, fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 10, flex: 'none' }}>
             {error ? '● offline' : '● live'}
           </span>
           <NotificationBell onOpenEvent={openEvent} />
@@ -491,7 +486,15 @@ function StaffLogin({ onDone }: { onDone: () => void }) {
   const doSetPassword = async () => {
     if (password !== password2) { setErr('The two passwords don’t match.'); return; }
     setBusy(true); setErr(null);
-    try { const r = await api.staffSetPassword(setupToken!, password); setStaffToken(r.token); clearUrl(); onDone(); }
+    try {
+      const r = await api.staffSetPassword(setupToken!, password);
+      // Password saved — send them to sign in with it (confirms it works).
+      clearUrl();
+      setPassword(''); setPassword2('');
+      if (r.email) setEmail(r.email);
+      setMode('login');
+      setNote('Password saved ✓ Now sign in with your email and new password.');
+    }
     catch (e: any) { setErr(e?.message || 'This link is invalid or expired.'); }
     finally { setBusy(false); }
   };

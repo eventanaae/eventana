@@ -2883,6 +2883,7 @@ export async function adminRoutes(app: FastifyInstance) {
     if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
     const schema = z.object({
+      name: z.string().min(1).max(120).optional(),
       birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
       phone: z.string().max(40).nullable().optional(),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
@@ -2892,11 +2893,12 @@ export async function adminRoutes(app: FastifyInstance) {
     const d = parsed.data;
     const { rows } = await pool.query(
       `UPDATE team_members SET
+         name = COALESCE($5, name),
          birthday = COALESCE($2, birthday),
          phone = COALESCE($3, phone),
          color = COALESCE($4, color)
        WHERE id = $1 RETURNING *`,
-      [id, d.birthday ?? null, d.phone ?? null, d.color ?? null],
+      [id, d.birthday ?? null, d.phone ?? null, d.color ?? null, d.name ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return rows[0];

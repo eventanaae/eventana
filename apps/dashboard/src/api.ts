@@ -108,7 +108,8 @@ export const api = {
   // ── Staff email/password auth (public endpoints) ──
   staffLogin: (email: string, password: string) => request<{ token: string; name: string; role: string }>('/api/staff/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   staffForgot: (email: string) => request<{ ok: boolean }>('/api/staff/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
-  staffSetPassword: (token: string, password: string) => request<{ token: string; name: string; role: string }>('/api/staff/set-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+  staffSetPassword: (token: string, password: string) => request<{ ok: boolean; email: string | null; name: string }>('/api/staff/set-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+  teamProfile: (id: string, body: { name?: string; birthday?: string | null; phone?: string | null; color?: string }) => request<any>(`/api/admin/team/${id}/profile`, { method: 'PATCH', body: JSON.stringify(body) }),
   // Owner: manage staff logins
   teamInvite: (name: string, email: string, accessLevel: string) => request<any>('/api/admin/team/invite', { method: 'POST', body: JSON.stringify({ name, email, accessLevel }) }),
   teamSetupLink: (id: string) => request<any>(`/api/admin/team/${id}/setup-link`, { method: 'POST' }),

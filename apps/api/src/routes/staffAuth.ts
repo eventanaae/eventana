@@ -97,12 +97,15 @@ export async function staffAuthRoutes(app: FastifyInstance) {
       `UPDATE team_members
           SET password_hash = $2, email_verified = TRUE, must_set_password = FALSE
         WHERE id = $1 AND active
-        RETURNING id, name, access_level`,
+        RETURNING id, name, email, access_level`,
       [parsed.memberId, hashPassword(p.data.password)],
     );
     const m = rows[0];
     if (!m) return reply.status(404).send({ error: 'not_found' });
     logAudit({ actor: m.name, role: m.access_level, action: parsed.kind === 'setup' ? 'password_set' : 'password_reset', target: m.id });
-    return { token: issueStaffSession(m.id), name: m.name, role: m.access_level ?? 'employee' };
+    // No session is issued here on purpose: the staff member is sent to the
+    // sign-in screen to log in with the password they just chose (so they learn
+    // the real login, and the password is confirmed to work). `email` pre-fills it.
+    return { ok: true, email: m.email, name: m.name };
   });
 }
