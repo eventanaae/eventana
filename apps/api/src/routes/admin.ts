@@ -29,6 +29,9 @@ import { auditReport } from '../domain/audit.js';
 import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, normalizeUaePhone } from '../domain/maintenance.js';
 import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
 import { logAudit, listAudit } from '../domain/auditLog.js';
+import { verifyStaffSession } from '../domain/staffAuth.js';
+import { sendStaffSetupEmail } from './staffAuth.js';
+import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -115,16 +118,25 @@ export async function adminRoutes(app: FastifyInstance) {
     if (typeof token !== 'string' || !token) {
       return reply.status(401).send({ error: 'unauthorized' });
     }
-    // The master token is the Owner (backward compatible). Otherwise a team
-    // member's personal access token resolves their access level.
+    // Auth precedence (all additive, so nothing is ever locked out mid-switch):
+    //   1. master token → Owner (backward compatible; disabled by the owner once
+    //      email/password login is confirmed working).
+    //   2. a signed staff SESSION token from email/password login → its member.
+    //   3. a personal access_token (the old emailed token) → its member.
     let staff: { id?: string; name: string; role: string };
     if (token === config.staffToken) {
       staff = { name: 'Owner', role: 'owner' };
     } else {
-      const { rows } = await pool.query(
-        `SELECT id, name, access_level FROM team_members WHERE access_token = $1 AND active LIMIT 1`,
-        [token],
-      );
+      const sessionMemberId = verifyStaffSession(token);
+      const { rows } = sessionMemberId
+        ? await pool.query(
+            `SELECT id, name, access_level FROM team_members WHERE id = $1 AND active LIMIT 1`,
+            [sessionMemberId],
+          )
+        : await pool.query(
+            `SELECT id, name, access_level FROM team_members WHERE access_token = $1 AND active LIMIT 1`,
+            [token],
+          );
       if (!rows[0]) return reply.status(401).send({ error: 'unauthorized' });
       staff = { id: rows[0].id, name: rows[0].name, role: rows[0].access_level ?? 'employee' };
     }
@@ -2770,6 +2782,64 @@ export async function adminRoutes(app: FastifyInstance) {
       [id, parsed.data.accessLevel, parsed.data.rotateToken ?? false, newToken],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return rows[0];
+  });
+
+  /**
+   * Owner-only: invite a staff member by email. Creates (or updates) the member
+   * and emails them a "set your password" link. They pick their own password —
+   * the owner never sees or sets it.
+   */
+  app.post('/api/admin/team/invite', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const p = z.object({
+      name: z.string().min(1).max(120),
+      email: z.string().email(),
+      accessLevel: z.enum(['owner', 'manager', 'employee', 'driver']),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const id = `tm-${p.data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+    // Reject a duplicate email on a DIFFERENT member.
+    const clash = await pool.query(`SELECT id FROM team_members WHERE lower(email) = lower($1) AND lower(name) <> lower($2) LIMIT 1`, [p.data.email, p.data.name]);
+    if (clash.rows[0]) return reply.status(409).send({ error: 'email_in_use', message: 'Another member already uses that email.' });
+    const up = await pool.query(
+      `INSERT INTO team_members (id, name, role, active, access_level, email, must_set_password)
+       VALUES ($1,$2,'Crew',true,$3,$4,true)
+       ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, access_level = EXCLUDED.access_level, active = true, must_set_password = true
+       RETURNING id, name, email, access_level`,
+      [id, p.data.name, p.data.accessLevel, p.data.email],
+    );
+    const m = up.rows[0];
+    const token = issueStaffSetupToken(m.id, 'setup');
+    const sent = await sendStaffSetupEmail({ name: m.name, email: m.email, token, kind: 'setup' });
+    logAudit({ actor: String((request as any).staff?.name ?? 'owner'), role: 'owner', action: 'staff_invite', target: m.id, detail: { email: m.email, accessLevel: m.access_level } });
+    return { ...m, emailSent: sent };
+  });
+
+  /** Owner-only: resend a set-password link to an existing member. */
+  app.post('/api/admin/team/:id/setup-link', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const { rows } = await pool.query(`SELECT id, name, email FROM team_members WHERE id = $1 LIMIT 1`, [id]);
+    const m = rows[0];
+    if (!m || !m.email) return reply.status(404).send({ error: 'no_email', message: 'This member has no email on file.' });
+    const token = issueStaffSetupToken(m.id, 'setup');
+    const sent = await sendStaffSetupEmail({ name: m.name, email: m.email, token, kind: 'setup' });
+    return { ok: true, emailSent: sent };
+  });
+
+  /** Owner-only: enable or disable a member's access (disabled = can't sign in). */
+  app.patch('/api/admin/team/:id/active', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const p = z.object({ active: z.boolean() }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { rows } = await pool.query(
+      `UPDATE team_members SET active = $2 WHERE id = $1 RETURNING id, name, active`,
+      [id, p.data.active],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    logAudit({ actor: String((request as any).staff?.name ?? 'owner'), role: 'owner', action: p.data.active ? 'staff_enable' : 'staff_disable', target: id });
     return rows[0];
   });
 

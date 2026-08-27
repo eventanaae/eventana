@@ -6,6 +6,7 @@ import { publicRoutes } from './routes/public.js';
 import { eventRoutes } from './routes/events.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { adminRoutes } from './routes/admin.js';
+import { staffAuthRoutes } from './routes/staffAuth.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -70,6 +71,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
 
   await app.register(publicRoutes);
+  await app.register(staffAuthRoutes);
   await app.register(eventRoutes);
   await app.register(webhookRoutes);
   await app.register(adminRoutes);

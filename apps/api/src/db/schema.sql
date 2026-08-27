@@ -1049,3 +1049,14 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log (created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_log_action_idx  ON audit_log (action, created_at DESC);
+
+-- ── Staff email/password login (additive to the token system) ───────────────
+-- Staff sign in with email + password; the personal access_token and the master
+-- owner token keep working as a fallback until the owner disables them, so no
+-- one is ever locked out during the switch.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS must_set_password BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+-- Case-insensitive unique email so login is unambiguous (only when set).
+CREATE UNIQUE INDEX IF NOT EXISTS team_members_email_idx ON team_members (lower(email)) WHERE email IS NOT NULL AND email <> '';

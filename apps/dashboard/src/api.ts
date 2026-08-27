@@ -105,6 +105,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  // ── Staff email/password auth (public endpoints) ──
+  staffLogin: (email: string, password: string) => request<{ token: string; name: string; role: string }>('/api/staff/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  staffForgot: (email: string) => request<{ ok: boolean }>('/api/staff/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
+  staffSetPassword: (token: string, password: string) => request<{ token: string; name: string; role: string }>('/api/staff/set-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+  // Owner: manage staff logins
+  teamInvite: (name: string, email: string, accessLevel: string) => request<any>('/api/admin/team/invite', { method: 'POST', body: JSON.stringify({ name, email, accessLevel }) }),
+  teamSetupLink: (id: string) => request<any>(`/api/admin/team/${id}/setup-link`, { method: 'POST' }),
+  teamSetActive: (id: string, active: boolean) => request<any>(`/api/admin/team/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) }),
+
   today: () => request<any>('/api/admin/today'),
   overview: (period?: string) => request<any>(`/api/admin/overview${period ? `?period=${period}` : ''}`),
   assignStaff: (eventId: string) => request<any>(`/api/admin/staffing/assign/${eventId}`, { method: 'POST' }),

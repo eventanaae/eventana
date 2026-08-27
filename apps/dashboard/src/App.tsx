@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler } from './api';
 import { C, fredoka } from './ui';
 import { BookingNotifier } from './BookingNotifier';
@@ -141,7 +142,10 @@ export default function App() {
   // logging in (authed false→true) changes the hook count and React crashes.
   const mobile = useIsMobile();
 
-  if (!authed) {
+  // A set-password link (?setup=TOKEN) always shows the login/set-password screen,
+  // even if a token would otherwise auto-authenticate this device.
+  const hasSetup = (() => { try { return new URLSearchParams(window.location.search).has('setup'); } catch { return false; } })();
+  if (!authed || hasSetup) {
     return <StaffLogin onDone={() => setAuthed(true)} />;
   }
 
@@ -450,51 +454,104 @@ function useIsMobile(): boolean {
   return m;
 }
 
-/** Staff access gate — shown when no token is stored (e.g. the mobile app). */
+/**
+ * Staff login — email + password, with a forgot-password flow and a set-password
+ * screen reached from the emailed invite/reset link (?setup=TOKEN). The old
+ * "paste your access token" method stays available under "Advanced" so nobody is
+ * stranded during the switch to passwords.
+ */
 function StaffLogin({ onDone }: { onDone: () => void }) {
+  const setupToken = (() => { try { return new URLSearchParams(window.location.search).get('setup'); } catch { return null; } })();
+  const [mode, setMode] = useState<'login' | 'forgot' | 'setup' | 'token'>(setupToken ? 'setup' : 'login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
-  const submit = async () => {
-    if (!token.trim()) return;
-    setBusy(true);
-    setErr(null);
-    setStaffToken(token.trim());
-    try {
-      await api.today();
-      onDone();
-    } catch {
-      clearStaffToken();
-      setErr('Invalid access token — please check it and try again.');
-    } finally {
-      setBusy(false);
-    }
+  const inputStyle: CSSProperties = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', fontWeight: 600, fontSize: 14, outline: 'none', marginBottom: 10 };
+  const clearUrl = () => { try { window.history.replaceState({}, '', window.location.pathname); } catch { /* ignore */ } };
+
+  const doLogin = async () => {
+    setBusy(true); setErr(null);
+    try { const r = await api.staffLogin(email.trim(), password); setStaffToken(r.token); onDone(); }
+    catch (e: any) { setErr(e?.message || 'Wrong email or password.'); }
+    finally { setBusy(false); }
   };
+  const doForgot = async () => {
+    setBusy(true); setErr(null); setNote(null);
+    try { await api.staffForgot(email.trim()); setNote('If that email is on our team, a reset link is on its way. 📩'); }
+    catch { setNote('If that email is on our team, a reset link is on its way. 📩'); }
+    finally { setBusy(false); }
+  };
+  const doSetPassword = async () => {
+    if (password !== password2) { setErr('The two passwords don’t match.'); return; }
+    setBusy(true); setErr(null);
+    try { const r = await api.staffSetPassword(setupToken!, password); setStaffToken(r.token); clearUrl(); onDone(); }
+    catch (e: any) { setErr(e?.message || 'This link is invalid or expired.'); }
+    finally { setBusy(false); }
+  };
+  const doToken = async () => {
+    if (!token.trim()) return;
+    setBusy(true); setErr(null); setStaffToken(token.trim());
+    try { await api.today(); onDone(); }
+    catch { clearStaffToken(); setErr('Invalid access token.'); }
+    finally { setBusy(false); }
+  };
+
+  const btn = (label: string, onClick: () => void, disabled = false) => (
+    <button onClick={onClick} disabled={busy || disabled}
+      style={{ width: '100%', background: busy || disabled ? '#d8d2cf' : C.pink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '13px 0', borderRadius: 12, cursor: busy || disabled ? 'not-allowed' : 'pointer', marginTop: 4 }}>
+      {busy ? 'Please wait…' : label}
+    </button>
+  );
+  const link = (label: string, onClick: () => void) => (
+    <button onClick={onClick} style={{ border: 'none', background: 'none', color: C.pinkDeep, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', padding: 0 }}>{label}</button>
+  );
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg, padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: 360, background: '#fff', borderRadius: 20, padding: '30px 26px', boxShadow: '0 4px 20px rgba(0,0,0,.06)' }}>
-        <div style={fredoka(22)}>Eventana Operations</div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '6px 0 20px', lineHeight: 1.5 }}>
-          Enter your staff access token to continue.
-        </div>
-        <input
-          type="password"
-          placeholder="Staff access token"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
-          style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', fontWeight: 600, fontSize: 13, outline: 'none', marginBottom: 12 }}
-        />
-        {err && <div style={{ color: C.red, fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{err}</div>}
-        <button
-          onClick={submit}
-          disabled={busy || !token.trim()}
-          style={{ width: '100%', background: busy || !token.trim() ? '#d8d2cf' : C.pink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '13px 0', borderRadius: 12, cursor: busy || !token.trim() ? 'not-allowed' : 'pointer' }}
-        >
-          {busy ? 'Checking…' : 'Sign in'}
-        </button>
+      <div style={{ width: '100%', maxWidth: 380, background: '#fff', borderRadius: 20, padding: '30px 26px', boxShadow: '0 4px 20px rgba(0,0,0,.06)' }}>
+        <div style={{ ...fredoka(22), textAlign: 'center' }}>🎈 Eventana</div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, textAlign: 'center', margin: '4px 0 22px', letterSpacing: 1 }}>OPERATIONS</div>
+
+        {err && <div style={{ color: C.red, fontSize: 12.5, fontWeight: 700, marginBottom: 10, background: C.redSoft, borderRadius: 10, padding: '9px 11px' }}>{err}</div>}
+        {note && <div style={{ color: C.green, fontSize: 12.5, fontWeight: 700, marginBottom: 10, background: C.greenSoft, borderRadius: 10, padding: '9px 11px' }}>{note}</div>}
+
+        {mode === 'login' && (<>
+          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void doLogin(); }} style={inputStyle} />
+          {btn('Sign in', doLogin, !email.trim() || !password)}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+            {link('Forgot password?', () => { setErr(null); setNote(null); setMode('forgot'); })}
+            {link('Use access token', () => { setErr(null); setMode('token'); })}
+          </div>
+        </>)}
+
+        {mode === 'forgot' && (<>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>Enter your email and we’ll send you a link to set a new password.</div>
+          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void doForgot(); }} style={inputStyle} />
+          {btn('Send reset link', doForgot, !email.trim())}
+          <div style={{ marginTop: 14, textAlign: 'center' }}>{link('← Back to sign in', () => { setErr(null); setNote(null); setMode('login'); })}</div>
+        </>)}
+
+        {mode === 'setup' && (<>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Set your password</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>At least 8 characters, with a letter and a number.</div>
+          <input type="password" placeholder="New password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} />
+          <input type="password" placeholder="Confirm password" value={password2} onChange={(e) => setPassword2(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void doSetPassword(); }} style={inputStyle} />
+          {btn('Save & sign in', doSetPassword, !password || !password2)}
+          <div style={{ marginTop: 14, textAlign: 'center' }}>{link('← Back to sign in', () => { clearUrl(); setErr(null); setMode('login'); })}</div>
+        </>)}
+
+        {mode === 'token' && (<>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>Advanced: paste your staff access token.</div>
+          <input type="password" placeholder="Staff access token" value={token} onChange={(e) => setToken(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void doToken(); }} style={inputStyle} />
+          {btn('Sign in with token', doToken, !token.trim())}
+          <div style={{ marginTop: 14, textAlign: 'center' }}>{link('← Back to sign in', () => { setErr(null); setMode('login'); })}</div>
+        </>)}
       </div>
     </div>
   );
