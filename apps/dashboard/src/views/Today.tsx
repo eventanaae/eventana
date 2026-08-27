@@ -95,6 +95,38 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         );
       })()}
 
+      {/* Today's celebrations — surfaced right under quick actions so the crew
+          sees today's job first thing, before stats or the competition board. */}
+      {todays.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="rise-in lift" style={{ ['--i' as any]: 1, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={() => onOpenEvent(todays[0].id)}>
+            <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
+                <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>{todays.length === 1 ? 'YOUR EVENT · TODAY' : 'FIRST TODAY'}</div>
+              </div>
+              <div style={{ ...fredoka(21), marginTop: 8 }}>{todays[0].customer}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>Today · {todays[0].start_time}–{todays[0].base_end_time} · {todays[0].emirate}</div>
+              {themeOf(todays[0]) && (
+                <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(todays[0])}</div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
+                <Badge tone={todays[0].phase === 'Event Completed' ? 'neutral' : 'info'}>{todays[0].phase}</Badge>
+                <div style={{ flex: 1 }} />
+                <Button onClick={() => onOpenEvent(todays[0].id)}>Open job →</Button>
+              </div>
+            </div>
+          </div>
+          {todays.length > 1 && (
+            <Panel title={`Also today · ${todays.length - 1} more`}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {todays.slice(1).map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx + 1} onOpen={() => onOpenEvent(e.id)} />)}
+              </div>
+            </Panel>
+          )}
+        </div>
+      )}
+
       {/* Owner/manager get the vibrant KPI tiles. Staff (employee/driver) instead
           get their own "latest updates" inline — their prep at risk, low stock and
           the ratings on their events — so Home is their one useful screen. */}
@@ -111,8 +143,8 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         </div>
       )}
 
-      {/* Next event — the hero */}
-      {next && (
+      {/* Next event — shown only when nothing is on today (today is up top). */}
+      {next && !isToday(next) && (
         <div className="rise-in lift" style={{ ['--i' as any]: 2, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={() => onOpenEvent(next.id)}>
           <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -148,15 +180,6 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
                 </div>
               );
             })}
-          </div>
-        </Panel>
-      )}
-
-      {/* Today's jobs */}
-      {todays.length > 0 && (
-        <Panel className="rise-in" style={{ ['--i' as any]: 4 } as any} title={`Today · ${todays.length} ${todays.length === 1 ? 'event' : 'events'}`}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {todays.map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx} onOpen={() => onOpenEvent(e.id)} />)}
           </div>
         </Panel>
       )}
@@ -307,6 +330,9 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
 
       {board && board.length > 0 && (
         <Panel title="🏆 Team competition">
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginBottom: 8, lineHeight: 1.5, background: '#faf6f9', borderRadius: 8, padding: '7px 9px' }}>
+            Points this month · <b style={{ color: C.pinkDeep }}>10</b> per completed event · <b style={{ color: C.pinkDeep }}>+20</b> per 5★ rating · <b style={{ color: C.pinkDeep }}>+1</b> per AED 10 in tips
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[...board].sort((a: any, b: any) => b.points - a.points).map((s: any, i: number) => (
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 2px' }}>
@@ -314,7 +340,7 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
-                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.eventsDone} events · {s.avgRating > 0 ? `${s.avgRating}★` : '—'}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.eventsDone} completed{s.fiveStars > 0 ? ` · ${s.fiveStars}×5★` : ''}{s.avgRating > 0 ? ` · ${s.avgRating}★` : ''}</div>
                 </div>
                 <span style={{ ...fredoka(15), color: C.pinkDeep }}>{s.points}</span>
               </div>

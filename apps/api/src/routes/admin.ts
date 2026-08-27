@@ -766,7 +766,10 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(`SELECT * FROM event_tasks WHERE event_id = $1 ORDER BY department, id`, [eventId]),
       pool.query(
-        `SELECT m.* FROM event_team et JOIN team_members m ON m.id = et.member_id WHERE et.event_id = $1`,
+        `SELECT m.id, m.name, m.color, m.job_title,
+                EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = $1 AND es.assignee_id = m.id AND es.is_leader = true) AS is_leader,
+                (SELECT es.role FROM event_staff es WHERE es.event_id = $1 AND es.assignee_id = m.id LIMIT 1) AS event_role
+           FROM event_team et JOIN team_members m ON m.id = et.member_id WHERE et.event_id = $1`,
         [eventId],
       ),
       pool.query(
@@ -837,6 +840,11 @@ export async function adminRoutes(app: FastifyInstance) {
       services: services.rows,
       tasks: tasks.rows,
       team: team.rows,
+      // Who leads this event, and whether the person viewing IS that leader — only
+      // the leader may advance the status or message the customer.
+      leaderId: (team.rows.find((m: any) => m.is_leader)?.id) ?? null,
+      leaderName: (team.rows.find((m: any) => m.is_leader)?.name) ?? null,
+      isLeader: !!staff?.id && team.rows.some((m: any) => m.is_leader && m.id === staff.id),
       reservations: holds.rows,
       messages: messages.rows,
       setupPhotos: photos.rows,

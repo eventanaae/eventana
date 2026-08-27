@@ -115,6 +115,10 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
   // The API nulls every money figure for employees/drivers — detect that and
   // hide the money panels (payments, refund, tip amounts) entirely.
   const moneyHidden = !!data && data.event.totalDisplay == null;
+  // Only the Event Leader (or a manager/owner) may advance the status or message
+  // the customer. Managers aren't money-hidden; employees are the leader only if
+  // the API says so for this event.
+  const canUpdateStatus = !!data && (!moneyHidden || data.isLeader === true);
 
   return (
     <div
@@ -132,28 +136,32 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
               <div style={{ flex: 1 }}>
                 <div style={fredoka(20)}>{data.event.id}</div>
-                <div style={{ marginTop: 12, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
+                <div style={{ marginTop: 12, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}`, boxShadow: C.shadow, background: '#fff' }}>
                   <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.pinkDeep})` }} />
-                  <div style={{ background: 'linear-gradient(135deg,#FFF3F9,#FDEAF3)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {data.event.eventFor && (
-                      <div style={{ ...fredoka(19), color: C.pinkDeep, marginBottom: 2 }}>
-                        🎉 {data.event.eventFor}
-                        <span style={{ fontSize: 9.5, fontWeight: 800, color: '#c98fb4', letterSpacing: '.5px' }}> · GUEST OF HONOUR</span>
-                      </div>
+                  {/* Guest of honour banner */}
+                  <div style={{ background: 'linear-gradient(135deg,#FFF3F9,#FDEAF3)', padding: '15px 18px 14px' }}>
+                    {data.event.eventFor ? (
+                      <>
+                        <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '1px', color: '#c98fb4' }}>GUEST OF HONOUR</div>
+                        <div style={{ ...fredoka(22), color: C.pinkDeep, marginTop: 2 }}>🎉 {data.event.eventFor}</div>
+                      </>
+                    ) : (
+                      <div style={{ ...fredoka(20), color: C.pinkDeep }}>🎉 {data.event.customer}</div>
                     )}
-                    <HeaderRow icon="👤" value={data.event.customer} />
-                    {data.event.phone && (
-                      <HeaderRow icon="📞" value={
-                        <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.phone}</a>
-                      } />
-                    )}
+                  </div>
+                  {/* Details grid — full-width gridlines, no lopsided gap */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: C.line, borderTop: `1px solid ${C.line}` }}>
+                    <InfoCell label="👤 Booked by" value={data.event.customer} />
+                    <InfoCell label="📞 Phone" value={data.event.phone
+                      ? <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.phone}</a>
+                      : <span style={{ color: C.muted }}>—</span>} />
+                    <InfoCell span label="🗓️ Date & time" value={`${new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${data.event.start_time}–${data.event.base_end_time}`} />
                     {data.event.email && (
-                      <HeaderRow icon="✉️" value={
+                      <InfoCell span label="✉️ Email" value={
                         <a href={`mailto:${data.event.email}`} style={{ color: C.ink, fontWeight: 700, textDecoration: 'none', wordBreak: 'break-word' }}>{data.event.email}</a>
                       } />
                     )}
-                    <HeaderRow icon="🗓️" value={`${new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${data.event.start_time}–${data.event.base_end_time}`} />
-                    {data.event.emirate && <HeaderRow icon="📍" value={data.event.emirate} />}
+                    <InfoCell span label="📍 Location" value={data.event.emirate || <span style={{ color: C.muted }}>—</span>} />
                   </div>
                 </div>
                 {(data.event.referenceImages ?? []).length > 0 && (
@@ -208,10 +216,35 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               )}
               {!moneyHidden && data.event.phase !== 'Cancelled' && <StaffingPanel eventId={eventId} />}
 
+              {/* Employees/drivers can't open StaffingPanel — give them a read-only
+                  view of who's on the crew and who the Event Leader is. */}
+              {moneyHidden && (data.team ?? []).length > 0 && (
+                <Panel title="👥 Your team for this event">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {[...(data.team ?? [])].sort((a: any, b: any) => (b.is_leader ? 1 : 0) - (a.is_leader ? 1 : 0)).map((m: any) => (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 2px', borderBottom: `1px solid ${C.lineSoft}` }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: m.color || C.pink, color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{String(m.name || '?')[0]}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{m.name}</div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{m.job_title || ROLE_LABEL[m.event_role] || 'Crew'}</div>
+                        </div>
+                        {m.is_leader && (
+                          <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.pinkDeep, background: C.pinkSoft, padding: '4px 9px', borderRadius: 20, flex: 'none' }}>👑 Leader</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              )}
+
               <Panel title="Advance status">
                 {data.event.phase !== 'Cancelled' && (
                   <div style={{ background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '8px 11px', fontSize: 11.5, fontWeight: 700, marginBottom: 12, lineHeight: 1.5 }}>
-                    👑 The Event Leader is responsible for updating the status on the day.
+                    {canUpdateStatus
+                      ? (data.isLeader
+                          ? '👑 You are the Event Leader — you update the status on the day.'
+                          : '👑 The Event Leader updates the status on the day.')
+                      : `👑 Only the Event Leader${data.leaderName ? ` (${data.leaderName})` : ''} can update the status on the day — this is view-only for you.`}
                   </div>
                 )}
                 {data.event.phase === 'Cancelled' ? (
@@ -225,16 +258,27 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                         longer buy extra hours, socks or servings.
                       </div>
                     </div>
-                    <Button
-                      tone="ghost"
-                      onClick={async () => {
-                        await api.reinstateEvent(eventId);
-                        setMessage('Event reinstated — re-check inventory availability.');
-                        load();
-                      }}
-                    >
-                      Reinstate event
-                    </Button>
+                    {canUpdateStatus && (
+                      <Button
+                        tone="ghost"
+                        onClick={async () => {
+                          await api.reinstateEvent(eventId);
+                          setMessage('Event reinstated — re-check inventory availability.');
+                          load();
+                        }}
+                      >
+                        Reinstate event
+                      </Button>
+                    )}
+                  </div>
+                ) : !canUpdateStatus ? (
+                  <div>
+                    <Badge tone={data.event.phase === 'Event Completed' ? 'neutral' : 'info'}>{data.event.phase}</Badge>
+                    {data.event.eta && (
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: C.pinkDeep, marginTop: 8 }}>
+                        Customer sees ETA: {data.event.eta}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -346,7 +390,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
 
               <Panel
                 title="Customer messages"
-                action={
+                action={canUpdateStatus ? (
                   <Button
                     tone="ghost"
                     onClick={async () => {
@@ -356,7 +400,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                   >
                     {data.event.chat_open ? 'Close chat' : 'Open chat'}
                   </Button>
-                }
+                ) : undefined}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
                   {data.messages.length === 0 && <Empty>No messages yet.</Empty>}
@@ -378,46 +422,54 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     </div>
                   ))}
                 </div>
-                {data.event.chat_open && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                    {[
-                      'We’re on our way 🚐',
-                      'We’ve arrived 🎉',
-                      'Please open the gate 🙏',
-                      'Where should we park?',
-                      'We’re setting up now ✨',
-                    ].map((q) => (
+                {!canUpdateStatus ? (
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, background: '#faf6f9', borderRadius: 10, padding: '9px 12px', lineHeight: 1.5 }}>
+                    👑 Only the Event Leader{data.leaderName ? ` (${data.leaderName})` : ''} replies to the customer. You can read the chat here.
+                  </div>
+                ) : (
+                  <>
+                    {data.event.chat_open && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                        {[
+                          'We’re on our way 🚐',
+                          'We’ve arrived 🎉',
+                          'Please open the gate 🙏',
+                          'Where should we park?',
+                          'We’re setting up now ✨',
+                        ].map((q) => (
+                          <Button
+                            key={q}
+                            tone="ghost"
+                            onClick={async () => {
+                              await api.reply(eventId, q);
+                              load();
+                            }}
+                          >
+                            {q}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        placeholder="Reply to the customer…"
+                        value={reply}
+                        onChange={(e) => setReply(e.target.value)}
+                        style={inputStyle}
+                      />
                       <Button
-                        key={q}
-                        tone="ghost"
                         onClick={async () => {
-                          await api.reply(eventId, q);
+                          if (!reply.trim()) return;
+                          await api.reply(eventId, reply.trim());
+                          setReply('');
                           load();
                         }}
                       >
-                        {q}
+                        Send
                       </Button>
-                    ))}
-                  </div>
+                    </div>
+                  </>
                 )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    placeholder="Reply to the customer…"
-                    value={reply}
-                    onChange={(e) => setReply(e.target.value)}
-                    style={inputStyle}
-                  />
-                  <Button
-                    onClick={async () => {
-                      if (!reply.trim()) return;
-                      await api.reply(eventId, reply.trim());
-                      setReply('');
-                      load();
-                    }}
-                  >
-                    Send
-                  </Button>
-                </div>
               </Panel>
 
               {!moneyHidden && (
@@ -578,11 +630,12 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
  * Google Maps app with turn-by-turn navigation, no API key required.
  */
 /** A premium icon + value row for the event header — icon in a soft chip. */
-function HeaderRow({ icon, value }: { icon: string; value: React.ReactNode }) {
+/** One labelled cell in the event's details grid. `span` makes it full-width. */
+function InfoCell({ label, value, span }: { label: string; value: React.ReactNode; span?: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 11, fontSize: 13 }}>
-      <span style={{ width: 30, height: 30, borderRadius: 10, background: '#fff', boxShadow: '0 1px 5px rgba(233,79,156,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14.5, flex: 'none' }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0, fontWeight: 700, color: C.ink, lineHeight: 1.4 }}>{value}</span>
+    <div style={{ background: '#fff', padding: '11px 16px', gridColumn: span ? '1 / -1' : undefined, minWidth: 0 }}>
+      <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: '#b98aa6' }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, marginTop: 3, lineHeight: 1.35, wordBreak: 'break-word' }}>{value}</div>
     </div>
   );
 }
