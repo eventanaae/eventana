@@ -1179,10 +1179,16 @@ export async function adminRoutes(app: FastifyInstance) {
     // invoices she brings in (via email), each worth ≥ AED 20,000. Tagged on the
     // invoice (commission_rep) and events-based only (the team tags qualifying ones).
     const COMMISSION_RATE = 0.02, COMMISSION_MIN = 2_000_000;
+    // Marsha's corporate deals are MANUAL invoices OR sales the owner tagged to
+    // her (never website orders). Count both, each worth ≥ AED 20,000, this month.
     const commRes = await pool.query(
-      `SELECT COALESCE(SUM(total_fils),0)::bigint gross, COUNT(*)::int n FROM finance_invoices
-        WHERE lower(commission_rep) = 'marsha' AND total_fils >= $3
-          AND issue_date >= $1 AND issue_date < $2`,
+      `SELECT COALESCE(SUM(gross),0)::bigint gross, COUNT(*)::int n FROM (
+         SELECT total_fils AS gross FROM finance_invoices
+           WHERE lower(commission_rep)='marsha' AND total_fils >= $3 AND issue_date >= $1 AND issue_date < $2
+         UNION ALL
+         SELECT total_fils AS gross FROM finance_receipts
+           WHERE lower(commission_rep)='marsha' AND total_fils >= $3 AND date >= $1 AND date < $2
+       ) x`,
       [start, endStr, COMMISSION_MIN],
     );
     const marshaCommissionFils = Math.round(Number(commRes.rows[0].gross) * COMMISSION_RATE);
@@ -1675,7 +1681,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get('/api/admin/finance/invoices', async () => finance.listInvoices());
   app.post('/api/admin/finance/invoices', async (request, reply) => {
-    const schema = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), status: z.enum(['draft', 'sent']).optional() });
+    const schema = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), status: z.enum(['draft', 'sent']).optional(), commissionRep: z.string().nullable().optional() });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
     return reply.status(201).send(await finance.createInvoice(p.data));
@@ -1691,7 +1697,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.patch('/api/admin/finance/invoices/:id', async (request, reply) => {
     const id = Number((request.params as { id: string }).id);
-    const p = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional() }).safeParse(request.body);
+    const p = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), commissionRep: z.string().nullable().optional() }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const r = await finance.updateInvoice(id, p.data);
     return r ?? reply.status(404).send({ error: 'not_found' });
@@ -1702,14 +1708,14 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/finance/receipts', async (request) => finance.listReceipts((request as any).staff?.role));
   app.patch('/api/admin/finance/receipts/:id', async (request, reply) => {
     const id = Number((request.params as { id: string }).id);
-    const p = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional() }).safeParse(request.body);
+    const p = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional(), commissionRep: z.string().nullable().optional() }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const r = await finance.updateReceipt(id, p.data);
     return r ?? reply.status(404).send({ error: 'not_found' });
   });
   app.post('/api/admin/finance/receipts/:id/email', async (request) => finance.emailDoc('receipt', Number((request.params as { id: string }).id)));
   app.post('/api/admin/finance/receipts', async (request, reply) => {
-    const schema = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional() });
+    const schema = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional(), commissionRep: z.string().nullable().optional() });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
     return reply.status(201).send(await finance.createReceipt(p.data));

@@ -373,6 +373,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' 
   const [eventFor, setEventFor] = useState(initial?.eventFor ?? '');
   const [age, setAge] = useState(initial?.age ?? '');
   const [theme, setTheme] = useState(initial?.theme ?? '');
+  const [commissionMarsha, setCommissionMarsha] = useState<boolean>(String(initial?.commissionRep ?? '').toLowerCase() === 'marsha');
   const [pickCustomer, setPickCustomer] = useState(false);
   const [pickItem, setPickItem] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -390,11 +391,13 @@ function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' 
     const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null };
     try {
       if (kind === 'invoice') {
-        if (editId) await api.finUpdateInvoice(editId, { ...body, dueDate: dueDate || null });
-        else await api.finCreateInvoice({ ...body, dueDate: dueDate || null, status: 'sent' });
+        const commissionRep = commissionMarsha ? 'Marsha' : null;
+        if (editId) await api.finUpdateInvoice(editId, { ...body, dueDate: dueDate || null, commissionRep });
+        else await api.finCreateInvoice({ ...body, dueDate: dueDate || null, status: 'sent', commissionRep });
       } else {
-        if (editId) await api.finUpdateReceipt(editId, { ...body, date, paidWith: 'Cash' });
-        else await api.finCreateReceipt({ ...body, date, paidWith: 'Cash' });
+        const commissionRep = commissionMarsha ? 'Marsha' : null;
+        if (editId) await api.finUpdateReceipt(editId, { ...body, date, paidWith: 'Cash', commissionRep });
+        else await api.finCreateReceipt({ ...body, date, paidWith: 'Cash', commissionRep });
       }
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
@@ -431,6 +434,16 @@ function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' 
       {kind === 'invoice'
         ? <Field label="Due date"><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={input} /></Field>
         : <Field label="Date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} /></Field>}
+
+      {/* Commission approval — the owner tags a manual corporate/events deal to
+          Marsha (2% on ≥AED 20,000). Never for website orders. */}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, padding: '10px 12px', borderRadius: 12, border: `1px solid ${commissionMarsha ? C.pink : C.line}`, background: commissionMarsha ? C.pinkSoft : '#fff', cursor: 'pointer' }}>
+        <input type="checkbox" checked={commissionMarsha} onChange={(e) => setCommissionMarsha(e.target.checked)} />
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: commissionMarsha ? C.pinkDeep : C.ink }}>
+          💼 Marsha’s corporate deal — approve 2% commission
+          <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, color: C.muted }}>Counts toward her commission when the total is AED 20,000+ (events-based).</span>
+        </span>
+      </label>
 
       {/* Party details echoed on the receipt — guest of honour + age + theme. */}
       <div style={{ marginTop: 4, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -473,6 +486,7 @@ function DocDetail({ doc, kind, onClose, onChanged }: { doc: any; kind: 'invoice
     eventFor: doc.event_for ?? '',
     age: doc.age ?? '',
     theme: doc.theme ?? '',
+    commissionRep: doc.commission_rep ?? doc.commissionRep ?? null,
   });
 
   const print = () => {

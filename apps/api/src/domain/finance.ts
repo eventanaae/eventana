@@ -179,13 +179,13 @@ type DocInput = {
   eventFor?: string | null; theme?: string | null; age?: string | null;
 };
 
-export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string }) {
+export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_invoices (number, customer_id, customer_name, issue_date, due_date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, status, message)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.status ?? 'sent', d.message ?? null],
+    `INSERT INTO finance_invoices (number, customer_id, customer_name, issue_date, due_date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, status, message, commission_rep)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+    [number, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.status ?? 'sent', d.message ?? null, d.commissionRep ?? null],
   );
   return decorateInvoice(rows[0]);
 }
@@ -225,13 +225,13 @@ function decorateInvoice(r: any) {
 }
 
 // ── Sales receipts (paid → Cash on hand) ─────────────────────────────────────
-export async function createReceipt(d: DocInput & { date?: string | null; paidWith?: string }) {
+export async function createReceipt(d: DocInput & { date?: string | null; paidWith?: string; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null],
+    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, commission_rep)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null],
   );
   // An upcoming sale becomes an operational event automatically, so it shows on
   // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.
@@ -557,14 +557,14 @@ export async function deleteReceipt(id: number) {
   return { deleted: true };
 }
 
-export async function updateReceipt(id: number, d: DocInput & { date?: string | null; paidWith?: string }) {
+export async function updateReceipt(id: number, d: DocInput & { date?: string | null; paidWith?: string; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const { rows } = await pool.query(
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
-       event_for=$12, theme=$13, age=$14
+       event_for=$12, theme=$13, age=$14, commission_rep=$15
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null],
+    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null],
   );
   const saved = rows[0];
   if (saved && d.date) {
@@ -582,13 +582,13 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   return saved ? decorateReceipt(saved) : null;
 }
 
-export async function updateInvoice(id: number, d: DocInput & { dueDate?: string | null; issueDate?: string | null }) {
+export async function updateInvoice(id: number, d: DocInput & { dueDate?: string | null; issueDate?: string | null; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const { rows } = await pool.query(
     `UPDATE finance_invoices SET customer_id=$2, customer_name=$3, issue_date=COALESCE($4,issue_date), due_date=$5, line_items=$6,
-       subtotal_fils=$7, discount_fils=$8, shipping_fils=$9, total_fils=$10, message=$11
+       subtotal_fils=$7, discount_fils=$8, shipping_fils=$9, total_fils=$10, message=$11, commission_rep=$12
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null],
+    [id, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null, d.commissionRep ?? null],
   );
   return rows[0] ? decorateInvoice(rows[0]) : null;
 }

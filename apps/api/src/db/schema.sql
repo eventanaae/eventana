@@ -795,7 +795,8 @@ CREATE TABLE IF NOT EXISTS finance_invoices (
 );
 CREATE INDEX IF NOT EXISTS finance_invoices_status_idx ON finance_invoices (status, due_date);
 -- Sales commission: who brought this corporate/events invoice (e.g. Marsha).
--- Marsha earns 2% of her tagged invoices worth ≥ AED 20,000 (events-based only).
+-- Marsha earns 2% of her tagged docs worth ≥ AED 20,000 (events-based only).
+-- Set only on MANUAL invoices/receipts the owner approves — never website orders.
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS commission_rep TEXT;
 
 CREATE TABLE IF NOT EXISTS finance_receipts (
@@ -830,6 +831,8 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_id TEXT;
 -- pay-link) auto-appears here as a sale exactly once. Partial-unique so manual
 -- dashboard receipts (no order) are unaffected.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;
+-- Sales commission on a MANUAL sale the owner approves (e.g. Marsha's corporate deal).
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS commission_rep TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS finance_receipts_order_idx
   ON finance_receipts (order_id) WHERE order_id IS NOT NULL;
 
