@@ -73,16 +73,27 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         </div>
       </div>
 
-      {/* Quick actions */}
-      <div>
-        <SectionHeader>Quick actions</SectionHeader>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-          <QuickAction icon="🎀" label="New order" accent={ACCENTS[0]} onClick={() => onGoto('neworder')} />
-          <QuickAction icon="🗓️" label="Schedule" accent={ACCENTS[1]} onClick={() => onGoto('schedule')} />
-          <QuickAction icon="✅" label="Tasks" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
-          <QuickAction icon="💰" label="Finance" accent={ACCENTS[5]} onClick={() => onGoto('finance')} />
-        </div>
-      </div>
+      {/* Quick actions — only the ones this role can actually open */}
+      {(() => {
+        const isMgr = role === 'owner' || role === 'manager';
+        const acts = [
+          isMgr && { icon: '🎀', label: 'New order', accent: ACCENTS[0], to: 'neworder' as View },
+          { icon: '🗓️', label: 'Schedule', accent: ACCENTS[1], to: 'schedule' as View },
+          role !== 'driver' && { icon: '✅', label: 'Tasks', accent: ACCENTS[3], to: 'tasks' as View },
+          isMgr && { icon: '💰', label: 'Finance', accent: ACCENTS[5], to: 'finance' as View },
+        ].filter(Boolean) as Array<{ icon: string; label: string; accent: any; to: View }>;
+        if (acts.length === 0) return null;
+        return (
+          <div>
+            <SectionHeader>Quick actions</SectionHeader>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${acts.length}, 1fr)`, gap: 10 }}>
+              {acts.map((a) => (
+                <QuickAction key={a.label} icon={a.icon} label={a.label} accent={a.accent} onClick={() => onGoto(a.to)} />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Vibrant stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>

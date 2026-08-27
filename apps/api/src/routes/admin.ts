@@ -208,6 +208,9 @@ export async function adminRoutes(app: FastifyInstance) {
             path === '/api/admin/events' ||
             path === '/api/admin/my-events' ||
             path === '/api/admin/bookings/latest' ||
+            // The notification bell is on every screen — a driver gets their own
+            // (their tips / their events), so let them read the feed too.
+            path === '/api/admin/notification-feed' ||
             /^\/api\/admin\/events\/[^/]+$/.test(path))) ||
         (method === 'POST' && /^\/api\/admin\/events\/[^/]+\/phase$/.test(path));
       if (!allowed) {
