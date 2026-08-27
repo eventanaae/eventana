@@ -2040,6 +2040,25 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
+  /** Read-only diagnostic: how the migrated QuickBooks docs break down by type &
+   *  payment status, so a reclassification can be built safely. */
+  app.get('/api/admin/finance/qb-breakdown', async () => {
+    const byType = await pool.query(
+      `SELECT COALESCE(txn_type,'(none)') AS txn_type, COALESCE(status,'(none)') AS status,
+              count(DISTINCT doc_number)::int AS docs, count(*)::int AS lines,
+              COALESCE(sum(total_fils),0)::bigint AS total
+         FROM historical_orders GROUP BY 1,2 ORDER BY 1,2`);
+    const ranges = await pool.query(
+      `SELECT COALESCE(txn_type,'(none)') AS txn_type,
+              min(doc_number) AS min_no, max(doc_number) AS max_no,
+              count(DISTINCT doc_number)::int AS docs
+         FROM historical_orders WHERE doc_number ~ '^[0-9]+$' GROUP BY 1 ORDER BY 1`);
+    return {
+      byType: byType.rows.map((r) => ({ ...r, total: Number(r.total), totalDisplay: formatAed(Number(r.total)) })),
+      ranges: ranges.rows,
+    };
+  });
+
   app.get('/api/admin/finance/invoices', async () => finance.listInvoices());
   app.post('/api/admin/finance/invoices', async (request, reply) => {
     const schema = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), status: z.enum(['draft', 'sent']).optional(), commissionRep: z.string().nullable().optional() });
