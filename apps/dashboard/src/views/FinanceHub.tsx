@@ -364,7 +364,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
 // ── Shared: invoice / receipt create form ────────────────────────────────────
 function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: 'invoice' | 'receipt'; onClose: () => void; onSaved: () => void; initial?: any; editId?: number; isOwner?: boolean }) {
   const [customer, setCustomer] = useState<{ id: number | null; name: string } | null>(initial?.customer ?? null);
-  const [items, setItems] = useState<Array<{ name: string; qty: number; priceFils: number }>>(initial?.items ?? []);
+  const [items, setItems] = useState<Array<{ name: string; qty: number; priceFils: number; description?: string }>>(initial?.items ?? []);
   const [discount, setDiscount] = useState(initial?.discount ?? '');
   const [shipping, setShipping] = useState(initial?.shipping ?? '');
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? '');
@@ -414,14 +414,23 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
       {/* Items */}
       <div style={{ margin: '10px 0 4px', fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px' }}>ITEMS</div>
       {items.map((l, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{l.name}</div>
-            <div style={{ fontSize: 11, color: C.muted }}>{l.qty} × AED {money(l.priceFils)}</div>
+        <div key={i} style={{ padding: '7px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{l.name}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>{l.qty} × AED {money(l.priceFils)}</div>
+            </div>
+            <input value={String(l.qty)} inputMode="numeric" onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, qty: Number(e.target.value.replace(/[^\d]/g, '')) || 0 } : x))} style={{ ...input, width: 52, marginBottom: 0, padding: '6px 8px' }} />
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink, width: 92, textAlign: 'right' }}>AED {money(Math.round(l.qty * l.priceFils))}</div>
+            <button onClick={() => setItems((a) => a.filter((_, j) => j !== i))} style={{ ...linkBtn, color: C.red }}>✕</button>
           </div>
-          <input value={String(l.qty)} inputMode="numeric" onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, qty: Number(e.target.value.replace(/[^\d]/g, '')) || 0 } : x))} style={{ ...input, width: 52, marginBottom: 0, padding: '6px 8px' }} />
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink, width: 92, textAlign: 'right' }}>AED {money(Math.round(l.qty * l.priceFils))}</div>
-          <button onClick={() => setItems((a) => a.filter((_, j) => j !== i))} style={{ ...linkBtn, color: C.red }}>✕</button>
+          <textarea
+            value={l.description ?? ''}
+            onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
+            placeholder="What's included / description (shows on the customer's invoice)…"
+            rows={2}
+            style={{ ...input, marginTop: 6, marginBottom: 0, padding: '7px 10px', fontSize: 12, fontWeight: 600, resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
+          />
         </div>
       ))}
       <button onClick={() => setPickItem(true)} style={{ ...linkBtn, color: C.pinkDeep, marginTop: 8, fontWeight: 800 }}>+ Add product or service</button>
@@ -470,7 +479,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
       {kind === 'receipt' && <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2 }}>Deposit to: <b style={{ color: C.ink }}>Cash on hand</b></div>}
 
       {pickCustomer && <CustomerPicker onPick={(c) => { setCustomer(c); setPickCustomer(false); }} onClose={() => setPickCustomer(false)} />}
-      {pickItem && <ItemPicker onPick={(it) => { setItems((a) => [...a, { name: it.name, qty: 1, priceFils: it.priceFils }]); setPickItem(false); }} onClose={() => setPickItem(false)} />}
+      {pickItem && <ItemPicker onPick={(it) => { setItems((a) => [...a, { name: it.name, qty: 1, priceFils: it.priceFils, description: it.description ?? '' }]); setPickItem(false); }} onClose={() => setPickItem(false)} />}
     </Modal>
   );
 }
@@ -484,7 +493,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
 
   const toInitial = () => ({
     customer: { id: doc.customer_id ?? null, name: doc.customer_name },
-    items: (doc.lineItems ?? []).map((l: any) => ({ name: l.name, qty: l.qty, priceFils: l.priceFils })),
+    items: (doc.lineItems ?? []).map((l: any) => ({ name: l.name, qty: l.qty, priceFils: l.priceFils, description: l.description ?? '' })),
     discount: doc.discount_fils ? String(doc.discount_fils / 100) : '',
     shipping: doc.shipping_fils ? String(doc.shipping_fils / 100) : '',
     dueDate: doc.due_date ? String(doc.due_date).slice(0, 10) : '',
@@ -541,7 +550,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
       <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px', margin: '8px 0 4px' }}>{(doc.lineItems ?? []).length} ITEM(S)</div>
       {(doc.lineItems ?? []).map((l: any, i: number) => (
         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-          <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{l.name}</div><div style={{ fontSize: 11, color: C.muted }}>{l.qty} × AED {money(l.priceFils)}</div></div>
+          <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{l.name}</div>{l.description && String(l.description).trim() && <div style={{ fontSize: 11.5, color: C.muted2, whiteSpace: 'pre-wrap', lineHeight: 1.5, marginTop: 2 }}>{l.description}</div>}<div style={{ fontSize: 11, color: C.muted }}>{l.qty} × AED {money(l.priceFils)}</div></div>
           <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>AED {l.amountDisplay}</div>
         </div>
       ))}
@@ -567,7 +576,10 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
 
 function docHtml(doc: any, kind: 'invoice' | 'receipt') {
   const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
-  const rows = (doc.lineItems ?? []).map((l: any) => `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${esc(l.name)}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`).join('');
+  const rows = (doc.lineItems ?? []).map((l: any) => {
+    const desc = l.description && String(l.description).trim() ? `<br><span style="color:#666;font-size:12px;line-height:1.5">${esc(String(l.description).trim()).replace(/\n/g, '<br>')}</span>` : '';
+    return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${esc(l.name)}${desc}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`;
+  }).join('');
   return `<!doctype html><html><head><meta charset="utf8"><title>Eventana ${kind} ${esc(doc.number)}</title></head><body style="font-family:Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
     <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:18px;padding:22px;text-align:center;margin-bottom:20px">
       <div style="font-size:22px;font-weight:800">Eventana</div>
@@ -639,10 +651,10 @@ function CustomerPicker({ onPick, onClose }: { onPick: (c: { id: number | null; 
   );
 }
 
-function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFils: number }) => void; onClose: () => void }) {
+function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFils: number; description?: string | null }) => void; onClose: () => void }) {
   const [items, setItems] = useState<any[]>([]);
   const [q, setQ] = useState('');
-  const [custom, setCustom] = useState({ name: '', price: '' });
+  const [custom, setCustom] = useState({ name: '', price: '', description: '' });
   const [saving, setSaving] = useState(false);
   useEffect(() => { api.finItems().then(setItems).catch(() => setItems([])); }, []);
   const filtered = items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
@@ -651,7 +663,7 @@ function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFil
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search items…" style={{ ...input, marginBottom: 10 }} autoFocus />
       <div style={{ maxHeight: 260, overflowY: 'auto', marginBottom: 12 }}>
         {filtered.map((it, i) => (
-          <button key={i} onClick={() => onPick({ name: it.name, priceFils: it.priceFils })} style={rowBtn}>
+          <button key={i} onClick={() => onPick({ name: it.name, priceFils: it.priceFils, description: it.description ?? '' })} style={rowBtn}>
             <span style={{ fontWeight: 700, color: C.ink }}>{it.name}</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: C.muted2 }}>AED {money(it.priceFils)}</span>
           </button>
@@ -662,15 +674,19 @@ function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFil
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
         <div style={{ flex: 1 }}><Field label="Name"><input value={custom.name} onChange={(e) => setCustom((s) => ({ ...s, name: e.target.value }))} style={input} /></Field></div>
         <div style={{ width: 110 }}><Field label="Price (AED)"><input value={custom.price} inputMode="decimal" onChange={(e) => setCustom((s) => ({ ...s, price: e.target.value }))} style={input} /></Field></div>
-        <Button disabled={saving} onClick={async () => {
-          const name = custom.name.trim(); if (!name) return;
-          const priceFils = Math.round((Number(custom.price.replace(/,/g, '')) || 0) * 100);
-          setSaving(true);
-          try { await api.finCreateItem(name, priceFils); } catch { /* still add the line even if save fails */ }
-          setSaving(false);
-          onPick({ name, priceFils });
-        }} style={{ marginBottom: 8 }}>{saving ? '…' : 'Save & add'}</Button>
       </div>
+      <Field label="Description — what's included (shows on the customer's invoice)">
+        <textarea value={custom.description} onChange={(e) => setCustom((s) => ({ ...s, description: e.target.value }))} rows={3} placeholder="e.g. 2-hour setup · balloon arch · themed backdrop · 1 host" style={{ ...input, resize: 'vertical', width: '100%', boxSizing: 'border-box' }} />
+      </Field>
+      <Button disabled={saving} onClick={async () => {
+        const name = custom.name.trim(); if (!name) return;
+        const priceFils = Math.round((Number(custom.price.replace(/,/g, '')) || 0) * 100);
+        const description = custom.description.trim();
+        setSaving(true);
+        try { await api.finCreateItem(name, priceFils, description || undefined); } catch { /* still add the line even if save fails */ }
+        setSaving(false);
+        onPick({ name, priceFils, description });
+      }} style={{ marginTop: 4 }}>{saving ? '…' : 'Save & add'}</Button>
     </Modal>
   );
 }

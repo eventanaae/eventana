@@ -1105,6 +1105,8 @@ CREATE TABLE IF NOT EXISTS finance_items (
   name       TEXT NOT NULL,
   price_fils BIGINT NOT NULL DEFAULT 0,
   created_by TEXT,
+  description TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE finance_items ADD COLUMN IF NOT EXISTS description TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS finance_items_name_idx ON finance_items (lower(name));

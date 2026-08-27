@@ -1796,6 +1796,7 @@ export async function adminRoutes(app: FastifyInstance) {
     name: z.string().min(1).max(200),
     qty: z.number().min(0),
     priceFils: z.number().int(),
+    description: z.string().max(1000).nullish(),
   }));
   const docSchema = z.object({
     customerId: z.number().int().nullable().optional(),
@@ -1855,10 +1856,10 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get('/api/admin/finance/items', async () => finance.listItems());
   app.post('/api/admin/finance/items', async (request, reply) => {
-    const p = z.object({ name: z.string().trim().min(1).max(200), priceFils: z.number().int().min(0) }).safeParse(request.body);
+    const p = z.object({ name: z.string().trim().min(1).max(200), priceFils: z.number().int().min(0), description: z.string().trim().max(1000).optional() }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const by = String((request as any).staff?.name ?? 'staff');
-    const item = await finance.createFinanceItem(p.data.name, p.data.priceFils, by);
+    const item = await finance.createFinanceItem(p.data.name, p.data.priceFils, by, p.data.description ?? null);
     // Notify owner/manager that a new product/service was created.
     await pool.query(
       `INSERT INTO notifications (channel, template, scheduled_for, payload)

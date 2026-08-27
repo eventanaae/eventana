@@ -73,7 +73,7 @@ export async function normalizeAllEmirates(): Promise<{ tables: Record<string, n
   return { tables, canonical: [...CANON_EMIRATES] };
 }
 
-export type LineItem = { name: string; qty: number; priceFils: number };
+export type LineItem = { name: string; qty: number; priceFils: number; description?: string | null };
 
 function computeTotals(items: LineItem[], discountFils: number, shippingFils: number) {
   const subtotal = items.reduce((s, l) => s + Math.round(l.qty * l.priceFils), 0);
@@ -228,24 +228,30 @@ export async function listItems() {
   const [pkgs, svcs, custom] = await Promise.all([
     pool.query(`SELECT name, price_fils FROM packages WHERE active ORDER BY price_fils DESC`),
     pool.query(`SELECT name, price_fils FROM services WHERE active ORDER BY name`),
-    pool.query(`SELECT name, price_fils FROM finance_items ORDER BY name`),
+    pool.query(`SELECT name, price_fils, description FROM finance_items ORDER BY name`),
   ]);
   return [
-    ...pkgs.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'package' })),
-    ...svcs.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'service' })),
-    ...custom.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'custom' })),
+    ...pkgs.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'package', description: null })),
+    ...svcs.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'service', description: null })),
+    ...custom.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'custom', description: r.description ?? null })),
   ];
 }
 
-/** Create a reusable custom product/service (added on the fly while billing). */
-export async function createFinanceItem(name: string, priceFils: number, by: string) {
+/**
+ * Create a reusable custom product/service (added on the fly while billing). The
+ * optional description is the "what's included" blurb that prints on the
+ * customer's invoice/receipt line.
+ */
+export async function createFinanceItem(name: string, priceFils: number, by: string, description?: string | null) {
+  const desc = (description ?? '').trim() || null;
   const { rows } = await pool.query(
-    `INSERT INTO finance_items (name, price_fils, created_by) VALUES ($1,$2,$3)
-     ON CONFLICT (lower(name)) DO UPDATE SET price_fils = EXCLUDED.price_fils
-     RETURNING id, name, price_fils`,
-    [name.trim(), priceFils, by],
+    `INSERT INTO finance_items (name, price_fils, created_by, description) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (lower(name)) DO UPDATE SET price_fils = EXCLUDED.price_fils,
+       description = COALESCE(EXCLUDED.description, finance_items.description)
+     RETURNING id, name, price_fils, description`,
+    [name.trim(), priceFils, by, desc],
   );
-  return { id: rows[0].id, name: rows[0].name, priceFils: Number(rows[0].price_fils) };
+  return { id: rows[0].id, name: rows[0].name, priceFils: Number(rows[0].price_fils), description: rows[0].description ?? null };
 }
 
 async function nextNumber(): Promise<string> {
@@ -691,8 +697,12 @@ export async function deleteInvoice(id: number) {
 
 /** A clean, branded receipt/invoice HTML — used for the email body and print. */
 export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
-  const rows = (doc.lineItems ?? []).map((l: any) =>
-    `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${escapeHtml(l.name)}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`).join('');
+  const rows = (doc.lineItems ?? []).map((l: any) => {
+    const desc = l.description && String(l.description).trim()
+      ? `<br><span style="color:#666;font-size:12px;line-height:1.5">${escapeHtml(String(l.description).trim()).replace(/\n/g, '<br>')}</span>`
+      : '';
+    return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${escapeHtml(l.name)}${desc}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`;
+  }).join('');
   const title = kind === 'receipt' ? 'Sales Receipt' : 'Invoice';
   const dateStr = String(doc.date ?? doc.issue_date ?? '').slice(0, 10);
   return `<!doctype html><html><body style="font-family:'Quicksand',Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
