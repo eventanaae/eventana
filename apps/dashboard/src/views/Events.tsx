@@ -128,7 +128,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
               <div style={{ flex: 1 }}>
                 <div style={fredoka(20)}>{data.event.id}</div>
-                <div style={{ marginTop: 12, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.pinkLine}`, boxShadow: C.shadow }}>
+                <div style={{ marginTop: 12, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
                   <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.pinkDeep})` }} />
                   <div style={{ background: 'linear-gradient(135deg,#FFF3F9,#FDEAF3)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {data.event.eventFor && (
