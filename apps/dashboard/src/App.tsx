@@ -24,10 +24,11 @@ import { ShopOrders } from './views/ShopOrders';
 import { Leads } from './views/Leads';
 import { Customers } from './views/Customers';
 import { Reports } from './views/Reports';
+import { Profile } from './views/Profile';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile';
 
 type Section = 'ops' | 'sales' | 'business' | 'admin';
 
@@ -44,9 +45,8 @@ const SECTIONS: Array<{ id: Section; label: string }> = [
 // `mobile: true` marks the handful of top tabs shown in the phone bottom bar.
 const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string; section: Section; mobile?: boolean }> = [
   { id: 'today', label: 'Home', icon: '◉', title: 'Home', sub: 'Your day at a glance', section: 'ops', mobile: true },
-  { id: 'schedule', label: 'Events', icon: '▦', title: 'Events', sub: 'Your events, jobs and bookings', section: 'ops', mobile: true },
-  { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Event preparation', section: 'ops', mobile: true },
-  { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets and reservations', section: 'ops' },
+  { id: 'schedule', label: 'Events', icon: '▦', title: 'Events', sub: 'Events, jobs, bookings & tasks', section: 'ops', mobile: true },
+  { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets, stock & issue reports', section: 'ops' },
   { id: 'alerts', label: 'Updates', icon: '📣', title: 'Latest updates', sub: "What's new — prep, stock, tips and ratings", section: 'ops', mobile: true },
   { id: 'customers', label: 'Customers', icon: '👥', title: 'Customers', sub: 'Your customer book — spend, history & contacts', section: 'sales' },
   { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
@@ -62,6 +62,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'admin' },
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', section: 'admin' },
   { id: 'reports', label: 'Reports & Tools', icon: '🛡️', title: 'Reports & Tools', sub: 'Reconciliation, refunds, audit log & clean-up', section: 'admin' },
+  { id: 'profile', label: 'Profile', icon: '👤', title: 'My Profile', sub: 'Your details, achievements & feedback', section: 'admin' },
 ];
 
 // Which views each access level sees. The API enforces the same rules, so
@@ -70,9 +71,9 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'tasks', 'inventory', 'alerts', 'customers', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings'],
-  employee: ['today', 'schedule', 'tasks', 'alerts', 'inventory', 'kpis'],
-  driver: ['today', 'schedule'],
+  manager: ['today', 'schedule', 'inventory', 'alerts', 'customers', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile'],
+  employee: ['today', 'schedule', 'inventory', 'kpis', 'profile'],
+  driver: ['today', 'schedule', 'profile'],
 };
 
 export default function App() {
@@ -127,8 +128,10 @@ export default function App() {
   // Dashboard as their 4th; everyone else gets Latest updates. Whatever else
   // their role can see spills into "More".
   const primaryIds: View[] = role === 'owner'
-    ? ['today', 'schedule', 'tasks', 'ceo']
-    : ['today', 'schedule', 'tasks', 'alerts'];
+    ? ['today', 'schedule', 'ceo']
+    : role === 'manager'
+      ? ['today', 'schedule', 'alerts']
+      : ['today', 'schedule', 'inventory', 'profile']; // employee/driver — filtered by isVisible
   const primaryNav = primaryIds.filter((id) => isVisible(id)).map((id) => NAV.find((n) => n.id === id)!);
   const primarySet = new Set<View>(primaryIds);
   const moreNav = visibleNav.filter((n) => !primarySet.has(n.id));
@@ -169,7 +172,7 @@ export default function App() {
     <>
       {view === 'today' && <Today onOpenEvent={openEvent} onOpenShop={setOpenShopId} onGoto={go} staffName={staffName} role={role} />}
       {view === 'overview' && <Overview onOpenEvent={openEvent} onGoto={go} />}
-      {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} />}
+      {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} role={role} />}
       {view === 'tasks' && <Tasks role={role} />}
       {view === 'inventory' && <Inventory role={role} />}
       {view === 'alerts' && <Alerts onOpenEvent={openEvent} />}
@@ -184,6 +187,7 @@ export default function App() {
       {view === 'leads' && <Leads />}
       {view === 'customers' && <Customers />}
       {view === 'reports' && <Reports />}
+      {view === 'profile' && <Profile onSignedOut={() => setAuthed(false)} />}
       {view === 'settings' && <Settings />}
     </>
   );
@@ -241,8 +245,8 @@ export default function App() {
               icon={n.icon}
               label={n.label}
               active={view === n.id}
-              badge={n.id === 'tasks' ? counts.tasks : n.id === 'schedule' ? counts.review : 0}
-              badgeColor={n.id === 'schedule' ? C.red : C.pink}
+              badge={n.id === 'schedule' ? (counts.review + counts.tasks) : 0}
+              badgeColor={counts.review > 0 ? C.red : C.pink}
               onClick={() => go(n.id)}
             />
           ))}
@@ -346,7 +350,7 @@ export default function App() {
                 </div>
                 {items.map((n) => {
                   const active = view === n.id;
-                  const badge = n.id === 'tasks' ? counts.tasks : n.id === 'schedule' ? counts.review : 0;
+                  const badge = n.id === 'schedule' ? (counts.review + counts.tasks) : 0;
                   return (
                     <div
                       key={n.id}

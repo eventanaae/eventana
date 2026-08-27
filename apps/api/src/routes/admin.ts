@@ -2978,6 +2978,88 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows;
   });
 
+  /* ------------------------------ Staff profile --------------------------- */
+
+  /** The signed-in staff member's own profile: details, events done, achievements. */
+  app.get('/api/admin/my-profile', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string; name?: string; role?: string };
+    if (!staff.id) return reply.status(404).send({ error: 'no_profile', message: 'No personal profile for this account.' });
+    const [m, done, rewards] = await Promise.all([
+      pool.query(`SELECT id, name, role, job_title, birthday, passport_name, passport_number, emirates_id,
+                          performance_feedback, performance_by, to_char(performance_at,'YYYY-MM-DD') AS performance_at, email
+                     FROM team_members WHERE id = $1`, [staff.id]),
+      pool.query(`SELECT count(DISTINCT es.event_id)::int c FROM event_staff es JOIN events e ON e.id = es.event_id
+                   WHERE es.assignee_id = $1 AND (e.phase = 'Event Completed' OR e.event_date < CURRENT_DATE)`, [staff.id]),
+      pool.query(`SELECT id, event_id, kind, amount_fils, note, to_char(created_at,'YYYY-MM-DD') AS date
+                    FROM staff_rewards WHERE member_id = $1 ORDER BY created_at DESC LIMIT 50`, [staff.id]),
+    ]);
+    const p = m.rows[0];
+    if (!p) return reply.status(404).send({ error: 'not_found' });
+    const totalReward = rewards.rows.reduce((s, r) => s + Number(r.amount_fils), 0);
+    // What personal info is still missing — the app nudges them to complete it.
+    const missing = [
+      !p.birthday && 'Date of birth',
+      !p.passport_name && 'Full name (passport)',
+      !p.passport_number && 'Passport number',
+      !p.emirates_id && 'Emirates ID number',
+    ].filter(Boolean);
+    return {
+      id: p.id, name: p.name, jobTitle: p.job_title || p.role, email: p.email,
+      birthday: p.birthday ? String(p.birthday).slice(0, 10) : null,
+      passportName: p.passport_name, passportNumber: p.passport_number, emiratesId: p.emirates_id,
+      eventsDone: done.rows[0].c,
+      performance: p.performance_feedback ? { text: p.performance_feedback, by: p.performance_by, at: p.performance_at } : null,
+      achievements: { totalFils: totalReward, totalDisplay: formatAed(totalReward), rows: rewards.rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) })) },
+      missing,
+    };
+  });
+
+  /** Staff update their OWN personal details (nudged when something is missing). */
+  app.patch('/api/admin/my-profile', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string };
+    if (!staff.id) return reply.status(404).send({ error: 'no_profile' });
+    const p = z.object({
+      birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      passportName: z.string().max(200).optional(),
+      passportNumber: z.string().max(60).optional(),
+      emiratesId: z.string().max(60).optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const d = p.data;
+    await pool.query(
+      `UPDATE team_members SET
+         birthday = COALESCE($2, birthday),
+         passport_name = COALESCE($3, passport_name),
+         passport_number = COALESCE($4, passport_number),
+         emirates_id = COALESCE($5, emirates_id)
+       WHERE id = $1`,
+      [staff.id, d.birthday ?? null, d.passportName ?? null, d.passportNumber ?? null, d.emiratesId ?? null],
+    );
+    return { ok: true };
+  });
+
+  /** Owner/manager: set a member's job title + performance feedback. */
+  app.patch('/api/admin/team/:id/performance', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const p = z.object({ jobTitle: z.string().max(120).optional(), feedback: z.string().max(2000).optional() }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const by = String((request as any).staff?.name ?? 'manager');
+    const { rows } = await pool.query(
+      `UPDATE team_members SET
+         job_title = COALESCE($2, job_title),
+         performance_feedback = COALESCE($3, performance_feedback),
+         performance_by = CASE WHEN $3 IS NOT NULL THEN $4 ELSE performance_by END,
+         performance_at = CASE WHEN $3 IS NOT NULL THEN now() ELSE performance_at END
+       WHERE id = $1 RETURNING id`,
+      [id, p.data.jobTitle ?? null, p.data.feedback ?? null, by],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    logAudit({ actor: by, role, action: 'staff_performance', target: id });
+    return { ok: true };
+  });
+
   /* ------------------- Staff scheduling (days off & birthdays) ------------- */
 
   /** Owner/manager: set a member's birthday, phone or colour. */

@@ -93,6 +93,7 @@ export function Team({ role = 'owner' }: { role?: string }) {
                   )}
                   {isOwner && <Row label="Access"><AccessSelect member={m} onChange={load} /></Row>}
                   {isOwner && <Row label="Login token"><TokenCell member={m} onChange={load} /></Row>}
+                  {canManage && <PerfEditor member={m} onChange={load} />}
                   <Row label="Assignments">
                     {!m.assignments || m.assignments.length === 0 ? (
                       <span style={{ color: C.muted, fontSize: 12.5, fontWeight: 600 }}>Free</span>
@@ -225,3 +226,31 @@ const dateInput: CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 
 const miniBtn: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.ink, flex: 'none' };
 const field: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 110 };
 const fLabel: CSSProperties = { fontSize: 10.5, fontWeight: 700, color: C.muted };
+
+// Manager/owner: set a member's job title + leave performance feedback (shown on
+// the member's own Profile).
+function PerfEditor({ member, onChange }: { member: any; onChange: () => void }) {
+  const [title, setTitle] = useState<string>(member.job_title ?? '');
+  const [fb, setFb] = useState<string>(member.performance_feedback ?? '');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    try { await api.setPerformance(member.id, { jobTitle: title.trim() || undefined, feedback: fb.trim() || undefined }); setMsg('Saved ✓'); onChange(); setTimeout(() => setMsg(null), 1500); }
+    catch (e: any) { setMsg(e?.message ?? 'Error'); } finally { setBusy(false); }
+  };
+  return (
+    <Row label="Performance">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+        <input placeholder="Job title" value={title} onChange={(e) => setTitle(e.target.value)}
+          style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '7px 10px', fontSize: 12.5, fontWeight: 600, outline: 'none' }} />
+        <textarea placeholder="Performance feedback for this person…" value={fb} onChange={(e) => setFb(e.target.value)} rows={2}
+          style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '7px 10px', fontSize: 12.5, fontWeight: 600, outline: 'none', resize: 'vertical' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button onClick={save} disabled={busy} style={{ padding: '6px 12px', fontSize: 11.5 }}>{busy ? 'Saving…' : 'Save'}</Button>
+          {msg && <span style={{ fontSize: 11.5, fontWeight: 700, color: msg.includes('✓') ? C.green : C.red }}>{msg}</span>}
+        </div>
+      </div>
+    </Row>
+  );
+}

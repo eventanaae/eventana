@@ -1078,3 +1078,21 @@ CREATE TABLE IF NOT EXISTS asset_issues (
   resolved_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS asset_issues_status_idx ON asset_issues (status, created_at DESC);
+
+-- ── Staff profile (self-service personal details + manager feedback) ─────────
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS job_title TEXT;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS passport_name TEXT;      -- full name as on passport
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS passport_number TEXT;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS emirates_id TEXT;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS performance_feedback TEXT;   -- latest note from the manager
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS performance_by TEXT;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS performance_at TIMESTAMPTZ;
+
+-- Seed canonical job titles (only where not already set, so manager edits win).
+UPDATE team_members SET job_title = 'Operations & Sales Coordinator' WHERE lower(name) = 'marsha' AND job_title IS NULL;
+UPDATE team_members SET job_title = 'Senior Balloon Artist'          WHERE lower(name) = 'dindo'  AND job_title IS NULL;
+UPDATE team_members SET job_title = 'Senior Balloon Artist'          WHERE lower(name) = 'jane'   AND job_title IS NULL;
+UPDATE team_members SET job_title = 'Junior Event Coordinator'       WHERE lower(name) = 'gloria' AND job_title IS NULL;
+UPDATE team_members SET job_title = 'Junior Event Coordinator'       WHERE lower(name) = 'diana'  AND job_title IS NULL;
+UPDATE team_members SET job_title = 'CEO'                            WHERE lower(name) = 'sheem'  AND job_title IS NULL;
+UPDATE team_members SET job_title = 'Driver & Event Support'         WHERE lower(name) = 'shan'   AND job_title IS NULL;

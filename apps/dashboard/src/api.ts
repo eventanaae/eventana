@@ -147,6 +147,9 @@ export const api = {
   staffForgot: (email: string) => request<{ ok: boolean }>('/api/staff/forgot', { method: 'POST', body: JSON.stringify({ email }) }),
   staffSetPassword: (token: string, password: string) => request<{ ok: boolean; email: string | null; name: string }>('/api/staff/set-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
   teamProfile: (id: string, body: { name?: string; birthday?: string | null; phone?: string | null; color?: string }) => request<any>(`/api/admin/team/${id}/profile`, { method: 'PATCH', body: JSON.stringify(body) }),
+  myProfile: () => request<any>('/api/admin/my-profile'),
+  updateMyProfile: (body: { birthday?: string | null; passportName?: string; passportNumber?: string; emiratesId?: string }) => request<any>('/api/admin/my-profile', { method: 'PATCH', body: JSON.stringify(body) }),
+  setPerformance: (id: string, body: { jobTitle?: string; feedback?: string }) => request<any>(`/api/admin/team/${id}/performance`, { method: 'PATCH', body: JSON.stringify(body) }),
   // Owner: manage staff logins
   teamInvite: (name: string, email: string, accessLevel: string) => request<any>('/api/admin/team/invite', { method: 'POST', body: JSON.stringify({ name, email, accessLevel }) }),
   teamSetupLink: (id: string) => request<any>(`/api/admin/team/${id}/setup-link`, { method: 'POST' }),

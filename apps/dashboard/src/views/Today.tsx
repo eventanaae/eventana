@@ -95,21 +95,21 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         );
       })()}
 
-      {/* Vibrant stats. Staff (employee/driver) get a focused pair — their events
-          today and their open tasks; the money/pipeline tiles are for managers. */}
-      {(() => {
-        const isStaff = role === 'employee' || role === 'driver';
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-            <StatCard i={0} label="Events today" value={Math.round(evToday)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
-            {!isStaff && (role === 'owner' && k.revenueThisMonthDisplay
-              ? <StatCard i={1} label="Revenue this month" value={<span>AED {k.revenueThisMonthDisplay}</span>} icon="💸" accent={ACCENTS[1]} onClick={() => onGoto('ceo')} />
-              : <StatCard i={1} label="Bookings this month" value={Number(k.bookingsThisMonth) || 0} icon="🎉" accent={ACCENTS[1]} onClick={() => onGoto(role === 'owner' || role === 'manager' ? 'overview' : 'schedule')} />)}
-            {!isStaff && <StatCard i={2} label="Upcoming" value={Math.round(upCount)} icon="✨" accent={ACCENTS[4]} hint={next ? when(next).replace('Today · ', 'next today ') : undefined} onClick={() => onGoto('schedule')} />}
-            <StatCard i={3} label="Open tasks" value={Math.round(tasks)} icon="📋" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
-          </div>
-        );
-      })()}
+      {/* Owner/manager get the vibrant KPI tiles. Staff (employee/driver) instead
+          get their own "latest updates" inline — their prep at risk, low stock and
+          the ratings on their events — so Home is their one useful screen. */}
+      {(role === 'employee' || role === 'driver') ? (
+        <StaffUpdates onOpenEvent={onOpenEvent} />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+          <StatCard i={0} label="Events today" value={Math.round(evToday)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
+          {role === 'owner' && k.revenueThisMonthDisplay
+            ? <StatCard i={1} label="Revenue this month" value={<span>AED {k.revenueThisMonthDisplay}</span>} icon="💸" accent={ACCENTS[1]} onClick={() => onGoto('ceo')} />
+            : <StatCard i={1} label="Bookings this month" value={Number(k.bookingsThisMonth) || 0} icon="🎉" accent={ACCENTS[1]} onClick={() => onGoto('overview')} />}
+          <StatCard i={2} label="Upcoming" value={Math.round(upCount)} icon="✨" accent={ACCENTS[4]} hint={next ? when(next).replace('Today · ', 'next today ') : undefined} onClick={() => onGoto('schedule')} />
+          <StatCard i={3} label="Open tasks" value={Math.round(tasks)} icon="📋" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
+        </div>
+      )}
 
       {/* Next event — the hero */}
       {next && (
@@ -226,5 +226,66 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
 export function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, padding: '10px 0' }}>{children}</div>
+  );
+}
+
+const ago2 = (ts: string) => {
+  const s = Math.max(1, Math.floor((Date.now() - new Date(ts).getTime()) / 1000));
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+};
+
+/**
+ * A staff member's own "latest updates", inline on Home: their preparation at
+ * risk, low stock to flag, and the ratings customers left on their events.
+ * Replaces the KPI tiles for employees/drivers so Home is their one screen.
+ */
+function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
+  const [data, setData] = useState<any>(null);
+  useEffect(() => {
+    const load = () => api.alerts().then(setData).catch(() => setData({ prepAtRisk: [], lowStock: [], recentRatings: [] }));
+    load();
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!data) return <Spinner />;
+  const prep = data.prepAtRisk ?? [];
+  const low = data.lowStock ?? [];
+  const ratings = data.recentRatings ?? [];
+  const rowS: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <Panel title="🧰 Your preparation at risk">
+        {prep.length === 0 ? <Empty>Every one of your events is on track. 🎉</Empty> : prep.map((e: any) => (
+          <div key={e.event_id} style={{ ...rowS, cursor: 'pointer' }} onClick={() => onOpenEvent(e.event_id)}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, flex: 'none' }} />
+            <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 96 }}>{new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>{e.customer} · {e.completed}/{e.total} done</span>
+            <span style={{ fontSize: 11.5, fontWeight: 800, color: C.red }}>{e.progressPct}%</span>
+          </div>
+        ))}
+      </Panel>
+
+      <Panel title="🧴 Low stock — reorder soon">
+        {low.length === 0 ? <Empty>All consumables above their reorder level.</Empty> : low.map((c: any) => (
+          <div key={c.id} style={rowS}>
+            <span style={{ fontWeight: 700, fontSize: 12.5, flex: 1 }}>{c.name}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: c.on_hand === 0 ? C.red : '#c98a2b' }}>{c.on_hand} {c.unit} left</span>
+          </div>
+        ))}
+      </Panel>
+
+      <Panel title="⭐ Ratings on your events">
+        {ratings.length === 0 ? <Empty>No ratings yet — great work brings them in. 🌟</Empty> : ratings.map((r: any) => (
+          <div key={r.id} style={{ ...rowS, alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => onOpenEvent(r.event_id)}>
+            <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1, minWidth: 72 }}>{'★'.repeat(r.stars)}<span style={{ color: C.line }}>{'★'.repeat(5 - r.stars)}</span></span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, flex: 1, lineHeight: 1.4 }}>{r.feedback ? `“${r.feedback}”` : <span style={{ color: C.muted }}>{r.event_id}</span>}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{ago2(r.created_at)}</span>
+          </div>
+        ))}
+      </Panel>
+    </div>
   );
 }

@@ -2,22 +2,26 @@ import { useState } from 'react';
 import { C } from '../ui';
 import { MyEvents } from './MyEvents';
 import { Events } from './Events';
+import { Tasks } from './Tasks';
 
 /**
- * The Events surface — "My events" and "All events" in one segmented switch.
- * Both open the same Event Details page by id.
+ * The Events surface — "My events", "All events" and "Tasks" in one segmented
+ * switch. Tasks lives here (not its own tab) so the bottom bar stays short.
  */
 export function Schedule({
   onOpenEvent,
   canSeeAll,
+  role,
 }: {
   onOpenEvent: (id: string) => void;
   canSeeAll: boolean;
+  role?: string;
 }) {
-  const [mode, setMode] = useState<'mine' | 'all'>(canSeeAll ? 'all' : 'mine');
-  const tabs: Array<{ id: 'mine' | 'all'; label: string }> = [
+  const [mode, setMode] = useState<'mine' | 'all' | 'tasks'>(canSeeAll ? 'all' : 'mine');
+  const tabs: Array<{ id: 'mine' | 'all' | 'tasks'; label: string }> = [
     { id: 'mine', label: 'My events' },
     ...(canSeeAll ? ([{ id: 'all', label: 'All events' }] as const) : []),
+    { id: 'tasks', label: 'Tasks' },
   ];
 
   return (
@@ -44,6 +48,7 @@ export function Schedule({
 
       {mode === 'mine' && <MyEvents onOpenEvent={onOpenEvent} />}
       {mode === 'all' && canSeeAll && <Events onOpenEvent={onOpenEvent} />}
+      {mode === 'tasks' && <Tasks role={role} />}
     </div>
   );
 }
