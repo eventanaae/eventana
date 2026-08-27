@@ -431,6 +431,10 @@ export const api = {
   eventUpdateDetails: (eventId: string, patch: { startTime?: string; endTime?: string; emirate?: string; eventFor?: string | null; themeId?: string | null }) =>
     request(`/api/admin/events/${eventId}/details`, { method: 'PATCH', body: JSON.stringify(patch) }),
   themesList: () => request<{ rows: Array<{ id: string; name: string; celebration_type: string }> }>('/api/admin/themes-list'),
+  // QuickBooks Online connection (owner).
+  qbStatus: () => request<{ configured: boolean; connected: boolean; realmId?: string; environment?: string; companyName?: string }>('/api/admin/quickbooks/status'),
+  qbConnect: () => request<{ url: string }>('/api/admin/quickbooks/connect'),
+  qbDisconnect: () => request('/api/admin/quickbooks/disconnect', { method: 'POST' }),
   // The real customer catalogue — packages & services with live prices.
   catalog: () => request<{ packages: any[]; services: any[] }>('/api/admin/catalog'),
   packageUpdate: (id: string, patch: { priceFils?: number; name?: string; active?: boolean }) => request(`/api/admin/packages/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),

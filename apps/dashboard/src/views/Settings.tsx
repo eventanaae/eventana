@@ -77,6 +77,9 @@ export function Settings() {
         </div>
       )}
 
+      <QuickBooksPanel />
+
+
       <Panel
         title="Pricing rules"
         action={<Button onClick={saveRules}>Save rules</Button>}
@@ -352,3 +355,59 @@ const helpStyle: React.CSSProperties = {
 };
 
 void money;
+
+/**
+ * Connect / disconnect the QuickBooks Online company. Owner clicks Connect →
+ * we fetch the Intuit consent URL and redirect; Intuit bounces back to the
+ * server callback which stores the tokens, then to the dashboard with ?qb=.
+ */
+function QuickBooksPanel() {
+  const [st, setSt] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const load = () => api.qbStatus().then(setSt).catch(() => setSt({ configured: false, connected: false }));
+  useEffect(() => {
+    load();
+    try {
+      const qb = new URLSearchParams(window.location.search).get('qb');
+      if (qb === 'connected') setNote('✓ QuickBooks connected.');
+      else if (qb === 'denied') setNote('Connection was cancelled.');
+      else if (qb === 'error') setNote('Could not connect — please try again.');
+      if (qb) window.history.replaceState({}, '', window.location.pathname);
+    } catch { /* ignore */ }
+  }, []);
+  if (!st) return null;
+  const connect = async () => {
+    setBusy(true); setNote(null);
+    try { const r = await api.qbConnect(); window.location.href = r.url; }
+    catch (e: any) { setNote(e?.message ?? 'Could not start the connection.'); setBusy(false); }
+  };
+  const disconnect = async () => {
+    setBusy(true);
+    try { await api.qbDisconnect(); await load(); setNote('Disconnected.'); } catch (e: any) { setNote(e?.message ?? 'Could not disconnect.'); } finally { setBusy(false); }
+  };
+  return (
+    <Panel title="🧾 QuickBooks" action={st.connected ? <Badge tone="ok">Connected</Badge> : st.configured ? <Badge tone="warn">Not connected</Badge> : <Badge tone="neutral">Not set up</Badge>}>
+      {note && <div style={{ background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '9px 12px', fontSize: 12.5, fontWeight: 700, marginBottom: 12 }}>{note}</div>}
+      {!st.configured ? (
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
+          QuickBooks isn’t configured on the server yet (Client ID/Secret). Once it is, the Connect button appears here.
+        </div>
+      ) : st.connected ? (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{st.companyName || 'Connected company'}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>Environment: {st.environment} · Company ID: {st.realmId}</div>
+          <div style={{ marginTop: 12 }}><Button tone="ghost" onClick={disconnect} disabled={busy}>Disconnect</Button></div>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 12 }}>
+            Connect your QuickBooks company to sync expenses (with receipts), invoices and sales automatically.
+            <br />Environment: <b style={{ color: C.ink }}>{st.environment}</b>{st.environment === 'sandbox' ? ' — test company (for real data, switch to production keys).' : ''}
+          </div>
+          <Button onClick={connect} disabled={busy}>{busy ? 'Opening…' : 'Connect to QuickBooks'}</Button>
+        </div>
+      )}
+    </Panel>
+  );
+}
