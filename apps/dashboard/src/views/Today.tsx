@@ -336,6 +336,7 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
  */
 function CompetitionBoard() {
   const [board, setBoard] = useState<any[] | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   useEffect(() => {
     const now = new Date();
     const mth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -345,9 +346,16 @@ function CompetitionBoard() {
   const RANK = ['🥇', '🥈', '🥉'];
   return (
     <Panel title="🏆 Team competition">
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginBottom: 8, lineHeight: 1.5, background: '#faf6f9', borderRadius: 8, padding: '7px 9px' }}>
-        Points this month · <b style={{ color: C.pinkDeep }}>10</b> per completed event · <b style={{ color: C.pinkDeep }}>+20</b> per 5★ rating · <b style={{ color: C.pinkDeep }}>+1</b> per AED 10 in tips
-      </div>
+      {/* Tappable explainer — collapsed by default, opens a simple breakdown. */}
+      <button
+        onClick={() => setShowHelp((s) => !s)}
+        style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, background: showHelp ? '#fff' : '#faf6f9', borderRadius: 10, padding: '9px 11px', marginBottom: showHelp ? 10 : 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 800, color: C.pinkDeep }}
+      >
+        <span>ℹ️ How points &amp; rewards work</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ transform: showHelp ? 'rotate(180deg)' : 'none', transition: 'transform .2s', color: C.muted }}>⌄</span>
+      </button>
+      {showHelp && <PointsHelp />}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {[...board].sort((a: any, b: any) => b.points - a.points).map((s: any, i: number) => (
           <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 2px' }}>
@@ -362,5 +370,31 @@ function CompetitionBoard() {
         ))}
       </div>
     </Panel>
+  );
+}
+
+/** A plain-language breakdown of how competition points and real rewards work. */
+function PointsHelp() {
+  const line: React.CSSProperties = { display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.45, padding: '4px 0' };
+  const emo: React.CSSProperties = { fontSize: 14, width: 18, flex: 'none', textAlign: 'center' };
+  const head: React.CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '.4px', textTransform: 'uppercase', color: C.pinkDeep, margin: '4px 0 2px' };
+  const b = (t: string) => <b style={{ color: C.pinkDeep }}>{t}</b>;
+  return (
+    <div style={{ background: '#faf6f9', border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+      <div style={head}>🏆 Competition points — just for the leaderboard</div>
+      <div style={line}><span style={emo}>🎈</span><span>{b('10 points')} for every event you complete.</span></div>
+      <div style={line}><span style={emo}>⭐</span><span>{b('+20 points')} each time a customer rates your event 5★.</span></div>
+      <div style={line}><span style={emo}>💸</span><span>{b('+1 point')} for every AED 1 you receive in tips.</span></div>
+
+      <div style={{ ...head, marginTop: 10 }}>💐 Your rewards — real money you earn</div>
+      <div style={line}><span style={emo}>🎯</span><span>Monthly target is {b('20 events')} (15 events = 80%).</span></div>
+      <div style={line}><span style={emo}>➕</span><span>After your 20th event, {b('+AED 50')} for each extra event worth AED 2,000+ (excluding delivery).</span></div>
+      <div style={line}><span style={emo}>🌟</span><span>A great customer rating (4–5★) earns you {b('+AED 10')}.</span></div>
+      <div style={line}><span style={emo}>💅</span><span>Each Glam Doll you perform earns {b('+AED 20')}.</span></div>
+      <div style={line}><span style={emo}>🙌</span><span>{b('Tips are 100% yours')} — always on top.</span></div>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+        See your own earnings in <b>Profile</b>. Sales &amp; office roles earn a commission instead (2% on corporate deals AED 20,000+). Part-timers aren’t included in the monthly bonus.
+      </div>
+    </div>
   );
 }

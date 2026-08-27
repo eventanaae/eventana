@@ -95,11 +95,29 @@ export function Kpis({ role }: { role?: string }) {
                       )}
                       <Tile label="Tips" value={`AED ${o.tipsDisplay}`} accent={C.pinkDeep} />
                     </div>
-                    <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 12, lineHeight: 1.6 }}>
-                      {o.isMarsha
-                        ? `You earn ${data.rules?.commissionRate ?? 2}% commission on every corporate/events invoice you bring in worth AED ${(data.rules?.commissionMinAed ?? 20000).toLocaleString()}+. Tips are yours on top.`
-                        : `After ${target} events you earn AED ${data.rules?.incentivePerEventAed ?? 50} for each event worth AED ${(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excluding delivery). Every good customer rating adds AED ${data.rules?.feedbackBonusAed ?? 10}, and each Glam Doll performance adds AED ${data.rules?.glamBonusAed ?? 20}. Tips are yours on top. Part-timers aren’t included.`}
-                    </div>
+                    {o.isMarsha ? (() => {
+                      const rate = data.rules?.commissionRate ?? 2;
+                      const min = data.rules?.commissionMinAed ?? 20000;
+                      const exampleDeal = Math.max(min, 30000);
+                      const exampleComm = Math.round(exampleDeal * rate / 100);
+                      const bullet: CSSProperties = { display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.5, padding: '3px 0' };
+                      return (
+                        <div style={{ marginTop: 16, background: C.greenSoft, border: `1px solid #bfe3cf`, borderRadius: 14, padding: '14px 16px' }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: C.green, marginBottom: 8 }}>💼 How your commission works</div>
+                          <div style={bullet}><span>💰</span><span>You earn <b>{rate}% commission</b> on every corporate / events deal you bring in worth <b>AED {min.toLocaleString()}+</b>.</span></div>
+                          <div style={bullet}><span>📄</span><span>It counts your <b>manual invoices</b> and <b>sales the owner tags to you</b> — never website bookings.</span></div>
+                          <div style={bullet}><span>✅</span><span>Each qualifying deal is <b>tagged to you for owner approval</b> before it counts.</span></div>
+                          <div style={bullet}><span>🙌</span><span><b>Tips are always 100% yours</b>, on top of commission.</span></div>
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid #bfe3cf`, fontSize: 12, fontWeight: 700, color: C.ink, lineHeight: 1.6 }}>
+                            <b style={{ color: C.green }}>Example:</b> a AED {exampleDeal.toLocaleString()} corporate booking → you earn <b style={{ color: C.green }}>AED {exampleComm.toLocaleString()}</b>. Deals under AED {min.toLocaleString()} don’t count.
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 12, lineHeight: 1.6 }}>
+                        {`After ${target} events you earn AED ${data.rules?.incentivePerEventAed ?? 50} for each event worth AED ${(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excluding delivery). Every good customer rating adds AED ${data.rules?.feedbackBonusAed ?? 10}, and each Glam Doll performance adds AED ${data.rules?.glamBonusAed ?? 20}. Tips are yours on top. Part-timers aren’t included.`}
+                      </div>
+                    )}
                   </div>
                 );
               })()
