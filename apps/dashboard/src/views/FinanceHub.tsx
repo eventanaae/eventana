@@ -643,6 +643,7 @@ function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFil
   const [items, setItems] = useState<any[]>([]);
   const [q, setQ] = useState('');
   const [custom, setCustom] = useState({ name: '', price: '' });
+  const [saving, setSaving] = useState(false);
   useEffect(() => { api.finItems().then(setItems).catch(() => setItems([])); }, []);
   const filtered = items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
   return (
@@ -656,11 +657,19 @@ function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFil
           </button>
         ))}
       </div>
-      <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px', marginBottom: 6 }}>OR CUSTOM ITEM</div>
+      <div style={{ fontSize: 11, fontWeight: 800, color: C.pinkDeep, letterSpacing: '.4px', marginBottom: 6 }}>➕ NEW PRODUCT / SERVICE</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.5 }}>Not in the list? Add it here — it’s saved for next time, and the owner is notified.</div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
         <div style={{ flex: 1 }}><Field label="Name"><input value={custom.name} onChange={(e) => setCustom((s) => ({ ...s, name: e.target.value }))} style={input} /></Field></div>
         <div style={{ width: 110 }}><Field label="Price (AED)"><input value={custom.price} inputMode="decimal" onChange={(e) => setCustom((s) => ({ ...s, price: e.target.value }))} style={input} /></Field></div>
-        <Button onClick={() => { if (!custom.name.trim()) return; onPick({ name: custom.name.trim(), priceFils: Math.round((Number(custom.price.replace(/,/g, '')) || 0) * 100) }); }} style={{ marginBottom: 8 }}>Add</Button>
+        <Button disabled={saving} onClick={async () => {
+          const name = custom.name.trim(); if (!name) return;
+          const priceFils = Math.round((Number(custom.price.replace(/,/g, '')) || 0) * 100);
+          setSaving(true);
+          try { await api.finCreateItem(name, priceFils); } catch { /* still add the line even if save fails */ }
+          setSaving(false);
+          onPick({ name, priceFils });
+        }} style={{ marginBottom: 8 }}>{saving ? '…' : 'Save & add'}</Button>
       </div>
     </Modal>
   );

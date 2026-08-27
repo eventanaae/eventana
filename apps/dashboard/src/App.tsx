@@ -72,7 +72,9 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
   manager: ['today', 'schedule', 'inventory', 'alerts', 'customers', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile'],
-  employee: ['today', 'schedule', 'inventory', 'kpis', 'profile'],
+  // Employee/driver: exactly their four bottom-bar tabs — no "More" (achievements
+  // live inside Profile now).
+  employee: ['today', 'schedule', 'inventory', 'profile'],
   driver: ['today', 'schedule', 'profile'],
 };
 

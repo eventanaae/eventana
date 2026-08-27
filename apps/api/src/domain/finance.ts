@@ -223,16 +223,29 @@ export async function customerDetail(id: number) {
   };
 }
 
-// ── Items (packages + services from the catalogue) ───────────────────────────
+// ── Items (packages + services from the catalogue + custom finance products) ──
 export async function listItems() {
-  const [pkgs, svcs] = await Promise.all([
+  const [pkgs, svcs, custom] = await Promise.all([
     pool.query(`SELECT name, price_fils FROM packages WHERE active ORDER BY price_fils DESC`),
     pool.query(`SELECT name, price_fils FROM services WHERE active ORDER BY name`),
+    pool.query(`SELECT name, price_fils FROM finance_items ORDER BY name`),
   ]);
   return [
     ...pkgs.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'package' })),
     ...svcs.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'service' })),
+    ...custom.rows.map((r) => ({ name: r.name, priceFils: Number(r.price_fils), kind: 'custom' })),
   ];
+}
+
+/** Create a reusable custom product/service (added on the fly while billing). */
+export async function createFinanceItem(name: string, priceFils: number, by: string) {
+  const { rows } = await pool.query(
+    `INSERT INTO finance_items (name, price_fils, created_by) VALUES ($1,$2,$3)
+     ON CONFLICT (lower(name)) DO UPDATE SET price_fils = EXCLUDED.price_fils
+     RETURNING id, name, price_fils`,
+    [name.trim(), priceFils, by],
+  );
+  return { id: rows[0].id, name: rows[0].name, priceFils: Number(rows[0].price_fils) };
 }
 
 async function nextNumber(): Promise<string> {

@@ -51,7 +51,7 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         <div style={{ display: 'flex', borderTop: `1px solid ${C.lineSoft}` }}>
           <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px' }}>
             <div style={{ ...fredoka(20), color: C.ink }}>{d.eventsDone}</div>
-            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>EVENTS DONE</div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>EVENTS THIS MONTH</div>
           </div>
           <div style={{ width: 1, background: C.lineSoft }} />
           <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px' }}>

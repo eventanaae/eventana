@@ -422,6 +422,7 @@ export const api = {
   finCustomers: (q?: string) => request<any[]>(`/api/admin/finance/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   finAddCustomer: (body: Record<string, unknown>) => request<any>('/api/admin/finance/customers', { method: 'POST', body: JSON.stringify(body) }),
   finItems: () => request<Array<{ name: string; priceFils: number; kind: string }>>('/api/admin/finance/items'),
+  finCreateItem: (name: string, priceFils: number) => request<{ id: number; name: string; priceFils: number }>('/api/admin/finance/items', { method: 'POST', body: JSON.stringify({ name, priceFils }) }),
   finInvoices: () => request<any>('/api/admin/finance/invoices'),
   finCreateInvoice: (body: Record<string, unknown>) => request<any>('/api/admin/finance/invoices', { method: 'POST', body: JSON.stringify(body) }),
   finSetInvoiceStatus: (id: number, status: string) => request<any>(`/api/admin/finance/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),

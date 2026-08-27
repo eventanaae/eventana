@@ -1816,6 +1816,24 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.get('/api/admin/finance/items', async () => finance.listItems());
+  app.post('/api/admin/finance/items', async (request, reply) => {
+    const p = z.object({ name: z.string().trim().min(1).max(200), priceFils: z.number().int().min(0) }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const by = String((request as any).staff?.name ?? 'staff');
+    const item = await finance.createFinanceItem(p.data.name, p.data.priceFils, by);
+    // Notify owner/manager that a new product/service was created.
+    await pool.query(
+      `INSERT INTO notifications (channel, template, scheduled_for, payload)
+       VALUES ('push','new_product', now(), $1)`,
+      [JSON.stringify({ name: item.name, priceFils: item.priceFils, by })],
+    ).catch(() => {});
+    void (async () => {
+      const owners = await pool.query(`SELECT id FROM team_members WHERE access_level IN ('owner','manager') AND active`).catch(() => ({ rows: [] as any[] }));
+      for (const o of owners.rows) void pushToOwner('staff', o.id, '🆕 New product added', `${item.name} — ${formatAed(item.priceFils)} (by ${by})`);
+    })();
+    logAudit({ actor: by, role: (request as any).staff?.role, action: 'new_product', detail: { name: item.name } });
+    return item;
+  });
 
   app.get('/api/admin/finance/invoices', async () => finance.listInvoices());
   app.post('/api/admin/finance/invoices', async (request, reply) => {
@@ -2988,8 +3006,13 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT id, name, role, job_title, birthday, passport_name, passport_number, emirates_id,
                           performance_feedback, performance_by, to_char(performance_at,'YYYY-MM-DD') AS performance_at, email
                      FROM team_members WHERE id = $1`, [staff.id]),
+      // Events they've run THIS calendar month (1st → end of month), completed
+      // or already past — the figure the owner asked for.
       pool.query(`SELECT count(DISTINCT es.event_id)::int c FROM event_staff es JOIN events e ON e.id = es.event_id
-                   WHERE es.assignee_id = $1 AND (e.phase = 'Event Completed' OR e.event_date < CURRENT_DATE)`, [staff.id]),
+                   WHERE es.assignee_id = $1
+                     AND e.event_date >= date_trunc('month', CURRENT_DATE)
+                     AND e.event_date <  date_trunc('month', CURRENT_DATE) + interval '1 month'
+                     AND (e.phase = 'Event Completed' OR e.event_date < CURRENT_DATE)`, [staff.id]),
       pool.query(`SELECT id, event_id, kind, amount_fils, note, to_char(created_at,'YYYY-MM-DD') AS date
                     FROM staff_rewards WHERE member_id = $1 ORDER BY created_at DESC LIMIT 50`, [staff.id]),
     ]);
@@ -3519,7 +3542,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // Inventory: equipment issues + missing-item reports, and the actions taken.
       const inv = await pool.query(
         `SELECT id, template, payload, created_at FROM notifications
-          WHERE channel='push' AND template IN ('asset_issue','missing_item_reported','missing_item_action','asset_issue_action')
+          WHERE channel='push' AND template IN ('asset_issue','missing_item_reported','missing_item_action','asset_issue_action','new_product')
             AND created_at > now() - interval '30 days'
           ORDER BY created_at DESC LIMIT 30`);
       for (const x of inv.rows) {
@@ -3534,6 +3557,8 @@ export async function adminRoutes(app: FastifyInstance) {
           items.push({ id: `mia-${x.id}`, level: 'info', icon: '📦', title: `Missing item ${p.status}`, text: `${p.item} — ${p.status} by ${p.by}`, at: x.created_at });
         } else if (t === 'asset_issue_action') {
           items.push({ id: `aia-${x.id}`, level: 'info', icon: '🧰', title: `Equipment issue ${p.status}`, text: `${p.name} — ${p.status} by ${p.by}`, at: x.created_at });
+        } else if (t === 'new_product') {
+          items.push({ id: `np-${x.id}`, level: 'info', icon: '🆕', title: 'New product added', text: `${p.name} — ${formatAed(Number(p.priceFils || 0))} (by ${p.by})`, at: x.created_at });
         }
       }
     }

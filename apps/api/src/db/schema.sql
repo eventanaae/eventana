@@ -1096,3 +1096,15 @@ UPDATE team_members SET job_title = 'Junior Event Coordinator'       WHERE lower
 UPDATE team_members SET job_title = 'Junior Event Coordinator'       WHERE lower(name) = 'diana'  AND job_title IS NULL;
 UPDATE team_members SET job_title = 'CEO'                            WHERE lower(name) = 'sheem'  AND job_title IS NULL;
 UPDATE team_members SET job_title = 'Driver & Event Support'         WHERE lower(name) = 'shan'   AND job_title IS NULL;
+
+-- ── Finance custom products/services (added on the fly from a receipt/invoice) ─
+-- Reusable line items the team creates while billing, beyond the catalogue
+-- packages/services. Saved so they appear in the item picker next time.
+CREATE TABLE IF NOT EXISTS finance_items (
+  id         BIGSERIAL PRIMARY KEY,
+  name       TEXT NOT NULL,
+  price_fils BIGINT NOT NULL DEFAULT 0,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS finance_items_name_idx ON finance_items (lower(name));
