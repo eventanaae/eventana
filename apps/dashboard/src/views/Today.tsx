@@ -153,6 +153,28 @@ export function Today({ onOpenEvent, onGoto, staffName, role }: { onOpenEvent: (
           </div>
         </Panel>
       )}
+
+      {/* Shop orders — printed / digital goods (no party date), in light purple. */}
+      {(data?.shopOrders ?? []).length > 0 && (
+        <Panel className="rise-in" style={{ ['--i' as any]: 6 } as any} title="🛍️ Shop orders">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.shopOrders.map((o: any) => (
+              <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, background: '#F4ECFB', border: '1px solid #E4D3F5' }}>
+                <span style={{ width: 34, height: 34, borderRadius: 11, background: '#E7D6F7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: 'none' }}>🛍️</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#6B4E9E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.customer}</div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#9578bd' }}>
+                    {o.itemsLabel}
+                    {o.readyBy ? ` · 📦 deliver ${new Date(o.readyBy).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}` : ''}
+                    {o.emirate ? ` · ${o.emirate}` : ''}
+                  </div>
+                </div>
+                {o.totalDisplay && <span style={{ fontWeight: 800, fontSize: 13, color: '#6B4E9E', whiteSpace: 'nowrap' }}>AED {o.totalDisplay}</span>}
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }

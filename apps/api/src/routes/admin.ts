@@ -232,7 +232,7 @@ export async function adminRoutes(app: FastifyInstance) {
   /* ------------------------------ Today --------------------------- */
 
   app.get('/api/admin/today', async (request) => {
-    const [kpis, events, tasks, inventory, approvals] = await Promise.all([
+    const [kpis, events, tasks, inventory, approvals, shopOrders] = await Promise.all([
       pool.query(
         `SELECT
            (SELECT count(*)::int FROM events WHERE event_date = CURRENT_DATE) AS events_today,
@@ -281,8 +281,17 @@ export async function adminRoutes(app: FastifyInstance) {
         `SELECT d.id, d.event_id, d.version, d.status, d.created_at
            FROM designs d WHERE d.status = 'pending' ORDER BY d.created_at LIMIT 10`,
       ),
+      // Paid shop orders (printed / digital goods) — they have no party date, so
+      // they surface on Home as their own light-purple items with a delivery date.
+      pool.query(
+        `SELECT o.id, o.total_fils, o.cart, o.created_at, c.name AS customer
+           FROM orders o JOIN customers c ON c.id = o.customer_id
+          WHERE o.kind = 'shop' AND o.status = 'paid'
+          ORDER BY o.created_at DESC LIMIT 20`,
+      ),
     ]);
 
+    const canSeeShopMoney = (request as any).staff?.role === 'owner' || (request as any).staff?.role === 'manager';
     const k = kpis.rows[0];
     return {
       kpis: {
@@ -301,6 +310,19 @@ export async function adminRoutes(app: FastifyInstance) {
       tasks: tasks.rows,
       criticalInventory: inventory.rows,
       pendingDesignApprovals: approvals.rows,
+      shopOrders: shopOrders.rows.map((o) => {
+        const cart = (o.cart ?? {}) as { items?: Array<{ name?: string; title?: string; quantity?: number }>; readyBy?: string; emirate?: string };
+        const items = Array.isArray(cart.items) ? cart.items.map((i) => i.name || i.title).filter(Boolean) : [];
+        return {
+          id: o.id,
+          customer: o.customer,
+          itemsLabel: items.join(', ') || 'Shop order',
+          readyBy: cart.readyBy ?? null,
+          emirate: cart.emirate ?? null,
+          createdAt: o.created_at,
+          totalDisplay: canSeeShopMoney ? formatAed(Number(o.total_fils)) : null,
+        };
+      }),
       integrations: integrationStatus(),
     };
   });
