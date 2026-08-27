@@ -1013,3 +1013,22 @@ CREATE TABLE IF NOT EXISTS refunds (
 );
 CREATE INDEX IF NOT EXISTS refunds_order_idx  ON refunds (order_id);
 CREATE INDEX IF NOT EXISTS refunds_reason_idx ON refunds (reason_category, created_at);
+
+-- ── Staff rewards (Achievements) ────────────────────────────────────────────
+-- A recorded reward a staff member earned — most importantly the "good customer
+-- feedback" reward. Recorded (not just computed) so the employee can see each
+-- one with its event, date, amount and the feedback that earned it, and so the
+-- amount is frozen at the settings value at the time it was earned. The UNIQUE
+-- key makes a re-submitted / refreshed feedback idempotent (never paid twice).
+CREATE TABLE IF NOT EXISTS staff_rewards (
+  id          BIGSERIAL PRIMARY KEY,
+  member_id   TEXT NOT NULL,
+  event_id    TEXT,
+  kind        TEXT NOT NULL,            -- good_feedback | glam_doll | event_incentive
+  amount_fils BIGINT NOT NULL DEFAULT 0,
+  note        TEXT,                      -- e.g. the feedback text / context
+  source_ref  TEXT,                      -- e.g. rating id — the dedupe anchor
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (kind, source_ref, member_id)
+);
+CREATE INDEX IF NOT EXISTS staff_rewards_member_idx ON staff_rewards (member_id, created_at DESC);

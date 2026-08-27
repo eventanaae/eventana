@@ -27,6 +27,7 @@ import { importRows } from '../domain/importData.js';
 import * as finance from '../domain/finance.js';
 import { auditReport } from '../domain/audit.js';
 import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, normalizeUaePhone } from '../domain/maintenance.js';
+import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -206,6 +207,36 @@ export async function adminRoutes(app: FastifyInstance) {
   /** The signed-in staff member and their access level. */
   app.get('/api/admin/me', async (request) => {
     return (request as any).staff ?? { name: 'Staff', role: 'employee' };
+  });
+
+  /** Achievements: recorded staff rewards (good feedback, glam, incentives).
+   *  An employee sees only their own; owner/manager see everyone's. */
+  app.get('/api/admin/achievements', async (request) => {
+    const staff = (request as any).staff as { id?: string; role?: string };
+    const all = staff.role === 'owner' || staff.role === 'manager';
+    return listAchievements({ memberId: staff.id, all });
+  });
+
+  /** Incentive reward amounts (owner-editable, so nothing is hard-coded). */
+  app.get('/api/admin/incentive-rules', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    return loadIncentiveRules();
+  });
+  app.patch('/api/admin/incentive-rules', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const schema = z.object({
+      goodStars: z.number().int().min(1).max(5).optional(),
+      goodFeedbackRewardFils: z.number().int().min(0).optional(),
+      glamRewardFils: z.number().int().min(0).optional(),
+      eventIncentiveFils: z.number().int().min(0).optional(),
+      minEventValueFils: z.number().int().min(0).optional(),
+      targetEvents: z.number().int().min(1).optional(),
+      minEvents: z.number().int().min(1).optional(),
+      commissionRate: z.number().min(0).max(1).optional(),
+      commissionMinFils: z.number().int().min(0).optional(),
+    }).safeParse(request.body);
+    if (!schema.success) return reply.status(400).send({ error: 'invalid_request' });
+    return saveIncentiveRules(schema.data, String((request as any).staff?.name ?? 'owner'));
   });
 
   /**
@@ -3182,6 +3213,21 @@ export async function adminRoutes(app: FastifyInstance) {
       ]);
       for (const t of tips.rows) items.push({ id: `tp-${t.id}`, level: 'info', icon: '💐', title: 'You received a tip!', text: formatAed(Number(t.amount_fils)), eventId: t.event_id, at: t.created_at });
       for (const r of ratings.rows) items.push({ id: `rt-${r.id}`, level: 'info', icon: '🌟', title: `${r.stars}★ on your event`, text: (r.feedback || '').slice(0, 80), eventId: r.event_id, at: r.created_at });
+      // The employee's own recorded reward earnings (Achievements).
+      const rewards = await pool.query(
+        `SELECT id, event_id, amount_fils, note, created_at FROM staff_rewards
+          WHERE member_id=$1 AND created_at > now() - interval '60 days' ORDER BY created_at DESC LIMIT 20`, [staff.id]);
+      for (const r of rewards.rows) items.push({ id: `rw-${r.id}`, level: 'info', icon: '🏆', title: `You earned ${formatAed(Number(r.amount_fils))}!`, text: 'Positive customer feedback · view in Achievements', eventId: r.event_id, at: r.created_at });
+    }
+
+    // Every staff member sees the good-feedback celebration (who earned it).
+    const broadcasts = await pool.query(
+      `SELECT id, event_id, payload, created_at FROM notifications
+        WHERE channel='push' AND template='good_feedback_broadcast' AND created_at > now() - interval '30 days'
+        ORDER BY created_at DESC LIMIT 20`);
+    for (const b of broadcasts.rows) {
+      const p = b.payload || {};
+      items.push({ id: `gf-${b.id}`, level: 'info', icon: '🌟', title: 'Great customer feedback!', text: `${p.names || 'The crew'} earned a reward${p.feedback ? ` · "${String(p.feedback).slice(0, 60)}"` : ''}`, eventId: b.event_id, at: b.created_at });
     }
 
     items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());

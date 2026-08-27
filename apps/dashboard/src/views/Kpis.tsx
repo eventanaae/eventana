@@ -39,8 +39,9 @@ export function Kpis({ role }: { role?: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <AchievementsPanel personal={personal} />
       <Panel
-        title={`${personal ? 'My KPIs & Tips' : 'Team KPIs'} — ${monthLabel(month)}`}
+        title={`${personal ? 'My Achievements & Tips' : 'Team Achievements'} — ${monthLabel(month)}`}
         action={
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => shift(-1)} style={navBtn}>‹</button>
@@ -203,5 +204,38 @@ function MiniKpi({ label, value, accent }: { label: string; value: string; accen
       <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: '.3px' }}>{label.toUpperCase()}</div>
       <div style={{ fontWeight: 800, fontSize: 13.5, color: accent ?? C.ink, marginTop: 2 }}>{value}</div>
     </div>
+  );
+}
+
+// Recorded rewards (Achievements): each positive-feedback reward with its event,
+// date, amount and the feedback that earned it. Employee sees own; owner/manager
+// see everyone's. Amounts come from the settings value at the time earned.
+function AchievementsPanel({ personal }: { personal: boolean }) {
+  const [data, setData] = useState<{ rows: any[]; totalDisplay: string } | null>(null);
+  useEffect(() => { api.achievements().then(setData).catch(() => setData({ rows: [], totalDisplay: '0' })); }, []);
+  if (!data) return null;
+  return (
+    <Panel title={personal ? '🏆 My Achievements' : '🏆 Achievements'} action={<span style={{ ...fredoka(15), color: C.pinkDeep }}>AED {data.totalDisplay}</span>}>
+      {data.rows.length === 0 ? (
+        <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No rewards yet — great customer feedback will show up here with the amount you earned. 🌟</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {data.rows.map((r) => (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+              <span style={{ fontSize: 18 }}>{r.kind === 'glam_doll' ? '💅' : r.kind === 'event_incentive' ? '🎯' : '🌟'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                  {!personal && r.member ? `${r.member} · ` : ''}Good customer feedback
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {r.date}{r.eventId ? ` · ${r.eventId}` : ''}{r.note ? ` · "${r.note}"` : ''}
+                </div>
+              </div>
+              <span style={{ ...fredoka(14), color: C.green }}>+AED {r.amountDisplay}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }

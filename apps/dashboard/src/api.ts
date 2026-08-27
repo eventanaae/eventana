@@ -267,6 +267,7 @@ export const api = {
   reconcile: () => request<any>('/api/admin/reconcile', { method: 'POST' }),
   notifications: () => request<any[]>('/api/admin/notifications'),
   notificationFeed: () => request<{ items: any[] }>('/api/admin/notification-feed'),
+  achievements: () => request<{ rows: any[]; totalDisplay: string; totalFils: number }>('/api/admin/achievements'),
   alerts: () => request<any>('/api/admin/alerts'),
 
   /** Sign + upload an image straight to Cloudinary; returns its secure URL. */

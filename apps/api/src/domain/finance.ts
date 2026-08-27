@@ -208,7 +208,7 @@ export async function customerDetail(id: number) {
          FROM events e JOIN customers c ON c.id = e.customer_id
         WHERE e.phase <> 'Cancelled' AND e.event_date >= current_date
           AND NULLIF(regexp_replace(COALESCE(c.phone,''),'[^0-9]','','g'),'') =
-              NULLIF(regexp_replace(COALESCE($2,''),'[^0-9]','','g'),'')
+              NULLIF(regexp_replace(COALESCE($2::text,''),'[^0-9]','','g'),'')
         ORDER BY e.event_date`,
       [id, profile.phone],
     ),

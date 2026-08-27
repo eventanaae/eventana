@@ -27,6 +27,7 @@ import { generateEventPass, walletEnabled } from '../integrations/wallet.js';
 import { customerFromRequest } from '../domain/customerAuth.js';
 import { rescheduleEvent, RescheduleError, RESCHEDULE_MIN_HOURS } from '../domain/reschedule.js';
 import { refundOrderMoney } from '../domain/refund.js';
+import { recordGoodFeedbackRewards } from '../domain/incentives.js';
 
 /**
  * The customer is identified by their signed session token — never a raw
@@ -865,7 +866,7 @@ export async function eventRoutes(app: FastifyInstance) {
        VALUES ($1,$2,$3,$4)
        ON CONFLICT (event_id) DO UPDATE
          SET stars = EXCLUDED.stars, feedback = EXCLUDED.feedback, created_at = now()
-       RETURNING stars, feedback`,
+       RETURNING id, stars, feedback`,
       [eventId, customerId, parsed.data.stars, parsed.data.feedback ?? null],
     );
     // Let the crew see the rating land — surfaced in the dashboard's alerts.
@@ -875,7 +876,11 @@ export async function eventRoutes(app: FastifyInstance) {
       [eventId, JSON.stringify({ eventId, stars: parsed.data.stars })],
     );
     void pushToStaff('New rating ⭐', `${eventId} was rated ${parsed.data.stars}/5`, { eventId });
-    return inserted.rows[0];
+    // Positive feedback earns the crew the "good feedback" reward (amount from
+    // settings), recorded to their Achievements with a double-pay guard, and
+    // announced to the whole team. Best-effort — never blocks the rating.
+    void recordGoodFeedbackRewards({ eventId, ratingId: inserted.rows[0].id, stars: parsed.data.stars, feedback: parsed.data.feedback ?? null }).catch(() => {});
+    return { stars: inserted.rows[0].stars, feedback: inserted.rows[0].feedback };
   });
 
   /** Tip the crew — a real Ziina payment on the same Event ID. Optionally
