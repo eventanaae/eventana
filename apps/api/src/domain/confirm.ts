@@ -27,6 +27,7 @@ import { nextEventId } from './orders.js';
 import { makeVoucherCode, NEXT_BOOKING_VOUCHER_PERCENT } from './discounts.js';
 import { recordSaleFromOrder } from './finance.js';
 import { markOfferUsed } from './offers.js';
+import { INCENTIVE_EXCLUDED } from './incentives.js';
 
 export interface ConfirmResult {
   /** Null for orders that create no event (e.g. standalone shop orders). */
@@ -117,6 +118,33 @@ export async function confirmBooking(
       [order.id],
     );
     const tip = tipRows[0];
+    // A whole-team tip (member_id NULL) is split EQUALLY among the crew that
+    // worked the event, so each person's share lands in their own earnings.
+    // A tip aimed at one person stays with them. Idempotent: once split, the
+    // NULL pool row is gone so a re-run does nothing.
+    if (tip && tip.member_id === null) {
+      const { rows: crew } = await db.query(
+        `SELECT tm.id FROM event_team et JOIN team_members tm ON tm.id = et.member_id
+          WHERE et.event_id = $1 AND tm.active AND lower(tm.name) <> ALL($2::text[])
+          ORDER BY tm.id`,
+        [tip.event_id, INCENTIVE_EXCLUDED],
+      );
+      if (crew.length > 0) {
+        const total = Number(tip.amount_fils);
+        const base = Math.floor(total / crew.length);
+        const rem = total - base * crew.length; // spread the odd fils to the first few
+        await db.query(`DELETE FROM tips WHERE order_id = $1 AND member_id IS NULL`, [order.id]);
+        for (let i = 0; i < crew.length; i++) {
+          const share = base + (i < rem ? 1 : 0);
+          if (share <= 0) continue;
+          await db.query(
+            `INSERT INTO tips (event_id, order_id, member_id, amount_fils, status, paid_at)
+             VALUES ($1,$2,$3,$4,'paid', now())`,
+            [tip.event_id, i === 0 ? order.id : null, crew[i].id, share],
+          );
+        }
+      }
+    }
     if (tip) {
       await db.query(
         `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)

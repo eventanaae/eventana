@@ -819,6 +819,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
 
   const submitRating = async () => {
     if (stars < 1) return;
+    if (stars < 5 && !feedback.trim()) return; // must say why below 5 stars
     setSavingRating(true);
     try {
       await api.rateEvent(event.id, stars, feedback.trim() || undefined);
@@ -878,28 +879,37 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
         <Notice tone="ok">{t('me.rateThanks', { stars: existing.stars })}</Notice>
       ) : (
         <>
+          {stars >= 1 && stars < 5 && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.pink, marginBottom: 6 }}>{t('me.rateWhyRequired')}</div>
+          )}
           <textarea
-            placeholder={t('me.rateFeedbackPh')}
+            placeholder={stars >= 1 && stars < 5 ? t('me.rateFeedbackReqPh') : t('me.rateFeedbackPh')}
             rows={2}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             style={{
-              width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
+              width: '100%', border: `1px solid ${stars >= 1 && stars < 5 && !feedback.trim() ? C.pink : C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
               fontWeight: 600, fontSize: 12.5, background: C.cream, color: C.ink,
               outline: 'none', resize: 'none', marginBottom: 10,
             }}
           />
-          <button
-            onClick={submitRating}
-            disabled={stars < 1 || savingRating}
-            style={{
-              width: '100%', background: stars < 1 ? '#e6dcd6' : C.pink, color: '#fff', border: 'none',
-              fontWeight: 700, fontSize: 13, padding: '12px 0', borderRadius: 16,
-              cursor: stars < 1 ? 'not-allowed' : 'pointer', marginBottom: 6,
-            }}
-          >
-            {savingRating ? t('me.rateSaving') : t('me.rateSubmit')}
-          </button>
+          {(() => {
+            const needWhy = stars >= 1 && stars < 5 && !feedback.trim();
+            const blocked = stars < 1 || needWhy || savingRating;
+            return (
+              <button
+                onClick={submitRating}
+                disabled={blocked}
+                style={{
+                  width: '100%', background: blocked ? '#e6dcd6' : C.pink, color: '#fff', border: 'none',
+                  fontWeight: 700, fontSize: 13, padding: '12px 0', borderRadius: 16,
+                  cursor: blocked ? 'not-allowed' : 'pointer', marginBottom: 6,
+                }}
+              >
+                {savingRating ? t('me.rateSaving') : t('me.rateSubmit')}
+              </button>
+            );
+          })()}
         </>
       )}
 
