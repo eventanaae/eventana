@@ -33,6 +33,18 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // success sees the true availability picture.
   report.expiredHolds = await expireStaleHolds(pool);
 
+  // Auto-complete events whose end time (in UAE) has passed. base_end_time
+  // already reflects any extra hours the customer bought, so this respects a
+  // longer party. Never touches cancelled events. Non-fatal.
+  await pool.query(
+    `UPDATE events SET phase = 'Event Completed'
+      WHERE phase NOT IN ('Event Completed', 'Cancelled')
+        AND cancelled_at IS NULL
+        AND base_end_time ~ '^[0-2][0-9]:[0-5][0-9]$'
+        AND ((event_date + base_end_time::time) AT TIME ZONE 'Asia/Dubai') < now()`,
+  ).then((r) => { if (r.rowCount) console.log(`[events] auto-completed ${r.rowCount} finished event(s)`); })
+    .catch((err) => console.error('[events] auto-complete failed:', err));
+
   const stuckSince = new Date(Date.now() - config.reconcileStuckAfterMs);
   const { rows } = await pool.query(
     `SELECT p.id, p.provider, p.provider_payment_id, p.order_id, o.updated_at

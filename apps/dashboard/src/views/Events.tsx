@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
-import { Empty } from './Today';
+import { Empty, eventTitle } from './Today';
 
 const PHASES = [
   'Booking Confirmed', 'Preparing', 'On The Way', 'Arrived',
@@ -87,14 +87,16 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
                   style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.customer}</span>
+                    <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</span>
                     {e.totalDisplay != null && (
                       <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
                     )}
                   </div>
+                  {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
                   <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
                     <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
                     {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {e.start_time}–{e.base_end_time} · {e.emirate}
+                    {e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <Badge tone={e.phase === 'Cancelled' ? 'error' : 'info'}>{e.phase}</Badge>

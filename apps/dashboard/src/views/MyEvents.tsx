@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Badge, C, fredoka, Panel, Spinner } from '../ui';
-import { Empty } from './Today';
+import { Empty, eventTitle } from './Today';
 
 /** The signed-in member's own assigned jobs, with one-tap directions. */
 export function MyEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
@@ -35,12 +35,14 @@ export function MyEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void })
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ ...fredoka(15) }}>
+                    <div style={{ ...fredoka(15) }}>{eventTitle(e)}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginTop: 1 }}>
                       {new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
-                      {isToday && <span style={{ color: C.pinkDeep, fontSize: 12 }}> · Today</span>}
+                      {isToday && <span style={{ color: C.pinkDeep }}> · Today</span>}
+                      {' · '}{String(e.start_time).slice(0, 5)}–{String(e.base_end_time).slice(0, 5)}
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-                      {e.customer} · {e.emirate} · {String(e.start_time).slice(0, 5)}–{String(e.base_end_time).slice(0, 5)}
+                      {e.eventFor ? `by ${e.customer} · ` : ''}{e.emirate}{e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
                     </div>
                     {e.eta && <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, marginTop: 2 }}>ETA set: {e.eta}</div>}
                   </div>

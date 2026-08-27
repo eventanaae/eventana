@@ -5,7 +5,6 @@ import { C, fredoka } from './ui';
 import { BookingNotifier } from './BookingNotifier';
 import { NotificationBell } from './NotificationBell';
 import { Today } from './views/Today';
-import { Overview } from './views/Overview';
 import { Schedule } from './views/Schedule';
 import { EventDrawer } from './views/Events';
 import { ShopOrderDrawer } from './views/ShopOrderDrawer';
@@ -66,7 +65,6 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
   // Business (owner)
-  { id: 'overview', label: 'Overview', icon: '📊', title: 'Overview', sub: 'Orders, emirates & themes at a glance', section: 'business', mobile: true },
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
   { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (P&L)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
   // Setup
@@ -183,7 +181,6 @@ export default function App() {
   ) : (
     <>
       {view === 'today' && <Today onOpenEvent={openEvent} onOpenShop={setOpenShopId} onGoto={go} staffName={staffName} role={role} />}
-      {view === 'overview' && <Overview onOpenEvent={openEvent} onGoto={go} />}
       {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} role={role} />}
       {view === 'tasks' && <Tasks role={role} />}
       {view === 'inventory' && <Inventory role={role} />}

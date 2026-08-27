@@ -368,8 +368,9 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
       pool.query(
         `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta,
-                e.emirate, c.name AS customer, p.name AS package_name, o.total_fils,
-                th.name AS theme_name, e.custom_theme
+                e.emirate, e.celebration_type, c.name AS customer, p.name AS package_name, o.total_fils,
+                COALESCE(th.name, o.cart->>'customTheme') AS theme_name, e.custom_theme,
+                o.cart->>'eventFor' AS "eventFor"
            FROM events e
            JOIN customers c ON c.id = e.customer_id
            JOIN orders o ON o.id = e.order_id
@@ -744,11 +745,13 @@ export async function adminRoutes(app: FastifyInstance) {
     const hideMoney = staff?.role === 'employee' || staff?.role === 'driver';
     const { rows } = await pool.query(
       `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.emirate,
-              e.celebration_type, c.name AS customer, c.phone, o.id AS order_id,
+              e.celebration_type, e.custom_theme, th.name AS theme_name, o.cart,
+              c.name AS customer, c.phone, o.id AS order_id,
               o.status AS order_status, o.total_fils
          FROM events e
          JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id
+         LEFT JOIN themes th ON th.id = e.theme_id
         WHERE ($1::text IS NULL OR o.status = $1)
           AND ($2::text IS NULL OR EXISTS (
                 SELECT 1 FROM event_team et WHERE et.event_id = e.id AND et.member_id = $2))
@@ -756,11 +759,17 @@ export async function adminRoutes(app: FastifyInstance) {
         LIMIT 200`,
       [status ?? null, driverOnly ? (staff?.id ?? '__none__') : null],
     );
-    return rows.map((r) => ({
-      ...r,
-      total_fils: hideMoney ? null : r.total_fils,
-      totalDisplay: hideMoney ? null : formatAed(Number(r.total_fils)),
-    }));
+    return rows.map((r) => {
+      const cart = (r.cart ?? {}) as { eventFor?: string; customTheme?: string };
+      return {
+        ...r,
+        cart: undefined,
+        eventFor: cart.eventFor ?? null,
+        theme_name: r.theme_name ?? cart.customTheme ?? null,
+        total_fils: hideMoney ? null : r.total_fils,
+        totalDisplay: hideMoney ? null : formatAed(Number(r.total_fils)),
+      };
+    });
   });
 
   app.get('/api/admin/events/:eventId', async (request, reply) => {
@@ -3143,10 +3152,14 @@ export async function adminRoutes(app: FastifyInstance) {
         // Read from the REAL assignments (event_staff), so an employee sees every
         // event they were actually rostered onto — not the stale checkout crew.
         `SELECT DISTINCT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta, e.emirate,
+                e.celebration_type, e.custom_theme, COALESCE(th.name, o.cart->>'customTheme') AS theme_name,
+                o.cart->>'eventFor' AS "eventFor",
                 c.name AS customer, e.map_lat, e.map_lng
            FROM events e
            JOIN event_staff es ON es.event_id = e.id AND es.assignee_id = $1
            JOIN customers c ON c.id = e.customer_id
+           JOIN orders o ON o.id = e.order_id
+           LEFT JOIN themes th ON th.id = e.theme_id
           WHERE e.event_date >= CURRENT_DATE - interval '1 day'
             AND e.phase <> 'Cancelled' AND e.cancelled_at IS NULL
           ORDER BY e.event_date, e.start_time`,
@@ -3156,8 +3169,12 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     const { rows } = await pool.query(
       `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta, e.emirate,
+              e.celebration_type, e.custom_theme, COALESCE(th.name, o.cart->>'customTheme') AS theme_name,
+              o.cart->>'eventFor' AS "eventFor",
               c.name AS customer, e.map_lat, e.map_lng
          FROM events e JOIN customers c ON c.id = e.customer_id
+         JOIN orders o ON o.id = e.order_id
+         LEFT JOIN themes th ON th.id = e.theme_id
         WHERE e.event_date >= CURRENT_DATE - interval '1 day'
           AND e.phase <> 'Cancelled' AND e.cancelled_at IS NULL
         ORDER BY e.event_date, e.start_time

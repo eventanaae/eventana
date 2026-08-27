@@ -105,7 +105,8 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
                 <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>{todays.length === 1 ? 'YOUR EVENT · TODAY' : 'FIRST TODAY'}</div>
               </div>
-              <div style={{ ...fredoka(21), marginTop: 8 }}>{todays[0].customer}</div>
+              <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(todays[0])}</div>
+              {todays[0].eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {todays[0].customer}</div>}
               <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>Today · {todays[0].start_time}–{todays[0].base_end_time} · {todays[0].emirate}</div>
               {themeOf(todays[0]) && (
                 <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(todays[0])}</div>
@@ -137,7 +138,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
           <StatCard i={0} label="Events today" value={Math.round(evToday)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
           {k.revenueThisMonthDisplay
             ? <StatCard i={1} label="Revenue this month" value={<span>AED {k.revenueThisMonthDisplay}</span>} icon="💸" accent={ACCENTS[1]} onClick={() => onGoto('ceo')} />
-            : <StatCard i={1} label="Bookings this month" value={Number(k.bookingsThisMonth) || 0} icon="🎉" accent={ACCENTS[1]} onClick={() => onGoto('overview')} />}
+            : <StatCard i={1} label="Bookings this month" value={Number(k.bookingsThisMonth) || 0} icon="🎉" accent={ACCENTS[1]} onClick={() => onGoto('schedule')} />}
           <StatCard i={2} label="Upcoming" value={Math.round(upCount)} icon="✨" accent={ACCENTS[4]} hint={next ? when(next).replace('Today · ', 'next today ') : undefined} onClick={() => onGoto('schedule')} />
           <StatCard i={3} label="Open tasks" value={Math.round(tasks)} icon="📋" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
         </div>
@@ -151,7 +152,8 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>{isToday(next) ? 'NEXT EVENT · TODAY' : 'NEXT EVENT'}</div>
             </div>
-            <div style={{ ...fredoka(21), marginTop: 8 }}>{next.customer}</div>
+            <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(next)}</div>
+            {next.eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {next.customer}</div>}
             <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{when(next)}–{next.base_end_time} · {next.emirate}</div>
             {themeOf(next) && (
               <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(next)}</div>
@@ -272,10 +274,24 @@ function ShopRow({ o, onOpen }: { o: any; onOpen: () => void }) {
   );
 }
 
-/** The theme label for an event row: the booked theme name, or "Custom theme". */
+/** The theme label for an event row — the real name, custom or catalogue. */
 function themeOf(e: any): string | null {
+  if (e.theme_name) return String(e.theme_name);
   if (e.custom_theme) return 'Custom theme';
-  return e.theme_name || null;
+  return null;
+}
+
+/** Prettify a celebration type id ("kids") into a label ("Birthday"). */
+export function celebrationName(type?: string): string {
+  const map: Record<string, string> = { kids: 'Birthday', adult: 'Birthday', baby_shower: 'Baby Shower', gender_reveal: 'Gender Reveal', graduation: 'Graduation', anniversary: 'Anniversary', corporate: 'Event', wedding: 'Wedding' };
+  if (!type) return 'Celebration';
+  return map[type] || String(type).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** The headline for an event card: "Dana's Birthday" — guest of honour + type. */
+export function eventTitle(e: any): string {
+  const t = celebrationName(e.celebration_type);
+  return e.eventFor ? `${e.eventFor}'s ${t}` : (e.customer || t);
 }
 
 function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; onOpen: () => void; accentIdx?: number }) {
@@ -284,7 +300,8 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
     <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
       <span style={{ width: 34, height: 34, borderRadius: 11, background: ac.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: 'none' }}>🎈</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.customer}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</div>
+        {e.eventFor && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2 }}>by {e.customer}</div>}
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{label} · {e.emirate}</div>
         {themeOf(e) && (
           <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {themeOf(e)}</div>
