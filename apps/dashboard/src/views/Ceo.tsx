@@ -116,14 +116,15 @@ export function Ceo() {
             );
           })()}
 
-          {/* Executive summary — needs your attention */}
-          {data.insights?.length > 0 && (
+          {/* Recommendations & insights — drop app-only "AED 0" noise (bookings
+              carry no revenue in the app yet, so those lines are misleading). */}
+          {(() => { const ins0 = (data.insights ?? []).filter((x: any) => !/AED 0\b/.test(x.text)); return ins0.length > 0 && (
             <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
               <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.pinkDeep})` }} />
               <div style={{ padding: '16px 20px' }}>
-                <div style={{ ...fredoka(15), marginBottom: 12 }}>Executive summary — what needs your attention</div>
+                <div style={{ ...fredoka(15), marginBottom: 12 }}>💡 Recommendations & insights</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 10 }}>
-                  {data.insights.map((ins: any, i: number) => {
+                  {ins0.map((ins: any, i: number) => {
                     const tone = ins.tone === 'good' ? C.green : ins.tone === 'warn' ? C.red : C.pinkDeep;
                     const soft = ins.tone === 'good' ? C.greenSoft : ins.tone === 'warn' ? C.redSoft : C.pinkSoft;
                     const icon = ins.tone === 'good' ? '↑' : ins.tone === 'warn' ? '!' : 'i';
@@ -137,7 +138,7 @@ export function Ceo() {
                 </div>
               </div>
             </div>
-          )}
+          ); })()}
 
           {/* Cash · pipeline · funnel */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
