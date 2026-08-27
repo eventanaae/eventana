@@ -30,7 +30,7 @@ import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, norma
 import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
 import { logAudit, listAudit } from '../domain/auditLog.js';
 import { verifyStaffSession } from '../domain/staffAuth.js';
-import { sendStaffSetupEmail } from './staffAuth.js';
+import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
@@ -2814,7 +2814,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const token = issueStaffSetupToken(m.id, 'setup');
     const sent = await sendStaffSetupEmail({ name: m.name, email: m.email, token, kind: 'setup' });
     logAudit({ actor: String((request as any).staff?.name ?? 'owner'), role: 'owner', action: 'staff_invite', target: m.id, detail: { email: m.email, accessLevel: m.access_level } });
-    return { ...m, emailSent: sent };
+    // The owner also gets the link back, to copy/share if email is slow.
+    return { ...m, emailSent: sent, setupLink: buildSetupLink(token) };
   });
 
   /** Owner-only: resend a set-password link to an existing member. */
@@ -2826,7 +2827,7 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!m || !m.email) return reply.status(404).send({ error: 'no_email', message: 'This member has no email on file.' });
     const token = issueStaffSetupToken(m.id, 'setup');
     const sent = await sendStaffSetupEmail({ name: m.name, email: m.email, token, kind: 'setup' });
-    return { ok: true, emailSent: sent };
+    return { ok: true, emailSent: sent, setupLink: buildSetupLink(token) };
   });
 
   /** Owner-only: enable or disable a member's access (disabled = can't sign in). */

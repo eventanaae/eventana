@@ -17,10 +17,11 @@ import {
   issueStaffSetupToken, verifyStaffSetupToken, passwordProblem,
 } from '../domain/staffAuth.js';
 
-function setupLink(token: string): string {
+export function buildSetupLink(token: string): string {
   const base = String(config.publicDashboardUrl).replace(/\/$/, '');
   return `${base}/?setup=${encodeURIComponent(token)}`;
 }
+const setupLink = buildSetupLink;
 
 /** Send a "set your password" email (first-time invite or reset). Returns ok. */
 export async function sendStaffSetupEmail(opts: { name: string; email: string; token: string; kind: 'setup' | 'reset' }): Promise<boolean> {
