@@ -25,7 +25,7 @@ export function FinanceHub({ role }: { role?: string }) {
         <TabBtn on={tab === 'expenses'} onClick={() => setTab('expenses')}>🧾 Expenses</TabBtn>
         {canSeeAccounting && <TabBtn on={tab === 'accounting'} onClick={() => setTab('accounting')}>🏦 Accounting</TabBtn>}
       </div>
-      {tab === 'sales' && <SalesTab />}
+      {tab === 'sales' && <SalesTab isOwner={role === 'owner'} />}
       {tab === 'expenses' && <ExpensesTab />}
       {tab === 'accounting' && canSeeAccounting && <AccountingTab />}
     </div>
@@ -66,7 +66,7 @@ function AccountingTab() {
 }
 
 // ── Sales & Get Paid (Invoices + Receipts) ───────────────────────────────────
-function SalesTab() {
+function SalesTab({ isOwner }: { isOwner?: boolean }) {
   const [sub, setSub] = useState<'invoices' | 'receipts'>('invoices');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -74,7 +74,7 @@ function SalesTab() {
         <SubBtn on={sub === 'invoices'} onClick={() => setSub('invoices')}>Invoices</SubBtn>
         <SubBtn on={sub === 'receipts'} onClick={() => setSub('receipts')}>Sales receipts</SubBtn>
       </div>
-      {sub === 'invoices' ? <InvoicesList /> : <ReceiptsList />}
+      {sub === 'invoices' ? <InvoicesList isOwner={isOwner} /> : <ReceiptsList isOwner={isOwner} />}
     </div>
   );
 }
@@ -87,7 +87,7 @@ function SubBtn({ on, onClick, children }: { on: boolean; onClick: () => void; c
   );
 }
 
-function InvoicesList() {
+function InvoicesList({ isOwner }: { isOwner?: boolean }) {
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [sel, setSel] = useState<any>(null);
@@ -111,8 +111,8 @@ function InvoicesList() {
           action={inv.status !== 'paid' ? <button style={linkBtn} onClick={async () => { await api.finSetInvoiceStatus(inv.id, 'paid'); load(); }}>Mark paid</button> : null}
         />
       ))}
-      {creating && <DocForm kind="invoice" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
-      {sel && <DocDetail doc={sel} kind="invoice" onClose={() => setSel(null)} onChanged={load} />}
+      {creating && <DocForm kind="invoice" isOwner={isOwner} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {sel && <DocDetail doc={sel} kind="invoice" isOwner={isOwner} onClose={() => setSel(null)} onChanged={load} />}
     </Panel>
   );
 }
@@ -162,7 +162,7 @@ export function AddonFlow({ onClose, initialEventId }: { onClose: () => void; in
   );
 }
 
-function ReceiptsList() {
+function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [newOrder, setNewOrder] = useState(false);
@@ -290,14 +290,14 @@ function ReceiptsList() {
         }
         return out;
       })()}
-      {creating && <DocForm kind="receipt" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {creating && <DocForm kind="receipt" isOwner={isOwner} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
       {newOrder && (
         <Modal title="New order — send a link" onClose={() => setNewOrder(false)}>
           <NewOrder />
         </Modal>
       )}
       {addon && <AddonFlow onClose={() => setAddon(false)} />}
-      {sel && <DocDetail doc={sel} kind="receipt" onClose={() => setSel(null)} onChanged={load} />}
+      {sel && <DocDetail doc={sel} kind="receipt" isOwner={isOwner} onClose={() => setSel(null)} onChanged={load} />}
     </Panel>
   );
 }
@@ -362,7 +362,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
 }
 
 // ── Shared: invoice / receipt create form ────────────────────────────────────
-function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' | 'receipt'; onClose: () => void; onSaved: () => void; initial?: any; editId?: number }) {
+function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: 'invoice' | 'receipt'; onClose: () => void; onSaved: () => void; initial?: any; editId?: number; isOwner?: boolean }) {
   const [customer, setCustomer] = useState<{ id: number | null; name: string } | null>(initial?.customer ?? null);
   const [items, setItems] = useState<Array<{ name: string; qty: number; priceFils: number }>>(initial?.items ?? []);
   const [discount, setDiscount] = useState(initial?.discount ?? '');
@@ -435,15 +435,22 @@ function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' 
         ? <Field label="Due date"><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={input} /></Field>
         : <Field label="Date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} /></Field>}
 
-      {/* Commission approval — the owner tags a manual corporate/events deal to
-          Marsha (2% on ≥AED 20,000). Never for website orders. */}
-      <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, padding: '10px 12px', borderRadius: 12, border: `1px solid ${commissionMarsha ? C.pink : C.line}`, background: commissionMarsha ? C.pinkSoft : '#fff', cursor: 'pointer' }}>
-        <input type="checkbox" checked={commissionMarsha} onChange={(e) => setCommissionMarsha(e.target.checked)} />
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: commissionMarsha ? C.pinkDeep : C.ink }}>
-          💼 Marsha’s corporate deal — approve 2% commission
-          <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, color: C.muted }}>Counts toward her commission when the total is AED 20,000+ (events-based).</span>
-        </span>
-      </label>
+      {/* Commission approval is the OWNER's decision alone: only the owner sees the
+          switch. Marsha (or anyone else) can see it was approved, but can't grant
+          it — nothing reaches her KPI until the owner ticks this. */}
+      {isOwner ? (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, padding: '10px 12px', borderRadius: 12, border: `1px solid ${commissionMarsha ? C.pink : C.line}`, background: commissionMarsha ? C.pinkSoft : '#fff', cursor: 'pointer' }}>
+          <input type="checkbox" checked={commissionMarsha} onChange={(e) => setCommissionMarsha(e.target.checked)} />
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: commissionMarsha ? C.pinkDeep : C.ink }}>
+            💼 Marsha’s corporate deal — approve 2% commission
+            <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, color: C.muted }}>Owner-only. Counts toward her KPI once approved, when the total is AED 20,000+ (events-based).</span>
+          </span>
+        </label>
+      ) : commissionMarsha ? (
+        <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: C.pinkSoft, fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
+          ✓ Commission approved for Marsha
+        </div>
+      ) : null}
 
       {/* Party details echoed on the receipt — guest of honour + age + theme. */}
       <div style={{ marginTop: 4, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -469,7 +476,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId }: { kind: 'invoice' 
 }
 
 // ── Detail view (tap a row): full document + Print / Email / Edit / Copy / Delete
-function DocDetail({ doc, kind, onClose, onChanged }: { doc: any; kind: 'invoice' | 'receipt'; onClose: () => void; onChanged: () => void }) {
+function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind: 'invoice' | 'receipt'; onClose: () => void; onChanged: () => void; isOwner?: boolean }) {
   const [mode, setMode] = useState<'view' | 'edit' | 'copy'>('view');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -509,8 +516,8 @@ function DocDetail({ doc, kind, onClose, onChanged }: { doc: any; kind: 'invoice
     onChanged(); onClose();
   };
 
-  if (mode === 'edit') return <DocForm kind={kind} editId={doc.id} initial={toInitial()} onClose={() => setMode('view')} onSaved={() => { onChanged(); onClose(); }} />;
-  if (mode === 'copy') return <DocForm kind={kind} initial={toInitial()} onClose={() => setMode('view')} onSaved={() => { onChanged(); onClose(); }} />;
+  if (mode === 'edit') return <DocForm kind={kind} editId={doc.id} initial={toInitial()} isOwner={isOwner} onClose={() => setMode('view')} onSaved={() => { onChanged(); onClose(); }} />;
+  if (mode === 'copy') return <DocForm kind={kind} initial={toInitial()} isOwner={isOwner} onClose={() => setMode('view')} onSaved={() => { onChanged(); onClose(); }} />;
 
   const paid = kind === 'receipt' || doc.status === 'paid';
   return (

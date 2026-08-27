@@ -1684,7 +1684,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const schema = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), status: z.enum(['draft', 'sent']).optional(), commissionRep: z.string().nullable().optional() });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
-    return reply.status(201).send(await finance.createInvoice(p.data));
+    // Only the owner can approve a commission tag; anyone else creates it untagged.
+    const owner = (request as any).staff?.role === 'owner';
+    return reply.status(201).send(await finance.createInvoice({ ...p.data, commissionRep: owner ? p.data.commissionRep ?? null : null }));
   });
   app.patch('/api/admin/finance/invoices/:id/status', async (request, reply) => {
     const id = Number((request.params as { id: string }).id);
@@ -1699,7 +1701,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const id = Number((request.params as { id: string }).id);
     const p = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), commissionRep: z.string().nullable().optional() }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
-    const r = await finance.updateInvoice(id, p.data);
+    // Non-owners never touch the commission tag (undefined = leave as approved/not).
+    const owner = (request as any).staff?.role === 'owner';
+    const r = await finance.updateInvoice(id, { ...p.data, commissionRep: owner ? p.data.commissionRep : undefined });
     return r ?? reply.status(404).send({ error: 'not_found' });
   });
   app.delete('/api/admin/finance/invoices/:id', async (request) => finance.deleteInvoice(Number((request.params as { id: string }).id)));
@@ -1710,7 +1714,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const id = Number((request.params as { id: string }).id);
     const p = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional(), commissionRep: z.string().nullable().optional() }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
-    const r = await finance.updateReceipt(id, p.data);
+    const owner = (request as any).staff?.role === 'owner';
+    const r = await finance.updateReceipt(id, { ...p.data, commissionRep: owner ? p.data.commissionRep : undefined });
     return r ?? reply.status(404).send({ error: 'not_found' });
   });
   app.post('/api/admin/finance/receipts/:id/email', async (request) => finance.emailDoc('receipt', Number((request.params as { id: string }).id)));
@@ -1718,7 +1723,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const schema = docSchema.extend({ date: z.string().nullable().optional(), paidWith: z.string().max(40).optional(), commissionRep: z.string().nullable().optional() });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
-    return reply.status(201).send(await finance.createReceipt(p.data));
+    const owner = (request as any).staff?.role === 'owner';
+    return reply.status(201).send(await finance.createReceipt({ ...p.data, commissionRep: owner ? p.data.commissionRep ?? null : null }));
   });
   app.delete('/api/admin/finance/receipts/:id', async (request) =>
     finance.deleteReceipt(Number((request.params as { id: string }).id)));

@@ -559,12 +559,15 @@ export async function deleteReceipt(id: number) {
 
 export async function updateReceipt(id: number, d: DocInput & { date?: string | null; paidWith?: string; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
+  // Commission approval is owner-only — see updateInvoice. undefined = leave as is.
+  const touchComm = d.commissionRep !== undefined;
   const { rows } = await pool.query(
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
-       event_for=$12, theme=$13, age=$14, commission_rep=$15
+       event_for=$12, theme=$13, age=$14,
+       commission_rep = CASE WHEN $16::boolean THEN $15 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null],
+    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null, touchComm],
   );
   const saved = rows[0];
   if (saved && d.date) {
@@ -584,11 +587,16 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
 
 export async function updateInvoice(id: number, d: DocInput & { dueDate?: string | null; issueDate?: string | null; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
+  // The commission approval is the OWNER's alone: routes pass commissionRep only
+  // for an owner. When it's undefined the tag is left exactly as it is, so a
+  // non-owner editing the doc can never grant, clear, or change the approval.
+  const touchComm = d.commissionRep !== undefined;
   const { rows } = await pool.query(
     `UPDATE finance_invoices SET customer_id=$2, customer_name=$3, issue_date=COALESCE($4,issue_date), due_date=$5, line_items=$6,
-       subtotal_fils=$7, discount_fils=$8, shipping_fils=$9, total_fils=$10, message=$11, commission_rep=$12
+       subtotal_fils=$7, discount_fils=$8, shipping_fils=$9, total_fils=$10, message=$11,
+       commission_rep = CASE WHEN $13::boolean THEN $12 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null, d.commissionRep ?? null],
+    [id, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null, d.commissionRep ?? null, touchComm],
   );
   return rows[0] ? decorateInvoice(rows[0]) : null;
 }
