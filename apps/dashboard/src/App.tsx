@@ -34,16 +34,18 @@ export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
   | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu';
 
-type Section = 'ops' | 'sales' | 'business' | 'admin';
+type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
 // Sidebar sections, in priority order. Every view lives in exactly one section
 // so the whole app is visible and one click away on desktop, and grouped with
-// clear labels on mobile — no "lost in More".
+// clear labels on mobile — no "lost in More". Mirrors the manager menu.
 const SECTIONS: Array<{ id: Section; label: string }> = [
   { id: 'ops', label: 'Operations' },
   { id: 'sales', label: 'Sales & Customers' },
+  { id: 'marketing', label: 'Marketing' },
+  { id: 'staff', label: 'Staff' },
   { id: 'business', label: 'Business' },
-  { id: 'admin', label: 'Team & Setup' },
+  { id: 'admin', label: 'Setup' },
 ];
 
 // `mobile: true` marks the handful of top tabs shown in the phone bottom bar.
@@ -52,20 +54,22 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'schedule', label: 'Events', icon: '▦', title: 'Events', sub: 'Events, jobs, bookings & tasks', section: 'ops', mobile: true },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets, stock & issue reports', section: 'ops' },
   { id: 'alerts', label: 'Updates', icon: '📣', title: 'Latest updates', sub: "What's new — prep, stock, tips and ratings", section: 'ops', mobile: true },
+  { id: 'finance', label: 'Sales', icon: '💸', title: 'Sales & Get Paid', sub: 'Receipts, invoices, expenses & accounts', section: 'sales' },
   { id: 'customers', label: 'Customers', icon: '👥', title: 'Customers', sub: 'Your customer book — spend, history & contacts', section: 'sales' },
-  { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
-  { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
   { id: 'products', label: 'Products', icon: '🎁', title: 'Products & services', sub: 'Custom products, prices & descriptions', section: 'sales' },
   { id: 'suppliers', label: 'Suppliers', icon: '🚚', title: 'Suppliers', sub: 'Who we buy from & what they supply', section: 'sales' },
-  // Shop orders already flow into Sales (finance) and the dashboard, so there's
-  // no separate Shop tab — removed from the nav on purpose.
+  { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
+  // Marketing
+  { id: 'marketing', label: 'Marketing', icon: '📣', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'marketing' },
+  { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'marketing' },
+  // Staff
+  { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
+  { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
+  // Business (owner)
   { id: 'overview', label: 'Overview', icon: '📊', title: 'Overview', sub: 'Orders, emirates & themes at a glance', section: 'business', mobile: true },
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
-  { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance', sub: 'Invoices, receipts, expenses & accounts', section: 'business' },
   { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (P&L)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
-  { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Your achievements, rewards & points', section: 'business' },
-  { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'business' },
-  { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'admin' },
+  // Setup
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', section: 'admin' },
   { id: 'reports', label: 'Reports & Tools', icon: '🛡️', title: 'Reports & Tools', sub: 'Reconciliation, refunds, audit log & clean-up', section: 'admin' },
   { id: 'profile', label: 'Profile', icon: '👤', title: 'My Profile', sub: 'Your details, achievements & feedback', section: 'admin' },
