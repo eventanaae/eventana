@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CELEBRATION_TYPES } from '@eventana/shared';
 import { api } from '../api';
-import { C, Panel, Spinner, fredoka } from '../ui';
+import { C, Panel, Spinner, fredoka, money } from '../ui';
 
 /**
  * CEO Executive Dashboard — a premium, decision-first view. In under a minute:
@@ -56,9 +56,6 @@ export function Ceo() {
       .finally(() => setLoading(false));
   }, [range.from, range.to, emirate, eventType]);
 
-  const revSpark: number[] = (data?.trend ?? []).map((t: any) => t.revenueFils);
-  const bookSpark: number[] = (data?.trend ?? []).map((t: any) => t.bookings);
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Filters */}
@@ -98,18 +95,26 @@ export function Ceo() {
           {/* CEO Morning Brief — birthdays + prioritised alerts (Critical→Low) */}
           <MorningBrief data={data} />
 
-          {/* Hero KPIs with growth + sparkline */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
-            <HeroKpi label="Revenue" value={`AED ${data.revenueDisplay}`} delta={data.revenueChangePct} spark={revSpark} accent={C.pink} />
-            <HeroKpi label="Bookings" value={String(data.bookings)} delta={data.bookingsChangePct} spark={bookSpark} accent={C.mint} />
-            <HeroKpi label="Avg order value" value={`AED ${data.aovDisplay}`} accent={C.yellow} />
-            <HeroKpi
-              label={data.profitNegative ? 'Net loss' : 'Net profit'}
-              value={`AED ${data.profitDisplay}`}
-              caption={`${data.marginPct}% margin`}
-              accent={data.profitNegative ? C.red : C.green}
-            />
-          </div>
+          {/* This year — the real P&L (from QuickBooks), the headline numbers */}
+          {data.business?.latestYear && (() => {
+            const y = data.business.latestYear;
+            const expFils = Number(y.revenueFils) - Number(y.netFils);
+            return (
+              <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+                <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.mint})` }} />
+                <div style={{ padding: '16px 20px' }}>
+                  <div style={{ ...fredoka(15), marginBottom: 14 }}>📊 This year · {y.year}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
+                    <HeroKpi label="Revenue YTD" value={`AED ${y.revenueDisplay}`} accent={C.pink} />
+                    <HeroKpi label={Number(y.netFils) < 0 ? 'Net loss YTD' : 'Net profit YTD'} value={`AED ${y.netDisplay}`} caption={`${y.marginPct}% margin`} accent={Number(y.netFils) < 0 ? C.red : C.green} />
+                    <HeroKpi label="Expenses YTD" value={`AED ${money(expFils)}`} accent={C.yellow} />
+                    <HeroKpi label="Upcoming events" value={String(data.pipeline?.events ?? 0)} caption={`${data.business.customers} customers`} accent={C.mint} />
+                  </div>
+                  {(data.business.years ?? []).length > 1 && <YearBars years={data.business.years} />}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Executive summary — needs your attention */}
           {data.insights?.length > 0 && (
@@ -133,11 +138,6 @@ export function Ceo() {
               </div>
             </div>
           )}
-
-          {/* Revenue & profit chart */}
-          <Panel title="Revenue by month">
-            <RevenueChart trend={data.trend} />
-          </Panel>
 
           {/* Cash · pipeline · funnel */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
@@ -175,14 +175,6 @@ export function Ceo() {
 
           {/* Operational health */}
           {data.opsHealth && <OpsHealth ops={data.opsHealth} />}
-
-          {/* Breakdowns */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
-            <Breakdown title="Top emirates" rows={data.byEmirate} />
-            <Breakdown title="Top event types" rows={data.byEventType} />
-            <Breakdown title="Top packages" rows={data.byPackage} />
-            <Breakdown title="Top themes" rows={data.byTheme} />
-          </div>
 
           {/* Customers + cancellations */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
@@ -262,6 +254,30 @@ function MorningBrief({ data }: { data: any }) {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Net profit by year — the real turnaround at a glance (from QuickBooks P&L). */
+function YearBars({ years }: { years: Array<{ year: string; netFils: number }> }) {
+  const max = Math.max(...years.map((y) => Math.abs(Number(y.netFils))), 1);
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.4px', color: C.muted, marginBottom: 10 }}>NET PROFIT BY YEAR</div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 118 }}>
+        {years.map((y) => {
+          const v = Number(y.netFils);
+          const h = Math.round((Math.abs(v) / max) * 78) + 4;
+          const neg = v < 0;
+          return (
+            <div key={y.year} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: neg ? C.red : C.green }}>{neg ? '−' : '+'}{(Math.abs(v) / 100000).toFixed(0)}K</div>
+              <div style={{ width: '100%', maxWidth: 46, height: h, borderRadius: '8px 8px 4px 4px', background: neg ? C.red : `linear-gradient(180deg,${C.mint},${C.mintDeep})` }} title={`AED ${(v / 100).toLocaleString()}`} />
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>{y.year}</div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
