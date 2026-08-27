@@ -9,6 +9,28 @@ export async function runOneTimeFixes(): Promise<void> {
   await dedupeAutoReceipts();
   await fixSeededEventTimes();
   await alignGoodStars();
+  await alignFinanceSequences();
+}
+
+/**
+ * Point the invoice & sales-receipt number sequences at the real max already in
+ * each table, so a newly-created document always takes the NEXT free number and
+ * can never collide with a migrated QuickBooks number. Idempotent (setval to the
+ * current max every boot). After a QuickBooks CSV import this re-aligns too.
+ */
+async function alignFinanceSequences(): Promise<void> {
+  try {
+    await pool.query(
+      `SELECT setval('finance_receipt_seq',
+         GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_receipts WHERE number ~ '^[0-9]+$'), 1), true)`,
+    );
+    await pool.query(
+      `SELECT setval('finance_invoice_seq',
+         GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_invoices WHERE number ~ '^[0-9]+$'), 1), true)`,
+    );
+  } catch (err) {
+    console.error('[fix] alignFinanceSequences failed:', err);
+  }
 }
 
 /**

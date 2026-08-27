@@ -258,6 +258,14 @@ async function nextNumber(): Promise<string> {
   const { rows } = await pool.query(`SELECT nextval('finance_doc_seq')::bigint AS n`);
   return String(rows[0].n);
 }
+/** Next running number for an invoice (its own sequence — never a sales number). */
+async function nextInvoiceNumber(): Promise<string> {
+  return String((await pool.query(`SELECT nextval('finance_invoice_seq')::bigint AS n`)).rows[0].n);
+}
+/** Next running number for a sales receipt (its own sequence). */
+async function nextReceiptNumber(): Promise<string> {
+  return String((await pool.query(`SELECT nextval('finance_receipt_seq')::bigint AS n`)).rows[0].n);
+}
 
 // ── Invoices ─────────────────────────────────────────────────────────────────
 type DocInput = {
@@ -270,7 +278,7 @@ type DocInput = {
 
 export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
-  const number = await nextNumber();
+  const number = await nextInvoiceNumber();
   const { rows } = await pool.query(
     `INSERT INTO finance_invoices (number, customer_id, customer_name, issue_date, due_date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, status, message, commission_rep)
      VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
@@ -316,7 +324,7 @@ function decorateInvoice(r: any) {
 // ── Sales receipts (paid → Cash on hand) ─────────────────────────────────────
 export async function createReceipt(d: DocInput & { date?: string | null; paidWith?: string; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
-  const number = await nextNumber();
+  const number = await nextReceiptNumber();
   const { rows } = await pool.query(
     `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, commission_rep)
      VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
@@ -425,7 +433,7 @@ export async function recordSaleFromOrder(
     const source =
       order.source === 'manual' ? 'manual' : order.kind === 'shop' ? 'shop' : 'app';
     const number = String(
-      (await db.query(`SELECT nextval('finance_doc_seq')::bigint AS n`)).rows[0].n,
+      (await db.query(`SELECT nextval('finance_receipt_seq')::bigint AS n`)).rows[0].n,
     );
 
     await db.query(

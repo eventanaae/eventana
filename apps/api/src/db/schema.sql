@@ -775,6 +775,11 @@ CREATE INDEX IF NOT EXISTS historical_orders_date_idx ON historical_orders (txn_
 -- shared sequence so invoice/receipt numbers never collide (continuing past the
 -- imported QuickBooks history). Customers reference the migrated book.
 CREATE SEQUENCE IF NOT EXISTS finance_doc_seq START 1700;
+-- Separate running numbers for invoices vs sales receipts (QuickBooks keeps two
+-- independent sequences). Aligned to the real max on boot (alignFinanceSequences)
+-- so a new document never duplicates a migrated QuickBooks number.
+CREATE SEQUENCE IF NOT EXISTS finance_invoice_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS finance_receipt_seq START 1;
 
 CREATE TABLE IF NOT EXISTS finance_invoices (
   id            BIGSERIAL PRIMARY KEY,
