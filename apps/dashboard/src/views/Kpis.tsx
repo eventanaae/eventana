@@ -14,8 +14,6 @@ const navBtn: CSSProperties = {
   padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: C.ink,
 };
 
-const RANK = ['🥇', '🥈', '🥉'];
-
 export function Kpis({ role }: { role?: string }) {
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${pad(now.getMonth() + 1)}`);
@@ -61,7 +59,7 @@ export function Kpis({ role }: { role?: string }) {
           <>
             {personal ? (
               (() => {
-                const o = data.overall; const target = data.rules?.targetEvents ?? 20; const min = data.rules?.minEvents ?? 15;
+                const o = data.overall; const target = data.rules?.targetEvents ?? 20;
                 return (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
@@ -82,7 +80,7 @@ export function Kpis({ role }: { role?: string }) {
                     <div style={{ height: 12, borderRadius: 8, background: C.lineSoft, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${o.targetPct}%`, background: o.targetPct >= 100 ? C.green : C.pink, borderRadius: 8, transition: 'width .4s' }} />
                     </div>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 4 }}>Minimum {min} events (80%) · target {target} (100%)</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 4 }}>Target {target} events (100%)</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12, marginTop: 16 }}>
                       {o.isMarsha ? (
                         <Tile label={`Commission · ${o.corporateInvoices} invoice(s)`} value={`AED ${o.commissionDisplay}`} accent={C.green} />
@@ -115,7 +113,7 @@ export function Kpis({ role }: { role?: string }) {
                       );
                     })() : (
                       <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 12, lineHeight: 1.6 }}>
-                        {`After ${target} events you earn AED ${data.rules?.incentivePerEventAed ?? 50} for each event worth AED ${(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excluding delivery). Every good customer rating adds AED ${data.rules?.feedbackBonusAed ?? 10}, and each Glam Doll performance adds AED ${data.rules?.glamBonusAed ?? 20}. Tips are yours on top. Part-timers aren’t included.`}
+                        {`After ${target} events you earn AED ${data.rules?.incentivePerEventAed ?? 50} for each event worth AED ${(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excluding delivery). Every 5★ customer rating adds AED ${data.rules?.feedbackBonusAed ?? 10}, and each Glam Doll performance adds AED ${data.rules?.glamBonusAed ?? 20}. Tips are yours on top. Part-timers aren’t included.`}
                       </div>
                     )}
                   </div>
@@ -139,7 +137,7 @@ export function Kpis({ role }: { role?: string }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[...data.board].sort((a: any, b: any) => b.points - a.points).map((s: any, i: number) => (
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 4px' }}>
-                <span style={{ fontSize: 16, width: 24, textAlign: 'center', flex: 'none' }}>{RANK[i] ?? i + 1}</span>
+                <span style={{ fontSize: 16, width: 24, textAlign: 'center', flex: 'none', fontWeight: 800, color: C.muted }}>{i === 0 ? '🥇' : i + 1}</span>
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
@@ -167,7 +165,7 @@ export function Kpis({ role }: { role?: string }) {
               {data.staff.map((s: any, i: number) => (
                 <div key={s.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                    <span style={{ fontSize: 17, width: 24, textAlign: 'center', flex: 'none' }}>{RANK[i] ?? i + 1}</span>
+                    <span style={{ fontSize: 17, width: 24, textAlign: 'center', flex: 'none', fontWeight: 800, color: C.muted }}>{i === 0 ? '🥇' : i + 1}</span>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                       {s.name[0]}
                     </div>
@@ -199,7 +197,7 @@ export function Kpis({ role }: { role?: string }) {
           )}
           <div style={{ marginTop: 12, fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
             Target {data.rules?.targetEvents ?? 20} events (min {data.rules?.minEvents ?? 15}). Beyond the target, AED {data.rules?.incentivePerEventAed ?? 50}
-            {' '}per event worth AED {(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excl. delivery) · AED {data.rules?.feedbackBonusAed ?? 10} per good-rated event · plus tips.
+            {' '}per event worth AED {(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excl. delivery) · AED {data.rules?.feedbackBonusAed ?? 10} per 5★ event · plus tips.
           </div>
         </Panel>
       )}

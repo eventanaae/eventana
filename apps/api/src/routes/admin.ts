@@ -1243,9 +1243,9 @@ export async function adminRoutes(app: FastifyInstance) {
     // ── Earnings & target incentive ──────────────────────────────────────────
     // Rules (owner spec): target 20 events = 100% (min 15 = 80%). Beyond the
     // 20th, +AED 50 per event that is worth ≥ AED 2,000 excluding delivery.
-    // +AED 10 per event with a good customer rating (≥4★). Plus tips.
+    // +AED 10 per event with a 5★ customer rating. Plus tips.
     const TARGET_EVENTS = 20, MIN_EVENTS = 15;
-    const INCENTIVE_FILS = 5000, MIN_EVENT_VALUE = 200000, FEEDBACK_FILS = 1000, GOOD_STARS = 4, GLAM_FILS = 2000;
+    const INCENTIVE_FILS = 5000, MIN_EVENT_VALUE = 200000, FEEDBACK_FILS = 1000, GOOD_STARS = 5, GLAM_FILS = 2000;
     // Glam Doll bonus: +AED 20 each time an internal staff member performs a
     // Glam Doll (part-timers excluded — they have no assignee_id). Fires once the
     // Glam Dolls product is staffed (its slots carry a "glam" role/source).
@@ -1373,8 +1373,10 @@ export async function adminRoutes(app: FastifyInstance) {
     //  • Everyone sees a POINTS-only competition board (all names, no money).
     //  • Each person sees their OWN points + their OWN money (personal card).
     //  • Only the OWNER sees everyone's money.
-    // The board strips every money field — points/events/rating only.
-    const board = staff.map((s) => ({ id: s.id, name: s.name, color: s.color, role: s.role, points: s.points, eventsDone: s.eventsDone, attended: s.attended, targetPct: s.targetPct, avgRating: s.avgRating, fiveStars: s.fiveStars }));
+    // The board strips every money field — points/events/rating only. Marsha is
+    // kept in `staff` (so she still sees her own commission) but excluded from the
+    // field-crew competition board: she earns a sales commission, not event points.
+    const board = staff.filter((s) => !s.isMarsha).map((s) => ({ id: s.id, name: s.name, color: s.color, role: s.role, points: s.points, eventsDone: s.eventsDone, attended: s.attended, targetPct: s.targetPct, avgRating: s.avgRating, fiveStars: s.fiveStars }));
 
     if (reqRole === 'owner') {
       // The owner sees the full money leaderboard + the competition board.

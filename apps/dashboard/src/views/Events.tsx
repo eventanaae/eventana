@@ -25,10 +25,12 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
 
   if (!events) return <Spinner />;
 
-  const filtered = events.filter((e) => {
-    const s = q.trim().toLowerCase();
-    return !s || `${e.id} ${e.customer} ${e.emirate} ${e.phase}`.toLowerCase().includes(s);
-  });
+  const filtered = events
+    .filter((e) => {
+      const s = q.trim().toLowerCase();
+      return !s || `${e.id} ${e.customer} ${e.emirate} ${e.phase}`.toLowerCase().includes(s);
+    })
+    .sort((a, b) => String(a.event_date).slice(0, 10).localeCompare(String(b.event_date).slice(0, 10)));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -63,28 +65,45 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         <Panel><Empty>No matching bookings.</Empty></Panel>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map((e) => (
-            <div
-              key={e.id}
-              onClick={() => onOpenEvent(e.id)}
-              style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.customer}</span>
-                {e.totalDisplay != null && (
-                  <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
+          {filtered.map((e, i) => {
+            const d = new Date(e.event_date);
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            const prev = i > 0 ? new Date(filtered[i - 1].event_date) : null;
+            const showMonth = !prev || `${prev.getFullYear()}-${prev.getMonth()}` !== key;
+            const count = filtered.filter((x) => { const xd = new Date(x.event_date); return `${xd.getFullYear()}-${xd.getMonth()}` === key; }).length;
+            return (
+              <div key={e.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {showMonth && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: i === 0 ? 0 : 8 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: C.pinkDeep, whiteSpace: 'nowrap' }}>
+                      {d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, background: C.pinkSoft, borderRadius: 20, padding: '1px 8px', whiteSpace: 'nowrap' }}>{count}</span>
+                    <div style={{ flex: 1, height: 1, background: C.line }} />
+                  </div>
                 )}
+                <div
+                  onClick={() => onOpenEvent(e.id)}
+                  style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.customer}</span>
+                    {e.totalDisplay != null && (
+                      <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
+                    <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
+                    {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {e.start_time}–{e.base_end_time} · {e.emirate}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Badge tone={e.phase === 'Cancelled' ? 'error' : 'info'}>{e.phase}</Badge>
+                    <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
-                <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
-                {new Date(e.event_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {e.start_time}–{e.base_end_time} · {e.emirate}
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <Badge tone={e.phase === 'Cancelled' ? 'error' : 'info'}>{e.phase}</Badge>
-                <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

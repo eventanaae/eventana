@@ -343,7 +343,6 @@ function CompetitionBoard() {
     api.kpis(mth).then((k: any) => setBoard(k?.board ?? [])).catch(() => setBoard([]));
   }, []);
   if (!board || board.length === 0) return null;
-  const RANK = ['🥇', '🥈', '🥉'];
   return (
     <Panel title="🏆 Team competition">
       {/* Tappable explainer — collapsed by default, opens a simple breakdown. */}
@@ -359,7 +358,7 @@ function CompetitionBoard() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {[...board].sort((a: any, b: any) => b.points - a.points).map((s: any, i: number) => (
           <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 2px' }}>
-            <span style={{ fontSize: 15, width: 22, textAlign: 'center', flex: 'none' }}>{RANK[i] ?? i + 1}</span>
+            <span style={{ fontSize: 15, width: 22, textAlign: 'center', flex: 'none', fontWeight: 800, color: C.muted }}>{i === 0 ? '🥇' : i + 1}</span>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
@@ -387,9 +386,9 @@ function PointsHelp() {
       <div style={line}><span style={emo}>💸</span><span>{b('+1 point')} for every AED 1 you receive in tips.</span></div>
 
       <div style={{ ...head, marginTop: 10 }}>💐 Your rewards — real money you earn</div>
-      <div style={line}><span style={emo}>🎯</span><span>Monthly target is {b('20 events')} (15 events = 80%).</span></div>
+      <div style={line}><span style={emo}>🎯</span><span>Monthly target is {b('20 events')}.</span></div>
       <div style={line}><span style={emo}>➕</span><span>After your 20th event, {b('+AED 50')} for each extra event worth AED 2,000+ (excluding delivery).</span></div>
-      <div style={line}><span style={emo}>🌟</span><span>A great customer rating (4–5★) earns you {b('+AED 10')}.</span></div>
+      <div style={line}><span style={emo}>🌟</span><span>A {b('5★')} customer rating earns you {b('+AED 10')}.</span></div>
       <div style={line}><span style={emo}>💅</span><span>Each Glam Doll you perform earns {b('+AED 20')}.</span></div>
       <div style={line}><span style={emo}>🙌</span><span>{b('Tips are 100% yours')} — always on top.</span></div>
       <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>

@@ -23,7 +23,7 @@ export interface IncentiveRules {
 }
 
 export const INCENTIVE_DEFAULTS: IncentiveRules = {
-  goodStars: 4,
+  goodStars: 5,
   goodFeedbackRewardFils: 1000,   // AED 10
   glamRewardFils: 2000,           // AED 20
   eventIncentiveFils: 5000,       // AED 50
