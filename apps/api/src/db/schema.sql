@@ -1110,3 +1110,17 @@ CREATE TABLE IF NOT EXISTS finance_items (
 );
 ALTER TABLE finance_items ADD COLUMN IF NOT EXISTS description TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS finance_items_name_idx ON finance_items (lower(name));
+
+-- Suppliers directory: who we buy from, how to reach them, and what they supply.
+CREATE TABLE IF NOT EXISTS suppliers (
+  id         BIGSERIAL PRIMARY KEY,
+  name       TEXT NOT NULL,
+  contact    TEXT,
+  phone      TEXT,
+  email      TEXT,
+  supplies   TEXT,
+  note       TEXT,
+  active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

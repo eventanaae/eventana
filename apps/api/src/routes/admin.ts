@@ -165,6 +165,8 @@ export async function adminRoutes(app: FastifyInstance) {
     // Money, configuration, review and refunds: Manager + Owner only.
     const managerOnly =
       path.startsWith('/api/admin/finance') ||
+      path.startsWith('/api/admin/products') ||
+      path.startsWith('/api/admin/suppliers') ||
       path.startsWith('/api/admin/customers') ||
       path.startsWith('/api/admin/refunds') ||
       path.startsWith('/api/admin/reports') ||
@@ -1909,6 +1911,87 @@ export async function adminRoutes(app: FastifyInstance) {
     })();
     logAudit({ actor: by, role: (request as any).staff?.role, action: 'new_product', detail: { name: item.name } });
     return item;
+  });
+
+  // ── Products (custom finance items) — list / edit price+description / delete ─
+  app.get('/api/admin/products', async () => {
+    const { rows } = await pool.query(
+      `SELECT id, name, price_fils, description FROM finance_items ORDER BY lower(name)`,
+    );
+    return { rows: rows.map((r) => ({ id: Number(r.id), name: r.name, priceFils: Number(r.price_fils), priceDisplay: formatAed(Number(r.price_fils)), description: r.description ?? null })) };
+  });
+  app.patch('/api/admin/products/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const p = z.object({
+      name: z.string().trim().min(1).max(200).optional(),
+      priceFils: z.number().int().min(0).optional(),
+      description: z.string().trim().max(1000).nullable().optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const sets: string[] = []; const vals: any[] = [id]; let i = 2;
+    if (p.data.name !== undefined) { sets.push(`name = $${i++}`); vals.push(p.data.name); }
+    if (p.data.priceFils !== undefined) { sets.push(`price_fils = $${i++}`); vals.push(p.data.priceFils); }
+    if (p.data.description !== undefined) { sets.push(`description = $${i++}`); vals.push(p.data.description); }
+    if (sets.length === 0) return reply.status(400).send({ error: 'nothing_to_update' });
+    const { rows } = await pool.query(`UPDATE finance_items SET ${sets.join(', ')} WHERE id = $1 RETURNING id, name, price_fils, description`, vals);
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'product_edit', target: String(id), detail: p.data });
+    return { id: Number(rows[0].id), name: rows[0].name, priceFils: Number(rows[0].price_fils), description: rows[0].description ?? null };
+  });
+  app.delete('/api/admin/products/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    await pool.query(`DELETE FROM finance_items WHERE id = $1`, [id]);
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'product_delete', target: String(id) });
+    return reply.status(204).send();
+  });
+
+  // ── Suppliers directory — who we buy from ──────────────────────────────────
+  app.get('/api/admin/suppliers', async () => {
+    const { rows } = await pool.query(`SELECT * FROM suppliers WHERE active ORDER BY lower(name)`);
+    return { rows };
+  });
+  app.post('/api/admin/suppliers', async (request, reply) => {
+    const p = z.object({
+      name: z.string().trim().min(1).max(200),
+      contact: z.string().trim().max(200).optional(),
+      phone: z.string().trim().max(60).optional(),
+      email: z.string().trim().max(200).optional(),
+      supplies: z.string().trim().max(500).optional(),
+      note: z.string().trim().max(1000).optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const by = String((request as any).staff?.name ?? 'staff');
+    const { rows } = await pool.query(
+      `INSERT INTO suppliers (name, contact, phone, email, supplies, note, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [p.data.name, p.data.contact ?? null, p.data.phone ?? null, p.data.email ?? null, p.data.supplies ?? null, p.data.note ?? null, by],
+    );
+    return rows[0];
+  });
+  app.patch('/api/admin/suppliers/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const p = z.object({
+      name: z.string().trim().min(1).max(200).optional(),
+      contact: z.string().trim().max(200).nullable().optional(),
+      phone: z.string().trim().max(60).nullable().optional(),
+      email: z.string().trim().max(200).nullable().optional(),
+      supplies: z.string().trim().max(500).nullable().optional(),
+      note: z.string().trim().max(1000).nullable().optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const sets: string[] = []; const vals: any[] = [id]; let i = 2;
+    for (const k of ['name', 'contact', 'phone', 'email', 'supplies', 'note'] as const) {
+      if (p.data[k] !== undefined) { sets.push(`${k} = $${i++}`); vals.push(p.data[k]); }
+    }
+    if (sets.length === 0) return reply.status(400).send({ error: 'nothing_to_update' });
+    const { rows } = await pool.query(`UPDATE suppliers SET ${sets.join(', ')} WHERE id = $1 RETURNING *`, vals);
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return rows[0];
+  });
+  app.delete('/api/admin/suppliers/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    await pool.query(`UPDATE suppliers SET active = FALSE WHERE id = $1`, [id]);
+    return reply.status(204).send();
   });
 
   app.get('/api/admin/finance/invoices', async () => finance.listInvoices());

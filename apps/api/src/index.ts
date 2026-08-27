@@ -41,6 +41,10 @@ async function main() {
     // duplicate Shan). Guarded + idempotent — see purgeOrphanStaff.
     const { purgeOrphanStaff } = await import('./db/purgeOrphanStaff.js');
     await purgeOrphanStaff().catch((err) => console.error('[cleanup] failed:', err));
+    // Owner-approved one-off data corrections (dedupe auto receipts, fix seeded
+    // event times). Idempotent — see runOneTimeFixes.
+    const { runOneTimeFixes } = await import('./db/oneTimeFixes.js');
+    await runOneTimeFixes().catch((err) => console.error('[fix] failed:', err));
     // Ensure the internal crew + their skills exist for the smart staff-assignment
     // engine (Jane, Dindo, Gloria, Diana, Marsha). Idempotent.
     const { seedStaffSkills, syncAllEventTeams } = await import('./domain/staffing.js');

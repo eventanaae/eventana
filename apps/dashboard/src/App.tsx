@@ -26,10 +26,13 @@ import { Customers } from './views/Customers';
 import { Reports } from './views/Reports';
 import { Profile } from './views/Profile';
 import { Feedback } from './views/Feedback';
+import { Products } from './views/Products';
+import { Suppliers } from './views/Suppliers';
+import { Menu } from './views/Menu';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile' | 'feedback';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu';
 
 type Section = 'ops' | 'sales' | 'business' | 'admin';
 
@@ -52,6 +55,8 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'customers', label: 'Customers', icon: '👥', title: 'Customers', sub: 'Your customer book — spend, history & contacts', section: 'sales' },
   { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
+  { id: 'products', label: 'Products', icon: '🎁', title: 'Products & services', sub: 'Custom products, prices & descriptions', section: 'sales' },
+  { id: 'suppliers', label: 'Suppliers', icon: '🚚', title: 'Suppliers', sub: 'Who we buy from & what they supply', section: 'sales' },
   // Shop orders already flow into Sales (finance) and the dashboard, so there's
   // no separate Shop tab — removed from the nav on purpose.
   { id: 'overview', label: 'Overview', icon: '📊', title: 'Overview', sub: 'Orders, emirates & themes at a glance', section: 'business', mobile: true },
@@ -72,7 +77,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile', 'feedback'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
@@ -157,7 +162,7 @@ export default function App() {
     return <StaffLogin onDone={() => setAuthed(true)} />;
   }
 
-  const current = NAV.find((n) => n.id === view) ?? NAV[0];
+  const current = NAV.find((n) => n.id === view) ?? { ...NAV[0], id: view, title: view === 'menu' ? 'Menu' : view === 'feedback' ? 'What customers say' : NAV[0].title };
   // Only warn when a provider is genuinely in test/sandbox mode. A 'disabled'
   // provider (e.g. Tabby/Tamara/Ziina awaiting production creds) is not a
   // sandbox — Stripe being live means real payments work.
@@ -192,6 +197,9 @@ export default function App() {
       {view === 'reports' && <Reports />}
       {view === 'profile' && <Profile onSignedOut={() => setAuthed(false)} />}
       {view === 'feedback' && <Feedback onBack={() => setView('today')} onOpenEvent={openEvent} />}
+      {view === 'products' && <Products />}
+      {view === 'suppliers' && <Suppliers />}
+      {view === 'menu' && <Menu onGoto={go} isVisible={isVisible} staffName={staffName} onSignedOut={() => setAuthed(false)} />}
       {view === 'settings' && <Settings />}
     </>
   );
@@ -238,6 +246,9 @@ export default function App() {
             {error ? '● offline' : '● live'}
           </span>
           <NotificationBell onOpenEvent={openEvent} />
+          {role === 'manager' && (
+            <button onClick={() => go(view === 'menu' ? 'today' : 'menu')} aria-label="Menu" style={{ border: `1px solid ${view === 'menu' ? C.pink : C.line}`, background: view === 'menu' ? C.pinkSoft : '#fff', color: view === 'menu' ? C.pinkDeep : C.ink, borderRadius: 10, width: 34, height: 34, fontSize: 16, fontWeight: 800, cursor: 'pointer', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>☰</button>
+          )}
         </div>
 
         <div style={{ flex: 1, padding: 14, paddingBottom: 84, minWidth: 0 }}>{body}</div>
@@ -254,7 +265,7 @@ export default function App() {
               onClick={() => go(n.id)}
             />
           ))}
-          {moreNav.length > 0 && (
+          {moreNav.length > 0 && role !== 'manager' && (
             <BarItem icon="⋯" label="More" active={moreOpen || moreNav.some((n) => n.id === view)} onClick={() => setMoreOpen(true)} />
           )}
         </div>

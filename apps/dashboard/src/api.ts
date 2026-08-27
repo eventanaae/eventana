@@ -426,6 +426,15 @@ export const api = {
   // ── Finance module ──
   finCustomers: (q?: string) => request<any[]>(`/api/admin/finance/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   finAddCustomer: (body: Record<string, unknown>) => request<any>('/api/admin/finance/customers', { method: 'POST', body: JSON.stringify(body) }),
+  // Products (custom finance items) — manage price + description.
+  products: () => request<{ rows: Array<{ id: number; name: string; priceFils: number; priceDisplay: string; description: string | null }> }>('/api/admin/products'),
+  productUpdate: (id: number, patch: { name?: string; priceFils?: number; description?: string | null }) => request(`/api/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  productDelete: (id: number) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
+  // Suppliers directory.
+  suppliers: () => request<{ rows: any[] }>('/api/admin/suppliers'),
+  supplierCreate: (body: { name: string; contact?: string; phone?: string; email?: string; supplies?: string; note?: string }) => request('/api/admin/suppliers', { method: 'POST', body: JSON.stringify(body) }),
+  supplierUpdate: (id: number, patch: any) => request(`/api/admin/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  supplierDelete: (id: number) => request(`/api/admin/suppliers/${id}`, { method: 'DELETE' }),
   finItems: () => request<Array<{ name: string; priceFils: number; kind: string; description?: string | null }>>('/api/admin/finance/items'),
   finCreateItem: (name: string, priceFils: number, description?: string) => request<{ id: number; name: string; priceFils: number; description?: string | null }>('/api/admin/finance/items', { method: 'POST', body: JSON.stringify({ name, priceFils, description }) }),
   finInvoices: () => request<any>('/api/admin/finance/invoices'),
