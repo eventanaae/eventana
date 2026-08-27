@@ -58,25 +58,29 @@ export function hasStaffToken(): boolean {
 const OWNER_BACKUP_KEY = 'eventana.ownerBackupToken';
 const PREVIEW_META_KEY = 'eventana.previewAs';
 
+// NOTE: these live in localStorage (not sessionStorage) on purpose. Mobile
+// Safari drops sessionStorage on reload/tab-switch, which used to strand the
+// owner inside a previewed account with no "Exit preview" bar. localStorage
+// survives reloads, so the bar always comes back and exit always restores.
 export function isPreviewing(): { name: string; role: string } | null {
   try {
-    const raw = sessionStorage.getItem(PREVIEW_META_KEY);
+    const raw = localStorage.getItem(PREVIEW_META_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 }
 export function startPreview(token: string, name: string, role: string): void {
   try {
-    sessionStorage.setItem(OWNER_BACKUP_KEY, getStaffToken());
-    sessionStorage.setItem(PREVIEW_META_KEY, JSON.stringify({ name, role }));
+    localStorage.setItem(OWNER_BACKUP_KEY, getStaffToken());
+    localStorage.setItem(PREVIEW_META_KEY, JSON.stringify({ name, role }));
     setStaffToken(token);
     window.location.reload();
   } catch { /* ignore */ }
 }
 export function exitPreview(): void {
   try {
-    const owner = sessionStorage.getItem(OWNER_BACKUP_KEY);
-    sessionStorage.removeItem(OWNER_BACKUP_KEY);
-    sessionStorage.removeItem(PREVIEW_META_KEY);
+    const owner = localStorage.getItem(OWNER_BACKUP_KEY);
+    localStorage.removeItem(OWNER_BACKUP_KEY);
+    localStorage.removeItem(PREVIEW_META_KEY);
     if (owner) setStaffToken(owner); else clearStaffToken();
     window.location.reload();
   } catch { /* ignore */ }
@@ -325,6 +329,7 @@ export const api = {
   notificationFeed: () => request<{ items: any[] }>('/api/admin/notification-feed'),
   achievements: () => request<{ rows: any[]; totalDisplay: string; totalFils: number }>('/api/admin/achievements'),
   alerts: () => request<any>('/api/admin/alerts'),
+  customerFeedback: (limit?: number) => request<{ rows: any[]; count: number }>(`/api/admin/customer-feedback${limit ? `?limit=${limit}` : ''}`),
 
   /** Sign + upload an image straight to Cloudinary; returns its secure URL. */
   uploadImage: async (file: File, folder: 'receipts' | 'themes' | 'designs' | 'setup-photos'): Promise<string> => {

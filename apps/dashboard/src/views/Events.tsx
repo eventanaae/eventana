@@ -152,10 +152,13 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
           <Spinner />
         ) : (
           <>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
-              <div style={{ flex: 1 }}>
-                <div style={fredoka(20)}>{data.event.id}</div>
-                <div style={{ marginTop: 12, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}`, boxShadow: C.shadow, background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+              <div style={fredoka(20)}>{data.event.id}</div>
+              <Button tone="ghost" onClick={onClose}>Close</Button>
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <div>
+                <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.line}`, boxShadow: C.shadow, background: '#fff' }}>
                   <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.pinkDeep})` }} />
                   {/* Guest of honour banner */}
                   <div style={{ background: 'linear-gradient(135deg,#FFF3F9,#FDEAF3)', padding: '15px 18px 14px' }}>
@@ -195,9 +198,6 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     </div>
                   </div>
                 )}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Button tone="ghost" onClick={onClose}>Close</Button>
               </div>
             </div>
 

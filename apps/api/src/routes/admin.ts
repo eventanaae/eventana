@@ -28,6 +28,7 @@ import * as finance from '../domain/finance.js';
 import { auditReport } from '../domain/audit.js';
 import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, normalizeUaePhone } from '../domain/maintenance.js';
 import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
+import { flooredStart, COUNTING_START } from '../domain/period.js';
 import { logAudit, listAudit } from '../domain/auditLog.js';
 import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
@@ -211,6 +212,7 @@ export async function adminRoutes(app: FastifyInstance) {
             // The notification bell is on every screen — a driver gets their own
             // (their tips / their events), so let them read the feed too.
             path === '/api/admin/notification-feed' ||
+            path === '/api/admin/customer-feedback' ||
             /^\/api\/admin\/events\/[^/]+$/.test(path))) ||
         (method === 'POST' && /^\/api\/admin\/events\/[^/]+\/phase$/.test(path));
       if (!allowed) {
@@ -224,6 +226,30 @@ export async function adminRoutes(app: FastifyInstance) {
   /** The signed-in staff member and their access level. */
   app.get('/api/admin/me', async (request) => {
     return (request as any).staff ?? { name: 'Staff', role: 'employee' };
+  });
+
+  /**
+   * The customer-feedback wall — what customers said about our events, newest
+   * first. Team-wide and visible to everyone (it's encouragement, no money).
+   * `?limit=` caps it (default 5 for the Home teaser; the feedback page asks for
+   * more). Only ratings that carry a written comment are returned.
+   */
+  app.get('/api/admin/customer-feedback', async (request) => {
+    const q = request.query as { limit?: string };
+    const limit = Math.min(100, Math.max(1, Number(q.limit) || 5));
+    const { rows } = await pool.query(
+      `SELECT r.id, r.stars, r.feedback, r.event_id,
+              c.name AS customer, e.event_for,
+              to_char(r.created_at,'YYYY-MM-DD') AS date, r.created_at
+         FROM event_ratings r
+         JOIN events e ON e.id = r.event_id
+         JOIN customers c ON c.id = e.customer_id
+        WHERE r.feedback IS NOT NULL AND btrim(r.feedback) <> ''
+        ORDER BY r.created_at DESC
+        LIMIT $1`,
+      [limit],
+    );
+    return { rows, count: rows.length };
   });
 
   /** Achievements: recorded staff rewards (good feedback, glam, incentives).
@@ -1204,10 +1230,12 @@ export async function adminRoutes(app: FastifyInstance) {
     const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
       ? q.month!
       : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const start = `${monthStr}-01`;
-    const end = new Date(`${start}T00:00:00Z`);
+    const end = new Date(`${monthStr}-01T00:00:00Z`);
     end.setUTCMonth(end.getUTCMonth() + 1);
     const endStr = end.toISOString().slice(0, 10);
+    // The scoring system starts 1 Sep 2026 — floor the window so nothing before
+    // that (setup/testing/migration) ever counts. Pre-launch months → empty range.
+    const start = flooredStart(`${monthStr}-01`);
 
     const { rows } = await pool.query(
       `SELECT tm.id, tm.name, tm.role, tm.color, tm.access_level,
@@ -3021,9 +3049,9 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT count(DISTINCT es.event_id)::int c FROM event_staff es JOIN events e ON e.id = es.event_id
                    WHERE es.assignee_id = $1
                      AND e.phase <> 'Cancelled' AND e.cancelled_at IS NULL
-                     AND e.event_date >= date_trunc('month', CURRENT_DATE)
+                     AND e.event_date >= GREATEST(date_trunc('month', CURRENT_DATE), $2::date)
                      AND e.event_date <  date_trunc('month', CURRENT_DATE) + interval '1 month'
-                     AND (e.phase = 'Event Completed' OR e.event_date < CURRENT_DATE)`, [staff.id]),
+                     AND (e.phase = 'Event Completed' OR e.event_date < CURRENT_DATE)`, [staff.id, COUNTING_START]),
       pool.query(`SELECT id, event_id, kind, amount_fils, note, to_char(created_at,'YYYY-MM-DD') AS date
                     FROM staff_rewards WHERE member_id = $1 ORDER BY created_at DESC LIMIT 50`, [staff.id]),
     ]);

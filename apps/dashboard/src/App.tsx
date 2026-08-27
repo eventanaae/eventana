@@ -25,10 +25,11 @@ import { Leads } from './views/Leads';
 import { Customers } from './views/Customers';
 import { Reports } from './views/Reports';
 import { Profile } from './views/Profile';
+import { Feedback } from './views/Feedback';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile' | 'feedback';
 
 type Section = 'ops' | 'sales' | 'business' | 'admin';
 
@@ -71,11 +72,11 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'alerts', 'customers', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile'],
-  // Employee/driver: exactly their four bottom-bar tabs — no "More" (achievements
-  // live inside Profile now).
-  employee: ['today', 'schedule', 'inventory', 'profile'],
-  driver: ['today', 'schedule', 'profile'],
+  manager: ['today', 'schedule', 'inventory', 'alerts', 'customers', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile', 'feedback'],
+  // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
+  // "Show more" on Home but never shown as a tab (achievements live in Profile).
+  employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
+  driver: ['today', 'schedule', 'profile', 'feedback'],
 };
 
 export default function App() {
@@ -190,6 +191,7 @@ export default function App() {
       {view === 'customers' && <Customers />}
       {view === 'reports' && <Reports />}
       {view === 'profile' && <Profile onSignedOut={() => setAuthed(false)} />}
+      {view === 'feedback' && <Feedback onBack={() => setView('today')} onOpenEvent={openEvent} />}
       {view === 'settings' && <Settings />}
     </>
   );
