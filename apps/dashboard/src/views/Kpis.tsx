@@ -63,9 +63,16 @@ export function Kpis({ role }: { role?: string }) {
                 const o = data.overall; const target = data.rules?.targetEvents ?? 20; const min = data.rules?.minEvents ?? 15;
                 return (
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                      <div style={fredoka(30)}>AED {o.earningsDisplay}</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>earned this month 💐</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={fredoka(30)}>AED {o.earningsDisplay}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>earned this month 💐</div>
+                      </div>
+                      <div style={{ flex: 1 }} />
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ ...fredoka(24), color: C.pinkDeep }}>{o.points ?? 0}</div>
+                        <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.4px' }}>MY POINTS</div>
+                      </div>
                     </div>
                     <div style={{ marginTop: 14, marginBottom: 5, display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800 }}>
                       <span style={{ color: C.ink }}>{o.attended} of {target} events</span>
@@ -76,13 +83,21 @@ export function Kpis({ role }: { role?: string }) {
                     </div>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 4 }}>Minimum {min} events (80%) · target {target} (100%)</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12, marginTop: 16 }}>
-                      <Tile label="Incentive" value={`AED ${o.incentiveDisplay}`} accent={C.green} />
-                      <Tile label="Feedback bonus" value={`AED ${o.feedbackDisplay}`} accent={C.pinkDeep} />
-                      {(o.glamCount ?? 0) > 0 && <Tile label={`Glam Doll · ${o.glamCount}`} value={`AED ${o.glamDisplay}`} accent="#8a6cc0" />}
+                      {o.isMarsha ? (
+                        <Tile label={`Commission · ${o.corporateInvoices} invoice(s)`} value={`AED ${o.commissionDisplay}`} accent={C.green} />
+                      ) : (
+                        <>
+                          <Tile label="Incentive" value={`AED ${o.incentiveDisplay}`} accent={C.green} />
+                          <Tile label="Feedback bonus" value={`AED ${o.feedbackDisplay}`} accent={C.pinkDeep} />
+                          {(o.glamCount ?? 0) > 0 && <Tile label={`Glam Doll · ${o.glamCount}`} value={`AED ${o.glamDisplay}`} accent="#8a6cc0" />}
+                        </>
+                      )}
                       <Tile label="Tips" value={`AED ${o.tipsDisplay}`} accent={C.pinkDeep} />
                     </div>
                     <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 12, lineHeight: 1.6 }}>
-                      After {target} events you earn AED {data.rules?.incentivePerEventAed ?? 50} for each event worth AED {(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excluding delivery). Every good customer rating adds AED {data.rules?.feedbackBonusAed ?? 10}, and each Glam Doll performance adds AED {data.rules?.glamBonusAed ?? 20}. Tips are yours on top. Part-timers aren’t included.
+                      {o.isMarsha
+                        ? `You earn ${data.rules?.commissionRate ?? 2}% commission on every corporate/events invoice you bring in worth AED ${(data.rules?.commissionMinAed ?? 20000).toLocaleString()}+. Tips are yours on top.`
+                        : `After ${target} events you earn AED ${data.rules?.incentivePerEventAed ?? 50} for each event worth AED ${(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excluding delivery). Every good customer rating adds AED ${data.rules?.feedbackBonusAed ?? 10}, and each Glam Doll performance adds AED ${data.rules?.glamBonusAed ?? 20}. Tips are yours on top. Part-timers aren’t included.`}
                     </div>
                   </div>
                 );
@@ -99,8 +114,33 @@ export function Kpis({ role }: { role?: string }) {
         )}
       </Panel>
 
+      {/* Points competition — visible to everyone, no money. */}
+      {data && (data.board?.length ?? 0) > 0 && (
+        <Panel title="🏆 Team competition">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[...data.board].sort((a: any, b: any) => b.points - a.points).map((s: any, i: number) => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 4px' }}>
+                <span style={{ fontSize: 16, width: 24, textAlign: 'center', flex: 'none' }}>{RANK[i] ?? i + 1}</span>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.eventsDone} events · {s.avgRating > 0 ? `${s.avgRating}★` : '—'}</div>
+                </div>
+                <div style={{ textAlign: 'right', flex: 'none' }}>
+                  <div style={{ ...fredoka(18), color: C.pinkDeep, lineHeight: 1 }}>{s.points}</div>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: C.muted, letterSpacing: '.4px' }}>PTS</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.6 }}>
+            Points = 10 × completed events + 1 per AED 1 of tips + 20 × 5★ ratings. Everyone sees the points board — the money each person earns stays private.
+          </div>
+        </Panel>
+      )}
+
       {data && !personal && (
-        <Panel title="Leaderboard">
+        <Panel title="Team earnings (owner)">
           {data.staff.length === 0 ? (
             <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>No active staff.</div>
           ) : (

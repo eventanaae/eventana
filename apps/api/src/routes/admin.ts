@@ -1174,7 +1174,20 @@ export async function adminRoutes(app: FastifyInstance) {
         earningsFils, earningsDisplay: formatAed(earningsFils),
       };
     };
-    const rules = { targetEvents: TARGET_EVENTS, minEvents: MIN_EVENTS, incentivePerEventAed: 50, minEventValueAed: 2000, feedbackBonusAed: 10, glamBonusAed: 20 };
+    const rules = { targetEvents: TARGET_EVENTS, minEvents: MIN_EVENTS, incentivePerEventAed: 50, minEventValueAed: 2000, feedbackBonusAed: 10, glamBonusAed: 20, commissionRate: 2, commissionMinAed: 20000 };
+    // Marsha's incentive is different: a 2% commission on the corporate/events
+    // invoices she brings in (via email), each worth ≥ AED 20,000. Tagged on the
+    // invoice (commission_rep) and events-based only (the team tags qualifying ones).
+    const COMMISSION_RATE = 0.02, COMMISSION_MIN = 2_000_000;
+    const commRes = await pool.query(
+      `SELECT COALESCE(SUM(total_fils),0)::bigint gross, COUNT(*)::int n FROM finance_invoices
+        WHERE lower(commission_rep) = 'marsha' AND total_fils >= $3
+          AND issue_date >= $1 AND issue_date < $2`,
+      [start, endStr, COMMISSION_MIN],
+    );
+    const marshaCommissionFils = Math.round(Number(commRes.rows[0].gross) * COMMISSION_RATE);
+    const marshaInvoices = Number(commRes.rows[0].n);
+    const marshaGrossFils = Number(commRes.rows[0].gross);
 
     const staff = rows.map((r) => {
       const eventsDone = Number(r.events_done);
@@ -1182,6 +1195,10 @@ export async function adminRoutes(app: FastifyInstance) {
       const fiveStars = Number(r.five_stars);
       const points = eventsDone * 10 + Math.round(tipsFils / 100) + fiveStars * 20;
       const earn = earningsOf(r.id, tipsFils);
+      // Marsha earns a 2% corporate commission instead of the field-crew bonuses.
+      const isMarsha = String(r.name).toLowerCase() === 'marsha';
+      const commissionFils = isMarsha ? marshaCommissionFils : 0;
+      const earningsFils = earn.earningsFils + commissionFils;
       return {
         id: r.id,
         name: r.name,
@@ -1197,6 +1214,11 @@ export async function adminRoutes(app: FastifyInstance) {
         ratingsCount: Number(r.ratings_count),
         points,
         ...earn,
+        isMarsha,
+        commissionFils, commissionDisplay: formatAed(commissionFils),
+        corporateInvoices: isMarsha ? marshaInvoices : 0,
+        corporateGrossDisplay: isMarsha ? formatAed(marshaGrossFils) : formatAed(0),
+        earningsFils, earningsDisplay: formatAed(earningsFils),
       };
     });
 
@@ -1223,47 +1245,60 @@ export async function adminRoutes(app: FastifyInstance) {
     // stats; the "staff" list is just them.
     const reqRole = (request as any).staff?.role as string | undefined;
     const reqId = (request as any).staff?.id as string | undefined;
-    const reqName = (request as any).staff?.name as string | undefined;
-    // Owner + Manager see everyone; Marsha (co-runs the dashboard) also sees all.
-    const seesAll = reqRole === 'owner' || reqRole === 'manager' || reqName === 'Marsha';
-    if (!seesAll) {
-      const mine = staff.find((s) => s.id === reqId) ?? null;
+    // Visibility model (owner spec):
+    //  • Everyone sees a POINTS-only competition board (all names, no money).
+    //  • Each person sees their OWN points + their OWN money (personal card).
+    //  • Only the OWNER sees everyone's money.
+    // The board strips every money field — points/events/rating only.
+    const board = staff.map((s) => ({ id: s.id, name: s.name, color: s.color, role: s.role, points: s.points, eventsDone: s.eventsDone, attended: s.attended, targetPct: s.targetPct, avgRating: s.avgRating, fiveStars: s.fiveStars }));
+
+    if (reqRole === 'owner') {
+      // The owner sees the full money leaderboard + the competition board.
       return {
         month: monthStr,
-        personal: true,
         rules,
-        staff: mine ? [mine] : [],
+        moneyView: true,
+        staff,
+        board,
         overall: {
-          tipsFils: mine?.tipsFils ?? 0,
-          tipsDisplay: mine ? mine.tipsDisplay : formatAed(0),
-          teamPoolFils: 0,
-          teamPoolDisplay: null,
-          eventsDone: mine?.eventsDone ?? 0,
-          avgRating: mine?.avgRating ?? 0,
-          ratingsCount: mine?.ratingsCount ?? 0,
-          attended: mine?.attended ?? 0,
-          targetPct: mine?.targetPct ?? 0,
-          incentiveDisplay: mine?.incentiveDisplay ?? formatAed(0),
-          feedbackDisplay: mine?.feedbackDisplay ?? formatAed(0),
-          glamDisplay: mine?.glamDisplay ?? formatAed(0),
-          glamCount: mine?.glamCount ?? 0,
-          earningsDisplay: mine?.earningsDisplay ?? formatAed(0),
+          tipsFils: Number(t.tips_fils),
+          tipsDisplay: formatAed(Number(t.tips_fils)),
+          teamPoolFils: Number(t.team_pool_fils),
+          teamPoolDisplay: formatAed(Number(t.team_pool_fils)),
+          eventsDone: Number(t.events_done),
+          avgRating: Number(t.avg_rating),
+          ratingsCount: Number(t.ratings_count),
         },
       };
     }
 
+    // Everyone else: the points competition + only THEIR OWN money.
+    const mine = staff.find((s) => s.id === reqId) ?? null;
     return {
       month: monthStr,
+      personal: true,
       rules,
-      staff,
+      board,
+      staff: mine ? [mine] : [],
       overall: {
-        tipsFils: Number(t.tips_fils),
-        tipsDisplay: formatAed(Number(t.tips_fils)),
-        teamPoolFils: Number(t.team_pool_fils),
-        teamPoolDisplay: formatAed(Number(t.team_pool_fils)),
-        eventsDone: Number(t.events_done),
-        avgRating: Number(t.avg_rating),
-        ratingsCount: Number(t.ratings_count),
+        tipsFils: mine?.tipsFils ?? 0,
+        tipsDisplay: mine ? mine.tipsDisplay : formatAed(0),
+        teamPoolFils: 0,
+        teamPoolDisplay: null,
+        eventsDone: mine?.eventsDone ?? 0,
+        avgRating: mine?.avgRating ?? 0,
+        ratingsCount: mine?.ratingsCount ?? 0,
+        points: mine?.points ?? 0,
+        attended: mine?.attended ?? 0,
+        targetPct: mine?.targetPct ?? 0,
+        incentiveDisplay: mine?.incentiveDisplay ?? formatAed(0),
+        feedbackDisplay: mine?.feedbackDisplay ?? formatAed(0),
+        glamDisplay: mine?.glamDisplay ?? formatAed(0),
+        glamCount: mine?.glamCount ?? 0,
+        commissionDisplay: mine?.commissionDisplay ?? formatAed(0),
+        corporateInvoices: mine?.corporateInvoices ?? 0,
+        isMarsha: mine?.isMarsha ?? false,
+        earningsDisplay: mine?.earningsDisplay ?? formatAed(0),
       },
     };
   });

@@ -794,6 +794,9 @@ CREATE TABLE IF NOT EXISTS finance_invoices (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS finance_invoices_status_idx ON finance_invoices (status, due_date);
+-- Sales commission: who brought this corporate/events invoice (e.g. Marsha).
+-- Marsha earns 2% of her tagged invoices worth ≥ AED 20,000 (events-based only).
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS commission_rep TEXT;
 
 CREATE TABLE IF NOT EXISTS finance_receipts (
   id            BIGSERIAL PRIMARY KEY,
