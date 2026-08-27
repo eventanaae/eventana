@@ -1060,3 +1060,21 @@ ALTER TABLE team_members ADD COLUMN IF NOT EXISTS must_set_password BOOLEAN NOT 
 ALTER TABLE team_members ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
 -- Case-insensitive unique email so login is unambiguous (only when set).
 CREATE UNIQUE INDEX IF NOT EXISTS team_members_email_idx ON team_members (lower(email)) WHERE email IS NOT NULL AND email <> '';
+
+-- ── Asset issue reports (field → manager/owner) ─────────────────────────────
+-- Any staff member can report a durable asset as broken / damaged / needing
+-- maintenance from the Inventory list. The report surfaces to the manager and
+-- owner (Updates + notification bell) so they can act, then mark it resolved.
+CREATE TABLE IF NOT EXISTS asset_issues (
+  id          BIGSERIAL PRIMARY KEY,
+  asset_code  TEXT NOT NULL,
+  asset_name  TEXT,
+  kind        TEXT NOT NULL,             -- broken | damaged | maintenance | other
+  note        TEXT,
+  status      TEXT NOT NULL DEFAULT 'open',   -- open | in_progress | resolved
+  reported_by TEXT,
+  resolved_by TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS asset_issues_status_idx ON asset_issues (status, created_at DESC);

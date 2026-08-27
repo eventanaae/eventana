@@ -251,6 +251,11 @@ export const api = {
   inventory: () => request<any[]>('/api/admin/inventory'),
   setAsset: (code: string, patch: Record<string, unknown>) =>
     request<any>(`/api/admin/inventory/${code}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  reportAsset: (code: string, kind: 'broken' | 'damaged' | 'maintenance' | 'other', note?: string) =>
+    request<{ ok: boolean; id: number }>(`/api/admin/inventory/${code}/report`, { method: 'POST', body: JSON.stringify({ kind, note }) }),
+  assetIssues: (status?: string) => request<any[]>(`/api/admin/asset-issues${status ? `?status=${status}` : ''}`),
+  resolveAssetIssue: (id: number, status: 'open' | 'in_progress' | 'resolved') =>
+    request<any>(`/api/admin/asset-issues/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
   consumables: () => request<any[]>('/api/admin/consumables'),
   saveConsumable: (body: Record<string, unknown>) =>

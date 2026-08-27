@@ -2612,6 +2612,75 @@ export async function adminRoutes(app: FastifyInstance) {
 
   /* ---------------------------- Inventory ------------------------- */
 
+  // ── Asset issue reports (any staff reports; manager/owner acts) ────────────
+  app.post('/api/admin/inventory/:code/report', async (request, reply) => {
+    const { code } = request.params as { code: string };
+    const p = z.object({
+      kind: z.enum(['broken', 'damaged', 'maintenance', 'other']),
+      note: z.string().max(1000).optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const staff = (request as any).staff as { name?: string };
+    const asset = await pool.query(`SELECT name FROM inventory_assets WHERE code = $1 LIMIT 1`, [code]);
+    const name = asset.rows[0]?.name ?? code;
+    const { rows } = await pool.query(
+      `INSERT INTO asset_issues (asset_code, asset_name, kind, note, reported_by)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [code, name, p.data.kind, p.data.note ?? null, staff?.name ?? 'staff'],
+    );
+    // Surface to the owner/manager: bell feed (ops_alert) + best-effort push.
+    await pool.query(
+      `INSERT INTO notifications (channel, template, scheduled_for, payload)
+       VALUES ('push','asset_issue', now(), $1)`,
+      [JSON.stringify({ id: rows[0].id, code, name, kind: p.data.kind, note: p.data.note ?? '', by: staff?.name ?? 'staff' })],
+    ).catch(() => {});
+    void (async () => {
+      const owners = await pool.query(`SELECT id FROM team_members WHERE access_level IN ('owner','manager') AND active`).catch(() => ({ rows: [] as any[] }));
+      const label = ({ broken: 'broken', damaged: 'damaged', maintenance: 'needs maintenance', other: 'has an issue' } as Record<string, string>)[p.data.kind];
+      for (const o of owners.rows) void pushToOwner('staff', o.id, '🧰 Equipment issue reported', `${name} — ${label} (by ${staff?.name ?? 'staff'})`);
+    })();
+    logAudit({ actor: String(staff?.name ?? 'staff'), action: 'asset_issue_report', target: code, detail: { kind: p.data.kind } });
+    return { ok: true, id: rows[0].id };
+  });
+
+  app.get('/api/admin/asset-issues', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const status = String((request.query as any)?.status ?? 'open');
+    const { rows } = await pool.query(
+      `SELECT id, asset_code, asset_name, kind, note, status, reported_by, resolved_by,
+              to_char(created_at,'YYYY-MM-DD HH24:MI') AS created
+         FROM asset_issues ${status === 'all' ? '' : `WHERE status <> 'resolved'`}
+        ORDER BY created_at DESC LIMIT 200`,
+    );
+    return rows;
+  });
+
+  app.patch('/api/admin/asset-issues/:id', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const id = Number((request.params as { id: string }).id);
+    const p = z.object({ status: z.enum(['open', 'in_progress', 'resolved']) }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const done = p.data.status === 'resolved';
+    const { rows } = await pool.query(
+      `UPDATE asset_issues SET status = $2,
+              resolved_by = CASE WHEN $3 THEN $4 ELSE resolved_by END,
+              resolved_at = CASE WHEN $3 THEN now() ELSE resolved_at END
+        WHERE id = $1 RETURNING *`,
+      [id, p.data.status, done, String((request as any).staff?.name ?? 'staff')],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    const by = String((request as any).staff?.name ?? 'manager');
+    await pool.query(
+      `INSERT INTO notifications (channel, template, scheduled_for, payload)
+       VALUES ('push','asset_issue_action', now(), $1)`,
+      [JSON.stringify({ id: rows[0].id, name: rows[0].asset_name, status: p.data.status, by })],
+    ).catch(() => {});
+    logAudit({ actor: by, role, action: 'asset_issue_action', target: String(id), detail: { status: p.data.status } });
+    return rows[0];
+  });
+
   app.get('/api/admin/inventory', async () => {
     const { rows } = await pool.query(
       `SELECT a.*,
@@ -3364,6 +3433,27 @@ export async function adminRoutes(app: FastifyInstance) {
         const p = x.payload || {};
         items.push({ id: `act-${x.id}`, level: 'info', icon: '✅', title: 'Team member activated', text: `${p.name || 'A team member'} set their password — they can sign in now`, at: x.created_at });
       }
+
+      // Inventory: equipment issues + missing-item reports, and the actions taken.
+      const inv = await pool.query(
+        `SELECT id, template, payload, created_at FROM notifications
+          WHERE channel='push' AND template IN ('asset_issue','missing_item_reported','missing_item_action','asset_issue_action')
+            AND created_at > now() - interval '30 days'
+          ORDER BY created_at DESC LIMIT 30`);
+      for (const x of inv.rows) {
+        const p = x.payload || {};
+        const t = x.template as string;
+        if (t === 'asset_issue') {
+          const label = ({ broken: 'broken', damaged: 'damaged', maintenance: 'needs maintenance', other: 'issue' } as Record<string, string>)[p.kind] || 'issue';
+          items.push({ id: `ai-${x.id}`, level: p.kind === 'broken' ? 'high' : 'info', icon: '🧰', title: 'Equipment issue reported', text: `${p.name} — ${label} (by ${p.by})`, at: x.created_at });
+        } else if (t === 'missing_item_reported') {
+          items.push({ id: `mi-${x.id}`, level: 'info', icon: '📦', title: 'Missing item reported', text: `${p.item} ×${p.quantity} — by ${p.by}`, at: x.created_at });
+        } else if (t === 'missing_item_action') {
+          items.push({ id: `mia-${x.id}`, level: 'info', icon: '📦', title: `Missing item ${p.status}`, text: `${p.item} — ${p.status} by ${p.by}`, at: x.created_at });
+        } else if (t === 'asset_issue_action') {
+          items.push({ id: `aia-${x.id}`, level: 'info', icon: '🧰', title: `Equipment issue ${p.status}`, text: `${p.name} — ${p.status} by ${p.by}`, at: x.created_at });
+        }
+      }
     }
 
     items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
@@ -3712,15 +3802,29 @@ export async function adminRoutes(app: FastifyInstance) {
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
     const d = p.data;
+    const staff = (request as any).staff as { name?: string };
+    const by = d.reportedBy ?? staff?.name ?? 'staff';
     const { rows } = await pool.query(
       `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, d.reportedBy ?? null],
+      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, by],
     );
+    // Surface to owner/manager: bell feed + best-effort push (who + what).
+    await pool.query(
+      `INSERT INTO notifications (channel, template, scheduled_for, payload)
+       VALUES ('push','missing_item_reported', now(), $1)`,
+      [JSON.stringify({ id: rows[0].id, item: d.item, quantity: d.quantity, by })],
+    ).catch(() => {});
+    void (async () => {
+      const owners = await pool.query(`SELECT id FROM team_members WHERE access_level IN ('owner','manager') AND active`).catch(() => ({ rows: [] as any[] }));
+      for (const o of owners.rows) void pushToOwner('staff', o.id, '📦 Missing item reported', `${d.item} ×${d.quantity} — reported by ${by}`);
+    })();
     return rows[0];
   });
 
   app.patch('/api/admin/missing-items/:id', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
     const schema = z.object({ status: z.enum(['requested', 'ordered', 'received', 'cancelled']) });
     const p = schema.safeParse(request.body);
@@ -3730,6 +3834,14 @@ export async function adminRoutes(app: FastifyInstance) {
       [id, p.data.status],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    // Close the loop: record the action so the team sees it was handled.
+    const by = String((request as any).staff?.name ?? 'manager');
+    await pool.query(
+      `INSERT INTO notifications (channel, template, scheduled_for, payload)
+       VALUES ('push','missing_item_action', now(), $1)`,
+      [JSON.stringify({ id: rows[0].id, item: rows[0].item, status: p.data.status, by })],
+    ).catch(() => {});
+    logAudit({ actor: by, role, action: 'missing_item_action', target: String(id), detail: { status: p.data.status } });
     return rows[0];
   });
 

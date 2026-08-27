@@ -171,7 +171,7 @@ export default function App() {
       {view === 'overview' && <Overview onOpenEvent={openEvent} onGoto={go} />}
       {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} />}
       {view === 'tasks' && <Tasks role={role} />}
-      {view === 'inventory' && <Inventory />}
+      {view === 'inventory' && <Inventory role={role} />}
       {view === 'alerts' && <Alerts onOpenEvent={openEvent} />}
       {view === 'team' && <Team role={role} />}
       {view === 'kpis' && <Kpis role={role} />}
