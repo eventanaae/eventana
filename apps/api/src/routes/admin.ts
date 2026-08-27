@@ -1913,6 +1913,12 @@ export async function adminRoutes(app: FastifyInstance) {
     return item;
   });
 
+  // Active themes (for the event-edit theme picker).
+  app.get('/api/admin/themes-list', async () => {
+    const { rows } = await pool.query(`SELECT id, name, celebration_type FROM themes WHERE active ORDER BY celebration_type, name`);
+    return { rows };
+  });
+
   // ── Products (custom finance items) — list / edit price+description / delete ─
   app.get('/api/admin/products', async () => {
     const { rows } = await pool.query(

@@ -426,6 +426,11 @@ export const api = {
   // ── Finance module ──
   finCustomers: (q?: string) => request<any[]>(`/api/admin/finance/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   finAddCustomer: (body: Record<string, unknown>) => request<any>('/api/admin/finance/customers', { method: 'POST', body: JSON.stringify(body) }),
+  // Edit an event's operational details (manager/owner). Time change safely
+  // shifts the reserved inventory holds.
+  eventUpdateDetails: (eventId: string, patch: { startTime?: string; endTime?: string; emirate?: string; eventFor?: string | null; themeId?: string | null }) =>
+    request(`/api/admin/events/${eventId}/details`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  themesList: () => request<{ rows: Array<{ id: string; name: string; celebration_type: string }> }>('/api/admin/themes-list'),
   // Products (custom finance items) — manage price + description.
   products: () => request<{ rows: Array<{ id: number; name: string; priceFils: number; priceDisplay: string; description: string | null }> }>('/api/admin/products'),
   productUpdate: (id: number, patch: { name?: string; priceFils?: number; description?: string | null }) => request(`/api/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),

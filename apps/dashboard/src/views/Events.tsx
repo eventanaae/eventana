@@ -208,6 +208,9 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {!moneyHidden && data.event.phase !== 'Cancelled' && (
+                <EditEventPanel event={data.event} eventId={eventId} onSaved={load} onMessage={setMessage} />
+              )}
               <LocationPanel event={data.event} />
 
               <Panel title="Booked services">
@@ -832,6 +835,103 @@ function StaffingPanel({ eventId }: { eventId: string }) {
       )}
     </Panel>
   );
+}
+
+const UAE_EMIRATES = ['Abu Dhabi', 'Dubai', 'Sharjah', 'Ajman', 'Ras Al Khaimah', 'Fujairah', 'Umm Al Quwain', 'Al Ain'];
+
+/**
+ * Manager/owner edit of a booking's details — date-day time, location, guest-of-
+ * honour name and theme. Collapsed by default. A time change safely re-checks and
+ * moves the reserved inventory holds on the server.
+ */
+function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; eventId: string; onSaved: () => void; onMessage: (m: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [themes, setThemes] = useState<Array<{ id: string; name: string }>>([]);
+  const [eventFor, setEventFor] = useState(event.eventFor ?? '');
+  const [emirate, setEmirate] = useState(event.emirate ?? '');
+  const [startTime, setStartTime] = useState(event.start_time ?? '');
+  const [endTime, setEndTime] = useState(event.base_end_time ?? '');
+  const [themeId, setThemeId] = useState(event.theme_id ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { if (open && themes.length === 0) api.themesList().then((r) => setThemes(r.rows)).catch(() => {}); }, [open]);
+
+  const save = async () => {
+    setBusy(true); setErr(null);
+    const patch: any = {};
+    if (startTime && startTime !== event.start_time) patch.startTime = startTime;
+    if (endTime && endTime !== event.base_end_time) patch.endTime = endTime;
+    if (emirate && emirate !== event.emirate) patch.emirate = emirate;
+    if ((eventFor ?? '') !== (event.eventFor ?? '')) patch.eventFor = eventFor.trim() || null;
+    if (!event.custom_theme && themeId && themeId !== event.theme_id) patch.themeId = themeId;
+    if (Object.keys(patch).length === 0) { setOpen(false); setBusy(false); return; }
+    try {
+      await api.eventUpdateDetails(eventId, patch);
+      onMessage('Booking details updated.');
+      setOpen(false);
+      onSaved();
+    } catch (e: any) { setErr(e?.message ?? 'Could not save.'); } finally { setBusy(false); }
+  };
+
+  return (
+    <Panel
+      title="✏️ Edit details"
+      action={<Button tone="ghost" onClick={() => setOpen((o) => !o)}>{open ? 'Close' : 'Edit'}</Button>}
+    >
+      {!open ? (
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
+          Change the time, location, guest-of-honour name or theme. A time change re-checks equipment availability.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={editLbl}>Start time</span>
+              <input type="time" value={to24(startTime)} onChange={(e) => setStartTime(e.target.value)} style={inputStyle} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={editLbl}>End time</span>
+              <input type="time" value={to24(endTime)} onChange={(e) => setEndTime(e.target.value)} style={inputStyle} />
+            </label>
+          </div>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={editLbl}>Location (emirate)</span>
+            <select value={emirate} onChange={(e) => setEmirate(e.target.value)} style={inputStyle}>
+              {!UAE_EMIRATES.includes(emirate) && emirate && <option value={emirate}>{emirate}</option>}
+              {UAE_EMIRATES.map((em) => <option key={em} value={em}>{em}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={editLbl}>Guest of honour (baby name)</span>
+            <input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={inputStyle} placeholder="e.g. Sara" />
+          </label>
+          {!event.custom_theme && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={editLbl}>Theme</span>
+              <select value={themeId} onChange={(e) => setThemeId(e.target.value)} style={inputStyle}>
+                <option value="">— keep current —</option>
+                {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </label>
+          )}
+          {err && <div style={{ color: C.red, fontSize: 12.5, fontWeight: 700 }}>{err}</div>}
+          <div><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</Button></div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+const editLbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', color: C.muted2 };
+/** Coerce a possibly "5:00 PM"/"17:00" string to a 24h "HH:MM" for <input type=time>. */
+function to24(t: string): string {
+  if (!t) return '';
+  if (/^\d{2}:\d{2}$/.test(t)) return t;
+  const m = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!m) return '';
+  let h = Number(m[1]); const min = m[2]; const ap = m[3]?.toUpperCase();
+  if (ap === 'PM' && h < 12) h += 12; if (ap === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${min}`;
 }
 
 function PartyDetailsPanel({ event }: { event: any }) {
