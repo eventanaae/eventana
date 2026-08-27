@@ -66,7 +66,7 @@ export async function uploadBytes(bytes: Uint8Array, folder: UploadFolder, filen
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = createHash('sha1').update(`folder=${folder}&timestamp=${timestamp}${apiSecret}`).digest('hex');
     const form = new FormData();
-    form.append('file', new Blob([bytes as BlobPart]), filename);
+    form.append('file', new Blob([Buffer.from(bytes)]), filename);
     form.append('api_key', apiKey);
     form.append('timestamp', String(timestamp));
     form.append('folder', folder);
