@@ -24,10 +24,14 @@ const BASE = apiBase();
 const STAFF_TOKEN_KEY = 'eventana.staffToken';
 
 export function getStaffToken(): string {
+  // Security cutover (2026-08-27): the dashboard NO LONGER carries a baked
+  // owner token. Access requires a real login — a session token stored here by
+  // email/password sign-in (or, as an emergency backdoor, a token pasted under
+  // "Advanced"). No credential ships in the public bundle any more.
   try {
-    return localStorage.getItem(STAFF_TOKEN_KEY) || (import.meta.env.VITE_STAFF_TOKEN ?? '');
+    return localStorage.getItem(STAFF_TOKEN_KEY) || '';
   } catch {
-    return import.meta.env.VITE_STAFF_TOKEN ?? '';
+    return '';
   }
 }
 export function setStaffToken(t: string): void {
