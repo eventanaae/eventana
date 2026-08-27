@@ -2466,7 +2466,9 @@ export async function adminRoutes(app: FastifyInstance) {
       readyBy: cart.readyBy ?? new Date(created.getTime() + 3 * 86_400_000).toISOString().slice(0, 10),
       customization: cart.customization ?? null,
       createdAt: r.created_at,
+      totalFils: Number(r.total_fils),
       totalDisplay: canSeeMoney ? formatAed(Number(r.total_fils)) : null,
+      orderStatus: r.status,
       design: design ? { imageUrl: design.image_url, status: design.status, uploadedBy: design.uploaded_by, uploadedAt: design.uploaded_at, sentAt: design.sent_at } : { status: 'awaiting_design' },
     };
   });

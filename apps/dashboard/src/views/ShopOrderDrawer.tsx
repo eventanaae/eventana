@@ -61,6 +61,20 @@ export function ShopOrderDrawer({ orderId, role, onClose }: { orderId: string; r
                     </div>
                   </div>
                 )}
+                {canApprove && (
+                  <div style={{ marginTop: 12, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 11 }}>
+                    {d.orderStatus === 'refunded' ? (
+                      <Badge tone="neutral">Refunded</Badge>
+                    ) : (
+                      <Button tone="danger" disabled={busy} onClick={async () => {
+                        if (!window.confirm(`Refund AED ${d.totalDisplay} to ${d.customer?.name}? This returns the money via the payment provider and can't be undone.`)) return;
+                        setBusy(true); setMsg(null);
+                        try { const r = await api.refund(d.id, d.totalFils, 'Shop order refund'); setMsg(`Refund recorded — order is now ${r.status}. 💸`); await load(); }
+                        catch (err: any) { setMsg(err?.message ?? 'Refund failed'); } finally { setBusy(false); }
+                      }}>↩ Refund order</Button>
+                    )}
+                  </div>
+                )}
               </Panel>
 
               {/* Design workflow — Marsha uploads, Owner approves & sends. */}

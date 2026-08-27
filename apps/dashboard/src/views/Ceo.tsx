@@ -95,6 +95,9 @@ export function Ceo() {
 
       {data && !loading && (
         <>
+          {/* CEO Morning Brief — birthdays + prioritised alerts (Critical→Low) */}
+          <MorningBrief data={data} />
+
           {/* Hero KPIs with growth + sparkline */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
             <HeroKpi label="Revenue" value={`AED ${data.revenueDisplay}`} delta={data.revenueChangePct} spark={revSpark} accent={C.pink} />
@@ -138,11 +141,22 @@ export function Ceo() {
 
           {/* Cash · pipeline · funnel */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
-            <Panel title="Cash">
-              <MiniRow label="Collected (paid)" value={`AED ${data.collectedDisplay}`} tone={C.green} />
-              <MiniRow label="Outstanding" value={`AED ${data.outstandingDisplay}`} sub={`${data.outstandingCount} order(s)`} tone={data.outstandingCount > 0 ? C.yellowInk : C.muted} />
-              <MiniRow label="Expenses" value={`AED ${data.expensesDisplay}`} tone={C.muted2} />
-              <MiniRow label="Refunded" value={`AED ${data.refundDisplay}`} tone={C.muted2} last />
+            <Panel title="Cash position">
+              {data.cash?.cashOnHandDisplay != null ? (
+                <>
+                  <div style={{ ...fredoka(24), color: C.green }}>AED {data.cash.availableDisplay}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 8 }}>available after upcoming commitments</div>
+                  <MiniRow label="Cash on hand" value={`AED ${data.cash.cashOnHandDisplay}`} tone={C.ink} />
+                  <MiniRow label="Expected incoming" value={`AED ${data.cash.expectedInDisplay}`} sub="A/R + unsettled orders" tone={C.green} />
+                  <MiniRow label="Upcoming refunds" value={`AED ${data.cash.upcomingRefundsDisplay}`} tone={C.muted2} last />
+                </>
+              ) : (
+                <>
+                  <MiniRow label="Collected (paid)" value={`AED ${data.collectedDisplay}`} tone={C.green} />
+                  <MiniRow label="Outstanding" value={`AED ${data.outstandingDisplay}`} sub={`${data.outstandingCount} order(s)`} tone={data.outstandingCount > 0 ? C.yellowInk : C.muted} />
+                  <MiniRow label="Expenses" value={`AED ${data.expensesDisplay}`} tone={C.muted2} last />
+                </>
+              )}
             </Panel>
             <Panel title="Pipeline (upcoming)">
               <div style={{ ...fredoka(28), color: C.pinkDeep }}>AED {data.pipeline?.revenueDisplay ?? '0'}</div>
@@ -156,6 +170,12 @@ export function Ceo() {
             </Panel>
           </div>
 
+          {/* Year-end forecast */}
+          {data.forecast && <ForecastPanel f={data.forecast} />}
+
+          {/* Operational health */}
+          {data.opsHealth && <OpsHealth ops={data.opsHealth} />}
+
           {/* Breakdowns */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
             <Breakdown title="Top emirates" rows={data.byEmirate} />
@@ -163,9 +183,140 @@ export function Ceo() {
             <Breakdown title="Top packages" rows={data.byPackage} />
             <Breakdown title="Top themes" rows={data.byTheme} />
           </div>
+
+          {/* Customers + cancellations */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
+            <Panel title="Top customers by revenue">
+              {(data.topCustomers ?? []).length === 0 ? (
+                <div style={{ color: C.muted, fontSize: 12.5, fontWeight: 600 }}>Not enough data yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {data.topCustomers.map((c: any, i: number) => (
+                    <MiniRow key={i} label={`${i + 1}. ${c.name}`} value={`AED ${c.revenueDisplay}`} sub={`${c.orders} order(s)`} tone={C.ink} last={i === data.topCustomers.length - 1} />
+                  ))}
+                </div>
+              )}
+            </Panel>
+            <Panel title="Cancellations & refunds">
+              <MiniRow label="Cancellation rate" value={`${data.cancelRatePct}%`} sub={`${data.cancelled} cancelled`} tone={data.cancelRatePct > 15 ? C.red : C.ink} />
+              <MiniRow label="Total refunded" value={`AED ${data.refundDisplay}`} tone={C.muted2} last={(data.cancelReasons ?? []).length === 0} />
+              {(data.cancelReasons ?? []).length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.4px', color: C.muted, marginBottom: 5 }}>TOP REASONS</div>
+                  {data.cancelReasons.map((r: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: C.muted2, padding: '3px 0' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason}</span>
+                      <span style={{ fontWeight: 800 }}>{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textAlign: 'center', lineHeight: 1.6, padding: '4px 8px' }}>
+            Per-package profit &amp; margin, ad spend / ROAS, and year-over-year comparison need cost &amp; ad-spend data that isn't captured yet — shown as “Not enough data yet” rather than estimated.
+          </div>
         </>
       )}
     </div>
+  );
+}
+
+/** CEO Morning Brief — birthdays + prioritised alerts, Critical → Low. */
+function MorningBrief({ data }: { data: any }) {
+  const alerts: any[] = data.alerts ?? [];
+  const birthdays: string[] = data.birthdays ?? [];
+  const LV: Record<string, { bg: string; fg: string; label: string }> = {
+    critical: { bg: '#fdecea', fg: '#c0392b', label: 'CRITICAL' },
+    high: { bg: '#fef2e3', fg: '#c98a2b', label: 'HIGH' },
+    medium: { bg: '#fffbe6', fg: '#9a8322', label: 'MEDIUM' },
+    low: { bg: C.pinkSoft, fg: C.pinkDeep, label: 'LOW' },
+  };
+  if (alerts.length === 0 && birthdays.length === 0) {
+    return (
+      <div style={{ background: C.greenSoft, color: C.green, borderRadius: 16, padding: '14px 18px', fontSize: 13, fontWeight: 700 }}>
+        ☀️ Good morning! Nothing urgent right now — everything is on track. 🎉
+      </div>
+    );
+  }
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+      <div style={{ height: 5, background: `linear-gradient(90deg,${C.pinkDeep},${C.pink})` }} />
+      <div style={{ padding: '16px 20px' }}>
+        <div style={{ ...fredoka(15), marginBottom: 12 }}>☀️ Your morning brief</div>
+        {birthdays.length > 0 && (
+          <div style={{ background: C.pinkSoft, color: C.pinkDeep, borderRadius: 12, padding: '10px 13px', fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
+            🎂 Birthday today: {birthdays.join(', ')} — send them a wish!
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {alerts.map((a, i) => {
+            const lv = LV[a.level] ?? LV.low;
+            return (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', background: lv.bg, borderRadius: 12, padding: '10px 13px' }}>
+                <span style={{ fontSize: 15, flex: 'none' }}>{a.icon}</span>
+                <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: C.ink, lineHeight: 1.45 }}>{a.text}</span>
+                <span style={{ flex: 'none', fontSize: 9.5, fontWeight: 800, letterSpacing: '.5px', color: lv.fg, background: '#fff', padding: '3px 7px', borderRadius: 20 }}>{lv.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Year-end forecast — 3 scenarios (estimate from run-rate + booked pipeline). */
+function ForecastPanel({ f }: { f: any }) {
+  const scen = [
+    { key: 'conservative', label: 'Conservative', emoji: '🔴', color: C.red, s: f.conservative },
+    { key: 'expected', label: 'Expected', emoji: '🟡', color: C.yellowInk, s: f.expected },
+    { key: 'optimistic', label: 'Optimistic', emoji: '🟢', color: C.green, s: f.optimistic },
+  ];
+  return (
+    <Panel title="Year-end forecast">
+      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>
+        Estimate from this year's run-rate + already-booked future revenue (AED {f.ytdRevenueDisplay} so far, AED {f.bookedFutureDisplay} booked ahead · {f.marginPct}% margin).
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10 }}>
+        {scen.map((x) => (
+          <div key={x.key} style={{ border: `1px solid ${C.line}`, borderTop: `3px solid ${x.color}`, borderRadius: 14, padding: '12px 14px' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: x.color }}>{x.emoji} {x.label}</div>
+            <div style={{ ...fredoka(19), color: C.ink, marginTop: 6 }}>AED {x.s.revenueDisplay}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>revenue</div>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: x.color, marginTop: 6 }}>AED {x.s.netDisplay}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>est. net profit</div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+/** Operational readiness for the week ahead. */
+function OpsHealth({ ops }: { ops: any }) {
+  const pct = ops.readinessPct;
+  const cells = [
+    { label: 'Events next 7 days', value: ops.upcoming7, tone: C.ink },
+    { label: 'Fully ready', value: ops.fullyReady, tone: C.green },
+    { label: 'Understaffed', value: ops.understaffed, tone: ops.understaffed > 0 ? C.red : C.muted },
+    { label: 'Missing items', value: ops.withMissingItems, tone: ops.withMissingItems > 0 ? C.red : C.muted },
+    { label: 'Late prep tasks', value: ops.latePrep, tone: ops.latePrep > 0 ? C.yellowInk : C.muted },
+    { label: 'Prep at risk', value: ops.atRisk, tone: ops.atRisk > 0 ? C.red : C.muted },
+  ];
+  return (
+    <Panel title="Operational health"
+      action={pct != null ? <span style={{ ...fredoka(18), color: pct >= 80 ? C.green : pct >= 50 ? C.yellowInk : C.red }}>{pct}% ready</span> : undefined}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(110px,1fr))', gap: 10 }}>
+        {cells.map((c) => (
+          <div key={c.label} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px' }}>
+            <div style={{ ...fredoka(22), color: c.tone }}>{c.value}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 2 }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }
 

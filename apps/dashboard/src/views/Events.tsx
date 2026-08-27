@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
-import { NewOrder } from './NewOrder';
 
 const PHASES = [
   'Booking Confirmed', 'Preparing', 'On The Way', 'Arrived',
@@ -101,7 +100,6 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
   const [cancelReason, setCancelReason] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
   const [message, setMessage] = useState<string | null>(null);
-  const [addonOpen, setAddonOpen] = useState(false);
 
   const load = async () => {
     const d = await api.event(eventId);
@@ -130,26 +128,29 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
               <div style={{ flex: 1 }}>
                 <div style={fredoka(20)}>{data.event.id}</div>
-                <div style={{ marginTop: 10, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {data.event.eventFor && (
-                    <div style={{ ...fredoka(17), color: C.pinkDeep, marginBottom: 2 }}>
-                      🎉 {data.event.eventFor}
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}> · guest of honour</span>
-                    </div>
-                  )}
-                  <HeaderRow icon="👤" value={data.event.customer} />
-                  {data.event.phone && (
-                    <HeaderRow icon="📞" value={
-                      <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.phone}</a>
-                    } />
-                  )}
-                  {data.event.email && (
-                    <HeaderRow icon="✉️" value={
-                      <a href={`mailto:${data.event.email}`} style={{ color: C.ink, fontWeight: 600, textDecoration: 'none', wordBreak: 'break-word' }}>{data.event.email}</a>
-                    } />
-                  )}
-                  <HeaderRow icon="🕐" value={`${new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${data.event.start_time}–${data.event.base_end_time}`} />
-                  {data.event.emirate && <HeaderRow icon="📍" value={data.event.emirate} />}
+                <div style={{ marginTop: 12, borderRadius: 20, overflow: 'hidden', border: `1px solid ${C.pinkLine}`, boxShadow: C.shadow }}>
+                  <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.pinkDeep})` }} />
+                  <div style={{ background: 'linear-gradient(135deg,#FFF3F9,#FDEAF3)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {data.event.eventFor && (
+                      <div style={{ ...fredoka(19), color: C.pinkDeep, marginBottom: 2 }}>
+                        🎉 {data.event.eventFor}
+                        <span style={{ fontSize: 9.5, fontWeight: 800, color: '#c98fb4', letterSpacing: '.5px' }}> · GUEST OF HONOUR</span>
+                      </div>
+                    )}
+                    <HeaderRow icon="👤" value={data.event.customer} />
+                    {data.event.phone && (
+                      <HeaderRow icon="📞" value={
+                        <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.phone}</a>
+                      } />
+                    )}
+                    {data.event.email && (
+                      <HeaderRow icon="✉️" value={
+                        <a href={`mailto:${data.event.email}`} style={{ color: C.ink, fontWeight: 700, textDecoration: 'none', wordBreak: 'break-word' }}>{data.event.email}</a>
+                      } />
+                    )}
+                    <HeaderRow icon="🗓️" value={`${new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${data.event.start_time}–${data.event.base_end_time}`} />
+                    {data.event.emirate && <HeaderRow icon="📍" value={data.event.emirate} />}
+                  </div>
                 </div>
                 {(data.event.referenceImages ?? []).length > 0 && (
                   <div style={{ marginTop: 8 }}>
@@ -165,24 +166,9 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                {!moneyHidden && data.event.order_status === 'paid' && data.event.phase !== 'Cancelled' && (
-                  <Button onClick={() => setAddonOpen(true)}>➕ Add-on link</Button>
-                )}
                 <Button tone="ghost" onClick={onClose}>Close</Button>
               </div>
             </div>
-
-            {addonOpen && (
-              <div onClick={() => setAddonOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.5)', zIndex: 40, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
-                <div onClick={(e) => e.stopPropagation()} style={{ background: C.bg, borderRadius: 18, padding: 18, width: 'min(720px, 100%)', margin: 'auto' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div style={fredoka(17)}>Add-on for {data.event.id}</div>
-                    <Button tone="ghost" onClick={() => setAddonOpen(false)}>Close</Button>
-                  </div>
-                  <NewOrder addonEventId={data.event.id} />
-                </div>
-              </div>
-            )}
 
             {message && (
               <div style={{ background: C.greenSoft, color: C.green, padding: '10px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700, marginBottom: 14 }}>
@@ -568,12 +554,12 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
  * Maps" are Google's universal deep links — they open the driver's native
  * Google Maps app with turn-by-turn navigation, no API key required.
  */
-/** A clean icon + value row for the event header (no cramped label column). */
+/** A premium icon + value row for the event header — icon in a soft chip. */
 function HeaderRow({ icon, value }: { icon: string; value: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, fontSize: 13 }}>
-      <span style={{ width: 18, flex: 'none', textAlign: 'center' }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0, fontWeight: 600, color: C.ink, lineHeight: 1.45 }}>{value}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11, fontSize: 13 }}>
+      <span style={{ width: 30, height: 30, borderRadius: 10, background: '#fff', boxShadow: '0 1px 5px rgba(233,79,156,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14.5, flex: 'none' }}>{icon}</span>
+      <span style={{ flex: 1, minWidth: 0, fontWeight: 700, color: C.ink, lineHeight: 1.4 }}>{value}</span>
     </div>
   );
 }
