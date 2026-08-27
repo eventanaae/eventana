@@ -24,6 +24,7 @@ export type EventPatch = {
   emirate?: string;
   eventFor?: string | null;  // guest-of-honour / baby name (lives in the order cart)
   themeId?: string | null;   // catalogue theme id (also mirrored to the cart)
+  customThemeName?: string;  // a free-typed theme when none in the catalogue fit
 };
 
 export async function staffUpdateEvent(eventId: string, patch: EventPatch): Promise<{ ok: true }> {
@@ -80,17 +81,22 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       await db.query(`UPDATE events SET emirate = $2 WHERE id = $1`, [eventId, patch.emirate]);
     }
 
+    const customTheme = (patch.customThemeName ?? '').trim();
     // ── Theme (mirror to the event row) ─────────────────────────────────────
-    if (patch.themeId !== undefined) {
+    if (customTheme) {
+      // A free-typed theme: mark the event custom and drop the catalogue link.
+      await db.query(`UPDATE events SET theme_id = NULL, custom_theme = TRUE WHERE id = $1`, [eventId]);
+    } else if (patch.themeId !== undefined && patch.themeId) {
       await db.query(`UPDATE events SET theme_id = $2, custom_theme = FALSE WHERE id = $1`, [eventId, patch.themeId]);
     }
 
     // ── Guest-of-honour name + theme live in the order cart ─────────────────
-    if (patch.eventFor !== undefined || patch.themeId !== undefined) {
+    if (patch.eventFor !== undefined || (patch.themeId !== undefined && patch.themeId) || customTheme) {
       const { rows: o } = await db.query(`SELECT cart FROM orders WHERE id = $1`, [ev.order_id]);
       const cart = { ...((o[0]?.cart ?? {}) as Record<string, unknown>) };
       if (patch.eventFor !== undefined) cart.eventFor = patch.eventFor;
-      if (patch.themeId !== undefined) cart.themeId = patch.themeId;
+      if (customTheme) { cart.customTheme = customTheme; delete cart.themeId; }
+      else if (patch.themeId !== undefined && patch.themeId) { cart.themeId = patch.themeId; delete cart.customTheme; }
       await db.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [ev.order_id, cart]);
     }
 

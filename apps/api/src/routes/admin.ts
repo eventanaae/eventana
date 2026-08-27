@@ -836,6 +836,8 @@ export async function adminRoutes(app: FastifyInstance) {
       event: {
         ...rows[0],
         totalDisplay: formatAed(Number(rows[0].total_fils)),
+        // Theme name for display: the catalogue theme, or a free-typed custom one.
+        theme_name: rows[0].theme_name ?? ((rows[0].cart as { customTheme?: string } | null)?.customTheme ?? null),
         // Who the party is for — distinct from the account holder (#23/#24).
         eventFor: (rows[0].cart as { eventFor?: string } | null)?.eventFor ?? null,
         // Reference images the team attached when they built a manual order —
@@ -1221,6 +1223,7 @@ export async function adminRoutes(app: FastifyInstance) {
       emirate: z.string().min(1).max(40).optional(),
       eventFor: z.string().max(120).nullable().optional(),
       themeId: z.string().min(1).max(80).nullable().optional(),
+      customThemeName: z.string().max(120).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });

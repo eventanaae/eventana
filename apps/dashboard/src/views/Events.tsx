@@ -852,6 +852,7 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
   const [startTime, setStartTime] = useState(event.start_time ?? '');
   const [endTime, setEndTime] = useState(event.base_end_time ?? '');
   const [themeId, setThemeId] = useState(event.theme_id ?? '');
+  const [customThemeName, setCustomThemeName] = useState(event.custom_theme ? (event.theme_name ?? '') : '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { if (open && themes.length === 0) api.themesList().then((r) => setThemes(r.rows)).catch(() => {}); }, [open]);
@@ -863,7 +864,12 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
     if (endTime && endTime !== event.base_end_time) patch.endTime = endTime;
     if (emirate && emirate !== event.emirate) patch.emirate = emirate;
     if ((eventFor ?? '') !== (event.eventFor ?? '')) patch.eventFor = eventFor.trim() || null;
-    if (!event.custom_theme && themeId && themeId !== event.theme_id) patch.themeId = themeId;
+    const ct = customThemeName.trim();
+    if (ct) {
+      if (ct !== (event.custom_theme ? (event.theme_name ?? '') : '')) patch.customThemeName = ct;
+    } else if (themeId && themeId !== event.theme_id) {
+      patch.themeId = themeId;
+    }
     if (Object.keys(patch).length === 0) { setOpen(false); setBusy(false); return; }
     try {
       await api.eventUpdateDetails(eventId, patch);
@@ -905,15 +911,17 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
             <span style={editLbl}>Guest of honour (baby name)</span>
             <input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={inputStyle} placeholder="e.g. Sara" />
           </label>
-          {!event.custom_theme && (
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={editLbl}>Theme</span>
-              <select value={themeId} onChange={(e) => setThemeId(e.target.value)} style={inputStyle}>
-                <option value="">— keep current —</option>
-                {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </label>
-          )}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={editLbl}>Theme</span>
+            <select value={customThemeName.trim() ? '' : themeId} onChange={(e) => { setThemeId(e.target.value); if (e.target.value) setCustomThemeName(''); }} style={inputStyle}>
+              <option value="">— keep current —</option>
+              {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={editLbl}>…or type a custom theme</span>
+            <input value={customThemeName} onChange={(e) => setCustomThemeName(e.target.value)} style={inputStyle} placeholder="e.g. Jungle Safari" />
+          </label>
           {err && <div style={{ color: C.red, fontSize: 12.5, fontWeight: 700 }}>{err}</div>}
           <div><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</Button></div>
         </div>
@@ -938,7 +946,7 @@ function PartyDetailsPanel({ event }: { event: any }) {
   const rows: Array<[string, string]> = [];
   if (event.children_count) rows.push(['👶 Children', String(event.children_count)]);
   if (event.movie_id) rows.push(['🎬 Movie', String(event.movie_id)]);
-  if (event.custom_theme) rows.push(['🎨 Theme', 'Custom design (see brief / design panel)']);
+  if (event.custom_theme) rows.push(['🎨 Theme', event.theme_name ? String(event.theme_name) : 'Custom design (see brief / design panel)']);
   else if (event.theme_name) rows.push(['🎨 Theme', String(event.theme_name)]);
   else if (event.theme_id) rows.push(['🎨 Theme', String(event.theme_id)]);
   if (event.castle_variant) rows.push(['🏰 Castle colour', String(event.castle_variant)]);
