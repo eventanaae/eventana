@@ -52,6 +52,36 @@ export function hasStaffToken(): boolean {
   return getStaffToken().length > 0;
 }
 
+// ── Owner "view as" (preview) ────────────────────────────────────────────────
+// The owner can preview a team member's dashboard. We stash the owner's own
+// session, swap in the member's, and restore it on exit — all client-side.
+const OWNER_BACKUP_KEY = 'eventana.ownerBackupToken';
+const PREVIEW_META_KEY = 'eventana.previewAs';
+
+export function isPreviewing(): { name: string; role: string } | null {
+  try {
+    const raw = sessionStorage.getItem(PREVIEW_META_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+export function startPreview(token: string, name: string, role: string): void {
+  try {
+    sessionStorage.setItem(OWNER_BACKUP_KEY, getStaffToken());
+    sessionStorage.setItem(PREVIEW_META_KEY, JSON.stringify({ name, role }));
+    setStaffToken(token);
+    window.location.reload();
+  } catch { /* ignore */ }
+}
+export function exitPreview(): void {
+  try {
+    const owner = sessionStorage.getItem(OWNER_BACKUP_KEY);
+    sessionStorage.removeItem(OWNER_BACKUP_KEY);
+    sessionStorage.removeItem(PREVIEW_META_KEY);
+    if (owner) setStaffToken(owner); else clearStaffToken();
+    window.location.reload();
+  } catch { /* ignore */ }
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // The free-tier API sleeps after ~15 min idle and cold-starts on the next
 // request (~50s), during which it may refuse the connection or return a 502.
@@ -118,6 +148,7 @@ export const api = {
   teamInvite: (name: string, email: string, accessLevel: string) => request<any>('/api/admin/team/invite', { method: 'POST', body: JSON.stringify({ name, email, accessLevel }) }),
   teamSetupLink: (id: string) => request<any>(`/api/admin/team/${id}/setup-link`, { method: 'POST' }),
   teamSetActive: (id: string, active: boolean) => request<any>(`/api/admin/team/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) }),
+  impersonate: (id: string) => request<{ token: string; name: string; role: string }>(`/api/admin/team/${id}/impersonate`, { method: 'POST' }),
 
   today: () => request<any>('/api/admin/today'),
   overview: (period?: string) => request<any>(`/api/admin/overview${period ? `?period=${period}` : ''}`),

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { api } from '../api';
+import { api, startPreview } from '../api';
 import { Badge, Button, C, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
 
@@ -69,6 +69,15 @@ export function Team({ role = 'owner' }: { role?: string }) {
                     <div style={{ fontWeight: 700, fontSize: 14, color: C.ink }}>{m.name}</div>
                     <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{m.role}</div>
                   </div>
+                  {isOwner && m.active !== false && (
+                    <button
+                      title="See this person's dashboard"
+                      onClick={async () => { try { const r = await api.impersonate(m.id); startPreview(r.token, r.name, r.role); } catch { /* ignore */ } }}
+                      style={{ flex: 'none', border: `1px solid ${C.line}`, background: '#fff', color: C.pinkDeep, borderRadius: 10, padding: '6px 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      👁 Preview
+                    </button>
+                  )}
                 </div>
 
                 <div style={{ marginTop: 11, display: 'flex', flexDirection: 'column', gap: 10 }}>

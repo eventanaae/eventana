@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler } from './api';
+import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler, isPreviewing, exitPreview } from './api';
 import { C, fredoka } from './ui';
 import { BookingNotifier } from './BookingNotifier';
 import { NotificationBell } from './NotificationBell';
@@ -195,6 +195,14 @@ export default function App() {
     <ShopOrderDrawer orderId={openShopId} role={role} onClose={() => setOpenShopId(null)} />
   );
 
+  const preview = isPreviewing();
+  const previewBar = preview ? (
+    <div style={{ position: 'sticky', top: 0, zIndex: 30, background: C.yellowInk, color: '#fff', padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, fontSize: 12.5, fontWeight: 700, flexWrap: 'wrap' }}>
+      👁 Previewing as {preview.name} ({preview.role})
+      <button onClick={exitPreview} style={{ background: '#fff', color: C.yellowInk, border: 'none', borderRadius: 8, padding: '5px 12px', fontWeight: 800, cursor: 'pointer', fontSize: 12 }}>Exit preview</button>
+    </div>
+  ) : null;
+
   const toastEl = toast ? (
     <div
       onClick={() => setToast(null)}
@@ -213,6 +221,7 @@ export default function App() {
   if (mobile) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
+        {previewBar}
         {toastEl}
         <BookingNotifier enabled={authed} />
         <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: `1px solid ${C.line}`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -302,7 +311,9 @@ export default function App() {
 
   // ---------------- desktop: sidebar ---------------------------------------
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
+      {previewBar}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       {toastEl}
       <BookingNotifier enabled={authed} />
       <div
@@ -417,6 +428,7 @@ export default function App() {
       </div>
 
       {eventDrawer}
+      </div>
     </div>
   );
 }

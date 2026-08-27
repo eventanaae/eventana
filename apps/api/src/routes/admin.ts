@@ -29,7 +29,7 @@ import { auditReport } from '../domain/audit.js';
 import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, normalizeUaePhone } from '../domain/maintenance.js';
 import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
 import { logAudit, listAudit } from '../domain/auditLog.js';
-import { verifyStaffSession } from '../domain/staffAuth.js';
+import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
@@ -2846,6 +2846,22 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     logAudit({ actor: String((request as any).staff?.name ?? 'owner'), role: 'owner', action: p.data.active ? 'staff_enable' : 'staff_disable', target: id });
     return rows[0];
+  });
+
+  /**
+   * Owner-only "view as" (preview): issue a session token for a team member so the
+   * owner can see exactly what that person's dashboard looks like. The owner's own
+   * session is preserved client-side and restored on exit. Audited.
+   */
+  app.post('/api/admin/team/:id/impersonate', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const { rows } = await pool.query(`SELECT id, name, access_level, active FROM team_members WHERE id = $1 LIMIT 1`, [id]);
+    const m = rows[0];
+    if (!m) return reply.status(404).send({ error: 'not_found' });
+    if (!m.active) return reply.status(409).send({ error: 'inactive', message: 'This member is disabled.' });
+    logAudit({ actor: String((request as any).staff?.name ?? 'owner'), role: 'owner', action: 'impersonate', target: id });
+    return { token: issueStaffSession(m.id), name: m.name, role: m.access_level ?? 'employee' };
   });
 
   /**
