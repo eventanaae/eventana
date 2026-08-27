@@ -146,7 +146,10 @@ export default function App() {
   }
 
   const current = NAV.find((n) => n.id === view) ?? NAV[0];
-  const sandbox = integrations.some((i) => i.mode !== 'live');
+  // Only warn when a provider is genuinely in test/sandbox mode. A 'disabled'
+  // provider (e.g. Tabby/Tamara/Ziina awaiting production creds) is not a
+  // sandbox — Stripe being live means real payments work.
+  const sandbox = integrations.some((i) => i.mode === 'sandbox' || i.mode === 'test');
   const openEvent = (id: string) => setOpenEventId(id);
 
   const go = (id: View) => { setView(id); setMoreOpen(false); };
