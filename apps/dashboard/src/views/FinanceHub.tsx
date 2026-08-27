@@ -67,12 +67,12 @@ function AccountingTab() {
 
 // ── Sales & Get Paid (Invoices + Receipts) ───────────────────────────────────
 function SalesTab({ isOwner }: { isOwner?: boolean }) {
-  const [sub, setSub] = useState<'invoices' | 'receipts'>('invoices');
+  const [sub, setSub] = useState<'invoices' | 'receipts'>('receipts');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', gap: 8 }}>
-        <SubBtn on={sub === 'invoices'} onClick={() => setSub('invoices')}>Invoices</SubBtn>
         <SubBtn on={sub === 'receipts'} onClick={() => setSub('receipts')}>Sales receipts</SubBtn>
+        <SubBtn on={sub === 'invoices'} onClick={() => setSub('invoices')}>Invoices</SubBtn>
       </div>
       {sub === 'invoices' ? <InvoicesList isOwner={isOwner} /> : <ReceiptsList isOwner={isOwner} />}
     </div>
@@ -205,16 +205,12 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
 
   if (!data) return <Spinner />;
   return (
-    <Panel
-      title="Sales receipts"
-      action={
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button tone="ghost" onClick={() => setNewOrder(true)}>+ New order</Button>
-          <Button tone="ghost" onClick={() => setAddon(true)}>+ Add-on</Button>
-          <Button onClick={() => setCreating(true)}>+ New receipt</Button>
-        </div>
-      }
-    >
+    <Panel title="Sales receipts">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+        <Button onClick={() => setNewOrder(true)}>+ New order</Button>
+        <Button tone="ghost" onClick={() => setAddon(true)}>+ Add-on</Button>
+        <Button tone="ghost" onClick={() => setCreating(true)}>+ New manual receipt</Button>
+      </div>
       {data.totalDisplay != null && (
         <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>
           Total collected: <b style={{ color: C.green }}>AED {data.totalDisplay}</b> → Cash on hand

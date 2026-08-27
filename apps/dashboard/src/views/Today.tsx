@@ -184,6 +184,9 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         </Panel>
       )}
 
+      {/* Manager/owner: staffing that needs action + day-off requests, right on Home. */}
+      {(role === 'owner' || role === 'manager') && <ManagerHomeAlerts onOpenEvent={onOpenEvent} />}
+
       {/* Upcoming — events + shop orders interleaved, sorted by date. */}
       {(() => {
         const evItems = upcoming.map((e) => ({ shop: false, id: e.id, sortDate: String(e.event_date).slice(0, 10), e }));
@@ -370,6 +373,54 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Manager/owner Home panels: events that still need staffing, and pending
+ * day-off requests they can approve or deny — surfaced right on Home so the
+ * "Updates" screen isn't needed. Each panel hides itself when it's empty.
+ */
+function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
+  const [data, setData] = useState<any>(null);
+  const load = () => api.alerts().then(setData).catch(() => setData(null));
+  useEffect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t); }, []);
+  if (!data || data.scoped) return null;
+  const gaps = data.staffingGaps ?? [];
+  const leave = data.pendingLeave ?? [];
+  const rowS: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` };
+  return (
+    <>
+      {gaps.length > 0 && (
+        <Panel title="🎭 Staffing — action required">
+          {gaps.map((s: any) => (
+            <div key={s.event_id} style={{ ...rowS, cursor: 'pointer' }} onClick={() => onOpenEvent(s.event_id)}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, flex: 'none' }} />
+              <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 96 }}>{new Date(s.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>{s.emirate} · {s.start_time} · {(s.roles ?? []).join(', ').replace(/_/g, ' ')}</span>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: C.red }}>{s.open} to confirm</span>
+            </div>
+          ))}
+        </Panel>
+      )}
+      {leave.length > 0 && (
+        <Panel title="🌴 Day OFF requests">
+          {leave.map((d: any) => (
+            <div key={d.id} style={rowS}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color || C.pink, flex: 'none' }} />
+              <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 96 }}>{d.member_name}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
+                {new Date(d.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                {String(d.end_date).slice(0, 10) !== String(d.start_date).slice(0, 10) && ` → ${new Date(d.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}
+                {d.reason ? ` · ${d.reason}` : ''}
+              </span>
+              <button onClick={async () => { await api.setDayOffStatus(d.id, 'approved'); load(); }} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.green, flex: 'none' }}>Approve</button>
+              <button onClick={async () => { await api.setDayOffStatus(d.id, 'denied'); load(); }} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.red, flex: 'none' }}>Deny</button>
+            </div>
+          ))}
+        </Panel>
+      )}
+    </>
   );
 }
 

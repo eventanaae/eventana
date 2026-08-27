@@ -72,7 +72,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'alerts', 'customers', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile', 'feedback'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile', 'feedback'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
@@ -133,7 +133,7 @@ export default function App() {
   const primaryIds: View[] = role === 'owner'
     ? ['today', 'schedule', 'ceo']
     : role === 'manager'
-      ? ['today', 'schedule', 'alerts']
+      ? ['today', 'schedule', 'inventory', 'profile'] // Updates removed; business tools live in More
       : ['today', 'schedule', 'inventory', 'profile']; // employee/driver — filtered by isVisible
   const primaryNav = primaryIds.filter((id) => isVisible(id)).map((id) => NAV.find((n) => n.id === id)!);
   const primarySet = new Set<View>(primaryIds);
