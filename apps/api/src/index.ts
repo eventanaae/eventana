@@ -37,6 +37,10 @@ async function main() {
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
+    // Remove duplicate/test staff rows (smoke-test login, second Sheem owner,
+    // duplicate Shan). Guarded + idempotent — see purgeOrphanStaff.
+    const { purgeOrphanStaff } = await import('./db/purgeOrphanStaff.js');
+    await purgeOrphanStaff().catch((err) => console.error('[cleanup] failed:', err));
     // Ensure the internal crew + their skills exist for the smart staff-assignment
     // engine (Jane, Dindo, Gloria, Diana, Marsha). Idempotent.
     const { seedStaffSkills, syncAllEventTeams } = await import('./domain/staffing.js');

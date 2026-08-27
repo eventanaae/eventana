@@ -188,7 +188,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
       {(() => {
         const evItems = upcoming.map((e) => ({ shop: false, id: e.id, sortDate: String(e.event_date).slice(0, 10), e }));
         const shopItems = (data.shopOrders ?? []).map((o: any) => ({ shop: true, id: o.id, sortDate: String(o.readyBy ?? ''), o }));
-        const combined = [...evItems, ...shopItems].sort((a, b) => a.sortDate.localeCompare(b.sortDate)).slice(0, 10);
+        const combined = [...evItems, ...shopItems].sort((a, b) => a.sortDate.localeCompare(b.sortDate)).slice(0, 5);
         if (combined.length === 0) return null;
         return (
           <Panel className="rise-in" style={{ ['--i' as any]: 5 } as any} title="Upcoming"
@@ -201,6 +201,9 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
           </Panel>
         );
       })()}
+
+      {/* Achievements / points competition — always the last thing on Home. */}
+      <CompetitionBoard />
     </div>
   );
 }
@@ -266,13 +269,9 @@ const ago2 = (ts: string) => {
  */
 function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [data, setData] = useState<any>(null);
-  const [board, setBoard] = useState<any[] | null>(null);
   useEffect(() => {
     const load = () => api.alerts().then(setData).catch(() => setData({ prepAtRisk: [], lowStock: [], recentRatings: [] }));
     load();
-    const now = new Date();
-    const mth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    api.kpis(mth).then((k: any) => setBoard(k?.board ?? [])).catch(() => setBoard([]));
     const t = setInterval(load, 30_000);
     return () => clearInterval(t);
   }, []);
@@ -280,7 +279,6 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const prep = data.prepAtRisk ?? [];
   const low = data.lowStock ?? [];
   const ratings = data.recentRatings ?? [];
-  const RANK = ['🥇', '🥈', '🥉'];
   const rowS: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` };
 
   const nothing = prep.length === 0 && low.length === 0 && ratings.length === 0;
@@ -327,27 +325,42 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           ☀️ Nothing needs your attention right now — you're all set! 🎉
         </div>
       )}
-
-      {board && board.length > 0 && (
-        <Panel title="🏆 Team competition">
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginBottom: 8, lineHeight: 1.5, background: '#faf6f9', borderRadius: 8, padding: '7px 9px' }}>
-            Points this month · <b style={{ color: C.pinkDeep }}>10</b> per completed event · <b style={{ color: C.pinkDeep }}>+20</b> per 5★ rating · <b style={{ color: C.pinkDeep }}>+1</b> per AED 10 in tips
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[...board].sort((a: any, b: any) => b.points - a.points).map((s: any, i: number) => (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 2px' }}>
-                <span style={{ fontSize: 15, width: 22, textAlign: 'center', flex: 'none' }}>{RANK[i] ?? i + 1}</span>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
-                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.eventsDone} completed{s.fiveStars > 0 ? ` · ${s.fiveStars}×5★` : ''}{s.avgRating > 0 ? ` · ${s.avgRating}★` : ''}</div>
-                </div>
-                <span style={{ ...fredoka(15), color: C.pinkDeep }}>{s.points}</span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
     </div>
+  );
+}
+
+/**
+ * The month's points competition — every teammate ranked by points, with a
+ * legend explaining how points are earned. Self-fetching so it can sit at the
+ * bottom of Home for everyone (owner, manager, employee, driver).
+ */
+function CompetitionBoard() {
+  const [board, setBoard] = useState<any[] | null>(null);
+  useEffect(() => {
+    const now = new Date();
+    const mth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    api.kpis(mth).then((k: any) => setBoard(k?.board ?? [])).catch(() => setBoard([]));
+  }, []);
+  if (!board || board.length === 0) return null;
+  const RANK = ['🥇', '🥈', '🥉'];
+  return (
+    <Panel title="🏆 Team competition">
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginBottom: 8, lineHeight: 1.5, background: '#faf6f9', borderRadius: 8, padding: '7px 9px' }}>
+        Points this month · <b style={{ color: C.pinkDeep }}>10</b> per completed event · <b style={{ color: C.pinkDeep }}>+20</b> per 5★ rating · <b style={{ color: C.pinkDeep }}>+1</b> per AED 10 in tips
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {[...board].sort((a: any, b: any) => b.points - a.points).map((s: any, i: number) => (
+          <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 2px' }}>
+            <span style={{ fontSize: 15, width: 22, textAlign: 'center', flex: 'none' }}>{RANK[i] ?? i + 1}</span>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.eventsDone} completed{s.fiveStars > 0 ? ` · ${s.fiveStars}×5★` : ''}{s.avgRating > 0 ? ` · ${s.avgRating}★` : ''}</div>
+            </div>
+            <span style={{ ...fredoka(15), color: C.pinkDeep }}>{s.points}</span>
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }
