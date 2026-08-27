@@ -325,26 +325,53 @@ function ExpensesTab() {
 }
 
 function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; onClose: () => void; onSaved: () => void }) {
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [supplier, setSupplier] = useState('');
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplier, setNewSupplier] = useState('');
   const [category, setCategory] = useState(categories[0] ?? 'other');
-  const [vendor, setVendor] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [spentOn, setSpentOn] = useState(new Date().toISOString().slice(0, 10));
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { api.suppliers().then((r) => setSuppliers(r.rows)).catch(() => setSuppliers([])); }, []);
+  const addNew = async () => {
+    const name = newSupplier.trim(); if (!name) return;
+    try { await api.supplierCreate({ name }); const r = await api.suppliers(); setSuppliers(r.rows); setSupplier(name); setAddingSupplier(false); setNewSupplier(''); }
+    catch (e: any) { setErr(e?.message || 'Could not add supplier.'); }
+  };
   const save = async () => {
     const fils = Math.round((Number(amount.replace(/,/g, '')) || 0) * 100);
     if (fils <= 0) { setErr('Enter an amount.'); return; }
     setBusy(true); setErr(null);
     try {
-      await api.addExpense({ category, description: description || prettyCat(category), amountFils: fils, vendor: vendor || undefined, spentOn, paymentMethod: 'cash' });
+      await api.addExpense({ category, description: description || prettyCat(category), amountFils: fils, vendor: supplier || undefined, spentOn, receiptUrl: receiptUrl || null, paymentMethod: 'cash' });
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
   };
   return (
-    <Modal title="New expense" onClose={onClose} onSave={save} busy={busy} err={err}>
+    <Modal title="New expense" onClose={onClose} onSave={save} busy={busy || uploading} err={err}>
+      <Field label="Supplier">
+        {addingSupplier ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input value={newSupplier} onChange={(e) => setNewSupplier(e.target.value)} placeholder="New supplier name" style={input} autoFocus />
+            <Button onClick={addNew}>Add</Button>
+            <Button tone="ghost" onClick={() => setAddingSupplier(false)}>✕</Button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select value={supplier} onChange={(e) => setSupplier(e.target.value)} style={input}>
+              <option value="">— select supplier —</option>
+              {suppliers.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+            <Button tone="ghost" onClick={() => setAddingSupplier(true)}>+ New</Button>
+          </div>
+        )}
+      </Field>
       <Field label="Date"><input type="date" value={spentOn} onChange={(e) => setSpentOn(e.target.value)} style={input} /></Field>
-      <Field label="Who you paid (vendor)"><input value={vendor} onChange={(e) => setVendor(e.target.value)} style={input} placeholder="e.g. Hot Pack Packaging" /></Field>
       <Field label="Type of expense *">
         <select value={category} onChange={(e) => setCategory(e.target.value)} style={input}>
           {categories.map((c) => <option key={c} value={c}>{prettyCat(c)}</option>)}
@@ -352,6 +379,19 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
       </Field>
       <Field label="Amount (AED) *"><input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} style={input} placeholder="0.00" /></Field>
       <Field label="Description / memo"><input value={description} onChange={(e) => setDescription(e.target.value)} style={input} /></Field>
+      <Field label="Receipt (upload or take photo)">
+        <label style={{ ...input, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: receiptUrl ? C.green : C.muted, fontWeight: 700 }}>
+          {uploading ? 'Uploading…' : receiptUrl ? '✓ Receipt attached — tap to replace' : '📎 Upload / take photo'}
+          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+            const f = e.target.files?.[0]; if (!f) return;
+            setUploading(true); setErr(null);
+            try { setReceiptUrl(await api.uploadImage(f, 'receipts')); }
+            catch (err2: any) { setErr(err2?.message ?? 'Upload failed'); }
+            finally { setUploading(false); }
+          }} />
+        </label>
+      </Field>
+      {receiptUrl && <a href={receiptUrl} target="_blank" rel="noreferrer"><img src={receiptUrl} alt="receipt" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.line}`, marginBottom: 8 }} /></a>}
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2 }}>Paid from: <b style={{ color: C.ink }}>Cash on hand</b></div>
     </Modal>
   );
