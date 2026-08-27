@@ -260,6 +260,10 @@ export const api = {
       body: JSON.stringify({ amountFils, reasonCategory: opts.reasonCategory, reason: opts.reason, cancelEvent: !!opts.cancelEvent }),
     }),
   refundsReport: () => request<any>('/api/admin/refunds'),
+  customers: (q?: string) => request<any[]>(`/api/admin/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  customer: (id: number) => request<any>(`/api/admin/customers/${id}`),
+  updateCustomer: (id: number, body: { fullName?: string; email?: string; phone?: string; backupPhone?: string; emirate?: string }) =>
+    request<any>(`/api/admin/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   reconcile: () => request<any>('/api/admin/reconcile', { method: 'POST' }),
   notifications: () => request<any[]>('/api/admin/notifications'),
   alerts: () => request<any>('/api/admin/alerts'),

@@ -26,7 +26,7 @@ import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
 import * as finance from '../domain/finance.js';
 import { auditReport } from '../domain/audit.js';
-import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails } from '../domain/maintenance.js';
+import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, normalizeUaePhone } from '../domain/maintenance.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -149,6 +149,9 @@ export async function adminRoutes(app: FastifyInstance) {
     // Money, configuration, review and refunds: Manager + Owner only.
     const managerOnly =
       path.startsWith('/api/admin/finance') ||
+      path.startsWith('/api/admin/customers') ||
+      path.startsWith('/api/admin/refunds') ||
+      path.startsWith('/api/admin/reports') ||
       path.startsWith('/api/admin/overview') ||
       path.startsWith('/api/admin/staffing') ||
       // Prep: the whole-team "By person" board + generation are Manager+Owner.
@@ -1712,6 +1715,33 @@ export async function adminRoutes(app: FastifyInstance) {
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     return finance.addCustomer(p.data);
+  });
+
+  // ── Customers (CRM master) — manager/owner only (PII + spend) ──────────────
+  app.get('/api/admin/customers', async (request) =>
+    finance.customersMaster((request.query as { q?: string }).q));
+  app.get('/api/admin/customers/:id', async (request, reply) => {
+    const c = await finance.customerDetail(Number((request.params as { id: string }).id));
+    return c ?? reply.status(404).send({ error: 'not_found' });
+  });
+  app.patch('/api/admin/customers/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const schema = z.object({
+      fullName: z.string().max(200).optional(),
+      email: z.string().max(200).optional(),
+      phone: z.string().max(60).optional(),
+      backupPhone: z.string().max(60).optional(),
+      emirate: z.string().max(60).optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    // Normalise UAE numbers on save (reuse the confident-only helper); leave a
+    // number the helper can't fix exactly as typed so nothing is silently lost.
+    const d = { ...p.data };
+    if (d.phone != null && d.phone.trim()) d.phone = normalizeUaePhone(d.phone)?.value ?? d.phone;
+    if (d.backupPhone != null && d.backupPhone.trim()) d.backupPhone = normalizeUaePhone(d.backupPhone)?.value ?? d.backupPhone;
+    const r = await finance.updateCustomer(id, d);
+    return r ?? reply.status(404).send({ error: 'not_found' });
   });
 
   app.get('/api/admin/finance/items', async () => finance.listItems());

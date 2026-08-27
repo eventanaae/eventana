@@ -20,10 +20,11 @@ import { Marketing } from './views/Marketing';
 import { Settings } from './views/Settings';
 import { ShopOrders } from './views/ShopOrders';
 import { Leads } from './views/Leads';
+import { Customers } from './views/Customers';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers';
 
 type Section = 'ops' | 'sales' | 'business' | 'admin';
 
@@ -44,6 +45,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Event preparation', section: 'ops', mobile: true },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets and reservations', section: 'ops' },
   { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Stock, leave, reviews and tips', section: 'ops' },
+  { id: 'customers', label: 'Customers', icon: '👥', title: 'Customers', sub: 'Your customer book — spend, history & contacts', section: 'sales' },
   { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
   // Shop orders already flow into Sales (finance) and the dashboard, so there's
@@ -52,7 +54,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
   { id: 'finance', label: 'Finance', icon: '₳', title: 'Finance', sub: 'Invoices, receipts, expenses & accounts', section: 'business' },
   { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (P&L)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
-  { id: 'kpis', label: 'KPIs', icon: '★', title: 'Team KPIs & Tips', sub: 'Monthly leaderboard', section: 'business' },
+  { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Your achievements, rewards & points', section: 'business' },
   { id: 'marketing', label: 'Marketing', icon: '✉', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'business' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'admin' },
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', section: 'admin' },
@@ -64,7 +66,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'tasks', 'inventory', 'alerts', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings'],
+  manager: ['today', 'schedule', 'tasks', 'inventory', 'alerts', 'customers', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings'],
   employee: ['today', 'schedule', 'tasks', 'inventory', 'kpis'],
   driver: ['today', 'schedule'],
 };
@@ -168,6 +170,7 @@ export default function App() {
       {view === 'shop' && <ShopOrders />}
       {view === 'neworder' && <NewOrder />}
       {view === 'leads' && <Leads />}
+      {view === 'customers' && <Customers />}
       {view === 'settings' && <Settings />}
     </>
   );

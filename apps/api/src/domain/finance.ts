@@ -153,6 +153,76 @@ export async function updateCustomer(
   return rows[0] ?? null;
 }
 
+/**
+ * The Customers Master list (CRM). One row per customer from the master book
+ * (historical_customers, ≈566 real contacts), enriched with lifetime spend +
+ * order count (from finance_receipts, matched by id or name) and the next
+ * upcoming live event (matched by normalised phone). Search across name/phone/
+ * email/emirate. Money is included; the route gates it to owner/manager.
+ */
+export async function customersMaster(search?: string) {
+  const s = (search ?? '').trim();
+  const { rows } = await pool.query(
+    `SELECT hc.id, hc.full_name, hc.email, hc.phone, hc.phone_alt, hc.emirate,
+            COALESCE(sp.spend,0)::bigint AS spend_fils, COALESCE(sp.orders,0)::int AS orders,
+            up.next_event_date, up.next_event_id
+       FROM historical_customers hc
+       LEFT JOIN LATERAL (
+         SELECT SUM(r.total_fils) spend, COUNT(*) orders FROM finance_receipts r
+          WHERE r.customer_id = hc.id OR lower(r.customer_name) = lower(hc.full_name)
+       ) sp ON true
+       LEFT JOIN LATERAL (
+         SELECT to_char(e.event_date,'YYYY-MM-DD') AS next_event_date, e.id AS next_event_id
+           FROM events e JOIN customers c ON c.id = e.customer_id
+          WHERE e.phase <> 'Cancelled' AND e.event_date >= current_date
+            AND NULLIF(regexp_replace(COALESCE(c.phone,''),'[^0-9]','','g'),'') =
+                NULLIF(regexp_replace(COALESCE(hc.phone,''),'[^0-9]','','g'),'')
+          ORDER BY e.event_date LIMIT 1
+       ) up ON true
+      ${s ? `WHERE hc.full_name ILIKE $1 OR hc.phone ILIKE $1 OR hc.phone_alt ILIKE $1 OR hc.email ILIKE $1 OR hc.emirate ILIKE $1` : ''}
+      ORDER BY spend_fils DESC NULLS LAST, lower(hc.full_name)
+      LIMIT ${s ? 200 : 500}`,
+    s ? [`%${s}%`] : [],
+  );
+  return rows.map((r) => ({
+    id: r.id, name: r.full_name, email: r.email, phone: r.phone, phoneAlt: r.phone_alt,
+    emirate: r.emirate, spendFils: Number(r.spend_fils), spendDisplay: formatAed(Number(r.spend_fils)),
+    orders: Number(r.orders), nextEventDate: r.next_event_date, nextEventId: r.next_event_id,
+  }));
+}
+
+/** One customer's full profile: details + receipt history + upcoming events. */
+export async function customerDetail(id: number) {
+  const profile = await getCustomer(id);
+  if (!profile) return null;
+  const [receipts, upcoming] = await Promise.all([
+    pool.query(
+      `SELECT id, number, to_char(date,'YYYY-MM-DD') AS date, total_fils, paid_with, event_for, theme
+         FROM finance_receipts
+        WHERE customer_id = $1 OR lower(customer_name) = lower($2)
+        ORDER BY date DESC LIMIT 100`,
+      [id, profile.full_name],
+    ),
+    pool.query(
+      `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS event_date, e.phase, e.emirate, e.celebration_type
+         FROM events e JOIN customers c ON c.id = e.customer_id
+        WHERE e.phase <> 'Cancelled' AND e.event_date >= current_date
+          AND NULLIF(regexp_replace(COALESCE(c.phone,''),'[^0-9]','','g'),'') =
+              NULLIF(regexp_replace(COALESCE($2,''),'[^0-9]','','g'),'')
+        ORDER BY e.event_date`,
+      [id, profile.phone],
+    ),
+  ]);
+  const spend = receipts.rows.reduce((s, r) => s + Number(r.total_fils), 0);
+  return {
+    id: profile.id, name: profile.full_name, email: profile.email, phone: profile.phone,
+    phoneAlt: profile.phone_alt, emirate: profile.emirate,
+    spendFils: spend, spendDisplay: formatAed(spend), orders: receipts.rows.length,
+    history: receipts.rows.map((r) => ({ id: r.id, number: r.number, date: r.date, totalFils: Number(r.total_fils), totalDisplay: formatAed(Number(r.total_fils)), paidWith: r.paid_with, eventFor: r.event_for, theme: r.theme })),
+    upcoming: upcoming.rows,
+  };
+}
+
 // ── Items (packages + services from the catalogue) ───────────────────────────
 export async function listItems() {
   const [pkgs, svcs] = await Promise.all([
