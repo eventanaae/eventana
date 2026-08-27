@@ -437,6 +437,7 @@ export const api = {
   qbDisconnect: () => request('/api/admin/quickbooks/disconnect', { method: 'POST' }),
   qbSyncExpenses: () => request<{ started: boolean; already: boolean }>('/api/admin/quickbooks/sync-expenses', { method: 'POST' }),
   qbSyncStatus: () => request<{ running: boolean; message: string; error: string | null; result: { imported: number; withReceipt: number; total: number } | null }>('/api/admin/quickbooks/sync-status'),
+  qbPreview: () => request<{ purchases: number; attachments: number; sample: { date: string | null; vendor: string | null; amount: number; account: string | null }[] }>('/api/admin/quickbooks/preview'),
   // The real customer catalogue — packages & services with live prices.
   catalog: () => request<{ packages: any[]; services: any[] }>('/api/admin/catalog'),
   packageUpdate: (id: string, patch: { priceFils?: number; name?: string; active?: boolean }) => request(`/api/admin/packages/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),

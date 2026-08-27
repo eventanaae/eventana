@@ -366,6 +366,8 @@ function QuickBooksPanel() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [sync, setSync] = useState<any>(null);
+  const [preview, setPreview] = useState<any>(null);
+  const [previewing, setPreviewing] = useState(false);
   const load = () => api.qbStatus().then(setSt).catch(() => setSt({ configured: false, connected: false }));
   useEffect(() => {
     load();
@@ -395,8 +397,17 @@ function QuickBooksPanel() {
     }, 2000);
     return () => clearInterval(t);
   }, [sync?.running]);
+  const runPreview = async () => {
+    setPreviewing(true); setNote(null);
+    try { setPreview(await api.qbPreview()); }
+    catch (e: any) { setNote(e?.message ?? 'Preview failed.'); }
+    finally { setPreviewing(false); }
+  };
   const startSync = async () => {
     setNote(null);
+    // Guard: on the sandbox (test) company, a sync writes fake sample expenses
+    // into the real books. Make the user confirm.
+    if (st.environment === 'sandbox' && !window.confirm('This is the QuickBooks TEST company (sample data). Importing here adds fake expenses to your books. Continue anyway?')) return;
     try {
       await api.qbSyncExpenses();
       const s = await api.qbSyncStatus();
@@ -420,9 +431,22 @@ function QuickBooksPanel() {
             </div>
           )}
           <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button tone="ghost" onClick={runPreview} disabled={previewing}>{previewing ? 'Checking…' : '👁 Preview (reads only)'}</Button>
             <Button onClick={startSync} disabled={sync?.running}>{sync?.running ? 'Syncing…' : '⬇︎ Sync expenses + receipts'}</Button>
             <Button tone="ghost" onClick={disconnect} disabled={busy}>Disconnect</Button>
           </div>
+          {preview && (
+            <div style={{ background: C.pinkSoft, borderRadius: 10, padding: '10px 12px', fontSize: 12, fontWeight: 600, color: C.ink, marginTop: 10, lineHeight: 1.6 }}>
+              QuickBooks holds <b>{preview.purchases}</b> expense(s) and <b>{preview.attachments}</b> receipt attachment(s).
+              {preview.sample?.length > 0 && (
+                <div style={{ marginTop: 6, color: C.muted, fontWeight: 500 }}>
+                  {preview.sample.map((s: any, i: number) => (
+                    <div key={i}>· {s.date} — {s.vendor || s.account || 'expense'} — AED {(s.amount).toLocaleString()}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {sync && (
             <div style={{ fontSize: 12, fontWeight: 600, color: sync.error ? C.pinkDeep : C.muted, marginTop: 10, lineHeight: 1.5 }}>
               {sync.message}
