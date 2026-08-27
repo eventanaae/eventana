@@ -8,6 +8,26 @@ import { pool } from './pool.js';
 export async function runOneTimeFixes(): Promise<void> {
   await dedupeAutoReceipts();
   await fixSeededEventTimes();
+  await alignGoodStars();
+}
+
+/**
+ * The owner set "good feedback" to 5★ only. If a stored incentive_rules row still
+ * carries an older threshold (< 5), bump it so the instant reward notification
+ * fires on the same rule as the money calculation. No-op if no row / already 5.
+ */
+async function alignGoodStars(): Promise<void> {
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE settings SET value = jsonb_set(value, '{goodStars}', '5'::jsonb)
+        WHERE key = 'incentive_rules'
+          AND (value ? 'goodStars')
+          AND (value->>'goodStars')::int < 5`,
+    );
+    if (rowCount) console.log('[fix] aligned incentive goodStars → 5');
+  } catch (err) {
+    console.error('[fix] alignGoodStars failed:', err);
+  }
 }
 
 /**

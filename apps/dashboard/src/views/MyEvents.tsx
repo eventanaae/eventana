@@ -19,14 +19,26 @@ export function MyEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void })
         <Empty>You have no assigned jobs right now.</Empty>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {events.map((e) => {
+          {events.map((e, i) => {
             const date = String(e.event_date).slice(0, 10);
             const isToday = date === today;
             const hasPin = Number(e.map_lat) !== 0 || Number(e.map_lng) !== 0;
             const dir = `https://www.google.com/maps/dir/?api=1&destination=${e.map_lat},${e.map_lng}&travelmode=driving`;
+            const d = new Date(e.event_date);
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            const prev = i > 0 ? new Date(events[i - 1].event_date) : null;
+            const showMonth = !prev || `${prev.getFullYear()}-${prev.getMonth()}` !== key;
             return (
+              <div key={e.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {showMonth && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: i === 0 ? 0 : 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: C.pinkDeep, whiteSpace: 'nowrap' }}>
+                      {d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <div style={{ flex: 1, height: 1, background: C.line }} />
+                  </div>
+                )}
               <div
-                key={e.id}
                 style={{
                   border: `1px solid ${isToday ? C.pink : C.line}`,
                   background: isToday ? C.pinkSoft : '#fff',
@@ -56,6 +68,7 @@ export function MyEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void })
                     Open job
                   </button>
                 </div>
+              </div>
               </div>
             );
           })}
