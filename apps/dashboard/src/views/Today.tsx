@@ -9,7 +9,7 @@ import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, 
  * hero → quick actions → vibrant stats → next event → attention → today &
  * upcoming. Mobile-first and vertical.
  */
-export function Today({ onOpenEvent, onGoto, staffName, role }: { onOpenEvent: (id: string) => void; onGoto: (v: View) => void; staffName?: string; role?: string }) {
+export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { onOpenEvent: (id: string) => void; onOpenShop?: (id: string) => void; onGoto: (v: View) => void; staffName?: string; role?: string }) {
   const [data, setData] = useState<any>(null);
 
   const load = () => api.today().then(setData);
@@ -144,37 +144,40 @@ export function Today({ onOpenEvent, onGoto, staffName, role }: { onOpenEvent: (
         </Panel>
       )}
 
-      {/* Upcoming */}
-      {upcoming.length > 0 && (
-        <Panel className="rise-in" style={{ ['--i' as any]: 5 } as any} title="Upcoming"
-          action={<span onClick={() => onGoto('schedule')} className="tap" style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, cursor: 'pointer' }}>See all ›</span>}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {upcoming.map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx} onOpen={() => onOpenEvent(e.id)} />)}
-          </div>
-        </Panel>
-      )}
+      {/* Upcoming — events + shop orders interleaved, sorted by date. */}
+      {(() => {
+        const evItems = upcoming.map((e) => ({ shop: false, id: e.id, sortDate: String(e.event_date).slice(0, 10), e }));
+        const shopItems = (data.shopOrders ?? []).map((o: any) => ({ shop: true, id: o.id, sortDate: String(o.readyBy ?? ''), o }));
+        const combined = [...evItems, ...shopItems].sort((a, b) => a.sortDate.localeCompare(b.sortDate)).slice(0, 10);
+        if (combined.length === 0) return null;
+        return (
+          <Panel className="rise-in" style={{ ['--i' as any]: 5 } as any} title="Upcoming"
+            action={<span onClick={() => onGoto('schedule')} className="tap" style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, cursor: 'pointer' }}>See all ›</span>}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {combined.map((it, idx) => it.shop
+                ? <ShopRow key={`s-${it.id}`} o={(it as any).o} onOpen={() => onOpenShop?.(it.id)} />
+                : <EventRow key={it.id} e={(it as any).e} label={when((it as any).e)} accentIdx={idx} onOpen={() => onOpenEvent(it.id)} />)}
+            </div>
+          </Panel>
+        );
+      })()}
+    </div>
+  );
+}
 
-      {/* Shop orders — printed / digital goods (no party date), in light purple. */}
-      {(data?.shopOrders ?? []).length > 0 && (
-        <Panel className="rise-in" style={{ ['--i' as any]: 6 } as any} title="🛍️ Shop orders">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[...data.shopOrders].sort((a: any, b: any) => String(a.readyBy ?? '').localeCompare(String(b.readyBy ?? ''))).map((o: any) => (
-              <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, background: '#F4ECFB', border: '1px solid #E4D3F5' }}>
-                <span style={{ width: 34, height: 34, borderRadius: 11, background: '#E7D6F7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: 'none' }}>🛍️</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#6B4E9E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.customer}</div>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#9578bd' }}>
-                    {o.itemsLabel}
-                    {o.readyBy ? ` · 📦 deliver ${new Date(o.readyBy).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}` : ''}
-                    {o.emirate ? ` · ${o.emirate}` : ''}
-                  </div>
-                </div>
-                {o.totalDisplay && <span style={{ fontWeight: 800, fontSize: 13, color: '#6B4E9E', whiteSpace: 'nowrap' }}>AED {o.totalDisplay}</span>}
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+/** A shop order row in the Upcoming list — light purple, clickable. */
+function ShopRow({ o, onOpen }: { o: any; onOpen: () => void }) {
+  return (
+    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
+      <span style={{ width: 34, height: 34, borderRadius: 11, background: 'linear-gradient(135deg,#E7D6F7,#D6C2F0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: 'none' }}>🛍️</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#6B4E9E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.customer}</div>
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: '#9578bd' }}>
+          {o.itemsLabel}{o.readyBy ? ` · 📦 ${new Date(o.readyBy).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}` : ''}
+        </div>
+      </div>
+      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.4px', color: '#8a6cc0', background: '#F1E8FB', padding: '3px 8px', borderRadius: 20 }}>SHOP</span>
+      <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
     </div>
   );
 }

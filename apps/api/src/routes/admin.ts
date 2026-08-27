@@ -2440,6 +2440,66 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  /** One shop order's fulfilment detail (customer, items, design status). */
+  app.get('/api/admin/shop-orders/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const cfg = await loadConfig();
+    const { rows } = await pool.query(
+      `SELECT o.id, o.total_fils, o.status, o.created_at, o.cart,
+              c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+         FROM orders o JOIN customers c ON c.id = o.customer_id
+        WHERE o.id = $1 AND o.kind = 'shop'`,
+      [id],
+    );
+    const r = rows[0];
+    if (!r) return reply.status(404).send({ error: 'not_found' });
+    const cart = (r.cart ?? {}) as any;
+    const design = (await pool.query(`SELECT * FROM shop_designs WHERE order_id = $1`, [id])).rows[0] ?? null;
+    const created = new Date(r.created_at);
+    const items = (cart.items ?? []).map((it: any) => ({ name: cfg.services.get(it.serviceId)?.name ?? it.serviceId, quantity: it.quantity ?? 1 }));
+    const canSeeMoney = (request as any).staff?.role === 'owner' || (request as any).staff?.role === 'manager';
+    return {
+      id: r.id,
+      customer: { name: r.customer_name, email: r.customer_email, phone: r.customer_phone },
+      items,
+      itemsLabel: items.map((i: any) => i.name).join(', ') || 'Shop order',
+      readyBy: cart.readyBy ?? new Date(created.getTime() + 3 * 86_400_000).toISOString().slice(0, 10),
+      customization: cart.customization ?? null,
+      createdAt: r.created_at,
+      totalDisplay: canSeeMoney ? formatAed(Number(r.total_fils)) : null,
+      design: design ? { imageUrl: design.image_url, status: design.status, uploadedBy: design.uploaded_by, uploadedAt: design.uploaded_at, sentAt: design.sent_at } : { status: 'awaiting_design' },
+    };
+  });
+
+  /** Marsha uploads the finished design for a shop order. */
+  app.post('/api/admin/shop-orders/:id/design', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { imageUrl } = (request.body ?? {}) as { imageUrl?: string };
+    if (!imageUrl) return reply.status(400).send({ error: 'image_required' });
+    const by = String((request as any).staff?.name ?? 'Marsha');
+    await pool.query(
+      `INSERT INTO shop_designs (order_id, image_url, status, uploaded_by, uploaded_at)
+       VALUES ($1,$2,'design_ready',$3, now())
+       ON CONFLICT (order_id) DO UPDATE SET image_url = EXCLUDED.image_url, status = 'design_ready', uploaded_by = EXCLUDED.uploaded_by, uploaded_at = now(), sent_at = NULL`,
+      [id, imageUrl, by],
+    );
+    return { ok: true };
+  });
+
+  /** Owner approves the design → email it to the customer (agreed template). */
+  app.post('/api/admin/shop-orders/:id/send', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const d = (await pool.query(`SELECT image_url, status FROM shop_designs WHERE order_id = $1`, [id])).rows[0];
+    if (!d || !d.image_url) return reply.status(400).send({ error: 'no_design', message: 'Upload the design first.' });
+    await pool.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       VALUES (NULL,'email','shop_design_ready', now(), $1)`,
+      [JSON.stringify({ orderId: id, imageUrl: d.image_url })],
+    );
+    await pool.query(`UPDATE shop_designs SET status = 'sent', sent_at = now() WHERE order_id = $1`, [id]);
+    return { ok: true, sent: true };
+  });
+
   /* ------------------------------ Team ---------------------------- */
 
   app.get('/api/admin/team', async () => {

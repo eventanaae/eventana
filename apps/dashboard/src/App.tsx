@@ -6,6 +6,7 @@ import { Today } from './views/Today';
 import { Overview } from './views/Overview';
 import { Schedule } from './views/Schedule';
 import { EventDrawer } from './views/Events';
+import { ShopOrderDrawer } from './views/ShopOrderDrawer';
 import { Inventory } from './views/Inventory';
 import { Tasks } from './views/Tasks';
 import { Team } from './views/Team';
@@ -77,6 +78,7 @@ export default function App() {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
+  const [openShopId, setOpenShopId] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -151,7 +153,7 @@ export default function App() {
     </div>
   ) : (
     <>
-      {view === 'today' && <Today onOpenEvent={openEvent} onGoto={go} staffName={staffName} role={role} />}
+      {view === 'today' && <Today onOpenEvent={openEvent} onOpenShop={setOpenShopId} onGoto={go} staffName={staffName} role={role} />}
       {view === 'overview' && <Overview onOpenEvent={openEvent} onGoto={go} />}
       {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} />}
       {view === 'tasks' && <Tasks role={role} />}
@@ -172,6 +174,9 @@ export default function App() {
 
   const eventDrawer = openEventId && (
     <EventDrawer eventId={openEventId} onClose={() => setOpenEventId(null)} />
+  );
+  const shopDrawer = openShopId && (
+    <ShopOrderDrawer orderId={openShopId} role={role} onClose={() => setOpenShopId(null)} />
   );
 
   const toastEl = toast ? (
@@ -278,6 +283,7 @@ export default function App() {
         )}
 
         {eventDrawer}
+        {shopDrawer}
       </div>
     );
   }

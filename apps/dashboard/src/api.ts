@@ -134,6 +134,9 @@ export const api = {
   overrideSlot: (slotId: string, assigneeId: string) =>
     request<any[]>(`/api/admin/staffing/slot/${slotId}/assign`, { method: 'POST', body: JSON.stringify({ assigneeId }) }),
   shopOrders: () => request<any[]>('/api/admin/shop-orders'),
+  shopOrder: (id: string) => request<any>(`/api/admin/shop-orders/${id}`),
+  shopUploadDesign: (id: string, imageUrl: string) => request<any>(`/api/admin/shop-orders/${id}/design`, { method: 'POST', body: JSON.stringify({ imageUrl }) }),
+  shopSendDesign: (id: string) => request<any>(`/api/admin/shop-orders/${id}/send`, { method: 'POST' }),
   whatsappLeads: (status?: string) =>
     request<any>(`/api/admin/whatsapp/leads${status && status !== 'all' ? `?status=${status}` : ''}`),
   whatsappFunnel: () => request<any>('/api/admin/whatsapp/funnel'),

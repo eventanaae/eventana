@@ -655,6 +655,38 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     }
   }
 
+  // ---- Email (shop design ready: the finished artwork, keyed by order id) ----
+  if (emailEnabled()) {
+    const { rows } = await pool.query<{ id: number; order_id: string; customer_name: string | null; customer_email: string | null; image_url: string }>(
+      `SELECT n.id, o.id AS order_id,
+              c.name AS customer_name, c.email AS customer_email,
+              (n.payload->>'imageUrl') AS image_url
+         FROM notifications n
+         JOIN orders o    ON o.id = (n.payload->>'orderId')
+         JOIN customers c ON c.id = o.customer_id
+        WHERE n.channel = 'email' AND n.template = 'shop_design_ready'
+          AND n.sent_at IS NULL AND n.cancelled_at IS NULL
+          AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
+        ORDER BY n.created_at LIMIT 100`,
+    );
+    for (const row of rows) {
+      if (!row.customer_email || !row.image_url) {
+        await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
+        continue;
+      }
+      const first = (row.customer_name || 'there').split(' ')[0];
+      const html = shell({
+        first, emoji: '🎨', eyebrow: 'Your Design',
+        heading: 'Your design is ready!',
+        bodyHtml: `<p style="margin:0 0 10px;font-size:15px;line-height:1.6">Thank you for your order! 💛 Your design is ready — here it is:</p>
+          <img src="${row.image_url}" alt="Your Eventana design" style="max-width:100%;border-radius:14px;border:1px solid ${HAIR};margin:6px 0" />
+          <p style="margin:14px 0 0;font-size:15px;line-height:1.6">We hope you love it! If you need anything, just reply to this email. 💕</p>`,
+      });
+      const res = await sendEmail({ to: row.customer_email, subject: 'Your Eventana design is ready 🎨', html });
+      if (res.ok) { await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]); emails++; }
+    }
+  }
+
   // ---- Email (add-on updated invoice: keyed by the add-on order id) ----
   if (emailEnabled()) {
     const { rows } = await pool.query<AddonEmailRow>(

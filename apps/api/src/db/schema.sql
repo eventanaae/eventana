@@ -964,6 +964,18 @@ CREATE TABLE IF NOT EXISTS prep_task_staff (
 );
 CREATE INDEX IF NOT EXISTS prep_task_staff_member_idx ON prep_task_staff (member_id);
 
+-- Shop order fulfilment (printed / digital goods, no party): Marsha designs it,
+-- the owner approves, then it's emailed to the customer. INTERNAL until sent.
+CREATE TABLE IF NOT EXISTS shop_designs (
+  order_id    TEXT PRIMARY KEY,
+  image_url   TEXT,
+  status      TEXT NOT NULL DEFAULT 'awaiting_design', -- awaiting_design | design_ready | sent
+  uploaded_by TEXT,
+  uploaded_at TIMESTAMPTZ,
+  sent_at     TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Activity log for prep-task changes (assignment overrides, completion, issues).
 CREATE TABLE IF NOT EXISTS prep_task_log (
   id         BIGSERIAL PRIMARY KEY,
