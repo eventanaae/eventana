@@ -26,6 +26,7 @@ import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
 import * as finance from '../domain/finance.js';
 import { auditReport } from '../domain/audit.js';
+import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails } from '../domain/maintenance.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -218,6 +219,22 @@ export async function adminRoutes(app: FastifyInstance) {
     } catch (e: any) {
       return reply.status(400).send({ error: 'report_failed', message: String(e?.message ?? e) });
     }
+  });
+
+  // Owner-only reconciliation ACTIONS (idempotent, conservative). Each returns a
+  // summary of exactly what it changed vs. left for manual review.
+  app.post('/api/admin/reports/normalize-phones', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    return normalizePhones();
+  });
+  app.post('/api/admin/reports/mark-unknown-payment', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    return markUnknownPaymentMethods();
+  });
+  app.post('/api/admin/reports/backfill-refund-emails', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const dry = String((request.query as any)?.dry ?? '') === '1';
+    return backfillRefundEmails(dry);
   });
 
   /** Register this staff device for push notifications. */
@@ -2149,8 +2166,15 @@ export async function adminRoutes(app: FastifyInstance) {
            FROM (SELECT customer_id, COUNT(*) n FROM events WHERE phase <> 'Cancelled' GROUP BY customer_id) s`,
       ),
       pool.query(
+        // "Expected in" must be money that is genuinely likely to arrive — a
+        // manual pay-link the team sent a customer, still fresh. An app checkout
+        // left in awaiting_payment is an abandoned cart, NOT a receivable, and
+        // must never inflate cash-available or the forecast. (#4 audit finding:
+        // the old 53K was 15 abandoned test carts + 2 pay-links.)
         `SELECT COALESCE(SUM(total_fils),0) v, COUNT(*) c FROM orders
-          WHERE status IN ('awaiting_payment','processing','needs_review')`,
+          WHERE status IN ('awaiting_payment','processing','needs_review')
+            AND source = 'manual'
+            AND created_at > now() - interval '10 days'`,
       ),
       pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [from, to]),
       pool.query(
