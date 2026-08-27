@@ -29,6 +29,7 @@ import { auditReport } from '../domain/audit.js';
 import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, normalizeUaePhone } from '../domain/maintenance.js';
 import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
 import { flooredStart, COUNTING_START } from '../domain/period.js';
+import { staffUpdateEvent, EventEditError } from '../domain/eventEdit.js';
 import { logAudit, listAudit } from '../domain/auditLog.js';
 import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
@@ -774,6 +775,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const { rows } = await pool.query(
       `SELECT e.*, c.name AS customer, c.phone, c.email, o.id AS order_id,
               o.status AS order_status, o.total_fils, o.quote, o.cart,
+              th.name AS theme_name,
               cx.cancelled_by, cx.reason AS cancellation_note, cx.total_paid_fils AS cx_total_paid,
               cx.delivery_fils AS cx_delivery, cx.non_refundable_fils AS cx_non_refundable,
               cx.party_value_fils AS cx_party_value, cx.refund_percent, cx.refund_amount_fils,
@@ -781,6 +783,7 @@ export async function adminRoutes(app: FastifyInstance) {
          FROM events e
          JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id
+         LEFT JOIN themes th ON th.id = e.theme_id
          LEFT JOIN cancellations cx ON cx.order_id = o.id
         WHERE e.id = $1`,
       [eventId],
@@ -1199,6 +1202,40 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     void syncEventToCalendar(eventId);
     return rows[0];
+  });
+
+  /**
+   * Staff-side edit of a booked event: time, location (emirate), guest-of-honour
+   * name and theme. Manager + owner only. Time changes move the reserved
+   * inventory holds safely (see staffUpdateEvent).
+   */
+  app.patch('/api/admin/events/:eventId/details', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Managers and the owner only.' });
+    const { eventId } = request.params as { eventId: string };
+    const schema = z.object({
+      startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      emirate: z.string().min(1).max(40).optional(),
+      eventFor: z.string().max(120).nullable().optional(),
+      themeId: z.string().min(1).max(80).nullable().optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    if (Object.keys(parsed.data).length === 0) return reply.status(400).send({ error: 'nothing_to_update' });
+    try {
+      const r = await staffUpdateEvent(eventId, parsed.data);
+      logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role, action: 'event_edit', target: eventId, detail: parsed.data });
+      void syncEventToCalendar(eventId);
+      return r;
+    } catch (err) {
+      if (err instanceof EventEditError) {
+        const status = err.code === 'not_found' ? 404 : err.code === 'unavailable' ? 409 : 400;
+        return reply.status(status).send({ error: err.code, message: err.message });
+      }
+      request.log.error({ err }, 'event edit failed');
+      return reply.status(500).send({ error: 'edit_failed' });
+    }
   });
 
   /**
@@ -3019,6 +3056,7 @@ export async function adminRoutes(app: FastifyInstance) {
            JOIN event_staff es ON es.event_id = e.id AND es.assignee_id = $1
            JOIN customers c ON c.id = e.customer_id
           WHERE e.event_date >= CURRENT_DATE - interval '1 day'
+            AND e.phase <> 'Cancelled' AND e.cancelled_at IS NULL
           ORDER BY e.event_date, e.start_time`,
         [staff.id],
       );
@@ -3029,6 +3067,7 @@ export async function adminRoutes(app: FastifyInstance) {
               c.name AS customer, e.map_lat, e.map_lng
          FROM events e JOIN customers c ON c.id = e.customer_id
         WHERE e.event_date >= CURRENT_DATE - interval '1 day'
+          AND e.phase <> 'Cancelled' AND e.cancelled_at IS NULL
         ORDER BY e.event_date, e.start_time
         LIMIT 100`,
     );

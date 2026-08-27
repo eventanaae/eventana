@@ -839,6 +839,7 @@ function PartyDetailsPanel({ event }: { event: any }) {
   if (event.children_count) rows.push(['👶 Children', String(event.children_count)]);
   if (event.movie_id) rows.push(['🎬 Movie', String(event.movie_id)]);
   if (event.custom_theme) rows.push(['🎨 Theme', 'Custom design (see brief / design panel)']);
+  else if (event.theme_name) rows.push(['🎨 Theme', String(event.theme_name)]);
   else if (event.theme_id) rows.push(['🎨 Theme', String(event.theme_id)]);
   if (event.castle_variant) rows.push(['🏰 Castle colour', String(event.castle_variant)]);
   if (rows.length === 0) return null;

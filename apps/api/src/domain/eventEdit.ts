@@ -1,0 +1,99 @@
+/**
+ * Staff-side edit of a booked event's operational details: start/end time,
+ * emirate (location), guest-of-honour (baby) name and theme. Unlike the
+ * customer self-service reschedule this has NO 72-hour limit and adds no
+ * "customer rescheduled" tasks — it's the team correcting/updating a booking.
+ *
+ * When the time changes the reserved inventory holds move with it, checked
+ * against every OTHER booking so an edit can never double-book an asset.
+ */
+import { parseHour } from '@eventana/shared';
+import { withTransaction } from '../db/pool.js';
+import { eventWindow, getAssets } from './inventory.js';
+
+export class EventEditError extends Error {
+  constructor(message: string, readonly code: string) {
+    super(message);
+    this.name = 'EventEditError';
+  }
+}
+
+export type EventPatch = {
+  startTime?: string;        // "HH:MM" (24h)
+  endTime?: string;          // "HH:MM" (24h)
+  emirate?: string;
+  eventFor?: string | null;  // guest-of-honour / baby name (lives in the order cart)
+  themeId?: string | null;   // catalogue theme id (also mirrored to the cart)
+};
+
+export async function staffUpdateEvent(eventId: string, patch: EventPatch): Promise<{ ok: true }> {
+  return withTransaction(async (db) => {
+    const { rows } = await db.query(`SELECT * FROM events WHERE id = $1 FOR UPDATE`, [eventId]);
+    const ev = rows[0];
+    if (!ev) throw new EventEditError('Event not found.', 'not_found');
+
+    // ── Time change → move the event window and its reserved holds ──────────
+    if (patch.startTime || patch.endTime) {
+      const newStart = patch.startTime ?? ev.start_time;
+      const newEnd = patch.endTime ?? ev.base_end_time;
+      const endHour = parseHour(newEnd);
+      if (!Number.isFinite(parseHour(newStart)) || !Number.isFinite(endHour) || endHour <= parseHour(newStart)) {
+        throw new EventEditError('End time must be after the start time.', 'bad_time');
+      }
+      const dateStr = new Date(ev.event_date as string).toISOString().slice(0, 10);
+
+      const { rows: holds } = await db.query<{ asset_code: string }>(
+        `SELECT DISTINCT asset_code FROM inventory_holds WHERE event_id = $1 AND status = 'reserved'`,
+        [eventId],
+      );
+      const assets = await getAssets(db, holds.map((h) => h.asset_code));
+
+      // Availability at the new time, ignoring this event's own reservations.
+      for (const asset of assets) {
+        const win = eventWindow(dateStr, newStart, endHour, asset.buffer_before_minutes, asset.buffer_after_minutes);
+        const { rows: c } = await db.query<{ used: number }>(
+          `SELECT count(*)::int AS used FROM inventory_holds
+            WHERE asset_code = $1
+              AND status IN ('held','reserved')
+              AND (expires_at IS NULL OR expires_at > now())
+              AND event_id IS DISTINCT FROM $2
+              AND starts_at < $4 AND ends_at > $3`,
+          [asset.code, eventId, win.startsAt, win.endsAt],
+        );
+        if ((c[0]?.used ?? 0) >= asset.units) {
+          throw new EventEditError(`"${asset.code}" isn't available at the new time.`, 'unavailable');
+        }
+      }
+      for (const asset of assets) {
+        const win = eventWindow(dateStr, newStart, endHour, asset.buffer_before_minutes, asset.buffer_after_minutes);
+        await db.query(
+          `UPDATE inventory_holds SET starts_at = $2, ends_at = $3
+            WHERE event_id = $1 AND asset_code = $4 AND status = 'reserved'`,
+          [eventId, win.startsAt, win.endsAt, asset.code],
+        );
+      }
+      await db.query(`UPDATE events SET start_time = $2, base_end_time = $3 WHERE id = $1`, [eventId, newStart, newEnd]);
+    }
+
+    // ── Location ────────────────────────────────────────────────────────────
+    if (patch.emirate !== undefined && patch.emirate) {
+      await db.query(`UPDATE events SET emirate = $2 WHERE id = $1`, [eventId, patch.emirate]);
+    }
+
+    // ── Theme (mirror to the event row) ─────────────────────────────────────
+    if (patch.themeId !== undefined) {
+      await db.query(`UPDATE events SET theme_id = $2, custom_theme = FALSE WHERE id = $1`, [eventId, patch.themeId]);
+    }
+
+    // ── Guest-of-honour name + theme live in the order cart ─────────────────
+    if (patch.eventFor !== undefined || patch.themeId !== undefined) {
+      const { rows: o } = await db.query(`SELECT cart FROM orders WHERE id = $1`, [ev.order_id]);
+      const cart = { ...((o[0]?.cart ?? {}) as Record<string, unknown>) };
+      if (patch.eventFor !== undefined) cart.eventFor = patch.eventFor;
+      if (patch.themeId !== undefined) cart.themeId = patch.themeId;
+      await db.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [ev.order_id, cart]);
+    }
+
+    return { ok: true };
+  });
+}
