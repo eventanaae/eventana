@@ -167,6 +167,7 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/finance') ||
       path.startsWith('/api/admin/products') ||
       path.startsWith('/api/admin/suppliers') ||
+      path.startsWith('/api/admin/catalog') ||
       path.startsWith('/api/admin/customers') ||
       path.startsWith('/api/admin/refunds') ||
       path.startsWith('/api/admin/reports') ||
@@ -194,6 +195,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // only mutations (not reads) are Manager+Owner (#security-M1).
       (request.method !== 'GET' &&
         (/^\/api\/admin\/services\/[^/]+$/.test(path) ||
+          /^\/api\/admin\/packages\/[^/]+$/.test(path) ||
           /^\/api\/admin\/themes\/[^/]+$/.test(path) ||
           /^\/api\/admin\/inventory\/[^/]+$/.test(path))) ||
       /^\/api\/admin\/orders\/[^/]+\/(refund|audit)$/.test(path) ||
@@ -2765,6 +2767,9 @@ export async function adminRoutes(app: FastifyInstance) {
       `INSERT INTO messages (event_id, sender, author, body) VALUES ($1,'team',$2,$3) RETURNING *`,
       [eventId, parsed.data.author, parsed.data.body],
     );
+    // Notify the customer so a reply isn't silent until they reopen the app.
+    const ev = await pool.query(`SELECT customer_id FROM events WHERE id = $1`, [eventId]);
+    if (ev.rows[0]) void pushToOwner('customer', ev.rows[0].customer_id, 'Eventana', parsed.data.body.slice(0, 90), { eventId });
     return rows[0];
   });
 
@@ -3504,6 +3509,44 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     invalidateConfigCache();
     return rows[0];
+  });
+
+  /**
+   * The real customer-facing catalogue for the dashboard to manage: the packages
+   * and services customers actually book, with their live prices. Editing a price
+   * here (below) flows straight to the customer app.
+   */
+  app.get('/api/admin/catalog', async () => {
+    const [pkgs, svcs] = await Promise.all([
+      pool.query(`SELECT id, name, price_fils, active FROM packages ORDER BY price_fils DESC`),
+      pool.query(`SELECT s.id, s.name, s.price_fils, s.active, s.category_id, c.name AS category
+                    FROM services s LEFT JOIN service_categories c ON c.id = s.category_id
+                   ORDER BY c.sort_order NULLS LAST, s.name`),
+    ]);
+    const map = (r: any) => ({ id: r.id, name: r.name, priceFils: Number(r.price_fils), priceDisplay: formatAed(Number(r.price_fils)), active: r.active });
+    return {
+      packages: pkgs.rows.map(map),
+      services: svcs.rows.map((r) => ({ ...map(r), category: r.category ?? null })),
+    };
+  });
+
+  app.patch('/api/admin/packages/:packageId', async (request, reply) => {
+    const { packageId } = request.params as { packageId: string };
+    const p = z.object({
+      priceFils: z.number().int().min(0).optional(),
+      name: z.string().min(1).max(120).optional(),
+      active: z.boolean().optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { rows } = await pool.query(
+      `UPDATE packages SET price_fils = COALESCE($2, price_fils), name = COALESCE($3, name), active = COALESCE($4, active)
+        WHERE id = $1 RETURNING id, name, price_fils, active`,
+      [packageId, p.data.priceFils ?? null, p.data.name ?? null, p.data.active ?? null],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    invalidateConfigCache();
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'package_edit', target: packageId, detail: p.data });
+    return { id: rows[0].id, name: rows[0].name, priceFils: Number(rows[0].price_fils), active: rows[0].active };
   });
 
   /* ----------------------------- Themes --------------------------- */

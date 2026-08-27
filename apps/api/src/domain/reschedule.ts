@@ -13,6 +13,7 @@ import { eventEndHour, formatHour24, isCancelled, parseHour } from '@eventana/sh
 import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from './settings.js';
 import { eventWindow, getAssets } from './inventory.js';
+import { syncEventToCalendar } from '../integrations/googleCalendar.js';
 
 /** Owner rule: reschedule allowed only when the event is more than this away. */
 export const RESCHEDULE_MIN_HOURS = 72;
@@ -37,7 +38,7 @@ export async function rescheduleEvent(args: {
 }): Promise<{ date: string; startTime: string; endTime: string }> {
   const cfg = await loadConfig(pool, { fresh: true });
 
-  return withTransaction(async (db) => {
+  const result = await withTransaction(async (db) => {
     const { rows } = await db.query(
       `SELECT * FROM events WHERE id = $1 AND customer_id = $2 FOR UPDATE`,
       [args.eventId, args.customerId],
@@ -106,6 +107,18 @@ export async function rescheduleEvent(args: {
       `UPDATE events SET event_date = $2, start_time = $3, base_end_time = $4 WHERE id = $1`,
       [args.eventId, args.newDate, args.newStartTime, endTime],
     );
+    // Move the still-unsent reminder emails to the new date, so they never fire
+    // against the old one.
+    await db.query(
+      `UPDATE notifications SET scheduled_for = $2::date - interval '3 days'
+        WHERE event_id = $1 AND template = 'three_day_reminder' AND sent_at IS NULL AND cancelled_at IS NULL`,
+      [args.eventId, args.newDate],
+    );
+    await db.query(
+      `UPDATE notifications SET scheduled_for = $2::date
+        WHERE event_id = $1 AND template = 'event_day' AND sent_at IS NULL AND cancelled_at IS NULL`,
+      [args.eventId, args.newDate],
+    );
     await db.query(
       `INSERT INTO event_tasks (event_id, department, title)
        VALUES ($1,'operations',$2), ($1,'logistics',$3)`,
@@ -114,4 +127,7 @@ export async function rescheduleEvent(args: {
 
     return { date: args.newDate, startTime: args.newStartTime, endTime };
   });
+  // Keep the shared team calendar in step with the new date (best-effort).
+  void syncEventToCalendar(args.eventId);
+  return result;
 }

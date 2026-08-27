@@ -31,14 +31,17 @@ export async function syncCatalogueContent(): Promise<void> {
             needs_admin_review, celebration_types, badge, gradient)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          ON CONFLICT (id) DO UPDATE SET
-           name = EXCLUDED.name, price_fils = EXCLUDED.price_fils,
+           name = EXCLUDED.name,
            short_description = EXCLUDED.short_description, detail = EXCLUDED.detail,
            pricing = EXCLUDED.pricing, requires_assets = EXCLUDED.requires_assets,
            is_inflatable = EXCLUDED.is_inflatable, is_food_station = EXCLUDED.is_food_station,
-           extra_serving_fils = EXCLUDED.extra_serving_fils,
            needs_admin_review = EXCLUDED.needs_admin_review,
            celebration_types = EXCLUDED.celebration_types, badge = EXCLUDED.badge,
            gradient = EXCLUDED.gradient`,
+        // NOTE: price_fils and extra_serving_fils are deliberately NOT overwritten
+        // on conflict — a price the owner set in the dashboard is the source of
+        // truth and must survive a redeploy. New services still take the code
+        // price on first insert.
         [
           s.id, s.name, s.categoryId, s.priceFils, s.shortDescription, s.detail,
           JSON.stringify(s.pricing), s.requiresAssets, s.isInflatable, s.isFoodStation,

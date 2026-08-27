@@ -939,6 +939,9 @@ export async function eventRoutes(app: FastifyInstance) {
       `INSERT INTO messages (event_id, sender, body) VALUES ($1,'customer',$2) RETURNING *`,
       [eventId, parsed.data.body],
     );
+    // Ping the crew so a customer message isn't invisible until someone opens
+    // the event — the Event Leader is the one who should reply.
+    void pushToStaff('New message from customer 💬', parsed.data.body.slice(0, 90), { eventId });
     return inserted.rows[0];
   });
 
