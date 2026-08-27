@@ -292,6 +292,8 @@ export async function adminRoutes(app: FastifyInstance) {
     ]);
 
     const canSeeShopMoney = (request as any).staff?.role === 'owner' || (request as any).staff?.role === 'manager';
+    // Resolve shop item names from the catalogue (cart stores serviceId only).
+    const shopCfg = shopOrders.rows.length ? await loadConfig() : null;
     const k = kpis.rows[0];
     return {
       kpis: {
@@ -311,13 +313,19 @@ export async function adminRoutes(app: FastifyInstance) {
       criticalInventory: inventory.rows,
       pendingDesignApprovals: approvals.rows,
       shopOrders: shopOrders.rows.map((o) => {
-        const cart = (o.cart ?? {}) as { items?: Array<{ name?: string; title?: string; quantity?: number }>; readyBy?: string; emirate?: string };
-        const items = Array.isArray(cart.items) ? cart.items.map((i) => i.name || i.title).filter(Boolean) : [];
+        const cart = (o.cart ?? {}) as { items?: Array<{ serviceId?: string; name?: string; title?: string; quantity?: number }>; readyBy?: string; emirate?: string };
+        const items = Array.isArray(cart.items)
+          ? cart.items.map((i) => (i.serviceId ? shopCfg?.services.get(i.serviceId)?.name : null) || i.name || i.title || i.serviceId).filter(Boolean)
+          : [];
+        // Delivery date: the customer's chosen ready-by, else 3 days from the
+        // order date (digital / printed goods lead time).
+        const created = new Date(o.created_at);
+        const readyBy = cart.readyBy ?? new Date(created.getTime() + 3 * 86_400_000).toISOString().slice(0, 10);
         return {
           id: o.id,
           customer: o.customer,
           itemsLabel: items.join(', ') || 'Shop order',
-          readyBy: cart.readyBy ?? null,
+          readyBy,
           emirate: cart.emirate ?? null,
           createdAt: o.created_at,
           totalDisplay: canSeeShopMoney ? formatAed(Number(o.total_fils)) : null,

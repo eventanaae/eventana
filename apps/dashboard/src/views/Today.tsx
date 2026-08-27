@@ -158,7 +158,7 @@ export function Today({ onOpenEvent, onGoto, staffName, role }: { onOpenEvent: (
       {(data?.shopOrders ?? []).length > 0 && (
         <Panel className="rise-in" style={{ ['--i' as any]: 6 } as any} title="🛍️ Shop orders">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {data.shopOrders.map((o: any) => (
+            {[...data.shopOrders].sort((a: any, b: any) => String(a.readyBy ?? '').localeCompare(String(b.readyBy ?? ''))).map((o: any) => (
               <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, background: '#F4ECFB', border: '1px solid #E4D3F5' }}>
                 <span style={{ width: 34, height: 34, borderRadius: 11, background: '#E7D6F7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: 'none' }}>🛍️</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
