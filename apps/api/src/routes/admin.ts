@@ -240,7 +240,8 @@ export async function adminRoutes(app: FastifyInstance) {
     return { configured: true, ...(await qb.status()) };
   });
   app.get('/api/admin/quickbooks/connect', async (request, reply) => {
-    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const qb = await import('../domain/quickbooks.js');
     if (!qb.quickbooksConfigured()) return reply.status(409).send({ error: 'not_configured', message: 'Set QUICKBOOKS_CLIENT_ID and QUICKBOOKS_CLIENT_SECRET on the server.' });
     return { url: qb.authorizeUrl(qb.makeState()) };
