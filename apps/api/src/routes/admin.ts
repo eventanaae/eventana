@@ -1117,7 +1117,7 @@ export async function adminRoutes(app: FastifyInstance) {
             WHERE et.member_id = tm.id
               AND e.event_date >= $1 AND e.event_date < $2) AS ratings_count
        FROM team_members tm
-       WHERE tm.active
+       WHERE tm.active AND lower(tm.name) NOT IN ('shan','sheem')
        ORDER BY tips_fils DESC, events_done DESC, tm.name`,
       [start, endStr],
     );
