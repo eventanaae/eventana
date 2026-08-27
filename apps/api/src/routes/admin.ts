@@ -233,6 +233,25 @@ export async function adminRoutes(app: FastifyInstance) {
     return (request as any).staff ?? { name: 'Staff', role: 'employee' };
   });
 
+  // ── QuickBooks Online connection (owner) ───────────────────────────────────
+  app.get('/api/admin/quickbooks/status', async () => {
+    const qb = await import('../domain/quickbooks.js');
+    if (!qb.quickbooksConfigured()) return { configured: false, connected: false };
+    return { configured: true, ...(await qb.status()) };
+  });
+  app.get('/api/admin/quickbooks/connect', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+    const qb = await import('../domain/quickbooks.js');
+    if (!qb.quickbooksConfigured()) return reply.status(409).send({ error: 'not_configured', message: 'Set QUICKBOOKS_CLIENT_ID and QUICKBOOKS_CLIENT_SECRET on the server.' });
+    return { url: qb.authorizeUrl(qb.makeState()) };
+  });
+  app.post('/api/admin/quickbooks/disconnect', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+    const qb = await import('../domain/quickbooks.js');
+    await qb.disconnect();
+    return { ok: true };
+  });
+
   /**
    * The customer-feedback wall — what customers said about our events, newest
    * first. Team-wide and visible to everyone (it's encouragement, no money).

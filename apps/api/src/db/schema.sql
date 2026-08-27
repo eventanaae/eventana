@@ -1119,6 +1119,23 @@ CREATE TABLE IF NOT EXISTS finance_items (
 ALTER TABLE finance_items ADD COLUMN IF NOT EXISTS description TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS finance_items_name_idx ON finance_items (lower(name));
 
+-- QuickBooks Online OAuth connection (single row: id=1). Tokens are stored so
+-- the server can call the QuickBooks API on the company's behalf and refresh
+-- without re-consent. Only the owner ever triggers connect/disconnect.
+CREATE TABLE IF NOT EXISTS quickbooks_connection (
+  id            INT PRIMARY KEY DEFAULT 1,
+  realm_id      TEXT NOT NULL,            -- the connected company id
+  access_token  TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at    TIMESTAMPTZ NOT NULL,     -- access-token expiry
+  refresh_expires_at TIMESTAMPTZ,         -- refresh-token expiry (~100 days)
+  environment   TEXT NOT NULL DEFAULT 'sandbox',
+  connected_by  TEXT,
+  connected_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT quickbooks_connection_singleton CHECK (id = 1)
+);
+
 -- Suppliers directory: who we buy from, how to reach them, and what they supply.
 CREATE TABLE IF NOT EXISTS suppliers (
   id         BIGSERIAL PRIMARY KEY,

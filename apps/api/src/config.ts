@@ -281,6 +281,22 @@ export const config = {
     agentMode: env.WHATSAPP_AGENT_MODE ?? 'off',
   },
 
+  /**
+   * QuickBooks Online integration (OAuth 2.0 authorization_code). CLIENT_ID and
+   * CLIENT_SECRET come from the Intuit app's Keys page — the secret is read from
+   * the environment only, never committed or logged. QUICKBOOKS_ENV selects the
+   * sandbox (fake company) or production (real company) API host. The redirect
+   * URI must be registered on the Intuit app exactly.
+   */
+  quickbooks: {
+    clientId: env.QUICKBOOKS_CLIENT_ID ?? null,
+    clientSecret: env.QUICKBOOKS_CLIENT_SECRET ?? null,
+    environment: (env.QUICKBOOKS_ENV ?? 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox',
+    redirectUri:
+      env.QUICKBOOKS_REDIRECT_URI ??
+      `${toUrl(env.PUBLIC_API_URL ?? env.PUBLIC_API_HOST, 'http://localhost:4000').replace(/\/$/, '')}/api/quickbooks/callback`,
+  },
+
   providers: {
     tabby: providerConfig('tabby', {
       publicKey: env.TABBY_PUBLIC_KEY,

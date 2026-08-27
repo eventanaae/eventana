@@ -300,6 +300,27 @@ export async function publicRoutes(app: FastifyInstance) {
     return page('You’ve been unsubscribed from Eventana emails. We’re sorry to see you go! 🎈');
   });
 
+  /**
+   * QuickBooks OAuth redirect target. Intuit sends the owner's browser here with
+   * ?code&realmId&state after they consent. Public (no staff token — it's a
+   * browser redirect), protected by the signed `state` we set on connect. On
+   * success it stores the tokens and bounces back to the dashboard.
+   */
+  app.get('/api/quickbooks/callback', async (request, reply) => {
+    const q = request.query as { code?: string; realmId?: string; state?: string; error?: string };
+    const dash = config.publicDashboardUrl.replace(/\/$/, '');
+    const { verifyState, exchangeCode } = await import('../domain/quickbooks.js');
+    if (q.error) return reply.redirect(`${dash}/?qb=denied`);
+    if (!q.code || !q.realmId || !verifyState(q.state)) return reply.redirect(`${dash}/?qb=error`);
+    try {
+      await exchangeCode(q.code, q.realmId, 'owner');
+      return reply.redirect(`${dash}/?qb=connected`);
+    } catch (err) {
+      request.log.error({ err }, 'quickbooks callback failed');
+      return reply.redirect(`${dash}/?qb=error`);
+    }
+  });
+
   /** Everything the apps need to render the catalogue. */
   /**
    * A manual-order offer, opened from the unique link the team sent. Returns the
