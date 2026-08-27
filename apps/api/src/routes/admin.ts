@@ -3125,6 +3125,70 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /**
+   * Notification bell feed: one unified, newest-first stream of things worth a
+   * person's attention, each linking to the order/event it's about. Owner and
+   * manager see the whole business; an employee sees only what touches them
+   * (tips to them, feedback on their events). Read-state is tracked client-side
+   * against a last-seen timestamp, so the bell needs no per-user table.
+   */
+  app.get('/api/admin/notification-feed', async (request) => {
+    const staff = (request as any).staff as { id?: string; role?: string };
+    const isMgr = staff.role === 'owner' || staff.role === 'manager';
+    const items: Array<{ id: string; level: 'critical' | 'high' | 'info'; icon: string; title: string; text: string; eventId?: string | null; orderId?: string | null; at: string }> = [];
+
+    if (isMgr) {
+      const [alerts, bookings, refundRows, ratings, tips, cancels] = await Promise.all([
+        pool.query(`SELECT id, template, event_id, payload, created_at FROM notifications
+                     WHERE channel='ops_alert' AND created_at > now() - interval '30 days'
+                     ORDER BY created_at DESC LIMIT 40`),
+        pool.query(`SELECT e.id, e.created_at, e.event_date, c.name AS customer, p.name AS package
+                      FROM events e JOIN customers c ON c.id=e.customer_id
+                      LEFT JOIN packages p ON p.id=e.package_id
+                     WHERE e.phase <> 'Cancelled' AND e.created_at > now() - interval '30 days'
+                     ORDER BY e.created_at DESC LIMIT 20`),
+        pool.query(`SELECT id, order_id, event_id, amount_fils, reason_category, created_at
+                      FROM refunds WHERE created_at > now() - interval '30 days' ORDER BY created_at DESC LIMIT 20`),
+        pool.query(`SELECT id, event_id, stars, feedback, created_at FROM event_ratings
+                     WHERE created_at > now() - interval '30 days' ORDER BY created_at DESC LIMIT 20`),
+        pool.query(`SELECT t.id, t.event_id, t.amount_fils, t.created_at, m.name AS member
+                      FROM tips t LEFT JOIN team_members m ON m.id=t.member_id
+                     WHERE t.status='paid' AND COALESCE(t.paid_at,t.created_at) > now() - interval '30 days'
+                     ORDER BY COALESCE(t.paid_at,t.created_at) DESC LIMIT 20`),
+        pool.query(`SELECT order_id, event_id, reason, refund_amount_fils, created_at FROM cancellations
+                     WHERE created_at > now() - interval '30 days' ORDER BY created_at DESC LIMIT 20`),
+      ]);
+      for (const a of alerts.rows) {
+        const t = a.template as string;
+        const level: 'critical' | 'high' | 'info' = t === 'prep_issue' ? 'critical' : t === 'staffing_required' ? 'high' : 'info';
+        const icon = t === 'order_cancelled' ? '❌' : t === 'staffing_required' ? '🧑‍🤝‍🧑' : t === 'prep_issue' ? '⚠️' : '🔔';
+        const title = t === 'order_cancelled' ? 'Order cancelled' : t === 'staffing_required' ? 'Staffing needed' : t === 'prep_issue' ? 'Prep issue' : t.replace(/_/g, ' ');
+        items.push({ id: `al-${a.id}`, level, icon, title, text: a.event_id ? `Event ${a.event_id}` : '', eventId: a.event_id, orderId: (a.payload && a.payload.orderId) || null, at: a.created_at });
+      }
+      for (const b of bookings.rows) items.push({ id: `bk-${b.id}`, level: 'info', icon: '🎉', title: 'New booking', text: `${b.customer}${b.package ? ` · ${b.package}` : ''}`, eventId: b.id, at: b.created_at });
+      for (const r of refundRows.rows) items.push({ id: `rf-${r.id}`, level: 'high', icon: '💸', title: 'Refund processed', text: `${formatAed(Number(r.amount_fils))} · ${String(r.reason_category).replace(/_/g, ' ')}`, eventId: r.event_id, orderId: r.order_id, at: r.created_at });
+      for (const r of ratings.rows) items.push({ id: `rt-${r.id}`, level: r.stars <= 3 ? 'high' : 'info', icon: r.stars <= 3 ? '⭐' : '🌟', title: `${r.stars}★ feedback`, text: (r.feedback || '').slice(0, 80), eventId: r.event_id, at: r.created_at });
+      for (const t of tips.rows) items.push({ id: `tp-${t.id}`, level: 'info', icon: '💐', title: 'Tip received', text: `${formatAed(Number(t.amount_fils))}${t.member ? ` · ${t.member}` : ' · team'}`, eventId: t.event_id, at: t.created_at });
+      for (const c of cancels.rows) items.push({ id: `cx-${c.order_id}`, level: 'high', icon: '🚫', title: 'Cancellation', text: c.reason || '', eventId: c.event_id, orderId: c.order_id, at: c.created_at });
+    } else if (staff.id) {
+      // Employee: only what touches them — tips aimed at them, feedback on their events.
+      const [tips, ratings] = await Promise.all([
+        pool.query(`SELECT t.id, t.event_id, t.amount_fils, t.created_at FROM tips t
+                     WHERE t.status='paid' AND t.member_id=$1 AND COALESCE(t.paid_at,t.created_at) > now() - interval '60 days'
+                     ORDER BY COALESCE(t.paid_at,t.created_at) DESC LIMIT 20`, [staff.id]),
+        pool.query(`SELECT r.id, r.event_id, r.stars, r.feedback, r.created_at FROM event_ratings r
+                      JOIN event_team et ON et.event_id = r.event_id
+                     WHERE et.member_id=$1 AND r.created_at > now() - interval '60 days'
+                     ORDER BY r.created_at DESC LIMIT 20`, [staff.id]),
+      ]);
+      for (const t of tips.rows) items.push({ id: `tp-${t.id}`, level: 'info', icon: '💐', title: 'You received a tip!', text: formatAed(Number(t.amount_fils)), eventId: t.event_id, at: t.created_at });
+      for (const r of ratings.rows) items.push({ id: `rt-${r.id}`, level: 'info', icon: '🌟', title: `${r.stars}★ on your event`, text: (r.feedback || '').slice(0, 80), eventId: r.event_id, at: r.created_at });
+    }
+
+    items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    return { items: items.slice(0, 50) };
+  });
+
+  /**
    * Unified ops alert centre: what needs a person's attention right now
    * (low stock, leave to approve, orders held for review) plus a recent feed
    * of tips and ratings. Manager/owner only (gated in the preHandler).

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler } from './api';
 import { C, fredoka } from './ui';
 import { BookingNotifier } from './BookingNotifier';
+import { NotificationBell } from './NotificationBell';
 import { Today } from './views/Today';
 import { Overview } from './views/Overview';
 import { Schedule } from './views/Schedule';
@@ -212,6 +213,7 @@ export default function App() {
           <span style={{ background: error ? C.redSoft : C.greenSoft, color: error ? C.red : C.green, fontSize: 10, fontWeight: 700, padding: '5px 9px', borderRadius: 10, flex: 'none' }}>
             {error ? '● offline' : '● live'}
           </span>
+          <NotificationBell onOpenEvent={openEvent} />
         </div>
 
         <div style={{ flex: 1, padding: 14, paddingBottom: 84, minWidth: 0 }}>{body}</div>
@@ -400,6 +402,7 @@ export default function App() {
             <span style={{ background: error ? C.redSoft : C.greenSoft, color: error ? C.red : C.green, fontSize: 11, fontWeight: 700, padding: '7px 12px', borderRadius: 12 }}>
               {error ? '● Engine unreachable' : '● Live sync'}
             </span>
+            <NotificationBell onOpenEvent={openEvent} />
           </div>
         </div>
 

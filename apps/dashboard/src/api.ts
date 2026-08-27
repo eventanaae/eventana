@@ -266,6 +266,7 @@ export const api = {
     request<any>(`/api/admin/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   reconcile: () => request<any>('/api/admin/reconcile', { method: 'POST' }),
   notifications: () => request<any[]>('/api/admin/notifications'),
+  notificationFeed: () => request<{ items: any[] }>('/api/admin/notification-feed'),
   alerts: () => request<any>('/api/admin/alerts'),
 
   /** Sign + upload an image straight to Cloudinary; returns its secure URL. */
