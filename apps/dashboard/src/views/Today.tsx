@@ -132,16 +132,16 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
           the ratings on their events — so Home is their one useful screen. */}
       {(role === 'employee' || role === 'driver') ? (
         <StaffUpdates onOpenEvent={onOpenEvent} />
-      ) : (
+      ) : role === 'owner' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
           <StatCard i={0} label="Events today" value={Math.round(evToday)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
-          {role === 'owner' && k.revenueThisMonthDisplay
+          {k.revenueThisMonthDisplay
             ? <StatCard i={1} label="Revenue this month" value={<span>AED {k.revenueThisMonthDisplay}</span>} icon="💸" accent={ACCENTS[1]} onClick={() => onGoto('ceo')} />
             : <StatCard i={1} label="Bookings this month" value={Number(k.bookingsThisMonth) || 0} icon="🎉" accent={ACCENTS[1]} onClick={() => onGoto('overview')} />}
           <StatCard i={2} label="Upcoming" value={Math.round(upCount)} icon="✨" accent={ACCENTS[4]} hint={next ? when(next).replace('Today · ', 'next today ') : undefined} onClick={() => onGoto('schedule')} />
           <StatCard i={3} label="Open tasks" value={Math.round(tasks)} icon="📋" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
         </div>
-      )}
+      ) : null}
 
       {/* Next event — shown only when nothing is on today (today is up top). */}
       {next && !isToday(next) && (
@@ -331,6 +331,7 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const nothing = prep.length === 0 && low.length === 0 && ratings.length === 0;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <OffTodayPanel list={data.offToday ?? []} />
       {prep.length > 0 && (
       <Panel title="🧰 Your preparation at risk">
         {prep.map((e: any) => (
@@ -381,6 +382,24 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
  * day-off requests they can approve or deny — surfaced right on Home so the
  * "Updates" screen isn't needed. Each panel hides itself when it's empty.
  */
+/** Who's off today — shown on everyone's Home so the whole team knows. */
+export function OffTodayPanel({ list }: { list: any[] }) {
+  if (!list || list.length === 0) return null;
+  return (
+    <Panel title="🌴 Off today">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {list.map((d) => (
+          <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#faf6f9', border: `1px solid ${C.line}`, borderRadius: 20, padding: '6px 12px' }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', background: d.color || C.pink, color: '#fff', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{String(d.member_name || '?')[0]}</div>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{d.member_name}</span>
+            {d.reason && <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>· {d.reason}</span>}
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
 function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [data, setData] = useState<any>(null);
   const load = () => api.alerts().then(setData).catch(() => setData(null));
@@ -391,6 +410,7 @@ function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void 
   const rowS: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` };
   return (
     <>
+      <OffTodayPanel list={data.offToday ?? []} />
       {gaps.length > 0 && (
         <Panel title="🎭 Staffing — action required">
           {gaps.map((s: any) => (
@@ -500,7 +520,6 @@ function PointsHelp() {
       <div style={head}>🏆 Competition points — just for the leaderboard</div>
       <div style={line}><span style={emo}>🎈</span><span>{b('10 points')} for every event you complete.</span></div>
       <div style={line}><span style={emo}>⭐</span><span>{b('+20 points')} each time a customer rates your event 5★.</span></div>
-      <div style={line}><span style={emo}>💸</span><span>{b('+1 point')} for every AED 1 you receive in tips.</span></div>
 
       <div style={{ ...head, marginTop: 10 }}>💐 Your rewards — real money you earn</div>
       <div style={line}><span style={emo}>🎯</span><span>Monthly target is {b('20 events')}.</span></div>
