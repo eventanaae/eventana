@@ -3316,6 +3316,18 @@ export async function adminRoutes(app: FastifyInstance) {
       items.push({ id: `gf-${b.id}`, level: 'info', icon: '🌟', title: 'Great customer feedback!', text: `${p.names || 'The crew'} earned a reward${p.feedback ? ` · "${String(p.feedback).slice(0, 60)}"` : ''}`, eventId: b.event_id, at: b.created_at });
     }
 
+    // Owner/manager: a team member activated their login (set their password).
+    if (isMgr) {
+      const acts = await pool.query(
+        `SELECT id, payload, created_at FROM notifications
+          WHERE channel='push' AND template='staff_activated' AND created_at > now() - interval '30 days'
+          ORDER BY created_at DESC LIMIT 20`);
+      for (const x of acts.rows) {
+        const p = x.payload || {};
+        items.push({ id: `act-${x.id}`, level: 'info', icon: '✅', title: 'Team member activated', text: `${p.name || 'A team member'} set their password — they can sign in now`, at: x.created_at });
+      }
+    }
+
     items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
     return { items: items.slice(0, 50) };
   });

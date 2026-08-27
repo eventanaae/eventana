@@ -12,6 +12,7 @@ import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { logAudit } from '../domain/auditLog.js';
+import { pushToOwner } from '../integrations/push.js';
 import {
   hashPassword, verifyPassword, issueStaffSession,
   issueStaffSetupToken, verifyStaffSetupToken, passwordProblem,
@@ -103,6 +104,22 @@ export async function staffAuthRoutes(app: FastifyInstance) {
     const m = rows[0];
     if (!m) return reply.status(404).send({ error: 'not_found' });
     logAudit({ actor: m.name, role: m.access_level, action: parsed.kind === 'setup' ? 'password_set' : 'password_reset', target: m.id });
+
+    // Tell the owner a team member has activated their account. Shows in the
+    // owner/manager notification bell, and pushes to their devices if registered.
+    if (parsed.kind === 'setup') {
+      await pool.query(
+        `INSERT INTO notifications (channel, template, scheduled_for, payload)
+         VALUES ('push','staff_activated', now(), $1)`,
+        [JSON.stringify({ name: m.name, memberId: m.id, level: m.access_level })],
+      ).catch(() => {});
+      void (async () => {
+        const owners = await pool.query(`SELECT id FROM team_members WHERE access_level IN ('owner','manager') AND active`).catch(() => ({ rows: [] as any[] }));
+        for (const o of owners.rows) {
+          void pushToOwner('staff', o.id, 'Team member activated ✅', `${m.name} set their password and can now sign in.`);
+        }
+      })();
+    }
     // No session is issued here on purpose: the staff member is sent to the
     // sign-in screen to log in with the password they just chose (so they learn
     // the real login, and the password is confirmed to work). `email` pre-fills it.
