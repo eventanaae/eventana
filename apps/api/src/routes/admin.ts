@@ -182,7 +182,8 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/needs-review') ||
       path.startsWith('/api/admin/reconcile') ||
       path.startsWith('/api/admin/notifications') ||
-      path.startsWith('/api/admin/alerts') ||
+      // /api/admin/alerts is now role-scoped in the handler (employees get their
+      // own "Latest updates" feed), so it is NOT gated to managers here.
       path.startsWith('/api/admin/marketing') ||
       path === '/api/admin/team' ||
       // Editing catalogue prices / availability / inventory is a money change:
@@ -3321,7 +3322,39 @@ export async function adminRoutes(app: FastifyInstance) {
    * (low stock, leave to approve, orders held for review) plus a recent feed
    * of tips and ratings. Manager/owner only (gated in the preHandler).
    */
-  app.get('/api/admin/alerts', async () => {
+  app.get('/api/admin/alerts', async (request) => {
+    const staff = (request as any).staff as { id?: string; role?: string };
+    // Employees get a personal "Latest updates" feed: low stock (shared), their
+    // OWN at-risk prep, their OWN tips, and ratings on their OWN events — no
+    // business-wide counts or other people's data.
+    if (staff.role === 'employee' && staff.id) {
+      const [lowStock, myTips, myRatings] = await Promise.all([
+        pool.query(
+          `SELECT id, name, unit, on_hand, reorder_level FROM consumables
+            WHERE active AND on_hand <= reorder_level ORDER BY (on_hand - reorder_level) ASC, name`),
+        pool.query(
+          `SELECT t.id, t.amount_fils, t.created_at, t.event_id FROM tips t
+            WHERE t.status='paid' AND t.member_id=$1
+            ORDER BY COALESCE(t.paid_at,t.created_at) DESC LIMIT 8`, [staff.id]),
+        pool.query(
+          `SELECT r.id, r.stars, r.feedback, r.created_at, r.event_id FROM event_ratings r
+             JOIN event_team et ON et.event_id = r.event_id
+            WHERE et.member_id=$1 ORDER BY r.created_at DESC LIMIT 8`, [staff.id]),
+      ]);
+      const myEventIds = new Set(
+        (await pool.query(`SELECT event_id FROM event_team WHERE member_id=$1`, [staff.id])).rows.map((r) => r.event_id),
+      );
+      const prepAtRisk = (await import('../domain/prep.js').then((m) => m.getPrepEvents()).catch(() => []))
+        .filter((e: any) => (e.atRisk || e.issues > 0) && myEventIds.has(e.event_id ?? e.eventId ?? e.id));
+      return {
+        scoped: true,
+        lowStock: lowStock.rows,
+        recentTips: myTips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
+        recentRatings: myRatings.rows,
+        prepAtRisk,
+      };
+    }
+
     const [lowStock, pendingLeave, needsReview, tips, ratings, staffingGaps] = await Promise.all([
       pool.query(
         `SELECT id, name, unit, on_hand, reorder_level FROM consumables

@@ -47,7 +47,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'schedule', label: 'Events', icon: '▦', title: 'Events', sub: 'Your events, jobs and bookings', section: 'ops', mobile: true },
   { id: 'tasks', label: 'Tasks', icon: '✓', title: 'Tasks', sub: 'Event preparation', section: 'ops', mobile: true },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets and reservations', section: 'ops' },
-  { id: 'alerts', label: 'Alerts', icon: '🔔', title: 'Alerts', sub: 'Stock, leave, reviews and tips', section: 'ops' },
+  { id: 'alerts', label: 'Updates', icon: '📣', title: 'Latest updates', sub: "What's new — prep, stock, tips and ratings", section: 'ops', mobile: true },
   { id: 'customers', label: 'Customers', icon: '👥', title: 'Customers', sub: 'Your customer book — spend, history & contacts', section: 'sales' },
   { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'sales' },
@@ -71,7 +71,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
   manager: ['today', 'schedule', 'tasks', 'inventory', 'alerts', 'customers', 'neworder', 'leads', 'overview', 'finance', 'kpis', 'marketing', 'team', 'settings'],
-  employee: ['today', 'schedule', 'tasks', 'inventory', 'kpis'],
+  employee: ['today', 'schedule', 'tasks', 'alerts', 'inventory', 'kpis'],
   driver: ['today', 'schedule'],
 };
 
@@ -123,13 +123,15 @@ export default function App() {
   const allowed = ROLE_VIEWS[role] ?? 'all';
   const isVisible = (id: View) => allowed === 'all' || allowed.includes(id);
   const visibleNav = NAV.filter((n) => isVisible(n.id));
-  // The Owner's bottom bar shows the CEO Dashboard where the Manager sees the
-  // money-free Overview — the Overview is a manager tool.
-  const ceoItem = NAV.find((n) => n.id === 'ceo')!;
-  const primaryNav = visibleNav
-    .filter((n) => n.mobile)
-    .map((n) => (role === 'owner' && n.id === 'overview' ? ceoItem : n));
-  const moreNav = visibleNav.filter((n) => !n.mobile && !(role === 'owner' && n.id === 'ceo'));
+  // Phone bottom bar: exactly four primary tabs. The Owner keeps the CEO
+  // Dashboard as their 4th; everyone else gets Latest updates. Whatever else
+  // their role can see spills into "More".
+  const primaryIds: View[] = role === 'owner'
+    ? ['today', 'schedule', 'tasks', 'ceo']
+    : ['today', 'schedule', 'tasks', 'alerts'];
+  const primaryNav = primaryIds.filter((id) => isVisible(id)).map((id) => NAV.find((n) => n.id === id)!);
+  const primarySet = new Set<View>(primaryIds);
+  const moreNav = visibleNav.filter((n) => !primarySet.has(n.id));
   const canSeeAll = role !== 'driver';
 
   // If the current tab isn't allowed for this role, snap to the first that is.

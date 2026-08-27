@@ -23,9 +23,13 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   }, []);
 
   if (!data) return <Spinner />;
+  // Employees get a personal feed (scoped:true from the API): no business-wide
+  // number cards, no staffing/leave — just their own prep, stock, tips, ratings.
+  const scoped = !!data.scoped;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {!scoped && (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
         <Stat label="Low stock items" value={data.counts.lowStock} tone={data.counts.lowStock > 0 ? 'warn' : 'ok'} />
         <Stat label="Leave to approve" value={data.counts.pendingLeave} tone={data.counts.pendingLeave > 0 ? 'warn' : 'ok'} />
@@ -33,8 +37,9 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         <Stat label="Staffing to confirm" value={data.counts?.staffingGaps ?? 0} tone={(data.counts?.staffingGaps ?? 0) > 0 ? 'error' : 'ok'} />
         <Stat label="Prep at risk" value={data.counts?.prepAtRisk ?? 0} tone={(data.counts?.prepAtRisk ?? 0) > 0 ? 'error' : 'ok'} />
       </div>
+      )}
 
-      <Panel title="🧰 Preparation at risk">
+      <Panel title={scoped ? '🧰 Your preparation at risk' : '🧰 Preparation at risk'}>
         {(!data.prepAtRisk || data.prepAtRisk.length === 0) ? (
           <Empty>Every upcoming event is on track for preparation. 🎉</Empty>
         ) : (
@@ -55,6 +60,7 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         )}
       </Panel>
 
+      {!scoped && (
       <Panel title="🎭 Staffing — action required">
         {(!data.staffingGaps || data.staffingGaps.length === 0) ? (
           <Empty>Every upcoming event is fully staffed internally. 🎉</Empty>
@@ -75,6 +81,7 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           ))
         )}
       </Panel>
+      )}
 
       <Panel title="🧴 Low stock — reorder soon">
         {data.lowStock.length === 0 ? (
@@ -94,6 +101,7 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         )}
       </Panel>
 
+      {!scoped && (
       <Panel title="🌴 Leave requests">
         {data.pendingLeave.length === 0 ? (
           <Empty>No pending leave requests.</Empty>
@@ -114,9 +122,10 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           ))
         )}
       </Panel>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
-        <Panel title="💐 Recent tips">
+        <Panel title={scoped ? '💐 Your recent tips' : '💐 Recent tips'}>
           {data.recentTips.length === 0 ? (
             <Empty>No tips yet.</Empty>
           ) : (
@@ -132,7 +141,7 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           )}
         </Panel>
 
-        <Panel title="⭐ Recent ratings">
+        <Panel title={scoped ? '⭐ Ratings on your events' : '⭐ Recent ratings'}>
           {data.recentRatings.length === 0 ? (
             <Empty>No ratings yet.</Empty>
           ) : (
