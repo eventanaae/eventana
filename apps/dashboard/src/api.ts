@@ -132,7 +132,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (text) { try { body = JSON.parse(text); } catch { body = null; } }
   if (!res.ok) {
     const message = body?.message ?? body?.error ?? `Request failed (${res.status})`;
-    onApiError?.(message);
+    // A 403 means this role simply can't see this data — the UI already hides the
+    // relevant controls, so surfacing "Managers only" as a red toast just confuses
+    // staff. Swallow the toast for permission errors (the caller still gets the throw).
+    if (res.status !== 403) onApiError?.(message);
     throw new Error(message);
   }
   return body as T;

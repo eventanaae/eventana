@@ -106,7 +106,9 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
   const load = async () => {
     const d = await api.event(eventId);
     setData(d);
-    if (d.event.order_id) setAudit(await api.audit(d.event.order_id).catch(() => []));
+    // The payment audit trail is a manager/owner tool (money view). Employees /
+    // drivers don't fetch it — the API forbids it and they don't need it.
+    if (d.event.order_id && d.event.totalDisplay != null) setAudit(await api.audit(d.event.order_id).catch(() => []));
   };
   useEffect(() => { load(); }, [eventId]);
 
@@ -204,7 +206,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               {data.event.custom_theme && (
                 <DesignPanel eventId={eventId} designs={data.designs ?? []} onChange={load} />
               )}
-              {data.event.phase !== 'Cancelled' && <StaffingPanel eventId={eventId} />}
+              {!moneyHidden && data.event.phase !== 'Cancelled' && <StaffingPanel eventId={eventId} />}
 
               <Panel title="Advance status">
                 {data.event.phase !== 'Cancelled' && (

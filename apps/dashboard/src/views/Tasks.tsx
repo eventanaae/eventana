@@ -194,12 +194,17 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
   const [plan, setPlan] = useState<any>(null);
   const [crew, setCrew] = useState<any[]>([]);
   const [openAssign, setOpenAssign] = useState<string | null>(null);
+  const [myId, setMyId] = useState<string | null>(null);
   const canManage = role === 'owner' || role === 'manager';
+  // An employee can only act on tasks assigned to them; everything else is
+  // view-only. Managers and the owner can act on anything.
+  const canAct = (t: any) => canManage || (!!myId && (t.assignees ?? []).some((a: any) => String(a.id) === String(myId)));
 
   const load = () => api.prepPlan(eventId).then(setPlan).catch(() => setPlan({ tasks: [] }));
   useEffect(() => {
     load();
-    api.staffingCrew().then((c) => setCrew(c.filter((m: any) => ['Marsha', 'Dindo', 'Diana', 'Gloria', 'Jane'].includes(m.name)))).catch(() => {});
+    api.me().then((m: any) => setMyId(m?.id ?? null)).catch(() => {});
+    if (canManage) api.staffingCrew().then((c) => setCrew(c.filter((m: any) => ['Marsha', 'Dindo', 'Diana', 'Gloria', 'Jane'].includes(m.name)))).catch(() => {});
   }, [eventId]);
 
   return (
@@ -240,8 +245,8 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
                   {Array.isArray(t.checklist) && t.checklist.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '4px 0 8px' }}>
                       {t.checklist.map((ci: any, i: number) => (
-                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 600, color: ci.done ? C.muted : C.ink, cursor: 'pointer' }}>
-                          <input type="checkbox" checked={!!ci.done} onChange={async (e) => { await api.prepToggleChecklist(t.id, i, e.target.checked); load(); }} />
+                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 600, color: ci.done ? C.muted : C.ink, cursor: canAct(t) ? 'pointer' : 'default' }}>
+                          <input type="checkbox" checked={!!ci.done} disabled={!canAct(t)} onChange={async (e) => { await api.prepToggleChecklist(t.id, i, e.target.checked); load(); }} />
                           <span style={{ textDecoration: ci.done ? 'line-through' : 'none' }}>{ci.label}</span>
                         </label>
                       ))}
@@ -259,7 +264,9 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
                   )}
 
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                    {t.status !== 'completed' ? (
+                    {!canAct(t) ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>👁 View only — not assigned to you</span>
+                    ) : t.status !== 'completed' ? (
                       <>
                         <Button onClick={async () => { await api.prepComplete(t.id); load(); }}>✓ Done</Button>
                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '7px 11px', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}>

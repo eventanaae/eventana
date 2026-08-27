@@ -338,6 +338,21 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     );
   }
 
+  // Keep event_team (what employees read for "My jobs", and what feedback rewards
+  // / alerts use) in sync with the REAL assigned crew from event_staff. Without
+  // this, employees saw the stale "first 3 members" placeholder from checkout.
+  await pool.query(
+    `DELETE FROM event_team WHERE event_id = $1
+       AND member_id NOT IN (SELECT assignee_id FROM event_staff WHERE event_id = $1 AND assignee_id IS NOT NULL)`,
+    [eventId],
+  ).catch(() => {});
+  await pool.query(
+    `INSERT INTO event_team (event_id, member_id)
+     SELECT DISTINCT $1, assignee_id FROM event_staff WHERE event_id = $1 AND assignee_id IS NOT NULL
+     ON CONFLICT DO NOTHING`,
+    [eventId],
+  ).catch(() => {});
+
   const shortages = assigned.filter((a) => a.status !== 'assigned').length;
   // Raise a single ops alert for the Owner/Manager when we can't fully staff
   // internally (part-time / prep needed). Not repeated if one already stands.

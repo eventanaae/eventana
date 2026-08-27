@@ -384,17 +384,30 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
     ]);
 
-    const canSeeShopMoney = (request as any).staff?.role === 'owner' || (request as any).staff?.role === 'manager';
+    const staffCtx = (request as any).staff as { id?: string; role?: string };
+    const canSeeShopMoney = staffCtx?.role === 'owner' || staffCtx?.role === 'manager';
     // Resolve shop item names from the catalogue (cart stores serviceId only).
     const shopCfg = shopOrders.rows.length ? await loadConfig() : null;
     const k = kpis.rows[0];
+    // "Open tasks" means different things by role: an employee/driver sees THEIR
+    // own unfinished prep tasks, not the business-wide department-task count.
+    let openTasksCount = k.open_tasks;
+    if (staffCtx?.id && (staffCtx.role === 'employee' || staffCtx.role === 'driver')) {
+      const mine = await pool.query(
+        `SELECT count(DISTINCT pt.id)::int c FROM prep_tasks pt
+           JOIN prep_task_staff ps ON ps.task_id = pt.id
+          WHERE ps.member_id = $1 AND pt.status <> 'completed'`,
+        [staffCtx.id],
+      );
+      openTasksCount = mine.rows[0].c;
+    }
     return {
       kpis: {
         eventsToday: k.events_today,
         bookingsThisMonth: k.bookings_month,
         // Revenue is the Owner's number only — managers and staff don't see money.
         revenueThisMonthDisplay: (request as any).staff?.role === 'owner' ? formatAed(Number(k.revenue_month)) : null,
-        openTasks: k.open_tasks,
+        openTasks: openTasksCount,
         needsReview: k.needs_review,
         processing: k.processing,
       },
@@ -2872,12 +2885,14 @@ export async function adminRoutes(app: FastifyInstance) {
     const staff = (request as any).staff as { id?: string };
     if (staff.id) {
       const { rows } = await pool.query(
-        `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta, e.emirate,
+        // Read from the REAL assignments (event_staff), so an employee sees every
+        // event they were actually rostered onto — not the stale checkout crew.
+        `SELECT DISTINCT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta, e.emirate,
                 c.name AS customer, e.map_lat, e.map_lng
            FROM events e
-           JOIN event_team et ON et.event_id = e.id
+           JOIN event_staff es ON es.event_id = e.id AND es.assignee_id = $1
            JOIN customers c ON c.id = e.customer_id
-          WHERE et.member_id = $1 AND e.event_date >= CURRENT_DATE - interval '1 day'
+          WHERE e.event_date >= CURRENT_DATE - interval '1 day'
           ORDER BY e.event_date, e.start_time`,
         [staff.id],
       );

@@ -95,15 +95,21 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         );
       })()}
 
-      {/* Vibrant stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-        <StatCard i={0} label="Events today" value={Math.round(evToday)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
-        {role === 'owner' && k.revenueThisMonthDisplay
-          ? <StatCard i={1} label="Revenue this month" value={<span>AED {k.revenueThisMonthDisplay}</span>} icon="💸" accent={ACCENTS[1]} onClick={() => onGoto('ceo')} />
-          : <StatCard i={1} label="Bookings this month" value={Number(k.bookingsThisMonth) || 0} icon="🎉" accent={ACCENTS[1]} onClick={() => onGoto(role === 'owner' || role === 'manager' ? 'overview' : 'schedule')} />}
-        <StatCard i={2} label="Upcoming" value={Math.round(upCount)} icon="✨" accent={ACCENTS[4]} hint={next ? when(next).replace('Today · ', 'next today ') : undefined} onClick={() => onGoto('schedule')} />
-        <StatCard i={3} label="Open tasks" value={Math.round(tasks)} icon="📋" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
-      </div>
+      {/* Vibrant stats. Staff (employee/driver) get a focused pair — their events
+          today and their open tasks; the money/pipeline tiles are for managers. */}
+      {(() => {
+        const isStaff = role === 'employee' || role === 'driver';
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+            <StatCard i={0} label="Events today" value={Math.round(evToday)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
+            {!isStaff && (role === 'owner' && k.revenueThisMonthDisplay
+              ? <StatCard i={1} label="Revenue this month" value={<span>AED {k.revenueThisMonthDisplay}</span>} icon="💸" accent={ACCENTS[1]} onClick={() => onGoto('ceo')} />
+              : <StatCard i={1} label="Bookings this month" value={Number(k.bookingsThisMonth) || 0} icon="🎉" accent={ACCENTS[1]} onClick={() => onGoto(role === 'owner' || role === 'manager' ? 'overview' : 'schedule')} />)}
+            {!isStaff && <StatCard i={2} label="Upcoming" value={Math.round(upCount)} icon="✨" accent={ACCENTS[4]} hint={next ? when(next).replace('Today · ', 'next today ') : undefined} onClick={() => onGoto('schedule')} />}
+            <StatCard i={3} label="Open tasks" value={Math.round(tasks)} icon="📋" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
+          </div>
+        );
+      })()}
 
       {/* Next event — the hero */}
       {next && (
