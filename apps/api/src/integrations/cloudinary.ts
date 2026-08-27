@@ -53,3 +53,29 @@ export function signUpload(folder: UploadFolder): SignedUpload | null {
     uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
   };
 }
+
+/**
+ * Server-side upload of raw bytes (e.g. a receipt fetched from QuickBooks) to
+ * Cloudinary. Returns the hosted secure URL, or null if uploads aren't
+ * configured / the upload fails. Signs the same way as signUpload.
+ */
+export async function uploadBytes(bytes: Uint8Array, folder: UploadFolder, filename = 'receipt'): Promise<string | null> {
+  const { cloudName, apiKey, apiSecret } = config.cloudinary;
+  if (!cloudName || !apiKey || !apiSecret) return null;
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createHash('sha1').update(`folder=${folder}&timestamp=${timestamp}${apiSecret}`).digest('hex');
+    const form = new FormData();
+    form.append('file', new Blob([bytes as BlobPart]), filename);
+    form.append('api_key', apiKey);
+    form.append('timestamp', String(timestamp));
+    form.append('folder', folder);
+    form.append('signature', signature);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: 'POST', body: form });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { secure_url?: string };
+    return j.secure_url ?? null;
+  } catch {
+    return null;
+  }
+}

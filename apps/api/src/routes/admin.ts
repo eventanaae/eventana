@@ -252,6 +252,18 @@ export async function adminRoutes(app: FastifyInstance) {
     await qb.disconnect();
     return { ok: true };
   });
+  // Pull expenses + their receipt images from QuickBooks (runs in the background).
+  app.post('/api/admin/quickbooks/sync-expenses', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
+    const qb = await import('../domain/quickbooks.js');
+    if (!qb.quickbooksConfigured()) return reply.status(409).send({ error: 'not_configured' });
+    return qb.startExpenseSync();
+  });
+  app.get('/api/admin/quickbooks/sync-status', async () => {
+    const qb = await import('../domain/quickbooks.js');
+    return qb.syncStatus();
+  });
 
   /**
    * The customer-feedback wall — what customers said about our events, newest
@@ -2195,10 +2207,10 @@ export async function adminRoutes(app: FastifyInstance) {
             AND created_at >= $1 AND created_at < $2`,
         [start, end],
       ),
-      pool.query(`SELECT COALESCE(SUM(amount_fils),0) AS v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [start, end]),
+      pool.query(`SELECT COALESCE(SUM(amount_fils),0) AS v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2`, [start, end]),
       pool.query(
         `SELECT category, SUM(amount_fils) AS v FROM expenses
-          WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+          WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
         [start, end],
       ),
       pool.query(
@@ -2214,7 +2226,7 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
       pool.query(
         `SELECT to_char(date_trunc('month', spent_on),'YYYY-MM') AS m, SUM(amount_fils) AS v
-           FROM expenses WHERE spent_on >= $1 GROUP BY 1`,
+           FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 GROUP BY 1`,
         [sixStart],
       ),
     ]);
@@ -2539,9 +2551,9 @@ export async function adminRoutes(app: FastifyInstance) {
             AND source = 'manual'
             AND created_at > now() - interval '10 days'`,
       ),
-      pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [from, to]),
+      pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2`, [from, to]),
       pool.query(
-        `SELECT category, SUM(amount_fils) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+        `SELECT category, SUM(amount_fils) v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
         [from, to],
       ),
       pool.query(

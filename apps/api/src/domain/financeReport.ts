@@ -39,9 +39,9 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
         WHERE status='paid' AND kind IN ('booking','addon') AND created_at >= $1 AND created_at < $2`,
       [start, endStr],
     ),
-    pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [start, endStr]),
+    pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2`, [start, endStr]),
     pool.query(
-      `SELECT category, SUM(amount_fils) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+      `SELECT category, SUM(amount_fils) v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
       [start, endStr],
     ),
     pool.query(

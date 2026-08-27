@@ -365,6 +365,7 @@ function QuickBooksPanel() {
   const [st, setSt] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [sync, setSync] = useState<any>(null);
   const load = () => api.qbStatus().then(setSt).catch(() => setSt({ configured: false, connected: false }));
   useEffect(() => {
     load();
@@ -386,6 +387,22 @@ function QuickBooksPanel() {
     setBusy(true);
     try { await api.qbDisconnect(); await load(); setNote('Disconnected.'); } catch (e: any) { setNote(e?.message ?? 'Could not disconnect.'); } finally { setBusy(false); }
   };
+  // Poll sync progress while a sync is running.
+  useEffect(() => {
+    if (!sync?.running) return;
+    const t = setInterval(async () => {
+      try { const s = await api.qbSyncStatus(); setSync(s); if (!s.running) clearInterval(t); } catch { /* ignore */ }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [sync?.running]);
+  const startSync = async () => {
+    setNote(null);
+    try {
+      await api.qbSyncExpenses();
+      const s = await api.qbSyncStatus();
+      setSync(s);
+    } catch (e: any) { setNote(e?.message ?? 'Could not start the sync.'); }
+  };
   return (
     <Panel title="🧾 QuickBooks" action={st.connected ? <Badge tone="ok">Connected</Badge> : st.configured ? <Badge tone="warn">Not connected</Badge> : <Badge tone="neutral">Not set up</Badge>}>
       {note && <div style={{ background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '9px 12px', fontSize: 12.5, fontWeight: 700, marginBottom: 12 }}>{note}</div>}
@@ -397,7 +414,23 @@ function QuickBooksPanel() {
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{st.companyName || 'Connected company'}</div>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>Environment: {st.environment} · Company ID: {st.realmId}</div>
-          <div style={{ marginTop: 12 }}><Button tone="ghost" onClick={disconnect} disabled={busy}>Disconnect</Button></div>
+          {st.environment === 'sandbox' && (
+            <div style={{ background: '#FFF7E6', color: '#8A5A00', borderRadius: 10, padding: '8px 11px', fontSize: 11.5, fontWeight: 600, marginTop: 10, lineHeight: 1.5 }}>
+              This is the QuickBooks <b>test</b> company (sample data). For your real expenses &amp; receipts, switch to production keys.
+            </div>
+          )}
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button onClick={startSync} disabled={sync?.running}>{sync?.running ? 'Syncing…' : '⬇︎ Sync expenses + receipts'}</Button>
+            <Button tone="ghost" onClick={disconnect} disabled={busy}>Disconnect</Button>
+          </div>
+          {sync && (
+            <div style={{ fontSize: 12, fontWeight: 600, color: sync.error ? C.pinkDeep : C.muted, marginTop: 10, lineHeight: 1.5 }}>
+              {sync.message}
+              {sync.result && !sync.running && (
+                <span> · <b style={{ color: C.ink }}>{sync.result.imported}</b> expenses, <b style={{ color: C.ink }}>{sync.result.withReceipt}</b> with receipt images.</span>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div>

@@ -554,6 +554,15 @@ CREATE TABLE IF NOT EXISTS expenses (
 );
 -- How the expense was paid (cash | card | bank_transfer | cheque | other).
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method TEXT;
+-- Provenance. 'manual' (owner via Add Expense) counts toward the live profit
+-- picture; 'quickbooks' rows are pulled from the QB ledger for their receipt
+-- images + itemised history — they are ALREADY inside the imported P&L
+-- aggregate (finance_years), so they are EXCLUDED from live sums to avoid
+-- double-counting. qb_id is the QuickBooks Purchase id, used to sync
+-- idempotently (re-running the sync updates rather than duplicates).
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS expenses_qb_id_idx ON expenses (qb_id) WHERE qb_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS expenses_spent_idx ON expenses (spent_on);
 CREATE INDEX IF NOT EXISTS expenses_category_idx ON expenses (category, spent_on);
 

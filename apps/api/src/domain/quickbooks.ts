@@ -10,6 +10,7 @@
 import { createHmac } from 'node:crypto';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
+import { uploadBytes } from '../integrations/cloudinary.js';
 
 const AUTHORIZE_URL = 'https://appcenter.intuit.com/connect/oauth2';
 const TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
@@ -135,6 +136,148 @@ export async function qbGet(path: string): Promise<any> {
     throw new Error(`QuickBooks API ${res.status}: ${text.slice(0, 300)}`);
   }
   return res.json();
+}
+
+/** Run a QuickBooks SQL-ish query, returning the QueryResponse object. */
+async function qbQuery(query: string): Promise<any> {
+  const res = await qbGet(`/query?query=${encodeURIComponent(query)}`);
+  return res?.QueryResponse ?? {};
+}
+
+/** Map a QuickBooks expense account name to one of our category buckets. */
+function bucketFor(accountName: string | undefined): string {
+  const n = (accountName ?? '').toLowerCase();
+  if (/salary|payroll|wage|staff/.test(n)) return 'salaries';
+  if (/rent|lease/.test(n)) return 'rent';
+  if (/fuel|petrol|gas|transport|vehicle|car/.test(n)) return 'fuel';
+  if (/market|advertis|ads|promo|social/.test(n)) return 'marketing';
+  if (/maintenance|repair/.test(n)) return 'maintenance';
+  if (/util|electric|water|internet|phone|dewa/.test(n)) return 'utilities';
+  if (/supply|supplies|material|inventory|stock|purchase|cost of/.test(n)) return 'supplies';
+  return 'other';
+}
+
+/**
+ * Pull all expenses (Purchase entities) from QuickBooks together with their
+ * receipt attachments, and upsert them into `expenses` (source='quickbooks',
+ * idempotent on qb_id). Attachments are downloaded from Intuit's temporary URL
+ * and re-hosted on Cloudinary so the receipt image survives.
+ *
+ * These rows are for browsing/receipts only — they're excluded from the live
+ * profit sum because the imported P&L aggregate already counts them.
+ */
+export async function syncExpenses(onProgress?: (msg: string) => void): Promise<{ imported: number; withReceipt: number; total: number }> {
+  const log = (m: string) => { try { onProgress?.(m); } catch { /* ignore */ } };
+
+  // 1. Map every attachment to the Purchase it's attached to (id -> download URL).
+  const attByPurchase = new Map<string, { uri: string; name: string }>();
+  try {
+    let pos = 1;
+    for (;;) {
+      const q = await qbQuery(`select * from Attachable startposition ${pos} maxresults 100`);
+      const rows: any[] = q.Attachable ?? [];
+      for (const a of rows) {
+        const uri: string | undefined = a?.TempDownloadUri;
+        if (!uri) continue;
+        for (const ref of a.AttachableRef ?? []) {
+          if (ref?.EntityRef?.type === 'Purchase' && ref?.EntityRef?.value) {
+            attByPurchase.set(String(ref.EntityRef.value), { uri, name: a.FileName ?? 'receipt' });
+          }
+        }
+      }
+      if (rows.length < 100) break;
+      pos += 100;
+    }
+    log(`Found ${attByPurchase.size} receipt attachments`);
+  } catch (e) {
+    log(`Attachment scan skipped: ${(e as Error).message}`);
+  }
+
+  // 2. Page through Purchases and upsert each.
+  let imported = 0;
+  let withReceipt = 0;
+  let total = 0;
+  let pos = 1;
+  for (;;) {
+    const q = await qbQuery(`select * from Purchase startposition ${pos} maxresults 100`);
+    const rows: any[] = q.Purchase ?? [];
+    for (const p of rows) {
+      total++;
+      const qbId = String(p.Id);
+      const amountFils = Math.round(Number(p.TotalAmt ?? 0) * 100);
+      const spentOn = p.TxnDate ?? null;
+      const vendor: string | null = p.EntityRef?.name ?? null;
+      const firstLine = (p.Line ?? []).find((l: any) => l?.DetailType === 'AccountBasedExpenseLineDetail');
+      const accountName = firstLine?.AccountBasedExpenseLineDetail?.AccountRef?.name;
+      const description = firstLine?.Description || accountName || p.PrivateNote || 'QuickBooks expense';
+      const category = bucketFor(accountName);
+      const paymentMethod = (p.PaymentType ?? '').toString().toLowerCase() || null;
+
+      // Download + re-host the receipt image if this purchase has one.
+      let receiptUrl: string | null = null;
+      const att = attByPurchase.get(qbId);
+      if (att) {
+        try {
+          const r = await fetch(att.uri);
+          if (r.ok) {
+            const bytes = new Uint8Array(await r.arrayBuffer());
+            receiptUrl = await uploadBytes(bytes, 'eventana/receipts', att.name);
+            if (receiptUrl) withReceipt++;
+          }
+        } catch { /* keep the expense even if the image fails */ }
+      }
+
+      await pool.query(
+        `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, receipt_url, payment_method, recorded_by, source, qb_id)
+         VALUES ($1,$2,$3,$4,COALESCE($5::date, current_date),$6,$7,'quickbooks','quickbooks',$8)
+         ON CONFLICT (qb_id) WHERE qb_id IS NOT NULL DO UPDATE SET
+           category=EXCLUDED.category, description=EXCLUDED.description, amount_fils=EXCLUDED.amount_fils,
+           vendor=EXCLUDED.vendor, spent_on=EXCLUDED.spent_on, payment_method=EXCLUDED.payment_method,
+           receipt_url=COALESCE(EXCLUDED.receipt_url, expenses.receipt_url)`,
+        [category, description, amountFils, vendor, spentOn, receiptUrl, paymentMethod, qbId],
+      );
+      imported++;
+    }
+    log(`Imported ${imported} expenses…`);
+    if (rows.length < 100) break;
+    pos += 100;
+  }
+  return { imported, withReceipt, total };
+}
+
+// ── Background sync job (one at a time) ──────────────────────────────────────
+type SyncState = {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  message: string;
+  result: { imported: number; withReceipt: number; total: number } | null;
+  error: string | null;
+};
+let syncState: SyncState = { running: false, startedAt: null, finishedAt: null, message: '', result: null, error: null };
+
+export function syncStatus(): SyncState {
+  return syncState;
+}
+
+/** Kick off the expense sync in the background. Returns immediately. */
+export function startExpenseSync(): { started: boolean; already: boolean } {
+  if (syncState.running) return { started: false, already: true };
+  syncState = { running: true, startedAt: new Date().toISOString(), finishedAt: null, message: 'Starting…', result: null, error: null };
+  (async () => {
+    try {
+      const result = await syncExpenses((m) => { syncState.message = m; });
+      syncState.result = result;
+      syncState.message = `Done — ${result.imported} expenses, ${result.withReceipt} with receipts.`;
+    } catch (e) {
+      syncState.error = (e as Error).message;
+      syncState.message = `Failed: ${syncState.error}`;
+    } finally {
+      syncState.running = false;
+      syncState.finishedAt = new Date().toISOString();
+    }
+  })();
+  return { started: true, already: false };
 }
 
 /** Connection status for the dashboard (never returns tokens). */

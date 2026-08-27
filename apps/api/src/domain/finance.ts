@@ -832,7 +832,10 @@ export async function accountingSummary() {
     // already inside the Cash opening balance, so counting them again double-counts).
     pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_invoices WHERE status = 'paid' AND (source IS NULL OR source <> 'quickbooks')`),
     pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v, count(*)::int c FROM finance_invoices WHERE status <> 'paid'`),
-    pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM expenses`),
+    // Only manually-logged expenses reduce live Cash. QuickBooks-imported
+    // expenses are kept for their receipt images + history but are already
+    // inside the Cash opening balance, so counting them again double-counts.
+    pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM expenses WHERE source <> 'quickbooks'`),
   ]);
   const open = Number(opening.rows[0]?.value ?? 0);
   const cashOnHand = open + Number(receipts.rows[0].v) + Number(paidInv.rows[0].v) - Number(expenses.rows[0].v);
