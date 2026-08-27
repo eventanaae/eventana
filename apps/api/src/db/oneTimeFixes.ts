@@ -9,7 +9,23 @@ export async function runOneTimeFixes(): Promise<void> {
   await dedupeAutoReceipts();
   await fixSeededEventTimes();
   await alignGoodStars();
+  await reclassifyQuickBooksInvoices();
   await alignFinanceSequences();
+}
+
+/**
+ * Move the QuickBooks 'Invoice'-type documents out of Sales receipts and into the
+ * Invoices section (unpaid → Accounts Receivable). Owner-approved; idempotent.
+ * Runs before alignFinanceSequences so the sequences settle on the final max.
+ */
+async function reclassifyQuickBooksInvoices(): Promise<void> {
+  try {
+    const { reconcileInvoicesFromHistory } = await import('../domain/finance.js');
+    const r = await reconcileInvoicesFromHistory();
+    if (r.invoices) console.log(`[fix] reclassified ${r.invoices} QuickBooks invoice(s); removed ${r.removedReceipts} mis-filed receipt(s)`);
+  } catch (err) {
+    console.error('[fix] reclassifyQuickBooksInvoices failed:', err);
+  }
 }
 
 /**

@@ -624,6 +624,60 @@ export async function importReceiptsFromHistory() {
   return { receipts: inserted, groups: groups.size };
 }
 
+/**
+ * Reclassify the QuickBooks 'Invoice'-type documents (which the first migration
+ * wrongly folded into Sales receipts) into real INVOICE records. QuickBooks Sales
+ * Receipts are always paid → they stay as receipts; QuickBooks Invoices are the
+ * billable docs → they become invoices marked 'sent' (unpaid → Accounts
+ * Receivable, NOT Cash). Any receipt that was actually one of these invoice
+ * documents (same doc number) is removed so nothing is listed twice. Idempotent.
+ */
+export async function reconcileInvoicesFromHistory() {
+  const { rows } = await pool.query(
+    `SELECT doc_number, customer_name, to_char(txn_date,'YYYY-MM-DD') AS date, product, memo, total_fils
+       FROM historical_orders
+      WHERE txn_type = 'Invoice' AND doc_number IS NOT NULL AND doc_number <> '' AND txn_date IS NOT NULL
+      ORDER BY doc_number, id`,
+  );
+  const groups = new Map<string, { customer: string; date: string; lines: any[] }>();
+  for (const r of rows) {
+    const key = String(r.doc_number);
+    if (!groups.has(key)) groups.set(key, { customer: r.customer_name || 'Customer', date: String(r.date).slice(0, 10), lines: [] });
+    groups.get(key)!.lines.push(r);
+  }
+  let invoices = 0, removedReceipts = 0;
+  for (const [doc, g] of groups) {
+    const items: LineItem[] = [];
+    let discount = 0, shipping = 0;
+    for (const l of g.lines) {
+      const text = `${l.product ?? ''} ${l.memo ?? ''}`.toLowerCase();
+      const amt = Number(l.total_fils);
+      if (/discount/.test(text)) discount += Math.abs(amt);
+      else if (/shipping|delivery/.test(text)) shipping += amt;
+      else items.push({ name: (l.product || l.memo || 'Item').slice(0, 200), qty: 1, priceFils: amt });
+    }
+    const subtotal = items.reduce((s, i) => s + i.priceFils, 0);
+    const total = subtotal - discount + shipping;
+    await pool.query(
+      `INSERT INTO finance_invoices (number, customer_name, issue_date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, status, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'sent','quickbooks')
+       ON CONFLICT (number) DO UPDATE SET
+         customer_name = EXCLUDED.customer_name, line_items = EXCLUDED.line_items,
+         subtotal_fils = EXCLUDED.subtotal_fils, discount_fils = EXCLUDED.discount_fils,
+         shipping_fils = EXCLUDED.shipping_fils, total_fils = EXCLUDED.total_fils, source = 'quickbooks'`,
+      [doc, g.customer, g.date, JSON.stringify(items), subtotal, discount, shipping, total],
+    );
+    invoices += 1;
+    // If this exact document was mis-imported as a Sales receipt, remove it.
+    const del = await pool.query(`DELETE FROM finance_receipts WHERE number = $1 AND source = 'quickbooks'`, [doc]);
+    removedReceipts += del.rowCount ?? 0;
+  }
+  // Re-point the sequences at the true max per type.
+  await pool.query(`SELECT setval('finance_invoice_seq', GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_invoices WHERE number ~ '^[0-9]+$'),1), true)`).catch(() => {});
+  await pool.query(`SELECT setval('finance_receipt_seq', GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_receipts WHERE number ~ '^[0-9]+$'),1), true)`).catch(() => {});
+  return { invoices, removedReceipts };
+}
+
 export async function listReceipts(role?: string) {
   // The Owner sees the whole book with the collected total. A Manager sees only
   // the recent + upcoming sales (from the start of last month) and NO income
@@ -774,7 +828,9 @@ export async function accountingSummary() {
   const [opening, receipts, paidInv, unpaidInv, expenses] = await Promise.all([
     pool.query(`SELECT value FROM settings WHERE key = 'finance.cashOpeningFils'`),
     pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_receipts WHERE source <> 'quickbooks'`),
-    pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_invoices WHERE status = 'paid'`),
+    // Paid invoices add to Cash — but NOT the QuickBooks-migrated ones (those are
+    // already inside the Cash opening balance, so counting them again double-counts).
+    pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_invoices WHERE status = 'paid' AND (source IS NULL OR source <> 'quickbooks')`),
     pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v, count(*)::int c FROM finance_invoices WHERE status <> 'paid'`),
     pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM expenses`),
   ]);

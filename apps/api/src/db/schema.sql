@@ -803,6 +803,9 @@ CREATE INDEX IF NOT EXISTS finance_invoices_status_idx ON finance_invoices (stat
 -- Marsha earns 2% of her tagged docs worth ≥ AED 20,000 (events-based only).
 -- Set only on MANUAL invoices/receipts the owner approves — never website orders.
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS commission_rep TEXT;
+-- Marks invoices carried over from the QuickBooks migration, so (like receipts)
+-- they are not double-counted against the Cash-on-hand opening balance.
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS source TEXT;
 
 CREATE TABLE IF NOT EXISTS finance_receipts (
   id            BIGSERIAL PRIMARY KEY,
