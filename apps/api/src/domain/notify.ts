@@ -606,7 +606,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
          LEFT JOIN packages p ON p.id = e.package_id
          LEFT JOIN cancellations cx ON cx.event_id = e.id
         WHERE n.channel = 'email' AND n.sent_at IS NULL AND n.cancelled_at IS NULL
-          AND n.template <> 'addon_invoice'
+          AND n.template NOT IN ('addon_invoice', 'refund_processed')
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST
         LIMIT 100`,
@@ -720,6 +720,41 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
         await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
         emails++;
       }
+    }
+  }
+
+  // ---- Email (refund processed: keyed by ORDER, works with or without an
+  //      event/cancellation — a plain refund and a shop refund both land here) ----
+  if (emailEnabled()) {
+    const { rows } = await pool.query<{ id: number; order_id: string; amount_fils: string | null; reference: string | null; event_ref: string | null; customer_name: string | null; customer_email: string | null }>(
+      `SELECT n.id, o.id AS order_id,
+              (n.payload->>'amountFils') AS amount_fils,
+              (n.payload->>'reference')  AS reference,
+              COALESCE(o.event_id, n.event_id) AS event_ref,
+              c.name AS customer_name, c.email AS customer_email
+         FROM notifications n
+         JOIN orders o    ON o.id = (n.payload->>'orderId')
+         JOIN customers c ON c.id = o.customer_id
+        WHERE n.channel = 'email' AND n.template = 'refund_processed'
+          AND n.sent_at IS NULL AND n.cancelled_at IS NULL
+          AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
+        ORDER BY n.created_at LIMIT 100`,
+    );
+    for (const row of rows) {
+      const msg = renderEmail({
+        template: 'refund_processed',
+        customer_name: row.customer_name,
+        order_ref: row.event_ref || row.order_id,
+        event_id: row.event_ref || row.order_id,
+        refund_amount_fils: Number(row.amount_fils ?? 0),
+        refund_reference: row.reference,
+      } as unknown as EmailRow);
+      if (!msg || !row.customer_email) {
+        await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
+        continue;
+      }
+      const res = await sendEmail({ to: row.customer_email, subject: msg.subject, html: msg.html });
+      if (res.ok) { await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]); emails++; }
     }
   }
 

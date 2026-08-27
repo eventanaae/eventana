@@ -28,13 +28,24 @@ export interface RefundResult {
  * Safe to call once per cancellation; a second call is a no-op if nothing is
  * left to refund.
  */
+export type RefundReasonCategory = 'customer_cancellation' | 'quality_issue' | 'missing_item' | 'other';
+
 export async function refundOrderMoney(params: {
   orderId: string;
   amountFils: number;
   reason: string;
+  /** Structured reason for tracking (customer choice vs. our service problems). */
+  reasonCategory?: RefundReasonCategory;
+  /** Whether the event itself is being cancelled. A refund is NOT a cancellation
+   *  by default — a completed event can be refunded for a quality issue. */
+  cancelEvent?: boolean;
+  /** Who triggered it: a staff name, 'customer', or 'system'. */
+  createdBy?: string;
   source?: string;
 }): Promise<RefundResult> {
   const { orderId, amountFils, reason } = params;
+  const reasonCategory: RefundReasonCategory = params.reasonCategory ?? 'other';
+  const createdBy = params.createdBy ?? 'system';
   if (amountFils <= 0) return { ok: false, error: 'nothing_to_refund' };
 
   try {
@@ -87,7 +98,18 @@ export async function refundOrderMoney(params: {
         note: `Auto-refund ${formatAed(toRefund)} — ${reason}`,
       });
 
-      // Settle the customer's cancellation and email them the refund confirmation.
+      // Track every refund with its structured reason (customer choice vs. a
+      // service problem of ours), and whether the event is being cancelled.
+      await db.query(
+        `INSERT INTO refunds (order_id, event_id, customer_id, amount_fils,
+                              reason_category, reason_note, event_cancelled,
+                              provider_reference, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [orderId, payment.event_id, payment.customer_id, toRefund, reasonCategory,
+         reason, !!params.cancelEvent, verified.providerStatus ?? null, createdBy],
+      );
+
+      // Settle any recorded customer cancellation (if this refund is one).
       const cx = await db.query(
         `UPDATE cancellations
             SET refund_status = 'processed', processed_at = now(),
@@ -96,27 +118,29 @@ export async function refundOrderMoney(params: {
           RETURNING order_id`,
         [orderId, verified.providerStatus ?? null],
       );
-      if (cx.rowCount && payment.event_id) {
-        // The money is out — close the "process refund" task the cancellation
-        // raised so it doesn't sit on the team's board.
+      if (payment.event_id) {
+        // The money is out — close any open "process refund" finance task.
         await db.query(
           `UPDATE event_tasks SET status = 'done'
             WHERE event_id = $1 AND department = 'finance' AND status <> 'done' AND title ILIKE '%refund%'`,
           [payment.event_id],
         );
-        // One clean email: the refund is done. Drop the earlier "pending"
-        // cancellation email so the customer isn't told twice.
+        // Drop the earlier "pending" cancellation email so the customer isn't
+        // told twice (only relevant when a cancellation email was queued).
         await db.query(
           `UPDATE notifications SET cancelled_at = now()
             WHERE event_id = $1 AND template = 'cancellation_refund' AND sent_at IS NULL AND cancelled_at IS NULL`,
           [payment.event_id],
         );
-        await db.query(
-          `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-           VALUES ($1,'email','refund_processed', now(), $2)`,
-          [payment.event_id, JSON.stringify({ orderId })],
-        );
       }
+      // ALWAYS confirm the refund by email — keyed by the order, so it fires for
+      // a plain refund with no cancellation, and for orders with no event (shop).
+      // The amount + reference travel in the payload so the sweep needs no join.
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES ($1,'email','refund_processed', now(), $2)`,
+        [payment.event_id ?? null, JSON.stringify({ orderId, amountFils: toRefund, reference: verified.providerStatus ?? null })],
+      );
 
       // Reverse the loyalty points the booking earned, proportionally.
       const cfg = await loadConfig();
@@ -130,8 +154,10 @@ export async function refundOrderMoney(params: {
         await db.query(`UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`, [payment.customer_id, points]);
       }
 
-      // A full refund releases the assets and closes the event's open work.
-      if (nextStatus === 'refunded') {
+      // Cancelling the event is now a SEPARATE decision from refunding: a
+      // completed party can be (partly) refunded for a quality issue without
+      // being cancelled. Only tear the event down when the caller says so.
+      if (params.cancelEvent) {
         await db.query(`UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`, [orderId]);
         if (payment.event_id) {
           await db.query(

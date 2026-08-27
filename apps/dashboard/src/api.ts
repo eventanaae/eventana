@@ -254,11 +254,12 @@ export const api = {
 
   needsReview: () => request<any[]>('/api/admin/needs-review'),
   audit: (orderId: string) => request<any[]>(`/api/admin/orders/${orderId}/audit`),
-  refund: (orderId: string, amountFils: number, reason: string) =>
+  refund: (orderId: string, amountFils: number, opts: { reasonCategory: 'customer_cancellation' | 'quality_issue' | 'missing_item' | 'other'; reason?: string; cancelEvent?: boolean }) =>
     request<any>(`/api/admin/orders/${orderId}/refund`, {
       method: 'POST',
-      body: JSON.stringify({ amountFils, reason }),
+      body: JSON.stringify({ amountFils, reasonCategory: opts.reasonCategory, reason: opts.reason, cancelEvent: !!opts.cancelEvent }),
     }),
+  refundsReport: () => request<any>('/api/admin/refunds'),
   reconcile: () => request<any>('/api/admin/reconcile', { method: 'POST' }),
   notifications: () => request<any[]>('/api/admin/notifications'),
   alerts: () => request<any>('/api/admin/alerts'),

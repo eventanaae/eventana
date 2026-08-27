@@ -427,6 +427,9 @@ export async function eventRoutes(app: FastifyInstance) {
         orderId: result.orderId,
         amountFils: result.breakdown.refundFils,
         reason: `Customer cancellation — ${result.breakdown.percent}% per policy`,
+        reasonCategory: 'customer_cancellation',
+        cancelEvent: true, // the customer is cancelling; the event is already frozen above
+        createdBy: 'customer',
         source: 'customer_cancel',
       });
       refundStatus = r.ok ? 'processed' : 'pending';

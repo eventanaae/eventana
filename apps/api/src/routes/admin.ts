@@ -1046,6 +1046,9 @@ export async function adminRoutes(app: FastifyInstance) {
         orderId: rInfo.orderId,
         amountFils: rInfo.refundFils,
         reason: `Cancelled by team — ${parsed.data.reason}`,
+        reasonCategory: 'customer_cancellation',
+        cancelEvent: true, // this IS the cancel-event flow; tear the event down
+        createdBy: String((request as any).staff?.name ?? 'staff'),
         source: 'admin_cancel',
       }).catch(() => {});
     }
@@ -2980,172 +2983,62 @@ export async function adminRoutes(app: FastifyInstance) {
     const { orderId } = request.params as { orderId: string };
     const schema = z.object({
       amountFils: z.number().int().min(1),
-      reason: z.string().min(1).max(500),
+      reason: z.string().min(1).max(500).optional(),
+      // Structured reason so refunds are trackable (customer choice vs. our
+      // service problems). A refund is NOT a cancellation unless cancelEvent.
+      reasonCategory: z.enum(['customer_cancellation', 'quality_issue', 'missing_item', 'other']).default('other'),
+      cancelEvent: z.boolean().default(false),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
 
-    // Everything runs inside ONE transaction with the payment row LOCKED, so
-    // the ceiling check reads a fresh refunded_fils and concurrent refunds
-    // serialise. A further partial refund is a same-status increment that
-    // applyPaymentStatus/canTransition would wrongly reject, so the refunded
-    // total is written here directly.
-    let outcome:
-      | { ok: false; code: number; error: string; extra?: Record<string, unknown> }
-      | { ok: true; status: string; refundedFils: number; providerStatus: string | null };
-    try {
-      outcome = await withTransaction(async (db) => {
-        const { rows } = await db.query(
-          `SELECT p.*, o.total_fils, o.event_id, o.customer_id
-             FROM payments p JOIN orders o ON o.id = p.order_id
-            WHERE p.order_id = $1 ORDER BY p.created_at DESC LIMIT 1
-            FOR UPDATE OF p`,
-          [orderId],
-        );
-        const payment = rows[0];
-        if (!payment) return { ok: false as const, code: 404, error: 'not_found' };
-        if (!payment.provider_payment_id) return { ok: false as const, code: 409, error: 'no_provider_payment' };
-        if (payment.status !== 'paid' && payment.status !== 'captured' && payment.status !== 'partially_refunded') {
-          return { ok: false as const, code: 409, error: 'not_refundable', extra: { status: payment.status } };
-        }
-        const alreadyRefunded = Number(payment.refunded_fils);
-        if (alreadyRefunded + parsed.data.amountFils > Number(payment.amount_fils)) {
-          return { ok: false as const, code: 422, error: 'exceeds_paid_amount' };
-        }
-
-        // Money moves here, under the lock.
-        const provider = getProvider(payment.provider);
-        const verified = await provider.refund(
-          payment.provider_payment_id,
-          parsed.data.amountFils,
-          parsed.data.reason,
-        );
-
-        const refundedTotal = alreadyRefunded + parsed.data.amountFils;
-        const nextStatus: 'refunded' | 'partially_refunded' =
-          refundedTotal >= Number(payment.amount_fils) ? 'refunded' : 'partially_refunded';
-
-        await db.query(
-          `UPDATE payments
-              SET status = $2, refunded_fils = $3,
-                  last_provider_status = COALESCE($4, last_provider_status),
-                  raw = COALESCE($5, raw), updated_at = now()
-            WHERE id = $1`,
-          [payment.id, nextStatus, refundedTotal, verified.providerStatus ?? null, verified.raw ? JSON.stringify(verified.raw) : null],
-        );
-        await db.query(
-          `UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`,
-          [orderId, orderStatusFor(nextStatus)],
-        );
-        await recordPaymentEvent(db, {
-          paymentId: payment.id,
-          orderId,
-          provider: payment.provider,
-          oldStatus: payment.status,
-          newStatus: nextStatus,
-          source: 'admin',
-          providerStatus: verified.providerStatus,
-          amountFils: payment.amount_fils,
-          payload: verified.raw,
-          note: `Refund ${formatAed(parsed.data.amountFils)} — ${parsed.data.reason}`,
-        });
-
-        // If this refund settles a recorded customer cancellation, mark it
-        // processed and email the customer their refund is on its way. Only
-        // rows still awaiting money-out are touched (idempotent on retries).
-        const cx = await db.query(
-          `UPDATE cancellations
-              SET refund_status = 'processed', processed_at = now(),
-                  refund_reference = COALESCE($2, refund_reference)
-            WHERE order_id = $1 AND refund_status <> 'processed'
-            RETURNING order_id`,
-          [orderId, verified.providerStatus ?? null],
-        );
-        if (cx.rowCount && payment.event_id) {
-          await db.query(
-            `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-             VALUES ($1,'email','refund_processed', now(), $2)`,
-            [payment.event_id, JSON.stringify({ orderId })],
-          );
-        }
-
-        // Reverse the loyalty points the booking earned, proportionally.
-        const cfg = await loadConfig();
-        const points = Math.floor((parsed.data.amountFils / 100) * cfg.rules.loyaltyPointsPerAed);
-        if (points > 0) {
-          await db.query(
-            `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
-             VALUES ($1,$2,$3,$4,'Refund reversal')`,
-            [payment.customer_id, payment.event_id, orderId, -points],
-          );
-          await db.query(
-            `UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`,
-            [payment.customer_id, points],
-          );
-        }
-
-        if (nextStatus === 'refunded') {
-        // A fully refunded booking is a cancelled event: release the
-        // reservations, stop the scheduled emails, and move the event to
-        // the terminal Cancelled phase so the customer app stops offering
-        // add-ons and live tracking.
-        await db.query(
-          `UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`,
-          [orderId],
-        );
-        if (payment.event_id) {
-          await db.query(
-            `UPDATE notifications SET cancelled_at = now()
-              WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL`,
-            [payment.event_id],
-          );
-          await db.query(
-            `UPDATE events
-                SET phase = 'Cancelled', eta = NULL,
-                    cancelled_at = COALESCE(cancelled_at, now()),
-                    cancellation_reason = COALESCE(cancellation_reason, $2)
-              WHERE id = $1`,
-            [payment.event_id, `Fully refunded — ${parsed.data.reason}`],
-          );
-          await db.query(
-            `UPDATE event_tasks SET status = 'done'
-              WHERE event_id = $1 AND status <> 'done'`,
-            [payment.event_id],
-          );
-        }
-        }
-
-        return {
-          ok: true as const,
-          status: nextStatus,
-          refundedFils: refundedTotal,
-          providerStatus: verified.providerStatus,
-        };
-      });
-    } catch (err) {
-      request.log.error({ err }, 'refund failed');
-      // Surface the failure on any pending customer cancellation so the team
-      // can see it needs another attempt (best-effort, outside the rolled-back tx).
-      await pool
-        .query(
-          `UPDATE cancellations SET refund_status = 'failed'
-            WHERE order_id = $1 AND refund_status IN ('pending','processing')`,
-          [orderId],
-        )
-        .catch(() => {});
-      return reply.status(502).send({ error: 'refund_failed' });
-    }
-
-    if (!outcome.ok) {
-      return reply.status(outcome.code).send({ error: outcome.error, ...(outcome.extra ?? {}) });
-    }
-    return {
+    // One code path for every refund (customer-cancel, admin-cancel, and this
+    // manual refund) — money-out, tracking, always-email, and an OPTIONAL event
+    // cancellation all live in refundOrderMoney so there is a single source of truth.
+    const label = ({
+      customer_cancellation: 'Customer requested cancellation',
+      quality_issue: 'Quality issue',
+      missing_item: 'Missing item or service',
+      other: 'Other',
+    } as Record<string, string>)[parsed.data.reasonCategory];
+    const reasonText = parsed.data.reason?.trim() ? `${label} — ${parsed.data.reason.trim()}` : label;
+    const r = await refundOrderMoney({
       orderId,
-      status: outcome.status,
-      refundedFils: outcome.refundedFils,
-      provider: outcome.providerStatus,
+      amountFils: parsed.data.amountFils,
+      reason: reasonText,
+      reasonCategory: parsed.data.reasonCategory,
+      cancelEvent: parsed.data.cancelEvent,
+      createdBy: String((request as any).staff?.name ?? 'staff'),
+    });
+    if (!r.ok) {
+      const code = r.error === 'not_found' ? 404
+        : r.error === 'nothing_to_refund' ? 422
+        : r.error === 'provider_error' ? 502 : 409;
+      return reply.status(code).send({ error: r.error });
+    }
+    return { orderId, status: r.status, refundedFils: r.refundedFils, eventCancelled: parsed.data.cancelEvent };
+  });
+
+  // Refund reasons breakdown (owner/manager) — how many refunds are the
+  // customer's choice vs. quality/missing-item problems we caused.
+  app.get('/api/admin/refunds', async (request) => {
+    const staff = (request as any).staff as { role?: string };
+    const money = staff?.role === 'owner' || staff?.role === 'manager';
+    const { rows } = await pool.query(
+      `SELECT r.id, r.order_id, r.event_id, r.amount_fils, r.reason_category, r.reason_note,
+              r.event_cancelled, r.created_by, to_char(r.created_at,'YYYY-MM-DD') AS created,
+              c.name AS customer
+         FROM refunds r LEFT JOIN customers c ON c.id = r.customer_id
+        ORDER BY r.created_at DESC LIMIT 200`,
+    );
+    const byReason: Record<string, { n: number; fils: number }> = {};
+    for (const r of rows) { (byReason[r.reason_category] ??= { n: 0, fils: 0 }); byReason[r.reason_category].n++; byReason[r.reason_category].fils += Number(r.amount_fils); }
+    return {
+      byReason: Object.entries(byReason).map(([k, v]) => ({ reason: k, n: v.n, fils: v.fils, display: formatAed(v.fils) })),
+      rows: money ? rows.map((r) => ({ ...r, display: formatAed(Number(r.amount_fils)) })) : rows.map((r) => ({ reason_category: r.reason_category, created: r.created, event_cancelled: r.event_cancelled })),
     };
   });
+
 
   /* -------------------------- Audit + ops ------------------------- */
 
@@ -3508,5 +3401,8 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
-  void recordPaymentEvent;
+  // The manual refund now delegates to refundOrderMoney, so these payment
+  // primitives are no longer referenced directly here. Kept imported (other
+  // refactors may reuse them); voided so an unused-locals build stays green.
+  void recordPaymentEvent; void getProvider; void applyPaymentStatus; void orderStatusFor;
 }

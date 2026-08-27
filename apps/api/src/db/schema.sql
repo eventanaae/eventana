@@ -992,3 +992,24 @@ CREATE TABLE IF NOT EXISTS prep_task_log (
   actor      TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ── Refunds (tracked, and decoupled from cancellation) ──────────────────────
+-- A refund is NOT always a cancellation: a completed event can be partially
+-- refunded for a quality issue or a missing item without cancelling anything.
+-- Every money-out is logged here with a structured reason so the business can
+-- see how many refunds are the customer's choice vs. our own service problems.
+CREATE TABLE IF NOT EXISTS refunds (
+  id                 BIGSERIAL PRIMARY KEY,
+  order_id           TEXT NOT NULL,
+  event_id           TEXT,
+  customer_id        TEXT,
+  amount_fils        BIGINT NOT NULL,
+  reason_category    TEXT NOT NULL DEFAULT 'other',  -- customer_cancellation | quality_issue | missing_item | other
+  reason_note        TEXT,
+  event_cancelled    BOOLEAN NOT NULL DEFAULT FALSE,
+  provider_reference TEXT,
+  created_by         TEXT,                            -- staff name | 'customer' | 'system'
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS refunds_order_idx  ON refunds (order_id);
+CREATE INDEX IF NOT EXISTS refunds_reason_idx ON refunds (reason_category, created_at);

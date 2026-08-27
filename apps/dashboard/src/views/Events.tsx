@@ -97,6 +97,8 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
   const [reply, setReply] = useState('');
   const [eta, setEta] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [refundCategory, setRefundCategory] = useState<'customer_cancellation' | 'quality_issue' | 'missing_item' | 'other'>('customer_cancellation');
+  const [refundCancelEvent, setRefundCancelEvent] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -499,44 +501,63 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               {!moneyHidden && (
               <Panel title="Refund">
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
-                  Refunds can only be started here, by a staff account. The status is set from the
-                  provider’s response — never optimistically. A full refund releases the reservations
-                  and cancels the scheduled emails.
+                  A refund is <b>not</b> a cancellation. Refund a completed party for a quality issue or a
+                  missing item without cancelling it — or tick “Cancel the event too” when the whole booking
+                  is off. The status comes from the provider’s response, and the customer is emailed automatically.
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <input
+                      placeholder="Amount in AED"
+                      value={refundAmount}
+                      onChange={(e) => setRefundAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                      style={{ ...inputStyle, width: 140, flex: 'none' }}
+                    />
+                    <select
+                      value={refundCategory}
+                      onChange={(e) => setRefundCategory(e.target.value as any)}
+                      style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+                    >
+                      <option value="customer_cancellation">Customer requested cancellation</option>
+                      <option value="quality_issue">Quality issue</option>
+                      <option value="missing_item">Missing item or service</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
                   <input
-                    placeholder="Amount in AED"
-                    value={refundAmount}
-                    onChange={(e) => setRefundAmount(e.target.value.replace(/[^\d.]/g, ''))}
-                    style={{ ...inputStyle, width: 140, flex: 'none' }}
-                  />
-                  <input
-                    placeholder="Reason (required)"
+                    placeholder="Note (optional — the specifics)"
                     value={refundReason}
                     onChange={(e) => setRefundReason(e.target.value)}
                     style={inputStyle}
                   />
-                  <Button
-                    tone="danger"
-                    disabled={!refundAmount || !refundReason.trim()}
-                    onClick={async () => {
-                      try {
-                        const res = await api.refund(
-                          data.event.order_id,
-                          Math.round(Number(refundAmount) * 100),
-                          refundReason.trim(),
-                        );
-                        setMessage(`Refund recorded — order is now ${res.status}.`);
-                        setRefundAmount('');
-                        setRefundReason('');
-                        load();
-                      } catch (e: any) {
-                        setMessage(e.message);
-                      }
-                    }}
-                  >
-                    Refund
-                  </Button>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: refundCancelEvent ? C.red : C.muted2, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={refundCancelEvent} onChange={(e) => setRefundCancelEvent(e.target.checked)} />
+                    Cancel the event too (releases reservations, stops emails, moves it to Cancelled)
+                  </label>
+                  <div>
+                    <Button
+                      tone="danger"
+                      disabled={!refundAmount}
+                      onClick={async () => {
+                        try {
+                          const res = await api.refund(
+                            data.event.order_id,
+                            Math.round(Number(refundAmount) * 100),
+                            { reasonCategory: refundCategory, reason: refundReason.trim() || undefined, cancelEvent: refundCancelEvent },
+                          );
+                          setMessage(`Refund recorded — order is now ${res.status}.${res.eventCancelled ? ' Event cancelled.' : ''} The customer has been emailed.`);
+                          setRefundAmount('');
+                          setRefundReason('');
+                          setRefundCancelEvent(false);
+                          load();
+                        } catch (e: any) {
+                          setMessage(e.message);
+                        }
+                      }}
+                    >
+                      Refund
+                    </Button>
+                  </div>
                 </div>
               </Panel>
               )}
