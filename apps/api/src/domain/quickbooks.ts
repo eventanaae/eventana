@@ -245,6 +245,30 @@ export async function syncExpenses(onProgress?: (msg: string) => void): Promise<
   return { imported, withReceipt, total };
 }
 
+/**
+ * Read-only preview: how many expenses / receipt attachments the connected
+ * company has, and a small sample — WITHOUT writing anything. Used to validate
+ * the pipeline (and show the owner what a sync would pull) before importing.
+ */
+export async function previewExpenses(): Promise<{ purchases: number; attachments: number; sample: any[] }> {
+  const countOf = async (entity: string): Promise<number> => {
+    const r = await qbQuery(`select count(*) from ${entity}`);
+    return Number(r.totalCount ?? 0);
+  };
+  const [purchases, attachments] = await Promise.all([countOf('Purchase'), countOf('Attachable')]);
+  const q = await qbQuery(`select * from Purchase maxresults 5`);
+  const sample = (q.Purchase ?? []).map((p: any) => {
+    const firstLine = (p.Line ?? []).find((l: any) => l?.DetailType === 'AccountBasedExpenseLineDetail');
+    return {
+      date: p.TxnDate ?? null,
+      vendor: p.EntityRef?.name ?? null,
+      amount: Number(p.TotalAmt ?? 0),
+      account: firstLine?.AccountBasedExpenseLineDetail?.AccountRef?.name ?? null,
+    };
+  });
+  return { purchases, attachments, sample };
+}
+
 // ── Background sync job (one at a time) ──────────────────────────────────────
 type SyncState = {
   running: boolean;

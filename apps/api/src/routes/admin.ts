@@ -264,6 +264,18 @@ export async function adminRoutes(app: FastifyInstance) {
     const qb = await import('../domain/quickbooks.js');
     return qb.syncStatus();
   });
+  // Read-only: what a sync would pull (counts + sample), writes nothing.
+  app.get('/api/admin/quickbooks/preview', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const qb = await import('../domain/quickbooks.js');
+    if (!qb.quickbooksConfigured()) return reply.status(409).send({ error: 'not_configured' });
+    try {
+      return await qb.previewExpenses();
+    } catch (e: any) {
+      return reply.status(502).send({ error: 'qb_error', message: e?.message ?? 'QuickBooks query failed' });
+    }
+  });
 
   /**
    * The customer-feedback wall — what customers said about our events, newest
