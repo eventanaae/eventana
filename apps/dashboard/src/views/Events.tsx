@@ -240,24 +240,30 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               )}
               {!moneyHidden && data.event.phase !== 'Cancelled' && <StaffingPanel eventId={eventId} />}
 
-              {/* Employees/drivers can't open StaffingPanel — give them a read-only
-                  view of who's on the crew and who the Event Leader is. */}
-              {moneyHidden && (data.team ?? []).length > 0 && (
-                <Panel title="👥 Your team for this event">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {[...(data.team ?? [])].sort((a: any, b: any) => (b.is_leader ? 1 : 0) - (a.is_leader ? 1 : 0)).map((m: any) => (
-                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 2px', borderBottom: `1px solid ${C.lineSoft}` }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: m.color || C.pink, color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{String(m.name || '?')[0]}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{m.name}</div>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{m.job_title || ROLE_LABEL[m.event_role] || 'Crew'}</div>
+              {/* Everyone on the job sees who's on the crew and who the Event
+                  Leader is — the Leader is the one who updates status & messages. */}
+              {data.event.phase !== 'Cancelled' && (
+                <Panel title="👥 Team for this event">
+                  {(data.team ?? []).length === 0 ? (
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
+                      No crew assigned yet{!moneyHidden ? ' — assign the team from Staffing above.' : '.'}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {[...(data.team ?? [])].sort((a: any, b: any) => (b.is_leader ? 1 : 0) - (a.is_leader ? 1 : 0)).map((m: any) => (
+                        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 2px', borderBottom: `1px solid ${C.lineSoft}` }}>
+                          <div style={{ width: 34, height: 34, borderRadius: '50%', background: m.color || C.pink, color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{String(m.name || '?')[0]}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{m.name}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{m.job_title || ROLE_LABEL[m.event_role] || 'Crew'}</div>
+                          </div>
+                          {m.is_leader && (
+                            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.pinkDeep, background: C.pinkSoft, padding: '4px 9px', borderRadius: 20, flex: 'none' }}>👑 Leader</span>
+                          )}
                         </div>
-                        {m.is_leader && (
-                          <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.pinkDeep, background: C.pinkSoft, padding: '4px 9px', borderRadius: 20, flex: 'none' }}>👑 Leader</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </Panel>
               )}
 
