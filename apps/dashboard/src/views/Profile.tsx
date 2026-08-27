@@ -18,11 +18,11 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = () => api.myProfile().then((p) => {
+  const load = () => { void api.myProfile().then((p) => {
     setD(p);
     setForm({ birthday: p.birthday || '', passportName: p.passportName || '', passportNumber: p.passportNumber || '', emiratesId: p.emiratesId || '' });
-  }).catch(() => setD({ error: true }));
-  useEffect(load, []);
+  }).catch(() => setD({ error: true })); };
+  useEffect(() => { load(); }, []);
 
   if (!d) return <Spinner />;
   if (d.error) return <Panel title="Profile"><div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No personal profile for this account.</div></Panel>;
