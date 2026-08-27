@@ -292,8 +292,10 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                       <Button
                         tone="ghost"
                         onClick={async () => {
-                          await api.reinstateEvent(eventId);
-                          setMessage('Event reinstated — re-check inventory availability.');
+                          const r: any = await api.reinstateEvent(eventId);
+                          setMessage(r?.conflicts?.length
+                            ? `Reinstated. Re-reserved ${r.reReserved} item(s). ⚠️ Not available: ${r.conflicts.join(', ')}`
+                            : `Reinstated — ${r?.reReserved ?? 0} item(s) re-reserved and available.`);
                           load();
                         }}
                       >

@@ -1210,13 +1210,39 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!rows[0]) {
       return reply.status(409).send({ error: 'not_cancelled', message: 'This event is not cancelled.' });
     }
-    await pool.query(
-      `INSERT INTO event_tasks (event_id, department, title)
-       VALUES ($1,'operations','Event reinstated — re-check inventory availability and crew')`,
+    // Re-reserve the inventory this event released on cancel — but only what's
+    // still free at its window (another booking may have taken a slot meanwhile).
+    const { rows: held } = await pool.query(
+      `SELECT h.id, h.asset_code, h.starts_at, h.ends_at, a.units, a.name
+         FROM inventory_holds h JOIN inventory_assets a ON a.code = h.asset_code
+        WHERE h.event_id = $1 AND h.status = 'released'`,
       [eventId],
     );
+    let reReserved = 0; const conflicts: string[] = [];
+    for (const h of held) {
+      const { rows: c } = await pool.query(
+        `SELECT count(*)::int AS used FROM inventory_holds
+          WHERE asset_code = $1 AND status IN ('held','reserved')
+            AND (expires_at IS NULL OR expires_at > now())
+            AND id <> $2 AND starts_at < $4 AND ends_at > $3`,
+        [h.asset_code, h.id, h.starts_at, h.ends_at],
+      );
+      if ((c[0]?.used ?? 0) < Number(h.units)) {
+        await pool.query(`UPDATE inventory_holds SET status = 'reserved' WHERE id = $1`, [h.id]);
+        reReserved += 1;
+      } else {
+        conflicts.push(h.name || h.asset_code);
+      }
+    }
+    const note = conflicts.length
+      ? `Event reinstated — re-reserved ${reReserved} item(s). ⚠️ Not available (double-check): ${conflicts.join(', ')}`
+      : `Event reinstated — re-reserved ${reReserved} item(s), all available.`;
+    await pool.query(
+      `INSERT INTO event_tasks (event_id, department, title) VALUES ($1,'operations',$2)`,
+      [eventId, note],
+    );
     void syncEventToCalendar(eventId);
-    return rows[0];
+    return { ...rows[0], reReserved, conflicts };
   });
 
   /**
