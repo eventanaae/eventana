@@ -133,8 +133,8 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         </div>
       )}
 
-      {/* Needs attention */}
-      {attention.length > 0 && (
+      {/* Needs attention — a manager/owner overview (staff have it on their own screens) */}
+      {(role === 'owner' || role === 'manager') && attention.length > 0 && (
         <Panel className="rise-in" style={{ ['--i' as any]: 3 } as any} title="Needs attention">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {attention.map((a, idx) => {
