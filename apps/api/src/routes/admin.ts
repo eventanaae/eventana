@@ -1122,11 +1122,66 @@ export async function adminRoutes(app: FastifyInstance) {
       [start, endStr],
     );
 
+    // ── Earnings & target incentive ──────────────────────────────────────────
+    // Rules (owner spec): target 20 events = 100% (min 15 = 80%). Beyond the
+    // 20th, +AED 50 per event that is worth ≥ AED 2,000 excluding delivery.
+    // +AED 10 per event with a good customer rating (≥4★). Plus tips.
+    const TARGET_EVENTS = 20, MIN_EVENTS = 15;
+    const INCENTIVE_FILS = 5000, MIN_EVENT_VALUE = 200000, FEEDBACK_FILS = 1000, GOOD_STARS = 4, GLAM_FILS = 2000;
+    // Glam Doll bonus: +AED 20 each time an internal staff member performs a
+    // Glam Doll (part-timers excluded — they have no assignee_id). Fires once the
+    // Glam Dolls product is staffed (its slots carry a "glam" role/source).
+    const glamRes = await pool.query(
+      `SELECT es.assignee_id AS member_id, COUNT(*)::int n
+         FROM event_staff es JOIN events e ON e.id = es.event_id
+        WHERE es.assignee_id IS NOT NULL AND e.phase='Event Completed'
+          AND e.event_date >= $1 AND e.event_date < $2
+          AND (es.source ILIKE '%glam%' OR es.role ILIKE '%glam%')
+        GROUP BY es.assignee_id`,
+      [start, endStr],
+    );
+    const glamCount = new Map<string, number>((glamRes.rows as any[]).map((r) => [r.member_id, Number(r.n)]));
+    const attRes = await pool.query(
+      `SELECT es.assignee_id AS member_id, e.event_date,
+              COALESCE((SELECT SUM(o.total_fils) FROM orders o WHERE o.status='paid' AND o.kind IN ('booking','addon') AND (o.id=e.order_id OR o.event_id=e.id)),0) AS gross_fils,
+              COALESCE((SELECT (o.quote->>'deliveryFils')::bigint FROM orders o WHERE o.id=e.order_id),0) AS delivery_fils,
+              (SELECT MAX(r.stars) FROM event_ratings r WHERE r.event_id=e.id) AS stars
+         FROM event_staff es JOIN events e ON e.id=es.event_id
+        WHERE es.assignee_id IS NOT NULL AND es.is_leader = false AND e.phase='Event Completed'
+          AND e.event_date >= $1 AND e.event_date < $2`,
+      [start, endStr],
+    );
+    const byMember = new Map<string, Array<{ date: unknown; value: number; stars: number | null }>>();
+    for (const row of attRes.rows as any[]) {
+      const arr = byMember.get(row.member_id) ?? [];
+      arr.push({ date: row.event_date, value: Number(row.gross_fils) - Number(row.delivery_fils), stars: row.stars != null ? Number(row.stars) : null });
+      byMember.set(row.member_id, arr);
+    }
+    const earningsOf = (memberId: string, tipsFils: number) => {
+      const evs = (byMember.get(memberId) ?? []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const attended = evs.length;
+      let incentiveFils = 0;
+      evs.forEach((ev, idx) => { if (idx >= TARGET_EVENTS && ev.value >= MIN_EVENT_VALUE) incentiveFils += INCENTIVE_FILS; });
+      const goodFeedback = evs.filter((ev) => ev.stars != null && ev.stars >= GOOD_STARS).length;
+      const feedbackFils = goodFeedback * FEEDBACK_FILS;
+      const glamFils = (glamCount.get(memberId) ?? 0) * GLAM_FILS;
+      const earningsFils = incentiveFils + feedbackFils + glamFils + tipsFils;
+      return {
+        attended, targetPct: Math.min(100, Math.round((attended / TARGET_EVENTS) * 100)),
+        incentiveFils, incentiveDisplay: formatAed(incentiveFils),
+        goodFeedback, feedbackFils, feedbackDisplay: formatAed(feedbackFils),
+        glamFils, glamDisplay: formatAed(glamFils), glamCount: glamCount.get(memberId) ?? 0,
+        earningsFils, earningsDisplay: formatAed(earningsFils),
+      };
+    };
+    const rules = { targetEvents: TARGET_EVENTS, minEvents: MIN_EVENTS, incentivePerEventAed: 50, minEventValueAed: 2000, feedbackBonusAed: 10, glamBonusAed: 20 };
+
     const staff = rows.map((r) => {
       const eventsDone = Number(r.events_done);
       const tipsFils = Number(r.tips_fils);
       const fiveStars = Number(r.five_stars);
       const points = eventsDone * 10 + Math.round(tipsFils / 100) + fiveStars * 20;
+      const earn = earningsOf(r.id, tipsFils);
       return {
         id: r.id,
         name: r.name,
@@ -1141,6 +1196,7 @@ export async function adminRoutes(app: FastifyInstance) {
         fiveStars,
         ratingsCount: Number(r.ratings_count),
         points,
+        ...earn,
       };
     });
 
@@ -1167,11 +1223,15 @@ export async function adminRoutes(app: FastifyInstance) {
     // stats; the "staff" list is just them.
     const reqRole = (request as any).staff?.role as string | undefined;
     const reqId = (request as any).staff?.id as string | undefined;
-    if (reqRole === 'employee' || reqRole === 'driver') {
+    const reqName = (request as any).staff?.name as string | undefined;
+    // Owner + Manager see everyone; Marsha (co-runs the dashboard) also sees all.
+    const seesAll = reqRole === 'owner' || reqRole === 'manager' || reqName === 'Marsha';
+    if (!seesAll) {
       const mine = staff.find((s) => s.id === reqId) ?? null;
       return {
         month: monthStr,
         personal: true,
+        rules,
         staff: mine ? [mine] : [],
         overall: {
           tipsFils: mine?.tipsFils ?? 0,
@@ -1181,12 +1241,20 @@ export async function adminRoutes(app: FastifyInstance) {
           eventsDone: mine?.eventsDone ?? 0,
           avgRating: mine?.avgRating ?? 0,
           ratingsCount: mine?.ratingsCount ?? 0,
+          attended: mine?.attended ?? 0,
+          targetPct: mine?.targetPct ?? 0,
+          incentiveDisplay: mine?.incentiveDisplay ?? formatAed(0),
+          feedbackDisplay: mine?.feedbackDisplay ?? formatAed(0),
+          glamDisplay: mine?.glamDisplay ?? formatAed(0),
+          glamCount: mine?.glamCount ?? 0,
+          earningsDisplay: mine?.earningsDisplay ?? formatAed(0),
         },
       };
     }
 
     return {
       month: monthStr,
+      rules,
       staff,
       overall: {
         tipsFils: Number(t.tips_fils),

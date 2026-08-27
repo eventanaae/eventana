@@ -20,8 +20,11 @@ export function Kpis({ role }: { role?: string }) {
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${pad(now.getMonth() + 1)}`);
   const [data, setData] = useState<any>(null);
-  // The API returns personal:true for an employee — only their own numbers.
-  const personal = data?.personal || role === 'employee';
+  // The API decides who sees the whole team (owner, manager, Marsha) vs only
+  // their own numbers (personal:true). Trust the API, not the local role, so
+  // Marsha — an employee who co-runs the dashboard — gets the full view.
+  void role;
+  const personal = !!data?.personal;
 
   useEffect(() => {
     setData(null);
@@ -55,16 +58,43 @@ export function Kpis({ role }: { role?: string }) {
           <Spinner />
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 8 }}>
-              <Tile label={personal ? 'My tips this month' : 'Tips this month'} value={`AED ${data.overall.tipsDisplay}`} accent={C.pinkDeep} />
-              {!personal && <Tile label="Team-pool tips" value={`AED ${data.overall.teamPoolDisplay}`} />}
-              {personal && data.staff[0] && <Tile label="My points" value={String(data.staff[0].points)} accent={C.pinkDeep} />}
-              <Tile label={personal ? 'My events completed' : 'Events completed'} value={String(data.overall.eventsDone)} />
-              <Tile
-                label={`${personal ? 'My rating' : 'Avg rating'} · ${data.overall.ratingsCount} reviews`}
-                value={data.overall.avgRating > 0 ? `${data.overall.avgRating} ★` : '—'}
-              />
-            </div>
+            {personal ? (
+              (() => {
+                const o = data.overall; const target = data.rules?.targetEvents ?? 20; const min = data.rules?.minEvents ?? 15;
+                return (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={fredoka(30)}>AED {o.earningsDisplay}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>earned this month 💐</div>
+                    </div>
+                    <div style={{ marginTop: 14, marginBottom: 5, display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800 }}>
+                      <span style={{ color: C.ink }}>{o.attended} of {target} events</span>
+                      <span style={{ color: o.targetPct >= 100 ? C.green : C.pinkDeep }}>{o.targetPct}%</span>
+                    </div>
+                    <div style={{ height: 12, borderRadius: 8, background: C.lineSoft, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${o.targetPct}%`, background: o.targetPct >= 100 ? C.green : C.pink, borderRadius: 8, transition: 'width .4s' }} />
+                    </div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 4 }}>Minimum {min} events (80%) · target {target} (100%)</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12, marginTop: 16 }}>
+                      <Tile label="Incentive" value={`AED ${o.incentiveDisplay}`} accent={C.green} />
+                      <Tile label="Feedback bonus" value={`AED ${o.feedbackDisplay}`} accent={C.pinkDeep} />
+                      {(o.glamCount ?? 0) > 0 && <Tile label={`Glam Doll · ${o.glamCount}`} value={`AED ${o.glamDisplay}`} accent="#8a6cc0" />}
+                      <Tile label="Tips" value={`AED ${o.tipsDisplay}`} accent={C.pinkDeep} />
+                    </div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 12, lineHeight: 1.6 }}>
+                      After {target} events you earn AED {data.rules?.incentivePerEventAed ?? 50} for each event worth AED {(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excluding delivery). Every good customer rating adds AED {data.rules?.feedbackBonusAed ?? 10}, and each Glam Doll performance adds AED {data.rules?.glamBonusAed ?? 20}. Tips are yours on top. Part-timers aren’t included.
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 8 }}>
+                <Tile label="Tips this month" value={`AED ${data.overall.tipsDisplay}`} accent={C.pinkDeep} />
+                <Tile label="Team-pool tips" value={`AED ${data.overall.teamPoolDisplay}`} />
+                <Tile label="Events completed" value={String(data.overall.eventsDone)} />
+                <Tile label={`Avg rating · ${data.overall.ratingsCount} reviews`} value={data.overall.avgRating > 0 ? `${data.overall.avgRating} ★` : '—'} />
+              </div>
+            )}
           </>
         )}
       </Panel>
@@ -87,22 +117,30 @@ export function Kpis({ role }: { role?: string }) {
                       <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, textTransform: 'capitalize' }}>{s.role} · {s.accessLevel}</div>
                     </div>
                     <div style={{ textAlign: 'right', flex: 'none' }}>
-                      <div style={{ ...fredoka(18), color: C.ink, lineHeight: 1 }}>{s.points}</div>
-                      <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: '.4px' }}>POINTS</div>
+                      <div style={{ ...fredoka(18), color: C.green, lineHeight: 1 }}>AED {s.earningsDisplay}</div>
+                      <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: '.4px' }}>EARNED</div>
                     </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 11, paddingTop: 11, borderTop: `1px solid ${C.lineSoft}` }}>
-                    <MiniKpi label="Events" value={String(s.eventsDone)} />
-                    <MiniKpi label="Rating" value={s.avgRating > 0 ? `${s.avgRating} ★` : '—'} accent={C.pinkDeep} />
+                  {/* target progress to 20 */}
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, height: 8, borderRadius: 6, background: C.lineSoft, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${s.targetPct ?? 0}%`, background: (s.targetPct ?? 0) >= 100 ? C.green : C.pink, borderRadius: 6 }} />
+                    </div>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, minWidth: 78, textAlign: 'right' }}>{s.attended ?? 0}/{data.rules?.targetEvents ?? 20} · {s.targetPct ?? 0}%</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginTop: 11, paddingTop: 11, borderTop: `1px solid ${C.lineSoft}` }}>
+                    <MiniKpi label="Incentive" value={`AED ${s.incentiveDisplay ?? '0'}`} accent={C.green} />
+                    <MiniKpi label="Feedback" value={`AED ${s.feedbackDisplay ?? '0'}`} accent={C.pinkDeep} />
                     <MiniKpi label={`Tips · ${s.tipsCount}`} value={`AED ${s.tipsDisplay}`} accent={C.pinkDeep} />
+                    <MiniKpi label="Rating" value={s.avgRating > 0 ? `${s.avgRating} ★` : '—'} />
                   </div>
                 </div>
               ))}
             </div>
           )}
           <div style={{ marginTop: 12, fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
-            Points = 10 × completed events + 1 per AED 1 of tips + 20 × 5-star ratings. Tips shown are
-            paid tips aimed at that member; whole-team tips go to the team pool above.
+            Target {data.rules?.targetEvents ?? 20} events (min {data.rules?.minEvents ?? 15}). Beyond the target, AED {data.rules?.incentivePerEventAed ?? 50}
+            {' '}per event worth AED {(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excl. delivery) · AED {data.rules?.feedbackBonusAed ?? 10} per good-rated event · plus tips.
           </div>
         </Panel>
       )}
