@@ -364,7 +364,7 @@ export async function recordSaleFromOrder(
  * isn't yet on the Sales page. Fixes orders paid before the auto-sale hook
  * existed — e.g. a shop order that never appeared in Sales. Idempotent.
  */
-export async function backfillMissingSales(): Promise<{ posted: number }> {
+export async function backfillMissingSales(): Promise<{ posted: number; considered: number }> {
   const { rows } = await pool.query(
     `SELECT o.id, o.kind, o.source, o.cart, o.quote, o.total_fils, o.customer_id
        FROM orders o
