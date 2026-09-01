@@ -14,14 +14,20 @@ const input: React.CSSProperties = {
  */
 export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
   const [d, setD] = useState<any>(null);
+  const [kpi, setKpi] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = () => { void api.myProfile().then((p) => {
-    setD(p);
-    setForm({ birthday: p.birthday || '', passportName: p.passportName || '', passportNumber: p.passportNumber || '', emiratesId: p.emiratesId || '' });
-  }).catch(() => setD({ error: true })); };
+  const load = () => {
+    void api.myProfile().then((p) => {
+      setD(p);
+      setForm({ birthday: p.birthday || '', passportName: p.passportName || '', passportNumber: p.passportNumber || '', emiratesId: p.emiratesId || '' });
+    }).catch(() => setD({ error: true }));
+    const now = new Date();
+    const m = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    void api.kpis(m).then(setKpi).catch(() => setKpi(null));
+  };
   useEffect(() => { load(); }, []);
 
   if (!d) return <Spinner />;
@@ -51,14 +57,31 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         <div style={{ display: 'flex', borderTop: `1px solid ${C.lineSoft}` }}>
           <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px' }}>
             <div style={{ ...fredoka(20), color: C.ink }}>{d.eventsDone}</div>
-            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>EVENTS THIS MONTH</div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>EVENTS</div>
           </div>
           <div style={{ width: 1, background: C.lineSoft }} />
           <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px' }}>
-            <div style={{ ...fredoka(20), color: C.green }}>AED {d.achievements.totalDisplay}</div>
-            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>REWARDS EARNED</div>
+            <div style={{ ...fredoka(20), color: C.pinkDeep }}>{kpi?.overall?.points ?? 0}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>POINTS / {kpi?.overall?.targetPoints ?? 600}</div>
+          </div>
+          <div style={{ width: 1, background: C.lineSoft }} />
+          <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px' }}>
+            <div style={{ ...fredoka(20), color: C.green }}>AED {kpi?.overall?.earningsDisplay ?? '0'}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>EARNED</div>
           </div>
         </div>
+        {kpi?.overall && (
+          <div style={{ padding: '0 20px 16px' }}>
+            <div style={{ height: 9, borderRadius: 6, background: C.lineSoft, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${kpi.overall.targetPct ?? 0}%`, background: (kpi.overall.targetPct ?? 0) >= 100 ? C.green : C.pink, borderRadius: 6, transition: 'width .4s' }} />
+            </div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 5, lineHeight: 1.5 }}>
+              {(kpi.overall.points ?? 0) >= (kpi.overall.targetPoints ?? 600)
+                ? 'Target reached — every 100 points above 600 = AED 10. 🎉'
+                : `${(kpi.overall.targetPoints ?? 600) - (kpi.overall.points ?? 0)} points to your ${kpi.overall.targetPoints ?? 600} target. Money starts above it.`}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Missing-info nudge */}
@@ -80,18 +103,18 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         )}
       </Panel>
 
-      {/* Achievements */}
-      <Panel title={`🏆 Achievements (${d.achievements.rows.length})`}>
+      {/* 5★ moments — each worth 20 points */}
+      <Panel title={`🏆 5★ moments (${d.achievements.rows.length})`}>
         {d.achievements.rows.length === 0 ? (
-          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>Great customer feedback and performance rewards will appear here.</div>
+          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>Great customer feedback will appear here — each 5★ is worth 20 points.</div>
         ) : d.achievements.rows.map((r: any) => (
           <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-            <span style={{ fontSize: 17 }}>{r.kind === 'glam_doll' ? '💅' : r.kind === 'event_incentive' ? '🎯' : '🌟'}</span>
+            <span style={{ fontSize: 17 }}>{r.kind === 'glam_doll' ? '💅' : '🌟'}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Good customer feedback</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Great customer feedback</div>
               <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{r.date}{r.event_id ? ` · ${r.event_id}` : ''}{r.note ? ` · "${r.note}"` : ''}</div>
             </div>
-            <span style={{ ...fredoka(14), color: C.green }}>+AED {r.amountDisplay}</span>
+            <span style={{ ...fredoka(14), color: C.pinkDeep }}>+{r.kind === 'good_feedback' || r.kind === 'glam_doll' ? 20 : 0} pts</span>
           </div>
         ))}
       </Panel>

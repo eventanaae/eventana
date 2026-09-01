@@ -28,7 +28,7 @@ import { makeVoucherCode, NEXT_BOOKING_VOUCHER_PERCENT } from './discounts.js';
 import { recordSaleFromOrder } from './finance.js';
 import { markOfferUsed } from './offers.js';
 import { INCENTIVE_EXCLUDED } from './incentives.js';
-import { creditStaffReferral } from './staffReferral.js';
+import { recordReferralEvent } from './staffReferral.js';
 
 export interface ConfirmResult {
   /** Null for orders that create no event (e.g. standalone shop orders). */
@@ -261,24 +261,24 @@ export async function confirmBooking(
     ],
   );
 
-  // A crew member's referral code on this booking earns them their percentage
-  // of the event value (excluding delivery). Events only — this is the booking
-  // branch. Idempotent (staff_rewards UNIQUE) and failure-isolated so it can
-  // never abort a confirmation.
+  // A crew member's referral code on this booking records the event's value so
+  // they earn value-based points on it (see the KPIs endpoint). Events only —
+  // this is the booking branch. Idempotent and failure-isolated so it can never
+  // abort a confirmation.
   const staffReferral = (cart as unknown as {
     staffReferral?: { code: string; memberId: string; percent: number };
   }).staffReferral;
   if (staffReferral) {
     try {
       const eventValueExclDelivery = Number(quote.totalFils) - Number(quote.deliveryFils ?? 0);
-      await creditStaffReferral(db, {
+      await recordReferralEvent(db, {
         orderId: order.id,
         eventId,
         referral: staffReferral,
         eventValueExclDeliveryFils: eventValueExclDelivery,
       });
     } catch (e) {
-      console.error('[referral] credit failed:', (e as Error).message);
+      console.error('[referral] record failed:', (e as Error).message);
     }
   }
 

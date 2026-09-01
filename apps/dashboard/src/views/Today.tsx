@@ -534,18 +534,18 @@ function PointsHelp() {
   const b = (t: string) => <b style={{ color: C.pinkDeep }}>{t}</b>;
   return (
     <div style={{ background: '#faf6f9', border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
-      <div style={head}>🏆 Competition points — just for the leaderboard</div>
+      <div style={head}>🏆 How you earn points</div>
       <div style={line}><span style={emo}>🎈</span><span>{b('10 points')} for every event you complete.</span></div>
       <div style={line}><span style={emo}>⭐</span><span>{b('+20 points')} each time a customer rates your event 5★.</span></div>
+      <div style={line}><span style={emo}>💅</span><span>{b('+20 points')} for every Glam Doll you perform.</span></div>
+      <div style={line}><span style={emo}>🎟️</span><span>{b('Points on the value')} of any event you bring in with your code — a {b('AED 4,000')} event = {b('2,000 points')}.</span></div>
 
-      <div style={{ ...head, marginTop: 10 }}>💐 Your rewards — real money you earn</div>
-      <div style={line}><span style={emo}>🎯</span><span>Monthly target is {b('20 events')}.</span></div>
-      <div style={line}><span style={emo}>➕</span><span>After your 20th event, {b('+AED 50')} for each extra event worth AED 2,000+ (excluding delivery).</span></div>
-      <div style={line}><span style={emo}>🌟</span><span>A {b('5★')} customer rating earns you {b('+AED 10')}.</span></div>
-      <div style={line}><span style={emo}>💅</span><span>Each Glam Doll you perform earns {b('+AED 20')}.</span></div>
+      <div style={{ ...head, marginTop: 10 }}>🎯 Your target &amp; reward</div>
+      <div style={line}><span style={emo}>🎯</span><span>Monthly target is {b('600 points')}.</span></div>
+      <div style={line}><span style={emo}>💰</span><span>Above 600, every {b('100 points')} = {b('AED 10')} — see the amount in your {b('Profile')}.</span></div>
       <div style={line}><span style={emo}>🙌</span><span>{b('Tips are 100% yours')} — always on top.</span></div>
       <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
-        See your own earnings in <b>Profile</b>. Sales &amp; office roles earn a commission instead (2% on corporate deals AED 20,000+). Part-timers aren’t included in the monthly bonus.
+        A warning clears that month’s points. Sales &amp; office roles earn a commission instead (2% on corporate deals AED 20,000+). Part-timers aren’t included.
       </div>
     </div>
   );

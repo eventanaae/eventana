@@ -74,7 +74,10 @@ export async function recordGoodFeedbackRewards(params: {
   );
   if (crew.length === 0) return { rewarded: [], amountFils: 0 };
 
-  const amount = rules.goodFeedbackRewardFils;
+  // New model (2026-09-01): a 5★ is worth POINTS (20), computed live in the KPIs
+  // endpoint — not a cash reward. We still record a 0-amount row (idempotent
+  // dedupe) so the team gets the recognition notification exactly once.
+  const amount = 0;
   const note = (params.feedback ?? '').trim().slice(0, 500) || `${params.stars}★ customer feedback`;
   const rewarded: Array<{ memberId: string; name: string }> = [];
   for (const m of crew) {
@@ -87,9 +90,9 @@ export async function recordGoodFeedbackRewards(params: {
     );
     if (res.rowCount) {
       rewarded.push({ memberId: m.id, name: m.name });
-      // The individual "you earned it" message.
+      // The individual "you earned it" message — points, not cash.
       void pushToOwner('staff', m.id, 'Great job! 🎉',
-        `This positive customer feedback earned you ${formatAed(amount)}. View it in your Achievements.`,
+        `This 5★ customer feedback earned you 20 points. See your progress in Profile.`,
         { eventId: params.eventId });
     }
   }

@@ -1391,15 +1391,19 @@ export async function adminRoutes(app: FastifyInstance) {
       [start, endStr],
     );
 
-    // ── Earnings & target incentive ──────────────────────────────────────────
-    // Rules (owner spec): target 20 events = 100% (min 15 = 80%). Beyond the
-    // 20th, +AED 50 per event that is worth ≥ AED 2,000 excluding delivery.
-    // +AED 10 per event with a 5★ customer rating. Plus tips.
-    const TARGET_EVENTS = 20, MIN_EVENTS = 15;
-    const INCENTIVE_FILS = 5000, MIN_EVENT_VALUE = 200000, FEEDBACK_FILS = 1000, GOOD_STARS = 5, GLAM_FILS = 2000;
-    // Glam Doll bonus: +AED 20 each time an internal staff member performs a
-    // Glam Doll (part-timers excluded — they have no assignee_id). Fires once the
-    // Glam Dolls product is staffed (its slots carry a "glam" role/source).
+    // ── Points, target & bonus (owner spec 2026-09-01) ───────────────────────
+    // Everything runs on POINTS: 10 per completed event, 20 per 5★ rating, 20
+    // per Glam Doll. The monthly TARGET is 600 points. Below 600 there is no
+    // money — only progress. Above 600, every extra 50 points earns AED 10.
+    // Tips (100%) and referral commissions (5%) are separate money, added on
+    // top. A warning wipes the month's points (the warnings system is a later
+    // task, so nothing zeroes points yet).
+    const TARGET_POINTS = 600;
+    const POINTS_PER_STEP = 100;     // above target, every 100 points…
+    const STEP_FILS = 1000;          // …earns AED 10 (10 fils per point)
+    const EVENT_POINTS = 10, FIVE_STAR_POINTS = 20, GLAM_POINTS = 20;
+    // Glam Doll: +20 points each time an internal staff member performs one
+    // (part-timers excluded — they have no assignee_id).
     const glamRes = await pool.query(
       `SELECT es.assignee_id AS member_id, COUNT(*)::int n
          FROM event_staff es JOIN events e ON e.id = es.event_id
@@ -1410,40 +1414,21 @@ export async function adminRoutes(app: FastifyInstance) {
       [start, endStr],
     );
     const glamCount = new Map<string, number>((glamRes.rows as any[]).map((r) => [r.member_id, Number(r.n)]));
-    const attRes = await pool.query(
-      `SELECT es.assignee_id AS member_id, e.event_date,
-              COALESCE((SELECT SUM(o.total_fils) FROM orders o WHERE o.status='paid' AND o.kind IN ('booking','addon') AND (o.id=e.order_id OR o.event_id=e.id)),0) AS gross_fils,
-              COALESCE((SELECT (o.quote->>'deliveryFils')::bigint FROM orders o WHERE o.id=e.order_id),0) AS delivery_fils,
-              (SELECT MAX(r.stars) FROM event_ratings r WHERE r.event_id=e.id) AS stars
-         FROM event_staff es JOIN events e ON e.id=es.event_id
-        WHERE es.assignee_id IS NOT NULL AND es.is_leader = false AND e.phase='Event Completed'
-          AND e.event_date >= $1 AND e.event_date < $2`,
+    // Value-based points: an event a crew member BROUGHT in (their referral code
+    // was used) earns them points on its value — AED 0.5 per AED, i.e. a
+    // 4,000 AED event (excl delivery) = 2,000 points. Counted toward the target.
+    const refRes = await pool.query(
+      `SELECT member_id, COALESCE(SUM(event_value_fils),0)::bigint value_fils, COUNT(*)::int n
+         FROM staff_referral_events
+        WHERE created_at >= $1 AND created_at < $2
+        GROUP BY member_id`,
       [start, endStr],
     );
-    const byMember = new Map<string, Array<{ date: unknown; value: number; stars: number | null }>>();
-    for (const row of attRes.rows as any[]) {
-      const arr = byMember.get(row.member_id) ?? [];
-      arr.push({ date: row.event_date, value: Number(row.gross_fils) - Number(row.delivery_fils), stars: row.stars != null ? Number(row.stars) : null });
-      byMember.set(row.member_id, arr);
-    }
-    const earningsOf = (memberId: string, tipsFils: number) => {
-      const evs = (byMember.get(memberId) ?? []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
-      const attended = evs.length;
-      let incentiveFils = 0;
-      evs.forEach((ev, idx) => { if (idx >= TARGET_EVENTS && ev.value >= MIN_EVENT_VALUE) incentiveFils += INCENTIVE_FILS; });
-      const goodFeedback = evs.filter((ev) => ev.stars != null && ev.stars >= GOOD_STARS).length;
-      const feedbackFils = goodFeedback * FEEDBACK_FILS;
-      const glamFils = (glamCount.get(memberId) ?? 0) * GLAM_FILS;
-      const earningsFils = incentiveFils + feedbackFils + glamFils + tipsFils;
-      return {
-        attended, targetPct: Math.min(100, Math.round((attended / TARGET_EVENTS) * 100)),
-        incentiveFils, incentiveDisplay: formatAed(incentiveFils),
-        goodFeedback, feedbackFils, feedbackDisplay: formatAed(feedbackFils),
-        glamFils, glamDisplay: formatAed(glamFils), glamCount: glamCount.get(memberId) ?? 0,
-        earningsFils, earningsDisplay: formatAed(earningsFils),
-      };
-    };
-    const rules = { targetEvents: TARGET_EVENTS, minEvents: MIN_EVENTS, incentivePerEventAed: 50, minEventValueAed: 2000, feedbackBonusAed: 10, glamBonusAed: 20, commissionRate: 2, commissionMinAed: 20000 };
+    const referralByMember = new Map<string, { valueFils: number; n: number }>(
+      (refRes.rows as any[]).map((r) => [r.member_id, { valueFils: Number(r.value_fils), n: Number(r.n) }]),
+    );
+    // AED 100 = 1 step; 100 points = AED 10 above the 600 target.
+    const rules = { targetPoints: TARGET_POINTS, pointsToAed10: 100, eventPoints: EVENT_POINTS, fiveStarPoints: FIVE_STAR_POINTS, glamPoints: GLAM_POINTS, valuePointsPerAed: 0.5, commissionRate: 2, commissionMinAed: 20000 };
     // Marsha's incentive is different: a 2% commission on the corporate/events
     // invoices she brings in (via email), each worth ≥ AED 20,000. Tagged on the
     // invoice (commission_rep) and events-based only (the team tags qualifying ones).
@@ -1468,12 +1453,20 @@ export async function adminRoutes(app: FastifyInstance) {
       const eventsDone = Number(r.events_done);
       const tipsFils = Number(r.tips_fils);
       const fiveStars = Number(r.five_stars);
-      const points = eventsDone * 10 + fiveStars * 20;
-      const earn = earningsOf(r.id, tipsFils);
-      // Marsha earns a 2% corporate commission instead of the field-crew bonuses.
+      const glam = glamCount.get(r.id) ?? 0;
+      const ref = referralByMember.get(r.id) ?? { valueFils: 0, n: 0 };
+      // Points: activity (events worked, 5★, Glam Doll) + value of events brought
+      // in (AED 0.5 per AED, i.e. fils / 200). Money is earned only ABOVE the
+      // 600 target: every 100 points past it = AED 10 (10 fils per point).
+      const activityPoints = eventsDone * EVENT_POINTS + fiveStars * FIVE_STAR_POINTS + glam * GLAM_POINTS;
+      const referralPoints = Math.round(ref.valueFils / 200);
+      const points = activityPoints + referralPoints;
+      const targetPct = Math.min(100, Math.round((points / TARGET_POINTS) * 100));
+      const bonusFils = Math.max(0, points - TARGET_POINTS) * (STEP_FILS / POINTS_PER_STEP);
+      // Marsha earns a 2% corporate commission instead of the field-crew points.
       const isMarsha = String(r.name).toLowerCase() === 'marsha';
       const commissionFils = isMarsha ? marshaCommissionFils : 0;
-      const earningsFils = earn.earningsFils + commissionFils;
+      const earningsFils = bonusFils + tipsFils + commissionFils;
       return {
         id: r.id,
         name: r.name,
@@ -1481,14 +1474,16 @@ export async function adminRoutes(app: FastifyInstance) {
         color: r.color,
         accessLevel: r.access_level,
         eventsDone,
+        glamCount: glam,
         tipsFils,
         tipsDisplay: formatAed(tipsFils),
         tipsCount: Number(r.tips_count),
         avgRating: Number(r.avg_rating),
         fiveStars,
         ratingsCount: Number(r.ratings_count),
-        points,
-        ...earn,
+        points, activityPoints, referralPoints, referralCount: ref.n,
+        targetPct,
+        bonusFils, bonusDisplay: formatAed(bonusFils),
         isMarsha,
         commissionFils, commissionDisplay: formatAed(commissionFils),
         corporateInvoices: isMarsha ? marshaInvoices : 0,
@@ -1527,7 +1522,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // The board strips every money field — points/events/rating only. Marsha is
     // kept in `staff` (so she still sees her own commission) but excluded from the
     // field-crew competition board: she earns a sales commission, not event points.
-    const board = staff.filter((s) => !s.isMarsha).map((s) => ({ id: s.id, name: s.name, color: s.color, role: s.role, points: s.points, eventsDone: s.eventsDone, attended: s.attended, targetPct: s.targetPct, avgRating: s.avgRating, fiveStars: s.fiveStars }));
+    const board = staff.filter((s) => !s.isMarsha).map((s) => ({ id: s.id, name: s.name, color: s.color, role: s.role, points: s.points, eventsDone: s.eventsDone, targetPct: s.targetPct, avgRating: s.avgRating, fiveStars: s.fiveStars }));
 
     if (reqRole === 'owner') {
       // The owner sees the full money leaderboard + the competition board.
@@ -1566,12 +1561,14 @@ export async function adminRoutes(app: FastifyInstance) {
         avgRating: mine?.avgRating ?? 0,
         ratingsCount: mine?.ratingsCount ?? 0,
         points: mine?.points ?? 0,
-        attended: mine?.attended ?? 0,
+        activityPoints: mine?.activityPoints ?? 0,
+        referralPoints: mine?.referralPoints ?? 0,
+        referralCount: mine?.referralCount ?? 0,
+        targetPoints: TARGET_POINTS,
         targetPct: mine?.targetPct ?? 0,
-        incentiveDisplay: mine?.incentiveDisplay ?? formatAed(0),
-        feedbackDisplay: mine?.feedbackDisplay ?? formatAed(0),
-        glamDisplay: mine?.glamDisplay ?? formatAed(0),
         glamCount: mine?.glamCount ?? 0,
+        fiveStars: mine?.fiveStars ?? 0,
+        bonusDisplay: mine?.bonusDisplay ?? formatAed(0),
         commissionDisplay: mine?.commissionDisplay ?? formatAed(0),
         corporateInvoices: mine?.corporateInvoices ?? 0,
         isMarsha: mine?.isMarsha ?? false,

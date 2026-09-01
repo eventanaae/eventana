@@ -77,13 +77,13 @@ export async function issueReferralCodesFromEnv(): Promise<void> {
     const result = await sendEmail({
       to: email,
       subject: `Your Eventana referral code: ${code}`,
-      html: referralHtml(e.name, code, percent),
+      html: referralHtml(e.name, code),
     });
     console.log(`[referral] ${e.name} <${email}> code ${code} · email ${result.ok ? `sent (${result.id})` : `FAILED: ${result.error}`}`);
   }
 }
 
-function referralHtml(name: string, code: string, percent: number): string {
+function referralHtml(name: string, code: string): string {
   const first = name.split(' ')[0];
   return `<!doctype html><html><body style="margin:0;background:#faf6f2;font-family:'Segoe UI',Arial,sans-serif;color:#3B3641">
     <div style="max-width:560px;margin:0 auto;padding:24px">
@@ -92,7 +92,7 @@ function referralHtml(name: string, code: string, percent: number): string {
       </div>
       <div style="background:#fff;border-radius:18px;padding:26px 24px;line-height:1.6;font-size:15px">
         <p style="margin:0 0 14px">Hi ${first} 👋</p>
-        <p style="margin:0 0 18px">Here is your personal Eventana referral code. Share it with clients you bring in — when they book an <b>event</b> and enter your code at checkout, <b>you earn ${percent}% of that event</b> (excluding delivery). It's added to your earnings automatically.</p>
+        <p style="margin:0 0 18px">Here is your personal Eventana referral code. Share it with clients you bring in — when they book an <b>event</b> and enter your code at checkout, <b>you earn points on that event's value</b> that count toward your monthly target and reward. It's added automatically.</p>
         <div style="text-align:center;margin:0 0 18px">
           <div style="display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:22px;font-weight:800;letter-spacing:2px;background:#FDEFF6;color:#C6437E;border-radius:12px;padding:14px 26px">${code}</div>
         </div>
@@ -100,7 +100,7 @@ function referralHtml(name: string, code: string, percent: number): string {
           <div style="font-weight:800;color:#3B3641;margin-bottom:6px">How it works</div>
           1. Give your client the code <b>${code}</b>.<br>
           2. They enter it in the promo box when they book their event.<br>
-          3. Once the event is paid, ${percent}% lands in your earnings — see it in your Profile.
+          3. Once the event is paid, you get points on its value — see them in your Profile.
         </div>
         <p style="font-size:12.5px;color:#a3968f;margin:16px 0 0">Codes work on event bookings only, not on shop purchases. It gives the customer no discount — it's your reward for bringing the booking.</p>
         <div style="margin-top:16px"><a href="${DASHBOARD_URL}" style="display:inline-block;background:#E94F9C;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:10px 20px;border-radius:12px">Open the Operations app →</a></div>

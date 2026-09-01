@@ -59,7 +59,7 @@ export function Kpis({ role }: { role?: string }) {
           <>
             {personal ? (
               (() => {
-                const o = data.overall; const target = data.rules?.targetEvents ?? 20;
+                const o = data.overall; const target = data.rules?.targetPoints ?? 600;
                 return (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
@@ -74,21 +74,21 @@ export function Kpis({ role }: { role?: string }) {
                       </div>
                     </div>
                     <div style={{ marginTop: 14, marginBottom: 5, display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800 }}>
-                      <span style={{ color: C.ink }}>{o.attended} of {target} events</span>
+                      <span style={{ color: C.ink }}>{o.points ?? 0} of {target} points</span>
                       <span style={{ color: o.targetPct >= 100 ? C.green : C.pinkDeep }}>{o.targetPct}%</span>
                     </div>
                     <div style={{ height: 12, borderRadius: 8, background: C.lineSoft, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${o.targetPct}%`, background: o.targetPct >= 100 ? C.green : C.pink, borderRadius: 8, transition: 'width .4s' }} />
                     </div>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 4 }}>Target {target} events (100%)</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 4 }}>Target {target} points — money starts above it</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12, marginTop: 16 }}>
                       {o.isMarsha ? (
                         <Tile label={`Commission · ${o.corporateInvoices} invoice(s)`} value={`AED ${o.commissionDisplay}`} accent={C.green} />
                       ) : (
                         <>
-                          <Tile label="Incentive" value={`AED ${o.incentiveDisplay}`} accent={C.green} />
-                          <Tile label="Feedback bonus" value={`AED ${o.feedbackDisplay}`} accent={C.pinkDeep} />
-                          {(o.glamCount ?? 0) > 0 && <Tile label={`Glam Doll · ${o.glamCount}`} value={`AED ${o.glamDisplay}`} accent="#8a6cc0" />}
+                          <Tile label="Bonus (above target)" value={`AED ${o.bonusDisplay}`} accent={C.green} />
+                          {(o.referralCount ?? 0) > 0 && <Tile label={`Brought in · ${o.referralCount}`} value={`${o.referralPoints} pts`} accent="#8a6cc0" />}
+                          {(o.glamCount ?? 0) > 0 && <Tile label={`Glam Doll · ${o.glamCount}`} value={`${(o.glamCount ?? 0) * 20} pts`} accent="#8a6cc0" />}
                         </>
                       )}
                       <Tile label="Tips" value={`AED ${o.tipsDisplay}`} accent={C.pinkDeep} />
@@ -113,7 +113,7 @@ export function Kpis({ role }: { role?: string }) {
                       );
                     })() : (
                       <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 12, lineHeight: 1.6 }}>
-                        {`After ${target} events you earn AED ${data.rules?.incentivePerEventAed ?? 50} for each event worth AED ${(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excluding delivery). Every 5★ customer rating adds AED ${data.rules?.feedbackBonusAed ?? 10}, and each Glam Doll performance adds AED ${data.rules?.glamBonusAed ?? 20}. Tips are yours on top. Part-timers aren’t included.`}
+                        {`Points: ${data.rules?.eventPoints ?? 10} per event · ${data.rules?.fiveStarPoints ?? 20} per 5★ · ${data.rules?.glamPoints ?? 20} per Glam Doll · plus points on the value of events you bring in with your code (AED 4,000 event = 2,000 points). Reach ${target} points, then every 100 points above it = AED 10. Tips are 100% yours on top. Part-timers aren’t included.`}
                       </div>
                     )}
                   </div>
@@ -151,7 +151,7 @@ export function Kpis({ role }: { role?: string }) {
             ))}
           </div>
           <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.6 }}>
-            Points = 10 × completed events + 1 per AED 1 of tips + 20 × 5★ ratings. Everyone sees the points board — the money each person earns stays private.
+            Points = 10 × completed events + 20 × 5★ ratings + 20 × Glam Doll + points on the value of events you bring in. Everyone sees the points board — the money each person earns stays private.
           </div>
         </Panel>
       )}
@@ -178,16 +178,16 @@ export function Kpis({ role }: { role?: string }) {
                       <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: '.4px' }}>EARNED</div>
                     </div>
                   </div>
-                  {/* target progress to 20 */}
+                  {/* target progress to 600 points */}
                   <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, height: 8, borderRadius: 6, background: C.lineSoft, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${s.targetPct ?? 0}%`, background: (s.targetPct ?? 0) >= 100 ? C.green : C.pink, borderRadius: 6 }} />
                     </div>
-                    <span style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, minWidth: 78, textAlign: 'right' }}>{s.attended ?? 0}/{data.rules?.targetEvents ?? 20} · {s.targetPct ?? 0}%</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, minWidth: 92, textAlign: 'right' }}>{s.points ?? 0}/{data.rules?.targetPoints ?? 600} pts · {s.targetPct ?? 0}%</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginTop: 11, paddingTop: 11, borderTop: `1px solid ${C.lineSoft}` }}>
-                    <MiniKpi label="Incentive" value={`AED ${s.incentiveDisplay ?? '0'}`} accent={C.green} />
-                    <MiniKpi label="Feedback" value={`AED ${s.feedbackDisplay ?? '0'}`} accent={C.pinkDeep} />
+                    <MiniKpi label="Points" value={String(s.points ?? 0)} accent={C.pinkDeep} />
+                    <MiniKpi label="Bonus" value={`AED ${s.bonusDisplay ?? '0'}`} accent={C.green} />
                     <MiniKpi label={`Tips · ${s.tipsCount}`} value={`AED ${s.tipsDisplay}`} accent={C.pinkDeep} />
                     <MiniKpi label="Rating" value={s.avgRating > 0 ? `${s.avgRating} ★` : '—'} />
                   </div>
@@ -196,8 +196,7 @@ export function Kpis({ role }: { role?: string }) {
             </div>
           )}
           <div style={{ marginTop: 12, fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
-            Target {data.rules?.targetEvents ?? 20} events (min {data.rules?.minEvents ?? 15}). Beyond the target, AED {data.rules?.incentivePerEventAed ?? 50}
-            {' '}per event worth AED {(data.rules?.minEventValueAed ?? 2000).toLocaleString()}+ (excl. delivery) · AED {data.rules?.feedbackBonusAed ?? 10} per 5★ event · plus tips.
+            Target {data.rules?.targetPoints ?? 600} points. Above it, every 100 points = AED 10. Points: 10/event · 20/5★ · 20/Glam Doll · plus the value of events each person brings in (AED 4,000 = 2,000 pts). Tips 100% on top.
           </div>
         </Panel>
       )}
@@ -230,24 +229,27 @@ function AchievementsPanel({ personal }: { personal: boolean }) {
   const [data, setData] = useState<{ rows: any[]; totalDisplay: string } | null>(null);
   useEffect(() => { api.achievements().then(setData).catch(() => setData({ rows: [], totalDisplay: '0' })); }, []);
   if (!data) return null;
+  // Each 5★ moment is worth 20 points in the new system.
+  const ptsFor = (kind: string) => (kind === 'good_feedback' || kind === 'glam_doll' ? 20 : 0);
+  const totalPts = data.rows.reduce((s, r) => s + ptsFor(r.kind), 0);
   return (
-    <Panel title={personal ? '🏆 My Achievements' : '🏆 Achievements'} action={<span style={{ ...fredoka(15), color: C.pinkDeep }}>AED {data.totalDisplay}</span>}>
+    <Panel title={personal ? '🏆 My 5★ moments' : '🏆 5★ moments'} action={<span style={{ ...fredoka(15), color: C.pinkDeep }}>{totalPts} pts</span>}>
       {data.rows.length === 0 ? (
-        <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No rewards yet — great customer feedback will show up here with the amount you earned. 🌟</div>
+        <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No 5★ feedback yet — great customer ratings will show up here with the points you earned. 🌟</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {data.rows.map((r) => (
             <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-              <span style={{ fontSize: 18 }}>{r.kind === 'glam_doll' ? '💅' : r.kind === 'event_incentive' ? '🎯' : '🌟'}</span>
+              <span style={{ fontSize: 18 }}>{r.kind === 'glam_doll' ? '💅' : '🌟'}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
-                  {!personal && r.member ? `${r.member} · ` : ''}Good customer feedback
+                  {!personal && r.member ? `${r.member} · ` : ''}Great customer feedback
                 </div>
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {r.date}{r.eventId ? ` · ${r.eventId}` : ''}{r.note ? ` · "${r.note}"` : ''}
                 </div>
               </div>
-              <span style={{ ...fredoka(14), color: C.green }}>+AED {r.amountDisplay}</span>
+              <span style={{ ...fredoka(14), color: C.pinkDeep }}>+{ptsFor(r.kind)} pts</span>
             </div>
           ))}
         </div>

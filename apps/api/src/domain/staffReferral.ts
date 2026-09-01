@@ -45,11 +45,11 @@ export async function resolveStaffCode(
 }
 
 /**
- * Credit a staff member their referral percentage of an event. Idempotent on
- * (order, member) via the staff_rewards UNIQUE key. `eventValueExclDeliveryFils`
- * is the paid event total minus delivery.
+ * Record an event a crew member brought in, storing its value (excl. delivery)
+ * so the KPIs endpoint can award them value-based POINTS (AED 0.5 per AED —
+ * a 4,000 AED event = 2,000 points). Idempotent on (order, member).
  */
-export async function creditStaffReferral(
+export async function recordReferralEvent(
   db: PoolClient,
   args: {
     orderId: string;
@@ -58,18 +58,12 @@ export async function creditStaffReferral(
     eventValueExclDeliveryFils: number;
   },
 ): Promise<void> {
-  const amount = Math.round(Math.max(0, args.eventValueExclDeliveryFils) * (args.referral.percent / 100));
-  if (amount <= 0) return;
+  const value = Math.max(0, Math.round(args.eventValueExclDeliveryFils));
+  if (value <= 0) return;
   await db.query(
-    `INSERT INTO staff_rewards (member_id, event_id, kind, amount_fils, note, source_ref)
-     VALUES ($1,$2,'referral',$3,$4,$5)
-     ON CONFLICT (kind, source_ref, member_id) DO NOTHING`,
-    [
-      args.referral.memberId,
-      args.eventId,
-      amount,
-      `${args.referral.percent}% referral (code ${args.referral.code})`,
-      args.orderId,
-    ],
+    `INSERT INTO staff_referral_events (order_id, event_id, member_id, event_value_fils)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (order_id, member_id) DO NOTHING`,
+    [args.orderId, args.eventId, args.referral.memberId, value],
   );
 }

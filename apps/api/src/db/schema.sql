@@ -1066,6 +1066,22 @@ CREATE TABLE IF NOT EXISTS staff_referral_codes (
 );
 CREATE INDEX IF NOT EXISTS staff_referral_codes_member_idx ON staff_referral_codes (member_id);
 
+-- Events a crew member brought in (their referral code was used at checkout).
+-- Drives their VALUE-BASED points: event value excl. delivery × 0.5 (a 4,000
+-- AED event = 2,000 points), which count toward the monthly target and, above
+-- it, convert to money like any other points. One row per (order, member);
+-- recorded when the booking is paid.
+CREATE TABLE IF NOT EXISTS staff_referral_events (
+  id               BIGSERIAL PRIMARY KEY,
+  order_id         TEXT NOT NULL,
+  event_id         TEXT,
+  member_id        TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  event_value_fils BIGINT NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (order_id, member_id)
+);
+CREATE INDEX IF NOT EXISTS staff_referral_events_member_idx ON staff_referral_events (member_id, created_at);
+
 -- ── Audit log (critical actions) ────────────────────────────────────────────
 -- An append-only trail of sensitive actions (refunds, cancellations, customer
 -- edits, config/incentive changes, reconciliation runs) — who did what, when,
