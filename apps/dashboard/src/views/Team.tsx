@@ -92,6 +92,7 @@ export function Team({ role = 'owner' }: { role?: string }) {
                     </Row>
                   )}
                   {isOwner && <Row label="Access"><AccessSelect member={m} onChange={load} /></Row>}
+                  {isOwner && <Row label="Invite"><InviteCell member={m} /></Row>}
                   {isOwner && <Row label="Login token"><TokenCell member={m} onChange={load} /></Row>}
                   {canManage && <PerfEditor member={m} onChange={load} />}
                   <Row label="Assignments">
@@ -197,6 +198,48 @@ function AccessSelect({ member, onChange }: { member: any; onChange: () => void 
         {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
       </select>
       <div style={{ fontSize: 9.5, fontWeight: 600, color: C.muted, marginTop: 3, lineHeight: 1.3 }}>{LEVEL_NOTE[level]}</div>
+    </div>
+  );
+}
+
+/**
+ * Owner-only: (re)send the "set your password" invite email to a member. The
+ * emailed link is valid for 3 days — this mints a fresh one, so it's the fix
+ * when someone's original invite expired or they never registered. Also shows
+ * the link to copy, in case they'd rather paste it into WhatsApp.
+ */
+function InviteCell({ member }: { member: any }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ emailSent: boolean; setupLink: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const send = async () => {
+    setBusy(true); setErr(null); setResult(null);
+    try {
+      const r = await api.teamSetupLink(member.id);
+      setResult({ emailSent: !!r.emailSent, setupLink: r.setupLink });
+    } catch (e: any) {
+      setErr(e?.message ?? 'Could not send. Is an email on file for this person?');
+    } finally { setBusy(false); }
+  };
+  if (!member.email) {
+    return <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>No email on file — add one first.</span>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <button onClick={send} disabled={busy} style={miniBtn}>{busy ? 'Sending…' : '✉️ Resend invite email'}</button>
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={member.email}>{member.email}</span>
+      </div>
+      {result && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: result.emailSent ? C.green : C.red }}>
+            {result.emailSent ? '✓ Email sent (valid 3 days)' : 'Email not sent — copy the link instead:'}
+          </span>
+          <button onClick={() => { navigator.clipboard?.writeText(result.setupLink); setCopied(true); setTimeout(() => setCopied(false), 1500); }} style={miniBtn}>{copied ? '✓ Copied' : 'Copy link'}</button>
+        </div>
+      )}
+      {err && <span style={{ fontSize: 11.5, fontWeight: 700, color: C.red }}>{err}</span>}
     </div>
   );
 }
