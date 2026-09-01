@@ -1050,6 +1050,22 @@ CREATE TABLE IF NOT EXISTS staff_rewards (
 );
 CREATE INDEX IF NOT EXISTS staff_rewards_member_idx ON staff_rewards (member_id, created_at DESC);
 
+-- ── Staff referral codes ────────────────────────────────────────────────────
+-- A personal code a crew member gives to a client they bring in. The customer
+-- enters it at checkout (in the promo field). It gives the CUSTOMER no discount
+-- — it credits the STAFF member `percent`% of the event value (excluding
+-- delivery) once the booking is paid, recorded in staff_rewards (kind
+-- 'referral', source_ref = order id, so it can never double-pay). Events only,
+-- never standalone shop purchases.
+CREATE TABLE IF NOT EXISTS staff_referral_codes (
+  code        TEXT PRIMARY KEY,
+  member_id   TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  percent     INT  NOT NULL DEFAULT 5 CHECK (percent >= 0 AND percent <= 100),
+  active      BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS staff_referral_codes_member_idx ON staff_referral_codes (member_id);
+
 -- ── Audit log (critical actions) ────────────────────────────────────────────
 -- An append-only trail of sensitive actions (refunds, cancellations, customer
 -- edits, config/incentive changes, reconciliation runs) — who did what, when,

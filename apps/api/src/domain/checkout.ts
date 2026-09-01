@@ -34,6 +34,7 @@ import { createOrder, createPayment, nextOrderId, orderViewToken, recordPaymentE
 import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
 import { offerIsOpen, getOfferAdjustments, applyOfferToQuote } from './offers.js';
 import { computeDiscounts, makeReferralCode, type DiscountInput } from './discounts.js';
+import { resolveStaffCode } from './staffReferral.js';
 
 export interface CheckoutRequest {
   cart: CartInput & {
@@ -236,6 +237,14 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     serverQuote.totalFils -= applied.totalFils;
     (cart as unknown as Record<string, unknown>).appliedDiscounts = applied;
   }
+
+  // A crew member's referral code (entered in the promo field) gives the
+  // customer no discount — it credits that crew member 5% of the event when it
+  // is paid (see confirm.ts). Recorded on the cart; never blocks checkout.
+  try {
+    const staffRef = await resolveStaffCode(pool, req.discounts?.promoCode);
+    if (staffRef) (cart as unknown as Record<string, unknown>).staffReferral = staffRef;
+  } catch { /* attribution is best-effort — never fail a booking over it */ }
 
   // A method that is disabled (not production-ready) is never charged.
   if (config.providers[req.provider as keyof typeof config.providers]?.mode === 'disabled') {

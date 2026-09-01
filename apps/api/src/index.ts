@@ -34,6 +34,10 @@ async function main() {
     // Provision staff testers from STAFF_INVITES: mint a personal token and
     // email it with links to both apps. No-op when the variable is unset.
     await inviteStaffFromEnv().catch((err) => console.error('[invite] failed:', err));
+    // Issue staff referral codes (name + "SALE") from STAFF_REFERRAL_CODES and
+    // email each crew member their code the first time. No-op when unset.
+    const { issueReferralCodesFromEnv } = await import('./db/issueReferralCodes.js');
+    await issueReferralCodesFromEnv().catch((err) => console.error('[referral] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();

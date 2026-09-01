@@ -51,7 +51,15 @@ export async function validatePromo(
   if (!norm) return { ok: false, reason: 'Enter a code.' };
   const { rows } = await db.query(`SELECT * FROM promo_codes WHERE code = $1`, [norm]);
   const p = rows[0];
-  if (!p || !p.active) return { ok: false, reason: 'This code isn’t valid.' };
+  if (!p || !p.active) {
+    // Not a customer promo — it may be a STAFF referral code (e.g. DIANASALE).
+    // Those are valid to enter but give the customer NO discount; they credit
+    // the crew member who brought the booking. Accept it (amount 0) so the app
+    // shows it applied instead of an error; the staff credit happens at confirm.
+    const staff = await db.query(`SELECT 1 FROM staff_referral_codes WHERE code = $1 AND active`, [norm]);
+    if (staff.rowCount) return { ok: true, amountFils: 0, code: norm };
+    return { ok: false, reason: 'This code isn’t valid.' };
+  }
   // A personal voucher (e.g. a next-booking reward) belongs to one customer.
   if (p.customer_id && p.customer_id !== customerId) return { ok: false, reason: 'This code isn’t valid.' };
   if (p.expires_at && new Date(p.expires_at).getTime() < Date.now()) return { ok: false, reason: 'This code has expired.' };

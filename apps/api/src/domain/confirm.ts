@@ -28,6 +28,7 @@ import { makeVoucherCode, NEXT_BOOKING_VOUCHER_PERCENT } from './discounts.js';
 import { recordSaleFromOrder } from './finance.js';
 import { markOfferUsed } from './offers.js';
 import { INCENTIVE_EXCLUDED } from './incentives.js';
+import { creditStaffReferral } from './staffReferral.js';
 
 export interface ConfirmResult {
   /** Null for orders that create no event (e.g. standalone shop orders). */
@@ -259,6 +260,27 @@ export async function confirmBooking(
       cart.castleVariant ?? null,
     ],
   );
+
+  // A crew member's referral code on this booking earns them their percentage
+  // of the event value (excluding delivery). Events only — this is the booking
+  // branch. Idempotent (staff_rewards UNIQUE) and failure-isolated so it can
+  // never abort a confirmation.
+  const staffReferral = (cart as unknown as {
+    staffReferral?: { code: string; memberId: string; percent: number };
+  }).staffReferral;
+  if (staffReferral) {
+    try {
+      const eventValueExclDelivery = Number(quote.totalFils) - Number(quote.deliveryFils ?? 0);
+      await creditStaffReferral(db, {
+        orderId: order.id,
+        eventId,
+        referral: staffReferral,
+        eventValueExclDeliveryFils: eventValueExclDelivery,
+      });
+    } catch (e) {
+      console.error('[referral] credit failed:', (e as Error).message);
+    }
+  }
 
   // Every priced line becomes a row operations can act on. A chosen kiosk
   // colour (food/games stations) is appended to the label so the crew sees it.
