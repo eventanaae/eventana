@@ -42,6 +42,10 @@ async function main() {
     // STAFF_EMPLOYMENT. No-op when unset.
     const { setEmploymentDatesFromEnv } = await import('./db/setEmploymentDates.js');
     await setEmploymentDatesFromEnv().catch((err) => console.error('[employment] failed:', err));
+    // Seed/adjust disciplinary warnings (points-wipe or on-record) from
+    // STAFF_WARNINGS. No-op when unset.
+    const { applyWarningsFromEnv } = await import('./db/applyWarnings.js');
+    await applyWarningsFromEnv().catch((err) => console.error('[warnings] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();

@@ -622,6 +622,25 @@ CREATE TABLE IF NOT EXISTS leave_requests (
 CREATE INDEX IF NOT EXISTS leave_requests_member_idx ON leave_requests (member_id, submitted_at DESC);
 CREATE INDEX IF NOT EXISTS leave_requests_status_idx ON leave_requests (status);
 
+-- Disciplinary warnings (إنذار). A warning wipes that month's competition
+-- points (and therefore the points-based bonus) for the member. Tips and
+-- commissions are separate and are NOT affected. `ym` is the 'YYYY-MM' the
+-- warning applies to.
+CREATE TABLE IF NOT EXISTS staff_warnings (
+  id             BIGSERIAL PRIMARY KEY,
+  member_id      TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  ym             TEXT NOT NULL,                -- 'YYYY-MM' the warning is logged against
+  reason         TEXT,
+  -- When TRUE the warning wipes that month's competition points. When FALSE it
+  -- is recorded on the member's file but does NOT touch their points (an owner
+  -- exception — "documented, but don't penalise this month").
+  affects_points BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by     TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (member_id, ym)
+);
+CREATE INDEX IF NOT EXISTS staff_warnings_ym_idx ON staff_warnings (ym);
+
 -- ── Email marketing (#26) ────────────────────────────────────────────────
 -- Customers opt out here; campaigns send only to opted-in addresses. A
 -- campaign can be sent now or scheduled (a boot sweep sends due ones).

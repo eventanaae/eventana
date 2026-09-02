@@ -76,6 +76,11 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
                 ? `🎉 Target reached! Every 100 points above ${kpi.overall.targetPoints ?? 600} now earns you AED 10.`
                 : `Your monthly target is ${kpi.overall.targetPoints ?? 600} points — ${(kpi.overall.targetPoints ?? 600) - (kpi.overall.points ?? 0)} to go. Hitting it keeps Eventana growing; past it, every 100 points = AED 10 for you.`}
             </div>
+            {kpi.overall.warned && (
+              <div style={{ marginTop: 10, background: kpi.overall.pointsWiped ? '#FBE7EC' : C.yellowSoft, border: `1px solid ${kpi.overall.pointsWiped ? '#f3c9d3' : '#f0e0b8'}`, borderRadius: 12, padding: '10px 12px', fontSize: 12, fontWeight: 700, color: kpi.overall.pointsWiped ? C.red : C.yellowInk, lineHeight: 1.5 }}>
+                ⚠️ You have a warning on record this month{kpi.overall.warnReason ? ` — ${kpi.overall.warnReason}` : ''}.{kpi.overall.pointsWiped ? ' This month’s points are cleared.' : ' Your points are not affected this time.'}
+              </div>
+            )}
           </div>
         )}
       </div>

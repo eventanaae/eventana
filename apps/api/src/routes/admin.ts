@@ -1471,6 +1471,13 @@ export async function adminRoutes(app: FastifyInstance) {
     const referralByMember = new Map<string, { valueFils: number; n: number }>(
       (refRes.rows as any[]).map((r) => [r.member_id, { valueFils: Number(r.value_fils), n: Number(r.n) }]),
     );
+    // A disciplinary warning is recorded per month. When affects_points it wipes
+    // that month's competition points (and the points bonus); otherwise it is
+    // documented on the file only (owner exception). Tips/commission unaffected.
+    const warnRes = await pool.query(`SELECT member_id, reason, affects_points FROM staff_warnings WHERE ym = $1`, [monthStr]);
+    const warnMap = new Map<string, { reason: string | null; affectsPoints: boolean }>(
+      (warnRes.rows as any[]).map((r) => [r.member_id, { reason: r.reason ?? null, affectsPoints: r.affects_points !== false }]),
+    );
     // AED 100 = 1 step; 100 points = AED 10 above the 600 target.
     const rules = { targetPoints: TARGET_POINTS, pointsToAed10: 100, eventPoints: EVENT_POINTS, fiveStarPoints: FIVE_STAR_POINTS, glamPoints: GLAM_POINTS, valuePointsPerAed: 0.5, commissionRate: 2, commissionMinAed: 20000 };
     // Marsha's incentive is different: a 2% commission on the corporate/events
@@ -1504,7 +1511,12 @@ export async function adminRoutes(app: FastifyInstance) {
       // 600 target: every 100 points past it = AED 10 (10 fils per point).
       const activityPoints = eventsDone * EVENT_POINTS + fiveStars * FIVE_STAR_POINTS + glam * GLAM_POINTS;
       const referralPoints = Math.round(ref.valueFils / 200);
-      const points = activityPoints + referralPoints;
+      // A warning may zero this month's points, or just be on record (exception).
+      const warn = warnMap.get(r.id) ?? null;
+      const warned = !!warn;
+      const warnReason = warn?.reason ?? null;
+      const pointsWiped = !!warn && warn.affectsPoints;
+      const points = pointsWiped ? 0 : activityPoints + referralPoints;
       const targetPct = Math.min(100, Math.round((points / TARGET_POINTS) * 100));
       const bonusFils = Math.max(0, points - TARGET_POINTS) * (STEP_FILS / POINTS_PER_STEP);
       // Marsha earns a 2% corporate commission instead of the field-crew points.
@@ -1526,6 +1538,7 @@ export async function adminRoutes(app: FastifyInstance) {
         fiveStars,
         ratingsCount: Number(r.ratings_count),
         points, activityPoints, referralPoints, referralCount: ref.n,
+        warned, warnReason, pointsWiped,
         targetPct,
         bonusFils, bonusDisplay: formatAed(bonusFils),
         isMarsha,
@@ -1608,6 +1621,9 @@ export async function adminRoutes(app: FastifyInstance) {
         activityPoints: mine?.activityPoints ?? 0,
         referralPoints: mine?.referralPoints ?? 0,
         referralCount: mine?.referralCount ?? 0,
+        warned: mine?.warned ?? false,
+        warnReason: mine?.warnReason ?? null,
+        pointsWiped: mine?.pointsWiped ?? false,
         targetPoints: TARGET_POINTS,
         targetPct: mine?.targetPct ?? 0,
         glamCount: mine?.glamCount ?? 0,
@@ -3166,10 +3182,16 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/team', async () => {
     const { rows } = await pool.query(
       `SELECT m.*,
+              w.ym            AS warning_ym,
+              w.reason        AS warning_reason,
+              w.affects_points AS warning_affects_points,
               (SELECT json_agg(json_build_object('eventId', et.event_id, 'date', e.event_date))
                  FROM event_team et JOIN events e ON e.id = et.event_id
                 WHERE et.member_id = m.id AND e.event_date >= CURRENT_DATE) AS assignments
-         FROM team_members m ORDER BY m.name`,
+         FROM team_members m
+         LEFT JOIN staff_warnings w
+           ON w.member_id = m.id AND w.ym = to_char(now(),'YYYY-MM')
+         ORDER BY m.name`,
     );
     return rows;
   });
@@ -3454,6 +3476,52 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return rows[0];
+  });
+
+  /* ------------------- Disciplinary warnings ------------------------------ */
+  // A warning (إنذار) wipes the member's competition points for that month —
+  // and therefore the points bonus. Tips and commissions are unaffected.
+
+  /** Owner/manager: issue (or update) a warning for a member for a month. */
+  app.post('/api/admin/team/:id/warning', async (request, reply) => {
+    const s = (request as any).staff;
+    if (s?.role !== 'owner' && s?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const p = z.object({
+      ym: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+      reason: z.string().max(500).optional(),
+      affectsPoints: z.boolean().optional(), // false = documented only, no points penalty
+    }).safeParse(request.body ?? {});
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const ym = p.data.ym ?? new Date().toISOString().slice(0, 7);
+    const affectsPoints = p.data.affectsPoints !== false; // default true
+    await pool.query(
+      `INSERT INTO staff_warnings (member_id, ym, reason, affects_points, created_by) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (member_id, ym) DO UPDATE SET reason = EXCLUDED.reason, affects_points = EXCLUDED.affects_points, created_by = EXCLUDED.created_by, created_at = now()`,
+      [id, ym, p.data.reason ?? null, affectsPoints, s?.name ?? null],
+    );
+    return { ok: true, ym, affectsPoints };
+  });
+
+  /** Owner/manager: clear a warning (restores that month's points). */
+  app.delete('/api/admin/team/:id/warning', async (request, reply) => {
+    const s = (request as any).staff;
+    if (s?.role !== 'owner' && s?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const ym = ((request.query as any)?.ym as string) || new Date().toISOString().slice(0, 7);
+    await pool.query(`DELETE FROM staff_warnings WHERE member_id = $1 AND ym = $2`, [id, ym]);
+    return { ok: true };
+  });
+
+  /** Owner/manager: a member's warning history. */
+  app.get('/api/admin/team/:id/warnings', async (request, reply) => {
+    const s = (request as any).staff;
+    if (s?.role !== 'owner' && s?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const { rows } = await pool.query(
+      `SELECT ym, reason, affects_points AS "affectsPoints", created_by, to_char(created_at,'YYYY-MM-DD') AS created_at
+         FROM staff_warnings WHERE member_id = $1 ORDER BY ym DESC`, [id]);
+    return rows;
   });
 
   /* ------------------- Annual leave --------------------------------------- */

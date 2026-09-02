@@ -126,6 +126,7 @@ export function Team({ role = 'owner' }: { role?: string }) {
                       />
                     </Row>
                   )}
+                  {canManage && <Row label="Warning (this month)"><WarningCell member={m} onChange={load} /></Row>}
                   {isOwner && <Row label="Access"><AccessSelect member={m} onChange={load} /></Row>}
                   {isOwner && <Row label="Invite"><InviteCell member={m} /></Row>}
                   {isOwner && <Row label="Login token"><TokenCell member={m} onChange={load} /></Row>}
@@ -216,6 +217,44 @@ function DaysOff({ team, schedule, onChange }: { team: any[]; schedule: any; onC
         ))
       )}
     </Panel>
+  );
+}
+
+/** Issue / clear a disciplinary warning for the current month. A warning can
+ *  wipe the month's competition points, or just sit on file (no penalty). */
+function WarningCell({ member, onChange }: { member: any; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const warned = !!member.warning_ym;
+  const wipes = member.warning_affects_points === true;
+
+  const issue = async (affectsPoints: boolean) => {
+    const reason = window.prompt(affectsPoints
+      ? 'Reason for the warning (this WILL clear this month’s points):'
+      : 'Reason for the warning (on record only — points are NOT affected):', member.warning_reason ?? '');
+    if (reason === null) return; // cancelled
+    setBusy(true);
+    try { await api.issueWarning(member.id, { reason: reason.trim() || undefined, affectsPoints }); onChange(); } finally { setBusy(false); }
+  };
+  const clear = async () => {
+    if (!window.confirm('Remove this month’s warning?')) return;
+    setBusy(true);
+    try { await api.clearWarning(member.id); onChange(); } finally { setBusy(false); }
+  };
+
+  if (warned) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <Badge tone={wipes ? 'error' : 'warn'}>{wipes ? '⚠️ Warned · points cleared' : '⚠️ Warned · on record'}</Badge>
+        {member.warning_reason && <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{member.warning_reason}</span>}
+        <Button tone="ghost" onClick={clear} disabled={busy}>Clear</Button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <Button tone="ghost" onClick={() => issue(false)} disabled={busy}>On record (no penalty)</Button>
+      <Button tone="danger" onClick={() => issue(true)} disabled={busy}>Warn · clear points</Button>
+    </div>
   );
 }
 
