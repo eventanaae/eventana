@@ -10,7 +10,7 @@
  * also drops a linked staff_days_off row, which is what makes the person show as
  * Unavailable on the calendar and skipped by the auto-staffing engine.
  */
-import type { Pool, PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 
 /** Names NOT on the annual-leave scheme (owner-family / off-scheme). Lower-cased. */

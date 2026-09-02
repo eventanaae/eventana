@@ -181,7 +181,7 @@ function LeaveSection() {
   const cancel = async (id: number) => { try { await api.cancelLeave(id); load(); } catch { /* ignore */ } };
 
   const stat = (label: string, value: React.ReactNode, color = C.ink) => (
-    <div style={{ flex: '1 1 30%', minWidth: 92, background: C.bgSoft ?? '#faf6f2', borderRadius: 12, padding: '10px 12px' }}>
+    <div style={{ flex: '1 1 30%', minWidth: 92, background: '#faf6f2', borderRadius: 12, padding: '10px 12px' }}>
       <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>{label}</div>
       <div style={{ ...fredoka(19), color }}>{value}</div>
     </div>

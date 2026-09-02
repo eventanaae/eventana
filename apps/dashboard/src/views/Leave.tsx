@@ -52,7 +52,7 @@ export function Leave({ role = 'owner' }: { role?: string }) {
                 {r.reason && <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>“{r.reason}”</div>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
                   <Button onClick={() => decide(r.id, 'approved')} disabled={busyId === r.id}>{busyId === r.id ? '…' : 'Approve'}</Button>
-                  <Button tone="ghost" onClick={() => decide(r.id, 'rejected')} disabled={busyId === r.id} style={{ color: C.red }}>Reject</Button>
+                  <Button tone="danger" onClick={() => decide(r.id, 'rejected')} disabled={busyId === r.id}>Reject</Button>
                 </div>
               </div>
             ))}

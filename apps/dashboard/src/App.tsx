@@ -32,7 +32,7 @@ import { Leave } from './views/Leave';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -65,6 +65,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   // Staff
   { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
+  { id: 'leave', label: 'Leave', icon: '🌴', title: 'Annual Leave', sub: 'Leave requests, balances & approvals', section: 'staff' },
   // Business (owner)
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
   { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (P&L)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
@@ -80,7 +81,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'team', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'team', 'leave', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
@@ -133,7 +134,9 @@ export default function App() {
   }, [authed]);
 
   const allowed = ROLE_VIEWS[role] ?? 'all';
-  const isVisible = (id: View) => allowed === 'all' || allowed.includes(id);
+  // Marsha co-runs the office (her access level is 'employee'): she can approve
+  // leave, so she sees the Leave tab even though the employee list omits it.
+  const isVisible = (id: View) => allowed === 'all' || allowed.includes(id) || (id === 'leave' && staffName === 'Marsha');
   const visibleNav = NAV.filter((n) => isVisible(n.id));
   // Phone bottom bar: exactly four primary tabs. The Owner keeps the CEO
   // Dashboard as their 4th; everyone else gets Latest updates. Whatever else
@@ -187,6 +190,7 @@ export default function App() {
       {view === 'inventory' && <Inventory role={role} />}
       {view === 'alerts' && <Alerts onOpenEvent={openEvent} />}
       {view === 'team' && <Team role={role} />}
+      {view === 'leave' && <Leave role={role} />}
       {view === 'kpis' && <Kpis role={role} />}
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}
