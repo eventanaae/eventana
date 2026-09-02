@@ -9,7 +9,7 @@
  */
 import { pool } from './pool.js';
 
-interface Entry { name: string; start?: string; end?: string; openingUsed?: number; note?: string; }
+interface Entry { name: string; start?: string; end?: string; openingUsed?: number; note?: string; dayOff?: number | null; }
 
 export async function setEmploymentDatesFromEnv(): Promise<void> {
   const raw = process.env.STAFF_EMPLOYMENT;
@@ -27,15 +27,19 @@ export async function setEmploymentDatesFromEnv(): Promise<void> {
     if (!e?.name) continue;
     const openingUsed = Number.isFinite(e.openingUsed as number) ? Number(e.openingUsed) : null;
     const note = typeof e.note === 'string' ? e.note : null;
+    // dayOff: 0–6 sets the weekly day off; null explicitly clears it; undefined leaves it.
+    const dayOffProvided = e.dayOff !== undefined;
+    const dayOff = typeof e.dayOff === 'number' ? e.dayOff : null;
     const res = await pool.query(
       `UPDATE team_members SET
          employment_start_date   = COALESCE($2::date, employment_start_date),
          employment_end_date     = COALESCE($3::date, employment_end_date),
          leave_opening_used_days = COALESCE($4::numeric, leave_opening_used_days),
-         employment_note         = COALESCE($5, employment_note)
+         employment_note         = COALESCE($5, employment_note),
+         weekly_day_off          = CASE WHEN $6 THEN $7::smallint ELSE weekly_day_off END
        WHERE lower(name) = lower($1) AND active`,
-      [e.name, e.start ?? null, e.end ?? null, openingUsed, note],
+      [e.name, e.start ?? null, e.end ?? null, openingUsed, note, dayOffProvided, dayOff],
     );
-    console.log(`[employment] ${e.name}: start=${e.start ?? '—'} end=${e.end ?? '—'} openingUsed=${openingUsed ?? '—'} note=${note ? 'set' : '—'} (${res.rowCount ?? 0} row)`);
+    console.log(`[employment] ${e.name}: start=${e.start ?? '—'} end=${e.end ?? '—'} openingUsed=${openingUsed ?? '—'} note=${note ? 'set' : '—'} dayOff=${dayOffProvided ? dayOff : '—'} (${res.rowCount ?? 0} row)`);
   }
 }

@@ -116,6 +116,20 @@ export function Team({ role = 'owner' }: { role?: string }) {
                     </Row>
                   )}
                   {canManage && (
+                    <Row label="Weekly day off">
+                      <select
+                        defaultValue={m.weekly_day_off ?? ''}
+                        onChange={async (e) => { await api.setTeamProfile(m.id, { weeklyDayOff: e.target.value === '' ? null : Number(e.target.value) }); load(); }}
+                        style={dateInput}
+                      >
+                        <option value="">— none —</option>
+                        {['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((d, i) => (
+                          <option key={i} value={i}>{d}</option>
+                        ))}
+                      </select>
+                    </Row>
+                  )}
+                  {canManage && (
                     <Row label="HR note">
                       <textarea
                         title="Employment-history note (breaks, non-renewals, transfers). Documentation only."

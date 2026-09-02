@@ -603,6 +603,10 @@ ALTER TABLE team_members ADD COLUMN IF NOT EXISTS leave_opening_used_days NUMERI
 -- Free-text HR note on the member's employment history (breaks, non-renewals,
 -- transfers). Documentation only; shown to owner/manager on the Team screen.
 ALTER TABLE team_members ADD COLUMN IF NOT EXISTS employment_note TEXT;
+-- The member's recurring WEEKLY day off (rest day), 0=Sunday … 6=Saturday
+-- (matches JS getUTCDay). NULL = none set. The auto-staffing engine keeps them
+-- free on this weekday and it shows on their profile.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS weekly_day_off SMALLINT;
 ALTER TABLE staff_days_off ADD COLUMN IF NOT EXISTS leave_request_id BIGINT;  -- set when the day-off came from an approved leave
 
 CREATE TABLE IF NOT EXISTS leave_requests (

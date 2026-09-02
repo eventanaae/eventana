@@ -132,6 +132,7 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
           {detailRow('Full name (as on passport)', d.passportName)}
           {detailRow('Date of birth', d.birthday)}
           {detailRow('Joining date', d.joiningDate)}
+          {detailRow('Weekly day off', d.dayOff)}
           {detailRow('Passport number', d.passportNumber)}
           {detailRow('Emirates ID number', d.emiratesId)}
         </div>

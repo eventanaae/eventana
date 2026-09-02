@@ -3350,6 +3350,7 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT id, name, role, job_title,
                           to_char(birthday,'YYYY-MM-DD') AS birthday,
                           to_char(employment_start_date,'YYYY-MM-DD') AS employment_start_date,
+                          weekly_day_off,
                           passport_name, passport_number, emirates_id,
                           performance_feedback, performance_by, to_char(performance_at,'YYYY-MM-DD') AS performance_at, email
                      FROM team_members WHERE id = $1`, [staff.id]),
@@ -3374,10 +3375,13 @@ export async function adminRoutes(app: FastifyInstance) {
       !p.passport_number && 'Passport number',
       !p.emirates_id && 'Emirates ID number',
     ].filter(Boolean);
+    const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOffNum = p.weekly_day_off;
     return {
       id: p.id, name: p.name, jobTitle: p.job_title || p.role, email: p.email,
       birthday: p.birthday ?? null,
       joiningDate: p.employment_start_date ?? null,
+      dayOff: (dayOffNum !== null && dayOffNum !== undefined) ? WEEKDAYS[Number(dayOffNum)] : null,
       passportName: p.passport_name, passportNumber: p.passport_number, emiratesId: p.emirates_id,
       eventsDone: done.rows[0].c,
       performance: p.performance_feedback ? { text: p.performance_feedback, by: p.performance_by, at: p.performance_at } : null,
@@ -3449,6 +3453,7 @@ export async function adminRoutes(app: FastifyInstance) {
       employmentEnd: dateOrNull,     // contract end; caps accrual
       leaveOpeningUsed: z.number().min(0).max(1000).optional(), // leave taken before this system
       employmentNote: z.string().max(2000).nullable().optional(), // HR history note
+      weeklyDayOff: z.number().int().min(0).max(6).nullable().optional(), // 0=Sun..6=Sat
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -3459,6 +3464,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const empEndSet = d.employmentEnd !== undefined;
     const openingSet = d.leaveOpeningUsed !== undefined;
     const noteSet = d.employmentNote !== undefined;
+    const dayOffSet = d.weeklyDayOff !== undefined;
     const { rows } = await pool.query(
       `UPDATE team_members SET
          name = COALESCE($5, name),
@@ -3468,11 +3474,13 @@ export async function adminRoutes(app: FastifyInstance) {
          employment_start_date = CASE WHEN $6 THEN $7::date ELSE employment_start_date END,
          employment_end_date   = CASE WHEN $8 THEN $9::date ELSE employment_end_date END,
          leave_opening_used_days = CASE WHEN $10 THEN $11::numeric ELSE leave_opening_used_days END,
-         employment_note = CASE WHEN $12 THEN $13::text ELSE employment_note END
+         employment_note = CASE WHEN $12 THEN $13::text ELSE employment_note END,
+         weekly_day_off = CASE WHEN $14 THEN $15::smallint ELSE weekly_day_off END
        WHERE id = $1 RETURNING *`,
       [id, d.birthday ?? null, d.phone ?? null, d.color ?? null, d.name ?? null,
        empStartSet, d.employmentStart ?? null, empEndSet, d.employmentEnd ?? null,
-       openingSet, d.leaveOpeningUsed ?? null, noteSet, d.employmentNote ?? null],
+       openingSet, d.leaveOpeningUsed ?? null, noteSet, d.employmentNote ?? null,
+       dayOffSet, d.weeklyDayOff ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return rows[0];

@@ -261,6 +261,13 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     [ev.date],
   );
   for (const r of offRows.rows as any[]) busy.add(r.member_id);
+  // Members whose recurring WEEKLY day off falls on the event's weekday are off.
+  const evWeekday = new Date(`${ev.date}T00:00:00Z`).getUTCDay(); // 0=Sun … 6=Sat
+  const weeklyOff = await pool.query(
+    `SELECT id FROM team_members WHERE active AND weekly_day_off = $1`,
+    [evWeekday],
+  );
+  for (const r of weeklyOff.rows as any[]) busy.add(r.id);
 
   const staff: StaffRow[] = staffRows.rows.map((r: any) => ({ id: r.id, name: r.name, skills: new Set(r.skills), workload: wlMap.get(r.id) ?? 0 }));
   const rolesByStaff = new Map<string, Set<Skill>>();
