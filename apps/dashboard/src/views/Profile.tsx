@@ -123,6 +123,9 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
       {/* Annual leave — balance, request, history */}
       <LeaveSection />
 
+      {/* Disciplinary warnings on the member's record */}
+      <WarningsSection />
+
       {/* Personal details — official HR data set by the office; read-only here. */}
       <Panel title="🪪 Personal details">
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
@@ -151,6 +154,42 @@ const LEAVE_STATUS: Record<string, { bg: string; fg: string; label: string }> = 
   rejected: { bg: '#FBE7EC', fg: C.red, label: 'Rejected' },
   cancelled: { bg: C.lineSoft, fg: C.muted, label: 'Cancelled' },
 };
+
+const WARN_TYPE_LABEL: Record<string, string> = {
+  documented: 'Documented', first: 'First warning', second: 'Second warning',
+  third: 'Third warning', final: 'Final warning',
+};
+
+/** The disciplinary warnings on the member's own record (type, date, reason,
+ *  validity, and whether points were affected). Hidden when there are none. */
+function WarningsSection() {
+  const [rows, setRows] = useState<any[] | null>(null);
+  useEffect(() => { api.myWarnings().then(setRows).catch(() => setRows([])); }, []);
+  if (!rows || rows.length === 0) return null;
+  const cell: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: C.ink };
+  const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacing: '.3px', color: C.muted, textTransform: 'uppercase' };
+  return (
+    <Panel title="⚠️ Warnings">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {rows.map((w, i) => (
+          <div key={i} style={{ border: `1px solid ${w.affectsPoints ? '#f3c9d3' : '#f0e0b8'}`, background: w.affectsPoints ? '#FBE7EC' : C.yellowSoft, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ ...fredoka(15), color: w.affectsPoints ? C.red : C.yellowInk }}>{WARN_TYPE_LABEL[w.wtype] ?? 'Warning'}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: w.affectsPoints ? C.red : C.yellowInk, background: '#fff', borderRadius: 20, padding: '2px 9px' }}>
+                {w.affectsPoints ? 'Points cleared' : 'On record — no penalty'}
+              </span>
+            </div>
+            {w.reason && <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>{w.reason}</div>}
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              {w.issuedDate && <div><div style={lbl}>Date</div><div style={cell}>{w.issuedDate}</div></div>}
+              {w.validUntil && <div><div style={lbl}>Valid until</div><div style={cell}>{w.validUntil}</div></div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
 
 /** A staff member's own annual-leave balance, request form, and history. */
 function LeaveSection() {

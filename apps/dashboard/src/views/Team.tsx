@@ -270,20 +270,37 @@ function DayOffSchedule({ team, onChange }: { team: any[]; onChange: () => void 
   );
 }
 
-/** Issue / clear a disciplinary warning for the current month. A warning can
- *  wipe the month's competition points, or just sit on file (no penalty). */
+const WARNING_TYPES = [
+  { v: 'documented', label: 'Documented' },
+  { v: 'first', label: 'First warning' },
+  { v: 'second', label: 'Second warning' },
+  { v: 'third', label: 'Third warning' },
+  { v: 'final', label: 'Final warning' },
+];
+const warnTypeLabel = (t?: string | null) => WARNING_TYPES.find((x) => x.v === t)?.label ?? (t ? t : 'Warning');
+
+/** Issue / edit / clear a disciplinary warning: type, date, validity, reason,
+ *  and whether it clears the month's competition points. */
 function WarningCell({ member, onChange }: { member: any; onChange: () => void }) {
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+  const [f, setF] = useState({ wtype: 'first', issuedDate: today, validUntil: '', reason: '', affectsPoints: false });
   const warned = !!member.warning_ym;
   const wipes = member.warning_affects_points === true;
 
-  const issue = async (affectsPoints: boolean) => {
-    const reason = window.prompt(affectsPoints
-      ? 'Reason for the warning (this WILL clear this month’s points):'
-      : 'Reason for the warning (on record only — points are NOT affected):', member.warning_reason ?? '');
-    if (reason === null) return; // cancelled
+  const save = async () => {
     setBusy(true);
-    try { await api.issueWarning(member.id, { reason: reason.trim() || undefined, affectsPoints }); onChange(); } finally { setBusy(false); }
+    try {
+      await api.issueWarning(member.id, {
+        wtype: f.wtype,
+        issuedDate: f.issuedDate || undefined,
+        validUntil: f.validUntil || null,
+        reason: f.reason.trim() || undefined,
+        affectsPoints: f.affectsPoints,
+      });
+      setOpen(false); onChange();
+    } finally { setBusy(false); }
   };
   const clear = async () => {
     if (!window.confirm('Remove this month’s warning?')) return;
@@ -291,19 +308,47 @@ function WarningCell({ member, onChange }: { member: any; onChange: () => void }
     try { await api.clearWarning(member.id); onChange(); } finally { setBusy(false); }
   };
 
-  if (warned) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <Badge tone={wipes ? 'error' : 'warn'}>{wipes ? '⚠️ Warned · points cleared' : '⚠️ Warned · on record'}</Badge>
-        {member.warning_reason && <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{member.warning_reason}</span>}
-        <Button tone="ghost" onClick={clear} disabled={busy}>Clear</Button>
-      </div>
-    );
-  }
+  const lbl: CSSProperties = { fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted, textTransform: 'uppercase' };
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <Button tone="ghost" onClick={() => issue(false)} disabled={busy}>On record (no penalty)</Button>
-      <Button tone="danger" onClick={() => issue(true)} disabled={busy}>Warn · clear points</Button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {warned ? (
+          <>
+            <Badge tone={wipes ? 'error' : 'warn'}>⚠️ {warnTypeLabel(member.warning_wtype)}{wipes ? ' · points cleared' : ' · on record'}</Badge>
+            {member.warning_reason && <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{member.warning_reason}</span>}
+            {member.warning_valid_until && <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>· valid until {member.warning_valid_until}</span>}
+            <Button tone="ghost" onClick={clear} disabled={busy}>Clear</Button>
+          </>
+        ) : (
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>No warning this month.</span>
+        )}
+        <Button tone="ghost" onClick={() => setOpen((o) => !o)}>{open ? 'Close' : warned ? 'Update' : 'Add warning'}</Button>
+      </div>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: '#faf6f2', border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px' }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Type</span>
+              <select value={f.wtype} onChange={(e) => setF({ ...f, wtype: e.target.value })} style={dateInput}>
+                {WARNING_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Date</span>
+              <input type="date" value={f.issuedDate} onChange={(e) => setF({ ...f, issuedDate: e.target.value })} style={dateInput} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Valid until</span>
+              <input type="date" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} style={dateInput} />
+            </label>
+          </div>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Reason</span>
+            <textarea value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="Grounds for the warning" style={{ ...dateInput, height: 48, resize: 'vertical', fontFamily: 'inherit' }} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: C.ink }}>
+            <input type="checkbox" checked={f.affectsPoints} onChange={(e) => setF({ ...f, affectsPoints: e.target.checked })} />
+            Clear this month’s competition points (leave off to keep it on record only)
+          </label>
+          <div><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save warning'}</Button></div>
+        </div>
+      )}
     </div>
   );
 }

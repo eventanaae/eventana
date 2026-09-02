@@ -643,6 +643,11 @@ CREATE TABLE IF NOT EXISTS staff_warnings (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (member_id, ym)
 );
+-- Richer HR fields on a warning: its level/type, the date it was issued, and how
+-- long it stays valid on the member's record.
+ALTER TABLE staff_warnings ADD COLUMN IF NOT EXISTS wtype       TEXT;  -- documented|first|second|third|final
+ALTER TABLE staff_warnings ADD COLUMN IF NOT EXISTS issued_date DATE;  -- when the warning was issued
+ALTER TABLE staff_warnings ADD COLUMN IF NOT EXISTS valid_until DATE;  -- record validity end (NULL = no expiry)
 CREATE INDEX IF NOT EXISTS staff_warnings_ym_idx ON staff_warnings (ym);
 
 -- ── Email marketing (#26) ────────────────────────────────────────────────

@@ -301,10 +301,12 @@ export const api = {
   myEvents: () => request<any[]>('/api/admin/my-events'),
   setTeamProfile: (id: string, patch: Record<string, unknown>) =>
     request<any>(`/api/admin/team/${id}/profile`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  issueWarning: (id: string, body: { ym?: string; reason?: string; affectsPoints?: boolean }) =>
+  issueWarning: (id: string, body: { ym?: string; reason?: string; affectsPoints?: boolean; wtype?: string; issuedDate?: string; validUntil?: string | null }) =>
     request<any>(`/api/admin/team/${id}/warning`, { method: 'POST', body: JSON.stringify(body) }),
   clearWarning: (id: string, ym?: string) =>
     request<any>(`/api/admin/team/${id}/warning${ym ? `?ym=${ym}` : ''}`, { method: 'DELETE' }),
+  memberWarnings: (id: string) => request<any[]>(`/api/admin/team/${id}/warnings`),
+  myWarnings: () => request<any[]>('/api/admin/my-warnings'),
 
   teamSchedule: (month?: string) =>
     request<any>(`/api/admin/team-schedule${month ? `?month=${month}` : ''}`),

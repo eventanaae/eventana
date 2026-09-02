@@ -3185,6 +3185,9 @@ export async function adminRoutes(app: FastifyInstance) {
               w.ym            AS warning_ym,
               w.reason        AS warning_reason,
               w.affects_points AS warning_affects_points,
+              w.wtype         AS warning_wtype,
+              to_char(w.issued_date,'YYYY-MM-DD') AS warning_issued_date,
+              to_char(w.valid_until,'YYYY-MM-DD') AS warning_valid_until,
               (SELECT json_agg(json_build_object('eventId', et.event_id, 'date', e.event_date))
                  FROM event_team et JOIN events e ON e.id = et.event_id
                 WHERE et.member_id = m.id AND e.event_date >= CURRENT_DATE) AS assignments
@@ -3495,18 +3498,28 @@ export async function adminRoutes(app: FastifyInstance) {
     const s = (request as any).staff;
     if (s?.role !== 'owner' && s?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
     const p = z.object({
       ym: z.string().regex(/^\d{4}-\d{2}$/).optional(),
-      reason: z.string().max(500).optional(),
+      reason: z.string().max(1000).optional(),
       affectsPoints: z.boolean().optional(), // false = documented only, no points penalty
+      wtype: z.enum(['documented', 'first', 'second', 'third', 'final']).optional(),
+      issuedDate: z.string().regex(dateRe).optional(),
+      validUntil: z.string().regex(dateRe).nullable().optional(),
     }).safeParse(request.body ?? {});
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
-    const ym = p.data.ym ?? new Date().toISOString().slice(0, 7);
+    const issued = p.data.issuedDate ?? null;
+    // Default the points-month to the issue date's month (else the current month).
+    const ym = p.data.ym ?? (issued ? issued.slice(0, 7) : new Date().toISOString().slice(0, 7));
     const affectsPoints = p.data.affectsPoints !== false; // default true
     await pool.query(
-      `INSERT INTO staff_warnings (member_id, ym, reason, affects_points, created_by) VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (member_id, ym) DO UPDATE SET reason = EXCLUDED.reason, affects_points = EXCLUDED.affects_points, created_by = EXCLUDED.created_by, created_at = now()`,
-      [id, ym, p.data.reason ?? null, affectsPoints, s?.name ?? null],
+      `INSERT INTO staff_warnings (member_id, ym, reason, affects_points, wtype, issued_date, valid_until, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6::date,$7::date,$8)
+       ON CONFLICT (member_id, ym) DO UPDATE SET
+         reason = EXCLUDED.reason, affects_points = EXCLUDED.affects_points,
+         wtype = EXCLUDED.wtype, issued_date = EXCLUDED.issued_date, valid_until = EXCLUDED.valid_until,
+         created_by = EXCLUDED.created_by, created_at = now()`,
+      [id, ym, p.data.reason ?? null, affectsPoints, p.data.wtype ?? null, issued, p.data.validUntil ?? null, s?.name ?? null],
     );
     return { ok: true, ym, affectsPoints };
   });
@@ -3527,8 +3540,23 @@ export async function adminRoutes(app: FastifyInstance) {
     if (s?.role !== 'owner' && s?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
     const { rows } = await pool.query(
-      `SELECT ym, reason, affects_points AS "affectsPoints", created_by, to_char(created_at,'YYYY-MM-DD') AS created_at
-         FROM staff_warnings WHERE member_id = $1 ORDER BY ym DESC`, [id]);
+      `SELECT ym, reason, affects_points AS "affectsPoints", wtype,
+              to_char(issued_date,'YYYY-MM-DD') AS "issuedDate",
+              to_char(valid_until,'YYYY-MM-DD') AS "validUntil",
+              created_by, to_char(created_at,'YYYY-MM-DD') AS created_at
+         FROM staff_warnings WHERE member_id = $1 ORDER BY COALESCE(issued_date, (ym||'-01')::date) DESC`, [id]);
+    return rows;
+  });
+
+  /** A staff member's OWN warnings (for their profile). */
+  app.get('/api/admin/my-warnings', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string };
+    if (!staff.id) return reply.status(404).send({ error: 'no_profile' });
+    const { rows } = await pool.query(
+      `SELECT ym, reason, affects_points AS "affectsPoints", wtype,
+              to_char(issued_date,'YYYY-MM-DD') AS "issuedDate",
+              to_char(valid_until,'YYYY-MM-DD') AS "validUntil"
+         FROM staff_warnings WHERE member_id = $1 ORDER BY COALESCE(issued_date, (ym||'-01')::date) DESC`, [staff.id]);
     return rows;
   });
 
