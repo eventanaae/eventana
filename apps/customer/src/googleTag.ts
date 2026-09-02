@@ -40,23 +40,33 @@ declare global {
 
 const REPORTED_KEY = 'eventana.gads.reported';
 
-function envId(name: 'VITE_GA4_ID' | 'VITE_GOOGLE_ADS_ID' | 'VITE_GOOGLE_ADS_PURCHASE_LABEL'): string | null {
-  const raw = String((import.meta.env as Record<string, unknown>)[name] ?? '').trim();
-  return raw || null;
+function clean(raw: unknown): string | null {
+  const value = String(raw ?? '').trim();
+  return value || null;
 }
 
+/**
+ * Each id is read as a STATIC `import.meta.env.VITE_…` property.
+ *
+ * This is not a style choice. Vite replaces `import.meta.env` at build time
+ * with an object literal holding only the keys it saw referenced literally in
+ * the source, so a computed lookup — `import.meta.env[name]` — compiles to a
+ * read of a key that was never emitted and is always undefined. The first
+ * version of this file did exactly that, the build succeeded, and the tag
+ * stayed silent on a site that had the id configured.
+ */
 function ga4Id(): string | null {
-  return envId('VITE_GA4_ID');
+  return clean(import.meta.env.VITE_GA4_ID);
 }
 
 function adsId(): string | null {
-  return envId('VITE_GOOGLE_ADS_ID');
+  return clean(import.meta.env.VITE_GOOGLE_ADS_ID);
 }
 
 /** The full `AW-123/AbC_def` send_to target, or null when either half is missing. */
 function purchaseTarget(): string | null {
   const id = adsId();
-  const label = envId('VITE_GOOGLE_ADS_PURCHASE_LABEL');
+  const label = clean(import.meta.env.VITE_GOOGLE_ADS_PURCHASE_LABEL);
   return id && label ? `${id}/${label}` : null;
 }
 
