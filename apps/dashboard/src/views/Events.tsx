@@ -17,6 +17,7 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [events, setEvents] = useState<any[] | null>(null);
   const [needsReview, setNeedsReview] = useState<any[]>([]);
   const [q, setQ] = useState('');
+  const [showPast, setShowPast] = useState(false);
 
   useEffect(() => {
     api.events().then(setEvents);
@@ -31,6 +32,65 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
       return !s || `${e.id} ${e.customer} ${e.emirate} ${e.phase}`.toLowerCase().includes(s);
     })
     .sort((a, b) => String(a.event_date).slice(0, 10).localeCompare(String(b.event_date).slice(0, 10)));
+
+  // Finished events (completed, cancelled, or already past) drop into a separate
+  // "Past" section so the main list is only what's still coming up / live.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isDone = (e: any) =>
+    e.phase === 'Event Completed' || e.phase === 'Cancelled' || String(e.event_date).slice(0, 10) < todayStr;
+  const upcoming = filtered.filter((e) => !isDone(e));
+  const past = filtered.filter(isDone).reverse(); // most-recent first
+
+  // One event card.
+  const card = (e: any) => {
+    const d = new Date(e.event_date);
+    return (
+      <div
+        onClick={() => onOpenEvent(e.id)}
+        style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</span>
+          {e.totalDisplay != null && (
+            <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
+          )}
+        </div>
+        {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
+          <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
+          {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {e.start_time}–{e.base_end_time} · {e.emirate}
+          {e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Badge tone={e.phase === 'Cancelled' ? 'error' : e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
+          <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
+        </div>
+      </div>
+    );
+  };
+
+  // A list of events with month dividers.
+  const grouped = (list: any[]) => list.map((e, i) => {
+    const d = new Date(e.event_date);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const prev = i > 0 ? new Date(list[i - 1].event_date) : null;
+    const showMonth = !prev || `${prev.getFullYear()}-${prev.getMonth()}` !== key;
+    const count = list.filter((x) => { const xd = new Date(x.event_date); return `${xd.getFullYear()}-${xd.getMonth()}` === key; }).length;
+    return (
+      <div key={e.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {showMonth && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: i === 0 ? 0 : 8 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: C.pinkDeep, whiteSpace: 'nowrap' }}>
+              {d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+            </span>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, background: C.pinkSoft, borderRadius: 20, padding: '1px 8px', whiteSpace: 'nowrap' }}>{count}</span>
+            <div style={{ flex: 1, height: 1, background: C.line }} />
+          </div>
+        )}
+        {card(e)}
+      </div>
+    );
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -65,47 +125,26 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         <Panel><Empty>No matching bookings.</Empty></Panel>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map((e, i) => {
-            const d = new Date(e.event_date);
-            const key = `${d.getFullYear()}-${d.getMonth()}`;
-            const prev = i > 0 ? new Date(filtered[i - 1].event_date) : null;
-            const showMonth = !prev || `${prev.getFullYear()}-${prev.getMonth()}` !== key;
-            const count = filtered.filter((x) => { const xd = new Date(x.event_date); return `${xd.getFullYear()}-${xd.getMonth()}` === key; }).length;
-            return (
-              <div key={e.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {showMonth && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: i === 0 ? 0 : 8 }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: C.pinkDeep, whiteSpace: 'nowrap' }}>
-                      {d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
-                    </span>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, background: C.pinkSoft, borderRadius: 20, padding: '1px 8px', whiteSpace: 'nowrap' }}>{count}</span>
-                    <div style={{ flex: 1, height: 1, background: C.line }} />
-                  </div>
-                )}
-                <div
-                  onClick={() => onOpenEvent(e.id)}
-                  style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer' }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</span>
-                    {e.totalDisplay != null && (
-                      <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
-                    )}
-                  </div>
-                  {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
-                    <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
-                    {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {e.start_time}–{e.base_end_time} · {e.emirate}
-                    {e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <Badge tone={e.phase === 'Cancelled' ? 'error' : 'info'}>{e.phase}</Badge>
-                    <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {upcoming.length > 0 ? grouped(upcoming) : (
+            <Panel><Empty>No upcoming events.</Empty></Panel>
+          )}
+
+          {past.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
+              <button
+                onClick={() => setShowPast((s) => !s)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
+              >
+                <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: C.muted, whiteSpace: 'nowrap' }}>
+                  Past events
+                </span>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, background: C.lineSoft, borderRadius: 20, padding: '1px 8px', whiteSpace: 'nowrap' }}>{past.length}</span>
+                <div style={{ flex: 1, height: 1, background: C.line }} />
+                <span style={{ fontSize: 12, color: C.muted, transform: showPast ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▼</span>
+              </button>
+              {showPast && grouped(past)}
+            </div>
+          )}
         </div>
       )}
     </div>
