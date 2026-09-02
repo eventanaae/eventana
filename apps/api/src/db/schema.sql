@@ -607,6 +607,9 @@ ALTER TABLE team_members ADD COLUMN IF NOT EXISTS employment_note TEXT;
 -- (matches JS getUTCDay). NULL = none set. The auto-staffing engine keeps them
 -- free on this weekday and it shows on their profile.
 ALTER TABLE team_members ADD COLUMN IF NOT EXISTS weekly_day_off SMALLINT;
+-- Salary increment note shown on the member's profile (free text — e.g. the new
+-- salary / effective date). NULL = none recorded.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS salary_increment_note TEXT;
 ALTER TABLE staff_days_off ADD COLUMN IF NOT EXISTS leave_request_id BIGINT;  -- set when the day-off came from an approved leave
 
 CREATE TABLE IF NOT EXISTS leave_requests (

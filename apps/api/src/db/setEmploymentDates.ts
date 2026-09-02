@@ -9,7 +9,7 @@
  */
 import { pool } from './pool.js';
 
-interface Entry { name: string; start?: string; end?: string; openingUsed?: number; note?: string; dayOff?: number | null; dob?: string; }
+interface Entry { name: string; start?: string; end?: string; openingUsed?: number; note?: string; dayOff?: number | null; dob?: string; salaryIncrement?: string; }
 
 export async function setEmploymentDatesFromEnv(): Promise<void> {
   const raw = process.env.STAFF_EMPLOYMENT;
@@ -31,6 +31,7 @@ export async function setEmploymentDatesFromEnv(): Promise<void> {
     const dayOffProvided = e.dayOff !== undefined;
     const dayOff = typeof e.dayOff === 'number' ? e.dayOff : null;
     const dob = typeof e.dob === 'string' ? e.dob : null;
+    const salaryIncrement = typeof e.salaryIncrement === 'string' ? e.salaryIncrement : null;
     const res = await pool.query(
       `UPDATE team_members SET
          employment_start_date   = COALESCE($2::date, employment_start_date),
@@ -38,10 +39,11 @@ export async function setEmploymentDatesFromEnv(): Promise<void> {
          leave_opening_used_days = COALESCE($4::numeric, leave_opening_used_days),
          employment_note         = COALESCE($5, employment_note),
          weekly_day_off          = CASE WHEN $6 THEN $7::smallint ELSE weekly_day_off END,
-         birthday                = COALESCE($8::date, birthday)
+         birthday                = COALESCE($8::date, birthday),
+         salary_increment_note   = COALESCE($9, salary_increment_note)
        WHERE lower(name) = lower($1) AND active`,
-      [e.name, e.start ?? null, e.end ?? null, openingUsed, note, dayOffProvided, dayOff, dob],
+      [e.name, e.start ?? null, e.end ?? null, openingUsed, note, dayOffProvided, dayOff, dob, salaryIncrement],
     );
-    console.log(`[employment] ${e.name}: start=${e.start ?? '—'} end=${e.end ?? '—'} openingUsed=${openingUsed ?? '—'} note=${note ? 'set' : '—'} dayOff=${dayOffProvided ? dayOff : '—'} dob=${dob ?? '—'} (${res.rowCount ?? 0} row)`);
+    console.log(`[employment] ${e.name}: start=${e.start ?? '—'} end=${e.end ?? '—'} openingUsed=${openingUsed ?? '—'} note=${note ? 'set' : '—'} dayOff=${dayOffProvided ? dayOff : '—'} dob=${dob ?? '—'} increment=${salaryIncrement ? 'set' : '—'} (${res.rowCount ?? 0} row)`);
   }
 }

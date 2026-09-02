@@ -80,15 +80,34 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         )}
       </div>
 
-      {/* Missing-info nudge */}
-      {d.missing?.length > 0 && (
-        <div style={{ background: C.yellowSoft, border: `1px solid #f0e0b8`, borderRadius: 14, padding: '12px 15px', fontSize: 12.5, fontWeight: 700, color: C.yellowInk, lineHeight: 1.5 }}>
-          ⚠️ Please complete your profile — still needed: {d.missing.join(', ')}.
+      {/* Collapsible sections (dropdowns) in the owner's order:
+          Personal details → Annual leave → Day off → Performance → Moments →
+          Consequence → Salary increment. */}
+      <Section title="🪪 Personal details" defaultOpen>
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+          Kept private for HR & payroll. These are set by the office from your official documents — please contact us if anything needs updating.
         </div>
-      )}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {detailRow('Full name (as on passport)', d.passportName)}
+          {detailRow('Date of birth', d.birthday)}
+          {detailRow('Joining date', d.joiningDate)}
+          {detailRow('Passport number', d.passportNumber)}
+          {detailRow('Emirates ID number', d.emiratesId)}
+        </div>
+      </Section>
 
-      {/* Performance feedback from the manager */}
-      <Panel title="⭐ Performance feedback">
+      <LeaveSection />
+
+      <Section title="🗓️ Weekly day off">
+        {d.dayOff ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ ...fredoka(22), color: C.pinkDeep }}>{d.dayOff}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>Your rest day each week — you won’t be assigned to events on this day.</span>
+          </div>
+        ) : <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No weekly day off set.</div>}
+      </Section>
+
+      <Section title="⭐ Performance feedback">
         {d.performance ? (
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, lineHeight: 1.6 }}>“{d.performance.text}”</div>
@@ -97,10 +116,9 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         ) : (
           <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No feedback yet — keep up the great work! 🌟</div>
         )}
-      </Panel>
+      </Section>
 
-      {/* 5★ moments — each worth 20 points */}
-      <Panel title={`🏆 5★ moments (${d.achievements.rows.length})`}>
+      <Section title={`🏆 5★ moments (${d.achievements.rows.length})`}>
         {d.achievements.rows.length === 0 ? (
           <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>Great customer feedback will appear here — each 5★ is worth 20 points.</div>
         ) : d.achievements.rows.map((r: any) => (
@@ -113,41 +131,36 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
             <span style={{ ...fredoka(14), color: C.pinkDeep }}>+{r.kind === 'good_feedback' || r.kind === 'glam_doll' ? 20 : 0} pts</span>
           </div>
         ))}
-      </Panel>
+      </Section>
 
-      {/* Weekly day off — its own section */}
-      {d.dayOff && (
-        <Panel title="🗓️ Weekly day off">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ ...fredoka(22), color: C.pinkDeep }}>{d.dayOff}</span>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>Your rest day each week — you won’t be assigned to events on this day.</span>
-          </div>
-        </Panel>
-      )}
-
-      {/* Annual leave — balance, request, history */}
-      <LeaveSection />
-
-      {/* Disciplinary warnings on the member's record */}
       <WarningsSection />
 
-      {/* Personal details — official HR data set by the office; read-only here. */}
-      <Panel title="🪪 Personal details">
-        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
-          Kept private for HR & payroll. These are set by the office from your official documents — please contact us if anything needs updating.
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {detailRow('Full name (as on passport)', d.passportName)}
-          {detailRow('Date of birth', d.birthday)}
-          {detailRow('Joining date', d.joiningDate)}
-          {detailRow('Passport number', d.passportNumber)}
-          {detailRow('Emirates ID number', d.emiratesId)}
-        </div>
-      </Panel>
+      <Section title="💵 Salary increment">
+        {d.salaryIncrement
+          ? <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, lineHeight: 1.6 }}>{d.salaryIncrement}</div>
+          : <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No salary increment recorded yet.</div>}
+      </Section>
 
       <div>
         <Button tone="ghost" onClick={() => { clearStaffToken(); onSignedOut?.(); window.location.reload(); }}>Sign out</Button>
       </div>
+    </div>
+  );
+}
+
+/** A collapsible profile section (dropdown), styled like a Panel. */
+function Section({ title, children, defaultOpen = false }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '15px 18px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+      >
+        <span style={{ ...fredoka(15), color: C.ink }}>{title}</span>
+        <span style={{ color: C.muted, fontSize: 12, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s', flex: 'none' }}>▼</span>
+      </button>
+      {open && <div style={{ padding: '0 18px 18px' }}>{children}</div>}
     </div>
   );
 }
@@ -169,30 +182,34 @@ const WARN_LETTER_LABEL: Record<string, string> = {
 function WarningsSection() {
   const [rows, setRows] = useState<any[] | null>(null);
   useEffect(() => { api.myWarnings().then(setRows).catch(() => setRows([])); }, []);
-  if (!rows || rows.length === 0) return null;
   const line = (label: string, value: React.ReactNode) => (
     <div style={{ display: 'flex', gap: 8, fontSize: 12.5, lineHeight: 1.5 }}>
       <span style={{ fontWeight: 800, color: C.muted, minWidth: 108 }}>{label}</span>
       <span style={{ fontWeight: 700, color: C.ink }}>{value}</span>
     </div>
   );
+  const list = rows ?? [];
   return (
-    <Panel title="⚖️ Consequence Management">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {rows.map((w, i) => {
-          const pct = Number(w.salaryDeductionPct) || 0;
-          return (
-            <div key={i} style={{ border: `1px solid #f3c9d3`, background: '#FBE7EC', borderRadius: 12, padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-              <div style={{ ...fredoka(16), color: C.red, marginBottom: 2 }}>{WARN_LETTER_LABEL[w.wtype] ?? 'Warning Letter'}</div>
-              {w.reason && line('Reasons:', w.reason)}
-              {w.issuedDate && line('Date:', w.issuedDate)}
-              {w.validUntil && line('Valid till:', w.validUntil)}
-              {line('Salary Deduction:', pct > 0 ? `Yes — ${pct}%` : 'No')}
-            </div>
-          );
-        })}
-      </div>
-    </Panel>
+    <Section title="⚖️ Consequence Management">
+      {list.length === 0 ? (
+        <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No warnings on record. 🌿</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {list.map((w, i) => {
+            const pct = Number(w.salaryDeductionPct) || 0;
+            return (
+              <div key={i} style={{ border: `1px solid #f3c9d3`, background: '#FBE7EC', borderRadius: 12, padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <div style={{ ...fredoka(16), color: C.red, marginBottom: 2 }}>{WARN_LETTER_LABEL[w.wtype] ?? 'Warning Letter'}</div>
+                {w.reason && line('Reasons:', w.reason)}
+                {w.issuedDate && line('Date:', w.issuedDate)}
+                {w.validUntil && line('Valid till:', w.validUntil)}
+                {line('Salary Deduction:', pct > 0 ? `Yes — ${pct}%` : 'No')}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
   );
 }
 
@@ -231,7 +248,7 @@ function LeaveSection() {
   );
 
   return (
-    <Panel title="🌴 Annual leave">
+    <Section title="🌴 Annual leave">
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
         {stat('ENTITLEMENT', `${bal.entitlement}/yr`)}
         {stat('ACCRUED', `${bal.accrued}`)}
@@ -251,10 +268,10 @@ function LeaveSection() {
         <div style={{ borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>Request leave</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Field label="From"><input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} style={{ ...input, minWidth: 140 }} /></Field>
-            <Field label="To"><input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setForm({ ...form, endDate: e.target.value })} style={{ ...input, minWidth: 140 }} /></Field>
+            <Field label="From"><input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} style={{ ...input, minWidth: 140, height: 46 }} /></Field>
+            <Field label="To"><input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setForm({ ...form, endDate: e.target.value })} style={{ ...input, minWidth: 140, height: 46 }} /></Field>
           </div>
-          <Field label="Reason (optional)"><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. family visit" style={input} /></Field>
+          <Field label="Reason (optional)"><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. family visit" style={{ ...input, height: 46 }} /></Field>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Button onClick={submit} disabled={busy || days <= 0}>{busy ? 'Submitting…' : days > 0 ? `Request ${days} day(s)` : 'Request leave'}</Button>
             {msg && <span style={{ fontSize: 12, fontWeight: 700, color: msg.includes('✓') ? C.green : C.red }}>{msg}</span>}
@@ -285,7 +302,7 @@ function LeaveSection() {
           })}
         </div>
       )}
-    </Panel>
+    </Section>
   );
 }
 

@@ -3354,7 +3354,7 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT id, name, role, job_title,
                           to_char(birthday,'YYYY-MM-DD') AS birthday,
                           to_char(employment_start_date,'YYYY-MM-DD') AS employment_start_date,
-                          weekly_day_off,
+                          weekly_day_off, salary_increment_note,
                           passport_name, passport_number, emirates_id,
                           performance_feedback, performance_by, to_char(performance_at,'YYYY-MM-DD') AS performance_at, email
                      FROM team_members WHERE id = $1`, [staff.id]),
@@ -3386,6 +3386,7 @@ export async function adminRoutes(app: FastifyInstance) {
       birthday: p.birthday ?? null,
       joiningDate: p.employment_start_date ?? null,
       dayOff: (dayOffNum !== null && dayOffNum !== undefined) ? WEEKDAYS[Number(dayOffNum)] : null,
+      salaryIncrement: p.salary_increment_note ?? null,
       passportName: p.passport_name, passportNumber: p.passport_number, emiratesId: p.emirates_id,
       eventsDone: done.rows[0].c,
       performance: p.performance_feedback ? { text: p.performance_feedback, by: p.performance_by, at: p.performance_at } : null,
