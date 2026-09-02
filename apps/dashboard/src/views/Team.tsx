@@ -102,6 +102,19 @@ export function Team({ role = 'owner' }: { role?: string }) {
                       />
                     </Row>
                   )}
+                  {canManage && (
+                    <Row label="Prior leave used">
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        title="Annual-leave days already taken BEFORE this system (one-off backfill for long-serving staff). Counted as used."
+                        defaultValue={m.leave_opening_used_days != null ? Number(m.leave_opening_used_days) : 0}
+                        onBlur={async (e) => { await api.setTeamProfile(m.id, { leaveOpeningUsed: Number(e.target.value) || 0 }); load(); }}
+                        style={dateInput}
+                      />
+                    </Row>
+                  )}
                   {isOwner && <Row label="Access"><AccessSelect member={m} onChange={load} /></Row>}
                   {isOwner && <Row label="Invite"><InviteCell member={m} /></Row>}
                   {isOwner && <Row label="Login token"><TokenCell member={m} onChange={load} /></Row>}

@@ -596,6 +596,10 @@ CREATE INDEX IF NOT EXISTS days_off_range_idx ON staff_days_off (start_date, end
 -- is what makes the person Unavailable on the calendar and in auto-staffing.
 ALTER TABLE team_members ADD COLUMN IF NOT EXISTS employment_start_date DATE;
 ALTER TABLE team_members ADD COLUMN IF NOT EXISTS employment_end_date DATE;   -- contract end; caps accrual
+-- Leave already taken BEFORE this system existed (e.g. a long-serving member
+-- who used their annual leave every year off-system). Counted as "used" so the
+-- live balance isn't an inflated cumulative pile. One-off backfill, owner-set.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS leave_opening_used_days NUMERIC NOT NULL DEFAULT 0;
 ALTER TABLE staff_days_off ADD COLUMN IF NOT EXISTS leave_request_id BIGINT;  -- set when the day-off came from an approved leave
 
 CREATE TABLE IF NOT EXISTS leave_requests (

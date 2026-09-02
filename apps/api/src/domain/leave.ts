@@ -82,7 +82,9 @@ export interface LeaveBalance {
 export async function leaveBalance(memberId: string): Promise<LeaveBalance> {
   const cfg = await loadLeaveConfig();
   const { rows } = await pool.query(
-    `SELECT name, employment_start_date, employment_end_date FROM team_members WHERE id = $1`,
+    `SELECT name, employment_start_date, employment_end_date,
+            COALESCE(leave_opening_used_days, 0)::numeric AS opening_used
+       FROM team_members WHERE id = $1`,
     [memberId],
   );
   const m = rows[0];
@@ -90,6 +92,9 @@ export async function leaveBalance(memberId: string): Promise<LeaveBalance> {
   const startDate = m?.employment_start_date ? String(m.employment_start_date).slice(0, 10) : null;
   const endDate = m?.employment_end_date ? String(m.employment_end_date).slice(0, 10) : null;
   const accrued = onScheme && startDate ? accruedDays(startDate, new Date(), endDate, cfg) : 0;
+  // Leave used before the system existed (owner backfill). Folded into "used"
+  // so the live balance reflects reality for long-serving staff.
+  const openingUsed = Number(m?.opening_used ?? 0);
 
   const agg = await pool.query(
     `SELECT COALESCE(SUM(days) FILTER (WHERE status = 'approved'), 0)::numeric AS used,
@@ -97,7 +102,7 @@ export async function leaveBalance(memberId: string): Promise<LeaveBalance> {
        FROM leave_requests WHERE member_id = $1`,
     [memberId],
   );
-  const used = Number(agg.rows[0].used);
+  const used = Number(agg.rows[0].used) + openingUsed;
   const pending = Number(agg.rows[0].pending);
   const remaining = Math.round((accrued - used - pending) * 10) / 10;
   return { onScheme, startDate, endDate, entitlement: cfg.annualEntitlementDays, accrualPerMonth: cfg.accrualPerMonth, accrued, used, pending, remaining };
