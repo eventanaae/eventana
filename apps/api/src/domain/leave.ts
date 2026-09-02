@@ -82,7 +82,12 @@ export interface LeaveBalance {
 export async function leaveBalance(memberId: string): Promise<LeaveBalance> {
   const cfg = await loadLeaveConfig();
   const { rows } = await pool.query(
-    `SELECT name, employment_start_date, employment_end_date,
+    // to_char keeps these as 'YYYY-MM-DD' strings; a raw DATE comes back as a JS
+    // Date whose String() is "Sat Apr 12 2025 …", and slicing that gives garbage
+    // ("Sat Apr 12") that parses to NaN — which is what made accrued/remaining null.
+    `SELECT name,
+            to_char(employment_start_date, 'YYYY-MM-DD') AS employment_start_date,
+            to_char(employment_end_date,   'YYYY-MM-DD') AS employment_end_date,
             COALESCE(leave_opening_used_days, 0)::numeric AS opening_used
        FROM team_members WHERE id = $1`,
     [memberId],

@@ -3325,7 +3325,10 @@ export async function adminRoutes(app: FastifyInstance) {
     const staff = (request as any).staff as { id?: string; name?: string; role?: string };
     if (!staff.id) return reply.status(404).send({ error: 'no_profile', message: 'No personal profile for this account.' });
     const [m, done, rewards] = await Promise.all([
-      pool.query(`SELECT id, name, role, job_title, birthday, passport_name, passport_number, emirates_id,
+      pool.query(`SELECT id, name, role, job_title,
+                          to_char(birthday,'YYYY-MM-DD') AS birthday,
+                          to_char(employment_start_date,'YYYY-MM-DD') AS employment_start_date,
+                          passport_name, passport_number, emirates_id,
                           performance_feedback, performance_by, to_char(performance_at,'YYYY-MM-DD') AS performance_at, email
                      FROM team_members WHERE id = $1`, [staff.id]),
       // Events they've run THIS calendar month (1st → end of month), completed
@@ -3351,7 +3354,8 @@ export async function adminRoutes(app: FastifyInstance) {
     ].filter(Boolean);
     return {
       id: p.id, name: p.name, jobTitle: p.job_title || p.role, email: p.email,
-      birthday: p.birthday ? String(p.birthday).slice(0, 10) : null,
+      birthday: p.birthday ?? null,
+      joiningDate: p.employment_start_date ?? null,
       passportName: p.passport_name, passportNumber: p.passport_number, emiratesId: p.emirates_id,
       eventsDone: done.rows[0].c,
       performance: p.performance_feedback ? { text: p.performance_feedback, by: p.performance_by, at: p.performance_at } : null,

@@ -80,7 +80,7 @@ export function Kpis({ role }: { role?: string }) {
                     <div style={{ height: 12, borderRadius: 8, background: C.lineSoft, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${o.targetPct}%`, background: o.targetPct >= 100 ? C.green : C.pink, borderRadius: 8, transition: 'width .4s' }} />
                     </div>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 4 }}>Target {target} points — money starts above it</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 4 }}>Reach {target} points first — that's the company's goal. Every 100 points above it = AED 10.</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12, marginTop: 16 }}>
                       {o.isMarsha ? (
                         <Tile label={`Commission · ${o.corporateInvoices} invoice(s)`} value={`AED ${o.commissionDisplay}`} accent={C.green} />

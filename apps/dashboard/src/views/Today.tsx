@@ -541,8 +541,9 @@ function PointsHelp() {
       <div style={line}><span style={emo}>🎟️</span><span>{b('Points on the value')} of any event you bring in with your code — a {b('AED 4,000')} event = {b('2,000 points')}.</span></div>
 
       <div style={{ ...head, marginTop: 10 }}>🎯 Your target &amp; reward</div>
-      <div style={line}><span style={emo}>🎯</span><span>Monthly target is {b('600 points')}.</span></div>
-      <div style={line}><span style={emo}>💰</span><span>Above 600, every {b('100 points')} = {b('AED 10')} — see the amount in your {b('Profile')}.</span></div>
+      <div style={line}><span style={emo}>🎯</span><span>Your monthly target is {b('600 points')} — reach this first.</span></div>
+      <div style={line}><span style={emo}>💰</span><span>{b('After')} you hit 600, every {b('100 points')} = {b('AED 10')} — see the amount in your {b('Profile')}.</span></div>
+      <div style={line}><span style={emo}>🚀</span><span>{b('Why it matters:')} the target is set from how the company needs to perform — when you reach it, Eventana is hitting its goals too.</span></div>
       <div style={line}><span style={emo}>🙌</span><span>{b('Tips are 100% yours')} — always on top.</span></div>
       <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
         A warning clears that month’s points. Sales &amp; office roles earn a commission instead (2% on corporate deals AED 20,000+). Part-timers aren’t included.

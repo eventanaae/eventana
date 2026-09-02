@@ -15,15 +15,9 @@ const input: React.CSSProperties = {
 export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
   const [d, setD] = useState<any>(null);
   const [kpi, setKpi] = useState<any>(null);
-  const [form, setForm] = useState<any>({});
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   const load = () => {
-    void api.myProfile().then((p) => {
-      setD(p);
-      setForm({ birthday: p.birthday || '', passportName: p.passportName || '', passportNumber: p.passportNumber || '', emiratesId: p.emiratesId || '' });
-    }).catch(() => setD({ error: true }));
+    void api.myProfile().then(setD).catch(() => setD({ error: true }));
     const now = new Date();
     const m = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     void api.kpis(m).then(setKpi).catch(() => setKpi(null));
@@ -33,13 +27,15 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
   if (!d) return <Spinner />;
   if (d.error) return <Panel title="Profile"><div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No personal profile for this account.</div></Panel>;
 
-  const save = async () => {
-    setBusy(true); setMsg(null);
-    try { await api.updateMyProfile({ birthday: form.birthday || null, passportName: form.passportName, passportNumber: form.passportNumber, emiratesId: form.emiratesId }); setMsg('Saved ✓'); load(); setTimeout(() => setMsg(null), 1500); }
-    catch (e: any) { setMsg(e?.message ?? 'Could not save'); } finally { setBusy(false); }
-  };
-
   const initial = String(d.name || '?').trim().charAt(0).toUpperCase();
+
+  // One read-only line of official HR detail (label + value, or a muted dash).
+  const detailRow = (label: string, value?: string | null) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+      <span style={{ fontSize: 12.5, fontWeight: 700, color: C.muted }}>{label}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 700, color: value ? C.ink : C.muted, textAlign: 'right' }}>{value || '—'}</span>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
@@ -77,8 +73,8 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
             </div>
             <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 5, lineHeight: 1.5 }}>
               {(kpi.overall.points ?? 0) >= (kpi.overall.targetPoints ?? 600)
-                ? 'Target reached — every 100 points above 600 = AED 10. 🎉'
-                : `${(kpi.overall.targetPoints ?? 600) - (kpi.overall.points ?? 0)} points to your ${kpi.overall.targetPoints ?? 600} target. Money starts above it.`}
+                ? `🎉 Target reached! Every 100 points above ${kpi.overall.targetPoints ?? 600} now earns you AED 10.`
+                : `Your monthly target is ${kpi.overall.targetPoints ?? 600} points — ${(kpi.overall.targetPoints ?? 600) - (kpi.overall.points ?? 0)} to go. Hitting it keeps Eventana growing; past it, every 100 points = AED 10 for you.`}
             </div>
           </div>
         )}
@@ -122,20 +118,17 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
       {/* Annual leave — balance, request, history */}
       <LeaveSection />
 
-      {/* Personal details — editable by the staff member */}
+      {/* Personal details — official HR data set by the office; read-only here. */}
       <Panel title="🪪 Personal details">
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
-          Kept private for HR & payroll. Please keep these accurate and up to date.
+          Kept private for HR & payroll. These are set by the office from your official documents — please contact us if anything needs updating.
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Field label="Full name (as on passport)"><input value={form.passportName} onChange={(e) => setForm({ ...form, passportName: e.target.value })} style={input} /></Field>
-          <Field label="Date of birth"><input type="date" value={form.birthday} onChange={(e) => setForm({ ...form, birthday: e.target.value })} style={input} /></Field>
-          <Field label="Passport number"><input value={form.passportNumber} onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} style={input} /></Field>
-          <Field label="Emirates ID number"><input value={form.emiratesId} onChange={(e) => setForm({ ...form, emiratesId: e.target.value })} style={input} /></Field>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save my details'}</Button>
-            {msg && <span style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes('✓') ? C.green : C.red }}>{msg}</span>}
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {detailRow('Full name (as on passport)', d.passportName)}
+          {detailRow('Date of birth', d.birthday)}
+          {detailRow('Joining date', d.joiningDate)}
+          {detailRow('Passport number', d.passportNumber)}
+          {detailRow('Emirates ID number', d.emiratesId)}
         </div>
       </Panel>
 
