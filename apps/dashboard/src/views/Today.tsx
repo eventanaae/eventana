@@ -186,12 +186,13 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
 
       {/* Upcoming — events + shop orders interleaved, sorted by date. */}
       {(() => {
+        const totalUpcoming = events.filter((e) => !isToday(e)).length;
         const evItems = upcoming.map((e) => ({ shop: false, id: e.id, sortDate: String(e.event_date).slice(0, 10), e }));
         const shopItems = (data.shopOrders ?? []).map((o: any) => ({ shop: true, id: o.id, sortDate: String(o.readyBy ?? ''), o }));
         const combined = [...evItems, ...shopItems].sort((a, b) => a.sortDate.localeCompare(b.sortDate)).slice(0, 5);
         if (combined.length === 0) return null;
         return (
-          <Panel className="rise-in" style={{ ['--i' as any]: 5 } as any} title="Upcoming"
+          <Panel className="rise-in" style={{ ['--i' as any]: 5 } as any} title={`Upcoming · ${totalUpcoming} event${totalUpcoming === 1 ? '' : 's'}`}
             action={<span onClick={() => onGoto('schedule')} className="tap" style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, cursor: 'pointer' }}>See all ›</span>}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {combined.map((it, idx) => it.shop
