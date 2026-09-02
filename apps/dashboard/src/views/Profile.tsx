@@ -7,6 +7,13 @@ const input: React.CSSProperties = {
   padding: '11px 13px', fontSize: 14, fontWeight: 600, color: C.ink, outline: 'none',
 };
 
+/** ISO date (YYYY-MM-DD) → readable DD-MM-YYYY (day first, reads left→right). */
+const fmtDate = (s?: string | null): string => {
+  if (!s) return s ?? '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : String(s);
+};
+
 /**
  * A staff member's own profile: who they are, how many events they've run, the
  * rewards they've earned, their personal details (which they keep up to date),
@@ -89,8 +96,8 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {detailRow('Full name (as on passport)', d.passportName)}
-          {detailRow('Date of birth', d.birthday)}
-          {detailRow('Joining date', d.joiningDate)}
+          {detailRow('Date of birth', fmtDate(d.birthday))}
+          {detailRow('Joining date', fmtDate(d.joiningDate))}
           {detailRow('Passport number', d.passportNumber)}
           {detailRow('Emirates ID number', d.emiratesId)}
         </div>
@@ -201,8 +208,8 @@ function WarningsSection() {
               <div key={i} style={{ border: `1px solid #f3c9d3`, background: '#FBE7EC', borderRadius: 12, padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <div style={{ ...fredoka(16), color: C.red, marginBottom: 2 }}>{WARN_LETTER_LABEL[w.wtype] ?? 'Warning Letter'}</div>
                 {w.reason && line('Reasons:', w.reason)}
-                {w.issuedDate && line('Date:', w.issuedDate)}
-                {w.validUntil && line('Valid till:', w.validUntil)}
+                {w.issuedDate && line('Date:', fmtDate(w.issuedDate))}
+                {w.validUntil && line('Valid till:', fmtDate(w.validUntil))}
                 {line('Salary Deduction:', pct > 0 ? `Yes — ${pct}%` : 'No')}
               </div>
             );
@@ -256,7 +263,7 @@ function LeaveSection() {
         {stat('REMAINING', `${bal.remaining}`, bal.remaining > 0 ? C.green : C.red)}
       </div>
       <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
-        {bal.entitlement} days a year{bal.startDate ? `, from ${bal.startDate}` : ''}. Your leave history is below.
+        {bal.entitlement} days a year{bal.startDate ? `, from ${fmtDate(bal.startDate)}` : ''}. Your leave history is below.
       </div>
 
       {!bal.startDate ? (
@@ -293,7 +300,7 @@ function LeaveSection() {
             return (
               <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, direction: 'ltr', unicodeBidi: 'isolate' }}>{r.start_date} → {r.end_date} · {r.days} day(s)</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, direction: 'ltr', unicodeBidi: 'isolate' }}>{fmtDate(r.start_date)} → {fmtDate(r.end_date)} · {r.days} day(s)</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
                     {r.reason || 'Annual leave'}
                     {r.decided_by && r.decided_by !== 'historical-import' ? ` · ${r.status} by ${r.decided_by}` : ''}
