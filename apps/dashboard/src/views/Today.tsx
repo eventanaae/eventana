@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { View } from '../App';
 import { api } from '../api';
-import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner, StatCard, useCountUp } from '../ui';
+import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner } from '../ui';
 
 /**
  * The operational home — a warm, lively landing that answers, at a glance:
@@ -19,12 +19,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
     return () => clearInterval(timer);
   }, []);
 
-  // Count-up targets — computed defensively so the hooks run every render
-  // (before the early return), keeping the hook order stable.
   const todayStr = new Date().toISOString().slice(0, 10);
-  const evToday = useCountUp(Number(data?.kpis?.eventsToday) || 0);
-  const upCount = useCountUp((data?.events ?? []).filter((e: any) => String(e.event_date).slice(0, 10) !== todayStr).length);
-  const tasks = useCountUp(Number(data?.kpis?.openTasks) || 0);
 
   if (!data) return <Spinner />;
 
@@ -132,21 +127,12 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         </div>
       )}
 
-      {/* Owner/manager get the vibrant KPI tiles. Staff (employee/driver) instead
-          get their own "latest updates" inline — their prep at risk, low stock and
-          the ratings on their events — so Home is their one useful screen. */}
-      {(role === 'employee' || role === 'driver') ? (
+      {/* Staff (employee/driver) get their own "latest updates" inline — prep at
+          risk, low stock and the ratings on their events. Owner/manager Home stays
+          clean (the KPI tiles were removed on request). */}
+      {(role === 'employee' || role === 'driver') && (
         <StaffUpdates onOpenEvent={onOpenEvent} />
-      ) : role === 'owner' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-          <StatCard i={0} label="Events today" value={Math.round(evToday)} icon="🎈" accent={ACCENTS[0]} onClick={() => onGoto('schedule')} />
-          {k.revenueThisMonthDisplay
-            ? <StatCard i={1} label="Revenue this month" value={<span>AED {k.revenueThisMonthDisplay}</span>} icon="💸" accent={ACCENTS[1]} onClick={() => onGoto('ceo')} />
-            : <StatCard i={1} label="Bookings this month" value={Number(k.bookingsThisMonth) || 0} icon="🎉" accent={ACCENTS[1]} onClick={() => onGoto('schedule')} />}
-          <StatCard i={2} label="Upcoming" value={Math.round(upCount)} icon="✨" accent={ACCENTS[4]} hint={next ? when(next).replace('Today · ', 'next today ') : undefined} onClick={() => onGoto('schedule')} />
-          <StatCard i={3} label="Open tasks" value={Math.round(tasks)} icon="📋" accent={ACCENTS[3]} onClick={() => onGoto('tasks')} />
-        </div>
-      ) : null}
+      )}
 
       {/* Next event — shown only when nothing is on today (today is up top).
           Every event that day gets its own pink card (a day can have two). */}
