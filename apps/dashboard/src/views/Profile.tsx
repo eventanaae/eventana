@@ -114,16 +114,7 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         ) : <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No weekly day off set.</div>}
       </Section>
 
-      <Section title="⭐ Performance feedback">
-        {d.performance ? (
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, lineHeight: 1.6 }}>“{d.performance.text}”</div>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, marginTop: 8 }}>— {d.performance.by}{d.performance.at ? ` · ${d.performance.at}` : ''}</div>
-          </div>
-        ) : (
-          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No feedback yet — keep up the great work! 🌟</div>
-        )}
-      </Section>
+      <FeedbackSection />
 
       <Section title={`🏆 5★ moments (${d.achievements.rows.length})`}>
         {d.achievements.rows.length === 0 ? (
@@ -211,6 +202,44 @@ function WarningsSection() {
                 {w.issuedDate && line('Date:', fmtDate(w.issuedDate))}
                 {w.validUntil && line('Valid till:', fmtDate(w.validUntil))}
                 {line('Salary Deduction:', pct > 0 ? `Yes — ${pct}%` : 'No')}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+const FEEDBACK_TYPE: Record<string, { label: string; bg: string; fg: string }> = {
+  praise: { label: '👏 Praise', bg: '#E1F3EC', fg: C.green },
+  improvement: { label: '🛠 Improvement', bg: C.yellowSoft, fg: C.yellowInk },
+  general: { label: '📝 General', bg: '#EEF0F4', fg: C.muted },
+};
+
+/** The member's own performance-feedback history (newest first): type, date,
+ *  full text, who wrote it, and the related event if any. */
+function FeedbackSection() {
+  const [rows, setRows] = useState<any[] | null>(null);
+  useEffect(() => { api.myFeedback().then(setRows).catch(() => setRows([])); }, []);
+  const list = rows ?? [];
+  return (
+    <Section title="⭐ Performance feedback">
+      {list.length === 0 ? (
+        <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No feedback yet — keep up the great work! 🌟</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {list.map((f) => {
+            const t = FEEDBACK_TYPE[f.type] ?? FEEDBACK_TYPE.general;
+            return (
+              <div key={f.id} style={{ border: `1px solid ${C.lineSoft}`, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: t.fg, background: t.bg, borderRadius: 20, padding: '2px 9px' }}>{t.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, direction: 'ltr', unicodeBidi: 'isolate' }}>{fmtDate(f.date)}</span>
+                  {f.eventId && <span style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, fontFamily: 'ui-monospace, monospace' }}>· {f.eventId}</span>}
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, lineHeight: 1.6 }}>{f.text}</div>
+                {f.by && <div style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>— {f.by}</div>}
               </div>
             );
           })}

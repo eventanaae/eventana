@@ -3424,7 +3424,12 @@ export async function adminRoutes(app: FastifyInstance) {
     const role = (request as any).staff?.role;
     if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
-    const p = z.object({ jobTitle: z.string().max(120).optional(), feedback: z.string().max(2000).optional() }).safeParse(request.body);
+    const p = z.object({
+      jobTitle: z.string().max(120).optional(),
+      feedback: z.string().max(2000).optional(),
+      feedbackType: z.enum(['praise', 'improvement', 'general']).optional(),
+      eventId: z.string().max(40).optional(),
+    }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const by = String((request as any).staff?.name ?? 'manager');
     const { rows } = await pool.query(
@@ -3437,6 +3442,14 @@ export async function adminRoutes(app: FastifyInstance) {
       [id, p.data.jobTitle ?? null, p.data.feedback ?? null, by],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    // Keep a full history: every submitted feedback becomes its own row.
+    const fb = (p.data.feedback ?? '').trim();
+    if (fb) {
+      await pool.query(
+        `INSERT INTO staff_feedback (member_id, ftype, body, event_id, created_by) VALUES ($1,$2,$3,$4,$5)`,
+        [id, p.data.feedbackType ?? 'general', fb, p.data.eventId?.trim() || null, by],
+      );
+    }
     logAudit({ actor: by, role, action: 'staff_performance', target: id });
     return { ok: true };
   });
@@ -3563,6 +3576,28 @@ export async function adminRoutes(app: FastifyInstance) {
               to_char(valid_until,'YYYY-MM-DD') AS "validUntil",
               salary_deduction_pct AS "salaryDeductionPct"
          FROM staff_warnings WHERE member_id = $1 ORDER BY COALESCE(issued_date, (ym||'-01')::date) DESC`, [staff.id]);
+    return rows;
+  });
+
+  const FEEDBACK_COLS = `id, ftype AS "type", body AS text, event_id AS "eventId", created_by AS "by",
+                         to_char(created_at,'YYYY-MM-DD') AS "date"`;
+
+  /** A staff member's OWN performance-feedback history (newest first). */
+  app.get('/api/admin/my-feedback', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string };
+    if (!staff.id) return reply.status(404).send({ error: 'no_profile' });
+    const { rows } = await pool.query(
+      `SELECT ${FEEDBACK_COLS} FROM staff_feedback WHERE member_id = $1 ORDER BY created_at DESC`, [staff.id]);
+    return rows;
+  });
+
+  /** Owner/manager: a member's feedback history. */
+  app.get('/api/admin/team/:id/feedback', async (request, reply) => {
+    const s = (request as any).staff;
+    if (s?.role !== 'owner' && s?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const { rows } = await pool.query(
+      `SELECT ${FEEDBACK_COLS} FROM staff_feedback WHERE member_id = $1 ORDER BY created_at DESC`, [id]);
     return rows;
   });
 

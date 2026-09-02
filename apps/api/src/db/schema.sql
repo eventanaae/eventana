@@ -629,6 +629,19 @@ CREATE TABLE IF NOT EXISTS leave_requests (
 CREATE INDEX IF NOT EXISTS leave_requests_member_idx ON leave_requests (member_id, submitted_at DESC);
 CREATE INDEX IF NOT EXISTS leave_requests_status_idx ON leave_requests (status);
 
+-- Performance feedback history — every note a manager/owner writes for a member
+-- is kept (not just the latest), and shown on the member's profile newest-first.
+CREATE TABLE IF NOT EXISTS staff_feedback (
+  id         BIGSERIAL PRIMARY KEY,
+  member_id  TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  ftype      TEXT,                     -- praise | improvement | general
+  body       TEXT NOT NULL,
+  event_id   TEXT,                     -- optional related event
+  created_by TEXT,                     -- who wrote it
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS staff_feedback_member_idx ON staff_feedback (member_id, created_at DESC);
+
 -- Disciplinary warnings (إنذار). A warning wipes that month's competition
 -- points (and therefore the points-based bonus) for the member. Tips and
 -- commissions are separate and are NOT affected. `ym` is the 'YYYY-MM' the

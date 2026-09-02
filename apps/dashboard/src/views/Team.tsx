@@ -455,25 +455,41 @@ const fLabel: CSSProperties = { fontSize: 10.5, fontWeight: 700, color: C.muted 
 
 // Manager/owner: set a member's job title + leave performance feedback (shown on
 // the member's own Profile).
+/** Job title (saved on blur) + add a performance-feedback entry (type, optional
+ *  event, text). Each submit is kept as history and shows on the person's profile. */
 function PerfEditor({ member, onChange }: { member: any; onChange: () => void }) {
   const [title, setTitle] = useState<string>(member.job_title ?? '');
-  const [fb, setFb] = useState<string>(member.performance_feedback ?? '');
+  const [fb, setFb] = useState('');
+  const [ftype, setFtype] = useState('general');
+  const [eventId, setEventId] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const save = async () => {
+  const inp: CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 8, padding: '7px 10px', fontSize: 12.5, fontWeight: 600, outline: 'none', background: '#fff' };
+  const saveTitle = async () => { try { await api.setPerformance(member.id, { jobTitle: title.trim() || undefined }); onChange(); } catch { /* ignore */ } };
+  const addFeedback = async () => {
+    if (!fb.trim()) return;
     setBusy(true); setMsg(null);
-    try { await api.setPerformance(member.id, { jobTitle: title.trim() || undefined, feedback: fb.trim() || undefined }); setMsg('Saved ✓'); onChange(); setTimeout(() => setMsg(null), 1500); }
-    catch (e: any) { setMsg(e?.message ?? 'Error'); } finally { setBusy(false); }
+    try {
+      await api.setPerformance(member.id, { feedback: fb.trim(), feedbackType: ftype, eventId: eventId.trim() || undefined });
+      setFb(''); setEventId(''); setFtype('general'); setMsg('Added ✓'); onChange(); setTimeout(() => setMsg(null), 1500);
+    } catch (e: any) { setMsg(e?.message ?? 'Error'); } finally { setBusy(false); }
   };
   return (
     <Row label="Performance">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
-        <input placeholder="Job title" value={title} onChange={(e) => setTitle(e.target.value)}
-          style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '7px 10px', fontSize: 12.5, fontWeight: 600, outline: 'none' }} />
-        <textarea placeholder="Performance feedback for this person…" value={fb} onChange={(e) => setFb(e.target.value)} rows={2}
-          style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '7px 10px', fontSize: 12.5, fontWeight: 600, outline: 'none', resize: 'vertical' }} />
+        <input placeholder="Job title" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle} style={inp} />
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <select value={ftype} onChange={(e) => setFtype(e.target.value)} style={inp}>
+            <option value="praise">👏 Praise</option>
+            <option value="improvement">🛠 Improvement</option>
+            <option value="general">📝 General</option>
+          </select>
+          <input placeholder="Event ID (optional)" value={eventId} onChange={(e) => setEventId(e.target.value)} style={{ ...inp, flex: 1, minWidth: 120 }} />
+        </div>
+        <textarea placeholder="Write feedback…" value={fb} onChange={(e) => setFb(e.target.value)} rows={2}
+          style={{ ...inp, resize: 'vertical' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Button onClick={save} disabled={busy} style={{ padding: '6px 12px', fontSize: 11.5 }}>{busy ? 'Saving…' : 'Save'}</Button>
+          <Button onClick={addFeedback} disabled={busy || !fb.trim()} style={{ padding: '6px 12px', fontSize: 11.5 }}>{busy ? 'Adding…' : 'Add feedback'}</Button>
           {msg && <span style={{ fontSize: 11.5, fontWeight: 700, color: msg.includes('✓') ? C.green : C.red }}>{msg}</span>}
         </div>
       </div>
