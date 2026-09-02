@@ -600,6 +600,9 @@ ALTER TABLE team_members ADD COLUMN IF NOT EXISTS employment_end_date DATE;   --
 -- who used their annual leave every year off-system). Counted as "used" so the
 -- live balance isn't an inflated cumulative pile. One-off backfill, owner-set.
 ALTER TABLE team_members ADD COLUMN IF NOT EXISTS leave_opening_used_days NUMERIC NOT NULL DEFAULT 0;
+-- Free-text HR note on the member's employment history (breaks, non-renewals,
+-- transfers). Documentation only; shown to owner/manager on the Team screen.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS employment_note TEXT;
 ALTER TABLE staff_days_off ADD COLUMN IF NOT EXISTS leave_request_id BIGINT;  -- set when the day-off came from an approved leave
 
 CREATE TABLE IF NOT EXISTS leave_requests (

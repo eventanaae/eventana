@@ -115,6 +115,17 @@ export function Team({ role = 'owner' }: { role?: string }) {
                       />
                     </Row>
                   )}
+                  {canManage && (
+                    <Row label="HR note">
+                      <textarea
+                        title="Employment-history note (breaks, non-renewals, transfers). Documentation only."
+                        defaultValue={m.employment_note ?? ''}
+                        placeholder="e.g. Feb 2026: unpaid break — chose not to renew"
+                        onBlur={async (e) => { await api.setTeamProfile(m.id, { employmentNote: e.target.value.trim() || null }); load(); }}
+                        style={{ ...dateInput, width: 240, height: 54, resize: 'vertical', fontFamily: 'inherit' }}
+                      />
+                    </Row>
+                  )}
                   {isOwner && <Row label="Access"><AccessSelect member={m} onChange={load} /></Row>}
                   {isOwner && <Row label="Invite"><InviteCell member={m} /></Row>}
                   {isOwner && <Row label="Login token"><TokenCell member={m} onChange={load} /></Row>}

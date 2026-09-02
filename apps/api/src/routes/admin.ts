@@ -3422,6 +3422,7 @@ export async function adminRoutes(app: FastifyInstance) {
       employmentStart: dateOrNull,   // drives annual-leave accrual
       employmentEnd: dateOrNull,     // contract end; caps accrual
       leaveOpeningUsed: z.number().min(0).max(1000).optional(), // leave taken before this system
+      employmentNote: z.string().max(2000).nullable().optional(), // HR history note
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -3431,6 +3432,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const empStartSet = d.employmentStart !== undefined;
     const empEndSet = d.employmentEnd !== undefined;
     const openingSet = d.leaveOpeningUsed !== undefined;
+    const noteSet = d.employmentNote !== undefined;
     const { rows } = await pool.query(
       `UPDATE team_members SET
          name = COALESCE($5, name),
@@ -3439,11 +3441,12 @@ export async function adminRoutes(app: FastifyInstance) {
          color = COALESCE($4, color),
          employment_start_date = CASE WHEN $6 THEN $7::date ELSE employment_start_date END,
          employment_end_date   = CASE WHEN $8 THEN $9::date ELSE employment_end_date END,
-         leave_opening_used_days = CASE WHEN $10 THEN $11::numeric ELSE leave_opening_used_days END
+         leave_opening_used_days = CASE WHEN $10 THEN $11::numeric ELSE leave_opening_used_days END,
+         employment_note = CASE WHEN $12 THEN $13::text ELSE employment_note END
        WHERE id = $1 RETURNING *`,
       [id, d.birthday ?? null, d.phone ?? null, d.color ?? null, d.name ?? null,
        empStartSet, d.employmentStart ?? null, empEndSet, d.employmentEnd ?? null,
-       openingSet, d.leaveOpeningUsed ?? null],
+       openingSet, d.leaveOpeningUsed ?? null, noteSet, d.employmentNote ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return rows[0];
