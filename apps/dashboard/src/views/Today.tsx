@@ -547,7 +547,7 @@ function PointsHelp() {
       <div style={line}><span style={emo}>🎈</span><span>{b('10 points')} for every event you complete.</span></div>
       <div style={line}><span style={emo}>⭐</span><span>{b('+20 points')} each time a customer rates your event 5★.</span></div>
       <div style={line}><span style={emo}>💅</span><span>{b('+20 points')} for every Glam Doll you perform.</span></div>
-      <div style={line}><span style={emo}>🎟️</span><span>{b('Points on the value')} of any event you bring in with your code — a {b('AED 4,000')} event = {b('2,000 points')}.</span></div>
+      <div style={line}><span style={emo}>🎟️</span><span>Bring in an event with your code and earn on its value — {b('every AED 2 = 1 point')} (so an AED 4,000 event ≈ 2,000 points).</span></div>
 
       <div style={{ ...head, marginTop: 10 }}>🎯 Your target &amp; reward</div>
       <div style={line}><span style={emo}>🎯</span><span>Your monthly target is {b('600 points')} — reach this first.</span></div>
