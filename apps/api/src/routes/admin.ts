@@ -38,8 +38,8 @@ import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
-import { listLeads, leadFunnel, importLeads } from '../domain/whatsappLeads.js';
-import { agentMode, whatsappEnabled } from '../integrations/whatsapp.js';
+import { listLeads, leadFunnel, importLeads, leadMessages, replyWindow, recordOutboundMessage } from '../domain/whatsappLeads.js';
+import { agentMode, whatsappEnabled, sendWhatsAppText } from '../integrations/whatsapp.js';
 
 /**
  * Moves an event to the terminal Cancelled phase and stands its
@@ -743,6 +743,50 @@ export async function adminRoutes(app: FastifyInstance) {
     const role = (request as any).staff?.role;
     if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     return leadFunnel();
+  });
+
+  /**
+   * One lead's conversation, plus whether a free-form reply is still allowed.
+   *
+   * A Cloud API number cannot be opened in the WhatsApp phone app, so without
+   * this the team can read an enquiry on the Leads screen and have no way to
+   * answer it. This is the other half of that screen.
+   */
+  app.get('/api/admin/whatsapp/leads/:phone/messages', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { phone } = request.params as { phone: string };
+    const [messages, window] = await Promise.all([leadMessages(phone), replyWindow(phone)]);
+    return { messages, window };
+  });
+
+  /** Send a reply as the team. Never blocked by the agent's off switch. */
+  app.post('/api/admin/whatsapp/leads/:phone/reply', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    if (!whatsappEnabled()) return reply.status(409).send({ error: 'whatsapp_disabled' });
+    const { phone } = request.params as { phone: string };
+    const parsed = z.object({ body: z.string().trim().min(1).max(4000) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+
+    const window = await replyWindow(phone);
+    if (!window.open) {
+      return reply.status(409).send({
+        error: 'window_closed',
+        message:
+          'More than 24 hours have passed since this customer last wrote. WhatsApp only allows an approved template after that.',
+      });
+    }
+
+    const res = await sendWhatsAppText({ to: phone, body: parsed.data.body, fromStaff: true });
+    if (!res.ok) return reply.status(502).send({ error: 'send_failed', message: res.error });
+    await recordOutboundMessage({
+      phone,
+      body: parsed.data.body,
+      messageId: res.messageId ?? null,
+      sentBy: 'staff',
+    });
+    return { ok: true, messages: await leadMessages(phone) };
   });
 
   /**
@@ -3369,26 +3413,119 @@ export async function adminRoutes(app: FastifyInstance) {
     const role = (request as any).staff?.role;
     if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
+    const dateOrNull = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional();
     const schema = z.object({
       name: z.string().min(1).max(120).optional(),
-      birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      birthday: dateOrNull,
       phone: z.string().max(40).nullable().optional(),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      employmentStart: dateOrNull,   // drives annual-leave accrual
+      employmentEnd: dateOrNull,     // contract end; caps accrual
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     const d = parsed.data;
+    // Distinguish "leave unchanged" (undefined) from "clear it" (null) for the
+    // employment dates, so setting a value or explicitly clearing both work.
+    const empStartSet = d.employmentStart !== undefined;
+    const empEndSet = d.employmentEnd !== undefined;
     const { rows } = await pool.query(
       `UPDATE team_members SET
          name = COALESCE($5, name),
          birthday = COALESCE($2, birthday),
          phone = COALESCE($3, phone),
-         color = COALESCE($4, color)
+         color = COALESCE($4, color),
+         employment_start_date = CASE WHEN $6 THEN $7::date ELSE employment_start_date END,
+         employment_end_date   = CASE WHEN $8 THEN $9::date ELSE employment_end_date END
        WHERE id = $1 RETURNING *`,
-      [id, d.birthday ?? null, d.phone ?? null, d.color ?? null, d.name ?? null],
+      [id, d.birthday ?? null, d.phone ?? null, d.color ?? null, d.name ?? null,
+       empStartSet, d.employmentStart ?? null, empEndSet, d.employmentEnd ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return rows[0];
+  });
+
+  /* ------------------- Annual leave --------------------------------------- */
+
+  const canManageLeave = (s: any) =>
+    s?.role === 'owner' || s?.role === 'manager' || String(s?.name ?? '').toLowerCase() === 'marsha';
+
+  /** A staff member's own leave: balance breakdown + full history. */
+  app.get('/api/admin/leave/me', async (request, reply) => {
+    const memberId = (request as any).staff?.id as string | undefined;
+    if (!memberId) return reply.status(404).send({ error: 'no_member' });
+    const leave = await import('../domain/leave.js');
+    const [balance, requests] = await Promise.all([leave.leaveBalance(memberId), leave.listMemberLeave(memberId)]);
+    return { balance, requests };
+  });
+
+  /** Submit a leave request (any staff member on the scheme). */
+  app.post('/api/admin/leave/request', async (request, reply) => {
+    const memberId = (request as any).staff?.id as string | undefined;
+    if (!memberId) return reply.status(404).send({ error: 'no_member' });
+    const p = z.object({
+      startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      reason: z.string().max(500).optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const leave = await import('../domain/leave.js');
+    const res = await leave.submitLeaveRequest(memberId, p.data.startDate, p.data.endDate, p.data.reason ?? null);
+    if (!res.ok) return reply.status(409).send({ error: 'rejected', message: res.reason });
+    void (async () => {
+      const staffName = String((request as any).staff?.name ?? 'A team member');
+      const owners = await pool.query(`SELECT id FROM team_members WHERE access_level IN ('owner','manager') AND active`).catch(() => ({ rows: [] as any[] }));
+      for (const o of owners.rows) void pushToOwner('staff', o.id, 'Leave request 🌴', `${staffName} requested ${res.days} day(s) off — review it in Leave.`);
+    })();
+    return { ok: true, id: res.id, days: res.days };
+  });
+
+  /** Cancel your own request (frees the reserved days). */
+  app.post('/api/admin/leave/:id/cancel', async (request, reply) => {
+    const memberId = (request as any).staff?.id as string | undefined;
+    if (!memberId) return reply.status(404).send({ error: 'no_member' });
+    const leave = await import('../domain/leave.js');
+    const res = await leave.cancelLeaveRequest(Number((request.params as any).id), memberId);
+    if (!res.ok) return reply.status(409).send({ error: 'rejected', message: res.reason });
+    return { ok: true };
+  });
+
+  /** Owner/manager (+ Marsha): every request, pending first. */
+  app.get('/api/admin/leave/requests', async (request, reply) => {
+    if (!canManageLeave((request as any).staff)) return reply.status(403).send({ error: 'forbidden' });
+    const leave = await import('../domain/leave.js');
+    return { requests: await leave.listAllLeave() };
+  });
+
+  /** Owner/manager (+ Marsha): approve or reject a request. */
+  app.post('/api/admin/leave/:id/decide', async (request, reply) => {
+    const s = (request as any).staff;
+    if (!canManageLeave(s)) return reply.status(403).send({ error: 'forbidden' });
+    const p = z.object({ decision: z.enum(['approved', 'rejected']), note: z.string().max(500).optional() }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const leave = await import('../domain/leave.js');
+    const res = await withTransaction((db) => leave.decideLeaveRequest(db, Number((request.params as any).id), p.data.decision, String(s?.name ?? 'Manager'), p.data.note ?? null));
+    if (!res.ok) return reply.status(409).send({ error: 'rejected', message: res.reason });
+    void pushToOwner('staff', res.memberId, p.data.decision === 'approved' ? 'Leave approved ✅' : 'Leave request update', `Your leave request was ${p.data.decision}.`);
+    logAudit({ actor: String(s?.name ?? 'manager'), role: s?.role, action: `leave_${p.data.decision}`, target: String((request.params as any).id) });
+    return { ok: true };
+  });
+
+  /** Owner: read / change the annual entitlement + accrual rate. */
+  app.get('/api/admin/leave/settings', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const leave = await import('../domain/leave.js');
+    return leave.loadLeaveConfig();
+  });
+  app.patch('/api/admin/leave/settings', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const p = z.object({
+      annualEntitlementDays: z.number().min(0).max(365).optional(),
+      accrualPerMonth: z.number().min(0).max(31).optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const leave = await import('../domain/leave.js');
+    return leave.saveLeaveConfig(p.data, String((request as any).staff?.name ?? 'owner'));
   });
 
   /** Roster overlay for a month: days off + birthdays, for the calendar. */

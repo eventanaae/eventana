@@ -28,6 +28,7 @@ import { Feedback } from './views/Feedback';
 import { Products } from './views/Products';
 import { Suppliers } from './views/Suppliers';
 import { Menu } from './views/Menu';
+import { Leave } from './views/Leave';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'

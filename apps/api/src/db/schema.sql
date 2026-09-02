@@ -585,6 +585,36 @@ CREATE TABLE IF NOT EXISTS staff_days_off (
 CREATE INDEX IF NOT EXISTS days_off_member_idx ON staff_days_off (member_id, start_date);
 CREATE INDEX IF NOT EXISTS days_off_range_idx ON staff_days_off (start_date, end_date);
 
+-- ── Annual Leave (entitlement, accrual, requests & approval) ──────────────────
+-- Each member accrues paid annual leave pro-rata from their employment start
+-- date (rate = annual entitlement ÷ 12, so ~2.5 days per completed month for a
+-- 30-day entitlement). The entitlement and rate live in settings
+-- (leave.annualEntitlementDays / leave.accrualPerMonth) so the owner can change
+-- them without a deploy. Balance is computed LIVE: accrued − approved − pending,
+-- so a request can never be deducted twice and nothing is deducted before
+-- approval. An approved request also drops a linked staff_days_off row, which
+-- is what makes the person Unavailable on the calendar and in auto-staffing.
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS employment_start_date DATE;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS employment_end_date DATE;   -- contract end; caps accrual
+ALTER TABLE staff_days_off ADD COLUMN IF NOT EXISTS leave_request_id BIGINT;  -- set when the day-off came from an approved leave
+
+CREATE TABLE IF NOT EXISTS leave_requests (
+  id            BIGSERIAL PRIMARY KEY,
+  member_id     TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  start_date    DATE NOT NULL,
+  end_date      DATE NOT NULL,
+  days          INT  NOT NULL CHECK (days > 0),   -- inclusive calendar days requested
+  reason        TEXT,
+  status        TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | rejected | cancelled
+  submitted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_by    TEXT,                             -- name of the owner/manager who decided
+  decided_at    TIMESTAMPTZ,
+  decision_note TEXT,
+  CHECK (end_date >= start_date)
+);
+CREATE INDEX IF NOT EXISTS leave_requests_member_idx ON leave_requests (member_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS leave_requests_status_idx ON leave_requests (status);
+
 -- ── Email marketing (#26) ────────────────────────────────────────────────
 -- Customers opt out here; campaigns send only to opted-in addresses. A
 -- campaign can be sent now or scheduled (a boot sweep sends due ones).

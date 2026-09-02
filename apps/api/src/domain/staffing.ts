@@ -253,6 +253,14 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     [eventId, ev.date],
   );
   const busy = new Set<string>(conf.rows.map((r: any) => r.assignee_id));
+  // Staff on an approved day off / annual leave covering the event date are
+  // unavailable too (approved leave drops a staff_days_off row — see leave.ts).
+  const offRows = await pool.query(
+    `SELECT DISTINCT member_id FROM staff_days_off
+      WHERE status = 'approved' AND start_date <= $1 AND end_date >= $1`,
+    [ev.date],
+  );
+  for (const r of offRows.rows as any[]) busy.add(r.member_id);
 
   const staff: StaffRow[] = staffRows.rows.map((r: any) => ({ id: r.id, name: r.name, skills: new Set(r.skills), workload: wlMap.get(r.id) ?? 0 }));
   const rolesByStaff = new Map<string, Set<Skill>>();

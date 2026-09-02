@@ -119,6 +119,9 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         ))}
       </Panel>
 
+      {/* Annual leave — balance, request, history */}
+      <LeaveSection />
+
       {/* Personal details — editable by the staff member */}
       <Panel title="🪪 Personal details">
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
@@ -140,6 +143,106 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         <Button tone="ghost" onClick={() => { clearStaffToken(); onSignedOut?.(); window.location.reload(); }}>Sign out</Button>
       </div>
     </div>
+  );
+}
+
+const LEAVE_STATUS: Record<string, { bg: string; fg: string; label: string }> = {
+  pending: { bg: C.yellowSoft, fg: C.yellowInk, label: 'Pending' },
+  approved: { bg: '#E1F3EC', fg: C.green, label: 'Approved' },
+  rejected: { bg: '#FBE7EC', fg: C.red, label: 'Rejected' },
+  cancelled: { bg: C.lineSoft, fg: C.muted, label: 'Cancelled' },
+};
+
+/** A staff member's own annual-leave balance, request form, and history. */
+function LeaveSection() {
+  const [d, setD] = useState<any>(null);
+  const [form, setForm] = useState({ startDate: '', endDate: '', reason: '' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = () => api.myLeave().then(setD).catch(() => setD({ error: true }));
+  useEffect(() => { load(); }, []);
+  if (!d || d.error) return null;
+  const bal = d.balance;
+  if (!bal?.onScheme) return null; // accounts off the leave scheme don't show it
+
+  const days = form.startDate && form.endDate && form.endDate >= form.startDate
+    ? Math.floor((Date.parse(form.endDate) - Date.parse(form.startDate)) / 86_400_000) + 1 : 0;
+
+  const submit = async () => {
+    if (!form.startDate || !form.endDate) { setMsg('Choose a start and end date.'); return; }
+    setBusy(true); setMsg(null);
+    try {
+      await api.requestLeave({ startDate: form.startDate, endDate: form.endDate, reason: form.reason.trim() || undefined });
+      setForm({ startDate: '', endDate: '', reason: '' });
+      setMsg('Request submitted ✓'); load(); setTimeout(() => setMsg(null), 2500);
+    } catch (e: any) { setMsg(e?.message ?? 'Could not submit.'); } finally { setBusy(false); }
+  };
+  const cancel = async (id: number) => { try { await api.cancelLeave(id); load(); } catch { /* ignore */ } };
+
+  const stat = (label: string, value: React.ReactNode, color = C.ink) => (
+    <div style={{ flex: '1 1 30%', minWidth: 92, background: C.bgSoft ?? '#faf6f2', borderRadius: 12, padding: '10px 12px' }}>
+      <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', color: C.muted }}>{label}</div>
+      <div style={{ ...fredoka(19), color }}>{value}</div>
+    </div>
+  );
+
+  return (
+    <Panel title="🌴 Annual leave">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+        {stat('ENTITLEMENT', `${bal.entitlement}/yr`)}
+        {stat('ACCRUED', `${bal.accrued}`)}
+        {stat('USED', `${bal.used}`)}
+        {stat('PENDING', `${bal.pending}`, C.yellowInk)}
+        {stat('REMAINING', `${bal.remaining}`, bal.remaining > 0 ? C.green : C.red)}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+        Accrues {bal.accrualPerMonth} day(s) per completed month{bal.startDate ? ` since ${bal.startDate}` : ''}. Remaining = accrued − used − pending.
+      </div>
+
+      {!bal.startDate ? (
+        <div style={{ background: C.yellowSoft, border: '1px solid #f0e0b8', borderRadius: 12, padding: '11px 13px', fontSize: 12.5, fontWeight: 700, color: C.yellowInk, lineHeight: 1.5 }}>
+          Your employment start date isn’t set yet — ask the owner to add it so your balance can be calculated.
+        </div>
+      ) : (
+        <div style={{ borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>Request leave</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Field label="From"><input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} style={{ ...input, minWidth: 140 }} /></Field>
+            <Field label="To"><input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setForm({ ...form, endDate: e.target.value })} style={{ ...input, minWidth: 140 }} /></Field>
+          </div>
+          <Field label="Reason (optional)"><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. family visit" style={input} /></Field>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Button onClick={submit} disabled={busy || days <= 0}>{busy ? 'Submitting…' : days > 0 ? `Request ${days} day(s)` : 'Request leave'}</Button>
+            {msg && <span style={{ fontSize: 12, fontWeight: 700, color: msg.includes('✓') ? C.green : C.red }}>{msg}</span>}
+          </div>
+        </div>
+      )}
+
+      {d.requests?.length > 0 && (
+        <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 10 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink, marginBottom: 6 }}>Leave history</div>
+          {d.requests.map((r: any) => {
+            const s = LEAVE_STATUS[r.status] ?? LEAVE_STATUS.pending;
+            return (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{r.start_date} → {r.end_date} · {r.days} day(s)</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
+                    Requested {r.submitted_at}{r.reason ? ` · "${r.reason}"` : ''}
+                    {r.decided_by ? ` · ${r.status} by ${r.decided_by}${r.decided_at ? ` on ${r.decided_at}` : ''}` : ''}
+                  </div>
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 999, background: s.bg, color: s.fg, whiteSpace: 'nowrap' }}>{s.label}</span>
+                {r.status === 'pending' && (
+                  <button onClick={() => cancel(r.id)} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '3px 8px', fontSize: 10.5, fontWeight: 700, color: C.muted, cursor: 'pointer' }}>Cancel</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Panel>
   );
 }
 

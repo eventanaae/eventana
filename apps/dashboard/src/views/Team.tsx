@@ -91,6 +91,17 @@ export function Team({ role = 'owner' }: { role?: string }) {
                       />
                     </Row>
                   )}
+                  {canManage && (
+                    <Row label="Start date">
+                      <input
+                        type="date"
+                        title="Employment start — drives annual-leave accrual"
+                        defaultValue={m.employment_start_date ? String(m.employment_start_date).slice(0, 10) : ''}
+                        onChange={async (e) => { await api.setTeamProfile(m.id, { employmentStart: e.target.value || null }); load(); }}
+                        style={dateInput}
+                      />
+                    </Row>
+                  )}
                   {isOwner && <Row label="Access"><AccessSelect member={m} onChange={load} /></Row>}
                   {isOwner && <Row label="Invite"><InviteCell member={m} /></Row>}
                   {isOwner && <Row label="Login token"><TokenCell member={m} onChange={load} /></Row>}

@@ -195,6 +195,13 @@ export const api = {
   whatsappLeads: (status?: string) =>
     request<any>(`/api/admin/whatsapp/leads${status && status !== 'all' ? `?status=${status}` : ''}`),
   whatsappFunnel: () => request<any>('/api/admin/whatsapp/funnel'),
+  whatsappMessages: (phone: string) =>
+    request<any>(`/api/admin/whatsapp/leads/${encodeURIComponent(phone)}/messages`),
+  whatsappReply: (phone: string, body: string) =>
+    request<any>(`/api/admin/whatsapp/leads/${encodeURIComponent(phone)}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
   importWhatsappLeads: (leads: unknown[]) =>
     request<{ received: number; imported: number; skipped: number }>('/api/admin/whatsapp/leads/import', {
       method: 'POST',
@@ -302,6 +309,18 @@ export const api = {
   setDayOffStatus: (id: number, status: string) =>
     request<any>(`/api/admin/days-off/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deleteDayOff: (id: number) => request<any>(`/api/admin/days-off/${id}`, { method: 'DELETE' }),
+
+  // Annual leave
+  myLeave: () => request<any>('/api/admin/leave/me'),
+  requestLeave: (body: { startDate: string; endDate: string; reason?: string }) =>
+    request<any>('/api/admin/leave/request', { method: 'POST', body: JSON.stringify(body) }),
+  cancelLeave: (id: number) => request<any>(`/api/admin/leave/${id}/cancel`, { method: 'POST' }),
+  leaveRequests: () => request<{ requests: any[] }>('/api/admin/leave/requests'),
+  decideLeave: (id: number, decision: 'approved' | 'rejected', note?: string) =>
+    request<any>(`/api/admin/leave/${id}/decide`, { method: 'POST', body: JSON.stringify({ decision, note }) }),
+  leaveSettings: () => request<any>('/api/admin/leave/settings'),
+  saveLeaveSettings: (patch: { annualEntitlementDays?: number; accrualPerMonth?: number }) =>
+    request<any>('/api/admin/leave/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
 
   settings: () => request<any>('/api/admin/settings'),
   saveRules: (patch: Record<string, unknown>) =>

@@ -425,3 +425,60 @@ export async function importLeads(
   }
   return { received: rows.length, imported, skipped };
 }
+
+export interface Message {
+  id: number;
+  direction: 'in' | 'out';
+  body: string | null;
+  sentBy: 'agent' | 'staff' | null;
+  createdAt: string;
+}
+
+/**
+ * One lead's conversation, oldest first — the thread the team reads before
+ * replying. Kept here rather than in the WhatsApp app so a customer's history
+ * survives the phone it was typed on.
+ */
+export async function leadMessages(phone: string, limit = 200): Promise<Message[]> {
+  const { rows } = await pool.query(
+    `SELECT id, direction, body, sent_by, created_at
+       FROM whatsapp_messages
+      WHERE phone = $1
+      ORDER BY created_at DESC
+      LIMIT $2`,
+    [normalizePhone(phone), Math.min(limit, 500)],
+  );
+  return rows
+    .map((r) => ({
+      id: Number(r.id),
+      direction: r.direction as 'in' | 'out',
+      body: r.body ?? null,
+      sentBy: (r.sent_by ?? null) as 'agent' | 'staff' | null,
+      createdAt: r.created_at,
+    }))
+    .reverse();
+}
+
+/**
+ * Meta only allows a free-form reply within 24 hours of the customer's last
+ * message; outside that window it must be an approved template. Rather than
+ * let a send fail with a raw API error, the screen is told up front.
+ */
+export async function replyWindow(
+  phone: string,
+): Promise<{ open: boolean; lastInboundAt: string | null; hoursLeft: number | null }> {
+  const { rows } = await pool.query(
+    `SELECT created_at FROM whatsapp_messages
+      WHERE phone = $1 AND direction = 'in'
+      ORDER BY created_at DESC LIMIT 1`,
+    [normalizePhone(phone)],
+  );
+  if (!rows.length) return { open: false, lastInboundAt: null, hoursLeft: null };
+  const last = new Date(rows[0].created_at).getTime();
+  const hoursLeft = 24 - (Date.now() - last) / 3_600_000;
+  return {
+    open: hoursLeft > 0,
+    lastInboundAt: rows[0].created_at,
+    hoursLeft: Math.max(0, Math.round(hoursLeft * 10) / 10),
+  };
+}

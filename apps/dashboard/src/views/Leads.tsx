@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { api } from '../api';
 import { C, fredoka, Panel, Badge, Spinner, Stat } from '../ui';
 import { Empty } from './Today';
+import { LeadThread } from './LeadThread';
 
 type LeadStatus = 'new' | 'quoted' | 'confirmed' | 'booked' | 'lost';
 
@@ -182,6 +183,8 @@ export function Leads() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // The open conversation, if any — the only way to reply to a Cloud API number.
+  const [openThread, setOpenThread] = useState<Lead | null>(null);
 
   const runImport = async (file: File) => {
     setImportError(null);
@@ -335,12 +338,20 @@ export function Leads() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {leads.map((l) => (
-            <LeadCard key={l.phone} lead={l} />
+            <LeadCard key={l.phone} lead={l} onOpen={() => setOpenThread(l)} />
           ))}
         </div>
       )}
 
       {/* Which emirate actually converts — the split that decides ad spend. */}
+      {openThread && (
+        <LeadThread
+          phone={openThread.phone}
+          name={openThread.name}
+          onClose={() => { setOpenThread(null); setReloadKey((k) => k + 1); }}
+        />
+      )}
+
       {funnel && funnel.byEmirate.length > 0 && (
         <Panel title="By emirate">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -368,7 +379,7 @@ export function Leads() {
   );
 }
 
-function LeadCard({ lead }: { lead: Lead }) {
+function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: () => void }) {
   const s = STATUS[lead.status] ?? STATUS.new;
   const left = daysUntil(lead.eventDate);
   // A party inside a week with no booking yet is the one to chase today.
@@ -409,6 +420,16 @@ function LeadCard({ lead }: { lead: Lead }) {
         <span>Last message {ago(lead.lastMessageAt)}</span>
         {lead.sourceAdId && <span>· from ad {lead.sourceAdId}</span>}
         {lead.orderId && <span style={{ color: C.green }}>· order {lead.orderId}</span>}
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={onOpen}
+          style={{
+            border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep,
+            borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+          }}
+        >
+          Open conversation
+        </button>
       </div>
     </Panel>
   );
