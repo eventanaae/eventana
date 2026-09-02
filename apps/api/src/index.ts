@@ -46,6 +46,9 @@ async function main() {
     // STAFF_WARNINGS. No-op when unset.
     const { applyWarningsFromEnv } = await import('./db/applyWarnings.js');
     await applyWarningsFromEnv().catch((err) => console.error('[warnings] failed:', err));
+    // Backfill past leave as visible history rows from STAFF_LEAVE_HISTORY.
+    const { applyLeaveHistoryFromEnv } = await import('./db/applyLeaveHistory.js');
+    await applyLeaveHistoryFromEnv().catch((err) => console.error('[leave-history] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();

@@ -251,13 +251,11 @@ function LeaveSection() {
     <Section title="🌴 Annual leave">
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
         {stat('ENTITLEMENT', `${bal.entitlement}/yr`)}
-        {stat('ACCRUED', `${bal.accrued}`)}
-        {stat('USED', `${bal.used}`)}
         {stat('PENDING', `${bal.pending}`, C.yellowInk)}
         {stat('REMAINING', `${bal.remaining}`, bal.remaining > 0 ? C.green : C.red)}
       </div>
       <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
-        Accrues {bal.accrualPerMonth} day(s) per completed month{bal.startDate ? ` since ${bal.startDate}` : ''}. Remaining = accrued − used − pending.
+        {bal.entitlement} days a year{bal.startDate ? `, from ${bal.startDate}` : ''}. Your leave history is below.
       </div>
 
       {!bal.startDate ? (
