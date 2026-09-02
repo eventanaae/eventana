@@ -271,13 +271,21 @@ function DayOffSchedule({ team, onChange }: { team: any[]; onChange: () => void 
 }
 
 const WARNING_TYPES = [
-  { v: 'documented', label: 'Documented' },
-  { v: 'first', label: 'First warning' },
-  { v: 'second', label: 'Second warning' },
-  { v: 'third', label: 'Third warning' },
-  { v: 'final', label: 'Final warning' },
+  { v: 'documented', label: 'Documented', months: 0 },
+  { v: 'first', label: 'First warning', months: 6 },
+  { v: 'second', label: 'Second warning', months: 6 },
+  { v: 'third', label: 'Third warning', months: 12 },
+  { v: 'final', label: 'Final warning', months: 12 },
 ];
 const warnTypeLabel = (t?: string | null) => WARNING_TYPES.find((x) => x.v === t)?.label ?? (t ? t : 'Warning');
+const warnMonths = (t: string) => WARNING_TYPES.find((x) => x.v === t)?.months ?? 0;
+/** issued date + N months → YYYY-MM-DD (empty when no date or a 0-month type). */
+function addMonths(dateStr: string, months: number): string {
+  if (!dateStr || !months) return '';
+  const dt = new Date(`${dateStr}T00:00:00Z`);
+  dt.setUTCMonth(dt.getUTCMonth() + months);
+  return dt.toISOString().slice(0, 10);
+}
 
 /** Issue / edit / clear a disciplinary warning: type, date, validity, reason,
  *  and whether it clears the month's competition points. */
@@ -285,7 +293,7 @@ function WarningCell({ member, onChange }: { member: any; onChange: () => void }
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState({ wtype: 'first', issuedDate: today, validUntil: '', reason: '', affectsPoints: false });
+  const [f, setF] = useState({ wtype: 'first', issuedDate: today, validUntil: addMonths(today, 6), reason: '', affectsPoints: false });
   const warned = !!member.warning_ym;
   const wipes = member.warning_affects_points === true;
 
@@ -328,14 +336,14 @@ function WarningCell({ member, onChange }: { member: any; onChange: () => void }
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: '#faf6f2', border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Type</span>
-              <select value={f.wtype} onChange={(e) => setF({ ...f, wtype: e.target.value })} style={dateInput}>
-                {WARNING_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+              <select value={f.wtype} onChange={(e) => setF({ ...f, wtype: e.target.value, validUntil: addMonths(f.issuedDate, warnMonths(e.target.value)) })} style={dateInput}>
+                {WARNING_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}{t.months ? ` · ${t.months} mo` : ''}</option>)}
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Date</span>
-              <input type="date" value={f.issuedDate} onChange={(e) => setF({ ...f, issuedDate: e.target.value })} style={dateInput} />
+              <input type="date" value={f.issuedDate} onChange={(e) => setF({ ...f, issuedDate: e.target.value, validUntil: addMonths(e.target.value, warnMonths(f.wtype)) })} style={dateInput} />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Valid until</span>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Valid until <span style={{ textTransform: 'none', fontWeight: 600 }}>(auto)</span></span>
               <input type="date" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} style={dateInput} />
             </label>
           </div>
