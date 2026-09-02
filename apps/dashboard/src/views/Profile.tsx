@@ -76,11 +76,6 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
                 ? `🎉 Target reached! Every 100 points above ${kpi.overall.targetPoints ?? 600} now earns you AED 10.`
                 : `Your monthly target is ${kpi.overall.targetPoints ?? 600} points — ${(kpi.overall.targetPoints ?? 600) - (kpi.overall.points ?? 0)} to go. Hitting it keeps Eventana growing; past it, every 100 points = AED 10 for you.`}
             </div>
-            {kpi.overall.warned && (
-              <div style={{ marginTop: 10, background: kpi.overall.pointsWiped ? '#FBE7EC' : C.yellowSoft, border: `1px solid ${kpi.overall.pointsWiped ? '#f3c9d3' : '#f0e0b8'}`, borderRadius: 12, padding: '10px 12px', fontSize: 12, fontWeight: 700, color: kpi.overall.pointsWiped ? C.red : C.yellowInk, lineHeight: 1.5 }}>
-                ⚠️ You have a warning on record this month{kpi.overall.warnReason ? ` — ${kpi.overall.warnReason}` : ''}.{kpi.overall.pointsWiped ? ' This month’s points are cleared.' : ' Your points are not affected this time.'}
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -120,6 +115,16 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
         ))}
       </Panel>
 
+      {/* Weekly day off — its own section */}
+      {d.dayOff && (
+        <Panel title="🗓️ Weekly day off">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ ...fredoka(22), color: C.pinkDeep }}>{d.dayOff}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>Your rest day each week — you won’t be assigned to events on this day.</span>
+          </div>
+        </Panel>
+      )}
+
       {/* Annual leave — balance, request, history */}
       <LeaveSection />
 
@@ -135,7 +140,6 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
           {detailRow('Full name (as on passport)', d.passportName)}
           {detailRow('Date of birth', d.birthday)}
           {detailRow('Joining date', d.joiningDate)}
-          {detailRow('Weekly day off', d.dayOff)}
           {detailRow('Passport number', d.passportNumber)}
           {detailRow('Emirates ID number', d.emiratesId)}
         </div>
@@ -155,37 +159,38 @@ const LEAVE_STATUS: Record<string, { bg: string; fg: string; label: string }> = 
   cancelled: { bg: C.lineSoft, fg: C.muted, label: 'Cancelled' },
 };
 
-const WARN_TYPE_LABEL: Record<string, string> = {
-  documented: 'Documented', first: 'First warning', second: 'Second warning',
-  third: 'Third warning', final: 'Final warning',
+const WARN_LETTER_LABEL: Record<string, string> = {
+  documented: 'Documented Warning', first: '1st Warning Letter', second: '2nd Warning Letter',
+  third: '3rd Warning Letter', final: 'Final Warning Letter',
 };
 
-/** The disciplinary warnings on the member's own record (type, date, reason,
- *  validity, and whether points were affected). Hidden when there are none. */
+/** "Consequence Management" — the disciplinary letters on the member's record,
+ *  each with reasons, date, validity and salary deduction. Hidden when none. */
 function WarningsSection() {
   const [rows, setRows] = useState<any[] | null>(null);
   useEffect(() => { api.myWarnings().then(setRows).catch(() => setRows([])); }, []);
   if (!rows || rows.length === 0) return null;
-  const cell: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: C.ink };
-  const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacing: '.3px', color: C.muted, textTransform: 'uppercase' };
+  const line = (label: string, value: React.ReactNode) => (
+    <div style={{ display: 'flex', gap: 8, fontSize: 12.5, lineHeight: 1.5 }}>
+      <span style={{ fontWeight: 800, color: C.muted, minWidth: 108 }}>{label}</span>
+      <span style={{ fontWeight: 700, color: C.ink }}>{value}</span>
+    </div>
+  );
   return (
-    <Panel title="⚠️ Warnings">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {rows.map((w, i) => (
-          <div key={i} style={{ border: `1px solid ${w.affectsPoints ? '#f3c9d3' : '#f0e0b8'}`, background: w.affectsPoints ? '#FBE7EC' : C.yellowSoft, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ ...fredoka(15), color: w.affectsPoints ? C.red : C.yellowInk }}>{WARN_TYPE_LABEL[w.wtype] ?? 'Warning'}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: w.affectsPoints ? C.red : C.yellowInk, background: '#fff', borderRadius: 20, padding: '2px 9px' }}>
-                {w.affectsPoints ? 'Points cleared' : 'On record — no penalty'}
-              </span>
+    <Panel title="⚖️ Consequence Management">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {rows.map((w, i) => {
+          const pct = Number(w.salaryDeductionPct) || 0;
+          return (
+            <div key={i} style={{ border: `1px solid #f3c9d3`, background: '#FBE7EC', borderRadius: 12, padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <div style={{ ...fredoka(16), color: C.red, marginBottom: 2 }}>{WARN_LETTER_LABEL[w.wtype] ?? 'Warning Letter'}</div>
+              {w.reason && line('Reasons:', w.reason)}
+              {w.issuedDate && line('Date:', w.issuedDate)}
+              {w.validUntil && line('Valid till:', w.validUntil)}
+              {line('Salary Deduction:', pct > 0 ? `Yes — ${pct}%` : 'No')}
             </div>
-            {w.reason && <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>{w.reason}</div>}
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              {w.issuedDate && <div><div style={lbl}>Date</div><div style={cell}>{w.issuedDate}</div></div>}
-              {w.validUntil && <div><div style={lbl}>Valid until</div><div style={cell}>{w.validUntil}</div></div>}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </Panel>
   );

@@ -9,7 +9,7 @@
  */
 import { pool } from './pool.js';
 
-interface Entry { name: string; ym: string; reason?: string; affectsPoints?: boolean; wtype?: string; issuedDate?: string; validUntil?: string; }
+interface Entry { name: string; ym: string; reason?: string; affectsPoints?: boolean; wtype?: string; issuedDate?: string; validUntil?: string; salaryDeductionPct?: number; }
 
 export async function applyWarningsFromEnv(): Promise<void> {
   const raw = process.env.STAFF_WARNINGS;
@@ -26,14 +26,16 @@ export async function applyWarningsFromEnv(): Promise<void> {
   for (const e of entries) {
     if (!e?.name || !e?.ym) continue;
     const affects = e.affectsPoints !== false; // default true
+    const deduction = Number.isFinite(e.salaryDeductionPct as number) ? Number(e.salaryDeductionPct) : 0;
     const res = await pool.query(
-      `INSERT INTO staff_warnings (member_id, ym, reason, affects_points, wtype, issued_date, valid_until, created_by)
-       SELECT id, $2, $3, $4, $5, $6::date, $7::date, 'owner' FROM team_members WHERE lower(name) = lower($1) AND active
+      `INSERT INTO staff_warnings (member_id, ym, reason, affects_points, wtype, issued_date, valid_until, salary_deduction_pct, created_by)
+       SELECT id, $2, $3, $4, $5, $6::date, $7::date, $8, 'owner' FROM team_members WHERE lower(name) = lower($1) AND active
        ON CONFLICT (member_id, ym) DO UPDATE
          SET reason = EXCLUDED.reason, affects_points = EXCLUDED.affects_points,
-             wtype = EXCLUDED.wtype, issued_date = EXCLUDED.issued_date, valid_until = EXCLUDED.valid_until`,
-      [e.name, e.ym, e.reason ?? null, affects, e.wtype ?? null, e.issuedDate ?? null, e.validUntil ?? null],
+             wtype = EXCLUDED.wtype, issued_date = EXCLUDED.issued_date, valid_until = EXCLUDED.valid_until,
+             salary_deduction_pct = EXCLUDED.salary_deduction_pct`,
+      [e.name, e.ym, e.reason ?? null, affects, e.wtype ?? null, e.issuedDate ?? null, e.validUntil ?? null, deduction],
     );
-    console.log(`[warnings] ${e.name} ${e.ym} type=${e.wtype ?? '—'} affects=${affects} (${res.rowCount ?? 0} row)`);
+    console.log(`[warnings] ${e.name} ${e.ym} type=${e.wtype ?? '—'} deduction=${deduction}% affects=${affects} (${res.rowCount ?? 0} row)`);
   }
 }

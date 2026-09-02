@@ -270,15 +270,16 @@ function DayOffSchedule({ team, onChange }: { team: any[]; onChange: () => void 
   );
 }
 
+// The disciplinary ladder (owner spec): validity + salary deduction per level.
 const WARNING_TYPES = [
-  { v: 'documented', label: 'Documented', months: 0 },
-  { v: 'first', label: 'First warning', months: 6 },
-  { v: 'second', label: 'Second warning', months: 6 },
-  { v: 'third', label: 'Third warning', months: 12 },
-  { v: 'final', label: 'Final warning', months: 12 },
+  { v: 'documented', label: 'Documented', months: 0, deduction: 0 },
+  { v: 'first', label: '1st Warning Letter', months: 6, deduction: 0 },
+  { v: 'second', label: '2nd Warning Letter', months: 6, deduction: 10 },
+  { v: 'final', label: 'Final Warning Letter', months: 12, deduction: 16 },
 ];
 const warnTypeLabel = (t?: string | null) => WARNING_TYPES.find((x) => x.v === t)?.label ?? (t ? t : 'Warning');
 const warnMonths = (t: string) => WARNING_TYPES.find((x) => x.v === t)?.months ?? 0;
+const warnDeduction = (t: string) => WARNING_TYPES.find((x) => x.v === t)?.deduction ?? 0;
 /** issued date + N months → YYYY-MM-DD (empty when no date or a 0-month type). */
 function addMonths(dateStr: string, months: number): string {
   if (!dateStr || !months) return '';
@@ -293,7 +294,7 @@ function WarningCell({ member, onChange }: { member: any; onChange: () => void }
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState({ wtype: 'first', issuedDate: today, validUntil: addMonths(today, 6), reason: '', affectsPoints: false });
+  const [f, setF] = useState({ wtype: 'first', issuedDate: today, validUntil: addMonths(today, 6), reason: '', affectsPoints: false, salaryDeductionPct: warnDeduction('first') });
   const warned = !!member.warning_ym;
   const wipes = member.warning_affects_points === true;
 
@@ -306,6 +307,7 @@ function WarningCell({ member, onChange }: { member: any; onChange: () => void }
         validUntil: f.validUntil || null,
         reason: f.reason.trim() || undefined,
         affectsPoints: f.affectsPoints,
+        salaryDeductionPct: f.salaryDeductionPct,
       });
       setOpen(false); onChange();
     } finally { setBusy(false); }
@@ -322,9 +324,10 @@ function WarningCell({ member, onChange }: { member: any; onChange: () => void }
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {warned ? (
           <>
-            <Badge tone={wipes ? 'error' : 'warn'}>⚠️ {warnTypeLabel(member.warning_wtype)}{wipes ? ' · points cleared' : ' · on record'}</Badge>
-            {member.warning_reason && <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{member.warning_reason}</span>}
-            {member.warning_valid_until && <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>· valid until {member.warning_valid_until}</span>}
+            <Badge tone="error">⚠️ {warnTypeLabel(member.warning_wtype)}</Badge>
+            {Number(member.warning_salary_deduction_pct) > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: C.red }}>deduction {member.warning_salary_deduction_pct}%</span>}
+            {member.warning_valid_until && <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>· valid till {member.warning_valid_until}</span>}
+            {wipes && <span style={{ fontSize: 11, fontWeight: 700, color: C.red }}>· points cleared</span>}
             <Button tone="ghost" onClick={clear} disabled={busy}>Clear</Button>
           </>
         ) : (
@@ -336,15 +339,18 @@ function WarningCell({ member, onChange }: { member: any; onChange: () => void }
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: '#faf6f2', border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Type</span>
-              <select value={f.wtype} onChange={(e) => setF({ ...f, wtype: e.target.value, validUntil: addMonths(f.issuedDate, warnMonths(e.target.value)) })} style={dateInput}>
-                {WARNING_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}{t.months ? ` · ${t.months} mo` : ''}</option>)}
+              <select value={f.wtype} onChange={(e) => setF({ ...f, wtype: e.target.value, validUntil: addMonths(f.issuedDate, warnMonths(e.target.value)), salaryDeductionPct: warnDeduction(e.target.value) })} style={dateInput}>
+                {WARNING_TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Date</span>
               <input type="date" value={f.issuedDate} onChange={(e) => setF({ ...f, issuedDate: e.target.value, validUntil: addMonths(e.target.value, warnMonths(f.wtype)) })} style={dateInput} />
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Valid until <span style={{ textTransform: 'none', fontWeight: 600 }}>(auto)</span></span>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Valid till <span style={{ textTransform: 'none', fontWeight: 600 }}>(auto)</span></span>
               <input type="date" value={f.validUntil} onChange={(e) => setF({ ...f, validUntil: e.target.value })} style={dateInput} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Salary deduction %</span>
+              <input type="number" min={0} max={100} value={f.salaryDeductionPct} onChange={(e) => setF({ ...f, salaryDeductionPct: Number(e.target.value) || 0 })} style={dateInput} />
             </label>
           </div>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}><span style={lbl}>Reason</span>

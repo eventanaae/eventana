@@ -645,9 +645,13 @@ CREATE TABLE IF NOT EXISTS staff_warnings (
 );
 -- Richer HR fields on a warning: its level/type, the date it was issued, and how
 -- long it stays valid on the member's record.
-ALTER TABLE staff_warnings ADD COLUMN IF NOT EXISTS wtype       TEXT;  -- documented|first|second|third|final
+ALTER TABLE staff_warnings ADD COLUMN IF NOT EXISTS wtype       TEXT;  -- documented|first|second|final
 ALTER TABLE staff_warnings ADD COLUMN IF NOT EXISTS issued_date DATE;  -- when the warning was issued
 ALTER TABLE staff_warnings ADD COLUMN IF NOT EXISTS valid_until DATE;  -- record validity end (NULL = no expiry)
+-- Salary deduction that came with the warning (percent of the month's salary).
+-- 0 = none. Standard ladder: 1st 0%, 2nd 10%, Final 16%. This is the disciplinary
+-- salary penalty and is separate from the competition-points effect.
+ALTER TABLE staff_warnings ADD COLUMN IF NOT EXISTS salary_deduction_pct INT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS staff_warnings_ym_idx ON staff_warnings (ym);
 
 -- ── Email marketing (#26) ────────────────────────────────────────────────
