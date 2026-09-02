@@ -554,8 +554,9 @@ function PointsHelp() {
       <div style={line}><span style={emo}>💰</span><span>{b('After')} you hit 600, every {b('100 points')} = {b('AED 10')} — see the amount in your {b('Profile')}.</span></div>
       <div style={line}><span style={emo}>🚀</span><span>{b('Why it matters:')} the target is set from how the company needs to perform — when you reach it, Eventana is hitting its goals too.</span></div>
       <div style={line}><span style={emo}>🙌</span><span>{b('Tips are 100% yours')} — always on top.</span></div>
+      <div style={line}><span style={emo}>⚠️</span><span>A {b('warning')} clears that month’s points.</span></div>
       <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
-        A warning clears that month’s points. Sales &amp; office roles earn a commission instead (2% on corporate deals AED 20,000+). Part-timers aren’t included.
+        All of this is tied to your performance, attendance and productivity.
       </div>
     </div>
   );
