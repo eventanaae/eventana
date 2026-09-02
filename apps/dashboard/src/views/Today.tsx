@@ -36,6 +36,10 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
   const todays = events.filter(isToday);
   const upcoming = events.filter((e) => !isToday(e)).slice(0, 6);
   const next = events[0];
+  // Every event that falls on the same day as the next one — so a day with two
+  // parties shows both in the Next-event card, not just the first.
+  const nextDay = next ? String(next.event_date).slice(0, 10) : null;
+  const nextDayEvents = nextDay ? events.filter((e) => String(e.event_date).slice(0, 10) === nextDay) : [];
 
   const lowStock = (data.criticalInventory ?? []).filter((a: any) => a.status !== 'available' || a.committed > 0);
   const attention: Array<{ label: string; n: number; onClick: () => void }> = [
@@ -144,8 +148,10 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         </div>
       ) : null}
 
-      {/* Next event — shown only when nothing is on today (today is up top). */}
+      {/* Next event — shown only when nothing is on today (today is up top).
+          A day with more than one event shows the rest under "Also that day". */}
       {next && !isToday(next) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="rise-in lift" style={{ ['--i' as any]: 2, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={() => onOpenEvent(next.id)}>
           <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -164,6 +170,14 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
               <Button onClick={() => onOpenEvent(next.id)}>Open job →</Button>
             </div>
           </div>
+        </div>
+        {nextDayEvents.length > 1 && (
+          <Panel title={`Also that day · ${nextDayEvents.length - 1} more`}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {nextDayEvents.slice(1).map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx + 1} onOpen={() => onOpenEvent(e.id)} />)}
+            </div>
+          </Panel>
+        )}
         </div>
       )}
 
