@@ -268,8 +268,8 @@ function LeaveSection() {
         <div style={{ borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>Request leave</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Field label="From"><input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} style={{ ...input, minWidth: 140, height: 46 }} /></Field>
-            <Field label="To"><input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setForm({ ...form, endDate: e.target.value })} style={{ ...input, minWidth: 140, height: 46 }} /></Field>
+            <Field label="From"><input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} style={{ ...input, minWidth: 140, height: 46, WebkitAppearance: 'none', appearance: 'none' }} /></Field>
+            <Field label="To"><input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setForm({ ...form, endDate: e.target.value })} style={{ ...input, minWidth: 140, height: 46, WebkitAppearance: 'none', appearance: 'none' }} /></Field>
           </div>
           <Field label="Reason (optional)"><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. family visit" style={{ ...input, height: 46 }} /></Field>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
