@@ -149,35 +149,30 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
       ) : null}
 
       {/* Next event — shown only when nothing is on today (today is up top).
-          A day with more than one event shows the rest under "Also that day". */}
+          Every event that day gets its own pink card (a day can have two). */}
       {next && !isToday(next) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div className="rise-in lift" style={{ ['--i' as any]: 2, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={() => onOpenEvent(next.id)}>
-          <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
-              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>{isToday(next) ? 'NEXT EVENT · TODAY' : 'NEXT EVENT'}</div>
+          {nextDayEvents.map((ev, idx) => (
+            <div key={ev.id} className="rise-in lift" style={{ ['--i' as any]: 2, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={() => onOpenEvent(ev.id)}>
+              <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
+                  <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>{idx === 0 ? 'NEXT EVENT' : 'ALSO THAT DAY'}</div>
+                </div>
+                <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(ev)}</div>
+                {ev.eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {ev.customer}</div>}
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{when(ev)}–{ev.base_end_time} · {ev.emirate}</div>
+                {themeOf(ev) && (
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(ev)}</div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
+                  <Badge tone={ev.phase === 'Event Completed' ? 'neutral' : 'info'}>{ev.phase}</Badge>
+                  <div style={{ flex: 1 }} />
+                  <Button onClick={() => onOpenEvent(ev.id)}>Open job →</Button>
+                </div>
+              </div>
             </div>
-            <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(next)}</div>
-            {next.eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {next.customer}</div>}
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{when(next)}–{next.base_end_time} · {next.emirate}</div>
-            {themeOf(next) && (
-              <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(next)}</div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
-              <Badge tone={next.phase === 'Event Completed' ? 'neutral' : 'info'}>{next.phase}</Badge>
-              <div style={{ flex: 1 }} />
-              <Button onClick={() => onOpenEvent(next.id)}>Open job →</Button>
-            </div>
-          </div>
-        </div>
-        {nextDayEvents.length > 1 && (
-          <Panel title={`Also that day · ${nextDayEvents.length - 1} more`}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {nextDayEvents.slice(1).map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx + 1} onOpen={() => onOpenEvent(e.id)} />)}
-            </div>
-          </Panel>
-        )}
+          ))}
         </div>
       )}
 
