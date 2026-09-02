@@ -33,7 +33,7 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
   const detailRow = (label: string, value?: string | null) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
       <span style={{ fontSize: 12.5, fontWeight: 700, color: C.muted }}>{label}</span>
-      <span style={{ fontSize: 13.5, fontWeight: 700, color: value ? C.ink : C.muted, textAlign: 'right' }}>{value || '—'}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 700, color: value ? C.ink : C.muted, textAlign: 'right', direction: 'ltr', unicodeBidi: 'isolate' }}>{value || '—'}</span>
     </div>
   );
 
@@ -219,6 +219,7 @@ function LeaveSection() {
   const [form, setForm] = useState({ startDate: '', endDate: '', reason: '' });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const load = () => api.myLeave().then(setD).catch(() => setD({ error: true }));
   useEffect(() => { load(); }, []);
@@ -279,16 +280,23 @@ function LeaveSection() {
 
       {d.requests?.length > 0 && (
         <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 10 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink, marginBottom: 6 }}>Leave history</div>
-          {d.requests.map((r: any) => {
+          <button
+            onClick={() => setShowHistory((s) => !s)}
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'none', border: 'none', padding: 0, marginBottom: showHistory ? 8 : 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 800, color: C.ink }}
+          >
+            <span>Leave history ({d.requests.length})</span>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 12, color: C.muted, transform: showHistory ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>⌄</span>
+          </button>
+          {showHistory && d.requests.map((r: any) => {
             const s = LEAVE_STATUS[r.status] ?? LEAVE_STATUS.pending;
             return (
               <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{r.start_date} → {r.end_date} · {r.days} day(s)</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, direction: 'ltr', unicodeBidi: 'isolate' }}>{r.start_date} → {r.end_date} · {r.days} day(s)</div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
-                    Requested {r.submitted_at}{r.reason ? ` · "${r.reason}"` : ''}
-                    {r.decided_by ? ` · ${r.status} by ${r.decided_by}${r.decided_at ? ` on ${r.decided_at}` : ''}` : ''}
+                    {r.reason || 'Annual leave'}
+                    {r.decided_by && r.decided_by !== 'historical-import' ? ` · ${r.status} by ${r.decided_by}` : ''}
                   </div>
                 </div>
                 <span style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 999, background: s.bg, color: s.fg, whiteSpace: 'nowrap' }}>{s.label}</span>
