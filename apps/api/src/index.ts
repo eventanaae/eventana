@@ -38,6 +38,10 @@ async function main() {
     // email each crew member their code the first time. No-op when unset.
     const { issueReferralCodesFromEnv } = await import('./db/issueReferralCodes.js');
     await issueReferralCodesFromEnv().catch((err) => console.error('[referral] failed:', err));
+    // Set employment start/end dates (for annual-leave accrual) from
+    // STAFF_EMPLOYMENT. No-op when unset.
+    const { setEmploymentDatesFromEnv } = await import('./db/setEmploymentDates.js');
+    await setEmploymentDatesFromEnv().catch((err) => console.error('[employment] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
