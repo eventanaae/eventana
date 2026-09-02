@@ -478,7 +478,6 @@ function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void 
 function CompetitionBoard() {
   const [board, setBoard] = useState<any[] | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [open, setOpen] = useState(false);
   useEffect(() => {
     const now = new Date();
     const mth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -486,51 +485,33 @@ function CompetitionBoard() {
   }, []);
   if (!board || board.length === 0) return null;
   const ranked = [...board].sort((a: any, b: any) => b.points - a.points);
-  const leader = ranked[0];
   return (
-    <Panel
-      title="🏆 Team competition"
-      action={
-        <button onClick={() => setOpen((o) => !o)} style={{ cursor: 'pointer', border: `1px solid ${C.line}`, background: '#fff', borderRadius: 20, padding: '5px 11px', fontSize: 11.5, fontWeight: 800, color: C.pinkDeep, display: 'flex', alignItems: 'center', gap: 5 }}>
-          {open ? 'Hide' : 'Show'} <span style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s', color: C.muted }}>⌄</span>
-        </button>
-      }
-    >
-      {!open ? (
-        <div onClick={() => setOpen(true)} className="tap" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '2px 0' }}>
-          {leader && <span style={{ fontSize: 16 }}>🥇</span>}
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, flex: 1 }}>
-            {leader ? <>Leading: <b style={{ color: C.ink }}>{leader.name}</b> · {leader.points} pts</> : 'Tap to see the rankings'}
-          </span>
-          <span style={{ fontSize: 11.5, fontWeight: 800, color: C.pinkDeep }}>Tap to open ›</span>
-        </div>
-      ) : (
-        <>
-          {/* Tappable explainer — opens a simple breakdown of points & rewards. */}
-          <button
-            onClick={() => setShowHelp((s) => !s)}
-            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, background: showHelp ? '#fff' : '#faf6f9', borderRadius: 10, padding: '9px 11px', marginBottom: showHelp ? 10 : 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 800, color: C.pinkDeep }}
-          >
-            <span>ℹ️ How points &amp; rewards work</span>
-            <span style={{ flex: 1 }} />
-            <span style={{ transform: showHelp ? 'rotate(180deg)' : 'none', transition: 'transform .2s', color: C.muted }}>⌄</span>
-          </button>
-          {showHelp && <PointsHelp />}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {ranked.map((s: any, i: number) => (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 2px' }}>
-                <span style={{ fontSize: 15, width: 22, textAlign: 'center', flex: 'none', fontWeight: 800, color: C.muted }}>{i === 0 ? '🥇' : i + 1}</span>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
-                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.eventsDone} completed{s.fiveStars > 0 ? ` · ${s.fiveStars}×5★` : ''}{s.avgRating > 0 ? ` · ${s.avgRating}★` : ''}</div>
-                </div>
-                <span style={{ ...fredoka(15), color: C.pinkDeep }}>{s.points}</span>
-              </div>
-            ))}
+    <Panel title="🏆 Team competition">
+      {/* Rankings — always shown, no collapse. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {ranked.map((s: any, i: number) => (
+          <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 2px' }}>
+            <span style={{ fontSize: 15, width: 22, textAlign: 'center', flex: 'none', fontWeight: 800, color: C.muted }}>{i === 0 ? '🥇' : i + 1}</span>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.color, color: '#fff', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{s.name[0]}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.eventsDone} completed{s.fiveStars > 0 ? ` · ${s.fiveStars}×5★` : ''}{s.avgRating > 0 ? ` · ${s.avgRating}★` : ''}</div>
+            </div>
+            <span style={{ ...fredoka(15), color: C.pinkDeep }}>{s.points}</span>
           </div>
-        </>
-      )}
+        ))}
+      </div>
+
+      {/* How points & rewards work — a tappable breakdown, kept at the bottom. */}
+      <button
+        onClick={() => setShowHelp((s) => !s)}
+        style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, background: showHelp ? '#fff' : '#faf6f9', borderRadius: 10, padding: '9px 11px', marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 800, color: C.pinkDeep }}
+      >
+        <span>ℹ️ How points &amp; rewards work</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ transform: showHelp ? 'rotate(180deg)' : 'none', transition: 'transform .2s', color: C.muted }}>⌄</span>
+      </button>
+      {showHelp && <div style={{ marginTop: 8 }}><PointsHelp /></div>}
     </Panel>
   );
 }
