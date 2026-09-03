@@ -137,7 +137,10 @@ export async function seedWhatsAppTemplatesFromEnv(): Promise<void> {
       const res = await fetch(url, {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ name: t.name, language: lang, category: 'UTILITY', components: [body] }),
+        // allow_category_change: let Meta auto-assign the category instead of
+        // rejecting when it disagrees (event_day/setup_ready read as MARKETING to
+        // its classifier). Without it those two 400 with "category mismatch".
+        body: JSON.stringify({ name: t.name, language: lang, category: 'UTILITY', allow_category_change: true, components: [body] }),
       });
       const json = (await res.json()) as any;
       if (res.ok) console.log(`[wa-templates] ${t.name} (${lang}): submitted (id ${json.id ?? '—'}, ${json.status ?? '?'})`);
