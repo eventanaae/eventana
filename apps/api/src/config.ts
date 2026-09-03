@@ -147,6 +147,14 @@ export const config = {
   corsOrigins: [
     ...new Set(
       [
+        // The production customer app is served from the custom brand domain,
+        // but a Render blueprint can only inject the *.onrender.com host into
+        // PUBLIC_APP_HOST — so the brand domain would never reach this allowlist
+        // and every API call from eventanauae.com fails CORS preflight, leaving
+        // the site stuck on "Loading Eventana…". Bake the brand domains in so
+        // CORS never silently depends on an env var that can be dropped.
+        'https://eventanauae.com',
+        'https://www.eventanauae.com',
         toUrl(env.PUBLIC_APP_URL ?? env.PUBLIC_APP_HOST, 'http://localhost:5173'),
         toUrl(env.PUBLIC_DASHBOARD_URL ?? env.PUBLIC_DASHBOARD_HOST, 'http://localhost:5174'),
         ...(env.CORS_ORIGINS ?? '').split(',').map((s) => toUrl(s, '')),
