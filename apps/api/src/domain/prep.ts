@@ -277,13 +277,20 @@ async function logTask(taskId: string, eventId: string | null, action: string, d
 
 /** Mark a task complete with the person who did it, the time, and proof photo. */
 export async function completePrepTask(taskId: string, opts: { completedBy?: string; photoUrl?: string; actor?: string }) {
+  // Completing a task RESOLVES any issue on it: clear the red issue note so a
+  // finished task never keeps showing as a problem (an issue reported then fixed
+  // must not stay red once the work is done).
   const { rows } = await pool.query(
-    `UPDATE prep_tasks SET status='completed', completed_by=$2, completed_at=now(), photo_url=COALESCE($3,photo_url)
+    `UPDATE prep_tasks SET status='completed', completed_by=$2, completed_at=now(),
+            photo_url=COALESCE($3,photo_url), notes=NULL
       WHERE id=$1 RETURNING event_id, title, depends_on_key`,
     [taskId, opts.completedBy ?? null, opts.photoUrl ?? null],
   );
   const t = rows[0];
   if (!t) return null;
+  // If this completion resolved a reported issue, clear its standing ops-alert so
+  // owner/manager stop seeing it as open.
+  await pool.query(`DELETE FROM notifications WHERE template='prep_issue' AND event_id=$1 AND (payload->>'taskId')=$2`, [t.event_id, taskId]).catch(() => {});
   // Completing a DESIGN task unlocks the physical tasks that were waiting on it.
   await pool.query(
     `UPDATE prep_tasks SET status='ready'

@@ -488,7 +488,7 @@ export async function eventRoutes(app: FastifyInstance) {
         [eventId],
       ),
       pool.query(
-        `SELECT es.role, es.status, es.part_time_name, es.is_leader, tm.name AS assignee_name
+        `SELECT es.role, es.status, es.part_time_name, es.is_leader, es.assignee_id, tm.name AS assignee_name
            FROM event_staff es LEFT JOIN team_members tm ON tm.id = es.assignee_id
           WHERE es.event_id = $1 ORDER BY es.is_leader DESC, es.role, es.slot`,
         [eventId],
@@ -675,7 +675,21 @@ export async function eventRoutes(app: FastifyInstance) {
         amountDisplay: formatAed(Number(s.amount_fils)),
         source: s.source,
       })),
-      team: team.rows,
+      // Customer-safe team (tip targets + fallback). NEVER expose the driver or
+      // the remote designer/leader (internal-only) to the customer — hide any
+      // member whose only role on the event is driver / design / remote-leader.
+      team: (() => {
+        const INTERNAL = new Set(['driver', 'pt_driver', 'design']);
+        const onsite = new Set(
+          staffing.rows.filter((r) => r.assignee_id && !INTERNAL.has(r.role) && !r.is_leader).map((r) => r.assignee_id),
+        );
+        const hidden = new Set(
+          staffing.rows
+            .filter((r) => r.assignee_id && (INTERNAL.has(r.role) || r.is_leader) && !onsite.has(r.assignee_id))
+            .map((r) => r.assignee_id),
+        );
+        return team.rows.filter((t: any) => !hidden.has(t.id));
+      })(),
       // Customer-safe crew from the smart staffing plan. On-site roles only —
       // never the driver or the remote designer — and NEVER the word "part-time":
       // an unfilled or part-timer slot simply reads "To be confirmed" / the real
@@ -690,7 +704,7 @@ export async function eventRoutes(app: FastifyInstance) {
             };
             // The event leader, designer and driver are internal roles — never
             // surfaced to the customer.
-            const HIDE = new Set(['design', 'driver', 'leader']);
+            const HIDE = new Set(['design', 'driver', 'pt_driver', 'leader']);
             return staffing.rows
               .filter((r) => !HIDE.has(r.role) && !r.is_leader)
               .map((r) => {

@@ -2973,6 +2973,20 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
+  // Delete a TEAM message sent in error (staff only; can't delete the customer's
+  // own messages). It vanishes from both the dashboard chat and the customer app
+  // (both read the same `messages` table).
+  app.delete('/api/admin/events/:eventId/messages/:messageId', async (request, reply) => {
+    const { eventId, messageId } = request.params as { eventId: string; messageId: string };
+    const { rows } = await pool.query(
+      `DELETE FROM messages WHERE id = $1 AND event_id = $2 AND sender = 'team' RETURNING id`,
+      [messageId, eventId],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found', message: 'Only a team message can be deleted.' });
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'message_delete', target: eventId, detail: { messageId } });
+    return { ok: true, id: rows[0].id };
+  });
+
   app.post('/api/admin/events/:eventId/chat', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const schema = z.object({ open: z.boolean() });
@@ -3251,6 +3265,10 @@ export async function adminRoutes(app: FastifyInstance) {
            ON w.member_id = m.id AND w.ym = to_char(now(),'YYYY-MM')
          ORDER BY m.name`,
     );
+    // Never expose auth credentials over the wire. `SELECT m.*` includes the
+    // login access_token (a valid credential — a manager could auth as anyone,
+    // incl. an owner) and the password_hash. Strip both before returning.
+    for (const r of rows) { delete (r as any).access_token; delete (r as any).password_hash; }
     return rows;
   });
 

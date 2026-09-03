@@ -76,6 +76,27 @@ export function Inventory({ role }: { role?: string }) {
         </div>
       </div>
 
+      {/* ── Reported missing items — visible to EVERYONE so nobody re-reports or
+             re-buys something already handled: who reported it, when, and its
+             current status. ── */}
+      {missing.filter((m: any) => m.status !== 'received' && m.status !== 'cancelled').length > 0 && (
+        <Panel title="🛒 Reported missing — status">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {missing.filter((m: any) => m.status !== 'received' && m.status !== 'cancelled').map((m: any) => (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${C.lineSoft}`, paddingBottom: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{m.item}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+                    by {m.reported_by ?? '—'} · {m.created ?? (m.created_at ? String(m.created_at).slice(0, 10) : '')}{m.supplier ? ` · ${m.supplier}` : ''}{m.note ? ` · "${m.note}"` : ''}
+                  </div>
+                </div>
+                <Badge tone={m.status === 'requested' ? 'error' : m.status === 'ordered' ? 'warn' : 'ok'}>{m.status}</Badge>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+
       {/* ── Search ── */}
       <input placeholder="🔍 Search for an item…" value={q} onChange={(e) => setQ(e.target.value)} style={{ ...inp('100%'), fontSize: 14, padding: '11px 14px' }} />
 

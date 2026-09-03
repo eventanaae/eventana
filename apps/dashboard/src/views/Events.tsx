@@ -513,8 +513,17 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                       }}
                     >
                       {m.body}
-                      <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3 }}>
-                        {m.author ?? 'Customer'}
+                      <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                        <span>{m.author ?? 'Customer'}</span>
+                        {m.sender === 'team' && canUpdateStatus && (
+                          <button
+                            title="Delete this message (sent by mistake)"
+                            onClick={async () => { if (window.confirm('Delete this message? It will be removed from the customer’s chat too.')) { await api.deleteMessage(eventId, m.id); load(); } }}
+                            style={{ background: 'none', border: 'none', color: C.red, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 10 }}
+                          >
+                            🗑 delete
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

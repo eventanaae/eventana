@@ -248,6 +248,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
+  deleteMessage: (eventId: string, messageId: string) =>
+    request<any>(`/api/admin/events/${eventId}/messages/${messageId}`, { method: 'DELETE' }),
   cancelEvent: (id: string, reason: string) =>
     request<any>(`/api/admin/events/${id}/cancel`, {
       method: 'POST',
