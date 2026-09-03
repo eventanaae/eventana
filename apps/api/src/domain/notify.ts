@@ -495,10 +495,11 @@ export function renderWhatsApp(row: EmailRow): string | null {
   switch (row.template) {
     case 'booking_confirmation': {
       const details =
-        `\n\n📅 ${date}` + (time ? `\n🕒 ${time}` : '') + `\n📍 ${place}` +
+        (honour ? `\n\n🎈 Guest of honour: ${honour}` : '') +
+        `\n📅 ${date}` + (time ? `\n🕒 ${time}` : '') + `\n📍 ${place}` +
         `\n🔖 Ref: ${row.event_id}` +
         (row.total_fils != null ? `\n💳 Total: ${aed(row.total_fils)}` : '');
-      return `🎉 ${honour ? `${honour}'s` : 'Your'} Eventana celebration is confirmed!\n\nHi ${first} 👋 We've saved every detail for ${who} celebration and our team is already planning the magic.${details}${track}\n\nCan't wait to celebrate with you! 💕`;
+      return `🎉 ${honour ? `${honour}'s` : 'Your'} Eventana celebration is confirmed!\n\nHi ${first} 👋 We've saved every detail for ${who} celebration and our team is already planning the magic.${details}\n\n📧 Your full itemised invoice is in your email.${track}\n\nCan't wait to celebrate with you! 💕`;
     }
     case 'three_day_reminder':
       return `🎈 Just 3 days to go!\n\nHi ${first} 👋 The countdown is on for ${who} Eventana celebration on ${date}${time ? ` at ${time}` : ''} in ${place}.\n\nNeed to tweak anything? It's all in the app.${track}\n\nSee you very soon! 💖`;
