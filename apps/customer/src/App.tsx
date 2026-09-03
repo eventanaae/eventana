@@ -198,6 +198,10 @@ export default function App() {
   });
 
   const [social, setSocial] = useState<Awaited<ReturnType<typeof api.socialProof>> | null>(null);
+  // If the very first catalogue load runs unusually long (a free-tier API can
+  // take ~50s to wake from idle), surface a manual reload so the customer is
+  // never left staring at a spinner with no way out.
+  const [slowLoad, setSlowLoad] = useState(false);
 
   /**
    * The landing page for this URL, if the visitor arrived on one.
@@ -217,8 +221,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    api.catalogue().then(setCatalogue).catch((e) => setError(e.message));
+    const slow = window.setTimeout(() => setSlowLoad(true), 15000);
+    api.catalogue().then(setCatalogue).catch((e) => setError(e.message)).finally(() => window.clearTimeout(slow));
+    // Social proof is non-essential: its failure must never block the app —
+    // it fails silently and the home screen renders without it.
     api.socialProof().then(setSocial).catch(() => setSocial(null));
+    return () => window.clearTimeout(slow);
   }, []);
 
   // Terms & Conditions deep link (?terms=1), e.g. from an email invoice.
@@ -482,7 +490,24 @@ export default function App() {
   if (!catalogue) {
     return (
       <Frame lang={lang}>
-        <Spinner label={t('load.app')} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '40px 24px' }}>
+          <Spinner label={t('load.app')} />
+          {slowLoad && (
+            <>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, textAlign: 'center', lineHeight: 1.6, maxWidth: 270 }}>
+                {lang === 'ar'
+                  ? 'التحميل ياخذ وقت أطول من المعتاد. لو ما اكتمل، اضغطي إعادة التحميل.'
+                  : 'This is taking longer than usual. If it doesn’t finish, tap reload.'}
+              </div>
+              <button
+                onClick={() => location.reload()}
+                style={{ background: C.pink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, padding: '11px 26px', borderRadius: 16, cursor: 'pointer' }}
+              >
+                {t('common.tryAgain')}
+              </button>
+            </>
+          )}
+        </div>
       </Frame>
     );
   }
