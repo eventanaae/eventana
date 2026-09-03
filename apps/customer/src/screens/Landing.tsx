@@ -126,6 +126,23 @@ export function Landing({
         </ul>
       </section>
 
+      {/* The questions customers actually ask, answered with the real prices.
+          Also emitted as FAQPage JSON-LD by scripts/prerender.mjs — a visitor
+          and an assistant reading the page get the same answers. */}
+      {copy.faq.length > 0 && (
+        <section className="lp-wrap lp-block">
+          <h2>{ar ? 'أسئلة متكررة' : 'Frequently asked questions'}</h2>
+          <div className="lp-faq">
+            {copy.faq.map((f) => (
+              <details key={f.q} className="lp-card">
+                <summary>{f.q}</summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
+
       {(rating?.count ?? 0) > 0 && (
         <section className="lp-wrap lp-block">
           <h2>{ar ? 'من عملائنا' : 'From our customers'}</h2>
@@ -233,6 +250,13 @@ const LP_CSS = `
 .lp-final p { font-size: 15px; font-weight: 500; color: ${C.muted2}; line-height: 1.65;
   margin: 12px auto 24px; max-width: 34em; }
 
+.lp-faq { display: grid; gap: 10px; }
+.lp-faq details { padding: 0; }
+.lp-faq summary { cursor: pointer; padding: 14px 16px; font-weight: 600; list-style: none; }
+.lp-faq summary::-webkit-details-marker { display: none; }
+.lp-faq summary::after { content: '+'; float: inline-end; opacity: .5; font-weight: 400; }
+.lp-faq details[open] summary::after { content: '−'; }
+.lp-faq details p { margin: 0; padding: 0 16px 14px; color: ${C.muted2}; line-height: 1.65; }
 .lp-foot { border-top: 1px solid ${C.pinkLine}; padding: 22px 0 30px; margin-top: auto; }
 .lp-foot-in { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between;
   font-size: 12.5px; font-weight: 600; color: ${C.muted}; }

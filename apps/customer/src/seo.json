@@ -1,0 +1,717 @@
+{
+  "_comment": "Single source of truth for everything a crawler, a search engine or an AI assistant is told about Eventana. Read at runtime by src/landing.ts (the React landing pages) and at build time by scripts/prerender.mjs (the static HTML those pages are served as). Change a fact here and both follow. Every price is the live catalogue price in AED; nothing here is aspirational.",
+
+  "business": {
+    "name": "Eventana Events",
+    "alternateName": ["إيفنتانا", "Eventana UAE", "ايفنتانا"],
+    "url": "https://eventanauae.com",
+    "appUrl": "https://app.eventanauae.com",
+    "telephone": "+971564500777",
+    "telephoneDisplay": "056 450 0777",
+    "whatsapp": "https://wa.me/971564500777",
+    "streetAddress": "9B Street, Al Barsha 2",
+    "addressLocality": "Dubai",
+    "addressCountry": "AE",
+    "_openingHoursNote": "Confirmed by the owner on 2026-09-03: 10:00-22:00, seven days a week. Google Business Profile currently publishes 09:00-24:00 (Fri 09:00-23:30) and HiDubai repeats it — both are wrong and are listed in the report as edits awaiting approval.",
+    "openingHours": [
+      { "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], "opens": "10:00", "closes": "22:00" }
+    ],
+    "priceRangeAed": "2199-6000",
+    "currency": "AED",
+    "foundingLocation": "Dubai, United Arab Emirates",
+    "sameAs": [
+      "https://www.instagram.com/eventana.uae/",
+      "https://www.facebook.com/eventana.uae"
+    ],
+    "_disambiguation": "There is an unrelated 'Eventana' event agency in Riyadh (eventana.net) and an unrelated 'Eventana' on WedMeGood in India. This business is Eventana Events, Al Barsha 2, Dubai, UAE. The schema below states the UAE address, UAE phone and UAE service areas explicitly so an assistant can tell them apart."
+  },
+
+  "areasServed": [
+    { "name": "Dubai", "ar": "دبي", "deliveryFeeAed": 280 },
+    { "name": "Sharjah", "ar": "الشارقة", "deliveryFeeAed": 380 },
+    { "name": "Ajman", "ar": "عجمان", "deliveryFeeAed": 380 },
+    { "name": "Abu Dhabi", "ar": "أبوظبي", "deliveryFeeAed": 420 },
+    { "name": "Umm Al Quwain", "ar": "أم القيوين", "deliveryFeeAed": 480 },
+    { "name": "Al Ain", "ar": "العين", "deliveryFeeAed": 530 },
+    { "name": "Ras Al Khaimah", "ar": "رأس الخيمة", "deliveryFeeAed": 530 },
+    { "name": "Fujairah", "ar": "الفجيرة", "deliveryFeeAed": 660 }
+  ],
+
+  "packages": [
+    { "id": "movie", "name": "Movie Night", "ar": "ليلة سينما", "priceAed": 2199, "capacity": "Up to 40 kids", "capacityAr": "حتى 40 طفل", "hours": 4 },
+    { "id": "bronze", "name": "Bronze Birthday", "ar": "باقة برونزية", "priceAed": 3599, "capacity": "Up to 40 kids", "capacityAr": "حتى 40 طفل", "hours": 4 },
+    { "id": "silver", "name": "Silver Birthday", "ar": "باقة فضية", "priceAed": 4799, "capacity": "Up to 40 kids", "capacityAr": "حتى 40 طفل", "hours": 4 },
+    { "id": "summer", "name": "Summer Party", "ar": "حفلة صيفية", "priceAed": 4999, "capacity": "Up to 40 kids", "capacityAr": "حتى 40 طفل", "hours": 4 },
+    { "id": "spa", "name": "Spa Party", "ar": "حفلة سبا", "priceAed": 5999, "capacity": "Up to 20 kids", "capacityAr": "حتى 20 طفلة", "hours": 4 },
+    { "id": "golden", "name": "Golden Birthday", "ar": "باقة ذهبية", "priceAed": 5999, "capacity": "Up to 40 kids", "capacityAr": "حتى 40 طفل", "hours": 4 }
+  ],
+
+  "addOns": [
+    { "name": "Bouncy Castle 4x4m", "ar": "قلعة نطاطة 4×4 م", "priceAed": 1100 },
+    { "name": "Bubbles House 4x4m", "ar": "بيت الفقاعات 4×4 م", "priceAed": 1500 },
+    { "name": "Amwaj Slide 4x4m", "ar": "زحليقة أمواج 4×4 م", "priceAed": 1250 },
+    { "name": "Blue Water Slide", "ar": "الزحليقة المائية الزرقاء", "priceAed": 800 },
+    { "name": "Slippery Football 12x6m", "ar": "الملعب الزلق 12×6 م", "priceAed": 1100 },
+    { "name": "Popcorn Station", "ar": "محطة بوبكورن", "priceAed": 780 },
+    { "name": "Cotton Candy Station", "ar": "محطة غزل البنات", "priceAed": 780 },
+    { "name": "Slush Station", "ar": "محطة سلاش", "priceAed": 950 },
+    { "name": "Ice Cream Station", "ar": "محطة آيس كريم", "priceAed": 900 },
+    { "name": "Corn Station", "ar": "محطة ذرة", "priceAed": 900 },
+    { "name": "Hot Dog Station", "ar": "محطة هوت دوق", "priceAed": 1200 },
+    { "name": "Pancake Station", "ar": "محطة بان كيك", "priceAed": 1500 },
+    { "name": "Burger Slider Station", "ar": "محطة برجر سلايدر", "priceAed": 1500 },
+    { "name": "Nachos Station", "ar": "محطة ناتشوز", "priceAed": 1600 },
+    { "name": "Hot Chocolate Station", "ar": "محطة شوكولاتة ساخنة", "priceAed": 1500 },
+    { "name": "Chocolate Fountain", "ar": "نافورة شوكولاتة", "priceAed": 2200 },
+    { "name": "Face Painting", "ar": "رسم على الوجه", "priceAed": 950 },
+    { "name": "Balloons Twisting", "ar": "تشكيل البالونات", "priceAed": 950 },
+    { "name": "Mascot Character", "ar": "شخصية كرتونية", "priceAed": 950 },
+    { "name": "Acrobat Clown", "ar": "مهرج أكروبات", "priceAed": 1500 },
+    { "name": "Small Main Backdrop", "ar": "خلفية رئيسية صغيرة", "priceAed": 1500 },
+    { "name": "Medium Main Backdrop", "ar": "خلفية رئيسية متوسطة", "priceAed": 1650 },
+    { "name": "Giant Backdrop", "ar": "خلفية عملاقة", "priceAed": 2200 }
+  ],
+
+  "themes": [
+    "Jungle", "Mermaid", "Fairy", "Frozen", "Barbie", "Spider-Man", "Super Mario",
+    "Disney Princess", "Cocomelon", "Space", "Butterfly", "Hello Kitty", "Snow White",
+    "Mickey Safari", "Halloween", "K-Pop Demon", "Lilo", "Cinnamon", "Polo", "Al Wasl Club"
+  ],
+
+  "pages": [
+    {
+      "slug": "kids-birthday",
+      "celebrationType": "kids",
+      "priority": "0.9",
+      "priceFromAed": 2199,
+      "en": {
+        "headline": "Kids Birthday Party Organizer in Dubai",
+        "subhead": "A full party set up at your home — decor, games, and snack stations. Book and pay online in minutes.",
+        "includes": [
+          "Themed balloon decor and a custom backdrop",
+          "Entertainers with games and activities",
+          "Popcorn and cotton candy stations",
+          "Tables, chairs and full styling",
+          "We arrive, set up, and clean up after",
+          "Dubai, Sharjah, Ajman, Abu Dhabi and beyond"
+        ],
+        "cta": "Plan my party",
+        "title": "Kids Birthday Party Organizer in Dubai | Eventana",
+        "description": "Full kids birthday party setup at your home in Dubai: balloon decor, entertainers, popcorn and cotton candy. Packages from AED 2,199. Book and pay online.",
+        "intro": "Eventana Events plans and sets up children's birthday parties at your home, villa or venue across the UAE. Every package runs 4 hours and covers up to 40 children, and includes the themed backdrop, balloon decor, food stations and the team who installs everything and clears it away afterwards. Packages start at AED 2,199 for Movie Night and go up to AED 5,999 for the Golden Birthday. You choose the theme from 40 designs, add anything extra you want, see the total price, and book online.",
+        "faq": [
+          { "q": "How much does a kids birthday party cost in Dubai?", "a": "Eventana packages start at AED 2,199 for the Movie Night package and run to AED 5,999 for the Golden Birthday. Bronze is AED 3,599, Silver AED 4,799 and Summer Party AED 4,999. Each covers 4 hours and up to 40 children, plus a delivery fee that depends on the emirate — AED 280 in Dubai, AED 380 in Sharjah and Ajman, AED 420 in Abu Dhabi." },
+          { "q": "What is included in a birthday package?", "a": "The themed main backdrop and balloon decor, food stations operated by our staff, tables and chairs, and setup and takedown by the Eventana team. The exact list of items differs by package — Movie Night includes 5 items, Golden Birthday includes 12." },
+          { "q": "How far in advance should I book?", "a": "Book as early as you can so your date and your theme are still available. Popular dates are weekends and school holidays. You can check availability and the exact price for your date on the website before paying." },
+          { "q": "Do you come to the house?", "a": "Yes. Eventana sets up at homes, villas, gardens, majlis, nurseries, schools and venues. The team arrives before the party, installs everything, runs the food stations during the party and takes it all down afterwards." },
+          { "q": "Which areas do you cover?", "a": "Dubai, Sharjah, Ajman, Abu Dhabi, Al Ain, Umm Al Quwain, Ras Al Khaimah and Fujairah. Delivery fees range from AED 280 in Dubai to AED 660 in Fujairah. Eventana does not currently serve the Al Gharbia region." },
+          { "q": "Can I add a bouncy castle or extra food stations?", "a": "Yes. A 4x4m bouncy castle is AED 1,100, a bubbles house AED 1,500, a popcorn or cotton candy station AED 780 each, and a slush station AED 950. You add them to your package before checkout and the price updates as you go." }
+        ]
+      },
+      "ar": {
+        "headline": "تنظيم حفلات أعياد ميلاد أطفال في دبي",
+        "subhead": "حفلة كاملة في بيتك — ديكور وألعاب ومحطات تسالي. احجزي وادفعي أونلاين خلال دقائق.",
+        "includes": [
+          "ديكور بالونات وخلفية بالثيم اللي تختارينه",
+          "مهرجين مع ألعاب وفعاليات تفاعلية",
+          "كوشك بوبكورن وكوشك سلاش",
+          "طاولات وكراسي وتنسيق كامل",
+          "نوصل، نجهّز، ونرتّب بعد الحفلة",
+          "دبي والشارقة وعجمان وأبوظبي وباقي الإمارات"
+        ],
+        "cta": "جهّزي حفلتك",
+        "title": "تنظيم حفلات أعياد ميلاد أطفال في دبي | إيفنتانا",
+        "description": "تجهيز كامل لحفلة عيد ميلاد أطفال في بيتك بدبي: ديكور بالونات، مهرجين، بوبكورن وسلاش. الباقات تبدأ من 2,199 درهم. احجزي وادفعي أونلاين.",
+        "intro": "إيفنتانا إيفنتس تنظّم وتجهّز حفلات أعياد ميلاد الأطفال في بيتك أو الفيلا أو القاعة في كل الإمارات. كل باقة مدّتها 4 ساعات وتغطي حتى 40 طفل، وتشمل الخلفية بالثيم وديكور البالونات ومحطات التسالي والفريق اللي يركّب كل شيء ويفكّه بعد الحفلة. الباقات تبدأ من 2,199 درهم لباقة ليلة السينما وتصل إلى 5,999 درهم للباقة الذهبية. تختارين الثيم من 40 تصميم، تضيفين اللي تبين، تشوفين السعر الإجمالي، وتحجزين أونلاين.",
+        "faq": [
+          { "q": "كم تكلفة حفلة عيد ميلاد أطفال في دبي؟", "a": "باقات إيفنتانا تبدأ من 2,199 درهم لباقة ليلة السينما وتصل إلى 5,999 درهم للباقة الذهبية. الباقة البرونزية 3,599 درهم، الفضية 4,799 درهم، والحفلة الصيفية 4,999 درهم. كل باقة 4 ساعات وحتى 40 طفل، ويضاف رسم التوصيل حسب الإمارة — 280 درهم في دبي، 380 في الشارقة وعجمان، 420 في أبوظبي." },
+          { "q": "شنو تشمل الباقة؟", "a": "الخلفية الرئيسية بالثيم وديكور البالونات، ومحطات الأكل يشغّلها فريقنا، وطاولات وكراسي، والتركيب والفك من فريق إيفنتانا. عدد العناصر يختلف حسب الباقة — ليلة السينما فيها 5 عناصر والباقة الذهبية فيها 12." },
+          { "q": "متى لازم أحجز؟", "a": "احجزي بأبكر وقت ممكن عشان تاريخك والثيم اللي تبينه يكونان متاحين. عطلات نهاية الأسبوع والإجازات المدرسية تنحجز بسرعة. تقدرين تتأكدين من التوفّر والسعر النهائي لتاريخك من الموقع قبل الدفع." },
+          { "q": "تجون البيت؟", "a": "نعم. إيفنتانا تجهّز في البيوت والفلل والحدائق والمجالس والحضانات والمدارس والقاعات. الفريق يوصل قبل الحفلة، يركّب كل شيء، يشغّل محطات الأكل أثناء الحفلة، ويفكّ كل شيء بعدها." },
+          { "q": "أي مناطق تغطون؟", "a": "دبي، الشارقة، عجمان، أبوظبي، العين، أم القيوين، رأس الخيمة، والفجيرة. رسوم التوصيل من 280 درهم في دبي إلى 660 درهم في الفجيرة. حاليًا إيفنتانا ما تخدم منطقة الغربية." },
+          { "q": "أقدر أضيف قلعة نطاطة أو محطات أكل زيادة؟", "a": "نعم. القلعة النطاطة 4×4 م بـ1,100 درهم، بيت الفقاعات 1,500 درهم، محطة البوبكورن أو غزل البنات 780 درهم لكل وحدة، ومحطة السلاش 950 درهم. تضيفينها لباقتك قبل الدفع والسعر يتحدّث معك خطوة بخطوة." }
+        ]
+      }
+    },
+    {
+      "slug": "balloon-decoration",
+      "celebrationType": "kids",
+      "priority": "0.9",
+      "priceFromAed": 1500,
+      "en": {
+        "headline": "Balloon Decoration in Dubai",
+        "subhead": "Balloon arches, stands and custom backdrops, styled in your colours and installed at your venue.",
+        "includes": [
+          "Balloon arches, stands and garlands",
+          "Custom backdrop in your theme colours",
+          "Styled dessert and gift tables",
+          "Installed on site, taken down after",
+          "Indoor, garden or majlis setups",
+          "All emirates covered"
+        ],
+        "cta": "Design my decor",
+        "title": "Balloon Decoration Dubai | Eventana",
+        "description": "Balloon arches, stands and custom backdrops for birthdays and celebrations in Dubai. Backdrops from AED 1,500, installed at your venue.",
+        "intro": "Eventana styles balloon decor and custom backdrops for birthdays, baby showers, gender reveals, graduations and corporate events across the UAE. A small main backdrop is AED 1,500, a medium AED 1,650 and a giant backdrop AED 2,200, each built in the colours and theme you pick. The team installs on site before your guests arrive and takes everything down afterwards, so nothing is left for you to deal with.",
+        "faq": [
+          { "q": "How much does balloon decoration cost in Dubai?", "a": "A small main backdrop with balloon styling is AED 1,500, a medium backdrop AED 1,650 and a giant backdrop AED 2,200. Balloon decor is also included inside the full party packages, which start at AED 2,199." },
+          { "q": "Can I choose my own colours?", "a": "Yes. The backdrop and balloon work are built in the theme and colour palette you choose. Eventana has 40 ready themes including Jungle, Mermaid, Fairy, Frozen, Barbie, Spider-Man and Space, and can also work to your own colours." },
+          { "q": "Do you install the decoration?", "a": "Yes. Installation and takedown are done by the Eventana team. You do not assemble anything and you do not clear it away." },
+          { "q": "Can you decorate outdoors or in a garden?", "a": "Yes — indoor rooms, gardens, majlis and venues are all covered. Outdoor setups are planned around the weather and the season." },
+          { "q": "Which emirates do you deliver decoration to?", "a": "All of them: Dubai (AED 280 delivery), Sharjah and Ajman (AED 380), Abu Dhabi (AED 420), Umm Al Quwain (AED 480), Al Ain and Ras Al Khaimah (AED 530) and Fujairah (AED 660)." }
+        ]
+      },
+      "ar": {
+        "headline": "ديكور وتزيين بالونات في دبي",
+        "subhead": "أقواس وستاندات بالونات وخلفيات مخصصة، بألوانك، ونركّبها في موقعك.",
+        "includes": [
+          "أقواس وستاندات وسلاسل بالونات",
+          "خلفية مخصصة بألوان الثيم",
+          "تنسيق طاولة الحلويات والهدايا",
+          "تركيب في الموقع وفكّ بعد المناسبة",
+          "تجهيزات داخلية أو حديقة أو مجلس",
+          "نغطي كل الإمارات"
+        ],
+        "cta": "صمّمي ديكورك",
+        "title": "ديكور وتزيين بالونات في دبي | إيفنتانا",
+        "description": "أقواس وستاندات بالونات وخلفيات مخصصة لأعياد الميلاد والمناسبات في دبي. الخلفيات من 1,500 درهم، ونركّبها في موقعك.",
+        "intro": "إيفنتانا تنسّق ديكور البالونات والخلفيات المخصصة لأعياد الميلاد والبيبي شاور وتحديد جنس المولود وحفلات التخرّج وفعاليات الشركات في كل الإمارات. الخلفية الرئيسية الصغيرة 1,500 درهم، المتوسطة 1,650 درهم، والعملاقة 2,200 درهم، وكلها تُبنى بالألوان والثيم اللي تختارينه. الفريق يركّب في الموقع قبل وصول ضيوفك ويفكّ كل شيء بعدها، فما يبقى عليك شيء.",
+        "faq": [
+          { "q": "كم سعر ديكور البالونات في دبي؟", "a": "الخلفية الرئيسية الصغيرة مع تنسيق البالونات 1,500 درهم، المتوسطة 1,650 درهم، والعملاقة 2,200 درهم. وديكور البالونات مشمول أصلًا في باقات الحفلات الكاملة اللي تبدأ من 2,199 درهم." },
+          { "q": "أقدر أختار ألواني؟", "a": "نعم. الخلفية وشغل البالونات يُنفّذان بالثيم ولوحة الألوان اللي تختارينها. عند إيفنتانا 40 ثيم جاهز منها الغابة والحورية والفيري وفروزن وباربي وسبايدرمان والفضاء، وتقدرين تعطينا ألوانك الخاصة." },
+          { "q": "هل تركّبون الديكور؟", "a": "نعم. التركيب والفكّ من فريق إيفنتانا. ما تركّبين شيء بنفسك وما ترتّبين بعد المناسبة." },
+          { "q": "تقدرون تزيّنون في الحديقة أو الخارج؟", "a": "نعم — الغرف الداخلية والحدائق والمجالس والقاعات كلها مغطاة. التجهيزات الخارجية نخطّطها حسب الجو والموسم." },
+          { "q": "أي إمارات توصلون لها الديكور؟", "a": "كلها: دبي (توصيل 280 درهم)، الشارقة وعجمان (380)، أبوظبي (420)، أم القيوين (480)، العين ورأس الخيمة (530)، والفجيرة (660)." }
+        ]
+      }
+    },
+    {
+      "slug": "baby-shower",
+      "celebrationType": "baby",
+      "priority": "0.8",
+      "priceFromAed": 1500,
+      "en": {
+        "headline": "Baby Shower & Gender Reveal Setups in Dubai",
+        "subhead": "A styled celebration at home or at your venue, planned end to end and set up before your guests arrive.",
+        "includes": [
+          "Balloon styling in your palette",
+          "Custom backdrop and signage",
+          "Dessert and gift table styling",
+          "Gender reveal moment planned with you",
+          "Setup and takedown by our team",
+          "All emirates covered"
+        ],
+        "cta": "Plan my celebration",
+        "title": "Baby Shower & Gender Reveal Setup Dubai | Eventana",
+        "description": "Baby shower and gender reveal styling in Dubai: balloons, backdrops and dessert tables from AED 1,500, set up at your home or venue before guests arrive.",
+        "intro": "Eventana styles baby showers and gender reveal celebrations at homes and venues across the UAE. Setups are built around a custom backdrop — AED 1,500 for a small, AED 1,650 medium, AED 2,200 giant — with balloon styling in your palette, a styled dessert and gift table, and signage. For a gender reveal the reveal moment itself is planned with you in advance so it happens the way you pictured it. The team sets up before your guests arrive and clears everything afterwards.",
+        "faq": [
+          { "q": "How much does a baby shower setup cost in Dubai?", "a": "Setups start from AED 1,500 for a small styled backdrop with balloon decor, AED 1,650 for a medium and AED 2,200 for a giant backdrop, plus delivery from AED 280 in Dubai. Food stations, a chocolate fountain (AED 2,200) and other extras can be added." },
+          { "q": "Do you do gender reveals as well?", "a": "Yes. Gender reveal celebrations are one of Eventana's celebration types, and the reveal moment is planned with you beforehand — the setup, the colours and how the reveal happens." },
+          { "q": "Can you set up at a restaurant or a hall rather than a home?", "a": "Yes. Eventana sets up at homes, villas, gardens, majlis and booked venues. Confirm with the venue that outside styling is allowed and give us the access time." },
+          { "q": "How far in advance should a baby shower be booked?", "a": "As early as your date is fixed. Weekend dates fill up first. You can check the date and see the full price online before paying." },
+          { "q": "Which areas do you cover for baby showers?", "a": "Dubai, Sharjah, Ajman, Abu Dhabi, Al Ain, Umm Al Quwain, Ras Al Khaimah and Fujairah, with delivery fees from AED 280 to AED 660 depending on the emirate." }
+        ]
+      },
+      "ar": {
+        "headline": "تجهيز بيبي شاور وتحديد جنس المولود في دبي",
+        "subhead": "احتفال منسّق في بيتك أو في موقعك، نخطّطه من البداية للنهاية ونجهّزه قبل وصول الضيوف.",
+        "includes": [
+          "تنسيق بالونات بألوانك",
+          "خلفية مخصصة ولوحات باسمك",
+          "تنسيق طاولة الحلويات والهدايا",
+          "لحظة تحديد الجنس نخطّطها معك",
+          "تركيب وفكّ من فريقنا",
+          "نغطي كل الإمارات"
+        ],
+        "cta": "جهّزي مناسبتك",
+        "title": "تجهيز بيبي شاور وتحديد جنس المولود في دبي | إيفنتانا",
+        "description": "تنسيق بيبي شاور وحفلات تحديد جنس المولود في دبي: بالونات وخلفيات وطاولات حلويات من 1,500 درهم، نجهّزها قبل وصول الضيوف.",
+        "intro": "إيفنتانا تنسّق حفلات البيبي شاور وتحديد جنس المولود في البيوت والقاعات بكل الإمارات. التجهيز يُبنى حول خلفية مخصصة — 1,500 درهم للصغيرة، 1,650 للمتوسطة، 2,200 للعملاقة — مع تنسيق بالونات بألوانك وطاولة حلويات وهدايا منسّقة ولوحات باسمك. وفي حفلات تحديد الجنس نخطّط لحظة الكشف معك مسبقًا عشان تصير بالضبط مثل ما تخيّلتيها. الفريق يجهّز قبل وصول ضيوفك ويرتّب كل شيء بعدها.",
+        "faq": [
+          { "q": "كم تكلفة تجهيز بيبي شاور في دبي؟", "a": "التجهيزات تبدأ من 1,500 درهم لخلفية صغيرة منسّقة مع ديكور بالونات، 1,650 درهم للمتوسطة و2,200 درهم للعملاقة، بالإضافة إلى التوصيل من 280 درهم في دبي. وتقدرين تضيفين محطات أكل ونافورة شوكولاتة (2,200 درهم) وغيرها." },
+          { "q": "تسوّون حفلات تحديد جنس المولود؟", "a": "نعم. تحديد جنس المولود من أنواع المناسبات اللي تجهّزها إيفنتانا، ولحظة الكشف نخطّطها معك مسبقًا — التجهيز والألوان وطريقة الكشف." },
+          { "q": "تقدرون تجهّزون في مطعم أو قاعة بدل البيت؟", "a": "نعم. إيفنتانا تجهّز في البيوت والفلل والحدائق والمجالس والقاعات المحجوزة. تأكدي من القاعة أنها تسمح بتنسيق خارجي وأعطينا وقت الدخول." },
+          { "q": "متى لازم أحجز البيبي شاور؟", "a": "بأبكر وقت بعد ما يتحدد تاريخك. تواريخ نهاية الأسبوع تنحجز أول. تقدرين تتأكدين من التاريخ وتشوفين السعر الكامل أونلاين قبل الدفع." },
+          { "q": "أي مناطق تغطون للبيبي شاور؟", "a": "دبي، الشارقة، عجمان، أبوظبي، العين، أم القيوين، رأس الخيمة، والفجيرة، برسوم توصيل من 280 إلى 660 درهم حسب الإمارة." }
+        ]
+      }
+    },
+    {
+      "slug": "graduation",
+      "celebrationType": "graduation",
+      "priority": "0.8",
+      "priceFromAed": 1500,
+      "en": {
+        "headline": "Graduation Party Setup in Dubai",
+        "subhead": "Celebrate the result at home — styled decor, a photo moment, and everything set up before the family arrives.",
+        "includes": [
+          "Balloon decor in the school or university colours",
+          "Custom backdrop and photo corner",
+          "Congratulations signage with the name",
+          "Dessert table styling",
+          "Setup and takedown by our team",
+          "All emirates covered"
+        ],
+        "cta": "Plan the celebration",
+        "title": "Graduation Party Setup Dubai | Eventana",
+        "description": "Graduation party styling in Dubai: balloons in your colours, a photo backdrop and dessert table from AED 1,500, set up at home before the family arrives.",
+        "intro": "Eventana sets up graduation celebrations at home and at venues across the UAE — for school leavers, university graduates and adult graduations. The setup is built around a custom backdrop in the school or university colours, from AED 1,500, with a photo corner, congratulations signage carrying the graduate's name, and a styled dessert table. Food stations and entertainment can be added. The team installs before the family arrives and takes everything down afterwards.",
+        "faq": [
+          { "q": "How much does a graduation party setup cost?", "a": "From AED 1,500 for a small styled backdrop, AED 1,650 medium and AED 2,200 for a giant backdrop, plus delivery from AED 280 in Dubai. Food stations start at AED 780 and can be added to the setup." },
+          { "q": "Can the decor match my university colours?", "a": "Yes. The backdrop and balloon work are built in the colours you give us, and the signage carries the graduate's name." },
+          { "q": "Do you cater graduation parties?", "a": "Eventana provides food stations rather than catered meals — popcorn (AED 780), cotton candy (AED 780), slush (AED 950), ice cream (AED 900), hot dog (AED 1,200), pancake (AED 1,500), burger sliders (AED 1,500), nachos (AED 1,600) and a chocolate fountain (AED 2,200). Each is operated by Eventana staff." },
+          { "q": "Is this only for children?", "a": "No. Graduation setups are done for school, university and adult graduations, and Eventana also has a separate Adult Birthday celebration type for grown-up parties." },
+          { "q": "Which emirates do you cover?", "a": "Dubai, Sharjah, Ajman, Abu Dhabi, Al Ain, Umm Al Quwain, Ras Al Khaimah and Fujairah." }
+        ]
+      },
+      "ar": {
+        "headline": "تجهيز حفلات التخرّج في دبي",
+        "subhead": "احتفلوا بالنتيجة في البيت — ديكور منسّق وركن تصوير، وكل شيء جاهز قبل وصول الأهل.",
+        "includes": [
+          "ديكور بالونات بألوان المدرسة أو الجامعة",
+          "خلفية مخصصة وركن تصوير",
+          "لوحة تهنئة بالاسم",
+          "تنسيق طاولة الحلويات",
+          "تركيب وفكّ من فريقنا",
+          "نغطي كل الإمارات"
+        ],
+        "cta": "جهّزي الاحتفال",
+        "title": "تجهيز حفلات التخرّج في دبي | إيفنتانا",
+        "description": "تنسيق حفلات التخرّج في دبي: بالونات بألوانك، خلفية تصوير وطاولة حلويات من 1,500 درهم، نجهّزها قبل وصول الأهل.",
+        "intro": "إيفنتانا تجهّز احتفالات التخرّج في البيوت والقاعات بكل الإمارات — لخريجي المدارس والجامعات وللكبار. التجهيز يُبنى حول خلفية مخصصة بألوان المدرسة أو الجامعة، من 1,500 درهم، مع ركن تصوير ولوحة تهنئة تحمل اسم الخريج وطاولة حلويات منسّقة. وتقدرين تضيفين محطات أكل وفقرات ترفيه. الفريق يركّب قبل وصول الأهل ويفكّ كل شيء بعدها.",
+        "faq": [
+          { "q": "كم تكلفة تجهيز حفلة تخرّج؟", "a": "من 1,500 درهم لخلفية صغيرة منسّقة، 1,650 للمتوسطة و2,200 للعملاقة، بالإضافة إلى التوصيل من 280 درهم في دبي. ومحطات الأكل تبدأ من 780 درهم وتقدرين تضيفينها." },
+          { "q": "يقدر الديكور يكون بألوان جامعتي؟", "a": "نعم. الخلفية وشغل البالونات يُنفّذان بالألوان اللي تعطينا إياها، واللوحة تحمل اسم الخريج." },
+          { "q": "توفّرون ضيافة لحفلات التخرّج؟", "a": "إيفنتانا توفّر محطات أكل وليس وجبات ضيافة كاملة — بوبكورن (780 درهم)، غزل بنات (780)، سلاش (950)، آيس كريم (900)، هوت دوق (1,200)، بان كيك (1,500)، برجر سلايدر (1,500)، ناتشوز (1,600)، ونافورة شوكولاتة (2,200). وكل محطة يشغّلها فريق إيفنتانا." },
+          { "q": "هذا للأطفال بس؟", "a": "لا. تجهيزات التخرّج تُنفّذ لخريجي المدارس والجامعات وللكبار، وعند إيفنتانا كذلك نوع مناسبة مستقل لأعياد ميلاد الكبار." },
+          { "q": "أي إمارات تغطون؟", "a": "دبي، الشارقة، عجمان، أبوظبي، العين، أم القيوين، رأس الخيمة، والفجيرة." }
+        ]
+      }
+    },
+    {
+      "slug": "bride-to-be",
+      "celebrationType": "bride",
+      "priority": "0.8",
+      "priceFromAed": 1500,
+      "en": {
+        "headline": "Bride to Be & Bridal Shower Setups in Dubai",
+        "subhead": "A styled bridal celebration at home or at your venue — decor, backdrop and dessert table, installed before your guests arrive.",
+        "includes": [
+          "Custom backdrop in your palette",
+          "Balloon styling and floral-look decor",
+          "Bride-to-be signage with the name",
+          "Styled dessert and gift table",
+          "Setup and takedown by our team",
+          "All emirates covered"
+        ],
+        "cta": "Plan my bridal shower",
+        "title": "Bride to Be & Bridal Shower Setup Dubai | Eventana",
+        "description": "Bride to be and bridal shower styling in Dubai: custom backdrop, balloon decor and dessert table from AED 1,500, set up at your home or venue.",
+        "intro": "Eventana styles bride-to-be celebrations and bridal showers at homes and venues across the UAE. Setups start from AED 1,500 for a small custom backdrop, AED 1,650 medium and AED 2,200 giant, built in the palette you choose, with balloon styling, signage carrying the bride's name and a styled dessert and gift table. Food stations, a chocolate fountain and giveaways for the guests can be added. Everything is installed before your guests arrive and taken down afterwards.",
+        "faq": [
+          { "q": "How much does a bridal shower setup cost in Dubai?", "a": "From AED 1,500 for a small styled backdrop, AED 1,650 medium and AED 2,200 giant, plus delivery from AED 280 in Dubai. Extras such as a chocolate fountain (AED 2,200) or a pancake station (AED 1,500) are priced separately." },
+          { "q": "Can the setup be done in a hotel or a venue?", "a": "Yes. Eventana sets up at homes, villas, majlis and booked venues. Check that the venue permits outside styling and share the access time with us." },
+          { "q": "Do you provide giveaways for the guests?", "a": "Yes — personalised keepsakes for guests are one of the catalogue categories and can be added to the setup." },
+          { "q": "Can I choose the colours and the theme?", "a": "Yes. The backdrop and decor are built in your palette, and the signage carries the bride's name." },
+          { "q": "Which emirates do you cover?", "a": "Dubai, Sharjah, Ajman, Abu Dhabi, Al Ain, Umm Al Quwain, Ras Al Khaimah and Fujairah, with delivery from AED 280 to AED 660." }
+        ]
+      },
+      "ar": {
+        "headline": "تجهيز حفلات العروس وبرايدل شاور في دبي",
+        "subhead": "احتفال منسّق للعروس في بيتك أو موقعك — ديكور وخلفية وطاولة حلويات، جاهزة قبل وصول ضيوفك.",
+        "includes": [
+          "خلفية مخصصة بألوانك",
+          "تنسيق بالونات وديكور بلمسة ورود",
+          "لوحة Bride to Be باسم العروس",
+          "طاولة حلويات وهدايا منسّقة",
+          "تركيب وفكّ من فريقنا",
+          "نغطي كل الإمارات"
+        ],
+        "cta": "جهّزي حفلة العروس",
+        "title": "تجهيز حفلات العروس وبرايدل شاور في دبي | إيفنتانا",
+        "description": "تنسيق حفلات العروس والبرايدل شاور في دبي: خلفية مخصصة وديكور بالونات وطاولة حلويات من 1,500 درهم، نجهّزها في بيتك أو موقعك.",
+        "intro": "إيفنتانا تنسّق حفلات العروس والبرايدل شاور في البيوت والقاعات بكل الإمارات. التجهيزات تبدأ من 1,500 درهم لخلفية مخصصة صغيرة، 1,650 للمتوسطة و2,200 للعملاقة، تُبنى باللوحة اللونية اللي تختارينها، مع تنسيق بالونات ولوحة تحمل اسم العروس وطاولة حلويات وهدايا منسّقة. وتقدرين تضيفين محطات أكل ونافورة شوكولاتة وتوزيعات للضيوف. كل شيء يُركّب قبل وصول ضيوفك ويُفكّ بعدها.",
+        "faq": [
+          { "q": "كم تكلفة تجهيز برايدل شاور في دبي؟", "a": "من 1,500 درهم لخلفية صغيرة منسّقة، 1,650 للمتوسطة و2,200 للعملاقة، بالإضافة إلى التوصيل من 280 درهم في دبي. والإضافات مثل نافورة الشوكولاتة (2,200 درهم) أو محطة البان كيك (1,500 درهم) تُحسب منفصلة." },
+          { "q": "يقدر التجهيز يكون في فندق أو قاعة؟", "a": "نعم. إيفنتانا تجهّز في البيوت والفلل والمجالس والقاعات المحجوزة. تأكدي أن المكان يسمح بتنسيق خارجي وشاركينا وقت الدخول." },
+          { "q": "توفّرون توزيعات للضيوف؟", "a": "نعم — التوزيعات والهدايا التذكارية المخصصة من فئات الكتالوج وتقدرين تضيفينها للتجهيز." },
+          { "q": "أقدر أختار الألوان والثيم؟", "a": "نعم. الخلفية والديكور يُنفّذان بلوحتك اللونية، واللوحة تحمل اسم العروس." },
+          { "q": "أي إمارات تغطون؟", "a": "دبي، الشارقة، عجمان، أبوظبي، العين، أم القيوين، رأس الخيمة، والفجيرة، بتوصيل من 280 إلى 660 درهم." }
+        ]
+      }
+    },
+    {
+      "slug": "corporate-events",
+      "celebrationType": "adult",
+      "priority": "0.8",
+      "priceFromAed": 1500,
+      "en": {
+        "headline": "Corporate & School Event Setup in Dubai",
+        "subhead": "Family days, staff celebrations and school events — one team for decor, entertainment and snack stations.",
+        "includes": [
+          "Family day and staff celebration setups",
+          "School and nursery events",
+          "Entertainers, games and activity corners",
+          "Popcorn, cotton candy and slush stations",
+          "Branded backdrops and signage",
+          "Invoicing and scheduling handled with your team"
+        ],
+        "cta": "Request a plan",
+        "title": "Corporate & School Event Organizer Dubai | Eventana",
+        "description": "Corporate family days, staff celebrations and school events in Dubai: decor, entertainment and snack stations from one team, from AED 1,500.",
+        "intro": "Eventana runs corporate family days, staff celebrations, school and nursery events across the UAE with a single team covering decor, entertainment and food stations. Branded backdrops start at AED 1,500. Food stations are operated by Eventana staff and priced individually — popcorn and cotton candy at AED 780 each, slush AED 950, ice cream AED 900, hot dog AED 1,200, pancake and burger sliders AED 1,500 each, nachos AED 1,600. Entertainment includes face painting (AED 950), balloon twisting (AED 950), mascot characters (AED 950) and an acrobat clown (AED 1,500). Inflatables such as a 4x4m bouncy castle (AED 1,100) or a 12x6m slippery football pitch (AED 1,100) can be added for family days.",
+        "faq": [
+          { "q": "Do you handle corporate family days?", "a": "Yes — family days, staff celebrations, school and nursery events. One team covers the decor, the entertainment and the food stations, and scheduling and invoicing are arranged with your team." },
+          { "q": "Can the backdrop carry our branding?", "a": "Yes. Backdrops and signage are made in your colours and can carry your branding. A small backdrop is AED 1,500, medium AED 1,650 and giant AED 2,200." },
+          { "q": "What entertainment can you provide for a company event?", "a": "Face painting (AED 950), balloon twisting (AED 950), a costumed mascot character (AED 950) and an acrobat clown (AED 1,500), plus games and activity corners. Activity sessions are priced per guest with a 20-guest minimum and run 2 hours with supplies and two assistants provided." },
+          { "q": "How many guests can you cover?", "a": "The standard party packages cover up to 40 children over 4 hours. Larger corporate events are quoted individually — share the headcount, the venue and the date and Eventana will plan against it." },
+          { "q": "Do you invoice companies?", "a": "Yes. Scheduling and invoicing are handled with your team." }
+        ]
+      },
+      "ar": {
+        "headline": "تنظيم فعاليات الشركات والمدارس في دبي",
+        "subhead": "أيام عائلية وفعاليات موظفين ومناسبات مدرسية — فريق واحد للديكور والتسلية والمحطات.",
+        "includes": [
+          "أيام عائلية وفعاليات الموظفين",
+          "مناسبات المدارس والحضانات",
+          "مهرجين وألعاب وأركان أنشطة",
+          "محطات بوبكورن وغزل بنات وسلاش",
+          "خلفيات ولوحات بهوية الجهة",
+          "التنسيق والفواتير مع فريقكم"
+        ],
+        "cta": "اطلبي عرضًا",
+        "title": "تنظيم فعاليات الشركات والمدارس في دبي | إيفنتانا",
+        "description": "تنظيم الأيام العائلية وفعاليات الموظفين والمناسبات المدرسية في دبي: ديكور وتسلية ومحطات تسالي من فريق واحد، من 1,500 درهم.",
+        "intro": "إيفنتانا تنظّم الأيام العائلية للشركات وفعاليات الموظفين ومناسبات المدارس والحضانات في كل الإمارات بفريق واحد يغطي الديكور والترفيه ومحطات الأكل. الخلفيات بهوية الجهة تبدأ من 1,500 درهم. ومحطات الأكل يشغّلها فريق إيفنتانا وتُسعّر كل واحدة على حدة — البوبكورن وغزل البنات 780 درهم لكل واحدة، السلاش 950، الآيس كريم 900، الهوت دوق 1,200، البان كيك والبرجر سلايدر 1,500 لكل واحدة، الناتشوز 1,600. والترفيه يشمل الرسم على الوجه (950 درهم) وتشكيل البالونات (950) والشخصيات الكرتونية (950) والمهرج الأكروبات (1,500). وللأيام العائلية تقدرون تضيفون نطاطيات مثل القلعة 4×4 م (1,100 درهم) أو الملعب الزلق 12×6 م (1,100 درهم).",
+        "faq": [
+          { "q": "تنظّمون الأيام العائلية للشركات؟", "a": "نعم — أيام عائلية وفعاليات موظفين ومناسبات مدارس وحضانات. فريق واحد يغطي الديكور والترفيه ومحطات الأكل، والجدولة والفواتير تُرتّب مع فريقكم." },
+          { "q": "تقدر الخلفية تحمل هويتنا؟", "a": "نعم. الخلفيات واللوحات تُصنع بألوانكم وتقدر تحمل هويتكم. الخلفية الصغيرة 1,500 درهم، المتوسطة 1,650، والعملاقة 2,200." },
+          { "q": "أي ترفيه توفّرونه لفعالية شركة؟", "a": "رسم على الوجه (950 درهم)، تشكيل بالونات (950)، شخصية كرتونية بزي كامل (950)، ومهرج أكروبات (1,500)، بالإضافة لألعاب وأركان أنشطة. وجلسات الأنشطة تُسعّر لكل ضيف بحد أدنى 20 ضيف ومدتها ساعتان مع توفير المستلزمات ومساعدَين." },
+          { "q": "كم ضيف تقدرون تغطون؟", "a": "الباقات القياسية تغطي حتى 40 طفل خلال 4 ساعات. والفعاليات الأكبر تُسعّر بشكل خاص — شاركونا عدد الحضور والموقع والتاريخ وإيفنتانا تخطّط عليه." },
+          { "q": "تصدرون فواتير للشركات؟", "a": "نعم. الجدولة وإصدار الفواتير تُرتّب مع فريقكم." }
+        ]
+      }
+    },
+    {
+      "slug": "rentals",
+      "celebrationType": "kids",
+      "priority": "0.8",
+      "priceFromAed": 780,
+      "en": {
+        "headline": "Party Rentals in Dubai — Castles, Mascots & Snack Stations",
+        "subhead": "Delivered, set up and collected. Rent on their own or add them to a full party package.",
+        "includes": [
+          "Bouncy castles",
+          "Costumed mascot characters",
+          "Popcorn machines",
+          "Cotton candy machines",
+          "Slush machines",
+          "Tables, chairs and styling"
+        ],
+        "cta": "See what to rent",
+        "title": "Party Rentals Dubai — Bouncy Castle, Mascots | Eventana",
+        "description": "Rent bouncy castles from AED 1,100, popcorn and cotton candy stations from AED 780, mascots and slush machines in Dubai. Delivered, set up and collected.",
+        "intro": "Eventana rents party equipment across the UAE, delivered, installed and collected by our own team. Inflatables: a 4x4m bouncy castle AED 1,100 (available in Lime, Cotton Candy and Snow), a bubbles house AED 1,500, the Amwaj slide AED 1,250, the blue water slide AED 800 and a 12x6m slippery football pitch AED 1,100. Food stations, all operated by Eventana staff for 4 hours and up to 40 guests: popcorn AED 780, cotton candy AED 780, ice cream AED 900, corn AED 900, slush AED 950, hot dog AED 1,200, pancake AED 1,500, burger sliders AED 1,500, hot chocolate AED 1,500, nachos AED 1,600 and a chocolate fountain AED 2,200. Entertainment: face painting AED 950, balloon twisting AED 950, a mascot character AED 950 and an acrobat clown AED 1,500. Socks are required on the inflatables and are available at AED 12 a pair.",
+        "faq": [
+          { "q": "How much is it to rent a bouncy castle in Dubai?", "a": "A 4x4m bouncy castle is AED 1,100, delivered, set up and collected. It comes in Lime, Cotton Candy and Snow. A bubbles house is AED 1,500 and the Amwaj slide AED 1,250. Maximum 10 children on each ride at a time, socks required, no food or drinks inside." },
+          { "q": "How much is a popcorn or cotton candy machine?", "a": "Each station is AED 780 and includes an Eventana staff member to operate it for 4 hours, serving up to 40 guests. Children never run the machines." },
+          { "q": "Can I rent equipment without booking a full package?", "a": "Yes. Rentals can be booked on their own or added to a party package." },
+          { "q": "Do you deliver and set up?", "a": "Yes — delivery, setup and collection are done by the Eventana team. Delivery is AED 280 in Dubai, AED 380 in Sharjah and Ajman, AED 420 in Abu Dhabi, AED 480 in Umm Al Quwain, AED 530 in Al Ain and Ras Al Khaimah and AED 660 in Fujairah." },
+          { "q": "Are the inflatables supervised?", "a": "Food stations are operated by Eventana staff. For inflatables the rules are a maximum of 10 children per ride, socks required and no food or drink inside; supervision of the children remains with the host." }
+        ]
+      },
+      "ar": {
+        "headline": "تأجير مستلزمات الحفلات في دبي — قلاع نطاطة وشخصيات ومحطات",
+        "subhead": "نوصّل ونركّب ونستلم. تأجير منفرد أو ضمن باقة حفلة كاملة.",
+        "includes": [
+          "قلاع نطاطة",
+          "شخصيات كرتونية بأزياء كاملة",
+          "مكائن بوبكورن",
+          "مكائن غزل بنات",
+          "مكائن سلاش",
+          "طاولات وكراسي وتنسيق"
+        ],
+        "cta": "شوفي المتاح للتأجير",
+        "title": "تأجير مستلزمات الحفلات في دبي — قلعة نطاطة وشخصيات | إيفنتانا",
+        "description": "تأجير قلاع نطاطة من 1,100 درهم، ومحطات بوبكورن وغزل بنات من 780 درهم، وشخصيات ومكائن سلاش في دبي. نوصّل ونركّب ونستلم.",
+        "intro": "إيفنتانا تؤجّر مستلزمات الحفلات في كل الإمارات، مع التوصيل والتركيب والاستلام من فريقنا. النطاطيات: قلعة 4×4 م بـ1,100 درهم (متوفرة بألوان لايم وكوتون كاندي وسنو)، بيت فقاعات 1,500 درهم، زحليقة أمواج 1,250 درهم، الزحليقة المائية الزرقاء 800 درهم، وملعب زلق 12×6 م بـ1,100 درهم. محطات الأكل، وكلها يشغّلها فريق إيفنتانا لمدة 4 ساعات وحتى 40 ضيف: بوبكورن 780، غزل بنات 780، آيس كريم 900، ذرة 900، سلاش 950، هوت دوق 1,200، بان كيك 1,500، برجر سلايدر 1,500، شوكولاتة ساخنة 1,500، ناتشوز 1,600، ونافورة شوكولاتة 2,200. الترفيه: رسم على الوجه 950، تشكيل بالونات 950، شخصية كرتونية 950، ومهرج أكروبات 1,500. والجوارب مطلوبة على النطاطيات ومتوفرة بـ12 درهم للزوج.",
+        "faq": [
+          { "q": "كم إيجار قلعة نطاطة في دبي؟", "a": "القلعة النطاطة 4×4 م بـ1,100 درهم، مع التوصيل والتركيب والاستلام. متوفرة بألوان لايم وكوتون كاندي وسنو. بيت الفقاعات 1,500 درهم وزحليقة أمواج 1,250 درهم. الحد الأقصى 10 أطفال على كل لعبة، والجوارب مطلوبة، وممنوع الأكل والشرب داخلها." },
+          { "q": "كم سعر مكينة البوبكورن أو غزل البنات؟", "a": "كل محطة 780 درهم وتشمل موظف من إيفنتانا يشغّلها 4 ساعات ويخدم حتى 40 ضيف. الأطفال أبدًا ما يشغّلون المكائن." },
+          { "q": "أقدر أستأجر بدون ما أحجز باقة كاملة؟", "a": "نعم. التأجير يكون منفرد أو تضيفينه على باقة حفلة." },
+          { "q": "توصّلون وتركّبون؟", "a": "نعم — التوصيل والتركيب والاستلام من فريق إيفنتانا. التوصيل 280 درهم في دبي، 380 في الشارقة وعجمان، 420 في أبوظبي، 480 في أم القيوين، 530 في العين ورأس الخيمة، و660 في الفجيرة." },
+          { "q": "هل في إشراف على النطاطيات؟", "a": "محطات الأكل يشغّلها فريق إيفنتانا. أما النطاطيات فالقواعد هي حد أقصى 10 أطفال لكل لعبة، والجوارب مطلوبة، وممنوع الأكل والشرب داخلها؛ والإشراف على الأطفال يبقى مسؤولية صاحب المناسبة." }
+        ]
+      }
+    },
+    {
+      "slug": "adult-birthday",
+      "celebrationType": "adult",
+      "priority": "0.7",
+      "priceFromAed": 1500,
+      "en": {
+        "headline": "Adult Birthday Party Setup in Dubai",
+        "subhead": "A grown-up celebration styled at home or at your venue — backdrop, decor and dessert table, set up before your guests arrive.",
+        "includes": [
+          "Custom backdrop in your palette",
+          "Elegant balloon styling",
+          "Styled dessert and gift table",
+          "Food stations operated by our team",
+          "Setup and takedown by our team",
+          "All emirates covered"
+        ],
+        "cta": "Plan my celebration",
+        "title": "Adult Birthday Party Setup Dubai | Eventana",
+        "description": "Adult birthday party styling in Dubai: custom backdrop, elegant balloon decor and dessert table from AED 1,500, set up at your home or venue.",
+        "intro": "Eventana styles grown-up birthday celebrations at homes and venues across the UAE. Setups start from AED 1,500 for a small custom backdrop, AED 1,650 medium and AED 2,200 giant, built in the palette you choose, with balloon styling and a styled dessert and gift table. Food stations operated by Eventana staff can be added — a chocolate fountain at AED 2,200, hot chocolate at AED 1,500, nachos at AED 1,600 or burger sliders at AED 1,500. Everything is installed before your guests arrive and taken down afterwards.",
+        "faq": [
+          { "q": "Do you do birthday setups for adults, not just children?", "a": "Yes. Adult Birthday is one of Eventana's celebration types, styled for grown-up parties rather than children's themes." },
+          { "q": "How much does an adult birthday setup cost?", "a": "From AED 1,500 for a small styled backdrop, AED 1,650 medium and AED 2,200 giant, plus delivery from AED 280 in Dubai. Food stations and extras are priced separately." },
+          { "q": "Can you set up at a restaurant or a rented venue?", "a": "Yes — homes, villas, gardens, majlis and booked venues. Confirm the venue allows outside styling and give us the access time." },
+          { "q": "What food stations suit an adult party?", "a": "A chocolate fountain (AED 2,200), hot chocolate (AED 1,500), nachos (AED 1,600), burger sliders (AED 1,500) or a pancake station (AED 1,500). Each is run by Eventana staff for 4 hours and serves up to 40 guests." },
+          { "q": "Which emirates do you cover?", "a": "Dubai, Sharjah, Ajman, Abu Dhabi, Al Ain, Umm Al Quwain, Ras Al Khaimah and Fujairah." }
+        ]
+      },
+      "ar": {
+        "headline": "تجهيز أعياد ميلاد الكبار في دبي",
+        "subhead": "احتفال أنيق للكبار في بيتك أو موقعك — خلفية وديكور وطاولة حلويات، جاهزة قبل وصول ضيوفك.",
+        "includes": [
+          "خلفية مخصصة بألوانك",
+          "تنسيق بالونات أنيق",
+          "طاولة حلويات وهدايا منسّقة",
+          "محطات أكل يشغّلها فريقنا",
+          "تركيب وفكّ من فريقنا",
+          "نغطي كل الإمارات"
+        ],
+        "cta": "جهّزي احتفالك",
+        "title": "تجهيز أعياد ميلاد الكبار في دبي | إيفنتانا",
+        "description": "تنسيق أعياد ميلاد الكبار في دبي: خلفية مخصصة وديكور بالونات أنيق وطاولة حلويات من 1,500 درهم، نجهّزها في بيتك أو موقعك.",
+        "intro": "إيفنتانا تنسّق احتفالات أعياد ميلاد الكبار في البيوت والقاعات بكل الإمارات. التجهيزات تبدأ من 1,500 درهم لخلفية مخصصة صغيرة، 1,650 للمتوسطة و2,200 للعملاقة، تُبنى باللوحة اللونية اللي تختارينها، مع تنسيق بالونات وطاولة حلويات وهدايا منسّقة. وتقدرين تضيفين محطات أكل يشغّلها فريق إيفنتانا — نافورة شوكولاتة بـ2,200 درهم، شوكولاتة ساخنة 1,500، ناتشوز 1,600، أو برجر سلايدر 1,500. كل شيء يُركّب قبل وصول ضيوفك ويُفكّ بعدها.",
+        "faq": [
+          { "q": "تسوّون تجهيزات أعياد ميلاد للكبار مو بس للأطفال؟", "a": "نعم. أعياد ميلاد الكبار نوع مناسبة مستقل عند إيفنتانا، ويُنسّق بأسلوب يناسب الكبار لا بثيمات الأطفال." },
+          { "q": "كم تكلفة تجهيز عيد ميلاد للكبار؟", "a": "من 1,500 درهم لخلفية صغيرة منسّقة، 1,650 للمتوسطة و2,200 للعملاقة، بالإضافة إلى التوصيل من 280 درهم في دبي. ومحطات الأكل والإضافات تُسعّر منفصلة." },
+          { "q": "تقدرون تجهّزون في مطعم أو قاعة مستأجرة؟", "a": "نعم — بيوت وفلل وحدائق ومجالس وقاعات محجوزة. تأكدي أن المكان يسمح بتنسيق خارجي وأعطينا وقت الدخول." },
+          { "q": "أي محطات أكل تناسب حفلة كبار؟", "a": "نافورة شوكولاتة (2,200 درهم)، شوكولاتة ساخنة (1,500)، ناتشوز (1,600)، برجر سلايدر (1,500)، أو محطة بان كيك (1,500). وكل واحدة يشغّلها فريق إيفنتانا 4 ساعات وتخدم حتى 40 ضيف." },
+          { "q": "أي إمارات تغطون؟", "a": "دبي، الشارقة، عجمان، أبوظبي، العين، أم القيوين، رأس الخيمة، والفجيرة." }
+        ]
+      }
+    },
+    {
+      "slug": "party-organizer-dubai",
+      "celebrationType": "kids",
+      "priority": "0.8",
+      "areaName": "Dubai",
+      "areaNameAr": "دبي",
+      "deliveryFeeAed": 280,
+      "en": {
+        "headline": "Party Organizer in Dubai",
+        "subhead": "Birthdays, baby showers, graduations and corporate events — planned, delivered and set up across Dubai.",
+        "includes": [
+          "Kids birthdays, baby showers and gender reveals",
+          "Graduations, bride to be and adult birthdays",
+          "Corporate family days and school events",
+          "Balloon decor and custom backdrops",
+          "Food stations, inflatables and entertainment",
+          "Delivery across Dubai from AED 280"
+        ],
+        "cta": "Plan my event",
+        "title": "Party Organizer in Dubai | Eventana Events",
+        "description": "Party organizer in Dubai for kids birthdays, baby showers, graduations and corporate events. Packages from AED 2,199, delivery across Dubai AED 280.",
+        "intro": "Eventana Events is a party and event organiser based in Al Barsha 2, Dubai. We plan and set up kids birthdays, baby showers, gender reveals, graduations, bride-to-be celebrations, adult birthdays, corporate family days and school events at homes, villas, gardens, majlis and venues across Dubai. Full party packages run 4 hours for up to 40 children and start at AED 2,199; decor-only setups start at AED 1,500. Delivery within Dubai is AED 280. Book, see the total price and pay online.",
+        "faq": [
+          { "q": "Where in Dubai do you operate?", "a": "Eventana Events is based in Al Barsha 2, Dubai, and sets up across the whole emirate — homes, villas, gardens, majlis, nurseries, schools and venues. Delivery within Dubai is AED 280." },
+          { "q": "What kinds of events do you organise in Dubai?", "a": "Kids birthdays, baby showers, gender reveals, graduations, bride-to-be and bridal showers, adult birthdays, corporate family days, staff celebrations and school and nursery events." },
+          { "q": "How much does a party in Dubai cost?", "a": "Full packages start at AED 2,199 (Movie Night) and go to AED 5,999 (Golden Birthday and Spa Party), each covering 4 hours. Decor-only setups start at AED 1,500. Delivery in Dubai is AED 280." },
+          { "q": "How do I book?", "a": "Choose your celebration type and theme on eventanauae.com, add the packages and extras you want, check your date, see the total and pay online. Confirmation is immediate. You can also call or WhatsApp 056 450 0777." },
+          { "q": "What are your working hours?", "a": "Eventana is open every day from 10:00 to 22:00." }
+        ]
+      },
+      "ar": {
+        "headline": "تنظيم حفلات في دبي",
+        "subhead": "أعياد ميلاد وبيبي شاور وتخرّج وفعاليات شركات — نخطّط ونوصّل ونجهّز في كل دبي.",
+        "includes": [
+          "أعياد ميلاد أطفال وبيبي شاور وتحديد جنس المولود",
+          "تخرّج وحفلات العروس وأعياد ميلاد الكبار",
+          "أيام عائلية للشركات وفعاليات المدارس",
+          "ديكور بالونات وخلفيات مخصصة",
+          "محطات أكل ونطاطيات وترفيه",
+          "توصيل داخل دبي من 280 درهم"
+        ],
+        "cta": "جهّزي مناسبتك",
+        "title": "تنظيم حفلات في دبي | إيفنتانا إيفنتس",
+        "description": "تنظيم حفلات في دبي لأعياد ميلاد الأطفال والبيبي شاور والتخرّج وفعاليات الشركات. الباقات من 2,199 درهم، والتوصيل داخل دبي 280 درهم.",
+        "intro": "إيفنتانا إيفنتس شركة تنظيم حفلات ومناسبات مقرّها البرشاء الثانية في دبي. نخطّط ونجهّز أعياد ميلاد الأطفال والبيبي شاور وتحديد جنس المولود وحفلات التخرّج وحفلات العروس وأعياد ميلاد الكبار والأيام العائلية للشركات وفعاليات المدارس، في البيوت والفلل والحدائق والمجالس والقاعات بكل دبي. باقات الحفلات الكاملة مدّتها 4 ساعات وتغطي حتى 40 طفل وتبدأ من 2,199 درهم؛ وتجهيزات الديكور فقط تبدأ من 1,500 درهم. التوصيل داخل دبي 280 درهم. احجزي وشوفي السعر الإجمالي وادفعي أونلاين.",
+        "faq": [
+          { "q": "وين تشتغلون في دبي؟", "a": "إيفنتانا إيفنتس مقرّها البرشاء الثانية في دبي، وتجهّز في كل الإمارة — بيوت وفلل وحدائق ومجالس وحضانات ومدارس وقاعات. التوصيل داخل دبي 280 درهم." },
+          { "q": "أي مناسبات تنظّمون في دبي؟", "a": "أعياد ميلاد الأطفال، بيبي شاور، تحديد جنس المولود، حفلات التخرّج، حفلات العروس والبرايدل شاور، أعياد ميلاد الكبار، الأيام العائلية للشركات، فعاليات الموظفين، ومناسبات المدارس والحضانات." },
+          { "q": "كم تكلفة حفلة في دبي؟", "a": "الباقات الكاملة تبدأ من 2,199 درهم (ليلة سينما) وتصل إلى 5,999 درهم (الباقة الذهبية وحفلة السبا)، وكل واحدة 4 ساعات. وتجهيزات الديكور فقط تبدأ من 1,500 درهم. والتوصيل داخل دبي 280 درهم." },
+          { "q": "كيف أحجز؟", "a": "اختاري نوع المناسبة والثيم على eventanauae.com، أضيفي الباقات والإضافات اللي تبينها، تأكدي من تاريخك، شوفي الإجمالي وادفعي أونلاين. التأكيد فوري. وتقدرين كذلك تتصلين أو ترسلين واتساب على 056 450 0777." },
+          { "q": "شنو ساعات العمل؟", "a": "إيفنتانا مفتوحة كل يوم من 10:00 صباحًا حتى 10:00 مساءً." }
+        ]
+      }
+    },
+    {
+      "slug": "party-organizer-sharjah",
+      "celebrationType": "kids",
+      "priority": "0.7",
+      "areaName": "Sharjah",
+      "areaNameAr": "الشارقة",
+      "deliveryFeeAed": 380,
+      "en": {
+        "headline": "Party Organizer in Sharjah",
+        "subhead": "Kids birthdays, baby showers and celebrations set up at your home in Sharjah — decor, food stations and entertainment.",
+        "includes": [
+          "Kids birthdays and themed setups",
+          "Baby showers and gender reveals",
+          "Graduations and adult birthdays",
+          "Balloon decor and custom backdrops",
+          "Popcorn, cotton candy and slush stations",
+          "Delivery to Sharjah AED 380"
+        ],
+        "cta": "Plan my event",
+        "title": "Party Organizer in Sharjah | Eventana Events",
+        "description": "Party organizer serving Sharjah: kids birthdays, baby showers and celebrations. Packages from AED 2,199, delivery to Sharjah AED 380.",
+        "intro": "Eventana Events sets up parties and celebrations across Sharjah — kids birthdays, baby showers, gender reveals, graduations, bride-to-be celebrations, adult birthdays and school events. The team travels from Dubai, installs everything before your guests arrive and takes it down afterwards. Full packages run 4 hours for up to 40 children from AED 2,199; decor-only setups start at AED 1,500. Delivery to Sharjah is AED 380.",
+        "faq": [
+          { "q": "Do you cover Sharjah?", "a": "Yes. Eventana delivers, sets up and collects across Sharjah for a delivery fee of AED 380." },
+          { "q": "How much is a birthday party in Sharjah?", "a": "Packages start at AED 2,199 and run to AED 5,999, each 4 hours for up to 40 children, plus the AED 380 Sharjah delivery fee. Decor-only setups start at AED 1,500." },
+          { "q": "Do you set up at home in Sharjah?", "a": "Yes — homes, villas, gardens, majlis, nurseries, schools and venues." },
+          { "q": "Can I add a bouncy castle in Sharjah?", "a": "Yes. A 4x4m bouncy castle is AED 1,100 and a bubbles house AED 1,500, delivered and installed with the rest of the setup." },
+          { "q": "How do I book?", "a": "Book online at eventanauae.com — pick your celebration, theme and extras, check your date, see the total and pay. Or call and WhatsApp 056 450 0777." }
+        ]
+      },
+      "ar": {
+        "headline": "تنظيم حفلات في الشارقة",
+        "subhead": "أعياد ميلاد وبيبي شاور ومناسبات نجهّزها في بيتك بالشارقة — ديكور ومحطات أكل وترفيه.",
+        "includes": [
+          "أعياد ميلاد أطفال وتجهيزات بالثيمات",
+          "بيبي شاور وتحديد جنس المولود",
+          "تخرّج وأعياد ميلاد الكبار",
+          "ديكور بالونات وخلفيات مخصصة",
+          "محطات بوبكورن وغزل بنات وسلاش",
+          "توصيل للشارقة 380 درهم"
+        ],
+        "cta": "جهّزي مناسبتك",
+        "title": "تنظيم حفلات في الشارقة | إيفنتانا إيفنتس",
+        "description": "تنظيم حفلات في الشارقة: أعياد ميلاد أطفال وبيبي شاور ومناسبات. الباقات من 2,199 درهم، والتوصيل للشارقة 380 درهم.",
+        "intro": "إيفنتانا إيفنتس تجهّز الحفلات والمناسبات في كل الشارقة — أعياد ميلاد الأطفال والبيبي شاور وتحديد جنس المولود وحفلات التخرّج وحفلات العروس وأعياد ميلاد الكبار وفعاليات المدارس. الفريق يجي من دبي، يركّب كل شيء قبل وصول ضيوفك ويفكّه بعدها. الباقات الكاملة 4 ساعات وحتى 40 طفل من 2,199 درهم؛ وتجهيزات الديكور فقط من 1,500 درهم. التوصيل للشارقة 380 درهم.",
+        "faq": [
+          { "q": "تغطون الشارقة؟", "a": "نعم. إيفنتانا توصّل وتركّب وتستلم في كل الشارقة برسم توصيل 380 درهم." },
+          { "q": "كم تكلفة حفلة عيد ميلاد في الشارقة؟", "a": "الباقات تبدأ من 2,199 درهم وتصل إلى 5,999 درهم، وكل واحدة 4 ساعات وحتى 40 طفل، بالإضافة إلى 380 درهم توصيل الشارقة. وتجهيزات الديكور فقط تبدأ من 1,500 درهم." },
+          { "q": "تجهّزون في البيت بالشارقة؟", "a": "نعم — بيوت وفلل وحدائق ومجالس وحضانات ومدارس وقاعات." },
+          { "q": "أقدر أضيف قلعة نطاطة بالشارقة؟", "a": "نعم. القلعة النطاطة 4×4 م بـ1,100 درهم وبيت الفقاعات 1,500 درهم، تُوصّل وتُركّب مع باقي التجهيز." },
+          { "q": "كيف أحجز؟", "a": "احجزي أونلاين من eventanauae.com — اختاري المناسبة والثيم والإضافات، تأكدي من تاريخك، شوفي الإجمالي وادفعي. أو اتصلي وراسلينا واتساب على 056 450 0777." }
+        ]
+      }
+    },
+    {
+      "slug": "party-organizer-abu-dhabi",
+      "celebrationType": "kids",
+      "priority": "0.7",
+      "areaName": "Abu Dhabi",
+      "areaNameAr": "أبوظبي",
+      "deliveryFeeAed": 420,
+      "en": {
+        "headline": "Party Organizer in Abu Dhabi",
+        "subhead": "Birthdays, baby showers and celebrations set up at your home in Abu Dhabi — decor, food stations and entertainment.",
+        "includes": [
+          "Kids birthdays and themed setups",
+          "Baby showers and gender reveals",
+          "Graduations and adult birthdays",
+          "Balloon decor and custom backdrops",
+          "Food stations and inflatables",
+          "Delivery to Abu Dhabi AED 420"
+        ],
+        "cta": "Plan my event",
+        "title": "Party Organizer in Abu Dhabi | Eventana Events",
+        "description": "Party organizer serving Abu Dhabi: kids birthdays, baby showers and celebrations. Packages from AED 2,199, delivery to Abu Dhabi AED 420.",
+        "intro": "Eventana Events sets up parties and celebrations across Abu Dhabi — kids birthdays, baby showers, gender reveals, graduations, bride-to-be celebrations, adult birthdays, corporate family days and school events. The team delivers, installs before your guests arrive and clears everything afterwards. Full packages run 4 hours for up to 40 children from AED 2,199; decor-only setups start at AED 1,500. Delivery to Abu Dhabi is AED 420. Al Ain is also served at AED 530.",
+        "faq": [
+          { "q": "Do you cover Abu Dhabi?", "a": "Yes. Eventana delivers, sets up and collects across Abu Dhabi for a delivery fee of AED 420, and Al Ain for AED 530. The Al Gharbia region is not currently served." },
+          { "q": "How much is a birthday party in Abu Dhabi?", "a": "Packages start at AED 2,199 and run to AED 5,999, each 4 hours for up to 40 children, plus the AED 420 Abu Dhabi delivery fee. Decor-only setups start at AED 1,500." },
+          { "q": "Do you set up at home in Abu Dhabi?", "a": "Yes — homes, villas, gardens, majlis, nurseries, schools and venues." },
+          { "q": "Can you handle corporate events in Abu Dhabi?", "a": "Yes — family days, staff celebrations and school events, with decor, entertainment and food stations from one team, and invoicing arranged with your company." },
+          { "q": "How do I book?", "a": "Book online at eventanauae.com, or call and WhatsApp 056 450 0777." }
+        ]
+      },
+      "ar": {
+        "headline": "تنظيم حفلات في أبوظبي",
+        "subhead": "أعياد ميلاد وبيبي شاور ومناسبات نجهّزها في بيتك بأبوظبي — ديكور ومحطات أكل وترفيه.",
+        "includes": [
+          "أعياد ميلاد أطفال وتجهيزات بالثيمات",
+          "بيبي شاور وتحديد جنس المولود",
+          "تخرّج وأعياد ميلاد الكبار",
+          "ديكور بالونات وخلفيات مخصصة",
+          "محطات أكل ونطاطيات",
+          "توصيل لأبوظبي 420 درهم"
+        ],
+        "cta": "جهّزي مناسبتك",
+        "title": "تنظيم حفلات في أبوظبي | إيفنتانا إيفنتس",
+        "description": "تنظيم حفلات في أبوظبي: أعياد ميلاد أطفال وبيبي شاور ومناسبات. الباقات من 2,199 درهم، والتوصيل لأبوظبي 420 درهم.",
+        "intro": "إيفنتانا إيفنتس تجهّز الحفلات والمناسبات في كل أبوظبي — أعياد ميلاد الأطفال والبيبي شاور وتحديد جنس المولود وحفلات التخرّج وحفلات العروس وأعياد ميلاد الكبار والأيام العائلية للشركات وفعاليات المدارس. الفريق يوصّل ويركّب قبل وصول ضيوفك ويرتّب كل شيء بعدها. الباقات الكاملة 4 ساعات وحتى 40 طفل من 2,199 درهم؛ وتجهيزات الديكور فقط من 1,500 درهم. التوصيل لأبوظبي 420 درهم، والعين كذلك مغطاة بـ530 درهم.",
+        "faq": [
+          { "q": "تغطون أبوظبي؟", "a": "نعم. إيفنتانا توصّل وتركّب وتستلم في كل أبوظبي برسم توصيل 420 درهم، والعين بـ530 درهم. ومنطقة الغربية غير مغطاة حاليًا." },
+          { "q": "كم تكلفة حفلة عيد ميلاد في أبوظبي؟", "a": "الباقات تبدأ من 2,199 درهم وتصل إلى 5,999 درهم، وكل واحدة 4 ساعات وحتى 40 طفل، بالإضافة إلى 420 درهم توصيل أبوظبي. وتجهيزات الديكور فقط تبدأ من 1,500 درهم." },
+          { "q": "تجهّزون في البيت بأبوظبي؟", "a": "نعم — بيوت وفلل وحدائق ومجالس وحضانات ومدارس وقاعات." },
+          { "q": "تقدرون تنظّمون فعاليات شركات في أبوظبي؟", "a": "نعم — أيام عائلية وفعاليات موظفين ومناسبات مدارس، بديكور وترفيه ومحطات أكل من فريق واحد، والفواتير تُرتّب مع شركتكم." },
+          { "q": "كيف أحجز؟", "a": "احجزي أونلاين من eventanauae.com، أو اتصلي وراسلينا واتساب على 056 450 0777." }
+        ]
+      }
+    },
+    {
+      "slug": "party-organizer-ajman",
+      "celebrationType": "kids",
+      "priority": "0.7",
+      "areaName": "Ajman",
+      "areaNameAr": "عجمان",
+      "deliveryFeeAed": 380,
+      "en": {
+        "headline": "Party Organizer in Ajman",
+        "subhead": "Kids birthdays, baby showers and celebrations set up at your home in Ajman — decor, food stations and entertainment.",
+        "includes": [
+          "Kids birthdays and themed setups",
+          "Baby showers and gender reveals",
+          "Graduations and adult birthdays",
+          "Balloon decor and custom backdrops",
+          "Popcorn, cotton candy and slush stations",
+          "Delivery to Ajman AED 380"
+        ],
+        "cta": "Plan my event",
+        "title": "Party Organizer in Ajman | Eventana Events",
+        "description": "Party organizer serving Ajman: kids birthdays, baby showers and celebrations. Packages from AED 2,199, delivery to Ajman AED 380.",
+        "intro": "Eventana Events sets up parties and celebrations across Ajman — kids birthdays, baby showers, gender reveals, graduations, bride-to-be celebrations and adult birthdays. The team travels from Dubai, installs everything before your guests arrive and takes it down afterwards. Full packages run 4 hours for up to 40 children from AED 2,199; decor-only setups start at AED 1,500. Delivery to Ajman is AED 380, and Umm Al Quwain is served at AED 480.",
+        "faq": [
+          { "q": "Do you cover Ajman?", "a": "Yes. Eventana delivers, sets up and collects across Ajman for a delivery fee of AED 380. Umm Al Quwain is AED 480 and Ras Al Khaimah AED 530." },
+          { "q": "How much is a birthday party in Ajman?", "a": "Packages start at AED 2,199 and run to AED 5,999, each 4 hours for up to 40 children, plus the AED 380 Ajman delivery fee. Decor-only setups start at AED 1,500." },
+          { "q": "Do you set up at home in Ajman?", "a": "Yes — homes, villas, gardens, majlis, nurseries, schools and venues." },
+          { "q": "Can I rent equipment only?", "a": "Yes. A 4x4m bouncy castle is AED 1,100, a popcorn or cotton candy station AED 780 each and a slush station AED 950, delivered and set up." },
+          { "q": "How do I book?", "a": "Book online at eventanauae.com, or call and WhatsApp 056 450 0777." }
+        ]
+      },
+      "ar": {
+        "headline": "تنظيم حفلات في عجمان",
+        "subhead": "أعياد ميلاد وبيبي شاور ومناسبات نجهّزها في بيتك بعجمان — ديكور ومحطات أكل وترفيه.",
+        "includes": [
+          "أعياد ميلاد أطفال وتجهيزات بالثيمات",
+          "بيبي شاور وتحديد جنس المولود",
+          "تخرّج وأعياد ميلاد الكبار",
+          "ديكور بالونات وخلفيات مخصصة",
+          "محطات بوبكورن وغزل بنات وسلاش",
+          "توصيل لعجمان 380 درهم"
+        ],
+        "cta": "جهّزي مناسبتك",
+        "title": "تنظيم حفلات في عجمان | إيفنتانا إيفنتس",
+        "description": "تنظيم حفلات في عجمان: أعياد ميلاد أطفال وبيبي شاور ومناسبات. الباقات من 2,199 درهم، والتوصيل لعجمان 380 درهم.",
+        "intro": "إيفنتانا إيفنتس تجهّز الحفلات والمناسبات في كل عجمان — أعياد ميلاد الأطفال والبيبي شاور وتحديد جنس المولود وحفلات التخرّج وحفلات العروس وأعياد ميلاد الكبار. الفريق يجي من دبي، يركّب كل شيء قبل وصول ضيوفك ويفكّه بعدها. الباقات الكاملة 4 ساعات وحتى 40 طفل من 2,199 درهم؛ وتجهيزات الديكور فقط من 1,500 درهم. التوصيل لعجمان 380 درهم، وأم القيوين 480 درهم.",
+        "faq": [
+          { "q": "تغطون عجمان؟", "a": "نعم. إيفنتانا توصّل وتركّب وتستلم في كل عجمان برسم توصيل 380 درهم. وأم القيوين 480 درهم ورأس الخيمة 530 درهم." },
+          { "q": "كم تكلفة حفلة عيد ميلاد في عجمان؟", "a": "الباقات تبدأ من 2,199 درهم وتصل إلى 5,999 درهم، وكل واحدة 4 ساعات وحتى 40 طفل، بالإضافة إلى 380 درهم توصيل عجمان. وتجهيزات الديكور فقط تبدأ من 1,500 درهم." },
+          { "q": "تجهّزون في البيت بعجمان؟", "a": "نعم — بيوت وفلل وحدائق ومجالس وحضانات ومدارس وقاعات." },
+          { "q": "أقدر أستأجر معدات بس؟", "a": "نعم. القلعة النطاطة 4×4 م بـ1,100 درهم، ومحطة البوبكورن أو غزل البنات 780 درهم لكل واحدة، ومحطة السلاش 950 درهم، مع التوصيل والتركيب." },
+          { "q": "كيف أحجز؟", "a": "احجزي أونلاين من eventanauae.com، أو اتصلي وراسلينا واتساب على 056 450 0777." }
+        ]
+      }
+    }
+  ]
+}
