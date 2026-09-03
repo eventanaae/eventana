@@ -379,6 +379,16 @@ function QuickBooksPanel() {
       if (qb) window.history.replaceState({}, '', window.location.pathname);
     } catch { /* ignore */ }
   }, []);
+  // Poll sync progress while a sync is running. This hook MUST come before the
+  // `if (!st) return null` early return below — otherwise the number of hooks
+  // changes once st loads and React throws error #310 (blanking the page).
+  useEffect(() => {
+    if (!sync?.running) return;
+    const t = setInterval(async () => {
+      try { const s = await api.qbSyncStatus(); setSync(s); if (!s.running) clearInterval(t); } catch { /* ignore */ }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [sync?.running]);
   if (!st) return null;
   const connect = async () => {
     setBusy(true); setNote(null);
@@ -389,14 +399,6 @@ function QuickBooksPanel() {
     setBusy(true);
     try { await api.qbDisconnect(); await load(); setNote('Disconnected.'); } catch (e: any) { setNote(e?.message ?? 'Could not disconnect.'); } finally { setBusy(false); }
   };
-  // Poll sync progress while a sync is running.
-  useEffect(() => {
-    if (!sync?.running) return;
-    const t = setInterval(async () => {
-      try { const s = await api.qbSyncStatus(); setSync(s); if (!s.running) clearInterval(t); } catch { /* ignore */ }
-    }, 2000);
-    return () => clearInterval(t);
-  }, [sync?.running]);
   const runPreview = async () => {
     setPreviewing(true); setNote(null);
     try { setPreview(await api.qbPreview()); }
