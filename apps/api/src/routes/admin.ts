@@ -905,11 +905,30 @@ export async function adminRoutes(app: FastifyInstance) {
       await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(`SELECT * FROM event_tasks WHERE event_id = $1 ORDER BY department, id`, [eventId]),
+      // The crew for THIS event, read live from the actual assignments
+      // (event_staff) — internal assignees AND confirmed part-timer names — so
+      // it always matches Team assignment above (event_team, member-only, could
+      // drift after a manual override / part-timer swap).
       pool.query(
-        `SELECT m.id, m.name, m.color, m.job_title,
-                EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = $1 AND es.assignee_id = m.id AND es.is_leader = true) AS is_leader,
-                (SELECT es.role FROM event_staff es WHERE es.event_id = $1 AND es.assignee_id = m.id LIMIT 1) AS event_role
-           FROM event_team et JOIN team_members m ON m.id = et.member_id WHERE et.event_id = $1`,
+        `SELECT id, name, color, job_title, event_role, is_leader FROM (
+           SELECT DISTINCT ON (grp) grp AS id, name, color, job_title, event_role, is_leader
+             FROM (
+               SELECT
+                 COALESCE(m.id::text, 'pt:' || lower(es.part_time_name)) AS grp,
+                 COALESCE(m.name, es.part_time_name) AS name,
+                 m.color AS color,
+                 COALESCE(m.job_title, initcap(replace(es.role, '_', ' ')) ||
+                   CASE WHEN es.assignee_id IS NULL THEN ' · part-timer' ELSE '' END) AS job_title,
+                 es.role AS event_role,
+                 es.is_leader AS is_leader
+               FROM event_staff es
+               LEFT JOIN team_members m ON m.id = es.assignee_id
+               WHERE es.event_id = $1
+                 AND (es.assignee_id IS NOT NULL OR (es.part_time_name IS NOT NULL AND es.status = 'confirmed'))
+             ) x
+            ORDER BY grp, is_leader DESC
+         ) y
+         ORDER BY is_leader DESC, name`,
         [eventId],
       ),
       pool.query(

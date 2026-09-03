@@ -464,6 +464,27 @@ export async function syncAllEventTeams(): Promise<{ synced: number }> {
  * flips the slot to "confirmed". If every slot on the event is now filled, the
  * staffing alert is cleared. Returns the event id so the plan can be reloaded.
  */
+/**
+ * Re-mirror event_team (member-only — used by "My jobs", incentives, feedback
+ * rewards and the notification feed) to the CURRENT internal assignees after a
+ * manual override or a part-timer swap, so a replaced member stops seeing the
+ * job. Part-timers have no member row, so they simply aren't in event_team;
+ * "Team for this event" reads event_staff directly to show them.
+ */
+async function syncEventTeam(eventId: string): Promise<void> {
+  await pool.query(
+    `DELETE FROM event_team WHERE event_id = $1
+       AND member_id NOT IN (SELECT assignee_id FROM event_staff WHERE event_id = $1 AND assignee_id IS NOT NULL)`,
+    [eventId],
+  ).catch(() => {});
+  await pool.query(
+    `INSERT INTO event_team (event_id, member_id)
+       SELECT DISTINCT $1, assignee_id FROM event_staff WHERE event_id = $1 AND assignee_id IS NOT NULL
+       ON CONFLICT DO NOTHING`,
+    [eventId],
+  ).catch(() => {});
+}
+
 export async function confirmPartTimeSlot(slotId: string, name: string): Promise<{ eventId: string } | null> {
   const { rows } = await pool.query<{ event_id: string }>(
     `UPDATE event_staff
@@ -474,6 +495,7 @@ export async function confirmPartTimeSlot(slotId: string, name: string): Promise
   );
   const eventId = rows[0]?.event_id;
   if (!eventId) return null;
+  await syncEventTeam(eventId); // the replaced internal member drops off the crew
   const open = await pool.query(
     `SELECT count(*)::int c FROM event_staff WHERE event_id = $1 AND status IN ('part_time_required','to_confirm')`,
     [eventId],
@@ -492,7 +514,9 @@ export async function overrideSlotAssignee(slotId: string, assigneeId: string): 
       WHERE id = $1 RETURNING event_id`,
     [slotId, assigneeId],
   );
-  return rows[0] ? { eventId: rows[0].event_id } : null;
+  if (!rows[0]) return null;
+  await syncEventTeam(rows[0].event_id); // keep the crew mirror in step
+  return { eventId: rows[0].event_id };
 }
 
 /** Add/replace a manual staffing requirement for an event, then re-run the plan. */
