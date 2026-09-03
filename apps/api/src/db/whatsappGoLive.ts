@@ -15,6 +15,7 @@
  */
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
+import { whatsappEnabled, whatsappCustomerNotifyEnabled } from '../integrations/whatsapp.js';
 
 // The customer-facing templates the WhatsApp sweep sends (mirror of the IN list
 // in domain/notify.ts). event_cancelled has no WhatsApp template but is sealed
@@ -49,6 +50,9 @@ export async function logWhatsAppTemplateStatusesFromEnv(): Promise<void> {
   if (!waba) return;
   const token = config.whatsapp.accessToken;
   if (!token) return;
+  // Connection diagnostics (booleans only — no secrets): can we send at all, is
+  // the phone number id present, and is customer-notify switched on.
+  console.log(`[wa-status] enabled=${whatsappEnabled()} phoneId=${config.whatsapp.phoneNumberId ? 'set' : 'MISSING'} customerNotify=${whatsappCustomerNotifyEnabled()}`);
   try {
     const url = `https://graph.facebook.com/${config.meta.graphVersion}/${waba}/message_templates?fields=name,language,status,category&limit=100`;
     const res = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
