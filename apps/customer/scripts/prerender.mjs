@@ -58,6 +58,23 @@ const ld = (obj) =>
 
 const aed = (n) => `AED ${n.toLocaleString('en-US')}`;
 
+/**
+ * The canonical address of a landing page — note the trailing slash.
+ *
+ * Each page is written as `dist/<slug>/index.html`. The Render static site
+ * carries a catch-all rewrite (`/*` → `/index.html`) so that any path the app
+ * owns still boots the app, and that rewrite fires before Render resolves an
+ * extensionless path to its directory index: `/kids-birthday` therefore served
+ * the home page's markup, while `/kids-birthday/` served the right one. Files
+ * with an extension are matched before the rewrite, which is why sitemap.xml
+ * and llms.txt were unaffected.
+ *
+ * Rather than maintain one rewrite rule per page in the Render dashboard, every
+ * URL this script emits — canonical, sitemap, internal links, llms.txt — uses
+ * the form that resolves correctly on its own.
+ */
+const pageUrl = (slug) => (slug ? `${ORIGIN}/${slug}/` : `${ORIGIN}/`);
+
 /* ------------------------------------------------------------------ */
 /* structured data                                                    */
 /* ------------------------------------------------------------------ */
@@ -297,7 +314,7 @@ function render(page, url) {
     `<nav><h2>More from Eventana</h2><ul>` +
     pages
       .filter((p) => p.slug !== page.slug)
-      .map((p) => `<li><a href="${ORIGIN}/${p.slug}">${esc(p.en.headline)}</a></li>`)
+      .map((p) => `<li><a href="${pageUrl(p.slug)}">${esc(p.en.headline)}</a></li>`)
       .join('') +
     `</ul></nav>` +
     `</main>`;
@@ -313,7 +330,7 @@ function render(page, url) {
 
 let written = 0;
 for (const page of pages) {
-  const url = `${ORIGIN}/${page.slug}`;
+  const url = pageUrl(page.slug);
   const dir = join(DIST, page.slug);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'index.html'), render(page, url), 'utf8');
@@ -323,14 +340,7 @@ for (const page of pages) {
 /* The home page gets the same treatment, built from the Dubai page's copy —
    it is the one visitors and crawlers reach first. */
 const home = pages.find((p) => p.slug === 'party-organizer-dubai') ?? pages[0];
-writeFileSync(
-  join(DIST, 'index.html'),
-  render({ ...home, slug: '' }, `${ORIGIN}/`).replace(
-    `<link rel="canonical" href="${ORIGIN}/" />`,
-    `<link rel="canonical" href="${ORIGIN}/" />`,
-  ),
-  'utf8',
-);
+writeFileSync(join(DIST, 'index.html'), render({ ...home, slug: '' }, pageUrl('')), 'utf8');
 
 /* ------------------------------------------------------------------ */
 /* sitemap, robots, llms.txt                                          */
@@ -344,7 +354,7 @@ const sitemap =
   pages
     .map(
       (p) =>
-        `  <url><loc>${ORIGIN}/${p.slug}</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>${p.priority}</priority></url>`,
+        `  <url><loc>${pageUrl(p.slug)}</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>${p.priority}</priority></url>`,
     )
     .join('\n') +
   `\n</urlset>\n`;
@@ -440,7 +450,7 @@ More than 40 ready themes, including ${themes.join(', ')}. Custom colour palette
 
 ## Pages
 
-${pages.map((p) => `- [${p.en.headline}](${ORIGIN}/${p.slug}): ${p.en.description}`).join('\n')}
+${pages.map((p) => `- [${p.en.headline}](${pageUrl(p.slug)}): ${p.en.description}`).join('\n')}
 `;
 writeFileSync(join(DIST, 'llms.txt'), llms, 'utf8');
 
