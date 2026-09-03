@@ -795,6 +795,16 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
           AND n.template IN ('booking_confirmation','three_day_reminder','event_day',
                              'team_on_the_way','team_arrived','setup_ready','feedback_request',
                              'event_cancelled','cancellation_refund')
+          -- SAFETY: never blast a pre-event message for an event that has already
+          -- happened (e.g. a QuickBooks-converted or back-dated event whose row
+          -- ends up due immediately). Fails safe — the worst case is a skipped
+          -- send, never a wrong one. Pre-event templates require a today/future
+          -- date; feedback only within a recent window; cancellations any time.
+          AND (
+                e.event_date >= current_date
+             OR n.template IN ('event_cancelled','cancellation_refund')
+             OR (n.template = 'feedback_request' AND e.event_date >= current_date - interval '30 days')
+          )
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST
         LIMIT 100`,
@@ -885,6 +895,14 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
          LEFT JOIN cancellations cx ON cx.event_id = e.id
         WHERE n.channel = 'email' AND n.sent_at IS NULL AND n.cancelled_at IS NULL
           AND n.template NOT IN ('addon_invoice', 'refund_processed')
+          -- SAFETY: same guard as the WhatsApp sweep — a pre-event email is never
+          -- sent for a past/back-dated event (QuickBooks-converted history, etc.).
+          -- Fails safe: a skipped send, never a wrong blast to an old customer.
+          AND (
+                e.event_date >= current_date
+             OR n.template IN ('event_cancelled','cancellation_refund')
+             OR (n.template = 'feedback_request' AND e.event_date >= current_date - interval '30 days')
+          )
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST
         LIMIT 100`,
