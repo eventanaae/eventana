@@ -19,10 +19,10 @@ import { landingCopy, type LandingRoute } from '../landing';
  * namespaced under `.lp` so they cannot leak into the app screens.
  */
 /**
- * The address Google is asked to index. The app answers on both
- * eventanauae.com and app.eventanauae.com — the second still serves booking
- * links already sent to customers, so it is not redirected away, which is
- * exactly why the canonical has to be stated.
+ * The address Google is asked to index. eventanauae.com is the single
+ * canonical home for the customer app; the old app.eventanauae.com subdomain
+ * is being retired (redirected here), so every crawlable page states this
+ * canonical to keep all ranking signal on the one host.
  */
 const CANONICAL_ORIGIN = 'https://eventanauae.com';
 
@@ -49,9 +49,9 @@ export function Landing({
 
   // The <title>, description and canonical are per-route: this is the only
   // place the app has ever had something specific to say to a crawler or a
-  // shared link. The canonical matters because the same page answers on both
-  // eventanauae.com and app.eventanauae.com; without it the two hosts compete
-  // as duplicates and neither ranks.
+  // shared link. The canonical pins every route to eventanauae.com so the
+  // retired app.eventanauae.com host (still redirecting in) never competes as a
+  // duplicate.
   useEffect(() => {
     document.title = copy.title;
 
