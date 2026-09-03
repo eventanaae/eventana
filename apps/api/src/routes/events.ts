@@ -852,8 +852,8 @@ export async function eventRoutes(app: FastifyInstance) {
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
-    // Below 5 stars, the customer must tell us why — so the team can learn and fix.
-    if (parsed.data.stars < 5 && !(parsed.data.feedback ?? '').trim()) {
+    // 1–3 stars: the customer must tell us why (internal only — no Google prompt).
+    if (parsed.data.stars < 4 && !(parsed.data.feedback ?? '').trim()) {
       return reply.status(400).send({ error: 'feedback_required', message: 'Please tell us what could have been better so we can improve.' });
     }
 

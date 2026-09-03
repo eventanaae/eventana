@@ -819,7 +819,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
 
   const submitRating = async () => {
     if (stars < 1) return;
-    if (stars < 5 && !feedback.trim()) return; // must say why below 5 stars
+    if (stars < 4 && !feedback.trim()) return; // 1–3 stars: must say why (internal only)
     setSavingRating(true);
     try {
       await api.rateEvent(event.id, stars, feedback.trim() || undefined);
@@ -875,26 +875,42 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
         ))}
       </div>
 
-      {saved && existing ? (
-        <Notice tone="ok">{t('me.rateThanks', { stars: existing.stars })}</Notice>
+      {saved ? (
+        <>
+          <Notice tone="ok">{t('me.rateThanks', { stars })}</Notice>
+          {stars >= 4 && (
+            <a
+              href="https://maps.google.com/?cid=6038496074473768848"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'block', textAlign: 'center', textDecoration: 'none',
+                width: '100%', boxSizing: 'border-box', background: C.pink, color: '#fff',
+                fontWeight: 700, fontSize: 13, padding: '12px 0', borderRadius: 16, marginTop: 10,
+              }}
+            >
+              ⭐ {t('me.rateGoogle')}
+            </a>
+          )}
+        </>
       ) : (
         <>
-          {stars >= 1 && stars < 5 && (
+          {stars >= 1 && stars < 4 && (
             <div style={{ fontSize: 11, fontWeight: 700, color: C.pink, marginBottom: 6 }}>{t('me.rateWhyRequired')}</div>
           )}
           <textarea
-            placeholder={stars >= 1 && stars < 5 ? t('me.rateFeedbackReqPh') : t('me.rateFeedbackPh')}
+            placeholder={stars >= 1 && stars < 4 ? t('me.rateFeedbackReqPh') : t('me.rateFeedbackPh')}
             rows={2}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             style={{
-              width: '100%', border: `1px solid ${stars >= 1 && stars < 5 && !feedback.trim() ? C.pink : C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
+              width: '100%', border: `1px solid ${stars >= 1 && stars < 4 && !feedback.trim() ? C.pink : C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
               fontWeight: 600, fontSize: 12.5, background: C.cream, color: C.ink,
               outline: 'none', resize: 'none', marginBottom: 10,
             }}
           />
           {(() => {
-            const needWhy = stars >= 1 && stars < 5 && !feedback.trim();
+            const needWhy = stars >= 1 && stars < 4 && !feedback.trim();
             const blocked = stars < 1 || needWhy || savingRating;
             return (
               <button
