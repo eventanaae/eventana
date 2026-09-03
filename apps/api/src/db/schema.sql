@@ -322,6 +322,22 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS custom_theme_brief JSONB;
 -- known, still lives in map_lat/map_lng.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS location_note TEXT;
 
+-- Drivers roster. Shan is the main driver; for far / multiple same-day events we
+-- hire drivers with their own car (kind 'own_car') or a part-timer to drive the
+-- company van (kind 'van'). Kept OUT of team_members so freelance drivers don't
+-- clutter HR. Their WhatsApp number lets the driver-notification pipeline reach
+-- whoever is assigned to an event's driver slot (matched by name to
+-- event_staff.part_time_name). Seeded from DRIVERS_SEED (phones out of git).
+CREATE TABLE IF NOT EXISTS drivers (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT NOT NULL,
+  phone      TEXT,
+  kind       TEXT NOT NULL DEFAULT 'own_car', -- 'main' | 'own_car' | 'van'
+  active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS drivers_name_key ON drivers (lower(name));
+
 CREATE TABLE IF NOT EXISTS event_services (
   id          SERIAL PRIMARY KEY,
   event_id    TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,

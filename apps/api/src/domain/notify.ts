@@ -834,9 +834,16 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
          LEFT JOIN orders o ON o.id = e.order_id
          LEFT JOIN packages p ON p.id = e.package_id
          LEFT JOIN LATERAL (
-           SELECT tm.phone
-             FROM event_staff es JOIN team_members tm ON tm.id = es.assignee_id
-            WHERE es.event_id = e.id AND es.role = 'driver' AND tm.phone IS NOT NULL
+           -- The assigned driver's phone. Resolve via the drivers roster by name
+           -- (the typed part-timer name, or the internal assignee's name — so the
+           -- auto-assigned Shan is covered by his roster row), falling back to the
+           -- team member's own phone column.
+           SELECT COALESCE(d.phone, tm.phone) AS phone
+             FROM event_staff es
+             LEFT JOIN team_members tm ON tm.id = es.assignee_id
+             LEFT JOIN drivers d ON lower(d.name) = lower(COALESCE(es.part_time_name, tm.name))
+            WHERE es.event_id = e.id AND es.role = 'driver'
+              AND COALESCE(d.phone, tm.phone) IS NOT NULL
             LIMIT 1
          ) drv ON true
         WHERE n.channel = 'driver' AND n.whatsapp_sent_at IS NULL AND n.cancelled_at IS NULL

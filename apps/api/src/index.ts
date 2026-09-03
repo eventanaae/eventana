@@ -59,6 +59,9 @@ async function main() {
     const { logWhatsAppTemplateStatusesFromEnv, sealWhatsAppBacklogFromEnv } = await import('./db/whatsappGoLive.js');
     await logWhatsAppTemplateStatusesFromEnv().catch((err) => console.error('[wa-status] failed:', err));
     await sealWhatsAppBacklogFromEnv().catch((err) => console.error('[wa-seal] failed:', err));
+    // Drivers roster (Shan + freelance own-car / van drivers) from DRIVERS_SEED.
+    const { seedDriversFromEnv } = await import('./db/seedDrivers.js');
+    await seedDriversFromEnv().catch((err) => console.error('[drivers] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();

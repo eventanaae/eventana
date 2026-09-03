@@ -598,6 +598,15 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     return { assigned: results.length, results };
   });
+  // The drivers roster (Shan + freelance own-car / van drivers) — for the driver
+  // slot's picker. Names feed the part-timer input; the number lets WhatsApp
+  // reach whoever is assigned.
+  app.get('/api/admin/drivers', async () => {
+    const { rows } = await pool.query(
+      `SELECT id, name, kind, (phone IS NOT NULL) AS has_phone FROM drivers WHERE active ORDER BY (kind <> 'main'), name`,
+    );
+    return rows;
+  });
   // The internal crew (for the manual-override picker). Pass ?eventId=… to get
   // each member flagged `busy` (unavailable for that event) so the picker can
   // hide anyone already booked at that time (drivers exempt), on leave, or off.
