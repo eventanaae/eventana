@@ -62,6 +62,10 @@ async function main() {
     // Drivers roster (Shan + freelance own-car / van drivers) from DRIVERS_SEED.
     const { seedDriversFromEnv } = await import('./db/seedDrivers.js');
     await seedDriversFromEnv().catch((err) => console.error('[drivers] failed:', err));
+    // Read-only audit report (AUDIT_REPORT=true) — logs the notification/sales
+    // picture for review. Sends nothing, changes nothing.
+    const { auditReportFromEnv } = await import('./db/auditReport.js');
+    await auditReportFromEnv().catch((err) => console.error('[audit] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
