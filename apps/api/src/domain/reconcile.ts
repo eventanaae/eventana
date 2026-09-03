@@ -120,7 +120,7 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // cancellation) and staff tip pushes. Non-fatal.
   await deliverPendingNotifications()
     .then((r) => {
-      if (r.emails || r.pushes) console.log(`[notify] delivered ${r.emails} email(s), ${r.pushes} push(es)`);
+      if (r.emails || r.pushes || r.whatsapps) console.log(`[notify] delivered ${r.emails} email(s), ${r.pushes} push(es), ${r.whatsapps} whatsapp(s)`);
     })
     .catch((err) => console.error('[notify] delivery failed:', err));
 

@@ -24,6 +24,16 @@ export function whatsappEnabled(): boolean {
   return Boolean(config.whatsapp.phoneNumberId && config.whatsapp.accessToken);
 }
 
+/**
+ * Customer-facing transactional WhatsApp (confirmation, reminders, live status,
+ * feedback) only flows when the API is connected AND the owner has flipped the
+ * master switch on. Both must be true — shipping the pipeline never messages a
+ * real customer on its own.
+ */
+export function whatsappCustomerNotifyEnabled(): boolean {
+  return whatsappEnabled() && config.whatsapp.customerNotify === true;
+}
+
 /** 'off' unless explicitly configured — never inferred from anything else. */
 export function agentMode(): AgentMode {
   const raw = (config.whatsapp.agentMode ?? 'off').toLowerCase();

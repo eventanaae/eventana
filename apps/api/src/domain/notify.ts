@@ -16,6 +16,7 @@ import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { pushToStaff, pushToOwner } from '../integrations/push.js';
+import { whatsappCustomerNotifyEnabled, sendWhatsAppText } from '../integrations/whatsapp.js';
 
 export interface EmailRow {
   id: number;
@@ -474,6 +475,60 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
   }
 }
 
+/**
+ * The WhatsApp version of a customer notification — the same events as the email
+ * templates, rendered as concise plain text (WhatsApp has no HTML). Returns null
+ * for templates we don't mirror to WhatsApp. The link is the customer app's
+ * "My Event" deep link, which is where the feedback form lives (auto-tied to the
+ * order + event, so a feedback reply is always attached to the right booking).
+ */
+export function renderWhatsApp(row: EmailRow): string | null {
+  const first = (row.customer_name || 'there').split(' ')[0];
+  const honour = (row.cart?.eventFor || '').trim();
+  const who = honour ? `${honour}'s` : 'your';
+  const date = longDate(row.event_date);
+  const time = time12(row.start_time);
+  const place = row.emirate || 'UAE';
+  const link = trackUrl(row.event_id);
+  const track = link ? `\n\nTrack it here: ${link}` : '';
+  const feedbackLink = link ? `\n\nShare your feedback: ${link}` : '';
+  switch (row.template) {
+    case 'booking_confirmation': {
+      const details =
+        `\n\n📅 ${date}` + (time ? `\n🕒 ${time}` : '') + `\n📍 ${place}` +
+        `\n🔖 Ref: ${row.event_id}` +
+        (row.total_fils != null ? `\n💳 Total: ${aed(row.total_fils)}` : '');
+      return `🎉 ${honour ? `${honour}'s` : 'Your'} Eventana celebration is confirmed!\n\nHi ${first} 👋 We've saved every detail for ${who} celebration and our team is already planning the magic.${details}${track}\n\nCan't wait to celebrate with you! 💕`;
+    }
+    case 'three_day_reminder':
+      return `🎈 Just 3 days to go!\n\nHi ${first} 👋 The countdown is on for ${who} Eventana celebration on ${date}${time ? ` at ${time}` : ''} in ${place}.\n\nNeed to tweak anything? It's all in the app.${track}\n\nSee you very soon! 💖`;
+    case 'event_day':
+      return `🥳 It's party day!\n\nHi ${first}! Today's the day — ${who} celebration${time ? ` starts at ${time}` : ''}, and our team is on the way with all the magic. 🚐✨${track}\n\nHave the most wonderful time! 💛`;
+    case 'team_on_the_way':
+      return `🚐 Your Eventana team is on the way${row.eta ? ` — ETA around ${row.eta}` : ''}!\n\nWe're heading to you now to set up ${who} celebration. 🎈 See you very soon!`;
+    case 'team_arrived':
+      return `📍 Your Eventana team has arrived!\n\nOur crew is at your location and starting the magic now. ✨ Everything will be ready shortly — thank you for choosing Eventana! 💕`;
+    case 'setup_ready':
+      return `✨ Everything is set up and ready!\n\n${cap(who)} celebration is all ready to go. 🎉 Have the most wonderful time — we can't wait to hear how it went! 💕`;
+    case 'feedback_request':
+      return `⭐ How was ${who} celebration?\n\nHi ${first} 💕 We hope everyone had the most wonderful time! Your feedback means the world to us and helps us make every Eventana celebration even better — it only takes a minute.${feedbackLink}\n\nThank you! 🌸`;
+    case 'event_cancelled':
+      return `🌸 Your Eventana booking ${row.event_id} for ${date} has been cancelled.\n\nIf anything doesn't look right, message our team anytime in the app — we're always here for you. 💛`;
+    case 'cancellation_refund': {
+      const ref = row.order_ref || row.event_id;
+      return `🌸 Your Eventana booking has been cancelled.\n\n🔖 Order: ${ref}\n📅 Event date: ${date}\n💳 Paid: ${aed(row.total_paid_fils)}\n↩️ Refund: ${aed(row.refund_amount_fils)} (${Number(row.refund_percent ?? 0)}%)\n\nYour refund may take ~7 business days to appear, depending on your bank. 💛`;
+    }
+    case 'refund_processed': {
+      const ref = row.order_ref || row.event_id;
+      return `💸 Your Eventana refund has been processed.\n\n🔖 Order: ${ref}\n↩️ Amount: ${aed(row.refund_amount_fils)}` +
+        (row.refund_reference ? `\n📄 Reference: ${row.refund_reference}` : '') +
+        `\n\nPlease allow ~7 business days for it to appear. 💛`;
+    }
+    default:
+      return null;
+  }
+}
+
 /** A standalone shop order (printed/digital goods) — no event attached. */
 export interface ShopEmailRow {
   id: number;
@@ -586,9 +641,52 @@ export function renderAddonEmail(row: AddonEmailRow): { subject: string; html: s
 }
 
 /** Deliver all due notifications. Returns how many of each channel were sent. */
-export async function deliverPendingNotifications(): Promise<{ emails: number; pushes: number }> {
+export async function deliverPendingNotifications(): Promise<{ emails: number; pushes: number; whatsapps: number }> {
   let emails = 0;
   let pushes = 0;
+  let whatsapps = 0;
+
+  // ---- WhatsApp (customer-facing, in parallel to email) ----
+  // Same customer templates as the email sweep, delivered to the customer's
+  // WhatsApp. Gated: sends nothing unless the API is connected AND the owner's
+  // master switch is on. Stamped separately (whatsapp_sent_at) so a WhatsApp
+  // failure never blocks the email, and vice-versa.
+  if (whatsappCustomerNotifyEnabled()) {
+    const { rows } = await pool.query<EmailRow & { customer_phone: string | null }>(
+      `SELECT n.id, n.template, n.event_id,
+              e.event_date, e.start_time, e.emirate, e.eta,
+              e.celebration_type, e.custom_theme, o.cart, o.total_fils, p.name AS package_name,
+              c.name AS customer_name, c.phone AS customer_phone,
+              cx.order_id AS order_ref, cx.total_paid_fils, cx.refund_percent, cx.refund_amount_fils
+         FROM notifications n
+         JOIN events e ON e.id = n.event_id
+         JOIN customers c ON c.id = e.customer_id
+         LEFT JOIN orders o ON o.id = e.order_id
+         LEFT JOIN packages p ON p.id = e.package_id
+         LEFT JOIN cancellations cx ON cx.event_id = e.id
+        WHERE n.channel = 'email' AND n.whatsapp_sent_at IS NULL AND n.cancelled_at IS NULL
+          AND n.template IN ('booking_confirmation','three_day_reminder','event_day',
+                             'team_on_the_way','team_arrived','setup_ready','feedback_request',
+                             'event_cancelled','cancellation_refund')
+          AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
+        ORDER BY n.scheduled_for NULLS FIRST
+        LIMIT 100`,
+    );
+    for (const row of rows) {
+      const body = renderWhatsApp(row);
+      const to = String(row.customer_phone ?? '').replace(/\D+/g, '');
+      if (!body || !to) {
+        await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
+        continue;
+      }
+      const res = await sendWhatsAppText({ to, body, fromStaff: true });
+      if (res.ok) {
+        await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
+        whatsapps++;
+      }
+      // Transient failure: leave whatsapp_sent_at NULL — the next sweep retries.
+    }
+  }
 
   // ---- Email (customer-facing: confirmation, reminders, cancellation) ----
   if (emailEnabled()) {
@@ -789,5 +887,5 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     }
   }
 
-  return { emails, pushes };
+  return { emails, pushes, whatsapps };
 }

@@ -433,6 +433,9 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE INDEX IF NOT EXISTS notifications_pending_idx
   ON notifications (scheduled_for) WHERE sent_at IS NULL AND cancelled_at IS NULL;
+-- Customer-facing rows are also delivered over WhatsApp (in parallel to email);
+-- this stamps the WhatsApp send independently so each channel retries on its own.
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS whatsapp_sent_at TIMESTAMPTZ;
 
 -- ── Cancellations & refunds ──────────────────────────────────────────────
 -- One row per cancelled order. The refund amount is computed on the server

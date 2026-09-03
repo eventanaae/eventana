@@ -279,6 +279,10 @@ export const config = {
     verifyToken: env.WHATSAPP_VERIFY_TOKEN ?? null,
     appSecret: env.WHATSAPP_APP_SECRET ?? null,
     agentMode: env.WHATSAPP_AGENT_MODE ?? 'off',
+    // Master switch for customer-facing transactional WhatsApp (confirmation,
+    // reminders, live status, feedback). OFF by default so the pipeline can ship
+    // without messaging real customers until the owner deliberately turns it on.
+    customerNotify: String(env.WHATSAPP_CUSTOMER_NOTIFY ?? '').toLowerCase() === 'true',
   },
 
   /**
