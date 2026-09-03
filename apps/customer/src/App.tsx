@@ -11,6 +11,7 @@ import { Themes } from './screens/Themes';
 import { Checkout } from './screens/Checkout';
 import { PaymentReturn } from './screens/Payment';
 import { MyEvent } from './screens/MyEvent';
+import { GuestFeedback } from './screens/GuestFeedback';
 import { Assistant } from './screens/Assistant';
 import { Profile } from './screens/Profile';
 import { Onboarding } from './screens/Onboarding';
@@ -29,7 +30,7 @@ import { useLang, makeT, type Lang, type TFn } from './i18n';
 export type Screen =
   | 'home' | 'explore' | 'package' | 'buildIntake' | 'build' | 'theme' | 'custom'
   | 'assistant' | 'movieselect' | 'checkout' | 'confirming' | 'myevent' | 'profile'
-  | 'shop' | 'shopcheckout' | 'paylink';
+  | 'shop' | 'shopcheckout' | 'paylink' | 'feedback';
 
 export interface Draft {
   celebrationType: string;
@@ -228,6 +229,8 @@ export default function App() {
   const [payLink, setPayLink] = useState<{ orderId: string; token: string } | null>(null);
   // Manual-order offer link (?offer=<token>): a used/invalid link shows a notice.
   const [offerError, setOfferError] = useState<'used' | 'invalid' | null>(null);
+  // Guest feedback link (?event=<id>&fb=<token>): rate without an account.
+  const [feedbackLink, setFeedbackLink] = useState<{ event: string; token: string } | null>(null);
 
   // Returning from a provider's hosted checkout, opening a booking straight from
   // an email's "Track your booking" button (?event=<id>), the Terms link, or a
@@ -236,8 +239,15 @@ export default function App() {
     const params = new URLSearchParams(location.search);
     const returned = params.get('order');
     const openEvent = params.get('event');
+    const feedbackToken = params.get('fb');
     const openPay = params.get('pay');
-    if (returned) {
+    if (openEvent && feedbackToken) {
+      // Feedback link — rate this one event, no login needed. Checked before the
+      // plain ?event path so the link opens the feedback screen, not My Event.
+      setFeedbackLink({ event: openEvent, token: feedbackToken });
+      setScreen('feedback');
+      history.replaceState({}, '', location.pathname);
+    } else if (returned) {
       setOrderId(returned);
       setOrderToken(params.get('t'));
       setScreen('confirming');
@@ -484,7 +494,7 @@ export default function App() {
     { id: 'profile', label: t('nav.profile'), icon: '☺' },
   ];
 
-  const showTabs = screen !== 'confirming' && screen !== 'paylink';
+  const showTabs = screen !== 'confirming' && screen !== 'paylink' && screen !== 'feedback';
 
   return (
     <Frame lang={lang}>
@@ -526,6 +536,9 @@ export default function App() {
         )}
         {screen === 'paylink' && payLink && (
           <PayLink orderId={payLink.orderId} token={payLink.token} mapsKey={catalogue.mapsKey} lang={lang} t={t} />
+        )}
+        {screen === 'feedback' && feedbackLink && (
+          <GuestFeedback event={feedbackLink.event} token={feedbackLink.token} t={t} lang={lang} />
         )}
       </div>
 

@@ -122,6 +122,21 @@ export const api = {
       testimonials: Array<{ stars: number; feedback: string; name: string }>;
     }>('/api/social-proof'),
 
+  /**
+   * The guest feedback link (?event=<id>&fb=<token>). No login: the signed
+   * token itself authorises rating exactly this one event, so a customer who
+   * booked without an account can still leave feedback.
+   */
+  guestFeedbackInfo: (event: string, token: string) =>
+    request<{ eventId: string; eventDate: string | null; honour: string | null; rating: { stars: number; feedback: string | null } | null }>(
+      `/api/public/feedback?event=${encodeURIComponent(event)}&t=${encodeURIComponent(token)}`,
+    ),
+  submitGuestFeedback: (event: string, token: string, stars: number, feedback?: string) =>
+    request<{ ok: true; stars: number }>('/api/public/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ event, t: token, stars, feedback }),
+    }),
+
   weather: (lat: number, lng: number, date: string) =>
     request<{
       available: boolean; reason?: string; date?: string;

@@ -25,7 +25,9 @@ import { CheckoutError, createSessionForOrder, previewQuote, startCheckout, star
 import { getOffer } from '../domain/offers.js';
 import { orderViewTokenValid } from '../domain/orders.js';
 import { processDelivery } from '../domain/webhooks.js';
-import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken } from '../domain/customerAuth.js';
+import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken, verifyFeedbackToken } from '../domain/customerAuth.js';
+import { recordGoodFeedbackRewards } from '../domain/incentives.js';
+import { pushToStaff } from '../integrations/push.js';
 import { makeReferralCode, validatePromo } from '../domain/discounts.js';
 import { isImportTicketValid } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
@@ -765,6 +767,69 @@ export async function publicRoutes(app: FastifyInstance) {
         name: String(x.name ?? '').trim().split(' ')[0] || 'Guest',
       })),
     };
+  });
+
+  /* --------------- Guest feedback (no account, signed link) --------------- */
+  // A customer without an app account can still rate their event: the feedback
+  // link carries a signed, event-scoped token (issueFeedbackToken) that grants
+  // rating of exactly that one event. Nothing else is reachable with it.
+
+  /** Guest feedback page context — verifies the token, returns the event + any
+   *  existing rating so the page can prefill. */
+  app.get('/api/public/feedback', async (request, reply) => {
+    const { event, t } = request.query as { event?: string; t?: string };
+    if (!event || verifyFeedbackToken(t) !== event) return reply.status(403).send({ error: 'invalid_link' });
+    const { rows } = await pool.query(
+      `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS event_date, e.phase, o.cart,
+              (SELECT json_build_object('stars', stars, 'feedback', feedback) FROM event_ratings WHERE event_id = e.id) AS rating
+         FROM events e LEFT JOIN orders o ON o.id = e.order_id WHERE e.id = $1`,
+      [event],
+    );
+    const ev = rows[0];
+    if (!ev) return reply.status(404).send({ error: 'not_found' });
+    return {
+      eventId: ev.id,
+      eventDate: ev.event_date,
+      honour: (ev.cart?.eventFor ?? '').trim() || null,
+      rating: ev.rating?.stars ? ev.rating : null,
+    };
+  });
+
+  /** Guest feedback submit — same effect as the in-app rating, keyed by the
+   *  signed token instead of a session. */
+  app.post('/api/public/feedback', async (request, reply) => {
+    const p = z.object({
+      event: z.string(),
+      t: z.string(),
+      stars: z.number().int().min(1).max(5),
+      feedback: z.string().max(2000).optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { event, t, stars, feedback } = p.data;
+    if (verifyFeedbackToken(t) !== event) return reply.status(403).send({ error: 'invalid_link' });
+    if (stars < 4 && !(feedback ?? '').trim()) {
+      return reply.status(400).send({ error: 'feedback_required', message: 'Please tell us what could have been better so we can improve.' });
+    }
+    const { rows } = await pool.query(`SELECT customer_id, phase FROM events WHERE id = $1`, [event]);
+    const ev = rows[0];
+    if (!ev) return reply.status(404).send({ error: 'not_found' });
+    if (String(ev.phase).toLowerCase().includes('cancel')) return reply.status(409).send({ error: 'event_cancelled' });
+    const inserted = await pool.query(
+      `INSERT INTO event_ratings (event_id, customer_id, stars, feedback)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (event_id) DO UPDATE
+         SET stars = EXCLUDED.stars, feedback = EXCLUDED.feedback, created_at = now()
+       RETURNING id`,
+      [event, ev.customer_id ?? null, stars, feedback ?? null],
+    );
+    await pool.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       VALUES ($1,'push','rating_received', now(), $2)`,
+      [event, JSON.stringify({ eventId: event, stars })],
+    ).catch(() => {});
+    void pushToStaff('New rating ⭐', `${event} was rated ${stars}/5`, { eventId: event });
+    void recordGoodFeedbackRewards({ eventId: event, ratingId: inserted.rows[0].id, stars, feedback: feedback ?? null }).catch(() => {});
+    return { ok: true, stars };
   });
 
   /**

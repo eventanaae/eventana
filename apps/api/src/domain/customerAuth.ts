@@ -52,6 +52,35 @@ export function verifyCustomerToken(token: string | undefined | null): string | 
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
+ * A signed, event-scoped feedback token. It lets a guest with no account rate
+ * exactly ONE event from the link we send them — nothing else. No expiry:
+ * feedback can arrive any time after the party.
+ */
+export function issueFeedbackToken(eventId: string): string {
+  const body = Buffer.from(`fb:${eventId}`).toString('base64url');
+  return `${body}.${sign(body)}`;
+}
+
+/** Return the event id iff the feedback token's signature verifies, else null. */
+export function verifyFeedbackToken(token: string | undefined | null): string | null {
+  if (!token) return null;
+  const dot = token.lastIndexOf('.');
+  if (dot < 1) return null;
+  const body = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expected = sign(body);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const decoded = Buffer.from(body, 'base64url').toString('utf8');
+    return decoded.startsWith('fb:') ? decoded.slice(3) || null : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The customer id for a request, from its signed token. Empty string when
  * unauthenticated — scoped queries then simply match no rows, so a signed-out
  * device sees nothing rather than another customer's (or the demo) data.

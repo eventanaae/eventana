@@ -17,6 +17,7 @@ import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { pushToStaff, pushToOwner } from '../integrations/push.js';
 import { whatsappCustomerNotifyEnabled, sendWhatsAppTemplate } from '../integrations/whatsapp.js';
+import { issueFeedbackToken } from './customerAuth.js';
 
 export interface EmailRow {
   id: number;
@@ -71,6 +72,17 @@ function wordmark(): string {
 function trackUrl(eventId: string): string | null {
   const base = (config.publicAppUrl || '').replace(/\/$/, '');
   return base ? `${base}/?event=${encodeURIComponent(eventId)}` : null;
+}
+
+/**
+ * The feedback deep link — the "My Event" link plus a signed, event-scoped token
+ * so a customer WITHOUT an account can rate from the link (see the /api/public/
+ * feedback routes). Falls back to the plain track link when no app URL is set.
+ */
+function feedbackUrl(eventId: string): string | null {
+  const base = (config.publicAppUrl || '').replace(/\/$/, '');
+  if (!base) return null;
+  return `${base}/?event=${encodeURIComponent(eventId)}&fb=${encodeURIComponent(issueFeedbackToken(eventId))}`;
 }
 
 /** Deep link that opens the Terms & Conditions sheet in the customer app. */
@@ -374,7 +386,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           eyebrow: 'We would love your feedback',
           heading: honour ? `How was ${honour}'s big day?` : 'How was your celebration?',
           bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">We hope everyone had the most wonderful time! 💕 Your feedback means the world to us and helps us make every Eventana celebration even better. It only takes a minute:</p>`,
-          cta: track ? { href: track, label: 'Leave your feedback →' } : undefined,
+          cta: (feedbackUrl(row.event_id) || track) ? { href: (feedbackUrl(row.event_id) || track)!, label: 'Leave your feedback →' } : undefined,
         }),
       };
     case 'team_on_the_way':
@@ -558,7 +570,7 @@ export function whatsAppTemplateFor(row: EmailRow): { name: string; params: stri
     case 'setup_ready':
       return { name: 'setup_ready', params: [] };
     case 'feedback_request':
-      return { name: 'feedback_request', params: [first, link] };
+      return { name: 'feedback_request', params: [first, feedbackUrl(row.event_id) || link] };
     case 'cancellation_refund':
       return { name: 'cancellation_refund', params: [first, row.order_ref || row.event_id, date, aed(row.total_paid_fils), aed(row.refund_amount_fils), String(Number(row.refund_percent ?? 0))] };
     case 'refund_processed':
