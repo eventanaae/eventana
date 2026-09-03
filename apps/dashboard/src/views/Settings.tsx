@@ -38,10 +38,10 @@ export function Settings() {
   const load = () =>
     api.settings().then((d) => {
       setData(d);
-      setDraft(Object.fromEntries(Object.entries(d.rules).map(([k, v]) => [k, String(v)])));
+      setDraft(Object.fromEntries(Object.entries(d.rules ?? {}).map(([k, v]) => [k, String(v)])));
       setZoneDraft(
         Object.fromEntries(
-          d.deliveryZones.map((z: any) => [z.emirate, z.feeFils === null ? '' : String(z.feeFils / 100)]),
+          (d.deliveryZones ?? []).map((z: any) => [z.emirate, z.feeFils === null ? '' : String(z.feeFils / 100)]),
         ),
       );
     });
@@ -122,7 +122,7 @@ export function Settings() {
           zone unavailable blocks checkout for it entirely.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {data.deliveryZones.map((z: any) => (
+          {(data.deliveryZones ?? []).map((z: any) => (
             <div key={z.emirate} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, color: C.ink }}>{z.zoneName}</span>
@@ -275,7 +275,7 @@ export function Settings() {
 
       <Panel title="Integrations">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {data.integrations.map((i: any) => (
+          {(data.integrations ?? []).map((i: any) => (
             <div key={i.name} style={{ border: `1px solid ${C.lineSoft}`, borderRadius: 12, padding: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                 <span style={{ fontSize: 13.5, fontWeight: 700, textTransform: 'capitalize', flex: 1 }}>
@@ -300,12 +300,12 @@ export function Settings() {
           <div style={{ border: `1px solid ${C.lineSoft}`, borderRadius: 12, padding: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
               <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>Google Maps</span>
-              <Badge tone={data.googleMaps.configured ? 'ok' : 'neutral'}>
-                {data.googleMaps.configured ? 'configured' : 'not configured'}
+              <Badge tone={data.googleMaps?.configured ? 'ok' : 'neutral'}>
+                {data.googleMaps?.configured ? 'configured' : 'not configured'}
               </Badge>
             </div>
             <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, lineHeight: 1.6 }}>
-              {data.googleMaps.note}
+              {data.googleMaps?.note}
             </div>
           </div>
         </div>
