@@ -549,22 +549,24 @@ export function renderWhatsApp(row: EmailRow): string | null {
  * templates we don't send over WhatsApp.
  */
 export function whatsAppTemplateFor(row: EmailRow): { name: string; params: string[] } | null {
-  const first = (row.customer_name || 'there').split(' ')[0];
+  // The WhatsApp templates go out in Arabic (most customers are Arabic), so the
+  // fallbacks for any missing field are Arabic too.
+  const first = (row.customer_name || 'حبيبتنا').split(' ')[0];
   const honour = (row.cart?.eventFor || '').trim();
   const date = longDate(row.event_date);
   const time = time12(row.start_time);
-  const place = row.emirate || 'UAE';
+  const place = row.emirate || 'الإمارات';
   const link = trackUrl(row.event_id) || (config.publicAppUrl || 'https://ops.eventanauae.com');
   const total = row.total_fils != null ? aed(row.total_fils) : '—';
   switch (row.template) {
     case 'booking_confirmation':
-      return { name: 'booking_confirmation', params: [first, honour || 'our guest of honour', date, time || 'your booked time', place, row.event_id, total, link] };
+      return { name: 'booking_confirmation', params: [first, honour || 'ضيف الشرف', date, time || 'الوقت المحجوز', place, row.event_id, total, link] };
     case 'three_day_reminder':
-      return { name: 'three_day_reminder', params: [first, `${date}${time ? ` at ${time}` : ''}`, place, link] };
+      return { name: 'three_day_reminder', params: [first, `${date}${time ? ` الساعة ${time}` : ''}`, place, link] };
     case 'event_day':
-      return { name: 'event_day', params: [first, time || 'your booked time', link] };
+      return { name: 'event_day', params: [first, time || 'بالوقت المحجوز', link] };
     case 'team_on_the_way':
-      return { name: 'team_on_the_way', params: [row.eta ? ` — ETA around ${row.eta}` : ' — arriving soon'] };
+      return { name: 'team_on_the_way', params: [row.eta ? ` — تقريباً الساعة ${row.eta}` : ' — نوصل قريب'] };
     case 'team_arrived':
       return { name: 'team_arrived', params: [] };
     case 'setup_ready':
@@ -730,7 +732,9 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         continue;
       }
-      const res = await sendWhatsAppTemplate({ to, name: tpl.name, params: tpl.params, fromStaff: true });
+      // Arabic templates — most of our customers are Arabic. Falls back to the
+      // English variant only if the 'ar' template isn't approved.
+      const res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'ar', params: tpl.params, fromStaff: true });
       if (res.ok) {
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         whatsapps++;

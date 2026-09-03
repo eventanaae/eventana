@@ -10,7 +10,7 @@
  */
 import { config } from '../config.js';
 
-interface Tpl { name: string; body: string; example: string[] }
+interface Tpl { name: string; language?: string; body: string; example: string[] }
 
 const TEMPLATES: Tpl[] = [
   {
@@ -60,26 +60,90 @@ const TEMPLATES: Tpl[] = [
   },
 ];
 
+/**
+ * Arabic variants — warm, friendly Emirati tone (most of our customers are
+ * Arabic and don't engage with English). Same template names + params as the
+ * English set, language 'ar'. Wording approved by the owner 2026-09-03. Meta
+ * rule: a body may not end on a variable, so each ends on a line of text.
+ */
+const TEMPLATES_AR: Tpl[] = [
+  {
+    name: 'booking_confirmation',
+    language: 'ar',
+    body: `🎉 هلا {{1}}! حجزكم مع Eventana تأكد 💕\nاحتفال {{2}} صار جاهز عندنا وفريقنا بدأ يجهّز كل التفاصيل الحلوة ✨\n📅 {{3}}   🕒 {{4}}   📍 {{5}}\n🔖 رقم الحجز: {{6}}   💳 الإجمالي: {{7}}\n📧 الفاتورة الكاملة وصلتكم على الإيميل.\nتابعي التفاصيل: {{8}}\nنعدكم بيوم ما يننسى 🌸`,
+    example: ['سارة', 'آدم', 'الجمعة ٤ سبتمبر ٢٠٢٦', '٦:٠٠ مساءً', 'دبي', 'EV-2026-0195', 'AED 4,000', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+  },
+  {
+    name: 'three_day_reminder',
+    language: 'ar',
+    body: `🎈 باقي ٣ أيام {{1}}! العدّ التنازلي بدأ لاحتفالكم يوم {{2}} في {{3}}.\nتبين تعدلين شي؟ كله بالتطبيق: {{4}}\nنشوفكم قريب 💖`,
+    example: ['سارة', 'الجمعة ٤ سبتمبر ٢٠٢٦ الساعة ٦:٠٠ مساءً', 'دبي', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+  },
+  {
+    name: 'event_day',
+    language: 'ar',
+    body: `🥳 اليوم يومكم {{1}}! احتفالكم يبدأ {{2}}، وفريقنا في الطريق لكم بكل اللمسات الحلوة 🚐✨\nتابعي من هني: {{3}}\nنتمنى لكم أحلى وقت 💛`,
+    example: ['سارة', '٦:٠٠ مساءً', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+  },
+  {
+    name: 'team_on_the_way',
+    language: 'ar',
+    body: `🚐 فريق Eventana في الطريق لكم{{1}}! يايين نجهّز أجواء احتفالكم 🎈 نشوفكم بعد شوي!`,
+    example: [' — تقريباً الساعة ٥:٣٠ مساءً'],
+  },
+  {
+    name: 'team_arrived',
+    language: 'ar',
+    body: `📍 فريق Eventana وصل عندكم! الفريق بالموقع وبدأ يرتّب كل شي ✨ بيصير جاهز بعد شوي — يسلمو إنكم اخترتونا 💕`,
+    example: [],
+  },
+  {
+    name: 'setup_ready',
+    language: 'ar',
+    body: `✨ كل شي صار جاهز! احتفالكم مجهّز وينتظركم 🎉 نتمنى لكم أحلى وقت — ونبي نسمع رايكم بعدين 💕`,
+    example: [],
+  },
+  {
+    name: 'feedback_request',
+    language: 'ar',
+    body: `🌸 كيف كانت حفلتكم {{1}}؟ رأيج يهمنا وايد حبيبتي 💕 دقيقة وحدة بس وتساعدينا نتطور.\nخبّرينا رايج من هني: {{2}}\nيسلمو من قلب 🌷`,
+    example: ['سارة', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+  },
+  {
+    name: 'cancellation_refund',
+    language: 'ar',
+    body: `🌸 تم إلغاء حجزكم مع Eventana {{1}}.\n🔖 الأوردر: {{2}}   📅 {{3}}\n💳 المدفوع: {{4}}   ↩️ المسترجع: {{5}} ({{6}}%)\nالاسترجاع ممكن ياخذ ٧ أيام عمل عشان يبين بحسابكم 💛`,
+    example: ['سارة', 'ORD-2026-0195', 'الجمعة ٤ سبتمبر ٢٠٢٦', 'AED 4,000', 'AED 3,000', '75'],
+  },
+  {
+    name: 'refund_processed',
+    language: 'ar',
+    body: `💸 تم تنفيذ استرجاع مبلغكم {{1}}.\n🔖 الأوردر: {{2}}   ↩️ المبلغ: {{3}}\nعطونا ٧ أيام عمل عشان يبين بحسابكم 💛`,
+    example: ['سارة', 'ORD-2026-0195', 'AED 3,000'],
+  },
+];
+
 export async function seedWhatsAppTemplatesFromEnv(): Promise<void> {
   const waba = process.env.WHATSAPP_WABA_ID;
   if (!waba) return;
   const token = config.whatsapp.accessToken;
   if (!token) { console.log('[wa-templates] no WHATSAPP_ACCESS_TOKEN — skipping'); return; }
   const url = `https://graph.facebook.com/${config.meta.graphVersion}/${waba}/message_templates`;
-  for (const t of TEMPLATES) {
+  for (const t of [...TEMPLATES, ...TEMPLATES_AR]) {
+    const lang = t.language ?? 'en';
     const body: Record<string, unknown> = { type: 'BODY', text: t.body };
     if (t.example.length) body.example = { body_text: [t.example] };
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ name: t.name, language: 'en', category: 'UTILITY', components: [body] }),
+        body: JSON.stringify({ name: t.name, language: lang, category: 'UTILITY', components: [body] }),
       });
       const json = (await res.json()) as any;
-      if (res.ok) console.log(`[wa-templates] ${t.name}: submitted (id ${json.id ?? '—'}, ${json.status ?? '?'})`);
-      else console.log(`[wa-templates] ${t.name}: ${res.status} ${JSON.stringify(json).slice(0, 220)}`);
+      if (res.ok) console.log(`[wa-templates] ${t.name} (${lang}): submitted (id ${json.id ?? '—'}, ${json.status ?? '?'})`);
+      else console.log(`[wa-templates] ${t.name} (${lang}): ${res.status} ${JSON.stringify(json).slice(0, 220)}`);
     } catch (e) {
-      console.log(`[wa-templates] ${t.name}: error ${(e as Error).message.slice(0, 160)}`);
+      console.log(`[wa-templates] ${t.name} (${lang}): error ${(e as Error).message.slice(0, 160)}`);
     }
   }
 }
