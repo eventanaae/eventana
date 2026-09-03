@@ -25,6 +25,9 @@ export type EventPatch = {
   eventFor?: string | null;  // guest-of-honour / baby name (lives in the order cart)
   themeId?: string | null;   // catalogue theme id (also mirrored to the cart)
   customThemeName?: string;  // a free-typed theme when none in the catalogue fit
+  locationNote?: string | null; // free-text address / Google Maps link
+  mapLat?: number | null;    // exact pin (parsed from the maps link)
+  mapLng?: number | null;
 };
 
 export async function staffUpdateEvent(eventId: string, patch: EventPatch): Promise<{ ok: true }> {
@@ -80,6 +83,15 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
     if (patch.emirate !== undefined && patch.emirate) {
       await db.query(`UPDATE events SET emirate = $2 WHERE id = $1`, [eventId, patch.emirate]);
     }
+    // Free-text address / Google Maps link the team can set (esp. converted
+    // bookings with no captured pin), plus the exact pin parsed from that link.
+    if (patch.locationNote !== undefined) {
+      await db.query(`UPDATE events SET location_note = $2 WHERE id = $1`, [eventId, patch.locationNote || null]);
+    }
+    if (patch.mapLat !== undefined && patch.mapLng !== undefined) {
+      await db.query(`UPDATE events SET map_lat = $2, map_lng = $3 WHERE id = $1`,
+        [eventId, patch.mapLat ?? 0, patch.mapLng ?? 0]);
+    }
 
     const customTheme = (patch.customThemeName ?? '').trim();
     // ── Theme (mirror to the event row) ─────────────────────────────────────
@@ -101,7 +113,9 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
     }
 
     // A time or location change affects the delivery — tell the assigned driver.
-    if (patch.startTime || patch.endTime || (patch.emirate !== undefined && patch.emirate)) {
+    const locationChanged = (patch.emirate !== undefined && patch.emirate) || patch.locationNote !== undefined
+      || (patch.mapLat !== undefined && patch.mapLng !== undefined);
+    if (patch.startTime || patch.endTime || locationChanged) {
       await db.query(
         `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
          VALUES ($1,'driver','driver_order_updated', now(), $2)`,

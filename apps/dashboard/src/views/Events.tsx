@@ -748,12 +748,19 @@ function StaffingPanel({ eventId }: { eventId: string }) {
   const manualCount = (role: string) => Number(manual.find((x) => x.role === role)?.count ?? 0);
   const addRole = async (role: string, delta: number) => {
     setBusy(true);
-    try { setPlan(await api.setStaffingRequirement(eventId, role, Math.max(0, manualCount(role) + delta))); await load(); }
+    // NOTE: the requirements endpoint returns a StaffingPlan OBJECT, not the slot
+    // array the panel renders — so we must NOT setPlan() its result. load() re-reads
+    // the plan in the correct (array) shape.
+    try { await api.setStaffingRequirement(eventId, role, Math.max(0, manualCount(role) + delta)); await load(); }
+    catch { /* leave the current plan on screen rather than crashing */ }
     finally { setBusy(false); }
   };
 
-  const leader = (plan ?? []).find((s) => s.is_leader);
-  const slots = (plan ?? []).filter((s) => !s.is_leader);
+  // Defensive: the panel only ever renders an array of slots. If any handler ever
+  // hands us a non-array, treat it as empty instead of throwing (white screen).
+  const planArr: any[] = Array.isArray(plan) ? plan : [];
+  const leader = planArr.find((s) => s.is_leader);
+  const slots = planArr.filter((s) => !s.is_leader);
   const open = slots.filter((s) => s.status === 'part_time_required' || s.status === 'to_confirm').length;
 
   const reassign = async () => {
@@ -768,7 +775,7 @@ function StaffingPanel({ eventId }: { eventId: string }) {
     >
       {plan === null ? (
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Loading the crew…</div>
-      ) : plan.length === 0 ? (
+      ) : planArr.length === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Empty>No staffing plan yet.</Empty>
           <Button onClick={reassign}>{busy ? 'Assigning…' : 'Assign staff'}</Button>

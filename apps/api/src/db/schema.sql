@@ -317,6 +317,10 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS google_calendar_event_id TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS movie_id TEXT;
 -- Custom-theme brief carried from the booking (older DBs may lack the column).
 ALTER TABLE events ADD COLUMN IF NOT EXISTS custom_theme_brief JSONB;
+-- A free-text address / Google Maps link the team can set for the event (esp.
+-- converted/manual bookings that never captured a map pin). The exact pin, when
+-- known, still lives in map_lat/map_lng.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS location_note TEXT;
 
 CREATE TABLE IF NOT EXISTS event_services (
   id          SERIAL PRIMARY KEY,

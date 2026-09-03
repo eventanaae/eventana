@@ -952,8 +952,14 @@ export async function adminRoutes(app: FastifyInstance) {
         // Reference images the team attached when they built a manual order —
         // shown on the job so the design team has them.
         referenceImages: (rows[0].cart as { referenceImages?: string[] } | null)?.referenceImages ?? [],
-        // Exact location for driver routing (#driver / Google Maps link).
-        mapPin: (rows[0].cart as { mapPin?: { lat: number; lng: number } } | null)?.mapPin ?? null,
+        // Exact location for driver routing (#driver / Google Maps link). Prefer
+        // the event's own pin (which the team can set/edit) over the original
+        // cart pin, so an edited or newly-added location wins.
+        mapPin: (Number(rows[0].map_lat) !== 0 || Number(rows[0].map_lng) !== 0)
+          ? { lat: Number(rows[0].map_lat), lng: Number(rows[0].map_lng) }
+          : ((rows[0].cart as { mapPin?: { lat: number; lng: number } } | null)?.mapPin ?? null),
+        // A free-text address / Maps link the team set for this event.
+        locationNote: rows[0].location_note ?? null,
         addressDetails:
           (rows[0].cart as { address?: { details?: string } } | null)?.address?.details ?? null,
         // Full structured address (area / street / villa) so ops can find the
@@ -1359,6 +1365,12 @@ export async function adminRoutes(app: FastifyInstance) {
       eventFor: z.string().max(120).nullable().optional(),
       themeId: z.string().min(1).max(80).nullable().optional(),
       customThemeName: z.string().max(120).optional(),
+      // Exact location: a free-text address / Google Maps link the team can set
+      // (esp. for converted bookings with no captured pin), plus optional
+      // coordinates parsed from that link so the map + driver directions work.
+      locationNote: z.string().max(600).nullable().optional(),
+      mapLat: z.number().min(-90).max(90).nullable().optional(),
+      mapLng: z.number().min(-180).max(180).nullable().optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
