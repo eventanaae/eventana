@@ -598,10 +598,13 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     return { assigned: results.length, results };
   });
-  // The internal crew (for the manual-override picker).
-  app.get('/api/admin/staffing-crew', async () => {
+  // The internal crew (for the manual-override picker). Pass ?eventId=… to get
+  // each member flagged `busy` (unavailable for that event) so the picker can
+  // hide anyone already booked at that time (drivers exempt), on leave, or off.
+  app.get('/api/admin/staffing-crew', async (request) => {
+    const { eventId } = (request.query ?? {}) as { eventId?: string };
     const { listInternalStaff } = await import('../domain/staffing.js');
-    return listInternalStaff();
+    return listInternalStaff(eventId || undefined);
   });
   // Manual role requirements the team adds for an event the engine can't read
   // (e.g. a custom offer). Setting a role re-runs the plan; count 0 removes it.
@@ -612,7 +615,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post('/api/admin/staffing/:eventId/requirements', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const { role, count } = (request.body ?? {}) as { role?: string; count?: number };
-    const ROLES = ['balloon_artist', 'clown', 'face_painting', 'helper', 'balloon_twisting', 'staff', 'driver', 'design'];
+    const ROLES = ['balloon_artist', 'clown', 'face_painting', 'helper', 'balloon_twisting', 'staff', 'driver', 'pt_driver', 'design'];
     if (!role || !ROLES.includes(role)) return reply.status(400).send({ error: 'invalid_role' });
     const { setManualRequirement } = await import('../domain/staffing.js');
     const plan = await setManualRequirement(eventId, role, Math.max(0, Math.min(10, Number(count) || 0)));

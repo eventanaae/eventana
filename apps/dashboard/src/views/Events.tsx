@@ -715,6 +715,7 @@ const ROLE_LABEL: Record<string, string> = {
   leader: '👑 Event Leader', balloon_artist: '🎈 Balloon Artist', clown: '🤡 Clown',
   face_painting: '🎨 Face Painter', helper: '🧍 Helper', balloon_twisting: '🎈 Balloon Twisting',
   staff: '👷 Staff', acrobat_clown: '🤸 Acrobat Clown', design: '🖌️ Design (Marsha)', driver: '🚐 Driver',
+  pt_driver: '🚐 Driver (part-time)',
 };
 
 /**
@@ -731,17 +732,18 @@ function StaffingPanel({ eventId }: { eventId: string }) {
   const [manual, setManual] = useState<any[]>([]);
 
   const load = async () => {
-    const [p, m] = await Promise.all([
+    const [p, m, c] = await Promise.all([
       api.staffingPlan(eventId).catch(() => []),
       api.staffingRequirements(eventId).catch(() => []),
+      // Availability is per-event and live — reload it every time the plan
+      // changes so an edit to the team or the event time is reflected at once.
+      api.staffingCrew(eventId).catch(() => []),
     ]);
     setPlan(p);
     setManual(m);
+    setCrew(c);
   };
-  useEffect(() => {
-    load();
-    api.staffingCrew().then(setCrew).catch(() => setCrew([]));
-  }, [eventId]);
+  useEffect(() => { load(); }, [eventId]);
 
   const manualCount = (role: string) => Number(manual.find((x) => x.role === role)?.count ?? 0);
   const addRole = async (role: string, delta: number) => {
@@ -817,7 +819,7 @@ function StaffingPanel({ eventId }: { eventId: string }) {
                     />
                     <Button
                       disabled={!(names[s.id] ?? '').trim()}
-                      onClick={async () => { setPlan(await api.confirmPartTime(s.id, names[s.id].trim())); }}
+                      onClick={async () => { await api.confirmPartTime(s.id, names[s.id].trim()); await load(); }}
                     >
                       Confirm
                     </Button>
@@ -828,12 +830,24 @@ function StaffingPanel({ eventId }: { eventId: string }) {
                   <div style={{ marginTop: 6 }}>
                     {openOverride === s.id ? (
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {crew.map((m) => (
+                        {/* Only people who are actually free for this event's time
+                            appear — anyone already booked at that time (drivers
+                            aside), on leave or on their day off is hidden so they
+                            can't be double-booked. */}
+                        {crew.filter((m) => !m.busy).map((m) => (
                           <Button key={m.id} tone="ghost"
-                            onClick={async () => { setPlan(await api.overrideSlot(s.id, m.id)); setOpenOverride(null); }}>
+                            onClick={async () => { await api.overrideSlot(s.id, m.id); setOpenOverride(null); await load(); }}>
                             {m.name}
                           </Button>
                         ))}
+                        {crew.filter((m) => !m.busy).length === 0 && (
+                          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Everyone is busy at this time.</div>
+                        )}
+                        {crew.some((m) => m.busy) && (
+                          <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, width: '100%' }}>
+                            {crew.filter((m) => m.busy).length} hidden (busy / off)
+                          </div>
+                        )}
                         <Button tone="ghost" onClick={() => setOpenOverride(null)}>Cancel</Button>
                       </div>
                     ) : (
@@ -861,7 +875,7 @@ function StaffingPanel({ eventId }: { eventId: string }) {
         <div style={{ borderTop: `1px dashed ${C.line}`, marginTop: 12, paddingTop: 10 }}>
           <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.4px', marginBottom: 7 }}>➕ ADD A ROLE MANUALLY</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {([['balloon_artist', '🎈 Balloon'], ['clown', '🤡 Clown'], ['face_painting', '🎨 Face Painter'], ['helper', '🧍 Helper'], ['balloon_twisting', '🎈 Twisting'], ['driver', '🚐 Driver']] as [string, string][]).map(([r, label]) => (
+            {([['balloon_artist', '🎈 Balloon'], ['clown', '🤡 Clown'], ['face_painting', '🎨 Face Painter'], ['helper', '🧍 Helper'], ['balloon_twisting', '🎈 Twisting'], ['driver', '🚐 Driver'], ['pt_driver', '🚐 Part-time Driver']] as [string, string][]).map(([r, label]) => (
               <Button key={r} tone="ghost" onClick={() => addRole(r, +1)}>
                 {busy ? '…' : `+ ${label}${manualCount(r) > 0 ? ` (${manualCount(r)})` : ''}`}
               </Button>

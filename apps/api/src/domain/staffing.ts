@@ -13,7 +13,10 @@ import { loadConfig } from './settings.js';
 
 export type Skill =
   | 'balloon_artist' | 'clown' | 'face_painting' | 'helper'
-  | 'balloon_twisting' | 'acrobat_clown' | 'design' | 'staff' | 'driver';
+  | 'balloon_twisting' | 'acrobat_clown' | 'design' | 'staff' | 'driver'
+  // A part-time (external) driver other than Shan — always filled by a typed
+  // name, never auto-assigned internally.
+  | 'pt_driver';
 
 export interface RoleReq {
   role: Skill;
@@ -72,7 +75,7 @@ const PACKAGE_CREW: Record<string, Array<{ role: Skill; count: number }>> = {
   gold: [{ role: 'balloon_artist', count: 1 }, { role: 'clown', count: 3 }, { role: 'face_painting', count: 1 }],
   silver: [{ role: 'balloon_artist', count: 1 }, { role: 'clown', count: 2 }, { role: 'face_painting', count: 1 }],
   bronze: [{ role: 'balloon_artist', count: 1 }, { role: 'clown', count: 2 }],
-  summer: [{ role: 'balloon_artist', count: 1 }, { role: 'clown', count: 3 }],
+  summer: [{ role: 'balloon_artist', count: 1 }, { role: 'clown', count: 2 }],
 };
 function packageKey(name?: string | null): keyof typeof PACKAGE_CREW | null {
   const n = (name ?? '').toLowerCase();
@@ -235,7 +238,17 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     [eventId],
   );
   for (const m of manual.rows) {
-    reqs.push({ role: m.role as Skill, count: Number(m.count) || 1, reason: 'Added by the team', source: 'Manual' });
+    const role = m.role as Skill;
+    // A part-time driver (and the acrobat clown) is never staffed internally —
+    // it's emitted as a part-time slot for the team to fill with a typed name.
+    const partTimeOnly = role === 'pt_driver' || role === 'acrobat_clown';
+    reqs.push({
+      role,
+      count: Number(m.count) || 1,
+      reason: partTimeOnly ? 'Part-time driver (external)' : 'Added by the team',
+      source: 'Manual',
+      ...(partTimeOnly ? { partTimeOnly: true } : {}),
+    });
   }
 
   // Internal staff + skills + current workload.
@@ -246,11 +259,17 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   );
   const wl = await pool.query(`SELECT assignee_id, count(*)::int c FROM event_staff WHERE assignee_id IS NOT NULL AND event_id <> $1 GROUP BY assignee_id`, [eventId]);
   const wlMap = new Map<string, number>(wl.rows.map((r: any) => [r.assignee_id, r.c]));
-  // Staff already booked on ANOTHER event on the same date → unavailable.
+  // Staff already booked on another event whose time window OVERLAPS this one on
+  // the same date → unavailable (a person can't be in two places at once). Two
+  // same-day events at NON-overlapping times are fine, so the same person can
+  // work both. Times are "HH:MM" text, comparable lexicographically same-day.
   const conf = await pool.query(
     `SELECT DISTINCT es.assignee_id FROM event_staff es JOIN events e2 ON e2.id = es.event_id
-      WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1 AND to_char(e2.event_date,'YYYY-MM-DD') = $2`,
-    [eventId, ev.date],
+      WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1
+        AND to_char(e2.event_date,'YYYY-MM-DD') = $2
+        AND e2.phase <> 'Cancelled'
+        AND $3 < COALESCE(e2.base_end_time,'23:59') AND COALESCE($4::text,'23:59') > e2.start_time`,
+    [eventId, ev.date, ev.start_time, ev.base_end_time],
   );
   const busy = new Set<string>(conf.rows.map((r: any) => r.assignee_id));
   // Staff on an approved day off / annual leave covering the event date are
@@ -496,14 +515,56 @@ export async function getManualRequirements(eventId: string) {
   return rows;
 }
 
-/** The internal crew (for the manual-override picker). */
-export async function listInternalStaff() {
+/**
+ * The internal crew for the manual-override picker. When an `eventId` is given,
+ * each member is flagged `busy` (with a reason) if they are unavailable for THAT
+ * event — booked on a time-overlapping event the same day (drivers exempt, they
+ * run several deliveries), on approved leave, or on their weekly day off — so
+ * the UI can hide them and a manager can't double-book someone by hand. Computed
+ * live, so it always reflects the current times and assignments.
+ */
+export async function listInternalStaff(eventId?: string) {
   const { rows } = await pool.query(
-    `SELECT tm.id, tm.name, tm.role, array_agg(ss.skill) AS skills
+    `SELECT tm.id, tm.name, tm.role, array_agg(ss.skill) FILTER (WHERE ss.skill IS NOT NULL) AS skills
        FROM team_members tm LEFT JOIN staff_skills ss ON ss.member_id = tm.id
       WHERE tm.active GROUP BY tm.id, tm.name, tm.role ORDER BY tm.name`,
   );
-  return rows;
+  const plain = rows.map((r: any) => ({ ...r, skills: r.skills ?? [], busy: false, busyReason: null as string | null }));
+  if (!eventId) return plain;
+
+  const evRes = await pool.query(
+    `SELECT to_char(event_date,'YYYY-MM-DD') AS date, start_time, base_end_time FROM events WHERE id = $1`,
+    [eventId],
+  );
+  const ev = evRes.rows[0];
+  if (!ev) return plain;
+
+  const reason = new Map<string, string>();
+  const conf = await pool.query(
+    `SELECT DISTINCT es.assignee_id FROM event_staff es JOIN events e2 ON e2.id = es.event_id
+      WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1
+        AND to_char(e2.event_date,'YYYY-MM-DD') = $2 AND e2.phase <> 'Cancelled'
+        AND $3 < COALESCE(e2.base_end_time,'23:59') AND COALESCE($4::text,'23:59') > e2.start_time`,
+    [eventId, ev.date, ev.start_time, ev.base_end_time],
+  );
+  for (const r of conf.rows as any[]) reason.set(r.assignee_id, 'On another event at this time');
+  const offRows = await pool.query(
+    `SELECT DISTINCT member_id FROM staff_days_off WHERE status = 'approved' AND start_date <= $1 AND end_date >= $1`,
+    [ev.date],
+  );
+  for (const r of offRows.rows as any[]) reason.set(r.member_id, 'On leave');
+  const evWeekday = new Date(`${ev.date}T00:00:00Z`).getUTCDay();
+  const weeklyOff = await pool.query(`SELECT id FROM team_members WHERE active AND weekly_day_off = $1`, [evWeekday]);
+  for (const r of weeklyOff.rows as any[]) reason.set(r.id, 'Weekly day off');
+
+  return plain.map((m) => {
+    const isDriver = (m.skills as string[]).includes('driver');
+    const why = reason.get(m.id) ?? null;
+    // A driver is never "busy" merely for an overlapping delivery — but leave and
+    // day off still apply to them.
+    const busy = !!why && !(isDriver && why === 'On another event at this time');
+    return { ...m, busy, busyReason: busy ? why : null };
+  });
 }
 
 /** Read the saved staffing plan for an event (with staff names). */

@@ -167,7 +167,7 @@ export const api = {
   assignStaff: (eventId: string) => request<any>(`/api/admin/staffing/assign/${eventId}`, { method: 'POST' }),
   staffingPlan: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}`),
   assignAllStaff: () => request<any>('/api/admin/staffing/assign-all', { method: 'POST' }),
-  staffingCrew: () => request<any[]>('/api/admin/staffing-crew'),
+  staffingCrew: (eventId?: string) => request<any[]>(`/api/admin/staffing-crew${eventId ? `?eventId=${eventId}` : ''}`),
   // Pre-event preparation (internal only)
   prepPlan: (eventId: string) => request<any>(`/api/admin/prep/${eventId}`),
   prepGenerate: (eventId: string) => request<any>(`/api/admin/prep/${eventId}/generate`, { method: 'POST' }),
