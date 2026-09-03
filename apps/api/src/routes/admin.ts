@@ -295,11 +295,12 @@ export async function adminRoutes(app: FastifyInstance) {
     const limit = Math.min(100, Math.max(1, Number(q.limit) || 5));
     const { rows } = await pool.query(
       `SELECT r.id, r.stars, r.feedback, r.event_id,
-              c.name AS customer, e.event_for,
+              c.name AS customer, o.cart->>'eventFor' AS event_for,
               to_char(r.created_at,'YYYY-MM-DD') AS date, r.created_at
          FROM event_ratings r
          JOIN events e ON e.id = r.event_id
          JOIN customers c ON c.id = e.customer_id
+         LEFT JOIN orders o ON o.id = e.order_id
         WHERE r.feedback IS NOT NULL AND btrim(r.feedback) <> ''
         ORDER BY r.created_at DESC
         LIMIT $1`,
