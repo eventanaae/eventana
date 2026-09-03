@@ -119,6 +119,12 @@ export async function rescheduleEvent(args: {
         WHERE event_id = $1 AND template = 'event_day' AND sent_at IS NULL AND cancelled_at IS NULL`,
       [args.eventId, args.newDate],
     );
+    // Tell the assigned driver the delivery moved (new date/time → fresh row).
+    await db.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       VALUES ($1,'driver','driver_order_updated', now(), $2)`,
+      [args.eventId, JSON.stringify({ eventId: args.eventId })],
+    );
     await db.query(
       `INSERT INTO event_tasks (event_id, department, title)
        VALUES ($1,'operations',$2), ($1,'logistics',$3)`,

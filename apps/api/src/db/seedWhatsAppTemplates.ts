@@ -62,6 +62,22 @@ const TEMPLATES: Tpl[] = [
     body: `💸 {{1}}, your Eventana refund has been processed.\n\n🔖 Order: {{2}}\n↩️ Amount: {{3}}\n\nPlease allow ~7 business days for it to appear. 💛`,
     example: ['Sara', 'ORD-2026-0195', 'AED 3,000'],
   },
+  // --- Driver (operational, English — sent to the assigned driver) ---
+  {
+    name: 'driver_new_order',
+    body: `🚚 New Eventana delivery assigned to you!\n\n📅 {{1}}\n🕒 {{2}}\n📍 {{3}}\n🗺️ Directions: {{4}}\n🔖 Order: {{5}}\n📋 {{6}}\n\nIt has been added to your schedule — full details are in the app.`,
+    example: ['Friday, 4 September 2026', '6:00 PM', 'Dubai — Jumeirah', 'https://www.google.com/maps/dir/?api=1&destination=25.2,55.2&travelmode=driving', 'EV-2026-0195', 'Kids Birthday · Adam · Deluxe Package'],
+  },
+  {
+    name: 'driver_order_updated',
+    body: `✏️ An Eventana delivery has changed.\n\n📅 {{1}}\n🕒 {{2}}\n📍 {{3}}\n🗺️ Directions: {{4}}\n🔖 Order: {{5}}\n📋 {{6}}\n\nYour schedule has been updated — please check the app.`,
+    example: ['Friday, 4 September 2026', '6:00 PM', 'Dubai — Jumeirah', 'https://www.google.com/maps/dir/?api=1&destination=25.2,55.2&travelmode=driving', 'EV-2026-0195', 'Kids Birthday · Adam · Deluxe Package'],
+  },
+  {
+    name: 'driver_order_cancelled',
+    body: `❌ An Eventana delivery has been cancelled.\n\n📅 {{1}}\n📍 {{2}}\n🔖 Order: {{3}}\n\nIt has been removed from your schedule.`,
+    example: ['Friday, 4 September 2026', 'Dubai — Jumeirah', 'EV-2026-0195'],
+  },
 ];
 
 /**

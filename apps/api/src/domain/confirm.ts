@@ -428,7 +428,8 @@ export async function confirmBooking(
        ($1,'email','booking_confirmation', now(), $2),
        ($1,'email','three_day_reminder', ($3::timestamptz - interval '3 days'), $2),
        ($1,'email','event_day', ($3::timestamptz - interval '4 hours'), $2),
-       ($1,'email','feedback_request', ($3::timestamptz + interval '1 day'), $2)`,
+       ($1,'email','feedback_request', ($3::timestamptz + interval '1 day'), $2),
+       ($1,'driver','driver_new_order', now(), $2)`,
     [eventId, JSON.stringify({ orderId: order.id, eventId }), eventStart],
   );
 

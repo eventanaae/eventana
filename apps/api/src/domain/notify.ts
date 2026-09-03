@@ -16,7 +16,7 @@ import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { pushToStaff, pushToOwner } from '../integrations/push.js';
-import { whatsappCustomerNotifyEnabled, sendWhatsAppTemplate } from '../integrations/whatsapp.js';
+import { whatsappCustomerNotifyEnabled, whatsappDriverNotifyEnabled, sendWhatsAppTemplate } from '../integrations/whatsapp.js';
 import { issueFeedbackToken } from './customerAuth.js';
 
 export interface EmailRow {
@@ -582,6 +582,73 @@ export function whatsAppTemplateFor(row: EmailRow): { name: string; params: stri
   }
 }
 
+/** One notification row joined to the event's delivery details + the assigned
+ *  driver's phone — the input to the driver WhatsApp templates. */
+export interface DriverRow {
+  id: number;
+  template: string;
+  event_id: string;
+  event_date: string | null; // to_char'd YYYY-MM-DD
+  start_time: string | null;
+  emirate: string | null;
+  address: { area?: string; building?: string; notes?: string } | null;
+  map_lat: number | null;
+  map_lng: number | null;
+  celebration_type: string | null;
+  package_name: string | null;
+  cart: { eventFor?: string } | null;
+  driver_phone: string | null;
+}
+
+/** A driving-directions link to the event's pin (falls back to an emirate
+ *  search). Never empty — Meta rejects an empty template parameter. */
+function driverMapLink(row: DriverRow): string {
+  const lat = Number(row.map_lat), lng = Number(row.map_lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.emirate || 'UAE')}`;
+}
+
+/** A short place label for the driver: emirate + area/building when present. */
+function driverPlace(row: DriverRow): string {
+  const parts = [row.emirate, row.address?.area, row.address?.building].filter(Boolean);
+  return parts.length ? parts.join(' — ') : (row.emirate || 'UAE');
+}
+
+/** A one-line description of what the delivery is (celebration · guest · package). */
+function driverDetails(row: DriverRow): string {
+  const honour = (row.cart?.eventFor || '').trim();
+  const bits = [
+    row.celebration_type ? celebrationLabel(row.celebration_type) : null,
+    honour || null,
+    row.package_name || null,
+  ].filter(Boolean);
+  return bits.length ? bits.join(' · ') : 'Event setup';
+}
+
+/**
+ * Maps a driver notification to its approved WhatsApp template + params (English
+ * — the driver reads English). Every param is non-empty and single-line.
+ */
+export function driverTemplateFor(row: DriverRow): { name: string; params: string[] } | null {
+  const date = longDate(row.event_date);
+  const time = time12(row.start_time) || 'your booked time';
+  const place = driverPlace(row);
+  const link = driverMapLink(row);
+  const ref = row.event_id;
+  switch (row.template) {
+    case 'driver_new_order':
+      return { name: 'driver_new_order', params: [date, time, place, link, ref, driverDetails(row)] };
+    case 'driver_order_updated':
+      return { name: 'driver_order_updated', params: [date, time, place, link, ref, driverDetails(row)] };
+    case 'driver_order_cancelled':
+      return { name: 'driver_order_cancelled', params: [date, place, ref] };
+    default:
+      return null;
+  }
+}
+
 /** A standalone shop order (printed/digital goods) — no event attached. */
 export interface ShopEmailRow {
   id: number;
@@ -741,6 +808,49 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
       }
       // Transient failure (e.g. template still pending approval): leave
       // whatsapp_sent_at NULL so the next sweep retries once it's approved.
+    }
+  }
+
+  // ---- Driver WhatsApp (operational: new order, change, cancellation) ----
+  // The driver assigned to the event (event_staff role='driver') gets the
+  // delivery details on WhatsApp. Only for events today or later; a row for an
+  // event with no driver yet is left NULL and retried once assignment lands.
+  if (whatsappDriverNotifyEnabled()) {
+    const { rows } = await pool.query<DriverRow>(
+      `SELECT n.id, n.template, n.event_id,
+              to_char(e.event_date,'YYYY-MM-DD') AS event_date, e.start_time,
+              e.emirate, e.address, e.map_lat, e.map_lng,
+              e.celebration_type, o.cart, p.name AS package_name,
+              drv.phone AS driver_phone
+         FROM notifications n
+         JOIN events e ON e.id = n.event_id
+         LEFT JOIN orders o ON o.id = e.order_id
+         LEFT JOIN packages p ON p.id = e.package_id
+         LEFT JOIN LATERAL (
+           SELECT tm.phone
+             FROM event_staff es JOIN team_members tm ON tm.id = es.assignee_id
+            WHERE es.event_id = e.id AND es.role = 'driver' AND tm.phone IS NOT NULL
+            LIMIT 1
+         ) drv ON true
+        WHERE n.channel = 'driver' AND n.whatsapp_sent_at IS NULL AND n.cancelled_at IS NULL
+          AND e.event_date >= current_date
+          AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
+        ORDER BY n.scheduled_for NULLS FIRST
+        LIMIT 100`,
+    );
+    for (const row of rows) {
+      const tpl = driverTemplateFor(row);
+      if (!tpl) {
+        await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
+        continue;
+      }
+      const to = String(row.driver_phone ?? '').replace(/\D+/g, '');
+      if (!to) continue; // driver not assigned yet — retry on the next sweep
+      const res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'en', params: tpl.params, fromStaff: true });
+      if (res.ok) {
+        await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
+        whatsapps++;
+      }
     }
   }
 

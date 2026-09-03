@@ -34,6 +34,15 @@ export function whatsappCustomerNotifyEnabled(): boolean {
   return whatsappEnabled() && config.whatsapp.customerNotify === true;
 }
 
+/**
+ * The driver's operational WhatsApp (new order, change, cancellation) flows only
+ * when the API is connected AND the owner has flipped the driver switch on.
+ * Independent of the customer switch.
+ */
+export function whatsappDriverNotifyEnabled(): boolean {
+  return whatsappEnabled() && config.whatsapp.driverNotify === true;
+}
+
 /** 'off' unless explicitly configured — never inferred from anything else. */
 export function agentMode(): AgentMode {
   const raw = (config.whatsapp.agentMode ?? 'off').toLowerCase();

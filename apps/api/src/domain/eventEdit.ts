@@ -100,6 +100,15 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       await db.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [ev.order_id, cart]);
     }
 
+    // A time or location change affects the delivery — tell the assigned driver.
+    if (patch.startTime || patch.endTime || (patch.emirate !== undefined && patch.emirate)) {
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES ($1,'driver','driver_order_updated', now(), $2)`,
+        [eventId, JSON.stringify({ eventId })],
+      );
+    }
+
     return { ok: true };
   });
 }

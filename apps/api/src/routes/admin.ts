@@ -68,10 +68,17 @@ async function cancelEvent(eventId: string, reason: string) {
       `UPDATE inventory_holds SET status = 'released' WHERE event_id = $1 AND status IN ('held','reserved')`,
       [eventId],
     );
-    // Stop anything scheduled for an event that is not happening.
+    // Stop anything scheduled for an event that is not happening (this also
+    // suppresses an unsent driver_new_order — driver rows carry sent_at NULL).
     await db.query(
       `UPDATE notifications SET cancelled_at = now() WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL`,
       [eventId],
+    );
+    // Tell the assigned driver the delivery is off (fresh row, not cancelled).
+    await db.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       VALUES ($1,'driver','driver_order_cancelled', now(), $2)`,
+      [eventId, JSON.stringify({ eventId })],
     );
     // Close outstanding preparation work.
     await db.query(`UPDATE event_tasks SET status = 'done' WHERE event_id = $1 AND status <> 'done'`, [eventId]);
@@ -4094,10 +4101,13 @@ export async function adminRoutes(app: FastifyInstance) {
       ]);
       for (const a of alerts.rows) {
         const t = a.template as string;
-        const level: 'critical' | 'high' | 'info' = t === 'prep_issue' ? 'critical' : t === 'staffing_required' ? 'high' : 'info';
-        const icon = t === 'order_cancelled' ? '❌' : t === 'staffing_required' ? '🧑‍🤝‍🧑' : t === 'prep_issue' ? '⚠️' : '🔔';
-        const title = t === 'order_cancelled' ? 'Order cancelled' : t === 'staffing_required' ? 'Staffing needed' : t === 'prep_issue' ? 'Prep issue' : t.replace(/_/g, ' ');
-        items.push({ id: `al-${a.id}`, level, icon, title, text: a.event_id ? `Event ${a.event_id}` : '', eventId: a.event_id, orderId: (a.payload && a.payload.orderId) || null, at: a.created_at });
+        const level: 'critical' | 'high' | 'info' = t === 'prep_issue' ? 'critical' : (t === 'staffing_required' || t === 'driver_conflict') ? 'high' : 'info';
+        const icon = t === 'order_cancelled' ? '❌' : t === 'staffing_required' ? '🧑‍🤝‍🧑' : t === 'driver_conflict' ? '🚚' : t === 'prep_issue' ? '⚠️' : '🔔';
+        const title = t === 'order_cancelled' ? 'Order cancelled' : t === 'staffing_required' ? 'Staffing needed' : t === 'driver_conflict' ? 'Delivery conflict' : t === 'prep_issue' ? 'Prep issue' : t.replace(/_/g, ' ');
+        const text = t === 'driver_conflict' && a.payload?.driver
+          ? `${a.payload.driver} has overlapping deliveries`
+          : a.event_id ? `Event ${a.event_id}` : '';
+        items.push({ id: `al-${a.id}`, level, icon, title, text, eventId: a.event_id, orderId: (a.payload && a.payload.orderId) || null, at: a.created_at });
       }
       for (const b of bookings.rows) items.push({ id: `bk-${b.id}`, level: 'info', icon: '🎉', title: 'New booking', text: `${b.customer}${b.package ? ` · ${b.package}` : ''}`, eventId: b.id, at: b.created_at });
       for (const r of refundRows.rows) items.push({ id: `rf-${r.id}`, level: 'high', icon: '💸', title: 'Refund processed', text: `${formatAed(Number(r.amount_fils))} · ${String(r.reason_category).replace(/_/g, ' ')}`, eventId: r.event_id, orderId: r.order_id, at: r.created_at });

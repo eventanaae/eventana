@@ -368,6 +368,39 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     [eventId],
   ).catch(() => {});
 
+  // ── Delivery-conflict guard ────────────────────────────────────────────────
+  // The driver runs several deliveries a day, but two whose time windows OVERLAP
+  // can't both be served — alert management (dashboard ops-alert + push) so they
+  // can move a slot. Idempotent per event.
+  const driverAssign = assigned.find((a) => a.role === 'driver' && a.assignee?.id);
+  if (driverAssign?.assignee) {
+    const { rows: clash } = await pool.query<{ id: string; d: string; start_time: string; base_end_time: string }>(
+      `SELECT e2.id, to_char(e2.event_date,'YYYY-MM-DD') AS d, e2.start_time, e2.base_end_time
+         FROM events e1
+         JOIN events e2 ON e2.event_date = e1.event_date AND e2.id <> e1.id
+         JOIN event_staff es2 ON es2.event_id = e2.id AND es2.role = 'driver' AND es2.assignee_id = $2
+        WHERE e1.id = $1 AND e2.phase <> 'Cancelled'
+          AND e1.start_time < e2.base_end_time AND e1.base_end_time > e2.start_time`,
+      [eventId, driverAssign.assignee.id],
+    );
+    if (clash.length) {
+      const driverName = driverAssign.assignee.name;
+      await pool.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         SELECT $1,'ops_alert','driver_conflict', now(), $2
+          WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template = 'driver_conflict' AND event_id = $1 AND cancelled_at IS NULL)`,
+        [eventId, JSON.stringify({ eventId, driver: driverName, conflicts: clash.map((c) => ({ eventId: c.id, date: c.d, start: c.start_time, end: c.base_end_time })) })],
+      ).catch(() => {});
+      try {
+        const { pushToStaff } = await import('../integrations/push.js');
+        void pushToStaff('⚠️ Delivery conflict', `${driverName} has overlapping deliveries on ${clash[0].d}`, { eventId });
+      } catch { /* push optional */ }
+    } else {
+      // No overlap now — clear any stale conflict alert for this event.
+      await pool.query(`DELETE FROM notifications WHERE template = 'driver_conflict' AND event_id = $1`, [eventId]).catch(() => {});
+    }
+  }
+
   const shortages = assigned.filter((a) => a.status !== 'assigned').length;
   // Raise a single ops alert for the Owner/Manager when we can't fully staff
   // internally (part-time / prep needed). Not repeated if one already stands.

@@ -352,6 +352,12 @@ export async function eventRoutes(app: FastifyInstance) {
           WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL`,
         [eventId],
       );
+      // Tell the assigned driver the delivery is off (fresh row, not cancelled).
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES ($1,'driver','driver_order_cancelled', now(), $2)`,
+        [eventId, JSON.stringify({ eventId })],
+      );
       await db.query(
         `UPDATE event_tasks SET status = 'done' WHERE event_id = $1 AND status <> 'done'`,
         [eventId],

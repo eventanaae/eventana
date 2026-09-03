@@ -283,6 +283,10 @@ export const config = {
     // reminders, live status, feedback). OFF by default so the pipeline can ship
     // without messaging real customers until the owner deliberately turns it on.
     customerNotify: String(env.WHATSAPP_CUSTOMER_NOTIFY ?? '').toLowerCase() === 'true',
+    // Master switch for the driver's operational WhatsApp (new order, change,
+    // cancellation). Separate from customerNotify so the driver pipeline can go
+    // live independently. OFF by default.
+    driverNotify: String(env.WHATSAPP_DRIVER_NOTIFY ?? '').toLowerCase() === 'true',
   },
 
   /**
