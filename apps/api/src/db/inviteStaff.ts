@@ -15,7 +15,7 @@ import { pool } from './pool.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 
 const DASHBOARD_URL = 'https://ops.eventanauae.com';
-const CUSTOMER_URL = 'https://app.eventanauae.com';
+const CUSTOMER_URL = 'https://eventanauae.com';
 
 interface Invite {
   name: string;

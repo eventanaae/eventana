@@ -3,7 +3,7 @@
   "appName": "Eventana",
   "webDir": "dist",
   "server": {
-    "url": "https://app.eventanauae.com",
+    "url": "https://eventanauae.com",
     "cleartext": false
   },
   "plugins": {
