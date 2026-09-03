@@ -855,6 +855,22 @@ function StaffingPanel({ eventId }: { eventId: string }) {
                             {crew.filter((m) => m.busy).length} hidden (busy / off)
                           </div>
                         )}
+                        {/* …or replace with a part-timer by name (works on any slot,
+                            even one already filled by an internal crew member). */}
+                        <div style={{ width: '100%', display: 'flex', gap: 6, marginTop: 4 }}>
+                          <input
+                            placeholder="…or type a part-timer name"
+                            value={names[s.id] ?? ''}
+                            onChange={(e) => setNames((n) => ({ ...n, [s.id]: e.target.value }))}
+                            style={{ ...inputStyle, fontSize: 12 }}
+                          />
+                          <Button
+                            disabled={!(names[s.id] ?? '').trim()}
+                            onClick={async () => { await api.confirmPartTime(s.id, names[s.id].trim()); setOpenOverride(null); await load(); }}
+                          >
+                            Confirm
+                          </Button>
+                        </div>
                         <Button tone="ghost" onClick={() => setOpenOverride(null)}>Cancel</Button>
                       </div>
                     ) : (
@@ -862,7 +878,7 @@ function StaffingPanel({ eventId }: { eventId: string }) {
                         onClick={() => setOpenOverride(s.id)}
                         style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}
                       >
-                        ✎ Assign internal instead
+                        ✎ Assign internal / part-timer instead
                       </button>
                     )}
                   </div>
@@ -919,6 +935,7 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
   const [themes, setThemes] = useState<Array<{ id: string; name: string }>>([]);
   const [eventFor, setEventFor] = useState(event.eventFor ?? '');
   const [emirate, setEmirate] = useState(event.emirate ?? '');
+  const [locationInput, setLocationInput] = useState(event.locationNote ?? '');
   const [startTime, setStartTime] = useState(event.start_time ?? '');
   const [endTime, setEndTime] = useState(event.base_end_time ?? '');
   const [themeId, setThemeId] = useState(event.theme_id ?? '');
@@ -933,6 +950,12 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
     if (startTime && startTime !== event.start_time) patch.startTime = startTime;
     if (endTime && endTime !== event.base_end_time) patch.endTime = endTime;
     if (emirate && emirate !== event.emirate) patch.emirate = emirate;
+    if ((locationInput ?? '') !== (event.locationNote ?? '')) {
+      patch.locationNote = locationInput.trim() || null;
+      const c = parseLatLng(locationInput);
+      if (c) { patch.mapLat = c.lat; patch.mapLng = c.lng; }
+      else if (!locationInput.trim()) { patch.mapLat = 0; patch.mapLng = 0; } // cleared
+    }
     if ((eventFor ?? '') !== (event.eventFor ?? '')) patch.eventFor = eventFor.trim() || null;
     const ct = customThemeName.trim();
     if (ct) {
@@ -978,6 +1001,13 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={editLbl}>Exact location (Google Maps link or coordinates)</span>
+            <input value={locationInput} onChange={(e) => setLocationInput(e.target.value)} style={inputStyle} placeholder="Paste a Google Maps link, or 25.197, 55.274" />
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, lineHeight: 1.4 }}>
+              Paste the location's Google Maps link (or “lat, lng”). This sets the exact pin the driver &amp; team use for directions.
+            </span>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={editLbl}>Guest of honour (baby name)</span>
             <input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={inputStyle} placeholder="e.g. Sara" />
           </label>
@@ -1001,6 +1031,32 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
 }
 
 const editLbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', color: C.muted2 };
+
+/**
+ * Pull "lat,lng" out of a pasted Google Maps link or a raw coordinate pair.
+ * Handles `@lat,lng`, `?q=`/`query=`/`ll=`/`destination=`/`center=`, the
+ * `!3dlat!4dlng` place form, and a plain "lat, lng". Returns null if none match
+ * (e.g. a short goo.gl link, whose coordinates can't be read without following
+ * the redirect — the raw text is still saved so the team/driver can open it).
+ */
+function parseLatLng(input: string): { lat: number; lng: number } | null {
+  const s = (input || '').trim();
+  if (!s) return null;
+  const pats = [
+    /@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/,
+    /[?&](?:q|query|ll|destination|center|sll)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/,
+    /!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/,
+    /^(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/,
+  ];
+  for (const re of pats) {
+    const m = s.match(re);
+    if (m) {
+      const lat = Number(m[1]), lng = Number(m[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat !== 0 || lng !== 0)) return { lat, lng };
+    }
+  }
+  return null;
+}
 /** Coerce a possibly "5:00 PM"/"17:00" string to a 24h "HH:MM" for <input type=time>. */
 function to24(t: string): string {
   if (!t) return '';
@@ -1038,11 +1094,27 @@ function PartyDetailsPanel({ event }: { event: any }) {
 function LocationPanel({ event }: { event: any }) {
   const pin = event.mapPin as { lat: number; lng: number } | null;
   if (!pin) {
+    const note = (event.locationNote ?? '').trim();
+    const isUrl = /^https?:\/\//i.test(note);
     return (
       <Panel title="Event location">
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
-          {event.emirate ? `${event.emirate} — ` : ''}no exact pin was captured for this booking.
-        </div>
+        {note ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.5 }}>
+              📍 {event.emirate ? `${event.emirate} · ` : ''}{isUrl ? 'Location set by the team' : note}
+            </div>
+            {isUrl && (
+              <a href={note} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none', border: `1px solid ${C.line}`, background: '#fff', color: C.ink, borderRadius: 10, padding: '8px 13px', fontSize: 12.5, fontWeight: 700, alignSelf: 'flex-start' }}>
+                🗺️ Open in Google Maps
+              </a>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
+            {event.emirate ? `${event.emirate} — ` : ''}no exact pin yet. Use “✏️ Edit details” above to paste a Google Maps link so the driver gets exact directions.
+          </div>
+        )}
       </Panel>
     );
   }

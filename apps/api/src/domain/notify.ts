@@ -597,6 +597,7 @@ export interface DriverRow {
   celebration_type: string | null;
   package_name: string | null;
   cart: { eventFor?: string } | null;
+  location_note: string | null;
   driver_phone: string | null;
 }
 
@@ -607,12 +608,18 @@ function driverMapLink(row: DriverRow): string {
   if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
     return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
   }
+  // No pin, but the team may have pasted a full Google Maps link — use it directly.
+  const note = (row.location_note || '').trim();
+  if (/^https?:\/\//i.test(note)) return note;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.emirate || 'UAE')}`;
 }
 
 /** A short place label for the driver: emirate + area/building when present. */
 function driverPlace(row: DriverRow): string {
-  const parts = [row.emirate, row.address?.area, row.address?.building].filter(Boolean);
+  const note = (row.location_note || '').trim();
+  // A written address (not a URL) is the most useful place label when present.
+  const noteText = note && !/^https?:\/\//i.test(note) ? note : null;
+  const parts = [row.emirate, noteText, row.address?.area, row.address?.building].filter(Boolean);
   return parts.length ? parts.join(' — ') : (row.emirate || 'UAE');
 }
 
@@ -819,7 +826,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     const { rows } = await pool.query<DriverRow>(
       `SELECT n.id, n.template, n.event_id,
               to_char(e.event_date,'YYYY-MM-DD') AS event_date, e.start_time,
-              e.emirate, e.address, e.map_lat, e.map_lng,
+              e.emirate, e.address, e.map_lat, e.map_lng, e.location_note,
               e.celebration_type, o.cart, p.name AS package_name,
               drv.phone AS driver_phone
          FROM notifications n
