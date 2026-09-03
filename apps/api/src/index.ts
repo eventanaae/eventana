@@ -49,6 +49,9 @@ async function main() {
     // Backfill past leave as visible history rows from STAFF_LEAVE_HISTORY.
     const { applyLeaveHistoryFromEnv } = await import('./db/applyLeaveHistory.js');
     await applyLeaveHistoryFromEnv().catch((err) => console.error('[leave-history] failed:', err));
+    // Create the customer WhatsApp message templates in Meta (WHATSAPP_WABA_ID).
+    const { seedWhatsAppTemplatesFromEnv } = await import('./db/seedWhatsAppTemplates.js');
+    await seedWhatsAppTemplatesFromEnv().catch((err) => console.error('[wa-templates] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
