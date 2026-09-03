@@ -69,7 +69,13 @@ export function Landing({
       canonical.setAttribute('rel', 'canonical');
       document.head.appendChild(canonical);
     }
-    canonical.setAttribute('href', `${CANONICAL_ORIGIN}/${route.slug}`);
+    // Trailing slash, and it matters. Each page is served from
+    // dist/<slug>/index.html, and Render's catch-all rewrite answers the
+    // extensionless /<slug> with the home page's markup instead. `/<slug>/` is
+    // the form that resolves, so it is what scripts/prerender.mjs writes into
+    // the static canonical — and this line has to agree, or React overwrites a
+    // correct canonical with a broken one the moment the bundle boots.
+    canonical.setAttribute('href', `${CANONICAL_ORIGIN}/${route.slug}/`);
   }, [copy.title, copy.description, route.slug]);
 
   const testimonials = (social?.testimonials ?? []).filter((x) => x.feedback).slice(0, 3);
