@@ -123,8 +123,8 @@ export default function App() {
       api
         .today()
         .then((d) => {
-          setCounts({ tasks: d.kpis.openTasks, review: d.kpis.needsReview });
-          setIntegrations(d.integrations);
+          setCounts({ tasks: d.kpis?.openTasks ?? 0, review: d.kpis?.needsReview ?? 0 });
+          setIntegrations(d.integrations ?? []);
           setError(null);
         })
         .catch((e) => setError(e.message));
@@ -172,7 +172,7 @@ export default function App() {
   // Only warn when a provider is genuinely in test/sandbox mode. A 'disabled'
   // provider (e.g. Tabby/Tamara/Ziina awaiting production creds) is not a
   // sandbox — Stripe being live means real payments work.
-  const sandbox = integrations.some((i) => i.mode === 'sandbox' || i.mode === 'test');
+  const sandbox = (integrations ?? []).some((i) => i.mode === 'sandbox' || i.mode === 'test');
   const openEvent = (id: string) => setOpenEventId(id);
 
   const go = (id: View) => { setView(id); setMoreOpen(false); };
