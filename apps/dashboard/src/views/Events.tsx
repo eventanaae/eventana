@@ -848,8 +848,8 @@ function StaffingPanel({ eventId }: { eventId: string }) {
                     <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{s.reason}{s.source && s.source !== 'Leader' ? ` · ${s.source}` : ''}</div>
                   </div>
                   {filled && <Badge tone="ok">{s.assignee_name ?? 'Assigned'}</Badge>}
-                  {confirmed && <Badge tone="ok">{s.part_time_name} · part-timer</Badge>}
-                  {needsPart && <Badge tone="error">Part-time required</Badge>}
+                  {confirmed && <Badge tone="ok">{s.part_time_name}{isDriverSlot(s.role) ? '' : ' · part-timer'}</Badge>}
+                  {needsPart && <Badge tone="error">{isDriverSlot(s.role) ? 'Driver needed' : 'Part-time required'}</Badge>}
                   {needsPrep && <Badge tone="warn">Confirm internal</Badge>}
                 </div>
 
