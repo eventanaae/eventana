@@ -923,21 +923,24 @@ export async function adminRoutes(app: FastifyInstance) {
            SELECT DISTINCT ON (grp) grp AS id, name, color, job_title, event_role, is_leader
              FROM (
                SELECT
-                 COALESCE(m.id::text, 'pt:' || lower(es.part_time_name)) AS grp,
+                 -- One row per PERSON (by name): someone on two roles, or listed
+                 -- both internally and as a part-timer, appears once.
+                 lower(COALESCE(m.name, es.part_time_name)) AS grp,
                  COALESCE(m.name, es.part_time_name) AS name,
                  m.color AS color,
                  COALESCE(m.job_title, initcap(replace(es.role, '_', ' ')) ||
                    CASE WHEN es.assignee_id IS NULL THEN ' · part-timer' ELSE '' END) AS job_title,
                  es.role AS event_role,
-                 es.is_leader AS is_leader
+                 es.is_leader AS is_leader,
+                 (m.id IS NOT NULL) AS internal
                FROM event_staff es
                LEFT JOIN team_members m ON m.id = es.assignee_id
                WHERE es.event_id = $1
                  AND (es.assignee_id IS NOT NULL OR (es.part_time_name IS NOT NULL AND es.status = 'confirmed'))
              ) x
-            ORDER BY grp, is_leader DESC
+            ORDER BY grp, is_leader DESC, internal DESC
          ) y
-         ORDER BY is_leader DESC, name`,
+         ORDER BY is_leader DESC, (event_role IN ('driver','pt_driver')) ASC, name`,
         [eventId],
       ),
       pool.query(
