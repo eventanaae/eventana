@@ -255,19 +255,45 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               <LocationPanel event={data.event} />
 
               <Panel title="Booked services">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {data.services.map((s: any) => (
+                {(() => {
+                  const all: any[] = data.services ?? [];
+                  // Items included INSIDE the package are shown nested under it, so
+                  // it's clear they're part of the package — not separate purchases.
+                  const included = all.filter((s) => s.source === 'package_item');
+                  const main = all.filter((s) => s.source !== 'package_item');
+                  const pkgLabel = main.find((s) => s.source === 'booking' && Number(s.amount_fils) > 0 && !/delivery/i.test(s.label))?.label ?? 'the package';
+                  const row = (s: any) => (
                     <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{s.label}</div>
                         <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>×{s.quantity} · {s.source}</div>
                       </div>
                       <span style={{ fontWeight: 700, fontSize: 12.5, color: C.ink, whiteSpace: 'nowrap' }}>
-                        {s.amount_fils > 0 ? `AED ${money(Number(s.amount_fils))}` : '—'}
+                        {Number(s.amount_fils) > 0 ? `AED ${money(Number(s.amount_fils))}` : '—'}
                       </span>
                     </div>
-                  ))}
-                </div>
+                  );
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {main.map(row)}
+                      {included.length > 0 && (
+                        <div style={{ marginTop: 4, borderLeft: `2px solid ${C.line}`, paddingLeft: 12 }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.3px', textTransform: 'uppercase', marginBottom: 2 }}>
+                            🎁 Included in {pkgLabel}
+                          </div>
+                          {included.map((s) => (
+                            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                              <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: C.ink }}>
+                                {s.label}{Number(s.quantity) > 1 ? ` ×${s.quantity}` : ''}
+                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>included</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </Panel>
 
               <PartyDetailsPanel event={data.event} />
@@ -1070,7 +1096,9 @@ function to24(t: string): string {
 
 function PartyDetailsPanel({ event }: { event: any }) {
   const rows: Array<[string, string]> = [];
-  if (event.children_count) rows.push(['👶 Children', String(event.children_count)]);
+  // Children count only matters for Build-Your-Own (per-child pricing). Packages
+  // have a fixed capacity, so we never ask for it and never show it.
+  if (event.children_count && !event.package_id) rows.push(['👶 Children', String(event.children_count)]);
   if (event.movie_id) rows.push(['🎬 Movie', String(event.movie_id)]);
   if (event.custom_theme) rows.push(['🎨 Theme', event.theme_name ? String(event.theme_name) : 'Custom design (see brief / design panel)']);
   else if (event.theme_name) rows.push(['🎨 Theme', String(event.theme_name)]);
