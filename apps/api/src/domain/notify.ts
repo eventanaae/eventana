@@ -16,7 +16,7 @@ import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { pushToStaff, pushToOwner } from '../integrations/push.js';
-import { whatsappCustomerNotifyEnabled, sendWhatsAppText } from '../integrations/whatsapp.js';
+import { whatsappCustomerNotifyEnabled, sendWhatsAppTemplate } from '../integrations/whatsapp.js';
 
 export interface EmailRow {
   id: number;
@@ -530,6 +530,44 @@ export function renderWhatsApp(row: EmailRow): string | null {
   }
 }
 
+/**
+ * Maps a customer notification to its approved WhatsApp template name + ordered
+ * body parameters (matching the {{1}}, {{2}}… in the templates seeded to Meta).
+ * Every param is non-empty and single-line, as Meta requires. Returns null for
+ * templates we don't send over WhatsApp.
+ */
+export function whatsAppTemplateFor(row: EmailRow): { name: string; params: string[] } | null {
+  const first = (row.customer_name || 'there').split(' ')[0];
+  const honour = (row.cart?.eventFor || '').trim();
+  const date = longDate(row.event_date);
+  const time = time12(row.start_time);
+  const place = row.emirate || 'UAE';
+  const link = trackUrl(row.event_id) || (config.publicAppUrl || 'https://ops.eventanauae.com');
+  const total = row.total_fils != null ? aed(row.total_fils) : '—';
+  switch (row.template) {
+    case 'booking_confirmation':
+      return { name: 'booking_confirmation', params: [first, honour || 'our guest of honour', date, time || 'your booked time', place, row.event_id, total, link] };
+    case 'three_day_reminder':
+      return { name: 'three_day_reminder', params: [first, `${date}${time ? ` at ${time}` : ''}`, place, link] };
+    case 'event_day':
+      return { name: 'event_day', params: [first, time || 'your booked time', link] };
+    case 'team_on_the_way':
+      return { name: 'team_on_the_way', params: [row.eta ? ` — ETA around ${row.eta}` : ' — arriving soon'] };
+    case 'team_arrived':
+      return { name: 'team_arrived', params: [] };
+    case 'setup_ready':
+      return { name: 'setup_ready', params: [] };
+    case 'feedback_request':
+      return { name: 'feedback_request', params: [first, link] };
+    case 'cancellation_refund':
+      return { name: 'cancellation_refund', params: [first, row.order_ref || row.event_id, date, aed(row.total_paid_fils), aed(row.refund_amount_fils), String(Number(row.refund_percent ?? 0))] };
+    case 'refund_processed':
+      return { name: 'refund_processed', params: [first, row.order_ref || row.event_id, aed(row.refund_amount_fils)] };
+    default:
+      return null; // e.g. event_cancelled — email only, no WhatsApp template
+  }
+}
+
 /** A standalone shop order (printed/digital goods) — no event attached. */
 export interface ShopEmailRow {
   id: number;
@@ -674,18 +712,19 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
         LIMIT 100`,
     );
     for (const row of rows) {
-      const body = renderWhatsApp(row);
+      const tpl = whatsAppTemplateFor(row);
       const to = String(row.customer_phone ?? '').replace(/\D+/g, '');
-      if (!body || !to) {
+      if (!tpl || !to) {
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         continue;
       }
-      const res = await sendWhatsAppText({ to, body, fromStaff: true });
+      const res = await sendWhatsAppTemplate({ to, name: tpl.name, params: tpl.params, fromStaff: true });
       if (res.ok) {
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         whatsapps++;
       }
-      // Transient failure: leave whatsapp_sent_at NULL — the next sweep retries.
+      // Transient failure (e.g. template still pending approval): leave
+      // whatsapp_sent_at NULL so the next sweep retries once it's approved.
     }
   }
 

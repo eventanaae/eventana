@@ -191,3 +191,56 @@ export async function sendWhatsAppText(args: {
     return { ok: false, error: (err as Error).message.slice(0, 300) };
   }
 }
+
+/**
+ * Sends an approved WhatsApp message TEMPLATE — the only way to reach a customer
+ * proactively (outside the 24-hour service window). `params` fill the body's
+ * {{1}}, {{2}}… in order; each must be a non-empty single line (Meta rejects
+ * empty or multi-line parameters).
+ */
+export async function sendWhatsAppTemplate(args: {
+  to: string;
+  name: string;
+  language?: string;
+  params?: string[];
+  fromStaff?: boolean;
+}): Promise<SendResult> {
+  if (!whatsappEnabled()) return { ok: false, error: 'whatsapp_disabled' };
+  if (!args.fromStaff && agentMode() === 'off') return { ok: false, error: 'agent_off' };
+
+  const url =
+    `https://graph.facebook.com/${config.meta.graphVersion}` +
+    `/${config.whatsapp.phoneNumberId}/messages`;
+
+  const components = args.params && args.params.length
+    ? [{ type: 'body', parameters: args.params.map((t) => ({ type: 'text', text: String(t).replace(/\s{4,}/g, '   ').slice(0, 900) })) }]
+    : [];
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${config.whatsapp.accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: args.to,
+        type: 'template',
+        template: {
+          name: args.name,
+          language: { code: args.language ?? 'en' },
+          ...(components.length ? { components } : {}),
+        },
+      }),
+    });
+    if (!res.ok) {
+      return { ok: false, error: `${res.status}: ${(await res.text()).slice(0, 300)}` };
+    }
+    const json = (await res.json()) as { messages?: Array<{ id?: string }> };
+    return { ok: true, messageId: json.messages?.[0]?.id };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message.slice(0, 300) };
+  }
+}
