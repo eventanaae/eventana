@@ -52,6 +52,13 @@ async function main() {
     // Create the customer WhatsApp message templates in Meta (WHATSAPP_WABA_ID).
     const { seedWhatsAppTemplatesFromEnv } = await import('./db/seedWhatsAppTemplates.js');
     await seedWhatsAppTemplatesFromEnv().catch((err) => console.error('[wa-templates] failed:', err));
+    // Log template approval status (read-only) and — when WHATSAPP_BACKLOG_SEAL
+    // is set — seal the past notification backlog so enabling customer WhatsApp
+    // never fires messages about parties that already happened. Both no-op unless
+    // their env is set; the seal runs BEFORE startReconciliation() below.
+    const { logWhatsAppTemplateStatusesFromEnv, sealWhatsAppBacklogFromEnv } = await import('./db/whatsappGoLive.js');
+    await logWhatsAppTemplateStatusesFromEnv().catch((err) => console.error('[wa-status] failed:', err));
+    await sealWhatsAppBacklogFromEnv().catch((err) => console.error('[wa-seal] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
