@@ -10,7 +10,7 @@
  */
 import { config } from '../config.js';
 
-interface Tpl { name: string; language?: string; body: string; example: string[] }
+interface Tpl { name: string; language?: string; category?: string; body: string; example: string[] }
 
 const TEMPLATES: Tpl[] = [
   {
@@ -25,6 +25,9 @@ const TEMPLATES: Tpl[] = [
   },
   {
     name: 'event_day',
+    // Meta's classifier insists this is MARKETING, not UTILITY (celebratory,
+    // not tied to a specific transaction). Declaring it MARKETING lets it create.
+    category: 'MARKETING',
     body: `🥳 {{1}}, it's party day!\n\nToday's the day — your celebration starts at {{2}}, and our team is on the way with all the magic. 🚐✨ Everything you need is in the app: {{3}}\n\nHave the most wonderful time! 💛`,
     example: ['Sara', '6:00 PM', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
   },
@@ -40,6 +43,7 @@ const TEMPLATES: Tpl[] = [
   },
   {
     name: 'setup_ready',
+    category: 'MARKETING', // classified MARKETING by Meta (see event_day)
     body: `✨ Everything is set up and ready!\n\nYour celebration is all ready to go. 🎉 Have the most wonderful time — we can't wait to hear how it went! 💕`,
     example: [],
   },
@@ -82,6 +86,7 @@ const TEMPLATES_AR: Tpl[] = [
   {
     name: 'event_day',
     language: 'ar',
+    category: 'MARKETING',
     body: `🥳 اليوم يومكم {{1}}! احتفالكم يبدأ {{2}}، وفريقنا في الطريق لكم بكل اللمسات الحلوة 🚐✨\nتابعي من هني: {{3}}\nنتمنى لكم أحلى وقت 💛`,
     example: ['سارة', '٦:٠٠ مساءً', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
   },
@@ -100,6 +105,7 @@ const TEMPLATES_AR: Tpl[] = [
   {
     name: 'setup_ready',
     language: 'ar',
+    category: 'MARKETING',
     body: `✨ كل شي صار جاهز! احتفالكم مجهّز وينتظركم 🎉 نتمنى لكم أحلى وقت — ونبي نسمع رايكم بعدين 💕`,
     example: [],
   },
@@ -140,7 +146,7 @@ export async function seedWhatsAppTemplatesFromEnv(): Promise<void> {
         // allow_category_change: let Meta auto-assign the category instead of
         // rejecting when it disagrees (event_day/setup_ready read as MARKETING to
         // its classifier). Without it those two 400 with "category mismatch".
-        body: JSON.stringify({ name: t.name, language: lang, category: 'UTILITY', allow_category_change: true, components: [body] }),
+        body: JSON.stringify({ name: t.name, language: lang, category: t.category ?? 'UTILITY', allow_category_change: true, components: [body] }),
       });
       const json = (await res.json()) as any;
       if (res.ok) console.log(`[wa-templates] ${t.name} (${lang}): submitted (id ${json.id ?? '—'}, ${json.status ?? '?'})`);
