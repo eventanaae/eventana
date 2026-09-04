@@ -82,6 +82,16 @@ export async function reportAuditFromEnv(): Promise<void> {
     );
     P('expenses by source (count | date range | total):');
     for (const r of expRange.rows) P(`  ${r.source}: ${r.n} | ${r.first}..${r.last} | AED ${aed(Number(r.v))}`);
+    // The QuickBooks product/memo vocabulary — so a receipt can be classified as
+    // a real EVENT vs a shop/printed-goods order from its actual line names.
+    const prods = await pool.query(
+      `SELECT COALESCE(NULLIF(btrim(product),''), NULLIF(btrim(memo),''), '(blank)') AS name,
+              COUNT(*) n, COALESCE(SUM(total_fils),0) v
+         FROM historical_orders
+        GROUP BY 1 ORDER BY n DESC LIMIT 80`,
+    );
+    P(`QuickBooks line vocabulary (${prods.rows.length} shown, by frequency):`);
+    for (const r of prods.rows) P(`  ${r.n}x  AED ${aed(Number(r.v))}  | ${r.name}`);
     P('done.');
   } catch (err) {
     console.error('[report-audit] failed:', (err as Error).message);
