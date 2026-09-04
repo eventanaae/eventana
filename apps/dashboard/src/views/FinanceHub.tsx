@@ -273,7 +273,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
           />
         );
         if (tbdList.length) {
-          const tbdTotal = tbdList.reduce((s, r) => s + Number(r.total_fils || 0), 0);
+          const tbdTotal = tbdList.reduce((s: number, r: any) => s + Number(r.total_fils || 0), 0);
           out.push(
             <div key="m-tbd" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4, marginBottom: 6, paddingBottom: 6, borderBottom: `2px solid ${C.line}` }}>
               <span style={{ ...fredoka(14), color: C.ink }}>🗓️ Date to be confirmed</span>
