@@ -89,6 +89,10 @@ async function main() {
     // Title-case every name across the system (NORMALIZE_NAMES=true). Idempotent.
     const { normalizeNamesFromEnv } = await import('./db/normalizeNames.js');
     await normalizeNamesFromEnv().catch((err) => console.error('[names] failed:', err));
+    // Re-run crew auto-assignment for all upcoming events with the corrected
+    // engine (REASSIGN_ALL=true) — fixes teams assigned by the older logic.
+    const { reassignAllFromEnv } = await import('./db/reassignAll.js');
+    await reassignAllFromEnv().catch((err) => console.error('[reassign] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
