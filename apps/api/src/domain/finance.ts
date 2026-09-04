@@ -356,15 +356,23 @@ function decorateInvoice(r: any) {
   const total = Number(r.total_fils);
   const paid = Math.max(0, Number(r.amount_paid_fils ?? 0));
   const balance = Math.max(0, total - paid);
+  // node-postgres hands DATE columns back as JS Date objects, so String(d).slice
+  // gives garbage ("Mon Mar 03…") — normalise to YYYY-MM-DD from either shape.
+  const ymd = (v: any): string | null => {
+    if (!v) return null;
+    if (v instanceof Date) return v.toISOString().slice(0, 10);
+    const s = String(v);
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+  };
   // Overdue if past due date and not fully paid.
   const today = new Date().toISOString().slice(0, 10);
   let status = r.status as string;
-  const due = r.due_date ? String(r.due_date).slice(0, 10) : null;
+  const due = ymd(r.due_date);
   if (balance <= 0) status = 'paid';
   else if (due && due < today) status = 'overdue';
   else if (paid > 0) status = 'partial'; // part-paid but not yet overdue
   // "Unpaid since" — the issue date is when the bill started running.
-  const unpaidSince = r.issue_date ? String(r.issue_date).slice(0, 10) : null;
+  const unpaidSince = ymd(r.issue_date);
   return {
     ...r,
     subtotal_fils: Number(r.subtotal_fils), discount_fils: Number(r.discount_fils), shipping_fils: Number(r.shipping_fils),
