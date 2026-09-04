@@ -16,17 +16,19 @@ export async function customerLookupFromEnv(): Promise<void> {
   const term = String(process.env.CUSTOMER_LOOKUP ?? '').trim();
   if (!term) return;
   const like = `%${term.toLowerCase()}%`;
+  const digits = term.replace(/[^0-9]/g, '');
   try {
     P(`searching for "${term}" ...`);
-    // Live customers.
+    // Live customers — phone match ONLY when the term actually has digits (an
+    // empty digit string would otherwise match every phone).
     const custs = await pool.query(
       `SELECT id, name, phone, email, to_char(registered_at,'YYYY-MM-DD') reg,
               (password_hash IS NOT NULL) AS has_account
          FROM customers
         WHERE lower(name) LIKE $1 OR lower(COALESCE(email,'')) LIKE $1
-           OR regexp_replace(COALESCE(phone,''),'[^0-9]','','g') LIKE $2
+           OR ($2 <> '' AND regexp_replace(COALESCE(phone,''),'[^0-9]','','g') LIKE '%'||$2||'%')
         ORDER BY registered_at DESC LIMIT 20`,
-      [like, `%${term.replace(/[^0-9]/g, '')}%`],
+      [like, digits],
     );
     P(`live customers matched: ${custs.rowCount}`);
     for (const c of custs.rows) {
@@ -44,9 +46,11 @@ export async function customerLookupFromEnv(): Promise<void> {
       );
       P(`   events: ${events.rowCount || 'none'}`);
       for (const e of events.rows) P(`     • ${e.id} · ${e.d} · ${e.phase}`);
+      // finance_receipts.customer_id points at historical_customers (bigint), not
+      // the live text id — so link a live customer's receipts through order_id.
       const recs = await pool.query(
         `SELECT number, to_char(date,'YYYY-MM-DD') d, total_fils, paid_with, source FROM finance_receipts
-          WHERE customer_id = $1 OR order_id IN (SELECT id FROM orders WHERE customer_id = $1)
+          WHERE order_id IN (SELECT id FROM orders WHERE customer_id = $1)
           ORDER BY date`,
         [c.id],
       );
