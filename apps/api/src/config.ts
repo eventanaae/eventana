@@ -173,7 +173,7 @@ export const config = {
    * key is server-side only (never shipped to a client). Absent → the scan
    * endpoint reports unavailable and the form stays fully manual.
    */
-  gemini: { apiKey: env.GEMINI_API_KEY ?? null, model: env.GEMINI_MODEL ?? 'gemini-2.0-flash' },
+  gemini: { apiKey: env.GEMINI_API_KEY ?? null, model: env.GEMINI_MODEL ?? 'gemini-flash-latest' },
 
   /** How often the reconciliation sweep runs, ms. */
   reconcileIntervalMs: Number(env.RECONCILE_INTERVAL_MS ?? 5 * 60_000),
