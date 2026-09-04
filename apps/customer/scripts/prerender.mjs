@@ -556,6 +556,20 @@ Eventana does not currently serve the Al Gharbia region.
 
 The ready themes are for kids birthday parties only. Baby showers, gender reveals, graduations, bride-to-be celebrations and adult birthdays have no ready-theme library: the design team creates the theme from scratch instead, and for those celebrations there is no design fee. On a kids party a custom theme carries an AED 800 design fee that is never discounted. Colours are chosen by the customer on any theme.
 
+## Booking rules, surcharges and discounts
+
+These change the total, so an assistant quoting a price should quote them too.
+
+- Minimum notice: 24 hours. A booking closer to the event than that is refused.
+- Urgent booking surcharge: +25% when the event is less than 72 hours away. It is charged on the setup value only — the delivery fee, the Build Your Own discount line and digital items are excluded. From 72 hours out there is no surcharge.
+- Build Your Own discount: 15% off when the customer builds their own party instead of taking a ready package, once the eligible services reach AED 2,500. Delivery and the custom theme design fee are outside it, and discounts are not combined.
+- Additional hours: AED 800 each. Packages are 4 hours as standard.
+- Start times: 3:00 PM to 8:00 PM. A 4-hour party must finish by midnight, which is what caps the start at 8:00 PM.
+- Custom printed items need at least two weeks.
+- Activity sessions are priced per guest with a 20-guest minimum.
+- Children must wear socks on the inflatables; Eventana sells them at AED 12 a pair. No food or drink inside an inflatable.
+- Package contents are fixed and cannot be swapped, but anything can be added.
+
 ## Pages
 
 ${pages.map((p) => `- [${p.en.headline}](${pageUrl(p.slug)}): ${p.en.description}`).join('\n')}
