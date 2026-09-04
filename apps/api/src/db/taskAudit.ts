@@ -50,6 +50,14 @@ export async function taskAuditFromEnv(): Promise<void> {
     );
     P(`prep tasks currently flagged 'issue' (genuinely open): ${openIssues.rowCount}`);
     for (const r of openIssues.rows.slice(0, 20)) P(`  task ${r.id} event ${r.event_id} · ${r.title} · ${r.notes ?? ''}`);
+
+    // Unpaid ("outstanding / expected-in") orders breakdown — what the 20 rows are.
+    const { auditReport } = await import('../domain/audit.js');
+    const out = await auditReport('outstanding');
+    P(`── unpaid orders: ${out.count} order(s), total AED ${out.totalDisplay} ──`);
+    P(`  by status: ${Object.entries(out.byStatus).map(([k, v]: any) => `${k}=${v.n} (AED ${(v.fils / 100).toLocaleString('en-US')})`).join(' · ')}`);
+    P(`  by source: ${Object.entries(out.bySource).map(([k, v]: any) => `${k}=${v.n} (AED ${(v.fils / 100).toLocaleString('en-US')})`).join(' · ')}`);
+    for (const r of out.rows) P(`  ${r.id} [${r.status}/${r.source}] AED ${r.totalDisplay} · age ${r.age_days}d · ${r.customer ?? '(no customer)'} · ${r.has_event ? 'has-event' : 'no-event'}`);
     P('done.');
   } catch (err) {
     console.error('[task-audit] failed:', (err as Error).message);
