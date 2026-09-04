@@ -34,14 +34,17 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
   const endStr = end.toISOString().slice(0, 10);
 
   const [rev, exp, byCat, tips, events] = await Promise.all([
+    // Revenue = every sale recorded that month (QuickBooks history + new sales),
+    // so a past month reports its true income, not just newly-created orders.
     pool.query(
-      `SELECT COALESCE(SUM(total_fils),0) v FROM orders
-        WHERE status='paid' AND kind IN ('booking','addon') AND created_at >= $1 AND created_at < $2`,
+      `SELECT COALESCE(SUM(total_fils),0) v FROM finance_receipts WHERE date >= $1 AND date < $2`,
       [start, endStr],
     ),
-    pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2`, [start, endStr]),
+    // Expenses = every expense spent that month (QuickBooks history INCLUDED —
+    // this is a monthly P&L, not the live cash balance, so nothing is excluded).
+    pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [start, endStr]),
     pool.query(
-      `SELECT category, SUM(amount_fils) v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+      `SELECT category, SUM(amount_fils) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
       [start, endStr],
     ),
     pool.query(
@@ -49,8 +52,10 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
         WHERE t.status='paid' AND e.event_date >= $1 AND e.event_date < $2`,
       [start, endStr],
     ),
+    // Events that happened that month = every non-cancelled event dated in it
+    // (not only the ones a leader remembered to mark 'Event Completed').
     pool.query(
-      `SELECT COUNT(*) v FROM events WHERE phase='Event Completed' AND event_date >= $1 AND event_date < $2`,
+      `SELECT COUNT(*) v FROM events WHERE phase <> 'Cancelled' AND event_date >= $1 AND event_date < $2`,
       [start, endStr],
     ),
   ]);
