@@ -858,7 +858,9 @@ export async function adminRoutes(app: FastifyInstance) {
               e.celebration_type, e.custom_theme, th.name AS theme_name, o.cart,
               c.name AS customer, c.phone, o.id AS order_id,
               o.status AS order_status, o.total_fils,
-              (SELECT fr.number FROM finance_receipts fr WHERE fr.event_id = e.id ORDER BY fr.id LIMIT 1) AS receipt_number
+              (SELECT fr.number FROM finance_receipts fr
+                WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+                ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number
          FROM events e
          JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id
@@ -901,7 +903,9 @@ export async function adminRoutes(app: FastifyInstance) {
       `SELECT e.*, c.name AS customer, c.phone, c.backup_phone, c.email, o.id AS order_id,
               o.status AS order_status, o.total_fils, o.quote, o.cart,
               th.name AS theme_name,
-              (SELECT fr.number FROM finance_receipts fr WHERE fr.event_id = e.id ORDER BY fr.id LIMIT 1) AS receipt_number,
+              (SELECT fr.number FROM finance_receipts fr
+                WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+                ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number,
               cx.cancelled_by, cx.reason AS cancellation_note, cx.total_paid_fils AS cx_total_paid,
               cx.delivery_fils AS cx_delivery, cx.non_refundable_fils AS cx_non_refundable,
               cx.party_value_fils AS cx_party_value, cx.refund_percent, cx.refund_amount_fils,
