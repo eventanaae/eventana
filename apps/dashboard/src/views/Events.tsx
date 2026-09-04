@@ -59,7 +59,7 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
           <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
-          {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {timeRange12h(e.start_time, e.base_end_time)} · {e.emirate}
+          {e.date_tbd ? 'Date TBD' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {timeRange12h(e.start_time, e.base_end_time)} · {e.emirate}
           {e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -219,7 +219,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     <InfoCell label="📞 Phone" value={data.event.phone
                       ? <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.phone}</a>
                       : <span style={{ color: C.muted }}>—</span>} />
-                    <InfoCell span label="🗓️ Date & time" value={`${new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${timeRange12h(data.event.start_time, data.event.base_end_time)}`} />
+                    <InfoCell span label="🗓️ Date & time" value={`${data.event.date_tbd ? 'Date to be confirmed' : new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${timeRange12h(data.event.start_time, data.event.base_end_time)}`} />
                     {data.event.email && (
                       <InfoCell span label="✉️ Email" value={
                         <a href={`mailto:${data.event.email}`} style={{ color: C.ink, fontWeight: 700, textDecoration: 'none', wordBreak: 'break-word' }}>{data.event.email}</a>

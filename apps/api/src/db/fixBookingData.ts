@@ -51,6 +51,15 @@ async function setCustomerField(eventId: string, col: 'name' | 'phone' | 'backup
   if (col === 'name') await pool.query(`UPDATE finance_receipts SET customer_name = $2 WHERE event_id = $1`, [eventId, value]);
 }
 
+/** Mark an event's date as not-yet-decided (TBD) on the event + its receipt, and
+ *  suppress pending customer reminders so nothing dated goes out. */
+async function setTbd(eventId: string): Promise<void> {
+  await pool.query(`UPDATE events SET date_tbd = TRUE WHERE id = $1`, [eventId]);
+  await pool.query(`UPDATE finance_receipts SET date_tbd = TRUE WHERE event_id = $1`, [eventId]);
+  await suppressCustomerNotifs(eventId);
+  L(`  ${eventId} date → TBD (flag set + reminders suppressed)`);
+}
+
 /** Cancel still-pending, unsent CUSTOMER notifications so a correction can never
  *  auto-fire an email/WhatsApp. Driver/internal rows are untouched. */
 async function suppressCustomerNotifs(eventId: string): Promise<void> {
@@ -121,13 +130,12 @@ export async function fixBookingDataFromEnv(): Promise<void> {
     await setCustomerField('EV-2026-0206', 'backup_phone', '0551515154');
   });
 
-  // 3) Bashayer Alyammahi — EVENT date is the 13th (she BOOKED today, 4 Sep;
-  //    booking-date ≠ event-date). A prior run wrongly moved it to 4 Sep — this
-  //    restores the 13th and sets the booked 6:00–10:00 PM time. Baby Aouf,
-  //    +2nd phone. Suppress auto-sends so nothing fires from the correction.
-  //    NOTE: month is 09 pending the owner's Sep-vs-Nov confirmation.
+  // 3) Bashayer Alyammahi — owner-confirmed EVENT date 13 Nov 2026, 6:00–10:00 PM
+  //    (she BOOKED on 4 Sep — booking-date ≠ event-date). A prior run wrongly
+  //    moved it to 4 Sep. Restore the real date + time, baby Aouf, +2nd phone,
+  //    and suppress auto-sends so nothing fires from the correction.
   await run('bashayer', async () => {
-    await moveDateTime('EV-2026-0207', '2026-09-13', '18:00', '22:00');
+    await moveDateTime('EV-2026-0207', '2026-11-13', '18:00', '22:00');
     await setBaby('EV-2026-0207', 'Aouf');
     await setCustomerField('EV-2026-0207', 'backup_phone', '0502995775');
     await suppressCustomerNotifs('EV-2026-0207');
@@ -140,10 +148,15 @@ export async function fixBookingDataFromEnv(): Promise<void> {
   });
 
   // 5) Huda Hussain — main phone was broken ("6174599"), fix + 2nd phone.
-  //    (Her DATE → TBD is handled by the separate TBD feature.)
+  //    (Her date 4 Sep is correct — NOT TBD.)
   await run('huda', async () => {
     await setCustomerField('EV-2026-0201', 'phone', '0566174599');
     await setCustomerField('EV-2026-0201', 'backup_phone', '0563040103');
+  });
+
+  // 6) Amna Al Dhaheri — hasn't chosen an event date yet → TBD.
+  await run('amna', async () => {
+    await setTbd('EV-2026-0199');
   });
 
   L('DONE');

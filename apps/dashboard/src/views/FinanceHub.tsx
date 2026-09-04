@@ -650,6 +650,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const [age, setAge] = useState(initial?.age ?? '');
   const [theme, setTheme] = useState(initial?.theme ?? '');
   const [eventTime, setEventTime] = useState(initial?.eventTime ?? '');
+  const [dateTbd, setDateTbd] = useState<boolean>(initial?.dateTbd ?? false);
   const [commissionMarsha, setCommissionMarsha] = useState<boolean>(String(initial?.commissionRep ?? '').toLowerCase() === 'marsha');
   const [pickCustomer, setPickCustomer] = useState(false);
   const [pickItem, setPickItem] = useState(false);
@@ -665,7 +666,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
     if (!customer) { setErr('Choose a customer.'); return; }
     if (items.length === 0) { setErr('Add at least one item.'); return; }
     setBusy(true); setErr(null);
-    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null, eventTime: eventTime || null };
+    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null, eventTime: eventTime || null, dateTbd };
     try {
       if (kind === 'invoice') {
         const commissionRep = commissionMarsha ? 'Marsha' : null;
@@ -720,9 +721,17 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {kind === 'invoice'
           ? <Field label="Due date"><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={input} /></Field>
-          : <Field label="Event date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} /></Field>}
+          : <Field label="Event date">
+              <input type="date" value={dateTbd ? '' : date} disabled={dateTbd} onChange={(e) => setDate(e.target.value)} style={{ ...input, opacity: dateTbd ? 0.5 : 1 }} placeholder={dateTbd ? 'TBD' : undefined} />
+            </Field>}
         <Field label="Event time"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} style={input} /></Field>
       </div>
+      {kind === 'receipt' && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0 6px', fontSize: 12.5, fontWeight: 700, color: C.ink, cursor: 'pointer' }}>
+          <input type="checkbox" checked={dateTbd} onChange={(e) => setDateTbd(e.target.checked)} />
+          Date not decided yet (show “TBD” — no reminders sent until a date is set)
+        </label>
+      )}
 
       {/* Commission approval is the OWNER's decision alone: only the owner sees the
           switch. Marsha (or anyone else) can see it was approved, but can't grant
@@ -783,6 +792,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
     age: doc.age ?? '',
     theme: doc.theme ?? '',
     eventTime: doc.event_time ?? '',
+    dateTbd: doc.date_tbd ?? false,
     commissionRep: doc.commission_rep ?? doc.commissionRep ?? null,
   });
 

@@ -421,7 +421,7 @@ export async function adminRoutes(app: FastifyInstance) {
            (SELECT count(*)::int FROM orders WHERE status = 'processing') AS processing`,
       ),
       pool.query(
-        `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta,
+        `SELECT e.id, e.event_date, e.date_tbd, e.start_time, e.base_end_time, e.phase, e.eta,
                 e.emirate, e.celebration_type, c.name AS customer, p.name AS package_name, o.total_fils,
                 COALESCE(th.name, o.cart->>'customTheme') AS theme_name, e.custom_theme,
                 o.cart->>'eventFor' AS "eventFor"
@@ -854,7 +854,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // Employees (and drivers) never see order money — that's owner/manager only.
     const hideMoney = staff?.role === 'employee' || staff?.role === 'driver';
     const { rows } = await pool.query(
-      `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.emirate,
+      `SELECT e.id, e.event_date, e.date_tbd, e.start_time, e.base_end_time, e.phase, e.emirate,
               e.celebration_type, e.custom_theme, th.name AS theme_name, o.cart,
               c.name AS customer, c.phone, o.id AS order_id,
               o.status AS order_status, o.total_fils
@@ -2137,6 +2137,8 @@ export async function adminRoutes(app: FastifyInstance) {
     age: z.string().max(40).nullable().optional(),
     // Party start time shown on the receipt, "HH:MM" 24h.
     eventTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+    // Customer hasn't fixed a date yet → show "TBD" and hold reminders.
+    dateTbd: z.boolean().optional(),
   });
 
   app.get('/api/admin/finance/customers', async (request) =>

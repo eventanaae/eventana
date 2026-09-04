@@ -321,6 +321,10 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS custom_theme_brief JSONB;
 -- converted/manual bookings that never captured a map pin). The exact pin, when
 -- known, still lives in map_lat/map_lng.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS location_note TEXT;
+-- The customer hasn't fixed an event date yet. event_date stays NOT NULL (a
+-- placeholder), but while this is true the app/receipt show "TBD" and no
+-- date-based customer reminder is sent. Cleared when a real date is set.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS date_tbd BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Drivers roster. Shan is the main driver; for far / multiple same-day events we
 -- hire drivers with their own car (kind 'own_car') or a part-timer to drive the
@@ -957,6 +961,9 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS age TEXT;
 -- The party START TIME the receipt should show (the "date" column already holds
 -- the event/sale date). Stored as "HH:MM" 24h text, like events.start_time.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_time TEXT;
+-- The customer hasn't chosen an event date yet: show "TBD" instead of the
+-- placeholder date, on the receipt and in the app.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS date_tbd BOOLEAN NOT NULL DEFAULT FALSE;
 -- When an upcoming sale is turned into an operational event, we link it here so
 -- it is never converted twice.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_id TEXT;

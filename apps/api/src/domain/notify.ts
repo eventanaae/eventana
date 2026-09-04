@@ -258,6 +258,7 @@ export function renderFinanceDocEmail(
     lineItems?: Array<{ name: string; qty: number; priceFils: number }>;
     discount_fils?: number; shipping_fils?: number; total_fils: number; message?: string | null;
     event_for?: string | null; theme?: string | null; age?: string | null; event_time?: string | null;
+    date_tbd?: boolean;
   },
   kind: 'receipt' | 'invoice',
 ): { subject: string; html: string } {
@@ -268,7 +269,7 @@ export function renderFinanceDocEmail(
 
   const detailRows: Array<[string, string]> = [
     [kind === 'receipt' ? 'Receipt no.' : 'Invoice no.', `#${doc.number}`],
-    ['Date', longDate(doc.date ?? doc.issue_date)],
+    ['Date', doc.date_tbd ? 'To be confirmed' : longDate(doc.date ?? doc.issue_date)],
   ];
   if (doc.event_time) detailRows.push(['Time', time12(String(doc.event_time))]);
   if (doc.event_for) detailRows.push(['Celebration for', String(doc.event_for)]);
@@ -800,6 +801,8 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
           AND n.template IN ('booking_confirmation','three_day_reminder','event_day',
                              'team_on_the_way','team_arrived','setup_ready','feedback_request',
                              'event_cancelled','cancellation_refund')
+          -- No dated customer WhatsApp while the event date is unconfirmed (TBD).
+          AND (e.date_tbd IS NOT TRUE OR n.template IN ('event_cancelled','cancellation_refund'))
           -- SAFETY: never blast a pre-event message for an event that has already
           -- happened (e.g. a QuickBooks-converted or back-dated event whose row
           -- ends up due immediately). Fails safe — the worst case is a skipped
@@ -900,6 +903,9 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
          LEFT JOIN cancellations cx ON cx.event_id = e.id
         WHERE n.channel = 'email' AND n.sent_at IS NULL AND n.cancelled_at IS NULL
           AND n.template NOT IN ('addon_invoice', 'refund_processed')
+          -- No dated customer email while the event date is unconfirmed (TBD):
+          -- a confirmation/reminder with a placeholder date must never go out.
+          AND (e.date_tbd IS NOT TRUE OR n.template IN ('event_cancelled','cancellation_refund'))
           -- SAFETY: same guard as the WhatsApp sweep — a pre-event email is never
           -- sent for a past/back-dated event (QuickBooks-converted history, etc.).
           -- Fails safe: a skipped send, never a wrong blast to an old customer.

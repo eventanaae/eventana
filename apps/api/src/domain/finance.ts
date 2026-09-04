@@ -276,6 +276,8 @@ type DocInput = {
   eventFor?: string | null; theme?: string | null; age?: string | null;
   // Party START time shown on the receipt, "HH:MM" 24h (the "date" is the event date).
   eventTime?: string | null;
+  // Customer hasn't fixed a date yet → show "TBD" on the receipt + event.
+  dateTbd?: boolean;
 };
 
 export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string; commissionRep?: string | null }) {
@@ -328,9 +330,9 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextReceiptNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, commission_rep)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.eventTime ?? null, d.commissionRep ?? null],
+    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, date_tbd, commission_rep)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null],
   );
   // An upcoming sale becomes an operational event automatically, so it shows on
   // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.
@@ -717,10 +719,10 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   const { rows } = await pool.query(
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
-       event_for=$12, theme=$13, age=$14, event_time=$17,
+       event_for=$12, theme=$13, age=$14, event_time=$17, date_tbd=COALESCE($18, date_tbd),
        commission_rep = CASE WHEN $16::boolean THEN $15 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null],
+    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null],
   );
   const saved = rows[0];
   if (saved && d.date) {
@@ -734,6 +736,11 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
       // appears on the board. No-op when still past-dated.
       void ensureEventForReceipt(saved.id).catch(() => {});
     }
+  }
+  // Keep the linked event's "date not decided yet" flag in step with the receipt
+  // (setting a real date turns TBD off; the reminders then resume normally).
+  if (saved?.event_id && d.dateTbd !== undefined) {
+    await pool.query(`UPDATE events SET date_tbd = $2 WHERE id = $1`, [saved.event_id, d.dateTbd]).catch(() => {});
   }
   return saved ? decorateReceipt(saved) : null;
 }
@@ -769,7 +776,7 @@ export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
     return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${escapeHtml(l.name)}${desc}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`;
   }).join('');
   const title = kind === 'receipt' ? 'Sales Receipt' : 'Invoice';
-  const dateStr = String(doc.date ?? doc.issue_date ?? '').slice(0, 10);
+  const dateStr = doc.date_tbd ? 'To be confirmed' : String(doc.date ?? doc.issue_date ?? '').slice(0, 10);
   return `<!doctype html><html><body style="font-family:'Quicksand',Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
     <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:18px;padding:22px 24px;text-align:center;margin-bottom:20px">
       <div style="font-size:22px;font-weight:800;letter-spacing:.5px">Eventana</div>
