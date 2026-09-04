@@ -159,6 +159,16 @@ export async function fixBookingDataFromEnv(): Promise<void> {
     await setTbd('EV-2026-0199');
   });
 
+  // 8) Aysha Ahmed invoice #1362 — real state: paid AED 3,000 of 4,000, balance
+  //    1,000 (a test pay-link was completed in sandbox and marked it fully paid).
+  await run('aysha-invoice', async () => {
+    await pool.query(`DELETE FROM invoice_payments WHERE invoice_id = (SELECT id FROM finance_invoices WHERE number = '1362')`);
+    const r = await pool.query(
+      `UPDATE finance_invoices SET amount_paid_fils = 300000, status = 'partial', paid_at = NULL WHERE number = '1362' RETURNING id`,
+    );
+    L(`  Aysha #1362 → paid 3,000 / balance 1,000 (${r.rowCount ?? 0} row)`);
+  });
+
   // 7) Payment methods: Eventana takes only Tabby / Tamara / Debit (no cash;
   //    Debit covers card/Stripe/Ziina/bank transfer). Normalise every recent
   //    (non-QuickBooks) receipt whose method isn't Tabby/Tamara to 'Debit'.
