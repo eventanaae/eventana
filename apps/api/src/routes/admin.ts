@@ -2359,6 +2359,23 @@ export async function adminRoutes(app: FastifyInstance) {
     return r;
   });
 
+  // Record how much the customer has paid on an invoice (supports partial pay).
+  app.patch('/api/admin/finance/invoices/:id/payment', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const p = z.object({ paidFils: z.number().int().min(0) }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const r = await finance.setInvoicePaidAmount(id, p.data.paidFils);
+    return r ?? reply.status(404).send({ error: 'not_found' });
+  });
+  // Turn the daily balance reminder (email + WhatsApp + pay link) on/off.
+  app.patch('/api/admin/finance/invoices/:id/reminder', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const p = z.object({ on: z.boolean() }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const r = await finance.setInvoiceReminder(id, p.data.on);
+    return r ?? reply.status(404).send({ error: 'not_found' });
+  });
+
   app.patch('/api/admin/finance/invoices/:id', async (request, reply) => {
     const id = Number((request.params as { id: string }).id);
     const p = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), commissionRep: z.string().nullable().optional() }).safeParse(request.body);

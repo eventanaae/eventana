@@ -307,31 +307,72 @@ export async function createInvoice(d: DocInput & { dueDate?: string | null; iss
 export async function listInvoices() {
   const { rows } = await pool.query(`SELECT * FROM finance_invoices ORDER BY issue_date DESC, id DESC`);
   const list = rows.map(decorateInvoice);
-  const paid = list.filter((i) => i.status === 'paid').reduce((s, i) => s + i.total_fils, 0);
-  const unpaid = list.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.total_fils, 0);
+  // Paid = money actually collected (incl. partial); Unpaid = outstanding balance.
+  const paid = list.reduce((s, i) => s + (i.amount_paid_fils ?? 0), 0);
+  const unpaid = list.reduce((s, i) => s + (i.balanceFils ?? 0), 0);
   return { invoices: list, paidFils: paid, paidDisplay: formatAed(paid), unpaidFils: unpaid, unpaidDisplay: formatAed(unpaid) };
 }
 
 export async function setInvoiceStatus(id: number, status: string) {
-  const paidAt = status === 'paid' ? 'now()' : 'NULL';
+  // Marking paid/unpaid also settles the paid amount so Cash + A/R stay right.
   const { rows } = await pool.query(
-    `UPDATE finance_invoices SET status = $2, paid_at = ${paidAt} WHERE id = $1 RETURNING *`,
+    `UPDATE finance_invoices
+        SET status = $2,
+            paid_at = CASE WHEN $2 = 'paid' THEN now() ELSE NULL END,
+            amount_paid_fils = CASE WHEN $2 = 'paid' THEN total_fils ELSE 0 END,
+            remind_daily = CASE WHEN $2 = 'paid' THEN FALSE ELSE remind_daily END
+      WHERE id = $1 RETURNING *`,
     [id, status],
+  );
+  return rows[0] ? decorateInvoice(rows[0]) : null;
+}
+
+/** Set the absolute amount the customer has paid on an invoice (owner entry).
+ *  Fully-paid → 'paid'; part-paid → 'partial'; zero → 'sent'. */
+export async function setInvoicePaidAmount(id: number, paidFils: number) {
+  const p = Math.max(0, Math.round(paidFils));
+  const { rows } = await pool.query(
+    `UPDATE finance_invoices
+        SET amount_paid_fils = LEAST(total_fils, $2),
+            status = CASE WHEN $2 >= total_fils THEN 'paid' WHEN $2 > 0 THEN 'partial' ELSE 'sent' END,
+            paid_at = CASE WHEN $2 >= total_fils THEN now() ELSE NULL END,
+            remind_daily = CASE WHEN $2 >= total_fils THEN FALSE ELSE remind_daily END
+      WHERE id = $1 RETURNING *`,
+    [id, p],
+  );
+  return rows[0] ? decorateInvoice(rows[0]) : null;
+}
+
+/** Turn the daily balance reminder (email + WhatsApp + pay link) on/off. */
+export async function setInvoiceReminder(id: number, on: boolean) {
+  const { rows } = await pool.query(
+    `UPDATE finance_invoices SET remind_daily = $2 WHERE id = $1 RETURNING *`,
+    [id, on],
   );
   return rows[0] ? decorateInvoice(rows[0]) : null;
 }
 
 function decorateInvoice(r: any) {
   const total = Number(r.total_fils);
-  // Overdue if past due date and not paid.
+  const paid = Math.max(0, Number(r.amount_paid_fils ?? 0));
+  const balance = Math.max(0, total - paid);
+  // Overdue if past due date and not fully paid.
   const today = new Date().toISOString().slice(0, 10);
   let status = r.status as string;
   const due = r.due_date ? String(r.due_date).slice(0, 10) : null;
-  if (status !== 'paid' && due && due < today) status = 'overdue';
+  if (balance <= 0) status = 'paid';
+  else if (due && due < today) status = 'overdue';
+  else if (paid > 0) status = 'partial'; // part-paid but not yet overdue
+  // "Unpaid since" — the issue date is when the bill started running.
+  const unpaidSince = r.issue_date ? String(r.issue_date).slice(0, 10) : null;
   return {
     ...r,
     subtotal_fils: Number(r.subtotal_fils), discount_fils: Number(r.discount_fils), shipping_fils: Number(r.shipping_fils),
     total_fils: total, totalDisplay: formatAed(total),
+    amount_paid_fils: paid, paidDisplay: formatAed(paid),
+    balanceFils: balance, balanceDisplay: formatAed(balance),
+    remindDaily: Boolean(r.remind_daily),
+    unpaidSince,
     lineItems: itemsWithAmount(Array.isArray(r.line_items) ? r.line_items : []),
     status,
     overdueDays: status === 'overdue' && due ? Math.floor((Date.parse(today) - Date.parse(due)) / 86_400_000) : 0,
@@ -883,10 +924,13 @@ export async function accountingSummary() {
   const [opening, receipts, paidInv, unpaidInv, expenses] = await Promise.all([
     pool.query(`SELECT value FROM settings WHERE key = 'finance.cashOpeningFils'`),
     pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_receipts WHERE source <> 'quickbooks'`),
-    // Paid invoices add to Cash — but NOT the QuickBooks-migrated ones (those are
+    // Money actually COLLECTED against invoices adds to Cash — the amount paid so
+    // far (full or partial) — but NOT the QuickBooks-migrated ones (those are
     // already inside the Cash opening balance, so counting them again double-counts).
-    pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_invoices WHERE status = 'paid' AND (source IS NULL OR source <> 'quickbooks')`),
-    pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v, count(*)::int c FROM finance_invoices WHERE status <> 'paid'`),
+    pool.query(`SELECT COALESCE(sum(amount_paid_fils),0)::bigint v FROM finance_invoices WHERE (source IS NULL OR source <> 'quickbooks')`),
+    // Accounts Receivable = the outstanding BALANCE (total − paid), not the whole
+    // invoice, so a part-paid invoice only shows what's still owed.
+    pool.query(`SELECT COALESCE(sum(total_fils - amount_paid_fils),0)::bigint v, count(*)::int c FROM finance_invoices WHERE total_fils > amount_paid_fils`),
     // Only manually-logged expenses reduce live Cash. QuickBooks-imported
     // expenses are kept for their receipt images + history but are already
     // inside the Cash opening balance, so counting them again double-counts.

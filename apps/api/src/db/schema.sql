@@ -927,6 +927,21 @@ ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS commission_rep TEXT;
 -- Marks invoices carried over from the QuickBooks migration, so (like receipts)
 -- they are not double-counted against the Cash-on-hand opening balance.
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS source TEXT;
+-- Partial payments: how much the customer has paid so far. Balance due =
+-- total_fils - amount_paid_fils. status 'partial' means 0 < paid < total.
+-- Accounts Receivable counts the BALANCE, not the whole invoice.
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS amount_paid_fils BIGINT NOT NULL DEFAULT 0;
+-- Backfill: an invoice already marked 'paid' has been paid in full. Idempotent
+-- (only touches rows still at 0), so Cash on hand doesn't drop when the partial-
+-- payment column is introduced.
+UPDATE finance_invoices SET amount_paid_fils = total_fils WHERE status = 'paid' AND amount_paid_fils = 0;
+-- When true, a daily balance reminder (email + WhatsApp, with a pay link) is
+-- sent to the customer until the invoice is fully paid. Off by default — the
+-- owner turns it on per invoice, so no customer is ever dunned by accident.
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS remind_daily BOOLEAN NOT NULL DEFAULT FALSE;
+-- Timestamp of the last balance reminder sent, so the daily sweep fires at most
+-- once per day per invoice.
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS last_reminded_at TIMESTAMPTZ;
 -- Party details echoed on the invoice (mirrors finance_receipts).
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS event_for TEXT;
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS theme TEXT;

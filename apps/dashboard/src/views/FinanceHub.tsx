@@ -105,7 +105,8 @@ function InvoicesList({ isOwner }: { isOwner?: boolean }) {
       {(data.invoices ?? []).length === 0 && <Empty>No invoices yet. Create one to bill a customer.</Empty>}
       {(data.invoices ?? []).map((inv: any) => (
         <DocRow key={inv.id} onClick={() => setSel(inv)}
-          title={inv.customer_name} sub={`Invoice ${inv.number} · ${fmtDate(inv.issue_date)}`}
+          title={inv.customer_name}
+          sub={`Invoice ${inv.number} · ${fmtDate(inv.issue_date)}${inv.status !== 'paid' && inv.amount_paid_fils > 0 ? ` · paid ${money(inv.amount_paid_fils)}, balance AED ${money(inv.balanceFils)}` : ''}`}
           amount={inv.totalDisplay}
           badge={<StatusBadge status={inv.status} overdueDays={inv.overdueDays} />}
           action={inv.status !== 'paid' ? <button style={linkBtn} onClick={async () => { await api.finSetInvoiceStatus(inv.id, 'paid'); load(); }}>Mark paid</button> : null}
@@ -804,6 +805,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [addon, setAddon] = useState(false);
+  const [payAmt, setPayAmt] = useState('');
 
   const toInitial = () => ({
     customer: { id: doc.customer_id ?? null, name: doc.customer_name },
@@ -877,6 +879,27 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         {doc.shipping_fils > 0 && <Row label="Shipping" value={`AED ${money(doc.shipping_fils)}`} />}
         <Row label={<b>Total</b>} value={<b style={{ ...fredoka(15), color: C.pinkDeep }}>AED {doc.totalDisplay}</b>} />
       </div>
+      {kind === 'invoice' && doc.status !== 'paid' && (
+        <div style={{ marginTop: 14, padding: '12px 14px', background: C.pinkSoft, borderRadius: 12 }}>
+          <Row label="Paid so far" value={`AED ${money(doc.amount_paid_fils || 0)}`} />
+          <Row label={<b>Balance due</b>} value={<b style={{ color: C.red }}>AED {money(doc.balanceFils ?? doc.total_fils)}</b>} />
+          {doc.unpaidSince && <div style={{ fontSize: 11.5, color: C.muted2, fontWeight: 700, marginTop: 2 }}>Unpaid since {fmtDate(doc.unpaidSince)}</div>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <input value={payAmt} inputMode="decimal" onChange={(e) => setPayAmt(e.target.value)} placeholder="Amount just paid (AED)" style={{ ...input, marginBottom: 0 }} />
+            <Button disabled={busy} onClick={async () => {
+              const add = Math.round((Number(payAmt.replace(/,/g, '')) || 0) * 100);
+              if (add <= 0) return;
+              setBusy(true);
+              try { await api.finInvoicePayment(doc.id, (doc.amount_paid_fils || 0) + add); setPayAmt(''); onChanged(); onClose(); }
+              catch { setMsg('Could not record payment.'); } finally { setBusy(false); }
+            }}>Record</Button>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12, fontWeight: 700, color: C.ink, cursor: 'pointer', lineHeight: 1.4 }}>
+            <input type="checkbox" checked={!!doc.remindDaily} onChange={async (e) => { await api.finInvoiceReminder(doc.id, e.target.checked); onChanged(); }} />
+            🔔 Send a daily balance reminder (email + WhatsApp, with a pay link) until this is paid
+          </label>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>
         <Button tone="ghost" onClick={print}>⬇ Download / Print</Button>
         <Button tone="ghost" onClick={email} disabled={busy}>📧 Email</Button>
