@@ -159,5 +159,16 @@ export async function fixBookingDataFromEnv(): Promise<void> {
     await setTbd('EV-2026-0199');
   });
 
+  // 7) Manual receipts the owner confirmed were paid by bank transfer.
+  await run('receipt-methods', async () => {
+    for (const num of ['1718', '1719', '1722', '1723']) {
+      const { rowCount } = await pool.query(
+        `UPDATE finance_receipts SET paid_with = 'Bank transfer' WHERE number = $1`,
+        [num],
+      );
+      L(`  R#${num} paid_with → Bank transfer${rowCount ? '' : ' (not found)'}`);
+    }
+  });
+
   L('DONE');
 }
