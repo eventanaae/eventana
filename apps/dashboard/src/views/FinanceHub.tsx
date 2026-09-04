@@ -436,10 +436,16 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
-            <select value={supplier} onChange={(e) => setSupplier(e.target.value)} style={input}>
-              <option value="">— select supplier —</option>
-              {suppliers.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
+            <input
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              placeholder="Type to search supplier…"
+              list="expense-suppliers"
+              style={input}
+            />
+            <datalist id="expense-suppliers">
+              {suppliers.map((s) => <option key={s.id} value={s.name} />)}
+            </datalist>
             <Button tone="ghost" onClick={() => setAddingSupplier(true)}>+ New</Button>
           </div>
         )}
@@ -858,15 +864,22 @@ function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFil
 // ── Shared bits ──────────────────────────────────────────────────────────────
 function Modal({ title, children, onClose, onSave, busy, err, saveLabel }: { title: string; children: ReactNode; onClose: () => void; onSave?: () => void; busy?: boolean; err?: string | null; saveLabel?: string }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 12px', overflowY: 'auto' }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: 20, width: '100%', maxWidth: 480, boxShadow: C.shadowLg }}>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '3vh 12px' }} onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: C.shadowLg }}
+      >
+        {/* Header stays put; only the body scrolls, so Save is always reachable
+            even when the form is taller than the screen (mobile). */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '16px 20px 12px', flex: 'none', borderBottom: `1px solid ${C.lineSoft}` }}>
           <button onClick={onClose} style={{ ...linkBtn, color: C.muted }}>Cancel</button>
           <div style={{ ...fredoka(15), flex: 1, textAlign: 'center' }}>{title}</div>
           {onSave ? <button onClick={onSave} disabled={busy} style={{ ...linkBtn, color: C.pinkDeep, fontWeight: 800 }}>{busy ? '…' : (saveLabel ?? 'Save')}</button> : <span style={{ width: 40 }} />}
         </div>
-        {children}
-        {err && <div style={{ marginTop: 10, color: C.red, fontWeight: 700, fontSize: 12.5 }}>{err}</div>}
+        <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '14px 20px 20px', flex: 1 }}>
+          {children}
+          {err && <div style={{ marginTop: 10, color: C.red, fontWeight: 700, fontSize: 12.5 }}>{err}</div>}
+        </div>
       </div>
     </div>
   );

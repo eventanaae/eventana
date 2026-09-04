@@ -1708,6 +1708,20 @@ export async function adminRoutes(app: FastifyInstance) {
     const q = request.query as { month?: string; search?: string };
     const search = (q.search ?? '').trim();
 
+    // The "Type of expense" list = every account name actually used on an
+    // expense (the real QuickBooks accounts) plus the app's presets, de-duped
+    // case-insensitively so the owner picks from the accounts she really uses.
+    const catRows = await pool.query(
+      `SELECT DISTINCT category FROM expenses WHERE category IS NOT NULL AND btrim(category) <> ''`,
+    );
+    const seenCat = new Set<string>();
+    const categories: string[] = [];
+    for (const c of [...catRows.rows.map((r: any) => String(r.category)), ...EXPENSE_CATEGORIES]) {
+      const k = c.toLowerCase();
+      if (!seenCat.has(k)) { seenCat.add(k); categories.push(c); }
+    }
+    categories.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
     if (search) {
       const like = `%${search}%`;
       const num = Number(search.replace(/[,\s]/g, ''));
@@ -1723,7 +1737,7 @@ export async function adminRoutes(app: FastifyInstance) {
       );
       return {
         search,
-        categories: EXPENSE_CATEGORIES,
+        categories,
         paymentMethods: PAYMENT_METHODS,
         expenses: rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) })),
       };
@@ -1754,7 +1768,9 @@ export async function adminRoutes(app: FastifyInstance) {
   /** Record an expense. */
   app.post('/api/admin/expenses', async (request, reply) => {
     const schema = z.object({
-      category: z.enum(EXPENSE_CATEGORIES).default('other'),
+      // Any account name (the presets, or a real QuickBooks account the owner
+      // picks/types) — not a fixed enum, so the dynamic account list works.
+      category: z.string().min(1).max(80).default('other'),
       description: z.string().min(1).max(300),
       amountFils: z.number().int().min(0),
       vendor: z.string().max(200).optional(),
