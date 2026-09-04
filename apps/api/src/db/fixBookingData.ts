@@ -171,5 +171,18 @@ export async function fixBookingDataFromEnv(): Promise<void> {
     L(`  normalised ${rowCount ?? 0} receipt(s) to 'Debit'`);
   });
 
+  // Read-only: upcoming events whose phone is missing or a placeholder, so the
+  // owner can supply the real number(s).
+  await run('phone-gaps', async () => {
+    const { rows } = await pool.query(`
+      SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS d, c.name, c.phone, c.backup_phone
+        FROM events e JOIN customers c ON c.id = e.customer_id
+       WHERE e.phase <> 'Cancelled' AND e.event_date >= current_date
+         AND (c.phone IS NULL OR btrim(c.phone) = '' OR c.phone ~ '^[0+]+$' OR length(regexp_replace(c.phone,'\\D','','g')) < 7)
+       ORDER BY e.event_date`);
+    L(`  events with a missing/placeholder phone: ${rows.length}`);
+    for (const r of rows) L(`  ⚠ ${r.id} ${r.d} "${r.name}" phone="${r.phone ?? '—'}"`);
+  });
+
   L('DONE');
 }
