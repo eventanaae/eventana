@@ -30,6 +30,7 @@ export type EventPatch = {
   mapLng?: number | null;
   phone?: string | null;        // customer's primary contact number
   backupPhone?: string | null;  // customer's second contact number
+  referenceImages?: string[];   // design reference photos (hosted URLs), for the team
 };
 
 export async function staffUpdateEvent(eventId: string, patch: EventPatch): Promise<{ ok: true }> {
@@ -117,13 +118,14 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       await db.query(`UPDATE events SET theme_id = $2, custom_theme = FALSE WHERE id = $1`, [eventId, patch.themeId]);
     }
 
-    // ── Guest-of-honour name + theme live in the order cart ─────────────────
-    if (patch.eventFor !== undefined || (patch.themeId !== undefined && patch.themeId) || customTheme) {
+    // ── Guest-of-honour name, theme + reference images live in the order cart ─
+    if (patch.eventFor !== undefined || (patch.themeId !== undefined && patch.themeId) || customTheme || patch.referenceImages !== undefined) {
       const { rows: o } = await db.query(`SELECT cart FROM orders WHERE id = $1`, [ev.order_id]);
       const cart = { ...((o[0]?.cart ?? {}) as Record<string, unknown>) };
       if (patch.eventFor !== undefined) cart.eventFor = patch.eventFor;
       if (customTheme) { cart.customTheme = customTheme; delete cart.themeId; }
       else if (patch.themeId !== undefined && patch.themeId) { cart.themeId = patch.themeId; delete cart.customTheme; }
+      if (patch.referenceImages !== undefined) cart.referenceImages = patch.referenceImages;
       await db.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [ev.order_id, cart]);
     }
 

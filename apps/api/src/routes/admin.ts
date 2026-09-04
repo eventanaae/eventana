@@ -1405,6 +1405,7 @@ export async function adminRoutes(app: FastifyInstance) {
       mapLng: z.number().min(-180).max(180).nullable().optional(),
       phone: z.string().max(40).nullable().optional(),
       backupPhone: z.string().max(40).nullable().optional(),
+      referenceImages: z.array(z.string().url()).max(30).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
@@ -4624,7 +4625,7 @@ export async function adminRoutes(app: FastifyInstance) {
         message: 'Set CLOUDINARY_URL in the server environment to enable image uploads.',
       });
     }
-    const schema = z.object({ folder: z.enum(['receipts', 'themes', 'designs', 'setup-photos']).default('receipts') });
+    const schema = z.object({ folder: z.enum(['receipts', 'themes', 'designs', 'setup-photos', 'reference']).default('receipts') });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     return signUpload(`eventana/${parsed.data.folder}` as const);

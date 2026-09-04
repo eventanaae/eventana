@@ -163,6 +163,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
   const [cancelReason, setCancelReason] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [uploadingRef, setUploadingRef] = useState(false);
 
   const load = async () => {
     const d = await api.event(eventId);
@@ -172,6 +173,28 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
     if (d.event.order_id && d.event.totalDisplay != null) setAudit(await api.audit(d.event.order_id).catch(() => []));
   };
   useEffect(() => { load(); }, [eventId]);
+
+  // Upload a design reference image → append it to the booking's reference set.
+  const addReferenceImage = async (file: File) => {
+    setUploadingRef(true); setMessage(null);
+    try {
+      const url = await api.uploadImage(file, 'reference');
+      const current: string[] = data?.event?.referenceImages ?? [];
+      await api.eventUpdateDetails(eventId, { referenceImages: [...current, url] });
+      await load();
+      setMessage('Reference image added.');
+    } catch (e: any) { setMessage(e?.message ?? 'Could not upload image.'); }
+    finally { setUploadingRef(false); }
+  };
+  const removeReferenceImage = async (url: string) => {
+    setUploadingRef(true); setMessage(null);
+    try {
+      const current: string[] = data?.event?.referenceImages ?? [];
+      await api.eventUpdateDetails(eventId, { referenceImages: current.filter((u) => u !== url) });
+      await load();
+    } catch (e: any) { setMessage(e?.message ?? 'Could not remove image.'); }
+    finally { setUploadingRef(false); }
+  };
 
   // The API nulls every money figure for employees/drivers — detect that and
   // hide the money panels (payments, refund, tip amounts) entirely.
@@ -231,18 +254,25 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     <InfoCell span label="📍 Location" value={data.event.emirate || <span style={{ color: C.muted }}>—</span>} />
                   </div>
                 </div>
-                {(data.event.referenceImages ?? []).length > 0 && (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>📎 Reference images</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {(data.event.referenceImages ?? []).map((u: string, i: number) => (
-                        <a key={i} href={u} target="_blank" rel="noreferrer">
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>📎 Reference images <span style={{ fontWeight: 600 }}>— what the customer wants (for the design team)</span></div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {(data.event.referenceImages ?? []).map((u: string, i: number) => (
+                      <div key={i} style={{ position: 'relative' }}>
+                        <a href={u} target="_blank" rel="noreferrer">
                           <img src={u} alt="reference" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line}` }} />
                         </a>
-                      ))}
-                    </div>
+                        <button type="button" onClick={() => removeReferenceImage(u)} title="Remove"
+                          style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, border: 'none', background: C.red, color: '#fff', fontWeight: 800, cursor: 'pointer', lineHeight: '18px', fontSize: 12 }}>×</button>
+                      </div>
+                    ))}
+                    <label style={{ width: 64, height: 64, borderRadius: 8, border: `1.5px dashed ${C.pinkDeep}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.pinkDeep, fontWeight: 800, fontSize: 22, textAlign: 'center' }}>
+                      {uploadingRef ? '…' : '＋'}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingRef}
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) addReferenceImage(f); e.currentTarget.value = ''; }} />
+                    </label>
                   </div>
-                )}
+                </div>
               </div>
             </div>
 
