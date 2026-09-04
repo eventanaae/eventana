@@ -18,9 +18,12 @@ export function Schedule({
   role?: string;
 }) {
   const [mode, setMode] = useState<'mine' | 'all' | 'tasks'>(canSeeAll ? 'all' : 'mine');
+  // Owner/manager (canSeeAll) work from "All events"; the personal "My events"
+  // jobs tab is only shown to staff, for whom it's their whole view.
   const tabs: Array<{ id: 'mine' | 'all' | 'tasks'; label: string }> = [
-    { id: 'mine', label: 'My events' },
-    ...(canSeeAll ? ([{ id: 'all', label: 'All events' }] as const) : []),
+    ...(canSeeAll
+      ? ([{ id: 'all', label: 'Events' }] as const)
+      : ([{ id: 'mine', label: 'My events' }] as const)),
     { id: 'tasks', label: 'Tasks' },
   ];
 

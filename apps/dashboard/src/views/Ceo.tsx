@@ -62,9 +62,9 @@ export function Ceo() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Filters */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {/* Filters — a tidy two-row block: the period pills, then the two dropdowns. */}
+      <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, boxShadow: C.shadow, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
           {PRESETS.map((p) => (
             <button
               key={p.id}
@@ -73,22 +73,23 @@ export function Ceo() {
                 border: `1.5px solid ${preset === p.id ? C.pink : C.line}`,
                 background: preset === p.id ? C.pinkSoft : '#fff',
                 color: preset === p.id ? C.pinkDeep : C.muted2,
-                fontWeight: 700, fontSize: 12.5, padding: '7px 13px', borderRadius: 999, cursor: 'pointer',
+                fontWeight: 700, fontSize: 12.5, padding: '7px 13px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', flex: 'none',
               }}
             >
               {p.label}
             </button>
           ))}
         </div>
-        <div style={{ flex: 1 }} />
-        <select value={emirate} onChange={(e) => setEmirate(e.target.value)} style={selectStyle}>
-          <option value="">All emirates</option>
-          {EMIRATES.map((e) => <option key={e} value={e}>{e}</option>)}
-        </select>
-        <select value={eventType} onChange={(e) => setEventType(e.target.value)} style={selectStyle}>
-          <option value="">All event types</option>
-          {CELEBRATION_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <select value={emirate} onChange={(e) => setEmirate(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+            <option value="">All emirates</option>
+            {EMIRATES.map((e) => <option key={e} value={e}>{e}</option>)}
+          </select>
+          <select value={eventType} onChange={(e) => setEventType(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+            <option value="">All event types</option>
+            {CELEBRATION_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </div>
       </div>
 
       {loading && <Spinner />}
@@ -123,30 +124,6 @@ export function Ceo() {
             );
           })()}
 
-          {/* Recommendations & insights — drop app-only "AED 0" noise (bookings
-              carry no revenue in the app yet, so those lines are misleading). */}
-          {(() => { const ins0 = (data.insights ?? []).filter((x: any) => !/AED 0\b/.test(x.text)); return ins0.length > 0 && (
-            <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
-              <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.pinkDeep})` }} />
-              <div style={{ padding: '16px 20px' }}>
-                <div style={{ ...fredoka(15), marginBottom: 12 }}>💡 Recommendations & insights</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 10 }}>
-                  {ins0.map((ins: any, i: number) => {
-                    const tone = ins.tone === 'good' ? C.green : ins.tone === 'warn' ? C.red : C.pinkDeep;
-                    const soft = ins.tone === 'good' ? C.greenSoft : ins.tone === 'warn' ? C.redSoft : C.pinkSoft;
-                    const icon = ins.tone === 'good' ? '↑' : ins.tone === 'warn' ? '!' : 'i';
-                    return (
-                      <div key={i} style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: soft, borderRadius: 14, padding: '11px 13px' }}>
-                        <span style={{ flex: 'none', width: 22, height: 22, borderRadius: '50%', background: tone, color: '#fff', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</span>
-                        <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2, lineHeight: 1.5 }}>{ins.text}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ); })()}
-
           {/* Cash · pipeline · funnel */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
             <Panel title="Cash position">
@@ -178,25 +155,8 @@ export function Ceo() {
             </Panel>
           </div>
 
-          {/* Year-end forecast */}
-          {data.forecast && <ForecastPanel f={data.forecast} />}
-
-          {/* Operational health */}
-          {data.opsHealth && <OpsHealth ops={data.opsHealth} />}
-
-          {/* Customers + cancellations */}
+          {/* Cancellations & refunds (kept — owner will review later) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
-            <Panel title="Top customers by revenue">
-              {(data.topCustomers ?? []).length === 0 ? (
-                <div style={{ color: C.muted, fontSize: 12.5, fontWeight: 600 }}>Not enough data yet.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {data.topCustomers.map((c: any, i: number) => (
-                    <MiniRow key={i} label={`${i + 1}. ${c.name}`} value={`AED ${c.revenueDisplay}`} sub={`${c.orders} order(s)`} tone={C.ink} last={i === data.topCustomers.length - 1} />
-                  ))}
-                </div>
-              )}
-            </Panel>
             <Panel title="Cancellations & refunds">
               <MiniRow label="Cancellation rate" value={`${data.cancelRatePct}%`} sub={`${data.cancelled} cancelled`} tone={data.cancelRatePct > 15 ? C.red : C.ink} />
               <MiniRow label="Total refunded" value={`AED ${data.refundDisplay}`} tone={C.muted2} last={(data.cancelReasons ?? []).length === 0} />
@@ -330,58 +290,6 @@ function YearBars({ years }: { years: Array<{ year: string; netFils: number }> }
 }
 
 /** Year-end forecast — 3 scenarios (estimate from run-rate + booked pipeline). */
-function ForecastPanel({ f }: { f: any }) {
-  const scen = [
-    { key: 'conservative', label: 'Conservative', emoji: '🔴', color: C.red, s: f.conservative },
-    { key: 'expected', label: 'Expected', emoji: '🟡', color: C.yellowInk, s: f.expected },
-    { key: 'optimistic', label: 'Optimistic', emoji: '🟢', color: C.green, s: f.optimistic },
-  ];
-  return (
-    <Panel title="Year-end forecast">
-      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>
-        Estimate from this year's run-rate + already-booked future revenue (AED {f.ytdRevenueDisplay} so far, AED {f.bookedFutureDisplay} booked ahead · {f.marginPct}% margin).
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10 }}>
-        {scen.map((x) => (
-          <div key={x.key} style={{ border: `1px solid ${C.line}`, borderTop: `3px solid ${x.color}`, borderRadius: 14, padding: '12px 14px' }}>
-            <div style={{ fontSize: 11.5, fontWeight: 800, color: x.color }}>{x.emoji} {x.label}</div>
-            <div style={{ ...fredoka(19), color: C.ink, marginTop: 6 }}>AED {x.s.revenueDisplay}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>revenue</div>
-            <div style={{ fontSize: 13.5, fontWeight: 800, color: x.color, marginTop: 6 }}>AED {x.s.netDisplay}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>est. net profit</div>
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-/** Operational readiness for the week ahead. */
-function OpsHealth({ ops }: { ops: any }) {
-  const pct = ops.readinessPct;
-  const cells = [
-    { label: 'Events next 7 days', value: ops.upcoming7, tone: C.ink },
-    { label: 'Fully ready', value: ops.fullyReady, tone: C.green },
-    { label: 'Understaffed', value: ops.understaffed, tone: ops.understaffed > 0 ? C.red : C.muted },
-    { label: 'Missing items', value: ops.withMissingItems, tone: ops.withMissingItems > 0 ? C.red : C.muted },
-    { label: 'Late prep tasks', value: ops.latePrep, tone: ops.latePrep > 0 ? C.yellowInk : C.muted },
-    { label: 'Prep at risk', value: ops.atRisk, tone: ops.atRisk > 0 ? C.red : C.muted },
-  ];
-  return (
-    <Panel title="Operational health"
-      action={pct != null ? <span style={{ ...fredoka(18), color: pct >= 80 ? C.green : pct >= 50 ? C.yellowInk : C.red }}>{pct}% ready</span> : undefined}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(110px,1fr))', gap: 10 }}>
-        {cells.map((c) => (
-          <div key={c.label} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px' }}>
-            <div style={{ ...fredoka(22), color: c.tone }}>{c.value}</div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 2 }}>{c.label}</div>
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
 function DeltaChip({ v }: { v: number | null | undefined }) {
   if (v === null || v === undefined) return null;
   const up = v >= 0;
@@ -418,8 +326,8 @@ function HeroKpi({ label, value, delta, caption, spark, accent }: { label: strin
     <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, padding: '16px 18px', boxShadow: C.shadow, borderTop: `3px solid ${accent}` }}>
       <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', color: C.muted }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ ...fredoka(25), color: C.ink, whiteSpace: 'nowrap' }}>{value}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ ...fredoka(22), fontSize: 'clamp(16px,4.6vw,23px)', color: C.ink, lineHeight: 1.12, wordBreak: 'break-word' }}>{value}</div>
           <div style={{ marginTop: 5, minHeight: 18 }}>
             {delta !== undefined ? <DeltaChip v={delta} /> : caption ? <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{caption}</span> : null}
           </div>

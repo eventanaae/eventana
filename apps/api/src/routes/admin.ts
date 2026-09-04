@@ -4346,6 +4346,39 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /**
+   * Morning brief for Home: today's team birthdays, who's off today, and the
+   * few things that need attention right now (events today, prep at risk within
+   * 3 days, unsettled orders). Lightweight — safe to load on every Home open.
+   */
+  app.get('/api/admin/morning-brief', async (request) => {
+    const staff = (request as any).staff as { role?: string };
+    const isMgr = staff.role === 'owner' || staff.role === 'manager';
+    if (!isMgr) return { birthdays: [], offToday: [], alerts: [] };
+    const [bdays, off, evToday, atRisk, unpaid] = await Promise.all([
+      pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char(CURRENT_DATE,'MM-DD') ORDER BY name`),
+      pool.query(`SELECT DISTINCT tm.name FROM staff_days_off d JOIN team_members tm ON tm.id=d.member_id WHERE d.status='approved' AND tm.active AND CURRENT_DATE BETWEEN d.start_date AND d.end_date ORDER BY tm.name`),
+      pool.query(`SELECT COUNT(*)::int n FROM events WHERE phase<>'Cancelled' AND event_date=CURRENT_DATE`),
+      pool.query(`SELECT COUNT(DISTINCT e.id)::int n FROM events e
+                   WHERE e.phase<>'Cancelled' AND e.event_date BETWEEN CURRENT_DATE AND CURRENT_DATE+3
+                     AND EXISTS (SELECT 1 FROM prep_tasks pt WHERE pt.event_id=e.id AND pt.status<>'completed')`),
+      pool.query(`SELECT COUNT(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM orders
+                   WHERE status IN ('awaiting_payment','processing','needs_review') AND source='manual' AND created_at > now() - interval '10 days'`),
+    ]);
+    const alerts: Array<{ level: string; icon: string; text: string }> = [];
+    const evN = Number(evToday.rows[0].n);
+    if (evN > 0) alerts.push({ level: 'info', icon: '🎉', text: `${evN} event${evN > 1 ? 's' : ''} today — let's make ${evN > 1 ? 'them' : 'it'} magical!` });
+    const arN = Number(atRisk.rows[0].n);
+    if (arN > 0) alerts.push({ level: 'high', icon: '🧰', text: `${arN} upcoming event${arN > 1 ? 's' : ''} within 3 days aren't fully prepared yet.` });
+    const upN = Number(unpaid.rows[0].n);
+    if (upN > 0) alerts.push({ level: 'high', icon: '💰', text: `AED ${formatAed(Number(unpaid.rows[0].v))} across ${upN} pay-link${upN > 1 ? 's' : ''} still awaiting payment.` });
+    return {
+      birthdays: bdays.rows.map((r) => r.name),
+      offToday: off.rows.map((r) => r.name),
+      alerts,
+    };
+  });
+
+  /**
    * Notification bell feed: one unified, newest-first stream of things worth a
    * person's attention, each linking to the order/event it's about. Owner and
    * manager see the whole business; an employee sees only what touches them

@@ -12,6 +12,7 @@ import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, 
  */
 export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { onOpenEvent: (id: string) => void; onOpenShop?: (id: string) => void; onGoto: (v: View) => void; staffName?: string; role?: string }) {
   const [data, setData] = useState<any>(null);
+  const [brief, setBrief] = useState<{ birthdays: string[]; offToday: string[]; alerts: Array<{ level: string; icon: string; text: string }> } | null>(null);
 
   const load = () => api.today().then(setData);
   useEffect(() => {
@@ -19,6 +20,9 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
     const timer = setInterval(load, 30_000);
     return () => clearInterval(timer);
   }, []);
+  // Morning brief (owner/manager only) — birthdays, who's off, what needs attention.
+  const canBrief = role === 'owner' || role === 'manager';
+  useEffect(() => { if (canBrief) api.morningBrief().then(setBrief).catch(() => setBrief(null)); }, [canBrief]);
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -72,6 +76,34 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
           <div style={{ fontSize: 13, fontWeight: 600, color: '#96637c', marginTop: 6, maxWidth: '86%', lineHeight: 1.5 }}>{line}</div>
         </div>
       </div>
+
+      {/* ☀️ Your morning brief — birthdays, who's off, and what needs attention */}
+      {canBrief && brief && (brief.birthdays.length > 0 || brief.offToday.length > 0 || brief.alerts.length > 0) && (
+        <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+          <div style={{ height: 5, background: `linear-gradient(90deg,${C.pinkDeep},${C.pink})` }} />
+          <div style={{ padding: '14px 18px' }}>
+            <div style={{ ...fredoka(15), marginBottom: 10 }}>☀️ Your morning brief</div>
+            {brief.birthdays.length > 0 && (
+              <div style={{ background: C.pinkSoft, color: C.pinkDeep, borderRadius: 12, padding: '10px 13px', fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
+                🎂 Birthday today: {brief.birthdays.join(', ')} — wish them a happy birthday!
+              </div>
+            )}
+            {brief.offToday.length > 0 && (
+              <div style={{ background: C.greenSoft, color: C.ink, borderRadius: 12, padding: '10px 13px', fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
+                🌴 Off today: {brief.offToday.join(', ')}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {brief.alerts.map((a, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', background: a.level === 'high' ? C.redSoft : C.greenSoft, borderRadius: 12, padding: '9px 12px' }}>
+                  <span style={{ fontSize: 15, flex: 'none' }}>{a.icon}</span>
+                  <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: C.ink, lineHeight: 1.45 }}>{a.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick actions — only the ones this role can actually open */}
       {(() => {

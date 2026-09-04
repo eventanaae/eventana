@@ -260,6 +260,8 @@ export const api = {
   setChat: (id: string, open: boolean) =>
     request<any>(`/api/admin/events/${id}/chat`, { method: 'POST', body: JSON.stringify({ open }) }),
 
+  morningBrief: () => request<{ birthdays: string[]; offToday: string[]; alerts: Array<{ level: string; icon: string; text: string }> }>('/api/admin/morning-brief'),
+
   webFunnel: () => request<{
     visitors: number; visitorsLast30: number; totalVisits: number;
     registered: number; booked: number;

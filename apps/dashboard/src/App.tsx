@@ -14,7 +14,6 @@ import { Team } from './views/Team';
 import { Kpis } from './views/Kpis';
 import { Alerts } from './views/Alerts';
 import { FinanceHub } from './views/FinanceHub';
-import { Financials } from './views/Financials';
 import { Ceo } from './views/Ceo';
 import { NewOrder } from './views/NewOrder';
 import { Marketing } from './views/Marketing';
@@ -22,7 +21,6 @@ import { Settings } from './views/Settings';
 import { ShopOrders } from './views/ShopOrders';
 import { Leads } from './views/Leads';
 import { Customers } from './views/Customers';
-import { Reports } from './views/Reports';
 import { Profile } from './views/Profile';
 import { Feedback } from './views/Feedback';
 import { Products } from './views/Products';
@@ -32,7 +30,7 @@ import { Leave } from './views/Leave';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'financials' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'reports' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -68,10 +66,8 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'leave', label: 'Leave', icon: '🌴', title: 'Annual Leave', sub: 'Leave requests, balances & approvals', section: 'staff' },
   // Business (owner)
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
-  { id: 'financials', label: 'Financials', icon: '📚', title: 'Financials (P&L)', sub: 'Yearly revenue, expenses & profit history', section: 'business' },
   // Setup
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', section: 'admin' },
-  { id: 'reports', label: 'Reports & Tools', icon: '🛡️', title: 'Reports & Tools', sub: 'Reconciliation, refunds, audit log & clean-up', section: 'admin' },
   { id: 'profile', label: 'Profile', icon: '👤', title: 'My Profile', sub: 'Your details, achievements & feedback', section: 'admin' },
 ];
 
@@ -134,9 +130,13 @@ export default function App() {
   }, [authed]);
 
   const allowed = ROLE_VIEWS[role] ?? 'all';
+  // Views the OWNER doesn't need in their own menu (Profile is a staff page for
+  // achievements; the owner has no incentives to show).
+  const OWNER_HIDDEN: View[] = ['profile'];
   // Marsha co-runs the office (her access level is 'employee'): she can approve
   // leave, so she sees the Leave tab even though the employee list omits it.
-  const isVisible = (id: View) => allowed === 'all' || allowed.includes(id) || (id === 'leave' && staffName === 'Marsha');
+  const isVisible = (id: View) =>
+    (allowed === 'all' ? !OWNER_HIDDEN.includes(id) : allowed.includes(id)) || (id === 'leave' && staffName === 'Marsha');
   const visibleNav = NAV.filter((n) => isVisible(n.id));
   // Phone bottom bar: exactly four primary tabs. The Owner keeps the CEO
   // Dashboard as their 4th; everyone else gets Latest updates. Whatever else
@@ -194,13 +194,11 @@ export default function App() {
       {view === 'kpis' && <Kpis role={role} />}
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}
-      {view === 'financials' && <Financials />}
       {view === 'marketing' && <Marketing />}
       {view === 'shop' && <ShopOrders />}
       {view === 'neworder' && <NewOrder />}
       {view === 'leads' && <Leads />}
       {view === 'customers' && <Customers />}
-      {view === 'reports' && <Reports />}
       {view === 'profile' && <Profile onSignedOut={() => setAuthed(false)} />}
       {view === 'feedback' && <Feedback onBack={() => setView('today')} onOpenEvent={openEvent} />}
       {view === 'products' && <Products />}
@@ -252,7 +250,7 @@ export default function App() {
             {error ? '● offline' : '● live'}
           </span>
           <NotificationBell onOpenEvent={openEvent} />
-          {role === 'manager' && (
+          {(role === 'manager' || role === 'owner') && (
             <button onClick={() => go(view === 'menu' ? 'today' : 'menu')} aria-label="Menu" style={{ border: `1px solid ${view === 'menu' ? C.pink : C.line}`, background: view === 'menu' ? C.pinkSoft : '#fff', color: view === 'menu' ? C.pinkDeep : C.ink, borderRadius: 10, width: 34, height: 34, fontSize: 16, fontWeight: 800, cursor: 'pointer', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>☰</button>
           )}
         </div>
@@ -271,7 +269,7 @@ export default function App() {
               onClick={() => go(n.id)}
             />
           ))}
-          {moreNav.length > 0 && role !== 'manager' && (
+          {moreNav.length > 0 && role !== 'manager' && role !== 'owner' && (
             <BarItem icon="⋯" label="More" active={moreOpen || moreNav.some((n) => n.id === view)} onClick={() => setMoreOpen(true)} />
           )}
         </div>
