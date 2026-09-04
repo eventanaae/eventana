@@ -72,10 +72,39 @@
     { "name": "Giant Backdrop", "ar": "خلفية عملاقة", "priceAed": 2200 }
   ],
 
+  "_themesNote": "Generated from the live catalogue on 2026-09-04: the 31 themes that already have a public cover image, so the site reuses the exact photo the booking flow shows. Nine further themes exist without a cover image and are left out. Several names are licensed characters; they are listed as themes Eventana can build, and no page is optimised around a trademark.",
   "themes": [
-    "Jungle", "Mermaid", "Fairy", "Frozen", "Barbie", "Spider-Man", "Super Mario",
-    "Disney Princess", "Cocomelon", "Space", "Butterfly", "Hello Kitty", "Snow White",
-    "Mickey Safari", "Halloween", "K-Pop Demon", "Lilo", "Cinnamon", "Polo", "Al Wasl Club"
+    { "name": "Ballerina", "ar": "\u0627\u0644\u0628\u0627\u0644\u064a\u0631\u064a\u0646\u0627", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152029/eventana/themes/luicxvbnrqydwdwb3nyo.jpg" },
+    { "name": "Barbie", "ar": "\u0628\u0627\u0631\u0628\u064a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157637/eventana/themes/dzs1lbc2x8uxrdma86r9.jpg" },
+    { "name": "Bow", "ar": "\u0627\u0644\u0641\u064a\u0648\u0646\u0643\u0629", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152048/eventana/themes/vjhw6ryjq98fudiedstv.jpg" },
+    { "name": "Butterfly", "ar": "\u0627\u0644\u0641\u0631\u0627\u0634\u0627\u062a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152085/eventana/themes/dsovfxoeyelwrxdmvfxi.jpg" },
+    { "name": "Cars", "ar": "\u0627\u0644\u0633\u064a\u0627\u0631\u0627\u062a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152090/eventana/themes/xikrkjnueyzz1dbzepah.jpg" },
+    { "name": "Circus", "ar": "\u0627\u0644\u0633\u064a\u0631\u0643", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157649/eventana/themes/gqyqbxqjis0li3ebb4g4.jpg" },
+    { "name": "Cocomelon", "ar": "\u0643\u0648\u0643\u0648\u0645\u064a\u0644\u0648\u0646", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157667/eventana/themes/oorwkmbsmsyx0pou3vqb.jpg" },
+    { "name": "Dinosaur", "ar": "\u0627\u0644\u062f\u064a\u0646\u0627\u0635\u0648\u0631\u0627\u062a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152142/eventana/themes/vd4plmfoo9nm93iih7n3.jpg" },
+    { "name": "Disney Princess", "ar": "\u0623\u0645\u064a\u0631\u0627\u062a \u062f\u064a\u0632\u0646\u064a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152145/eventana/themes/dsulft4iehzozoroano5.jpg" },
+    { "name": "Fairy", "ar": "\u0627\u0644\u062c\u0646\u064a\u0651\u0627\u062a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152179/eventana/themes/bcxqdwb5vgzpceubhvj8.jpg" },
+    { "name": "Frozen", "ar": "\u0641\u0631\u0648\u0632\u0646", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152199/eventana/themes/i30mpj2jpyxfgkeirhvd.jpg" },
+    { "name": "Gabby\u2019s Dollhouse", "ar": "\u0628\u064a\u062a \u062f\u0645\u0649 \u063a\u0627\u0628\u064a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157937/eventana/themes/ul6xzcrfadhxtaeyft1w.jpg" },
+    { "name": "Halloween", "ar": "\u0627\u0644\u0647\u0627\u0644\u0648\u064a\u0646", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157696/eventana/themes/grfb8ygblsli7jjbz1kr.jpg" },
+    { "name": "Hello Kitty", "ar": "\u0647\u064a\u0644\u0648 \u0643\u064a\u062a\u064a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152236/eventana/themes/k2vxs9i6miht3qt4p82g.jpg" },
+    { "name": "Horses", "ar": "\u0627\u0644\u062e\u064a\u0648\u0644", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157726/eventana/themes/adcmcmdizpybhguvcrpw.jpg" },
+    { "name": "Jungle", "ar": "\u0627\u0644\u063a\u0627\u0628\u0629", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152246/eventana/themes/crsqufg93gd0m5xeoosm.jpg" },
+    { "name": "K-Pop Demon", "ar": "\u0643\u064a-\u0628\u0648\u0628", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152274/eventana/themes/ootokjr2s8rohdmh97do.jpg" },
+    { "name": "Lilo", "ar": "\u0644\u064a\u0644\u0648", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152407/eventana/themes/kuwqgv8v0ldo8xadvzor.jpg" },
+    { "name": "Mermaid", "ar": "\u062d\u0648\u0631\u064a\u0629 \u0627\u0644\u0628\u062d\u0631", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157750/eventana/themes/ypwogtfgasc9tg7w3lgz.jpg" },
+    { "name": "Moon & Stars", "ar": "\u0627\u0644\u0642\u0645\u0631 \u0648\u0627\u0644\u0646\u062c\u0648\u0645", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157781/eventana/themes/cggonmvalujnna1jytec.jpg" },
+    { "name": "Paw Patrol", "ar": "\u0628\u0627\u0648 \u0628\u0627\u062a\u0631\u0648\u0644", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157793/eventana/themes/g3p5l8kjs7fgeueqk2me.jpg" },
+    { "name": "Polo", "ar": "\u0628\u0648\u0644\u0648", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152301/eventana/themes/p39lzgoafceoyjojsfj7.jpg" },
+    { "name": "Power Puff Girls", "ar": "\u0627\u0644\u0641\u062a\u064a\u0627\u062a \u0627\u0644\u062e\u0627\u0631\u0642\u0627\u062a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152328/eventana/themes/xshq3zbj2b8rljdecnfs.jpg" },
+    { "name": "Princess Peach", "ar": "\u0627\u0644\u0623\u0645\u064a\u0631\u0629 \u0628\u064a\u062a\u0634", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157800/eventana/themes/g0ldgocrqdov6ycxdlyn.jpg" },
+    { "name": "Snow White", "ar": "\u0633\u0646\u0648 \u0648\u0627\u064a\u062a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152338/eventana/themes/ratnrl1hmbsozlyk7lvw.jpg" },
+    { "name": "Space", "ar": "\u0627\u0644\u0641\u0636\u0627\u0621", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152385/eventana/themes/ejtetqoln5uxt9nrboo7.jpg" },
+    { "name": "Spider-Man", "ar": "\u0633\u0628\u0627\u064a\u062f\u0631\u0645\u0627\u0646", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152404/eventana/themes/p83gxxgvktu8o6f6jceg.jpg" },
+    { "name": "Strawberry", "ar": "\u0627\u0644\u0641\u0631\u0627\u0648\u0644\u0629", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152448/eventana/themes/lahwo4bmdiem72jmfnw6.jpg" },
+    { "name": "Super Mario", "ar": "\u0633\u0648\u0628\u0631 \u0645\u0627\u0631\u064a\u0648", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152460/eventana/themes/t2locybyupboxw8yqliw.jpg" },
+    { "name": "Toy Story", "ar": "\u062a\u0648\u064a \u0633\u062a\u0648\u0631\u064a", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157803/eventana/themes/fawg0ok2dpp7seactsmi.jpg" },
+    { "name": "Unicorn", "ar": "\u064a\u0648\u0646\u064a\u0643\u0648\u0631\u0646", "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152474/eventana/themes/ttbicfgzbrriynchamu0.jpg" }
   ],
 
   "pages": [
@@ -872,6 +901,104 @@
           { "q": "تقدرون تجهّزون في شقة؟", "a": "نعم — شقق وفلل وحدائق ومجالس وقاعات المباني. عرّفينا على ترتيبات الدخول والمصعد وقت الحجز عشان الفريق يحسب وقت التركيب على أساسها." },
           { "q": "تغطون حضانات ومدارس البرشاء؟", "a": "نعم. مناسبات المدارس والحضانات من تجهيزاتنا المعتادة، بديكور ومحطات أكل وأركان أنشطة، والفواتير تُرتّب مع إدارة المدرسة." },
           { "q": "كيف أحجز؟", "a": "احجزي أونلاين من eventanauae.com، أو اتصلي وراسلينا واتساب على 056 450 0777. مفتوحون كل يوم من 10:00 صباحًا حتى 10:00 مساءً." }
+        ]
+      }
+    },
+    {
+      "slug": "party-themes-dubai",
+      "celebrationType": "kids",
+      "priority": "0.9",
+      "priceFromAed": 2199,
+      "en": {
+        "headline": "Party Themes in Dubai and the UAE — Photos of Every Theme",
+        "subhead": "More than 40 ready themes, included in the package price. Or we design yours from scratch.",
+        "includes": [
+          "31 themes photographed from real Eventana setups",
+          "Every ready theme included — no theme surcharge",
+          "Custom themes designed from scratch at no extra charge",
+          "Colour palette chosen by you on any theme",
+          "Backdrop, balloon decor and styling built around the theme",
+          "Delivered, installed and taken down by the Eventana team"
+        ],
+        "cta": "Browse themes and book",
+        "title": "Party Themes in Dubai & UAE — 40+ Themes with Photos | Eventana",
+        "description": "Every Eventana party theme with real photos: Frozen, Barbie, Jungle, Mermaid, Dinosaur, Spider-Man and 30 more. Themes are included in the package price from AED 2,199.",
+        "intro": "Eventana keeps more than 40 ready party themes, and 31 of them are photographed below from real setups we have delivered across the UAE. Choosing a ready theme costs nothing extra — the theme is part of the package price, which starts at AED 2,199 for Movie Night and runs to AED 5,999 for Golden Birthday. The theme decides the backdrop, the balloon colours and the styling of the table and props; the package decides how many elements you get and how long the setup runs. If the theme you want is not in the collection, our design team creates it from scratch, and that is also included at no extra charge — you send a reference picture and colours, and the team builds the design around the package you chose. The most requested themes for kids birthdays are Frozen, Barbie, Jungle, Dinosaur, Spider-Man and Mermaid; for baby showers and gender reveals, Moon and Stars, Butterfly, Bow and Fairy; and for older girls, Ballerina, Spa and Strawberry. Every theme can be booked with the same setup across Dubai, Sharjah, Abu Dhabi, Ajman, Umm Al Quwain, Ras Al Khaimah, Fujairah and Al Ain, with a delivery fee that depends on the emirate.",
+        "faq": [
+          {
+            "q": "Does choosing a theme cost extra?",
+            "a": "No. Every ready theme is included in the package price, and a custom theme designed from scratch is also included at no extra charge. What you pay for is the package — from AED 2,199 — plus any add-ons and the delivery fee for your emirate."
+          },
+          {
+            "q": "What if my theme isn't in the list?",
+            "a": "Our design team builds it from scratch at no extra charge. You send a reference image, the character or concept, and the colours you want, and the design is created around the package you booked."
+          },
+          {
+            "q": "How many themes are there?",
+            "a": "More than 40 ready themes. 31 of them are shown on this page with photographs of real Eventana setups; the rest are available on request, and custom themes are unlimited."
+          },
+          {
+            "q": "Can I change the colours of a theme?",
+            "a": "Yes. Colours are yours to choose on any theme — you pick them when you book, and the balloon decor and backdrop are built to match."
+          },
+          {
+            "q": "Which themes are most popular for kids birthdays in Dubai?",
+            "a": "Frozen, Barbie, Jungle, Dinosaur, Spider-Man and Mermaid are the most requested. For baby showers the usual choices are Moon and Stars, Butterfly, Bow and Fairy."
+          },
+          {
+            "q": "Are the photos of real parties?",
+            "a": "Yes. Every photograph on this page is from an Eventana setup we delivered. Your final design is tailored to your celebration, so it will resemble the photo rather than copy it exactly."
+          },
+          {
+            "q": "Can I book the same theme outside Dubai?",
+            "a": "Yes. Every theme is available across all seven emirates and Al Ain. The setup is identical; only the delivery fee changes with the emirate."
+          }
+        ]
+      },
+      "ar": {
+        "headline": "ثيمات الحفلات في دبي والإمارات — صور كل الثيمات",
+        "subhead": "أكثر من 40 ثيم جاهز، مشمولة في سعر الباقة. أو نصمّم ثيمك من الصفر.",
+        "includes": [
+          "31 ثيم مصوّرة من تجهيزات إيفنتانا الحقيقية",
+          "كل ثيم جاهز مشمول — بدون رسوم إضافية على الثيم",
+          "الثيمات المخصّصة تُصمَّم من الصفر بدون رسوم",
+          "ألوان الثيم تختارينها أنتِ",
+          "الخلفية وديكور البالونات والتنسيق كلها على الثيم",
+          "التوصيل والتركيب والفك على فريق إيفنتانا"
+        ],
+        "cta": "شوفي الثيمات واحجزي",
+        "title": "ثيمات الحفلات في دبي والإمارات — أكثر من 40 ثيم بالصور | إيفنتانا",
+        "description": "كل ثيمات إيفنتانا بصور حقيقية: فروزن، باربي، الغابة، حورية البحر، الديناصورات، سبايدرمان و30 غيرها. الثيمات مشمولة في سعر الباقة من 2,199 درهم.",
+        "intro": "عند إيفنتانا أكثر من 40 ثيم جاهز، و31 منها مصوّرة تحت من تجهيزات حقيقية نفّذناها في الإمارات. اختيار ثيم جاهز ما يكلّف شيئًا إضافيًا — الثيم جزء من سعر الباقة، اللي يبدأ من 2,199 درهم لليلة السينما ويوصل 5,999 للباقة الذهبية. الثيم يحدّد الخلفية وألوان البالونات وتنسيق الطاولة والإكسسوارات، والباقة تحدّد عدد العناصر ومدّة التجهيز. وإذا ما لقيتِ الثيم اللي تبينه، فريق التصميم يصمّمه من الصفر، وهذا كمان مشمول بدون رسوم — ترسلين صورة مرجعية والألوان، والفريق يبني التصميم على الباقة اللي اخترتيها. أكثر الثيمات طلبًا لأعياد ميلاد الأطفال: فروزن، باربي، الغابة، الديناصورات، سبايدرمان وحورية البحر؛ ولاستقبال المواليد وكشف الجنس: القمر والنجوم، الفراشات، الفيونكة والجنيّات؛ وللبنات الأكبر: الباليرينا والسبا والفراولة. وكل ثيم تقدرين تحجزينه بنفس التجهيز في دبي والشارقة وأبوظبي وعجمان وأم القيوين ورأس الخيمة والفجيرة والعين، مع رسم توصيل يختلف حسب الإمارة.",
+        "faq": [
+          {
+            "q": "هل اختيار الثيم يكلّف زيادة؟",
+            "a": "لا. كل ثيم جاهز مشمول في سعر الباقة، والثيم المخصّص اللي يُصمَّم من الصفر كمان مشمول بدون رسوم. اللي تدفعينه هو الباقة — من 2,199 درهم — مع أي إضافات ورسم التوصيل لإمارتك."
+          },
+          {
+            "q": "وش أسوي إذا ثيمي مو موجود في القائمة؟",
+            "a": "فريق التصميم يبنيه من الصفر بدون رسوم إضافية. ترسلين صورة مرجعية والشخصية أو الفكرة والألوان، ويُصمَّم على الباقة اللي حجزتيها."
+          },
+          {
+            "q": "كم عدد الثيمات؟",
+            "a": "أكثر من 40 ثيم جاهز. 31 منها معروضة في هذه الصفحة بصور من تجهيزات إيفنتانا حقيقية، والباقي متوفّر عند الطلب، والثيمات المخصّصة بلا حدود."
+          },
+          {
+            "q": "أقدر أغيّر ألوان الثيم؟",
+            "a": "نعم. الألوان تختارينها أنتِ في أي ثيم — تحدّدينها وقت الحجز، وديكور البالونات والخلفية يُبنى عليها."
+          },
+          {
+            "q": "أي الثيمات الأكثر طلبًا لأعياد ميلاد الأطفال في دبي؟",
+            "a": "فروزن وباربي والغابة والديناصورات وسبايدرمان وحورية البحر هي الأكثر طلبًا. ولاستقبال المواليد عادةً القمر والنجوم والفراشات والفيونكة والجنيّات."
+          },
+          {
+            "q": "الصور من حفلات حقيقية؟",
+            "a": "نعم. كل صورة في هذه الصفحة من تجهيز نفّذته إيفنتانا. والتصميم النهائي يُفصَّل على مناسبتك، فيشبه الصورة ولا ينسخها حرفيًا."
+          },
+          {
+            "q": "أقدر أحجز نفس الثيم خارج دبي؟",
+            "a": "نعم. كل الثيمات متوفّرة في الإمارات السبع والعين. التجهيز نفسه، واللي يتغيّر هو رسم التوصيل حسب الإمارة."
+          }
         ]
       }
     }

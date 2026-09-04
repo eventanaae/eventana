@@ -59,6 +59,23 @@ const ld = (obj) =>
 const aed = (n) => `AED ${n.toLocaleString('en-US')}`;
 
 /**
+ * Social preview image.
+ *
+ * Every theme photo is already a public Cloudinary asset served to the booking
+ * flow, so reusing one costs no upload and can never drift from what customers
+ * actually see. The default is deliberately a theme that names no licensed
+ * character — it is the picture that represents Eventana on every share.
+ */
+const DEFAULT_IMAGE =
+  themes.find((t) => t.name === 'Moon & Stars')?.image ?? themes[0].image;
+
+const imageFor = (page) => page.image ?? DEFAULT_IMAGE;
+
+/** Cloudinary resizes on the URL, so thumbnails cost a fraction of the full file. */
+const thumb = (url, w) =>
+  url.replace('/image/upload/', `/image/upload/c_fill,w_${w},h_${w},q_auto,f_auto/`);
+
+/**
  * The canonical address of a landing page — note the trailing slash.
  *
  * Each page is written as `dist/<slug>/index.html`. The Render static site
@@ -74,6 +91,9 @@ const aed = (n) => `AED ${n.toLocaleString('en-US')}`;
  * the form that resolves correctly on its own.
  */
 const pageUrl = (slug) => (slug ? `${ORIGIN}/${slug}/` : `${ORIGIN}/`);
+
+/** The one page that carries the full photo gallery. */
+const THEMES_SLUG = 'party-themes-dubai';
 
 /* ------------------------------------------------------------------ */
 /* structured data                                                    */
@@ -117,6 +137,8 @@ const organisation = {
   priceRange: business.priceRangeAed,
   currenciesAccepted: business.currency,
   areaServed: areasServed.map((a) => ({ '@type': 'City', name: a.name })),
+  image: DEFAULT_IMAGE,
+  logo: DEFAULT_IMAGE,
   sameAs: business.sameAs,
   knowsLanguage: ['ar', 'en'],
   description:
@@ -152,6 +174,7 @@ const serviceLd = (page, url) => ({
   serviceType: page.en.headline,
   url,
   provider: { '@id': `${ORIGIN}/#business` },
+  image: imageFor(page),
   areaServed: (page.areaName
     ? [{ '@type': 'City', name: page.areaName }]
     : areasServed.map((a) => ({ '@type': 'City', name: a.name }))),
@@ -251,10 +274,89 @@ const contactBlock = (lang) => {
   return `<h2>${esc(head)}</h2>${body}${hoursLine}${addr}`;
 };
 
-const themeLine = (lang) =>
-  lang === 'ar'
-    ? `<h2>الثيمات</h2><p>أكثر من 40 ثيم جاهز، منها: ${esc(themes.join('، '))}.</p>`
-    : `<h2>Themes</h2><p>More than 40 ready themes, including: ${esc(themes.join(', '))}.</p>`;
+/**
+ * Themes.
+ *
+ * The gallery — 31 real photographs — is emitted only on the themes page. On
+ * every other page the same themes appear as a sentence with a link, because
+ * repeating one image block across fifteen pages reads as duplicate content
+ * and would dilute the page that is meant to rank for theme searches.
+ */
+const themeNames = (lang) =>
+  themes.map((t) => (lang === 'ar' ? t.ar : t.name)).join(lang === 'ar' ? '، ' : ', ');
+
+const themeLine = (lang, page) => {
+  /* On the themes page the photographs are emitted once, in the English
+     section, with bilingual captions — the same 31 files repeated in the
+     Arabic section would be 62 <img> tags pointing at 31 images. The Arabic
+     section names every theme in Arabic instead and points at the grid. */
+  if (page.slug === THEMES_SLUG) {
+    return lang === 'ar'
+      ? `<h2>الثيمات</h2><p>الثيمات الجاهزة بالعربي: ${esc(themeNames('ar'))}. الصور فوق، وكل ثيم منها مشمول في سعر الباقة بدون رسوم إضافية. وإذا ما لقيتِ ثيمك، فريق التصميم يصمّمه من الصفر بدون رسوم.</p>`
+      : themeGallery();
+  }
+  const href = pageUrl(THEMES_SLUG);
+  return lang === 'ar'
+    ? `<h2>الثيمات</h2><p>أكثر من 40 ثيم جاهز بدون رسوم إضافية، منها: ${esc(themeNames('ar'))}. <a href="${href}">شوفي كل الثيمات بالصور</a>. وإذا ما لقيتِ ثيمك، فريق التصميم يصممه من الصفر بدون رسوم.</p>`
+    : `<h2>Themes</h2><p>More than 40 ready themes at no extra charge, including: ${esc(themeNames('en'))}. <a href="${href}">See every theme with photos</a>. If yours isn't listed, our design team builds it from scratch at no extra charge.</p>`;
+};
+
+/**
+ * The gallery as structured data.
+ *
+ * Google Images ranks on the page around a photo as much as on the file, so
+ * naming each theme against its image gives 31 captioned entry points that the
+ * prose alone does not provide.
+ */
+const themeListLd = (url) => ({
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'Eventana party themes',
+  url,
+  numberOfItems: themes.length,
+  itemListElement: themes.map((t, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    item: {
+      '@type': 'ImageObject',
+      name: `${t.name} party theme`,
+      alternateName: t.ar,
+      contentUrl: t.image,
+      caption: `${t.name} themed party setup by Eventana Events in the UAE`,
+      creditText: business.name,
+    },
+  })),
+});
+
+/* The React bundle replaces this markup on hydration; the rule only has to
+   hold for the first paint and for anything that renders HTML without JS. */
+const THEME_GRID_CSS =
+  `<style>.theme-grid{list-style:none;padding:0;display:grid;` +
+  `grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}` +
+  `.theme-grid figure{margin:0}.theme-grid img{width:100%;height:auto;` +
+  `border-radius:12px;display:block}` +
+  `.theme-grid figcaption{font-size:.85rem;padding-top:4px}</style>`;
+
+const themeGallery = () => {
+  const note =
+    `<p>These are photographs of real Eventana setups. Every theme below is ` +
+    `included in the package price at no extra charge, and the final design is ` +
+    `tailored to your celebration.</p>`;
+  const cards = themes
+    .map((t) => {
+      /* The alt text carries both languages because this is the only place the
+         image is described, and the Arabic name is what a customer searches. */
+      const alt = `${t.name} (${t.ar}) themed party setup by Eventana Events in the UAE`;
+      return (
+        `<li><figure>` +
+        `<img src="${esc(thumb(t.image, 600))}" alt="${esc(alt)}" width="600" height="600" loading="lazy" />` +
+        `<figcaption>${esc(t.name)} <span lang="ar" dir="rtl">${esc(t.ar)}</span></figcaption>` +
+        `</figure></li>`
+      );
+    })
+    .join('');
+  return `<h2>Every theme, with photos</h2>${note}<ul class="theme-grid">${cards}</ul>`;
+};
 
 function sectionFor(page, lang) {
   const c = lang === 'ar' ? page.ar : page.en;
@@ -267,7 +369,7 @@ function sectionFor(page, lang) {
     `<h2>${esc(inc)}</h2>${list(c.includes)}`,
     priceTable(lang),
     addOnList(lang),
-    themeLine(lang),
+    themeLine(lang, page),
     areaTable(lang),
     faqBlock(c.faq, faqHead),
     contactBlock(lang),
@@ -293,9 +395,12 @@ function render(page, url) {
     `<meta property="og:url" content="${esc(url)}" />`,
     `<meta property="og:locale" content="en_AE" />`,
     `<meta property="og:locale:alternate" content="ar_AE" />`,
+    `<meta property="og:image" content="${esc(imageFor(page))}" />`,
+    `<meta property="og:image:alt" content="${esc(en.headline)} — Eventana Events" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${esc(en.title)}" />`,
     `<meta name="twitter:description" content="${esc(en.description)}" />`,
+    `<meta name="twitter:image" content="${esc(imageFor(page))}" />`,
     `<meta name="geo.region" content="AE-DU" />`,
     `<meta name="geo.placename" content="Dubai" />`,
     ld(organisation),
@@ -303,6 +408,7 @@ function render(page, url) {
     ld(serviceLd(page, url)),
     ld(faqLd(page)),
     ld(breadcrumbLd(page, url)),
+    ...(page.slug === THEMES_SLUG ? [ld(themeListLd(url)), THEME_GRID_CSS] : []),
   ].join('\n    ');
 
   const body =
@@ -446,7 +552,7 @@ Eventana does not currently serve the Al Gharbia region.
 
 ## Themes
 
-More than 40 ready themes, including ${themes.join(', ')}. Custom colour palettes are also possible.
+More than 40 ready themes, included in the package price at no extra charge. The 31 with photographs are: ${themeNames('en')}. Every theme is at ${pageUrl(THEMES_SLUG)}, and a theme that is not listed is designed from scratch at no extra charge. Colours are chosen by the customer on any theme.
 
 ## Pages
 
