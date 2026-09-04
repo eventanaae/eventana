@@ -300,6 +300,116 @@ export async function previewExpenses(): Promise<{ purchases: number; attachment
   return { purchases, attachments, sample };
 }
 
+/** Our three real methods: Tabby, Tamara, else Debit (no Cash — owner's rule). */
+function labelForQbMethod(name: string | null | undefined): string {
+  const n = (name ?? '').toLowerCase();
+  if (n.includes('tabby')) return 'Tabby';
+  if (n.includes('tamara')) return 'Tamara';
+  return 'Debit';
+}
+
+/**
+ * Read the real payment method for every QuickBooks sales document straight from
+ * QuickBooks. A SalesReceipt carries its own PaymentMethodRef; an Invoice's
+ * method lives on the linked Payment, so we map Payment → its invoices' DocNumbers.
+ * Returns DocNumber → method-name (raw QuickBooks name).
+ */
+async function fetchQbDocMethods(log: (m: string) => void): Promise<Map<string, string>> {
+  const byDoc = new Map<string, string>();
+  // 1) SalesReceipt: method is on the document itself.
+  for (let pos = 1; ; pos += 100) {
+    const q = await qbQuery(`select DocNumber, PaymentMethodRef from SalesReceipt startposition ${pos} maxresults 100`);
+    const rows = q.SalesReceipt ?? [];
+    for (const r of rows) {
+      const doc = String(r.DocNumber ?? '').trim();
+      const m = r.PaymentMethodRef?.name;
+      if (doc && m) byDoc.set(doc, m);
+    }
+    if (rows.length < 100) break;
+  }
+  log(`sales receipts with a method: ${byDoc.size}`);
+  // 2) Invoices are paid via Payment entities — map each Payment's method onto
+  //    the invoice DocNumbers it settled.
+  const invIdToDoc = new Map<string, string>();
+  for (let pos = 1; ; pos += 100) {
+    const q = await qbQuery(`select Id, DocNumber from Invoice startposition ${pos} maxresults 100`);
+    const rows = q.Invoice ?? [];
+    for (const r of rows) if (r.Id && r.DocNumber) invIdToDoc.set(String(r.Id), String(r.DocNumber).trim());
+    if (rows.length < 100) break;
+  }
+  let payMapped = 0;
+  for (let pos = 1; ; pos += 100) {
+    const q = await qbQuery(`select PaymentMethodRef, Line from Payment startposition ${pos} maxresults 100`);
+    const rows = q.Payment ?? [];
+    for (const p of rows) {
+      const m = p.PaymentMethodRef?.name;
+      if (!m) continue;
+      for (const line of p.Line ?? []) {
+        for (const lt of line.LinkedTxn ?? []) {
+          if (lt.TxnType === 'Invoice' && invIdToDoc.has(String(lt.TxnId))) {
+            const doc = invIdToDoc.get(String(lt.TxnId))!;
+            if (!byDoc.has(doc)) { byDoc.set(doc, m); payMapped++; }
+          }
+        }
+      }
+    }
+    if (rows.length < 100) break;
+  }
+  log(`invoice methods via payments: ${payMapped}`);
+  return byDoc;
+}
+
+/** Preview: what payment methods QuickBooks actually holds (logs only). */
+export async function previewReceiptMethods(): Promise<void> {
+  const log = (m: string) => console.log(`[qb-methods] ${m}`);
+  const byDoc = await fetchQbDocMethods(log);
+  const tally = new Map<string, number>();
+  for (const m of byDoc.values()) tally.set(m, (tally.get(m) ?? 0) + 1);
+  log(`distinct QuickBooks payment methods (${tally.size}):`);
+  for (const [name, n] of [...tally.entries()].sort((a, b) => b[1] - a[1])) {
+    log(`   "${name}" → ${labelForQbMethod(name)} · ${n} doc(s)`);
+  }
+  // How many of our receipts would actually get updated.
+  const nums = await pool.query(`SELECT number FROM finance_receipts WHERE source='quickbooks'`);
+  let matched = 0;
+  for (const r of nums.rows) if (byDoc.has(String(r.number).trim())) matched++;
+  log(`our QB receipts: ${nums.rowCount} · matched to a QuickBooks method: ${matched}`);
+}
+
+/** Apply: set finance_receipts.paid_with from the real QuickBooks method. */
+export async function syncReceiptPaymentMethods(): Promise<{ updated: number; matched: number }> {
+  const log = (m: string) => console.log(`[qb-methods] ${m}`);
+  const byDoc = await fetchQbDocMethods(log);
+  const nums = await pool.query<{ number: string }>(`SELECT number FROM finance_receipts WHERE source='quickbooks'`);
+  let updated = 0, matched = 0;
+  for (const r of nums.rows) {
+    const raw = byDoc.get(String(r.number).trim());
+    if (!raw) continue;
+    matched++;
+    const label = labelForQbMethod(raw);
+    const res = await pool.query(
+      `UPDATE finance_receipts SET paid_with=$2 WHERE number=$1 AND paid_with IS DISTINCT FROM $2`,
+      [r.number, label],
+    );
+    updated += res.rowCount ?? 0;
+  }
+  log(`matched ${matched}, updated ${updated} receipt payment method(s)`);
+  return { updated, matched };
+}
+
+/** Boot entry: QB_METHODS=preview logs only; =apply writes the methods. */
+export async function qbMethodsFromEnv(): Promise<void> {
+  const mode = String(process.env.QB_METHODS ?? '').toLowerCase();
+  if (mode !== 'preview' && mode !== 'apply') return;
+  try {
+    if (!quickbooksConfigured()) { console.log('[qb-methods] QuickBooks not connected — skipping.'); return; }
+    if (mode === 'apply') await syncReceiptPaymentMethods();
+    else await previewReceiptMethods();
+  } catch (err) {
+    console.error('[qb-methods] failed:', (err as Error).message);
+  }
+}
+
 // ── Background sync job (one at a time) ──────────────────────────────────────
 type SyncState = {
   running: boolean;

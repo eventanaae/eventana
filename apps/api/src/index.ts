@@ -112,6 +112,10 @@ async function main() {
       const { startExpenseSync } = await import('./domain/quickbooks.js');
       console.log('[qb-sync] boot trigger:', startExpenseSync());
     }
+    // Read the REAL payment method for QuickBooks receipts from QuickBooks itself
+    // (QB_METHODS=preview logs what it finds; =apply writes finance_receipts.paid_with).
+    const { qbMethodsFromEnv } = await import('./domain/quickbooks.js');
+    await qbMethodsFromEnv().catch((err) => console.error('[qb-methods] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
