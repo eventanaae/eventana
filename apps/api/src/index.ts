@@ -93,6 +93,10 @@ async function main() {
     // engine (REASSIGN_ALL=true) — fixes teams assigned by the older logic.
     const { reassignAllFromEnv } = await import('./db/reassignAll.js');
     await reassignAllFromEnv().catch((err) => console.error('[reassign] failed:', err));
+    // Read-only duplicate-events audit (EVENTS_AUDIT=true) — diagnoses the
+    // "same pink card 10+ times on Home" report.
+    const { eventsAuditFromEnv } = await import('./db/eventsAudit.js');
+    await eventsAuditFromEnv().catch((err) => console.error('[events-audit] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {

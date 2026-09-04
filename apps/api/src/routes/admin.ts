@@ -423,8 +423,8 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(
         `SELECT e.id, e.event_date, e.date_tbd, e.start_time, e.base_end_time, e.phase, e.eta,
                 e.emirate, e.celebration_type, c.name AS customer, p.name AS package_name, o.total_fils,
-                COALESCE(th.name, o.cart->>'customTheme') AS theme_name, e.custom_theme,
-                o.cart->>'eventFor' AS "eventFor"
+                COALESCE(th.name, initcap(o.cart->>'customTheme')) AS theme_name, e.custom_theme,
+                initcap(o.cart->>'eventFor') AS "eventFor"
            FROM events e
            JOIN customers c ON c.id = e.customer_id
            JOIN orders o ON o.id = e.order_id

@@ -353,11 +353,19 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     }
   }
 
-  // Event leader — Jane/Dindo on-site if working the event, else Marsha remote.
+  // Event leader — prefer a designated leader (Jane/Dindo) who's actually
+  // working the event; otherwise the first assigned internal crew member on site
+  // (a real person present leads, never a remote coordinator when there IS crew).
+  // Marsha leads remotely ONLY when the whole event is external part-timers.
   let leader: StaffingPlan['leader'] = null;
   for (const name of ONSITE_LEADERS) {
     const st = staff.find((x) => x.name === name && rolesByStaff.has(x.id));
     if (st) { leader = { id: st.id, name: st.name, remote: false }; break; }
+  }
+  if (!leader) {
+    const onsite = assigned.find((a) => a.status === 'assigned' && a.assignee && a.role !== 'driver')
+      ?? assigned.find((a) => a.status === 'assigned' && a.assignee);
+    if (onsite?.assignee) leader = { id: onsite.assignee.id, name: onsite.assignee.name, remote: false };
   }
   if (!leader) {
     const marsha = staff.find((x) => x.name === 'Marsha');
