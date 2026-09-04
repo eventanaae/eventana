@@ -1693,12 +1693,13 @@ export async function adminRoutes(app: FastifyInstance) {
 
   /* ---------------- Expenses & finance (#31) ---------------- */
 
-  // Categories tuned to an events business. Historical expenses may carry older
-  // labels — they still display and aggregate; only new entries use this list.
-  const EXPENSE_CATEGORIES = [
-    'transportation', 'materials', 'printing', 'balloons', 'staff',
-    'entertainment', 'food_beverage', 'rentals', 'marketing', 'maintenance',
-    'salaries', 'rent', 'utilities', 'other',
+  // Fallback account list — used ONLY when no expense has been recorded yet, so
+  // the "Type of expense" dropdown is never empty on a fresh install. Once real
+  // expenses exist, the dropdown is built purely from the accounts actually used
+  // (the real QuickBooks accounts), never from this list.
+  const EXPENSE_CATEGORIES_FALLBACK = [
+    'transportation', 'materials', 'printing', 'staff',
+    'entertainment', 'marketing', 'rent', 'other',
   ] as const;
   const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'cheque', 'other'] as const;
 
@@ -1708,19 +1709,25 @@ export async function adminRoutes(app: FastifyInstance) {
     const q = request.query as { month?: string; search?: string };
     const search = (q.search ?? '').trim();
 
-    // The "Type of expense" list = every account name actually used on an
-    // expense (the real QuickBooks accounts) plus the app's presets, de-duped
-    // case-insensitively so the owner picks from the accounts she really uses.
+    // The "Type of expense" list = ONLY the account names actually used on an
+    // expense (the real QuickBooks accounts), most-used first so the owner's
+    // common accounts sit at the top. No invented/preset accounts are mixed in;
+    // the preset fallback is used only when there are no expenses at all yet.
     const catRows = await pool.query(
-      `SELECT DISTINCT category FROM expenses WHERE category IS NOT NULL AND btrim(category) <> ''`,
+      `SELECT btrim(category) AS category, COUNT(*) AS n
+         FROM expenses
+        WHERE category IS NOT NULL AND btrim(category) <> ''
+        GROUP BY btrim(category)
+        ORDER BY n DESC, lower(btrim(category)) ASC`,
     );
     const seenCat = new Set<string>();
     const categories: string[] = [];
-    for (const c of [...catRows.rows.map((r: any) => String(r.category)), ...EXPENSE_CATEGORIES]) {
+    for (const r of catRows.rows as Array<{ category: string }>) {
+      const c = String(r.category);
       const k = c.toLowerCase();
       if (!seenCat.has(k)) { seenCat.add(k); categories.push(c); }
     }
-    categories.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    if (categories.length === 0) categories.push(...EXPENSE_CATEGORIES_FALLBACK);
 
     if (search) {
       const like = `%${search}%`;
@@ -1759,7 +1766,7 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     return {
       month: monthStr,
-      categories: EXPENSE_CATEGORIES,
+      categories,
       paymentMethods: PAYMENT_METHODS,
       expenses: rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) })),
     };

@@ -930,7 +930,14 @@ function Empty({ children }: { children: ReactNode }) {
 }
 
 const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-const prettyCat = (c: string) => (c || 'other').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+const prettyCat = (c: string) => {
+  const s = (c || 'other').trim();
+  // A real account name (already spaced or capitalised, e.g. a QuickBooks
+  // account) is shown EXACTLY as stored. Only the old snake_case presets
+  // (e.g. "food_beverage") get prettified into Title Case.
+  if (/[A-Z]/.test(s) || /\s/.test(s)) return s;
+  return s.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+};
 
 const input: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, borderRadius: 10, padding: '9px 11px', fontSize: 12.5, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink, marginBottom: 2 };
 const linkBtn: CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: 2 };
