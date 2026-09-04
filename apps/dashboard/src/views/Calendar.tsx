@@ -6,6 +6,21 @@ import { C, Panel, Spinner } from '../ui';
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const pad = (n: number) => String(n).padStart(2, '0');
 
+// Colour each event block by its stage so several events on the same day are
+// distinguishable at a glance (they were all the same pink before).
+const PHASE_COLORS: Record<string, string> = {
+  'Booking Confirmed': '#6C8CFF', // blue
+  'Preparing': '#E8912B',         // amber
+  'Setting Up': '#B06CE0',        // purple
+  'On The Way': '#1FA7A0',        // teal
+  'On Site': '#2E9E6B',           // green
+  'Arrived': '#2E9E6B',
+  'In Progress': '#2E9E6B',
+  'Event Completed': '#9A8FA0',   // grey
+};
+const phaseColor = (phase: string): string =>
+  phase === 'Cancelled' ? C.red : (PHASE_COLORS[phase] ?? C.pink);
+
 const navBtn: CSSProperties = {
   border: `1px solid ${C.line}`,
   background: '#fff',
@@ -150,7 +165,7 @@ export function Calendar({ onOpenEvent }: { onOpenEvent: (id: string) => void })
                     fontSize: 9.5,
                     fontWeight: 700,
                     color: '#fff',
-                    background: e.phase === 'Cancelled' ? C.red : C.pink,
+                    background: phaseColor(e.phase),
                     borderRadius: 6,
                     padding: '2px 5px',
                     marginBottom: 2,
