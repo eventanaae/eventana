@@ -342,7 +342,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               {data.event.custom_theme && (
                 <DesignPanel eventId={eventId} designs={data.designs ?? []} onChange={load} />
               )}
-              {!moneyHidden && data.event.phase !== 'Cancelled' && <StaffingPanel eventId={eventId} />}
+              {!moneyHidden && data.event.phase !== 'Cancelled' && <StaffingPanel eventId={eventId} onChange={load} />}
 
               {/* Everyone on the job sees who's on the crew and who the Event
                   Leader is — the Leader is the one who updates status & messages. */}
@@ -797,7 +797,7 @@ const ROLE_LABEL: Record<string, string> = {
  * any slot still needing a part-timer. The manager types the part-timer's name
  * to confirm it, or overrides any slot with an internal member.
  */
-function StaffingPanel({ eventId }: { eventId: string }) {
+function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () => void }) {
   const [plan, setPlan] = useState<any[] | null>(null);
   const [crew, setCrew] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
@@ -821,6 +821,10 @@ function StaffingPanel({ eventId }: { eventId: string }) {
     setPlan(p);
     setManual(m);
     setCrew(c);
+    // Also refresh the parent drawer's "Team for this event" summary, which reads
+    // event.team separately — otherwise a manual pick / re-assign here wouldn't
+    // show up there until the whole drawer is reopened.
+    onChange?.();
   };
   useEffect(() => { load(); }, [eventId]);
 
