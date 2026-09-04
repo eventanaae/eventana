@@ -89,6 +89,14 @@ async function main() {
     // Title-case every name across the system (NORMALIZE_NAMES=true). Idempotent.
     const { normalizeNamesFromEnv } = await import('./db/normalizeNames.js');
     await normalizeNamesFromEnv().catch((err) => console.error('[names] failed:', err));
+    // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
+    // =true) — a live snapshot to the owner + Marsha on request.
+    if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
+      const now = new Date();
+      const m = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const { sendReconReport } = await import('./domain/reconReport.js');
+      await sendReconReport(m).then((r) => console.log(`[recon-report] on-demand sent to ${r.sent} recipient(s)`)).catch((err) => console.error('[recon-report] on-demand failed:', err));
+    }
     // Self-heal: clear any prep_issue alert whose task is no longer an issue, so a
     // resolved/completed task never keeps showing as an open problem. Idempotent.
     const { clearResolvedPrepIssueAlerts } = await import('./domain/prep.js');
