@@ -14,6 +14,9 @@ import { loadConfig } from './settings.js';
 export type Skill =
   | 'balloon_artist' | 'clown' | 'face_painting' | 'helper'
   | 'balloon_twisting' | 'acrobat_clown' | 'design' | 'staff' | 'driver'
+  // Glam Dolls — external dancers who hype the party; one per doll booked,
+  // always a typed part-timer (never auto-assigned internally).
+  | 'performer'
   // A part-time (external) driver other than Shan — always filled by a typed
   // name, never auto-assigned internally.
   | 'pt_driver';
@@ -110,6 +113,7 @@ function serviceReqs(s: ServiceInput): RoleReq[] {
   else if (id === 'clown' || /acrobat/i.test(s.name)) push('acrobat_clown', 1, 'Acrobat Clown (part-time only)', { partTimeOnly: true });
   else if (id === 'twisting' || /twist/i.test(s.name)) push('balloon_twisting', 1, 'Balloon Twisting service');
   else if (id === 'mascot' || /mascot/i.test(s.name)) push('helper', 1, 'Mascot character needs a helper');
+  else if (id === 'glamdolls' || /glam/i.test(s.name)) push('performer', qty, `${qty} Glam Doll(s) — 1 performer each`, { partTimeOnly: true });
   // Food stations — one helper each, running concurrently.
   else if (s.isFoodStation || cat === 'food') push('helper', qty, `${qty} food station(s) — 1 helper each`);
   // Inflatables — two staff each.
@@ -241,7 +245,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     const role = m.role as Skill;
     // A part-time driver (and the acrobat clown) is never staffed internally —
     // it's emitted as a part-time slot for the team to fill with a typed name.
-    const partTimeOnly = role === 'pt_driver' || role === 'acrobat_clown';
+    const partTimeOnly = role === 'pt_driver' || role === 'acrobat_clown' || role === 'performer';
     reqs.push({
       role,
       count: Number(m.count) || 1,
@@ -292,7 +296,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   const rolesByStaff = new Map<string, Set<Skill>>();
 
   const canTake = (st: StaffRow, role: Skill): boolean => {
-    if (role === 'acrobat_clown') return false;      // part-time only
+    if (role === 'acrobat_clown' || role === 'performer') return false;      // part-time only
     if (role === 'design') return st.skills.has('design');
     if (st.name === 'Marsha') return false;          // remote only, no on-site work
     const held = rolesByStaff.get(st.id);
@@ -318,12 +322,12 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   for (const req of reqs) for (let i = 0; i < req.count; i++) slots.push({ ...req, slot: i + 1 });
   const onsite = staff.filter((st) => st.name !== 'Marsha');
   const supplyOf = (role: Skill): number => {
-    if (role === 'acrobat_clown') return 0;                         // part-time only
+    if (role === 'acrobat_clown' || role === 'performer') return 0; // part-time only
     if (role === 'design') return staff.filter((st) => st.skills.has('design')).length;
     if (role === 'staff') return onsite.filter((st) => [...st.skills].some((s) => s !== 'driver')).length;
     return onsite.filter((st) => st.skills.has(role)).length;
   };
-  const tie: Skill[] = ['face_painting', 'balloon_twisting', 'balloon_artist', 'clown', 'helper', 'staff', 'driver', 'acrobat_clown', 'design'];
+  const tie: Skill[] = ['face_painting', 'balloon_twisting', 'balloon_artist', 'clown', 'helper', 'staff', 'driver', 'acrobat_clown', 'performer', 'design'];
   slots.sort((a, b) => (supplyOf(a.role) - supplyOf(b.role)) || (tie.indexOf(a.role) - tie.indexOf(b.role)));
 
   const assigned: AssignedSlot[] = [];

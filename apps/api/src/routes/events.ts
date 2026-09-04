@@ -700,7 +700,7 @@ export async function eventRoutes(app: FastifyInstance) {
             const LABEL: Record<string, string> = {
               leader: 'Event Leader', balloon_artist: 'Balloon Décor Artist', clown: 'Entertainer',
               face_painting: 'Face Painter', helper: 'Party Star', balloon_twisting: 'Balloon Magician',
-              staff: 'Party Crew', acrobat_clown: 'Acrobat Entertainer',
+              staff: 'Party Crew', acrobat_clown: 'Acrobat Entertainer', performer: 'Glam Doll',
             };
             // The event leader, designer and driver are internal roles — never
             // surfaced to the customer.
