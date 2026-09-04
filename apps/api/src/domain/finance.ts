@@ -675,8 +675,12 @@ export async function importReceiptsFromHistory() {
     if (!groups.has(key)) groups.set(key, { customer: r.customer_name || 'Customer', date: String(r.txn_date).slice(0, 10), lines: [] });
     groups.get(key)!.lines.push(r);
   }
+  // Numbers the owner deleted on purpose — never re-create them.
+  const deletedR = await pool.query(`SELECT number FROM finance_deleted_docs WHERE doc_type = 'receipt'`);
+  const deletedRSet = new Set(deletedR.rows.map((r: any) => String(r.number)));
   let inserted = 0;
   for (const [doc, g] of groups) {
+    if (deletedRSet.has(doc)) continue;
     const items: LineItem[] = [];
     let discount = 0, shipping = 0;
     for (const l of g.lines) {
@@ -720,8 +724,12 @@ export async function reconcileInvoicesFromHistory() {
     if (!groups.has(key)) groups.set(key, { customer: r.customer_name || 'Customer', date: String(r.date).slice(0, 10), lines: [] });
     groups.get(key)!.lines.push(r);
   }
+  // Numbers the owner deleted on purpose — never re-create them.
+  const deleted = await pool.query(`SELECT number FROM finance_deleted_docs WHERE doc_type = 'invoice'`);
+  const deletedSet = new Set(deleted.rows.map((r: any) => String(r.number)));
   let invoices = 0, removedReceipts = 0;
   for (const [doc, g] of groups) {
+    if (deletedSet.has(doc)) continue;
     const items: LineItem[] = [];
     let discount = 0, shipping = 0;
     for (const l of g.lines) {
@@ -779,6 +787,13 @@ export async function listReceipts(role?: string) {
 }
 
 export async function deleteReceipt(id: number) {
+  // Tombstone the number first so the QuickBooks re-import never re-creates it.
+  await pool.query(
+    `INSERT INTO finance_deleted_docs (number, doc_type)
+       SELECT number, 'receipt' FROM finance_receipts WHERE id = $1
+     ON CONFLICT (number, doc_type) DO NOTHING`,
+    [id],
+  );
   await pool.query(`DELETE FROM finance_receipts WHERE id = $1`, [id]);
   return { deleted: true };
 }
@@ -855,6 +870,13 @@ export async function updateInvoice(id: number, d: DocInput & { dueDate?: string
 }
 
 export async function deleteInvoice(id: number) {
+  // Tombstone the number first so the QuickBooks re-import never re-creates it.
+  await pool.query(
+    `INSERT INTO finance_deleted_docs (number, doc_type)
+       SELECT number, 'invoice' FROM finance_invoices WHERE id = $1
+     ON CONFLICT (number, doc_type) DO NOTHING`,
+    [id],
+  );
   await pool.query(`DELETE FROM finance_invoices WHERE id = $1`, [id]);
   return { deleted: true };
 }

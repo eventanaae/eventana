@@ -954,6 +954,17 @@ CREATE TABLE IF NOT EXISTS invoice_payments (
   amount_fils BIGINT NOT NULL,
   applied_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Finance documents the owner deliberately DELETED. The QuickBooks history
+-- re-import (reconcileInvoicesFromHistory / importReceiptsFromHistory) runs on
+-- every boot and would otherwise re-create them from the source data. It skips
+-- any (number, doc_type) listed here, so a deleted invoice/receipt stays gone.
+CREATE TABLE IF NOT EXISTS finance_deleted_docs (
+  number     TEXT NOT NULL,
+  doc_type   TEXT NOT NULL,           -- 'invoice' | 'receipt'
+  deleted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (number, doc_type)
+);
 -- Party details echoed on the invoice (mirrors finance_receipts).
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS event_for TEXT;
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS theme TEXT;
