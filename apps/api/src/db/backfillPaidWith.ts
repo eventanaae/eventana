@@ -48,6 +48,20 @@ export async function backfillPaidWithFromEnv(): Promise<void> {
       const needs = !r.has_order ? ' ← MANUAL (confirm method)' : '';
       console.log(`[paid-with]   R#${r.number} ${r.date} "${r.customer_name}" paid_with=${r.paid_with ?? '—'} (${r.source ?? '—'})${needs}`);
     }
+
+    // Numbering continuity check: where QuickBooks stopped vs where we are now.
+    const num = await pool.query(`
+      SELECT
+        (SELECT MAX(number::bigint) FROM finance_receipts WHERE source='quickbooks' AND number ~ '^[0-9]+$') AS qb_max_receipt,
+        (SELECT MAX(number::bigint) FROM finance_receipts WHERE number ~ '^[0-9]+$')                          AS max_receipt,
+        (SELECT COUNT(*) FROM finance_receipts WHERE source='quickbooks')                                     AS qb_receipts,
+        (SELECT last_value FROM finance_receipt_seq)                                                          AS receipt_seq,
+        (SELECT MAX(number::bigint) FROM finance_invoices WHERE source='quickbooks' AND number ~ '^[0-9]+$')  AS qb_max_invoice,
+        (SELECT MAX(number::bigint) FROM finance_invoices WHERE number ~ '^[0-9]+$')                          AS max_invoice,
+        (SELECT last_value FROM finance_invoice_seq)                                                          AS invoice_seq,
+        (SELECT COUNT(*) FROM (SELECT number FROM finance_receipts GROUP BY number HAVING COUNT(*)>1) d)      AS dup_receipt_numbers
+    `);
+    console.log(`[paid-with] NUMBERING ${JSON.stringify(num.rows[0])}`);
   } catch (e) {
     console.error('[paid-with] failed:', (e as Error).message);
   }
