@@ -376,7 +376,8 @@
     },
     {
       "slug": "corporate-events",
-      "celebrationType": "adult",
+      "_celebrationTypeNote": "customc, not adult. The page offers entertainers, inflatables and activity sessions, and those three categories are only sold under 'kids' and 'customc' — under 'adult' a visitor arriving from this page could not book what it advertises.",
+      "celebrationType": "customc",
       "priority": "0.8",
       "priceFromAed": 1500,
       "en": {
@@ -988,7 +989,7 @@
           },
           {
             "q": "كم عدد الثيمات؟",
-            "a": "40 ثيم جاهز. 31 منها معروضة في هذه الصفحة بصور من تجهيزات إيفنتانا حقيقية، والباقي متوفّر عند الطلب، والثيمات المخصّصة بلا حدود."
+            "a": "أربعون ثيمًا جاهزًا، وكلها لأعياد ميلاد الأطفال. 31 منها معروضة في هذه الصفحة بصور من تجهيزات إيفنتانا حقيقية، والتسعة الباقية متوفّرة عند الطلب لكن بدون صورة لين الحين. والثيمات المخصّصة بلا حدود، وهي الطريقة اللي تاخذ فيها بقية المناسبات ثيمها."
           },
           {
             "q": "أقدر أغيّر ألوان الثيم؟",
