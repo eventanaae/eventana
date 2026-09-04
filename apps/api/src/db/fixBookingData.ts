@@ -121,11 +121,13 @@ export async function fixBookingDataFromEnv(): Promise<void> {
     await setCustomerField('EV-2026-0206', 'backup_phone', '0551515154');
   });
 
-  // 3) Bashayer Alyammahi — owner-confirmed date 4 Sep 2026, 6:00–10:00 PM.
-  //    System had 13 Sep, 5–9 PM. Baby Aouf. +2nd phone. Suppress auto-sends
-  //    (the date now lands on/near today — the owner re-sends deliberately).
+  // 3) Bashayer Alyammahi — EVENT date is the 13th (she BOOKED today, 4 Sep;
+  //    booking-date ≠ event-date). A prior run wrongly moved it to 4 Sep — this
+  //    restores the 13th and sets the booked 6:00–10:00 PM time. Baby Aouf,
+  //    +2nd phone. Suppress auto-sends so nothing fires from the correction.
+  //    NOTE: month is 09 pending the owner's Sep-vs-Nov confirmation.
   await run('bashayer', async () => {
-    await moveDateTime('EV-2026-0207', '2026-09-04', '18:00', '22:00');
+    await moveDateTime('EV-2026-0207', '2026-09-13', '18:00', '22:00');
     await setBaby('EV-2026-0207', 'Aouf');
     await setCustomerField('EV-2026-0207', 'backup_phone', '0502995775');
     await suppressCustomerNotifs('EV-2026-0207');
