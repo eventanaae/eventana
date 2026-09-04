@@ -112,58 +112,84 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
   };
 }
 
+// Approved Eventana email identity (matches the branded booking/receipt emails
+// in notify.ts): hosted logo, pastel-rainbow strip, soft-pink ground, plum ink.
+const BRAND = '#EF5D95';
+const INK = '#4A3540';
+const MUTED = '#9B8A94';
+const GROUND = '#FBEAF2';
+const PANEL = '#FCEEF6';
+const HAIR = '#F4DDEC';
+const RAINBOW = 'linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0)';
+const DISPLAY = "'Fredoka','Baloo 2','Segoe UI',Arial,sans-serif";
+
 function buildHtml(s: Summary): string {
+  // Big headline metric rows (label left, value right).
   const row = (label: string, value: string, color?: string) =>
-    `<tr><td style="padding:8px 0;color:#6b6069;font-weight:600">${label}</td>
-     <td style="padding:8px 0;text-align:right;font-weight:800;color:${color ?? '#3B3641'}">${value}</td></tr>`;
-  // A ranked mini-list (top items / emirates / expenses): "name" left, value right.
+    `<tr><td style="padding:11px 18px;color:${MUTED};font-size:13.5px;border-bottom:1px solid ${HAIR}">${label}</td>
+     <td style="padding:11px 18px;text-align:right;font-weight:700;font-size:14.5px;color:${color ?? INK};border-bottom:1px solid ${HAIR}">${value}</td></tr>`;
+  // A ranked mini-card (top items / emirates / expenses).
   const rankList = (title: string, rows: Array<{ left: string; right: string }>) =>
     rows.length
-      ? `<div style="margin-top:18px;font-weight:700;font-size:13px;color:#6b6069">${title}</div>
-         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:6px">${rows
+      ? `<div style="margin-top:22px;font-family:${DISPLAY};font-weight:700;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:${BRAND}">${title}</div>
+         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PANEL};border:1px solid ${HAIR};border-radius:14px;margin-top:8px">${rows
            .map(
              (r, i) =>
-               `<tr><td style="padding:4px 0;color:#8b7d84">${i + 1}. ${r.left}</td>
-                <td style="padding:4px 0;text-align:right;font-weight:700">${r.right}</td></tr>`,
+               `<tr><td style="padding:9px 16px;color:${INK};font-size:13px;${i < rows.length - 1 ? `border-bottom:1px solid ${HAIR}` : ''}">${i + 1}. ${r.left}</td>
+                <td style="padding:9px 16px;text-align:right;font-weight:700;font-size:13px;color:${INK};${i < rows.length - 1 ? `border-bottom:1px solid ${HAIR}` : ''}">${r.right}</td></tr>`,
            )
            .join('')}</table>`
       : '';
-  // The target is on REVENUE — what's left after expenses (total amount minus
-  // expenses) — NOT on gross sales. One banner covers all three cases the owner
-  // wants called out: target reached, below target, or an outright loss.
+  // The target is on REVENUE — what's left after expenses — NOT gross sales.
   const revenue = s.revenueFils - s.expensesFils;
   const gap = MONTHLY_TARGET_FILS - revenue;
   const banner = (bg: string, fg: string, text: string) =>
-    `<div style="margin:14px 0 0;padding:12px 14px;border-radius:12px;font-weight:800;font-size:13.5px;background:${bg};color:${fg}">${text}</div>`;
+    `<div style="margin:18px 0 0;padding:13px 16px;border-radius:14px;font-weight:700;font-size:13.5px;line-height:1.5;background:${bg};color:${fg}">${text}</div>`;
   const targetBanner =
     revenue < 0
-      ? banner('#fdecea', '#b3261e',
+      ? banner('#FDE7EA', '#B3261E',
           `⚠️ Loss this month — revenue was −AED ${formatAed(-revenue)} after expenses (AED ${formatAed(gap)} below the AED ${formatAed(MONTHLY_TARGET_FILS)} revenue target)`)
       : revenue >= MONTHLY_TARGET_FILS
-        ? banner('#e9f7f1', '#1f7a5c',
+        ? banner('#E4F6EE', '#1F7A5C',
             `🎯 Target reached — AED ${formatAed(revenue)} revenue vs the AED ${formatAed(MONTHLY_TARGET_FILS)} target`)
-        : banner('#fff4e5', '#b26a00',
+        : banner('#FFF3E0', '#B26A00',
             `🎯 Below target — AED ${formatAed(revenue)} revenue, AED ${formatAed(gap)} short of the AED ${formatAed(MONTHLY_TARGET_FILS)} target`);
-  const lossBanner = '';
-  return `<div style="max-width:560px;margin:0 auto;font-family:Segoe UI,Arial,sans-serif;background:#faf6f2;padding:24px">
-    <div style="text-align:center;padding:8px 0 16px"><span style="font-size:22px;font-weight:800;color:#E94F9C">Eventana</span></div>
-    <div style="background:#fff;border-radius:18px;padding:26px 24px;color:#3B3641">
-      <h2 style="margin:0 0 4px">Monthly report</h2>
-      <div style="color:#b3a8a0;font-weight:700;margin-bottom:18px">${monthLabel(s.month)}</div>
-      <table style="width:100%;border-collapse:collapse;font-size:15px">
-        ${row('Orders', String(s.ordersCount))}
-        ${row('Total amount', `AED ${formatAed(s.revenueFils)}`, '#2e9e7e')}
-        ${row('Expenses', `AED ${formatAed(s.expensesFils)}`, '#F06C6C')}
-        ${row('Tips collected (to staff)', `AED ${formatAed(s.tipsFils)}`)}
-      </table>
-      ${targetBanner}
-      ${lossBanner}
-      ${rankList('Top 5 most requested', s.topItems.map((t) => ({ left: t.name, right: `${t.count}×` })))}
-      ${rankList('Top 3 emirates', s.topEmirates.map((e) => ({ left: e.emirate, right: `${e.count} order${e.count === 1 ? '' : 's'}` })))}
-      ${rankList('Top 3 expenses', s.byCategory.map((c) => ({ left: c.category, right: `AED ${formatAed(c.amountFils)}` })))}
-      <p style="color:#b3a8a0;font-size:12px;margin-top:22px">Automated report from your Eventana dashboard.</p>
-    </div>
-  </div>`;
+  const logo = config.emailLogoUrl
+    ? `<img src="${config.emailLogoUrl}" alt="Eventana Events" width="210" style="display:inline-block;width:210px;max-width:70%;height:auto">`
+    : `<div style="font-family:${DISPLAY};font-size:28px;font-weight:700;color:${BRAND}">Eventana</div>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet"></head>
+  <body style="margin:0;padding:0;background:${GROUND};font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:${INK}">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${GROUND}">
+      <tr><td align="center" style="padding:30px 16px 44px">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
+          <tr><td style="text-align:center;padding:2px 0 22px">${logo}</td></tr>
+          <tr><td style="background:#ffffff;border-radius:26px;overflow:hidden;border:1px solid #F6E4EF;box-shadow:0 10px 34px rgba(214,49,127,.10)">
+            <div style="height:7px;background:${BRAND};background:${RAINBOW}"></div>
+            <div style="padding:30px 28px 34px">
+              <div style="text-align:center;font-size:40px;line-height:1;margin-bottom:8px">📊</div>
+              <div style="text-align:center;font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:6px">Monthly report</div>
+              <h1 style="margin:0 0 20px;text-align:center;font-family:${DISPLAY};font-size:24px;font-weight:700;color:${INK}">${monthLabel(s.month)}</h1>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PANEL};border:1px solid ${HAIR};border-radius:16px">
+                ${row('Orders', String(s.ordersCount))}
+                ${row('Total amount', `AED ${formatAed(s.revenueFils)}`, '#1F7A5C')}
+                ${row('Expenses', `AED ${formatAed(s.expensesFils)}`, '#D24B6E')}
+                ${row('Tips collected (to staff)', `AED ${formatAed(s.tipsFils)}`)}
+              </table>
+              ${targetBanner}
+              ${rankList('Top 5 most requested', s.topItems.map((t) => ({ left: t.name, right: `${t.count}×` })))}
+              ${rankList('Top 3 emirates', s.topEmirates.map((e) => ({ left: e.emirate, right: `${e.count} order${e.count === 1 ? '' : 's'}` })))}
+              ${rankList('Top 3 expenses (excl. wages)', s.byCategory.map((c) => ({ left: c.category, right: `AED ${formatAed(c.amountFils)}` })))}
+            </div>
+          </td></tr>
+          <tr><td style="text-align:center;color:#b8a6b0;font-size:11.5px;padding:24px 12px 0;line-height:1.8">
+            Eventana Events · Abu Dhabi &amp; Dubai, UAE<br>
+            Automated monthly report from your Eventana dashboard. 💛
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body></html>`;
 }
 
 async function recipients(): Promise<string[]> {
