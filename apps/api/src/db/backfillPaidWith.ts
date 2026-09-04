@@ -32,6 +32,22 @@ export async function backfillPaidWithFromEnv(): Promise<void> {
          AND (r.paid_with IS NULL OR r.paid_with = 'Card')
     `);
     console.log(`[paid-with] backfilled ${rowCount ?? 0} receipt(s) with the real provider`);
+
+    // List the recent (post-migration) receipts + their current method, flagging
+    // the manual ones (no linked order/payment) whose method may need the owner
+    // to confirm — those can't be auto-derived.
+    const { rows } = await pool.query(`
+      SELECT number, to_char(date,'YYYY-MM-DD') AS date, customer_name, paid_with,
+             source, (order_id IS NOT NULL) AS has_order
+        FROM finance_receipts
+       WHERE COALESCE(source,'') <> 'quickbooks'
+       ORDER BY id DESC LIMIT 30
+    `);
+    console.log(`[paid-with] recent non-QuickBooks receipts: ${rows.length}`);
+    for (const r of rows) {
+      const needs = !r.has_order ? ' ← MANUAL (confirm method)' : '';
+      console.log(`[paid-with]   R#${r.number} ${r.date} "${r.customer_name}" paid_with=${r.paid_with ?? '—'} (${r.source ?? '—'})${needs}`);
+    }
   } catch (e) {
     console.error('[paid-with] failed:', (e as Error).message);
   }
