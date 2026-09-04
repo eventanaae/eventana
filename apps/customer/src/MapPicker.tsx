@@ -6,6 +6,30 @@ type Pin = { lat: number; lng: number };
 /** UAE centre (Dubai) — the initial view before the customer places a pin. */
 const UAE_CENTER: Pin = { lat: 25.2048, lng: 55.2708 };
 
+/** A bare "lat, lng" a customer might paste from a phone. Bounded to sane ranges. */
+function parseLatLng(s: string): Pin | null {
+  const m = s.trim().match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]);
+  const lng = parseFloat(m[2]);
+  if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
+  return null;
+}
+
+/** Pull coordinates out of a full (non-shortened) Google Maps link. */
+function coordsFromMapsUrl(s: string): Pin | null {
+  // .../@25.11,55.20,17z
+  let m = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  // place data blob: !3d<lat>!4d<lng>
+  m = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  // ?q=lat,lng  / query= / ll= / destination= / center=
+  m = s.match(/[?&](?:q|query|ll|destination|center|daddr)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  return null;
+}
+
 /**
  * Google calls `window.gm_authFailure` when it rejects the key at runtime
  * (referrer restriction, billing, or a stripped Referer header on some mobile
@@ -58,18 +82,27 @@ export function MapPicker({
   mapsKey,
   value,
   onChange,
+  lang = 'ar',
 }: {
   mapsKey: string | null;
   value: Pin | null;
   onChange: (pin: Pin, address?: string) => void;
+  lang?: 'ar' | 'en';
 }) {
+  const ar = lang === 'ar';
   const boxRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const geocoderRef = useRef<any>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  // The free-text resolver is built inside the map effect (it needs the live
+  // map + geocoder + commit in scope); the search box calls it through this ref.
+  const resolveRef = useRef<(raw: string) => void>();
   const [status, setStatus] = useState<'loading' | 'ready' | 'nokey' | 'error'>('loading');
   const [address, setAddress] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [searchErr, setSearchErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +161,65 @@ export function MapPicker({
             if (map.getZoom() < 15) map.setZoom(16);
             commit({ lat: e.latLng.lat(), lng: e.latLng.lng() });
           });
+
+          // ---- Search + paste-a-location -------------------------------------
+          // Typeahead over UAE places (Places Autocomplete), plus a resolver for
+          // anything the customer pastes: a Google Maps link, a Plus Code, or a
+          // raw "lat,lng". This is how most people share a villa location here.
+          if (searchRef.current && google.maps.places?.Autocomplete) {
+            const ac = new google.maps.places.Autocomplete(searchRef.current, {
+              fields: ['geometry'],
+              componentRestrictions: { country: 'ae' },
+            });
+            ac.addListener('place_changed', () => {
+              const loc = ac.getPlace()?.geometry?.location;
+              if (loc) {
+                if (map.getZoom() < 15) map.setZoom(16);
+                commit({ lat: loc.lat(), lng: loc.lng() });
+                if (!cancelled) setSearchErr(null);
+              }
+            });
+          }
+
+          resolveRef.current = (raw: string) => {
+            const v = raw.trim();
+            if (!v) return;
+            // 1) a raw "lat, lng"
+            let pin = parseLatLng(v);
+            // 2) a full Google Maps link
+            if (!pin && /https?:\/\//i.test(v)) pin = coordsFromMapsUrl(v);
+            if (pin) {
+              if (map.getZoom() < 15) map.setZoom(16);
+              commit(pin);
+              setSearchErr(null);
+              return;
+            }
+            // 3) shortened Maps links redirect server-side; the browser can't
+            //    follow them (CORS), so ask for the full address or code.
+            if (/(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(v)) {
+              setSearchErr(ar
+                ? 'الرابط المختصر ما يفتح هنا — افتحيه ثم انسخي العنوان أو الكود الكامل'
+                : 'Short links can’t open here — open it, then paste the full address or code');
+              return;
+            }
+            // 4) a Plus Code or a plain address/area name → geocode it.
+            setSearchBusy(true);
+            geocoder.geocode({ address: v, region: 'AE' }, (res: any[], st: string) => {
+              if (cancelled) return;
+              setSearchBusy(false);
+              const loc = st === 'OK' && res?.[0]?.geometry?.location;
+              if (loc) {
+                if (map.getZoom() < 15) map.setZoom(16);
+                commit({ lat: loc.lat(), lng: loc.lng() });
+                setSearchErr(null);
+              } else {
+                setSearchErr(ar
+                  ? 'ما لقينا الموقع — جرّبي اسم المنطقة أو ثبّتي الدبوس يدوياً'
+                  : 'Location not found — try the area name or drop the pin manually');
+              }
+            });
+          };
+
           // Remeasure/repaint once the first tiles settle, then again shortly
           // after — corrects a layer measured mid-animation or mid-scroll.
           google.maps.event.addListenerOnce(map, 'idle', () => {
@@ -200,13 +292,66 @@ export function MapPicker({
           cursor: 'pointer',
         }}
       >
-        {value ? `✓ Location set · ${value.lat.toFixed(4)}, ${value.lng.toFixed(4)}` : '📍 Tap to set your event location'}
+        {value
+          ? `✓ ${ar ? 'تم تحديد الموقع' : 'Location set'} · ${value.lat.toFixed(4)}, ${value.lng.toFixed(4)}`
+          : (ar ? '📍 اضغطي لتحديد موقع الحفلة' : '📍 Tap to set your event location')}
       </button>
     );
   }
 
   return (
     <div>
+      {/* Search an area, or paste a Maps link / Plus Code / coordinates. */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <input
+          ref={searchRef}
+          type="text"
+          dir={ar ? 'rtl' : 'ltr'}
+          placeholder={ar ? 'ابحثي عن المنطقة أو الصقي رابط/كود الموقع' : 'Search area, or paste a Maps link / code'}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              resolveRef.current?.((e.target as HTMLInputElement).value);
+            }
+          }}
+          disabled={status !== 'ready'}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: `1px solid ${C.pinkLine}`,
+            borderRadius: 10,
+            padding: '9px 12px',
+            fontSize: 12.5,
+            fontWeight: 600,
+            color: C.ink,
+            background: '#fff',
+            outline: 'none',
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => resolveRef.current?.(searchRef.current?.value ?? '')}
+          disabled={status !== 'ready' || searchBusy}
+          style={{
+            border: 'none',
+            background: C.pink,
+            color: '#fff',
+            borderRadius: 10,
+            padding: '0 15px',
+            fontWeight: 800,
+            fontSize: 12.5,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {searchBusy ? '…' : (ar ? 'انتقلي' : 'Go')}
+        </button>
+      </div>
+      {searchErr && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#d0453f', marginBottom: 6, lineHeight: 1.4 }}>
+          {searchErr}
+        </div>
+      )}
       <div
         ref={boxRef}
         style={{
@@ -243,14 +388,14 @@ export function MapPicker({
             whiteSpace: 'nowrap',
           }}
         >
-          {locating ? 'Locating…' : '📍 Use my location'}
+          {locating ? (ar ? 'جاري التحديد…' : 'Locating…') : (ar ? '📍 موقعي الحالي' : '📍 Use my location')}
         </button>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.35 }}>
           {status === 'loading'
-            ? 'Loading map…'
+            ? (ar ? 'جاري تحميل الخريطة…' : 'Loading map…')
             : value
-              ? (address ?? `Pin set · ${value.lat.toFixed(4)}, ${value.lng.toFixed(4)}`)
-              : 'Tap the map or drag the pin to your exact event spot'}
+              ? (address ?? `${ar ? 'تم التحديد' : 'Pin set'} · ${value.lat.toFixed(4)}, ${value.lng.toFixed(4)}`)
+              : (ar ? 'اضغطي على الخريطة أو اسحبي الدبوس لموقع الحفلة بالضبط' : 'Tap the map or drag the pin to your exact event spot')}
         </div>
       </div>
     </div>

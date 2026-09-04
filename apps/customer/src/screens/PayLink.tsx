@@ -192,6 +192,7 @@ export function PayLink({
         <MapPicker
           mapsKey={mapsKey}
           value={pin}
+          lang={ar ? 'ar' : 'en'}
           onChange={(p, addr) => { setPin(p); if (addr && !street) setStreet(addr); }}
         />
 

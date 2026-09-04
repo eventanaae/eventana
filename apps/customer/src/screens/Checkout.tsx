@@ -441,6 +441,7 @@ export function Checkout({
           <MapPicker
             mapsKey={catalogue.mapsKey}
             value={draft.mapPin}
+            lang={lang}
             onChange={(pin, addr) =>
               update({
                 mapPin: pin,
