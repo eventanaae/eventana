@@ -58,6 +58,14 @@ export async function phoneMaintenanceFromEnv(): Promise<void> {
 
     if (mode === 'clean+email' && review.length > 0) {
       if (!emailEnabled()) { console.log('[phone-fix] email disabled — not sending to Marsha.'); return; }
+      // Only email Marsha once per day, so repeated boots/deploys don't spam her.
+      const guard = await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('phone.marshaEmailedOn', to_char(now(),'YYYY-MM-DD'))
+         ON CONFLICT (key) DO UPDATE SET value = to_char(now(),'YYYY-MM-DD')
+         WHERE settings.value IS DISTINCT FROM to_char(now(),'YYYY-MM-DD')
+         RETURNING key`,
+      );
+      if (guard.rowCount === 0) { console.log('[phone-fix] Marsha already emailed today — skipping.'); return; }
       const rowsHtml = review
         .map(
           (r) =>

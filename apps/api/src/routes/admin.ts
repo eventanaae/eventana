@@ -26,7 +26,7 @@ import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
 import * as finance from '../domain/finance.js';
 import { auditReport } from '../domain/audit.js';
-import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, normalizeUaePhone } from '../domain/maintenance.js';
+import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, toValidCustomerPhone } from '../domain/maintenance.js';
 import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
 import { flooredStart, COUNTING_START } from '../domain/period.js';
 import { staffUpdateEvent, EventEditError } from '../domain/eventEdit.js';
@@ -2169,7 +2169,20 @@ export async function adminRoutes(app: FastifyInstance) {
     });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
-    return finance.addCustomer(p.data);
+    // A provided number must carry a dialling key (UAE 05X/5X is promoted to
+    // +9715XXXXXXXX). Empty is allowed; a keyless number is rejected.
+    const d = { ...p.data };
+    if (d.phone && d.phone.trim()) {
+      const v = toValidCustomerPhone(d.phone);
+      if (!v) return reply.status(400).send({ error: 'invalid_phone', message: 'Enter the phone with its country code, e.g. +971 50 123 4567.' });
+      d.phone = v;
+    }
+    if (d.backupPhone && d.backupPhone.trim()) {
+      const v = toValidCustomerPhone(d.backupPhone);
+      if (!v) return reply.status(400).send({ error: 'invalid_backup_phone', message: 'Enter the backup number with its country code, e.g. +971 50 123 4567.' });
+      d.backupPhone = v;
+    }
+    return finance.addCustomer(d);
   });
 
   // ── Customers (CRM master) — manager/owner only (PII + spend) ──────────────
@@ -2190,11 +2203,19 @@ export async function adminRoutes(app: FastifyInstance) {
     });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
-    // Normalise UAE numbers on save (reuse the confident-only helper); leave a
-    // number the helper can't fix exactly as typed so nothing is silently lost.
+    // A provided number must carry a dialling key (UAE 05X/5X → +9715XXXXXXXX);
+    // a keyless number is rejected so nothing keyless is saved on an edit either.
     const d = { ...p.data };
-    if (d.phone != null && d.phone.trim()) d.phone = normalizeUaePhone(d.phone)?.value ?? d.phone;
-    if (d.backupPhone != null && d.backupPhone.trim()) d.backupPhone = normalizeUaePhone(d.backupPhone)?.value ?? d.backupPhone;
+    if (d.phone != null && d.phone.trim()) {
+      const v = toValidCustomerPhone(d.phone);
+      if (!v) return reply.status(400).send({ error: 'invalid_phone', message: 'Enter the phone with its country code, e.g. +971 50 123 4567.' });
+      d.phone = v;
+    }
+    if (d.backupPhone != null && d.backupPhone.trim()) {
+      const v = toValidCustomerPhone(d.backupPhone);
+      if (!v) return reply.status(400).send({ error: 'invalid_backup_phone', message: 'Enter the backup number with its country code, e.g. +971 50 123 4567.' });
+      d.backupPhone = v;
+    }
     const r = await finance.updateCustomer(id, d);
     if (r) logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'customer_update', target: String(id), detail: d });
     return r ?? reply.status(404).send({ error: 'not_found' });
