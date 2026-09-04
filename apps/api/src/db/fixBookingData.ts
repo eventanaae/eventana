@@ -160,13 +160,26 @@ export async function fixBookingDataFromEnv(): Promise<void> {
   });
 
   // 8) Aysha Ahmed invoice #1362 — real state: paid AED 3,000 of 4,000, balance
-  //    1,000 (a test pay-link was completed in sandbox and marked it fully paid).
+  //    1,000; owner-approved daily email reminder ON, with a pay link generated.
   await run('aysha-invoice', async () => {
     await pool.query(`DELETE FROM invoice_payments WHERE invoice_id = (SELECT id FROM finance_invoices WHERE number = '1362')`);
     const r = await pool.query(
-      `UPDATE finance_invoices SET amount_paid_fils = 300000, status = 'partial', paid_at = NULL WHERE number = '1362' RETURNING id`,
+      `UPDATE finance_invoices SET amount_paid_fils = 300000, status = 'partial', paid_at = NULL, remind_daily = TRUE WHERE number = '1362' RETURNING id`,
     );
-    L(`  Aysha #1362 → paid 3,000 / balance 1,000 (${r.rowCount ?? 0} row)`);
+    const id = r.rows[0]?.id;
+    L(`  Aysha #1362 → paid 3,000 / balance 1,000, reminder ON (${r.rowCount ?? 0} row)`);
+    // Contact on file (so we know the reminder can actually reach her).
+    const c = await pool.query(
+      `SELECT hc.email, hc.phone FROM finance_invoices i LEFT JOIN historical_customers hc ON hc.id = i.customer_id WHERE i.number = '1362'`,
+    );
+    L(`  Aysha contact: email=${c.rows[0]?.email ?? '—'} phone=${c.rows[0]?.phone ?? '—'}`);
+    if (id) {
+      try {
+        const { createInvoicePayLink } = await import('../domain/checkout.js');
+        const link = await createInvoicePayLink(Number(id));
+        L(`  Aysha pay link: ${link ? link.payUrl : 'not generated (no balance/phone)'}`);
+      } catch (e) { L(`  Aysha pay link failed: ${(e as Error).message}`); }
+    }
   });
 
   // 7) Payment methods: Eventana takes only Tabby / Tamara / Debit (no cash;
