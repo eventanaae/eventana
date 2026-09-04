@@ -474,6 +474,7 @@ function AccountsReview({ onClose }: { onClose: () => void }) {
 function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; onClose: () => void; onSaved: () => void }) {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [supplier, setSupplier] = useState('');
+  const [supOpen, setSupOpen] = useState(false);
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [newSupplier, setNewSupplier] = useState('');
   const [category, setCategory] = useState(categories[0] ?? 'other');
@@ -528,18 +529,43 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
             <Button tone="ghost" onClick={() => setAddingSupplier(false)}>✕</Button>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-              placeholder="Type to search supplier…"
-              list="expense-suppliers"
-              style={input}
-            />
-            <datalist id="expense-suppliers">
-              {suppliers.map((s) => <option key={s.id} value={s.name} />)}
-            </datalist>
-            <Button tone="ghost" onClick={() => setAddingSupplier(true)}>+ New</Button>
+          // Custom tap-to-pick list. Native <datalist> is unreliable on iOS
+          // Safari (the suggestions never drop down), which is why suppliers
+          // "weren't showing" — this renders our own list so they always do.
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={supplier}
+                onChange={(e) => { setSupplier(e.target.value); setSupOpen(true); }}
+                onFocus={() => setSupOpen(true)}
+                onBlur={() => setTimeout(() => setSupOpen(false), 150)}
+                placeholder="Type to search supplier…"
+                style={input}
+              />
+              <Button tone="ghost" onClick={() => setAddingSupplier(true)}>+ New</Button>
+            </div>
+            {supOpen && (() => {
+              const needle = supplier.trim().toLowerCase();
+              const matches = (needle
+                ? suppliers.filter((s) => String(s.name).toLowerCase().includes(needle))
+                : suppliers
+              ).slice(0, 8);
+              if (matches.length === 0) return null;
+              return (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, boxShadow: C.shadowLg, marginTop: 4, maxHeight: 220, overflowY: 'auto' }}>
+                  {matches.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); setSupplier(String(s.name)); setSupOpen(false); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 13px', border: 'none', borderBottom: `1px solid ${C.lineSoft}`, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: C.ink }}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
       </Field>
