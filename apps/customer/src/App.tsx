@@ -46,6 +46,10 @@ export interface Draft {
   stationColors: Record<string, string>;
   /** Chosen mascot character (required when the Mascot service is added). */
   mascotChoice: string;
+  /** Per-doll look for Glam Dolls — one entry per booked doll (skin tone + dress
+   *  colour). Length is the number of dolls (1 or 2); required when the service
+   *  is added. */
+  glamDolls: Array<{ skin: string; dress: string }>;
   /** The guest's drawing for printed items (t-shirt/hat/banner/drawing): up to
    *  3 uploaded photos, or a request that we create a professional drawing. */
   customization: { refImages: string[]; wantDraw: boolean };
@@ -83,6 +87,7 @@ const emptyDraft: Draft = {
   services: {},
   stationColors: {},
   mascotChoice: '',
+  glamDolls: [],
   customization: { refImages: [], wantDraw: false },
   themeId: null,
   customTheme: false,
@@ -162,6 +167,7 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     ),
     // Chosen mascot character — only when the Mascot service is in the cart.
     mascotChoice: (draft.services['mascot'] ?? 0) > 0 ? draft.mascotChoice || undefined : undefined,
+    glamDolls: (draft.services['glamdolls'] ?? 0) > 0 ? draft.glamDolls : undefined,
     // The guest's drawing — only when a printed drawing-item is in the cart.
     customization: Object.keys(draft.services).some((id) => SHOP_DRAWING_IDS.has(id) && (draft.services[id] ?? 0) > 0)
       ? draft.customization

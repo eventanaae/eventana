@@ -17,6 +17,10 @@ const STATION_COLORS: Array<{ id: string; hex: string }> = [
 /** Mascot characters — one must be chosen when the Mascot service is added. */
 const MASCOT_OPTIONS = ['Cocomelon', 'Stitch', 'Masha', 'Unicorn'];
 
+/** Glam Dolls skin tones — each booked doll picks one. Dress colour reuses
+ *  the STATION_COLORS palette above. */
+const GLAM_SKINS = ['fair', 'tan'];
+
 export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
   const [detail, setDetail] = useState<Catalogue['services'][number] | null>(null);
 
@@ -151,7 +155,7 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                             // character, castle colour) must go through the detail
                             // sheet so the choice is made — never a blind quick-add.
                             const needsChoice =
-                              s.categoryId === 'food' || s.categoryId === 'games' || s.id === 'mascot' || s.id === 'castle';
+                              s.categoryId === 'food' || s.categoryId === 'games' || s.id === 'mascot' || s.id === 'castle' || s.id === 'glamdolls';
                             if (!selected && needsChoice) {
                               setDetail(s);
                               return;
@@ -307,24 +311,104 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                 </div>
               )}
 
+              {detail.id === 'glamdolls' && (() => {
+                const dolls = draft.glamDolls;
+                const qty = dolls.length;
+                const setQty = (n: number) =>
+                  update({ glamDolls: Array.from({ length: n }, (_, i) => dolls[i] ?? { skin: '', dress: '' }) });
+                const setDoll = (i: number, patch: Partial<{ skin: string; dress: string }>) =>
+                  update({ glamDolls: dolls.map((d, idx) => (idx === i ? { ...d, ...patch } : d)) });
+                return (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 9 }}>How many dolls?</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {[1, 2].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setQty(n)}
+                          style={{
+                            borderRadius: 12, padding: '9px 18px', cursor: 'pointer', fontWeight: 800, fontSize: 13,
+                            border: `1.5px solid ${qty === n ? C.pink : C.pinkLine}`,
+                            background: qty === n ? C.pinkSoft : '#fff', color: qty === n ? C.pinkDeep : C.ink,
+                          }}
+                        >
+                          {n} {n === 1 ? 'doll' : 'dolls'}
+                        </button>
+                      ))}
+                    </div>
+                    {dolls.map((d, i) => (
+                      <div key={i} style={{ marginTop: 14, padding: 12, borderRadius: 14, border: `1px solid ${C.pinkLine}`, background: C.pinkSoft }}>
+                        <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 8 }}>Doll {i + 1}</div>
+                        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>Skin tone</div>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                          {GLAM_SKINS.map((sk) => {
+                            const active = d.skin === sk;
+                            return (
+                              <button
+                                key={sk}
+                                type="button"
+                                onClick={() => setDoll(i, { skin: sk })}
+                                style={{
+                                  borderRadius: 10, padding: '7px 16px', cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                                  textTransform: 'capitalize', background: '#fff', color: active ? C.pinkDeep : C.ink,
+                                  border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
+                                  boxShadow: active ? `0 0 0 2px ${C.pink} inset` : 'none',
+                                }}
+                              >
+                                {sk}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>Dress colour</div>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          {STATION_COLORS.map((c) => {
+                            const active = d.dress === c.id;
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                aria-label={c.id}
+                                onClick={() => setDoll(i, { dress: c.id })}
+                                style={{
+                                  width: 30, height: 30, borderRadius: '50%', background: c.hex, cursor: 'pointer',
+                                  border: active ? `3px solid ${C.ink}` : '2px solid rgba(0,0,0,.12)',
+                                  boxShadow: active ? '0 0 0 2px #fff inset' : 'none', outline: 'none', flex: 'none',
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {(() => {
                 const inCart = Boolean(draft.services[detail.id]);
                 const needsColor = detail.categoryId === 'food' || detail.categoryId === 'games';
                 const needsMascot = detail.id === 'mascot';
                 const needsCastle = detail.id === 'castle';
+                const needsGlam = detail.id === 'glamdolls';
                 const missingColor = needsColor && !draft.stationColors[detail.id];
                 const missingMascot = needsMascot && !draft.mascotChoice;
                 const missingCastle = needsCastle && !draft.castleVariant;
-                const blockAdd = !inCart && (missingColor || missingMascot || missingCastle);
+                const missingGlam =
+                  needsGlam && (draft.glamDolls.length === 0 || draft.glamDolls.some((d) => !d.skin || !d.dress));
+                const blockAdd = !inCart && (missingColor || missingMascot || missingCastle || missingGlam);
                 return (
                   <div style={{ marginTop: 18 }}>
                     <PrimaryButton
                       disabled={blockAdd}
                       onClick={() => {
                         const min =
-                          detail.pricing.kind === 'per_child'
-                            ? draft.childrenCount
-                            : (detail.pricing.minQuantity ?? 1);
+                          detail.id === 'glamdolls'
+                            ? Math.max(1, draft.glamDolls.length)
+                            : detail.pricing.kind === 'per_child'
+                              ? draft.childrenCount
+                              : (detail.pricing.minQuantity ?? 1);
                         toggle(detail.id, min);
                         setDetail(null);
                       }}
@@ -333,9 +417,11 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                         ? t('build.removeFromParty')
                         : missingMascot
                           ? t('build.pickMascotFirst')
-                          : (missingColor || missingCastle)
-                            ? t('build.pickColorFirst')
-                            : t('build.addToParty')}
+                          : missingGlam
+                            ? 'Choose each doll first'
+                            : (missingColor || missingCastle)
+                              ? t('build.pickColorFirst')
+                              : t('build.addToParty')}
                     </PrimaryButton>
                   </div>
                 );

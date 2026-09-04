@@ -215,6 +215,7 @@ export async function confirmBooking(
     movie?: string | null;
     stationColors?: Record<string, string>;
     mascotChoice?: string;
+    glamDolls?: Array<{ skin: string; dress: string }>;
     customization?: { refImages?: string[]; wantDraw?: boolean } | null;
     themeBrief?: (Record<string, string> & { refImages?: string[] }) | null;
     appliedDiscounts?: {
@@ -286,9 +287,16 @@ export async function confirmBooking(
   // colour (food/games stations) is appended to the label so the crew sees it.
   for (const line of quote.lines) {
     if (line.kind === 'discount') continue;
+    const cap = (s: string) => (s ? `${s.charAt(0).toUpperCase()}${s.slice(1)}` : s);
     const color = line.refId ? cart.stationColors?.[line.refId] : undefined;
     const mascot = line.refId === 'mascot' ? cart.mascotChoice : undefined;
-    const extra = color ? `${color.charAt(0).toUpperCase()}${color.slice(1)}` : mascot;
+    // Glam Dolls: append each doll's skin tone + dress colour so the crew and
+    // the assigned performers know exactly what to bring/wear.
+    const glam =
+      line.refId === 'glamdolls' && cart.glamDolls?.length
+        ? cart.glamDolls.map((d, i) => `Doll ${i + 1}: ${cap(d.skin)} · ${cap(d.dress)}`).join('  ·  ')
+        : undefined;
+    const extra = color ? cap(color) : (mascot ?? glam);
     const label = extra ? `${line.label} · ${extra}` : line.label;
     await db.query(
       `INSERT INTO event_services (event_id, service_id, label, quantity, amount_fils, source, order_id)

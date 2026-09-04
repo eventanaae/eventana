@@ -121,6 +121,11 @@ const cartSchema = z.object({
   /** Chosen kiosk colour per food/games station service id. */
   stationColors: z.record(z.string().max(20)).optional(),
   mascotChoice: z.string().max(40).optional(),
+  /** Per-doll look for Glam Dolls — skin tone + dress colour, one per booked doll. */
+  glamDolls: z
+    .array(z.object({ skin: z.string().max(10), dress: z.string().max(20) }))
+    .max(2)
+    .optional(),
   customization: z
     .object({
       refImages: z.array(z.string().url().max(500).startsWith('https://res.cloudinary.com/')).max(3).optional(),
