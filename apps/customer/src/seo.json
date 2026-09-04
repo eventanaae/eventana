@@ -1019,6 +1019,226 @@
           }
         ]
       }
-    }
+    },
+    {
+        "slug": "party-organizer-jvc-dubai",
+        "celebrationType": "kids",
+        "priority": "0.7",
+        "areaName": "Jumeirah Village Circle",
+        "deliveryFeeAed": 280,
+        "priceFromAed": 2199,
+        "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157649/eventana/themes/gqyqbxqjis0li3ebb4g4.jpg",
+        "en": {
+          "headline": "Party Organizer in JVC, Dubai",
+          "subhead": "Kids birthdays and celebrations set up at your villa or townhouse in Jumeirah Village Circle.",
+          "includes": [
+            "Villa and townhouse garden setups",
+            "Inflatables where there is 4x4 m of clear ground",
+            "Balloon decor and themed backdrops",
+            "Food stations run by Eventana staff",
+            "Delivery, setup and takedown across Dubai AED 280",
+            "Packages from AED 2,199"
+          ],
+          "cta": "Plan my JVC party",
+          "title": "Party Organizer JVC Dubai — Kids Birthdays & Setup | Eventana",
+          "description": "Party organizer for Jumeirah Village Circle: kids birthdays, baby showers and themed setups at your villa. Packages from AED 2,199, Dubai delivery AED 280.",
+          "intro": "Eventana sets up birthday parties and celebrations across Jumeirah Village Circle. JVC mixes villas and townhouses with apartment buildings, and which one you are in decides what fits. A villa or townhouse garden takes the full setup: the bouncy castle and the bubbles house are each 4x4 m, the Amwaj slide and the ball pool slide the same, so roughly a five-by-five metre clear patch of ground is what they need. In an apartment the party works just as well without them — the themed backdrop, balloon decor, food stations and entertainers are all indoor setups. A complete package runs 4 hours for up to 40 children and starts at AED 2,199; a styled backdrop on its own starts at AED 1,500. Delivery, installation before your guests arrive and full takedown afterwards are handled by the Eventana team for AED 280 anywhere in Dubai, JVC included. Book the date, theme and extras online and the total is shown before you pay.",
+          "faq": [
+            { "q": "Do you deliver to JVC?", "a": "Yes. JVC is inside the Dubai delivery zone, so the fee is AED 280 and it covers delivery, setup before your guests arrive, and taking everything away afterwards." },
+            { "q": "Can I have a bouncy castle at a JVC townhouse?", "a": "If the garden has about 5 x 5 m of clear flat ground, yes — the bouncy castle and bubbles house are 4x4 m each. The team checks access when you book. Children must wear socks on the inflatables, and Eventana sells them at AED 12 a pair." },
+            { "q": "What if I live in a JVC apartment?", "a": "The themed backdrop, balloon decor, food stations, entertainers and activity corners all work indoors. Inflatables and water play are the only parts that need a garden. Many JVC buildings also have a function room you can book, which gives you the space for more." },
+            { "q": "How much is a kids party in JVC?", "a": "Packages start at AED 2,199 for Movie Night and go to AED 5,999 for the Golden Birthday, each 4 hours for up to 40 children, plus AED 280 Dubai delivery. Decor-only setups start at AED 1,500." },
+            { "q": "How far ahead should I book?", "a": "At least 24 hours is required, and booking more than 72 hours ahead avoids the 25% urgent surcharge. Popular weekend dates go early, so a couple of weeks is comfortable." }
+          ]
+        },
+        "ar": {
+          "headline": "تنظيم حفلات في JVC، دبي",
+          "subhead": "أعياد ميلاد الأطفال والمناسبات، تجهيز كامل في فيلتك أو تاون هاوس في قرية جميرا الدائرية.",
+          "includes": [
+            "تجهيز حدائق الفلل والتاون هاوس",
+            "نطاطيات إذا توفرت مساحة 4×4 م",
+            "ديكور بالونات وخلفيات بالثيم",
+            "محطات أكل يشغّلها فريق إيفنتانا",
+            "التوصيل والتركيب والفك في دبي 280 درهم",
+            "الباقات من 2,199 درهم"
+          ],
+          "cta": "جهّزي حفلتك في JVC",
+          "title": "تنظيم حفلات JVC دبي — أعياد ميلاد وتجهيز كامل | إيفنتانا",
+          "description": "تنظيم حفلات في قرية جميرا الدائرية: أعياد ميلاد أطفال وبيبي شاور وتجهيز بالثيم في فيلتك. الباقات من 2,199 درهم والتوصيل في دبي 280.",
+          "intro": "إيفنتانا تجهّز حفلات أعياد الميلاد والمناسبات في كل قرية جميرا الدائرية. الـJVC فيها فلل وتاون هاوس وعمارات سكنية، واللي أنتِ فيه هو اللي يحدّد وش يناسب. حديقة الفيلا أو التاون هاوس تستوعب التجهيز الكامل: القلعة النطاطة وبيت الفقاعات كل واحد 4×4 م، وكذلك زحليقة أمواج وزحليقة حوض الكرات — يعني تحتاجين تقريبًا خمسة في خمسة أمتار أرض فاضية ومستوية. وفي الشقة الحفلة تنجح بدونها تمامًا — الخلفية بالثيم وديكور البالونات ومحطات الأكل والترفيه كلها تجهيزات داخلية. الباقة الكاملة 4 ساعات وحتى 40 طفل وتبدأ من 2,199 درهم، والخلفية المنسّقة لوحدها تبدأ من 1,500 درهم. والتوصيل والتركيب قبل وصول ضيوفك والفك بعد الحفلة كلها على فريق إيفنتانا بـ280 درهم في أي مكان في دبي، ومنها الـJVC. احجزي التاريخ والثيم والإضافات أونلاين ويطلع لك الإجمالي قبل الدفع.",
+          "faq": [
+            { "q": "توصلون JVC؟", "a": "نعم. الـJVC داخل نطاق توصيل دبي، فالرسم 280 درهم ويشمل التوصيل والتركيب قبل وصول ضيوفك وفك كل شيء بعد الحفلة." },
+            { "q": "أقدر أحط قلعة نطاطة في تاون هاوس بالـJVC؟", "a": "إذا كانت الحديقة فيها تقريبًا 5×5 م أرض فاضية ومستوية، نعم — القلعة النطاطة وبيت الفقاعات كل واحد 4×4 م. والفريق يتأكد من المدخل وقت الحجز. والأطفال لازم يلبسون جوارب على النطاطيات، وإيفنتانا توفّرها بـ12 درهم للزوج." },
+            { "q": "وإذا كنت ساكنة في شقة بالـJVC؟", "a": "الخلفية بالثيم وديكور البالونات ومحطات الأكل والترفيه وأركان الأنشطة كلها تشتغل داخل الشقة. النطاطيات والألعاب المائية هي الوحيدة اللي تحتاج حديقة. وكثير من عمارات الـJVC فيها قاعة مناسبات تقدرين تحجزينها وتعطيك مساحة أوسع." },
+            { "q": "كم تكلفة حفلة أطفال في JVC؟", "a": "الباقات تبدأ من 2,199 درهم لليلة السينما وتوصل 5,999 للباقة الذهبية، كل وحدة 4 ساعات وحتى 40 طفل، مع 280 درهم توصيل دبي. وتجهيز الديكور فقط يبدأ من 1,500 درهم." },
+            { "q": "كم لازم أحجز قبل الحفلة؟", "a": "24 ساعة على الأقل، والحجز قبل أكثر من 72 ساعة يتفادى رسم الاستعجال 25%. ومواعيد نهاية الأسبوع تنحجز بدري، فأسبوعين مريحة." }
+          ]
+        }
+      },
+      {
+        "slug": "party-organizer-dubai-marina",
+        "celebrationType": "kids",
+        "priority": "0.7",
+        "areaName": "Dubai Marina",
+        "deliveryFeeAed": 280,
+        "priceFromAed": 1500,
+        "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157781/eventana/themes/cggonmvalujnna1jytec.jpg",
+        "en": {
+          "headline": "Party Organizer in Dubai Marina",
+          "subhead": "Apartment and function-room celebrations — decor, food stations and entertainment carried up and set up for you.",
+          "includes": [
+            "Apartment and building function-room setups",
+            "Themed backdrops and balloon decor",
+            "Food stations operated by Eventana staff",
+            "Entertainers, face painting and activity corners",
+            "Delivery, setup and takedown across Dubai AED 280",
+            "Decor-only setups from AED 1,500"
+          ],
+          "cta": "Plan my Marina party",
+          "title": "Party Organizer Dubai Marina — Apartment Setups | Eventana",
+          "description": "Party organizer for Dubai Marina: birthdays and celebrations in apartments and building function rooms. Decor from AED 1,500, packages from AED 2,199.",
+          "intro": "Dubai Marina is a tower community, so a party here is an indoor job and Eventana plans it that way. The themed backdrop, balloon decor, food stations, entertainers and activity corners are all designed to be carried up in a service lift and installed inside an apartment or a building's function room. What does not travel well is the outdoor equipment: the bouncy castle, bubbles house and slides are 4x4 m each and need clear flat ground, so they suit a villa garden rather than a Marina flat. If your building has a function room or podium terrace you can book, that changes — tell us at booking and the setup is planned to the space. A styled backdrop with balloon work starts at AED 1,500 and a full 4-hour package at AED 2,199. Delivery, installation and takedown are AED 280 anywhere in Dubai. Most Marina towers want the building's approval and a service-lift slot booked in advance for a delivery this size, so it helps to arrange that with your building management once your date is confirmed.",
+          "faq": [
+            { "q": "Can you set up a party in a Marina apartment?", "a": "Yes. The backdrop, balloon decor, food stations, entertainers and activity corners are all indoor setups and the team installs and removes everything. A styled backdrop starts at AED 1,500 and a full 4-hour package at AED 2,199." },
+            { "q": "Can I have a bouncy castle in Dubai Marina?", "a": "Not inside an apartment — the bouncy castle and bubbles house are 4x4 m and need clear flat ground. If your building has a podium terrace or garden area you can book, it becomes possible; otherwise the indoor setup is the way to go and there is plenty in it." },
+            { "q": "Do you need building permission?", "a": "Most Marina towers ask for approval and a booked service-lift slot for a delivery of this size. Arrange it with your building management once your date is set, and share any access notes when you book so the team plans around them." },
+            { "q": "What does delivery to the Marina cost?", "a": "AED 280, the standard Dubai fee. It covers delivery, setting everything up before your guests arrive, and taking it all away afterwards." },
+            { "q": "Can you do an adult birthday or a baby shower here?", "a": "Yes. Adult birthdays, baby showers, gender reveals and bride-to-be celebrations are all set up the same way. Those celebrations have no ready-theme library, so the design team creates the theme from scratch and there is no design fee for them." }
+          ]
+        },
+        "ar": {
+          "headline": "تنظيم حفلات في دبي مارينا",
+          "subhead": "حفلات الشقق وقاعات المباني — الديكور ومحطات الأكل والترفيه نوصّلها ونركّبها لك.",
+          "includes": [
+            "تجهيز الشقق وقاعات المناسبات في المبنى",
+            "خلفيات بالثيم وديكور بالونات",
+            "محطات أكل يشغّلها فريق إيفنتانا",
+            "ترفيه ورسم على الوجه وأركان أنشطة",
+            "التوصيل والتركيب والفك في دبي 280 درهم",
+            "تجهيز الديكور فقط من 1,500 درهم"
+          ],
+          "cta": "جهّزي حفلتك في المارينا",
+          "title": "تنظيم حفلات دبي مارينا — تجهيز الشقق | إيفنتانا",
+          "description": "تنظيم حفلات في دبي مارينا: أعياد ميلاد ومناسبات في الشقق وقاعات المباني. الديكور من 1,500 درهم والباقات من 2,199.",
+          "intro": "دبي مارينا منطقة أبراج، فالحفلة فيها تجهيز داخلي وإيفنتانا تخطّط لها على هذا الأساس. الخلفية بالثيم وديكور البالونات ومحطات الأكل والترفيه وأركان الأنشطة كلها مصمّمة تنرفع في مصعد الخدمة وتتركّب داخل الشقة أو قاعة المناسبات في المبنى. واللي ما ينفع هو معدّات الخارج: القلعة النطاطة وبيت الفقاعات والزحاليق كل وحدة 4×4 م وتحتاج أرض فاضية ومستوية، فهي تناسب حديقة فيلا لا شقة في المارينا. وإذا كان مبناك فيه قاعة مناسبات أو تراس بوديوم تقدرين تحجزينه فالوضع يختلف — قوليلنا وقت الحجز ويُخطَّط التجهيز على المساحة. الخلفية المنسّقة مع البالونات تبدأ من 1,500 درهم، والباقة الكاملة 4 ساعات من 2,199. والتوصيل والتركيب والفك 280 درهم في أي مكان في دبي. وأغلب أبراج المارينا تطلب موافقة الإدارة وحجز موعد لمصعد الخدمة لتوصيل بهذا الحجم، فيفيدك ترتّبينها مع إدارة المبنى بعد ما يتأكد تاريخك.",
+          "faq": [
+            { "q": "تقدرون تجهّزون حفلة في شقة بالمارينا؟", "a": "نعم. الخلفية وديكور البالونات ومحطات الأكل والترفيه وأركان الأنشطة كلها تجهيزات داخلية، والفريق يركّب كل شيء ويفكّه. الخلفية المنسّقة تبدأ من 1,500 درهم والباقة الكاملة 4 ساعات من 2,199." },
+            { "q": "أقدر أحط قلعة نطاطة في دبي مارينا؟", "a": "مو داخل الشقة — القلعة النطاطة وبيت الفقاعات 4×4 م وتحتاج أرض فاضية ومستوية. وإذا كان مبناك فيه تراس بوديوم أو منطقة حديقة تقدرين تحجزينها فتصير ممكنة؛ وغير كذا التجهيز الداخلي هو الخيار وفيه خيارات كثيرة." },
+            { "q": "أحتاج موافقة من المبنى؟", "a": "أغلب أبراج المارينا تطلب موافقة وحجز موعد لمصعد الخدمة لتوصيل بهذا الحجم. رتّبيها مع إدارة المبنى بعد ما يتأكد تاريخك، واذكري أي ملاحظات عن المدخل وقت الحجز عشان الفريق يخطّط عليها." },
+            { "q": "كم رسم التوصيل للمارينا؟", "a": "280 درهم، وهو رسم دبي المعتاد. يشمل التوصيل والتركيب قبل وصول ضيوفك وفك كل شيء بعد الحفلة." },
+            { "q": "تسوّون عيد ميلاد كبار أو بيبي شاور هنا؟", "a": "نعم. أعياد ميلاد الكبار والبيبي شاور وكشف جنس المولود وحفلات العروس كلها تُجهَّز بنفس الطريقة. وهذي المناسبات ما لها مكتبة ثيمات جاهزة، ففريق التصميم يبني الثيم من الصفر وبدون أي رسم تصميم لها." }
+          ]
+        }
+      },
+      {
+        "slug": "party-organizer-mirdif-dubai",
+        "celebrationType": "kids",
+        "priority": "0.7",
+        "areaName": "Mirdif",
+        "deliveryFeeAed": 280,
+        "priceFromAed": 2199,
+        "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152246/eventana/themes/crsqufg93gd0m5xeoosm.jpg",
+        "en": {
+          "headline": "Party Organizer in Mirdif, Dubai",
+          "subhead": "Villa garden birthdays — inflatables, water play, food stations and full themed decor.",
+          "includes": [
+            "Villa garden setups with room for inflatables",
+            "Bouncy castle, bubbles house and slides",
+            "Foam machine and summer water play",
+            "Themed backdrops, balloon decor and food stations",
+            "Delivery, setup and takedown across Dubai AED 280",
+            "Packages from AED 2,199"
+          ],
+          "cta": "Plan my Mirdif party",
+          "title": "Party Organizer Mirdif Dubai — Villa Garden Parties | Eventana",
+          "description": "Party organizer for Mirdif: villa garden birthdays with inflatables, water play and themed decor. Packages from AED 2,199, Dubai delivery AED 280.",
+          "intro": "Mirdif is a villa area, which means the garden setups Eventana is built around fit here without compromise. The bouncy castle and bubbles house are 4x4 m, the Amwaj slide and ball pool slide the same, and a typical Mirdif villa garden has the clear flat ground they need. That opens up the packages that are hard to run anywhere else: Summer Party at AED 4,999 is built on the ball pool slide, a foam machine and ice cream, and Golden Birthday at AED 5,999 puts a bouncy castle and a bubbles house in the same garden alongside three entertainers and twelve items in total. A full package runs 4 hours for up to 40 children. Everything is delivered, installed before your guests arrive and cleared away afterwards by the Eventana team for AED 280 anywhere in Dubai. Children need socks on the inflatables and Eventana sells them at AED 12 a pair, and no food or drink goes inside them — the food stations sit separately and are run by our own staff.",
+          "faq": [
+            { "q": "Do you set up in Mirdif villa gardens?", "a": "Yes, and it is the setting the equipment is designed for. The inflatables are 4x4 m and need clear flat ground, which most Mirdif gardens have. Delivery, setup and takedown are AED 280." },
+            { "q": "Which package suits a Mirdif garden party?", "a": "Golden Birthday at AED 5,999 is the fullest — a bouncy castle, a bubbles house, three entertainers and twelve items over 4 hours for up to 40 children. In summer, Summer Party at AED 4,999 swaps in the ball pool slide, a foam machine and ice cream." },
+            { "q": "Can you add water play?", "a": "Yes. The foam machine is AED 1,500, the blue water slide AED 800 and the Amwaj slide AED 1,250, and the Summer Party package already includes the ball pool slide and foam machine." },
+            { "q": "What do the inflatables need from me?", "a": "About 5 x 5 m of clear flat ground per unit and access wide enough to bring them through. Children must wear socks on them — Eventana sells them at AED 12 a pair — and no food or drink is allowed inside." },
+            { "q": "How much is a party in Mirdif?", "a": "Packages start at AED 2,199 for Movie Night and run to AED 5,999 for Golden Birthday and Spa Party, plus AED 280 Dubai delivery. Add-ons like a bouncy castle at AED 1,100 or a food station from AED 780 are priced individually." }
+          ]
+        },
+        "ar": {
+          "headline": "تنظيم حفلات في مردف، دبي",
+          "subhead": "حفلات حدائق الفلل — نطاطيات وألعاب مائية ومحطات أكل وديكور كامل بالثيم.",
+          "includes": [
+            "تجهيز حدائق الفلل بمساحة تكفي النطاطيات",
+            "قلعة نطاطة وبيت فقاعات وزحاليق",
+            "مكينة فوم وألعاب مائية صيفية",
+            "خلفيات بالثيم وديكور بالونات ومحطات أكل",
+            "التوصيل والتركيب والفك في دبي 280 درهم",
+            "الباقات من 2,199 درهم"
+          ],
+          "cta": "جهّزي حفلتك في مردف",
+          "title": "تنظيم حفلات مردف دبي — حفلات حدائق الفلل | إيفنتانا",
+          "description": "تنظيم حفلات في مردف: أعياد ميلاد في حديقة الفيلا مع نطاطيات وألعاب مائية وديكور بالثيم. الباقات من 2,199 درهم والتوصيل 280.",
+          "intro": "مردف منطقة فلل، ومعناها إن تجهيزات الحدائق اللي بُنيت عليها إيفنتانا تناسبها بدون أي تنازل. القلعة النطاطة وبيت الفقاعات 4×4 م، وزحليقة أمواج وزحليقة حوض الكرات كذلك، وحديقة الفيلا في مردف عادةً فيها الأرض الفاضية المستوية اللي تحتاجها. وهذا يفتح لك الباقات اللي يصعب تنفيذها في غير هذي الأماكن: الحفلة الصيفية بـ4,999 درهم مبنية على زحليقة حوض الكرات ومكينة الفوم والآيس كريم، والباقة الذهبية بـ5,999 تحط قلعة نطاطة وبيت فقاعات في نفس الحديقة مع ثلاثة مقدّمي ترفيه واثني عشر عنصرًا. والباقة الكاملة 4 ساعات وحتى 40 طفل. وكل شيء يوصّله فريق إيفنتانا ويركّبه قبل وصول ضيوفك ويرتّبه بعدها، بـ280 درهم في أي مكان في دبي. والأطفال يحتاجون جوارب على النطاطيات وإيفنتانا توفّرها بـ12 درهم للزوج، وما يدخلها أكل ولا شرب — محطات الأكل تنحط منفصلة ويشغّلها فريقنا.",
+          "faq": [
+            { "q": "تجهّزون في حدائق فلل مردف؟", "a": "نعم، وهي البيئة اللي صُمّمت لها المعدّات. النطاطيات 4×4 م وتحتاج أرض فاضية مستوية، وأغلب حدائق مردف فيها هذي المساحة. والتوصيل والتركيب والفك 280 درهم." },
+            { "q": "أي باقة تناسب حفلة حديقة في مردف؟", "a": "الباقة الذهبية بـ5,999 درهم هي الأشمل — قلعة نطاطة وبيت فقاعات وثلاثة مقدّمي ترفيه واثنا عشر عنصرًا خلال 4 ساعات وحتى 40 طفل. وفي الصيف الحفلة الصيفية بـ4,999 تبدّلها بزحليقة حوض الكرات ومكينة الفوم والآيس كريم." },
+            { "q": "تقدرون تضيفون ألعاب مائية؟", "a": "نعم. مكينة الفوم 1,500 درهم، والزحليقة المائية الزرقاء 800، وزحليقة أمواج 1,250. والحفلة الصيفية أصلًا تشمل زحليقة حوض الكرات ومكينة الفوم." },
+            { "q": "وش تحتاجه النطاطيات مني؟", "a": "تقريبًا 5×5 م أرض فاضية ومستوية لكل وحدة، ومدخل واسع يكفي لإدخالها. والأطفال لازم يلبسون جوارب عليها — إيفنتانا توفّرها بـ12 درهم للزوج — وما يُسمح بأكل ولا شرب داخلها." },
+            { "q": "كم تكلفة حفلة في مردف؟", "a": "الباقات تبدأ من 2,199 درهم لليلة السينما وتوصل 5,999 للذهبية وحفلة السبا، مع 280 درهم توصيل دبي. والإضافات مثل القلعة النطاطة بـ1,100 أو محطة أكل من 780 تُسعّر كل وحدة على حدة." }
+          ]
+        }
+      },
+      {
+        "slug": "party-organizer-business-bay",
+        "celebrationType": "kids",
+        "priority": "0.7",
+        "areaName": "Business Bay",
+        "deliveryFeeAed": 280,
+        "priceFromAed": 1500,
+        "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152048/eventana/themes/vjhw6ryjq98fudiedstv.jpg",
+        "en": {
+          "headline": "Party & Event Setup in Business Bay, Dubai",
+          "subhead": "Apartment birthdays, office celebrations and staff events — one team for decor, food stations and entertainment.",
+          "includes": [
+            "Apartment and hotel-apartment setups",
+            "Office and staff celebration setups",
+            "Themed and branded backdrops from AED 1,500",
+            "Food stations operated by Eventana staff",
+            "Delivery, setup and takedown across Dubai AED 280",
+            "Packages from AED 2,199"
+          ],
+          "cta": "Plan my Business Bay event",
+          "title": "Party & Office Event Setup Business Bay Dubai | Eventana",
+          "description": "Birthdays, office celebrations and staff events in Business Bay: decor, food stations and entertainment from one team. Backdrops from AED 1,500.",
+          "intro": "Business Bay is towers and hotel apartments alongside offices, so Eventana runs two kinds of job here. At home it is an indoor party: a themed backdrop, balloon decor, food stations run by our own staff, entertainers and activity corners, all carried up and installed in the apartment. At work it is an office or staff celebration, and the same team covers the decor, the snack stations and the entertainment, with backdrops made in your colours and able to carry your branding — small AED 1,500, medium AED 1,650, giant AED 2,200. What Business Bay does not suit is the outdoor equipment: the bouncy castle, bubbles house and slides are 4x4 m and need clear flat ground. Delivery, setup and takedown are AED 280 anywhere in Dubai. Towers here usually want building approval and a service-lift booking for a delivery this size, so arrange that once your date is confirmed. For a company event, scheduling and invoicing are handled with your team — see the corporate and school page for how that works.",
+          "faq": [
+            { "q": "Do you set up parties in Business Bay apartments?", "a": "Yes. Backdrop, balloon decor, food stations, entertainers and activity corners are all indoor setups, installed and removed by the team. Delivery is AED 280 and a full 4-hour package starts at AED 2,199." },
+            { "q": "Can you do an office celebration here?", "a": "Yes — staff celebrations, team milestones and family days. One team covers decor, snack stations and entertainment, and scheduling and invoicing are arranged with your team." },
+            { "q": "Can the backdrop carry our company branding?", "a": "Yes. Backdrops are made in your colours and can carry your branding: small AED 1,500, medium AED 1,650, giant AED 2,200." },
+            { "q": "Can I have inflatables in Business Bay?", "a": "Not in an apartment or an office — they are 4x4 m and need clear flat ground. If you have booked a venue with an outdoor area, they become possible; otherwise the indoor setup covers everything else." },
+            { "q": "What does it cost to deliver to Business Bay?", "a": "AED 280, the standard Dubai fee, covering delivery, setup before guests arrive and full takedown afterwards." }
+          ]
+        },
+        "ar": {
+          "headline": "تجهيز حفلات وفعاليات في الخليج التجاري، دبي",
+          "subhead": "أعياد ميلاد الشقق واحتفالات المكاتب وفعاليات الموظفين — فريق واحد للديكور ومحطات الأكل والترفيه.",
+          "includes": [
+            "تجهيز الشقق والشقق الفندقية",
+            "تجهيز احتفالات المكاتب والموظفين",
+            "خلفيات بالثيم أو بهوية شركتك من 1,500 درهم",
+            "محطات أكل يشغّلها فريق إيفنتانا",
+            "التوصيل والتركيب والفك في دبي 280 درهم",
+            "الباقات من 2,199 درهم"
+          ],
+          "cta": "جهّزي فعاليتك في الخليج التجاري",
+          "title": "تجهيز حفلات ومناسبات المكاتب في الخليج التجاري | إيفنتانا",
+          "description": "أعياد ميلاد واحتفالات مكاتب وفعاليات موظفين في الخليج التجاري: ديكور ومحطات أكل وترفيه من فريق واحد. الخلفيات من 1,500 درهم.",
+          "intro": "الخليج التجاري أبراج وشقق فندقية مع مكاتب، فإيفنتانا تنفّذ فيه نوعين من الشغل. في البيت حفلة داخلية: خلفية بالثيم وديكور بالونات ومحطات أكل يشغّلها فريقنا وترفيه وأركان أنشطة، كلها تنرفع وتتركّب داخل الشقة. وفي العمل احتفال مكتب أو موظفين، ونفس الفريق يغطي الديكور ومحطات التسالي والترفيه، مع خلفيات تُصنع بألوانكم وتقدر تحمل هوية شركتكم — الصغيرة 1,500 درهم، والمتوسطة 1,650، والعملاقة 2,200. واللي ما يناسب الخليج التجاري هو معدّات الخارج: القلعة النطاطة وبيت الفقاعات والزحاليق 4×4 م وتحتاج أرض فاضية مستوية. والتوصيل والتركيب والفك 280 درهم في أي مكان في دبي. وأبراج المنطقة عادةً تطلب موافقة المبنى وحجز مصعد الخدمة لتوصيل بهذا الحجم، فرتّبيها بعد ما يتأكد التاريخ. ولفعاليات الشركات، الجدولة والفوترة تُرتَّب مع فريقكم — شوفي صفحة الشركات والمدارس لتفاصيلها.",
+          "faq": [
+            { "q": "تجهّزون حفلات في شقق الخليج التجاري؟", "a": "نعم. الخلفية وديكور البالونات ومحطات الأكل والترفيه وأركان الأنشطة كلها تجهيزات داخلية، يركّبها الفريق ويفكّها. التوصيل 280 درهم والباقة الكاملة 4 ساعات تبدأ من 2,199." },
+            { "q": "تقدرون تسوّون احتفال مكتب هنا؟", "a": "نعم — احتفالات الموظفين وإنجازات الفريق والأيام العائلية. فريق واحد يغطي الديكور ومحطات التسالي والترفيه، والجدولة والفوترة تُرتَّب مع فريقكم." },
+            { "q": "الخلفية تقدر تحمل هوية شركتنا؟", "a": "نعم. الخلفيات تُصنع بألوانكم وتقدر تحمل هويتكم: الصغيرة 1,500 درهم، والمتوسطة 1,650، والعملاقة 2,200." },
+            { "q": "أقدر أحط نطاطيات في الخليج التجاري؟", "a": "مو في شقة ولا مكتب — هي 4×4 م وتحتاج أرض فاضية مستوية. وإذا حجزتم مكانًا فيه منطقة خارجية تصير ممكنة؛ وغير كذا التجهيز الداخلي يغطي كل شيء ثاني." },
+            { "q": "كم رسم التوصيل للخليج التجاري؟", "a": "280 درهم، رسم دبي المعتاد، ويشمل التوصيل والتركيب قبل وصول الضيوف والفك بالكامل بعدها." }
+          ]
+        }
+      }
   ]
 }
