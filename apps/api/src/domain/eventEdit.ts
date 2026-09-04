@@ -28,6 +28,8 @@ export type EventPatch = {
   locationNote?: string | null; // free-text address / Google Maps link
   mapLat?: number | null;    // exact pin (parsed from the maps link)
   mapLng?: number | null;
+  phone?: string | null;        // customer's primary contact number
+  backupPhone?: string | null;  // customer's second contact number
 };
 
 export async function staffUpdateEvent(eventId: string, patch: EventPatch): Promise<{ ok: true }> {
@@ -77,6 +79,19 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
         );
       }
       await db.query(`UPDATE events SET start_time = $2, base_end_time = $3 WHERE id = $1`, [eventId, newStart, newEnd]);
+    }
+
+    // ── Customer contact numbers (live on the customer record) ──────────────
+    if (patch.phone !== undefined || patch.backupPhone !== undefined) {
+      if (patch.phone !== undefined) {
+        // Primary phone is NOT NULL on the customer — never blank it.
+        const p = (patch.phone ?? '').trim();
+        if (p) await db.query(`UPDATE customers SET phone = $2 WHERE id = $1`, [ev.customer_id, p]);
+      }
+      if (patch.backupPhone !== undefined) {
+        await db.query(`UPDATE customers SET backup_phone = $2 WHERE id = $1`,
+          [ev.customer_id, (patch.backupPhone ?? '').trim() || null]);
+      }
     }
 
     // ── Location ────────────────────────────────────────────────────────────

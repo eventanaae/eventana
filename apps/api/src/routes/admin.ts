@@ -1403,6 +1403,8 @@ export async function adminRoutes(app: FastifyInstance) {
       locationNote: z.string().max(600).nullable().optional(),
       mapLat: z.number().min(-90).max(90).nullable().optional(),
       mapLng: z.number().min(-180).max(180).nullable().optional(),
+      phone: z.string().max(40).nullable().optional(),
+      backupPhone: z.string().max(40).nullable().optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });

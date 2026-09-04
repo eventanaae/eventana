@@ -992,6 +992,8 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
   const [endTime, setEndTime] = useState(event.base_end_time ?? '');
   const [themeId, setThemeId] = useState(event.theme_id ?? '');
   const [customThemeName, setCustomThemeName] = useState(event.custom_theme ? (event.theme_name ?? '') : '');
+  const [phone, setPhone] = useState(event.phone ?? '');
+  const [backupPhone, setBackupPhone] = useState(event.backup_phone ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { if (open && themes.length === 0) api.themesList().then((r) => setThemes(r.rows)).catch(() => {}); }, [open]);
@@ -1009,6 +1011,8 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
       else if (!locationInput.trim()) { patch.mapLat = 0; patch.mapLng = 0; } // cleared
     }
     if ((eventFor ?? '') !== (event.eventFor ?? '')) patch.eventFor = eventFor.trim() || null;
+    if ((phone ?? '') !== (event.phone ?? '') && phone.trim()) patch.phone = phone.trim();
+    if ((backupPhone ?? '') !== (event.backup_phone ?? '')) patch.backupPhone = backupPhone.trim() || null;
     const ct = customThemeName.trim();
     if (ct) {
       if (ct !== (event.custom_theme ? (event.theme_name ?? '') : '')) patch.customThemeName = ct;
@@ -1031,7 +1035,7 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
     >
       {!open ? (
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
-          Change the time, location, guest-of-honour name or theme. A time change re-checks equipment availability.
+          Change the time, phone numbers, location, guest-of-honour name or theme. A time change re-checks equipment availability.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1063,6 +1067,16 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
             <span style={editLbl}>Guest of honour (baby name)</span>
             <input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={inputStyle} placeholder="e.g. Sara" />
           </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={editLbl}>Phone</span>
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="05x xxx xxxx" />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={editLbl}>Second phone</span>
+              <input type="tel" value={backupPhone} onChange={(e) => setBackupPhone(e.target.value)} style={inputStyle} placeholder="optional" />
+            </label>
+          </div>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={editLbl}>Theme</span>
             <select value={customThemeName.trim() ? '' : themeId} onChange={(e) => { setThemeId(e.target.value); if (e.target.value) setCustomThemeName(''); }} style={inputStyle}>
