@@ -49,8 +49,15 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
     // Expenses = every expense spent that month (QuickBooks history INCLUDED —
     // this is a monthly P&L, not the live cash balance, so nothing is excluded).
     pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [start, endStr]),
+    // Top 3 expenses ALWAYS excluding wages/salaries (owner: payroll is a fixed
+    // cost she doesn't want dominating this list) — covers "Wage expenses",
+    // "Part Timers", any salary line.
     pool.query(
-      `SELECT category, SUM(amount_fils) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC LIMIT 3`,
+      `SELECT category, SUM(amount_fils) v FROM expenses
+        WHERE spent_on >= $1 AND spent_on < $2
+          AND category NOT ILIKE '%wage%' AND category NOT ILIKE '%salar%'
+          AND category NOT ILIKE '%part tim%' AND category NOT ILIKE '%payroll%'
+        GROUP BY category ORDER BY v DESC LIMIT 3`,
       [start, endStr],
     ),
     pool.query(
@@ -121,22 +128,23 @@ function buildHtml(s: Summary): string {
            )
            .join('')}</table>`
       : '';
-  // Target status (AED 30,000/month): a green banner when hit, an amber "still
-  // needed" banner when short.
-  const hitTarget = s.revenueFils >= MONTHLY_TARGET_FILS;
-  const gap = MONTHLY_TARGET_FILS - s.revenueFils;
-  const targetBanner = `<div style="margin:14px 0 0;padding:12px 14px;border-radius:12px;font-weight:800;font-size:13.5px;
-      background:${hitTarget ? '#e9f7f1' : '#fff4e5'};color:${hitTarget ? '#1f7a5c' : '#b26a00'}">
-      ${hitTarget
-        ? `🎯 Target reached — AED ${formatAed(s.revenueFils)} of the AED ${formatAed(MONTHLY_TARGET_FILS)} monthly target`
-        : `🎯 Below target — AED ${formatAed(gap)} short of the AED ${formatAed(MONTHLY_TARGET_FILS)} monthly target`}
-    </div>`;
-  // Loss warning: shown ONLY when expenses exceeded income (no profit line otherwise).
-  const lossBanner = s.profitFils < 0
-    ? `<div style="margin:10px 0 0;padding:12px 14px;border-radius:12px;font-weight:800;font-size:13.5px;background:#fdecea;color:#b3261e">
-        ⚠️ Loss this month — expenses were AED ${formatAed(-s.profitFils)} more than income
-      </div>`
-    : '';
+  // The target is on REVENUE — what's left after expenses (total amount minus
+  // expenses) — NOT on gross sales. One banner covers all three cases the owner
+  // wants called out: target reached, below target, or an outright loss.
+  const revenue = s.revenueFils - s.expensesFils;
+  const gap = MONTHLY_TARGET_FILS - revenue;
+  const banner = (bg: string, fg: string, text: string) =>
+    `<div style="margin:14px 0 0;padding:12px 14px;border-radius:12px;font-weight:800;font-size:13.5px;background:${bg};color:${fg}">${text}</div>`;
+  const targetBanner =
+    revenue < 0
+      ? banner('#fdecea', '#b3261e',
+          `⚠️ Loss this month — revenue was −AED ${formatAed(-revenue)} after expenses (AED ${formatAed(gap)} below the AED ${formatAed(MONTHLY_TARGET_FILS)} revenue target)`)
+      : revenue >= MONTHLY_TARGET_FILS
+        ? banner('#e9f7f1', '#1f7a5c',
+            `🎯 Target reached — AED ${formatAed(revenue)} revenue vs the AED ${formatAed(MONTHLY_TARGET_FILS)} target`)
+        : banner('#fff4e5', '#b26a00',
+            `🎯 Below target — AED ${formatAed(revenue)} revenue, AED ${formatAed(gap)} short of the AED ${formatAed(MONTHLY_TARGET_FILS)} target`);
+  const lossBanner = '';
   return `<div style="max-width:560px;margin:0 auto;font-family:Segoe UI,Arial,sans-serif;background:#faf6f2;padding:24px">
     <div style="text-align:center;padding:8px 0 16px"><span style="font-size:22px;font-weight:800;color:#E94F9C">Eventana</span></div>
     <div style="background:#fff;border-radius:18px;padding:26px 24px;color:#3B3641">
