@@ -57,10 +57,15 @@ export async function backfillEventNotificationsFromEnv(): Promise<void> {
     const eventStart = `${e.event_date}T${startTime}:00+04:00`;
     const payload = JSON.stringify({ eventId: e.id, orderId: e.order_id });
 
-    // booking_confirmation — sent now (the first touch these bookings never got).
+    // booking_confirmation — the first touch these bookings never got. Held to
+    // the next 10:00 Dubai time so a real customer is never messaged in the
+    // middle of the night; if it is already past 10:00 locally it goes now.
     await pool.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-       VALUES ($1,'email','booking_confirmation', now(), $2)`,
+       VALUES ($1,'email','booking_confirmation',
+               GREATEST(now(),
+                        (to_char(now() AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') || 'T10:00:00+04:00')::timestamptz),
+               $2)`,
       [e.id, payload],
     );
     // feedback_request — always in the future for an upcoming event.
