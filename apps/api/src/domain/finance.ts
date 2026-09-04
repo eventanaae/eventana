@@ -755,6 +755,22 @@ export async function reconcileInvoicesFromHistory() {
     const del = await pool.query(`DELETE FROM finance_receipts WHERE number = $1 AND source = 'quickbooks'`, [doc]);
     removedReceipts += del.rowCount ?? 0;
   }
+  // Link every imported invoice to the customer record it belongs to (matched by
+  // name), so the contact — phone/email captured from QuickBooks — is available
+  // for pay links and reminders. Prefer the record that actually has contact.
+  const linked = await pool.query(`
+    UPDATE finance_invoices i
+       SET customer_id = m.id
+      FROM (
+        SELECT DISTINCT ON (lower(btrim(name))) lower(btrim(name)) AS k, id
+          FROM historical_customers
+         ORDER BY lower(btrim(name)),
+                  (email IS NOT NULL AND btrim(email) <> '') DESC,
+                  (phone IS NOT NULL AND btrim(phone) <> '') DESC, id
+      ) m
+     WHERE i.customer_id IS NULL
+       AND lower(btrim(i.customer_name)) = m.k`);
+  if (linked.rowCount) console.log(`[fix] linked ${linked.rowCount} invoice(s) to their customer record`);
   // Re-point the sequences at the true max per type.
   await pool.query(`SELECT setval('finance_invoice_seq', GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_invoices WHERE number ~ '^[0-9]+$'),1), true)`).catch(() => {});
   await pool.query(`SELECT setval('finance_receipt_seq', GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_receipts WHERE number ~ '^[0-9]+$'),1), true)`).catch(() => {});

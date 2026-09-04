@@ -168,6 +168,16 @@ export async function fixBookingDataFromEnv(): Promise<void> {
     );
     const id = r.rows[0]?.id;
     L(`  Aysha #1362 → paid 3,000 / balance 1,000, reminder ON (${r.rowCount ?? 0} row)`);
+    // Link the invoice to Aysha's existing customer record (her phone/email from
+    // QuickBooks) — the import stored only the name, not the customer link.
+    await pool.query(`
+      UPDATE finance_invoices i SET customer_id = m.id
+        FROM (SELECT DISTINCT ON (lower(btrim(name))) lower(btrim(name)) AS k, id
+                FROM historical_customers
+               ORDER BY lower(btrim(name)),
+                        (email IS NOT NULL AND btrim(email) <> '') DESC,
+                        (phone IS NOT NULL AND btrim(phone) <> '') DESC, id) m
+       WHERE i.number = '1362' AND lower(btrim(i.customer_name)) = m.k`);
     // Contact on file (so we know the reminder can actually reach her).
     const c = await pool.query(
       `SELECT hc.email, hc.phone FROM finance_invoices i LEFT JOIN historical_customers hc ON hc.id = i.customer_id WHERE i.number = '1362'`,
