@@ -78,6 +78,10 @@ async function main() {
     // (orphaned prep_issue alerts, event_tasks that kept a blocked_reason).
     const { taskAuditFromEnv } = await import('./db/taskAudit.js');
     await taskAuditFromEnv().catch((err) => console.error('[task-audit] failed:', err));
+    // Read-only customer lookup (CUSTOMER_LOOKUP=<name/phone/email>) — "did they
+    // book, is their receipt right?". Logs only; sends/changes nothing.
+    const { customerLookupFromEnv } = await import('./db/customerLookup.js');
+    await customerLookupFromEnv().catch((err) => console.error('[cust-lookup] failed:', err));
     // Self-heal: clear any prep_issue alert whose task is no longer an issue, so a
     // resolved/completed task never keeps showing as an open problem. Idempotent.
     const { clearResolvedPrepIssueAlerts } = await import('./domain/prep.js');
