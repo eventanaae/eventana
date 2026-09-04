@@ -70,6 +70,10 @@ async function main() {
     // time/date differs from the customer's checkout choice. Logs only.
     const { timeAuditFromEnv } = await import('./db/timeAudit.js');
     await timeAuditFromEnv().catch((err) => console.error('[time-audit] failed:', err));
+    // Read-only MONTHLY REPORT audit (REPORT_AUDIT=true) — logs old vs new
+    // revenue/expenses/events per month so the finance-report fix can be verified.
+    const { reportAuditFromEnv } = await import('./db/reportAudit.js');
+    await reportAuditFromEnv().catch((err) => console.error('[report-audit] failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');
