@@ -234,9 +234,13 @@ function longDate(value: unknown): string {
       : /^\d{4}-\d{2}-\d{2}/.test(String(value))
         ? String(value).slice(0, 10)
         : '';
-  const d = iso ? new Date(`${iso}T00:00:00+04:00`) : new Date(NaN);
+  // Format at NOON UTC so no timezone can roll the calendar day forward/back,
+  // and render explicitly in Dubai time so the weekday + day never depend on the
+  // server's own timezone (Render runs UTC; this must be correct regardless).
+  const d = iso ? new Date(`${iso}T12:00:00Z`) : new Date(NaN);
   if (Number.isNaN(d.getTime())) return typeof value === 'string' ? value : 'your event date';
   return d.toLocaleDateString('en-GB', {
+    timeZone: 'Asia/Dubai',
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 }

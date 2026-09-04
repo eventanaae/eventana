@@ -66,6 +66,10 @@ async function main() {
     // picture for review. Sends nothing, changes nothing.
     const { auditReportFromEnv } = await import('./db/auditReport.js');
     await auditReportFromEnv().catch((err) => console.error('[audit] failed:', err));
+    // Read-only TIME/DATE audit (TIME_AUDIT=true) — finds any event whose stored
+    // time/date differs from the customer's checkout choice. Logs only.
+    const { timeAuditFromEnv } = await import('./db/timeAudit.js');
+    await timeAuditFromEnv().catch((err) => console.error('[time-audit] failed:', err));
     // Owner-approved backfill of the standard notification set for upcoming
     // events that never got one (QuickBooks-converted bookings). Gated by
     // BACKFILL_EVENT_NOTIFS=true; idempotent and skips past-dated reminders.
