@@ -334,10 +334,14 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   for (const s of slots) {
     if (s.partTimeOnly) { assigned.push({ role: s.role, slot: s.slot, reason: s.reason, source: s.source, status: 'part_time_required' }); continue; }
     const cands = staff
-      // The driver runs multiple deliveries a day, so same-date booking doesn't
+      // One person, one role per event: never assign someone who already holds a
+      // slot on THIS event, so the same name can't appear twice (e.g. Balloon
+      // Artist AND Clown). If that leaves nobody, the slot becomes a part-time
+      // slot to fill externally — better than double-booking one person.
+      // The driver runs multiple deliveries a day, so same-DATE booking doesn't
       // make him unavailable; every other role is exclusive per date.
-      .filter((st) => (s.role === 'driver' || !busy.has(st.id)) && canTake(st, s.role))
-      .sort((a, b) => (a.workload + (rolesByStaff.get(a.id)?.size ?? 0)) - (b.workload + (rolesByStaff.get(b.id)?.size ?? 0)));
+      .filter((st) => !rolesByStaff.has(st.id) && (s.role === 'driver' || !busy.has(st.id)) && canTake(st, s.role))
+      .sort((a, b) => a.workload - b.workload);
     const pick = cands[0];
     if (pick) {
       const held = rolesByStaff.get(pick.id) ?? new Set<Skill>();
