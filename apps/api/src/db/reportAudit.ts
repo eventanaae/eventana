@@ -36,7 +36,8 @@ export async function reportAuditFromEnv(): Promise<void> {
            (SELECT COALESCE(SUM(total_fils),0) FROM orders WHERE status='paid' AND kind IN ('booking','addon') AND created_at >= $1 AND created_at < $2) AS rev_old,
            (SELECT COALESCE(SUM(amount_fils),0) FROM expenses WHERE spent_on >= $1 AND spent_on < $2) AS exp_new,
            (SELECT COALESCE(SUM(amount_fils),0) FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2) AS exp_old,
-           (SELECT COUNT(*) FROM events WHERE phase <> 'Cancelled' AND event_date >= $1 AND event_date < $2) AS ev_new,
+           (SELECT COUNT(*) FROM finance_receipts r WHERE r.date >= $1 AND r.date < $2
+              AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.id = r.order_id AND o.kind IN ('addon','tip','shop','invoice_pay'))) AS ev_new,
            (SELECT COUNT(*) FROM events WHERE phase='Event Completed' AND event_date >= $1 AND event_date < $2) AS ev_old`,
         [start, endStr],
       );
@@ -55,7 +56,8 @@ export async function reportAuditFromEnv(): Promise<void> {
            (SELECT COALESCE(SUM(total_fils),0) FROM orders WHERE status='paid' AND kind IN ('booking','addon') AND created_at >= $1 AND created_at < $2) AS rev_old,
            (SELECT COALESCE(SUM(amount_fils),0) FROM expenses WHERE spent_on >= $1 AND spent_on < $2) AS exp_new,
            (SELECT COALESCE(SUM(amount_fils),0) FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2) AS exp_old,
-           (SELECT COUNT(*) FROM events WHERE phase <> 'Cancelled' AND event_date >= $1 AND event_date < $2) AS ev_new,
+           (SELECT COUNT(*) FROM finance_receipts r WHERE r.date >= $1 AND r.date < $2
+              AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.id = r.order_id AND o.kind IN ('addon','tip','shop','invoice_pay'))) AS ev_new,
            (SELECT COUNT(*) FROM events WHERE phase='Event Completed' AND event_date >= $1 AND event_date < $2) AS ev_old`,
         [start, endStr],
       );

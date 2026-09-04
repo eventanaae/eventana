@@ -52,10 +52,19 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
         WHERE t.status='paid' AND e.event_date >= $1 AND e.event_date < $2`,
       [start, endStr],
     ),
-    // Events that happened that month = every non-cancelled event dated in it
-    // (not only the ones a leader remembered to mark 'Event Completed').
+    // Events that happened that month = one per sale/receipt dated in it. The
+    // operational `events` table only holds bookings run through the app (2026+),
+    // so historical QuickBooks months would read 0 — but every QB invoice WAS a
+    // real celebration. Counting receipts (the same source as revenue) fixes that
+    // and keeps the report self-consistent. Add-ons / tips / shop / invoice
+    // payments attach to an existing event, so they are excluded — they are not
+    // separate celebrations.
     pool.query(
-      `SELECT COUNT(*) v FROM events WHERE phase <> 'Cancelled' AND event_date >= $1 AND event_date < $2`,
+      `SELECT COUNT(*) v FROM finance_receipts r
+        WHERE r.date >= $1 AND r.date < $2
+          AND NOT EXISTS (
+            SELECT 1 FROM orders o WHERE o.id = r.order_id
+              AND o.kind IN ('addon','tip','shop','invoice_pay'))`,
       [start, endStr],
     ),
   ]);
