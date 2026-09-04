@@ -758,34 +758,26 @@ export async function reconcileInvoicesFromHistory() {
   // Link every imported invoice to the customer record it belongs to (matched by
   // name), so the contact — phone/email captured from QuickBooks — is available
   // for pay links and reminders. Prefer the record that actually has contact.
+  // Link ONLY when the name maps to exactly ONE customer record — never guess
+  // between similar/duplicate names (those are left unlinked for review).
+  const uniqueName = `
+    SELECT lower(btrim(full_name)) AS k, min(id) AS id, count(*) AS n
+      FROM historical_customers GROUP BY lower(btrim(full_name)) HAVING count(*) = 1`;
   const linked = await pool.query(`
-    UPDATE finance_invoices i
-       SET customer_id = m.id
-      FROM (
-        SELECT DISTINCT ON (lower(btrim(full_name))) lower(btrim(full_name)) AS k, id
-          FROM historical_customers
-         ORDER BY lower(btrim(full_name)),
-                  (email IS NOT NULL AND btrim(email) <> '') DESC,
-                  (phone IS NOT NULL AND btrim(phone) <> '') DESC, id
-      ) m
-     WHERE i.customer_id IS NULL
-       AND lower(btrim(i.customer_name)) = m.k`);
-  if (linked.rowCount) console.log(`[fix] linked ${linked.rowCount} invoice(s) to their customer record`);
-  // Same for sales RECEIPTS — the receipt import stored only the name too, so
-  // link each receipt to its customer record (by name) for the contact + history.
+    UPDATE finance_invoices i SET customer_id = m.id
+      FROM (${uniqueName}) m
+     WHERE i.customer_id IS NULL AND lower(btrim(i.customer_name)) = m.k`);
+  if (linked.rowCount) console.log(`[fix] linked ${linked.rowCount} invoice(s) to their customer (unique-name match)`);
   const linkedR = await pool.query(`
-    UPDATE finance_receipts r
-       SET customer_id = m.id
-      FROM (
-        SELECT DISTINCT ON (lower(btrim(full_name))) lower(btrim(full_name)) AS k, id
-          FROM historical_customers
-         ORDER BY lower(btrim(full_name)),
-                  (email IS NOT NULL AND btrim(email) <> '') DESC,
-                  (phone IS NOT NULL AND btrim(phone) <> '') DESC, id
-      ) m
-     WHERE r.customer_id IS NULL
-       AND lower(btrim(r.customer_name)) = m.k`);
-  if (linkedR.rowCount) console.log(`[fix] linked ${linkedR.rowCount} receipt(s) to their customer record`);
+    UPDATE finance_receipts r SET customer_id = m.id
+      FROM (${uniqueName}) m
+     WHERE r.customer_id IS NULL AND lower(btrim(r.customer_name)) = m.k`);
+  if (linkedR.rowCount) console.log(`[fix] linked ${linkedR.rowCount} receipt(s) to their customer (unique-name match)`);
+  // How many are still unlinked (ambiguous or no match) — for the owner to review.
+  const gaps = await pool.query(`
+    SELECT (SELECT count(*) FROM finance_invoices WHERE customer_id IS NULL) AS inv,
+           (SELECT count(*) FROM finance_receipts WHERE customer_id IS NULL) AS rec`);
+  console.log(`[fix] still unlinked (needs review): ${gaps.rows[0].inv} invoice(s), ${gaps.rows[0].rec} receipt(s)`);
   // Re-point the sequences at the true max per type.
   await pool.query(`SELECT setval('finance_invoice_seq', GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_invoices WHERE number ~ '^[0-9]+$'),1), true)`).catch(() => {});
   await pool.query(`SELECT setval('finance_receipt_seq', GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_receipts WHERE number ~ '^[0-9]+$'),1), true)`).catch(() => {});
