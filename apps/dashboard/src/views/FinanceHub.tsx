@@ -300,26 +300,63 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
 
 // ── Expenses ─────────────────────────────────────────────────────────────────
 function ExpensesTab() {
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [month, setMonth] = useState(thisMonth);
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
-  const load = () => api.expenses().then(setData).catch(() => setData({ expenses: [] }));
-  useEffect(() => { load(); }, []);
+  const load = (m: string) => api.expenses(m).then(setData).catch(() => setData({ expenses: [] }));
+  useEffect(() => { load(month); }, [month]);
   if (!data) return <Spinner />;
-  const total = (data.expenses ?? []).reduce((s: number, e: any) => s + Number(e.amount_fils), 0);
+  const rows = data.expenses ?? [];
+  const total = rows.reduce((s: number, e: any) => s + Number(e.amount_fils), 0);
+  const qbCount = rows.filter((e: any) => e.source === 'quickbooks').length;
+  const shiftMonth = (delta: number) => {
+    const [y, mo] = month.split('-').map(Number);
+    const d = new Date(y, mo - 1 + delta, 1);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
   return (
-    <Panel title={`Expenses · ${data.month ?? ''}`} action={<Button onClick={() => setCreating(true)}>+ New expense</Button>}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 12 }}>
-        This month: <b style={{ color: C.ink }}>AED {money(total)}</b> · paid from Cash on hand
-      </div>
-      {(data.expenses ?? []).length === 0 && <Empty>No expenses this month.</Empty>}
-      {(data.expenses ?? []).map((e: any) => (
-        <DocRow key={e.id}
-          title={prettyCat(e.category)} sub={`${fmtDate(e.spent_on)}${e.vendor ? ' · ' + e.vendor : ''}`}
-          amount={money(Number(e.amount_fils))}
-          action={<button style={{ ...linkBtn, color: C.red }} onClick={async () => { if (confirm('Delete this expense?')) { await api.deleteExpense(e.id); load(); } }}>Delete</button>}
+    <Panel title={`Expenses · ${data.month ?? month}`} action={<Button onClick={() => setCreating(true)}>+ New expense</Button>}>
+      {/* Month navigator — imported QuickBooks expenses sit on their original
+          (historical) dates, so browse past months to see them. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <button type="button" style={linkBtn} onClick={() => shiftMonth(-1)}>‹ Prev</button>
+        <input
+          type="month"
+          value={month}
+          max={thisMonth}
+          onChange={(e) => setMonth(e.target.value || thisMonth)}
+          style={{ border: '1px solid #e7dfe3', borderRadius: 8, padding: '5px 9px', fontWeight: 700, fontSize: 12.5, color: C.ink }}
         />
-      ))}
-      {creating && <ExpenseForm categories={data.categories ?? []} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+        <button type="button" style={linkBtn} onClick={() => shiftMonth(1)} disabled={month >= thisMonth}>Next ›</button>
+      </div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 12 }}>
+        Total: <b style={{ color: C.ink }}>AED {money(total)}</b> · {rows.length} item(s)
+        {qbCount > 0 && <span style={{ color: C.muted }}> · {qbCount} from QuickBooks</span>}
+      </div>
+      {rows.length === 0 && <Empty>No expenses in this month. Use ‹ Prev to browse imported history.</Empty>}
+      {rows.map((e: any) => {
+        const isQb = e.source === 'quickbooks';
+        return (
+          <DocRow key={e.id}
+            title={prettyCat(e.category)}
+            sub={`${fmtDate(e.spent_on)}${e.vendor ? ' · ' + e.vendor : ''}${isQb ? ' · QuickBooks' : ''}`}
+            amount={money(Number(e.amount_fils))}
+            action={
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {e.receipt_url && (
+                  <a href={e.receipt_url} target="_blank" rel="noreferrer" style={linkBtn}>🧾 Receipt</a>
+                )}
+                {!isQb && (
+                  <button style={{ ...linkBtn, color: C.red }} onClick={async () => { if (confirm('Delete this expense?')) { await api.deleteExpense(e.id); load(month); } }}>Delete</button>
+                )}
+              </div>
+            }
+          />
+        );
+      })}
+      {creating && <ExpenseForm categories={data.categories ?? []} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(month); }} />}
     </Panel>
   );
 }
