@@ -923,23 +923,19 @@ function StaffingPanel({ eventId }: { eventId: string }) {
                   <div style={{ marginTop: 6 }}>
                     {openOverride === s.id ? (
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {/* Only people who are actually free for this event's time
-                            appear — anyone already booked at that time (drivers
-                            aside), on leave or on their day off is hidden so they
-                            can't be double-booked. */}
-                        {crew.filter((m) => !m.busy).map((m) => (
+                        {/* Everyone is shown so the owner can always choose — free
+                            crew first, then those who are busy / on leave / on a day
+                            off, dimmed and marked so a double-booking is a conscious
+                            choice, not a surprise. */}
+                        {[...crew].sort((a, b) => Number(a.busy) - Number(b.busy)).map((m) => (
                           <Button key={m.id} tone="ghost"
-                            onClick={async () => { await api.overrideSlot(s.id, m.id); setOpenOverride(null); await load(); }}>
-                            {m.name}
+                            onClick={async () => { await api.overrideSlot(s.id, m.id); setOpenOverride(null); await load(); }}
+                            style={m.busy ? { opacity: 0.55, borderStyle: 'dashed' } : undefined}>
+                            {m.name}{m.busy ? ' · busy/off' : ''}
                           </Button>
                         ))}
-                        {crew.filter((m) => !m.busy).length === 0 && (
-                          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Everyone is busy at this time.</div>
-                        )}
-                        {crew.some((m) => m.busy) && (
-                          <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, width: '100%' }}>
-                            {crew.filter((m) => m.busy).length} hidden (busy / off)
-                          </div>
+                        {crew.length === 0 && (
+                          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>No crew found.</div>
                         )}
                         {/* …or replace with a part-timer by name (works on any slot,
                             even one already filled by an internal crew member). */}
