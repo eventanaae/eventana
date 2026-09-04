@@ -1118,7 +1118,7 @@ export function renderInvoiceReminder(doc: {
     ['Balance due', aed(doc.balanceFils)],
   ];
   const body =
-    `<p style="margin:0 0 10px;font-size:15px;line-height:1.6">This is a reminder that <b>${aed(doc.balanceFils)}</b> is still outstanding on your invoice — unpaid since <b>${since}</b> for ${orderLine}. Please settle it now to keep your account with Eventana in good standing.</p>` +
+    `<p style="margin:0 0 10px;font-size:15px;line-height:1.6">This is a reminder that <b>${aed(doc.balanceFils)}</b> remains outstanding on <b>Invoice #${doc.number}</b>, unpaid since <b>${since}</b> for ${orderLine}. Please settle the balance now to avoid any legal complaint.</p>` +
     detailCard(rows) +
     (doc.payUrl
       ? `<p style="margin:16px 0 6px;font-size:14px;line-height:1.6">You can pay the balance securely here:</p>`
@@ -1129,7 +1129,7 @@ export function renderInvoiceReminder(doc: {
     bodyHtml: body,
     cta: doc.payUrl ? { href: doc.payUrl, label: 'Pay the balance' } : undefined,
   });
-  return { subject: `Payment reminder — balance due on Invoice #${doc.number}`, html };
+  return { subject: `Payment reminder: balance due on Invoice #${doc.number}`, html };
 }
 
 /**
