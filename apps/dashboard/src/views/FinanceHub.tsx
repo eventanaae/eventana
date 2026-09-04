@@ -213,7 +213,10 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
       </div>
       {data.totalDisplay != null && (
         <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>
-          Total collected: <b style={{ color: C.green }}>AED {data.totalDisplay}</b> → Cash on hand
+          All-time sales collected: <b style={{ color: C.green }}>AED {data.totalDisplay}</b>
+          <span style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+            Total of every receipt (incl. QuickBooks history). Current <b>Cash on hand</b> — after expenses — is on the Accounting tab.
+          </span>
         </div>
       )}
       {(data.receipts ?? []).some((r: any) => r.customer_name === 'Customer') && (
