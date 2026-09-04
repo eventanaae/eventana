@@ -70,6 +70,10 @@ async function main() {
     // time/date differs from the customer's checkout choice. Logs only.
     const { timeAuditFromEnv } = await import('./db/timeAudit.js');
     await timeAuditFromEnv().catch((err) => console.error('[time-audit] failed:', err));
+    // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
+    // Guarded + idempotent; sends nothing to customers.
+    const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');
+    await fixBookingDataFromEnv().catch((err) => console.error('[fix-bookings] failed:', err));
     // Owner-approved backfill of the standard notification set for upcoming
     // events that never got one (QuickBooks-converted bookings). Gated by
     // BACKFILL_EVENT_NOTIFS=true; idempotent and skips past-dated reminders.
