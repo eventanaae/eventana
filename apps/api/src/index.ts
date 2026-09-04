@@ -66,6 +66,11 @@ async function main() {
     // picture for review. Sends nothing, changes nothing.
     const { auditReportFromEnv } = await import('./db/auditReport.js');
     await auditReportFromEnv().catch((err) => console.error('[audit] failed:', err));
+    // Owner-approved backfill of the standard notification set for upcoming
+    // events that never got one (QuickBooks-converted bookings). Gated by
+    // BACKFILL_EVENT_NOTIFS=true; idempotent and skips past-dated reminders.
+    const { backfillEventNotificationsFromEnv } = await import('./db/backfillEventNotifs.js');
+    await backfillEventNotificationsFromEnv().catch((err) => console.error('[backfill-notif] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();
