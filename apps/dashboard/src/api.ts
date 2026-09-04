@@ -16,6 +16,18 @@ function apiBase(): string {
 
 const BASE = apiBase();
 
+/** The deployed build id (git SHA) from the API health check — used to detect a
+ *  new deployment and auto-reload a long-open dashboard session. */
+export async function fetchBuildCommit(): Promise<string | null> {
+  try {
+    const r = await fetch(`${BASE}/health`, { cache: 'no-store' });
+    const j = await r.json();
+    return j?.commit ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Staff access token. Entered by the staff member on this device (so it is
  * never baked into a distributed app binary), with a build-time fallback for
@@ -106,6 +118,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const idempotent = (init.method ?? 'GET').toUpperCase() === 'GET';
   const opts: RequestInit = {
     ...init,
+    // Never serve a stale cached response: the dashboard must always reflect the
+    // live state (e.g. a team pick must show up immediately, not a cached team).
+    cache: 'no-store',
     headers: {
       'content-type': 'application/json',
       'x-staff-token': getStaffToken(),

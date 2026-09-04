@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler, isPreviewing, exitPreview } from './api';
+import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler, isPreviewing, exitPreview, fetchBuildCommit } from './api';
 import { C, fredoka } from './ui';
 import { BookingNotifier } from './BookingNotifier';
 import { NotificationBell } from './NotificationBell';
@@ -102,6 +102,25 @@ export default function App() {
   useEffect(() => {
     setApiErrorHandler((msg) => setToast(msg));
     return () => setApiErrorHandler(null);
+  }, []);
+
+  // Auto-update: remember the build this session loaded, and whenever a NEW
+  // deployment is live (the API health commit changed), reload once so a
+  // long-open dashboard never keeps running stale code.
+  useEffect(() => {
+    let loadedCommit: string | null = null;
+    let done = false;
+    const check = async () => {
+      const c = await fetchBuildCommit();
+      if (!c || done) return;
+      if (loadedCommit === null) { loadedCommit = c; return; }
+      if (c !== loadedCommit) { done = true; try { window.location.reload(); } catch { /* ignore */ } }
+    };
+    check();
+    const id = setInterval(check, 60_000);
+    const onVis = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); };
   }, []);
   useEffect(() => {
     if (!toast) return;

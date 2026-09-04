@@ -67,7 +67,9 @@ export async function buildServer(): Promise<FastifyInstance> {
     } catch (err) {
       database = `error: ${(err as Error).message}`;
     }
-    return { ok: database === 'ok', database, ...readinessSummary() };
+    // `commit` lets the dashboard detect a new deployment and auto-reload, so a
+    // long-open session never keeps running stale code. Render injects the SHA.
+    return { ok: database === 'ok', database, commit: process.env.RENDER_GIT_COMMIT ?? 'dev', ...readinessSummary() };
   });
 
   await app.register(publicRoutes);
