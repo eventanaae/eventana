@@ -260,6 +260,13 @@ export const api = {
   setChat: (id: string, open: boolean) =>
     request<any>(`/api/admin/events/${id}/chat`, { method: 'POST', body: JSON.stringify({ open }) }),
 
+  webFunnel: () => request<{
+    visitors: number; visitorsLast30: number; totalVisits: number;
+    registered: number; booked: number;
+    registeredPct: number; bookedPct: number; overallPct: number;
+    trend: Array<{ day: string; visitors: number }>; tracking: boolean;
+  }>('/api/admin/web-funnel'),
+
   tasks: () => request<any[]>('/api/admin/tasks'),
   setTask: (id: number, status: string, blockedReason?: string) =>
     request<any>(`/api/admin/tasks/${id}`, {

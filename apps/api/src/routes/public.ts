@@ -4,7 +4,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import {
   CELEBRATION_TYPES,
   CASTLE_VARIANTS,
@@ -772,6 +772,25 @@ export async function publicRoutes(app: FastifyInstance) {
         name: String(x.name ?? '').trim().split(' ')[0] || 'Guest',
       })),
     };
+  });
+
+  /** Anonymous visit ping — the site calls this once per session on load. Stores
+   *  only a hashed random browser id per day (no personal data), for the
+   *  visitors → registered → booked funnel. Always 204, never errors the page. */
+  app.post('/api/track', async (request, reply) => {
+    try {
+      const b = (request.body ?? {}) as { vid?: string };
+      const vid = String(b.vid ?? '').trim();
+      if (vid && vid.length <= 200) {
+        const hash = createHash('sha256').update(vid).digest('hex').slice(0, 32);
+        await pool.query(
+          `INSERT INTO site_visits (visitor_hash, day) VALUES ($1, current_date)
+           ON CONFLICT (visitor_hash, day) DO UPDATE SET hits = site_visits.hits + 1`,
+          [hash],
+        );
+      }
+    } catch { /* analytics must never break the page */ }
+    return reply.status(204).send();
   });
 
   /* --------------- Guest feedback (no account, signed link) --------------- */

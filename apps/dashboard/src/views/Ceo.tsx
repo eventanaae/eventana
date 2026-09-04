@@ -41,6 +41,7 @@ export function Ceo() {
   const [emirate, setEmirate] = useState('');
   const [eventType, setEventType] = useState('');
   const [data, setData] = useState<any>(null);
+  const [funnel, setFunnel] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +56,9 @@ export function Ceo() {
       .catch((e) => setError(e?.message || 'Could not load analytics.'))
       .finally(() => setLoading(false));
   }, [range.from, range.to, emirate, eventType]);
+
+  // Website funnel is global (not range-filtered) — load it once.
+  useEffect(() => { api.webFunnel().then(setFunnel).catch(() => setFunnel(null)); }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -94,6 +98,9 @@ export function Ceo() {
         <>
           {/* CEO Morning Brief — birthdays + prioritised alerts (Critical→Low) */}
           <MorningBrief data={data} />
+
+          {/* Website funnel: visitors → registered → booked */}
+          {funnel && <WebFunnel f={funnel} />}
 
           {/* This year — the real P&L (from QuickBooks), the headline numbers */}
           {data.business?.latestYear && (() => {
@@ -254,6 +261,44 @@ function MorningBrief({ data }: { data: any }) {
               </div>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Website funnel: visitors → registered → booked, with conversion at each step. */
+function WebFunnel({ f }: { f: any }) {
+  const steps = [
+    { label: 'Visited the site', value: f.visitors, icon: '👀', accent: C.mint, sub: f.tracking ? `${f.visitorsLast30} in the last 30 days` : 'Collecting from now on' },
+    { label: 'Registered an account', value: f.registered, icon: '📝', accent: C.pink, sub: `${f.registeredPct}% of visitors` },
+    { label: 'Registered & booked', value: f.booked, icon: '🎉', accent: C.green, sub: `${f.bookedPct}% of registered` },
+  ];
+  const max = Math.max(1, f.visitors, f.registered, f.booked);
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+      <div style={{ height: 5, background: `linear-gradient(90deg,${C.mint},${C.pink},${C.green})` }} />
+      <div style={{ padding: '16px 20px' }}>
+        <div style={{ ...fredoka(15), marginBottom: 4 }}>🔎 Website funnel</div>
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 14 }}>
+          {f.tracking
+            ? `From ${f.visitors.toLocaleString()} visitors to ${f.booked.toLocaleString()} booked · ${f.overallPct}% overall`
+            : 'Visitor tracking just went live — numbers will grow as people open the site.'}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {steps.map((s, i) => (
+            <div key={i}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 14 }}>{s.icon}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, flex: 1 }}>{s.label}</span>
+                <span style={{ ...fredoka(17), color: s.accent }}>{Number(s.value).toLocaleString()}</span>
+              </div>
+              <div style={{ height: 10, borderRadius: 6, background: C.lineSoft, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.round((Number(s.value) / max) * 100)}%`, background: s.accent, transition: 'width .4s' }} />
+              </div>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 3 }}>{s.sub}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

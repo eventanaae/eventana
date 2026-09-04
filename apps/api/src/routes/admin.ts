@@ -3160,6 +3160,47 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows;
   });
 
+  /**
+   * Website funnel: how many people visited the site, how many created an
+   * account, and how many of those went on to book. Visitors come from the
+   * anonymous /api/track pings (they accrue from when tracking went live);
+   * registered = accounts with a password; booked = accounts with a paid order
+   * or a live event.
+   */
+  app.get('/api/admin/web-funnel', async () => {
+    const [visitAll, visit30, reg, booked, trend] = await Promise.all([
+      pool.query(`SELECT COUNT(DISTINCT visitor_hash)::int n, COALESCE(SUM(hits),0)::int hits FROM site_visits`),
+      pool.query(`SELECT COUNT(DISTINCT visitor_hash)::int n FROM site_visits WHERE day >= current_date - 29`),
+      pool.query(`SELECT COUNT(*)::int n FROM customers WHERE password_hash IS NOT NULL`),
+      pool.query(
+        `SELECT COUNT(*)::int n FROM customers c
+          WHERE c.password_hash IS NOT NULL
+            AND (EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status = 'paid')
+                 OR EXISTS (SELECT 1 FROM events e WHERE e.customer_id = c.id AND e.phase <> 'Cancelled'))`,
+      ),
+      pool.query(
+        `SELECT to_char(day,'YYYY-MM-DD') d, COUNT(DISTINCT visitor_hash)::int n
+           FROM site_visits WHERE day >= current_date - 13 GROUP BY day ORDER BY day`,
+      ),
+    ]);
+    const visitors = Number(visitAll.rows[0].n);
+    const registered = Number(reg.rows[0].n);
+    const bookedN = Number(booked.rows[0].n);
+    const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
+    return {
+      visitors,
+      visitorsLast30: Number(visit30.rows[0].n),
+      totalVisits: Number(visitAll.rows[0].hits),
+      registered,
+      booked: bookedN,
+      registeredPct: pct(registered, visitors),   // visitors → registered
+      bookedPct: pct(bookedN, registered),         // registered → booked
+      overallPct: pct(bookedN, visitors),          // visitors → booked
+      trend: trend.rows.map((r) => ({ day: r.d, visitors: Number(r.n) })),
+      tracking: visitors > 0,
+    };
+  });
+
   app.patch('/api/admin/tasks/:taskId', async (request, reply) => {
     const { taskId } = request.params as { taskId: string };
     const schema = z.object({

@@ -224,6 +224,18 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS cart_reminded_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS cart_reminder_count INT NOT NULL DEFAULT 0;
 
+-- Website analytics: one row per anonymous visitor per day (a random id kept in
+-- the browser, hashed server-side — no personal data). Powers the visitors →
+-- registered → booked funnel. `hits` counts repeat opens that day.
+CREATE TABLE IF NOT EXISTS site_visits (
+  visitor_hash TEXT NOT NULL,
+  day          DATE NOT NULL DEFAULT current_date,
+  hits         INT NOT NULL DEFAULT 1,
+  first_seen   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (visitor_hash, day)
+);
+CREATE INDEX IF NOT EXISTS site_visits_day_idx ON site_visits (day);
+
 CREATE TABLE IF NOT EXISTS payments (
   id                   TEXT PRIMARY KEY,
   order_id             TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,

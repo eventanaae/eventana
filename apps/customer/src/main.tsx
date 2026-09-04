@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { captureAttribution, initPixel } from './attribution';
 import { initGoogleTag } from './googleTag';
+import { trackVisit } from './api';
 
 // Before React paints: read the ad parameters off the landing URL (they are
 // only there on the very first request) and start the tags. The capture runs
@@ -11,6 +12,7 @@ import { initGoogleTag } from './googleTag';
 captureAttribution();
 initPixel();
 initGoogleTag();
+trackVisit();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

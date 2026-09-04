@@ -23,6 +23,29 @@ function apiBase(): string {
 
 const BASE = apiBase();
 
+/**
+ * Anonymous visit ping for the website funnel. Sends a random per-browser id
+ * (kept in localStorage, hashed server-side) once per session. Never throws —
+ * analytics must not affect the page. No personal data, no cookies.
+ */
+export function trackVisit(): void {
+  try {
+    let vid = localStorage.getItem('ev_vid');
+    if (!vid) {
+      vid = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      localStorage.setItem('ev_vid', vid);
+    }
+    if (sessionStorage.getItem('ev_tracked')) return; // one ping per session
+    sessionStorage.setItem('ev_tracked', '1');
+    void fetch(`${BASE}/api/track`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ vid }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch { /* private mode / storage blocked — ignore */ }
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // The free-tier API sleeps after ~15 min idle and cold-starts on the next
 // request (~50s). Retry through that window so the app reconnects on its own
