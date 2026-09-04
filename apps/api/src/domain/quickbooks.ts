@@ -307,9 +307,22 @@ export function startExpenseSync(): { started: boolean; already: boolean } {
   syncState = { running: true, startedAt: new Date().toISOString(), finishedAt: null, message: 'Starting…', result: null, error: null };
   (async () => {
     try {
-      const result = await syncExpenses((m) => { syncState.message = m; });
-      syncState.result = result;
+      // Intuit's attachment download URLs are short-lived, so a single long
+      // pass loses the receipts that come late in the run (their URL expires
+      // before we reach them). Re-run: each pass fetches fresh URLs and retries
+      // only the receipts still missing (resume skips the done ones), so the
+      // remaining set shrinks and finishes. Stop as soon as a pass adds nothing.
+      let prev = -1;
+      let result = { imported: 0, withReceipt: 0, total: 0 };
+      for (let pass = 0; pass < 8; pass++) {
+        result = await syncExpenses((m) => { syncState.message = m; });
+        syncState.result = result;
+        console.log(`[qb-sync] pass ${pass + 1} done — ${result.withReceipt} receipts`);
+        if (result.withReceipt <= prev) break; // no new receipts this pass → converged
+        prev = result.withReceipt;
+      }
       syncState.message = `Done — ${result.imported} expenses, ${result.withReceipt} with receipts.`;
+      console.log(`[qb-sync] ${syncState.message}`);
     } catch (e) {
       syncState.error = (e as Error).message;
       syncState.message = `Failed: ${syncState.error}`;
