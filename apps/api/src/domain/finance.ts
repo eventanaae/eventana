@@ -13,21 +13,17 @@ import { nextOrderId, nextEventId } from './orders.js';
  * short form per document, Cash on hand as the only account.
  */
 
-/** Friendly payment-method label from a provider code (payments.provider). */
+/**
+ * Friendly payment-method label from a provider code (payments.provider).
+ * Eventana takes exactly three methods: Tabby, Tamara, and Debit — where
+ * "Debit" covers a card/Stripe/Ziina charge or a bank transfer. No cash.
+ */
 export function paymentMethodLabel(provider: string | null | undefined): string | null {
   const p = String(provider ?? '').toLowerCase().trim();
   if (!p) return null;
-  const map: Record<string, string> = {
-    tabby: 'Tabby',
-    tamara: 'Tamara',
-    stripe: 'Stripe',
-    ziina: 'Ziina',
-    card: 'Card',
-    cash: 'Cash',
-    bank_transfer: 'Bank transfer',
-    'bank transfer': 'Bank transfer',
-  };
-  return map[p] ?? provider!.charAt(0).toUpperCase() + provider!.slice(1);
+  if (p === 'tabby') return 'Tabby';
+  if (p === 'tamara') return 'Tamara';
+  return 'Debit';
 }
 
 /**

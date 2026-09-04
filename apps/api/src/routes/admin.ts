@@ -894,7 +894,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!onCrew[0]) return reply.status(403).send({ error: 'forbidden' });
     }
     const { rows } = await pool.query(
-      `SELECT e.*, c.name AS customer, c.phone, c.email, o.id AS order_id,
+      `SELECT e.*, c.name AS customer, c.phone, c.backup_phone, c.email, o.id AS order_id,
               o.status AS order_status, o.total_fils, o.quote, o.cart,
               th.name AS theme_name,
               cx.cancelled_by, cx.reason AS cancellation_note, cx.total_paid_fils AS cx_total_paid,

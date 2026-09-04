@@ -159,15 +159,16 @@ export async function fixBookingDataFromEnv(): Promise<void> {
     await setTbd('EV-2026-0199');
   });
 
-  // 7) Manual receipts the owner confirmed were paid by bank transfer.
+  // 7) Payment methods: Eventana takes only Tabby / Tamara / Debit (no cash;
+  //    Debit covers card/Stripe/Ziina/bank transfer). Normalise every recent
+  //    (non-QuickBooks) receipt whose method isn't Tabby/Tamara to 'Debit'.
   await run('receipt-methods', async () => {
-    for (const num of ['1718', '1719', '1722', '1723']) {
-      const { rowCount } = await pool.query(
-        `UPDATE finance_receipts SET paid_with = 'Bank transfer' WHERE number = $1`,
-        [num],
-      );
-      L(`  R#${num} paid_with → Bank transfer${rowCount ? '' : ' (not found)'}`);
-    }
+    const { rowCount } = await pool.query(
+      `UPDATE finance_receipts SET paid_with = 'Debit'
+        WHERE COALESCE(source,'') <> 'quickbooks'
+          AND (paid_with IS NULL OR paid_with NOT IN ('Tabby','Tamara','Debit'))`,
+    );
+    L(`  normalised ${rowCount ?? 0} receipt(s) to 'Debit'`);
   });
 
   L('DONE');

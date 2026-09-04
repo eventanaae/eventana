@@ -651,7 +651,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const [theme, setTheme] = useState(initial?.theme ?? '');
   const [eventTime, setEventTime] = useState(initial?.eventTime ?? '');
   const [dateTbd, setDateTbd] = useState<boolean>(initial?.dateTbd ?? false);
-  const [paidWith, setPaidWith] = useState<string>(initial?.paidWith ?? 'Bank transfer');
+  const [paidWith, setPaidWith] = useState<string>(initial?.paidWith ?? 'Debit');
   const [commissionMarsha, setCommissionMarsha] = useState<boolean>(String(initial?.commissionRep ?? '').toLowerCase() === 'marsha');
   const [pickCustomer, setPickCustomer] = useState(false);
   const [pickItem, setPickItem] = useState(false);
@@ -769,7 +769,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
       {kind === 'receipt' && (
         <Field label="Payment method">
           <select value={paidWith} onChange={(e) => setPaidWith(e.target.value)} style={input}>
-            {['Tabby', 'Tamara', 'Bank transfer', 'Ziina', 'Stripe'].map((m) => <option key={m} value={m}>{m}</option>)}
+            {['Tabby', 'Tamara', 'Debit'].map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </Field>
       )}
@@ -800,7 +800,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
     theme: doc.theme ?? '',
     eventTime: doc.event_time ?? '',
     dateTbd: doc.date_tbd ?? false,
-    paidWith: doc.paid_with ?? 'Bank transfer',
+    paidWith: doc.paid_with ?? 'Debit',
     commissionRep: doc.commission_rep ?? doc.commissionRep ?? null,
   });
 

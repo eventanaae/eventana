@@ -217,7 +217,10 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: C.line, borderTop: `1px solid ${C.line}` }}>
                     <InfoCell label="👤 Booked by" value={data.event.customer} />
                     <InfoCell label="📞 Phone" value={data.event.phone
-                      ? <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.phone}</a>
+                      ? <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <a href={`tel:${String(data.event.phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.phone}</a>
+                          {data.event.backup_phone && <a href={`tel:${String(data.event.backup_phone).replace(/[^\d+]/g, '')}`} style={{ color: C.pinkDeep, fontWeight: 800, textDecoration: 'none' }}>{data.event.backup_phone}</a>}
+                        </span>
                       : <span style={{ color: C.muted }}>—</span>} />
                     <InfoCell span label="🗓️ Date & time" value={`${data.event.date_tbd ? 'Date to be confirmed' : new Date(data.event.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${timeRange12h(data.event.start_time, data.event.base_end_time)}`} />
                     {data.event.email && (
