@@ -84,6 +84,10 @@ async function main() {
     await clearResolvedPrepIssueAlerts()
       .then((n) => n && console.log(`[prep] cleared ${n} resolved prep_issue alert(s)`))
       .catch((err) => console.error('[prep] clear alerts failed:', err));
+    // Abandoned-cart recovery (CART_REMINDERS=list|send) — list shows who WOULD be
+    // emailed (sends nothing) for owner approval; send delivers once. Off by default.
+    const { abandonedCartFromEnv } = await import('./domain/abandonedCart.js');
+    await abandonedCartFromEnv().catch((err) => console.error('[cart-reminder] failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');

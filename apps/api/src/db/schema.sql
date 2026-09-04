@@ -219,6 +219,11 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS attribution JSONB;
 -- default/NULL) or 'manual' (a Manager-created WhatsApp order paid via a link).
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;
 
+-- Abandoned-cart recovery: when we last nudged the customer to finish an
+-- unpaid checkout, and how many times, so reminders never spam.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cart_reminded_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cart_reminder_count INT NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS payments (
   id                   TEXT PRIMARY KEY,
   order_id             TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,

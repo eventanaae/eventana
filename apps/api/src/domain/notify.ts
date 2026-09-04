@@ -18,6 +18,7 @@ import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { pushToStaff, pushToOwner } from '../integrations/push.js';
 import { whatsappCustomerNotifyEnabled, whatsappDriverNotifyEnabled, sendWhatsAppTemplate } from '../integrations/whatsapp.js';
 import { issueFeedbackToken } from './customerAuth.js';
+import { orderViewToken } from './orders.js';
 
 export interface EmailRow {
   id: number;
@@ -183,6 +184,48 @@ function shell({ first, emoji, eyebrow, heading, bodyHtml, cta }: Shell): string
 /** Money for emails — always with the AED prefix (formatAed omits the currency). */
 function aed(n: number | null | undefined): string {
   return `AED ${formatAed(Number(n ?? 0))}`;
+}
+
+/**
+ * Abandoned-cart recovery: a warm, on-brand "you didn't finish your booking —
+ * your celebration is waiting" email plus a best-effort app push, with a one-tap
+ * link back to the saved checkout. Returns true if the email was accepted.
+ */
+export async function sendAbandonedCartReminder(o: {
+  orderId: string;
+  customerId: string;
+  firstName: string;
+  email: string;
+  amountFils: number;
+  occasionPhrase?: string | null;
+}): Promise<boolean> {
+  const base = (config.publicAppUrl || '').replace(/\/$/, '');
+  const resumeUrl = base ? `${base}/?pay=${o.orderId}&t=${orderViewToken(o.orderId)}` : '';
+  const rows: Array<[string, string]> = [
+    ...(o.occasionPhrase ? ([['Celebration', o.occasionPhrase]] as Array<[string, string]>) : []),
+    ['Amount', aed(o.amountFils)],
+    ['Reference', o.orderId],
+  ];
+  const html = shell({
+    first: o.firstName,
+    emoji: '🎈',
+    eyebrow: 'Almost there',
+    heading: 'Your celebration is waiting!',
+    bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">We noticed you started planning your celebration with us but didn't quite finish — no worries at all, we've saved every detail for you! 🎈 Your party is just one step away.</p>
+      ${detailCard(rows)}
+      <p style="margin:16px 0 0;font-size:15px;line-height:1.6">Tap below to complete your booking whenever you're ready, and let's make the magic happen. 💕</p>`,
+    cta: resumeUrl ? { href: resumeUrl, label: 'Finish your booking →' } : undefined,
+  });
+  const res = await sendEmail({ to: o.email, subject: 'Your Eventana celebration is waiting for you 🎈', html });
+  // App push — best-effort; a no-op if the customer has no registered device.
+  await pushToOwner(
+    'customer',
+    o.customerId,
+    'Your celebration is waiting 🎈',
+    "You didn't finish your booking — tap to complete it and let's celebrate!",
+    { orderId: o.orderId, kind: 'abandoned_cart' },
+  ).catch(() => {});
+  return res.ok;
 }
 
 /** "16:00" → "4:00 PM" — friendly 12-hour time for customers. */
