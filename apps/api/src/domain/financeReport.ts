@@ -18,8 +18,10 @@ interface Summary {
   profitFils: number;
   marginPct: number;
   tipsFils: number;
-  eventsDone: number;
+  ordersCount: number;
   byCategory: Array<{ category: string; amountFils: number }>;
+  topItems: Array<{ name: string; count: number }>;
+  topEmirates: Array<{ emirate: string; count: number }>;
 }
 
 const monthLabel = (m: string) => {
@@ -33,7 +35,7 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
   end.setUTCMonth(end.getUTCMonth() + 1);
   const endStr = end.toISOString().slice(0, 10);
 
-  const [rev, exp, byCat, tips, events] = await Promise.all([
+  const [rev, exp, byCat, tips, orders, items, emirates] = await Promise.all([
     // Revenue = every sale recorded that month (QuickBooks history + new sales),
     // so a past month reports its true income, not just newly-created orders.
     pool.query(
@@ -44,7 +46,7 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
     // this is a monthly P&L, not the live cash balance, so nothing is excluded).
     pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [start, endStr]),
     pool.query(
-      `SELECT category, SUM(amount_fils) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+      `SELECT category, SUM(amount_fils) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC LIMIT 3`,
       [start, endStr],
     ),
     pool.query(
@@ -52,19 +54,32 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
         WHERE t.status='paid' AND e.event_date >= $1 AND e.event_date < $2`,
       [start, endStr],
     ),
-    // Events that happened that month = one per sale/receipt dated in it. The
-    // operational `events` table only holds bookings run through the app (2026+),
-    // so historical QuickBooks months would read 0 — but every QB invoice WAS a
-    // real celebration. Counting receipts (the same source as revenue) fixes that
-    // and keeps the report self-consistent. Add-ons / tips / shop / invoice
-    // payments attach to an existing event, so they are excluded — they are not
-    // separate celebrations.
+    // Orders = every sale/receipt dated in the month, whether it was an event or
+    // a shop / printed-goods order (the owner wants the total order count, not a
+    // split). Same source as revenue, so the two always agree.
     pool.query(
-      `SELECT COUNT(*) v FROM finance_receipts r
-        WHERE r.date >= $1 AND r.date < $2
-          AND NOT EXISTS (
-            SELECT 1 FROM orders o WHERE o.id = r.order_id
-              AND o.kind IN ('addon','tip','shop','invoice_pay'))`,
+      `SELECT COUNT(*) v FROM finance_receipts WHERE date >= $1 AND date < $2`,
+      [start, endStr],
+    ),
+    // Top 5 most-requested items that month, by how many receipts contain them.
+    pool.query(
+      `SELECT btrim(li->>'name') AS name, COUNT(*) n
+         FROM finance_receipts r, LATERAL jsonb_array_elements(r.line_items) li
+        WHERE r.date >= $1 AND r.date < $2 AND COALESCE(btrim(li->>'name'),'') <> ''
+        GROUP BY 1 ORDER BY n DESC, name LIMIT 5`,
+      [start, endStr],
+    ),
+    // Top 3 emirates that month. QuickBooks receipts carry the customer's emirate
+    // (historical_customers); app bookings carry the event's emirate.
+    pool.query(
+      `SELECT emirate, COUNT(*) n FROM (
+         SELECT COALESCE(NULLIF(btrim(hc.emirate),''), NULLIF(btrim(ev.emirate),'')) AS emirate
+           FROM finance_receipts r
+           LEFT JOIN historical_customers hc ON hc.id = r.customer_id
+           LEFT JOIN events ev ON ev.id = r.event_id
+          WHERE r.date >= $1 AND r.date < $2
+       ) s WHERE emirate IS NOT NULL
+        GROUP BY emirate ORDER BY n DESC LIMIT 3`,
       [start, endStr],
     ),
   ]);
@@ -79,37 +94,43 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
     profitFils: profit,
     marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
     tipsFils: Number(tips.rows[0].v),
-    eventsDone: Number(events.rows[0].v),
+    ordersCount: Number(orders.rows[0].v),
     byCategory: byCat.rows.map((r) => ({ category: r.category, amountFils: Number(r.v) })),
+    topItems: items.rows.map((r) => ({ name: r.name, count: Number(r.n) })),
+    topEmirates: emirates.rows.map((r) => ({ emirate: r.emirate, count: Number(r.n) })),
   };
 }
 
 function buildHtml(s: Summary): string {
-  const neg = s.profitFils < 0;
   const row = (label: string, value: string, color?: string) =>
     `<tr><td style="padding:8px 0;color:#6b6069;font-weight:600">${label}</td>
      <td style="padding:8px 0;text-align:right;font-weight:800;color:${color ?? '#3B3641'}">${value}</td></tr>`;
-  const cats = s.byCategory
-    .map(
-      (c) =>
-        `<tr><td style="padding:4px 0;color:#8b7d84;text-transform:capitalize">${c.category}</td>
-         <td style="padding:4px 0;text-align:right;font-weight:700">AED ${formatAed(c.amountFils)}</td></tr>`,
-    )
-    .join('');
+  // A ranked mini-list (top items / emirates / expenses): "name" left, value right.
+  const rankList = (title: string, rows: Array<{ left: string; right: string }>) =>
+    rows.length
+      ? `<div style="margin-top:18px;font-weight:700;font-size:13px;color:#6b6069">${title}</div>
+         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:6px">${rows
+           .map(
+             (r, i) =>
+               `<tr><td style="padding:4px 0;color:#8b7d84">${i + 1}. ${r.left}</td>
+                <td style="padding:4px 0;text-align:right;font-weight:700">${r.right}</td></tr>`,
+           )
+           .join('')}</table>`
+      : '';
   return `<div style="max-width:560px;margin:0 auto;font-family:Segoe UI,Arial,sans-serif;background:#faf6f2;padding:24px">
     <div style="text-align:center;padding:8px 0 16px"><span style="font-size:22px;font-weight:800;color:#E94F9C">Eventana</span></div>
     <div style="background:#fff;border-radius:18px;padding:26px 24px;color:#3B3641">
-      <h2 style="margin:0 0 4px">Monthly finance report</h2>
+      <h2 style="margin:0 0 4px">Monthly report</h2>
       <div style="color:#b3a8a0;font-weight:700;margin-bottom:18px">${monthLabel(s.month)}</div>
       <table style="width:100%;border-collapse:collapse;font-size:15px">
-        ${row('Revenue', `AED ${formatAed(s.revenueFils)}`, '#2e9e7e')}
+        ${row('Orders', String(s.ordersCount))}
+        ${row('Total amount', `AED ${formatAed(s.revenueFils)}`, '#2e9e7e')}
         ${row('Expenses', `AED ${formatAed(s.expensesFils)}`, '#F06C6C')}
-        <tr><td colspan="2" style="border-top:1px solid #eee"></td></tr>
-        ${row(`Net profit · ${s.marginPct}% margin`, `${neg ? '−' : ''}AED ${formatAed(Math.abs(s.profitFils))}`, neg ? '#F06C6C' : '#2e9e7e')}
-        ${row('Events completed', String(s.eventsDone))}
         ${row('Tips collected (to staff)', `AED ${formatAed(s.tipsFils)}`)}
       </table>
-      ${cats ? `<div style="margin-top:18px;font-weight:700;font-size:13px;color:#6b6069">Expenses by category</div><table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:6px">${cats}</table>` : ''}
+      ${rankList('Top 5 most requested', s.topItems.map((t) => ({ left: t.name, right: `${t.count}×` })))}
+      ${rankList('Top 3 emirates', s.topEmirates.map((e) => ({ left: e.emirate, right: `${e.count} order${e.count === 1 ? '' : 's'}` })))}
+      ${rankList('Top 3 expenses', s.byCategory.map((c) => ({ left: c.category, right: `AED ${formatAed(c.amountFils)}` })))}
       <p style="color:#b3a8a0;font-size:12px;margin-top:22px">Automated report from your Eventana dashboard.</p>
     </div>
   </div>`;
