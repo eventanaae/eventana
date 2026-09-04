@@ -35,7 +35,7 @@ import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
 import { offerIsOpen, getOfferAdjustments, applyOfferToQuote } from './offers.js';
 import { computeDiscounts, makeReferralCode, type DiscountInput } from './discounts.js';
 import { resolveStaffCode } from './staffReferral.js';
-import { toValidCustomerPhone } from './maintenance.js';
+import { toValidCustomerPhone, titleCaseName } from './maintenance.js';
 
 export interface CheckoutRequest {
   cart: CartInput & {
@@ -1058,6 +1058,7 @@ async function createGuestCustomer(
   // edge case, and pay-links reuse historical data) — registration enforces it.
   const phone = toValidCustomerPhone(g.phone) ?? g.phone;
   const backupPhone = g.backupPhone ? (toValidCustomerPhone(g.backupPhone) ?? g.backupPhone) : g.backupPhone;
+  const name = titleCaseName(g.name);
   const existing = await pool.query<{ id: string; password_hash: string | null }>(
     `SELECT id, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1`,
     [g.email],
@@ -1083,7 +1084,7 @@ async function createGuestCustomer(
     // A prior guest (no password) with the same email — safe to reuse and refresh.
     await pool.query(
       `UPDATE customers SET name = $2, phone = $3, backup_phone = $4 WHERE id = $1`,
-      [existing.rows[0].id, g.name, phone, backupPhone],
+      [existing.rows[0].id, name, phone, backupPhone],
     );
     return existing.rows[0].id;
   }
@@ -1097,7 +1098,7 @@ async function createGuestCustomer(
   await pool.query(
     `INSERT INTO customers (id, name, phone, backup_phone, email, referral_code)
      VALUES ($1,$2,$3,$4,$5,$6)`,
-    [id, g.name, phone, backupPhone, g.email, code],
+    [id, name, phone, backupPhone, g.email, code],
   );
   return id;
 }

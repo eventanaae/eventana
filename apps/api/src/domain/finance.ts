@@ -5,6 +5,7 @@ import { formatAed, to12h, parseHour, formatHour24 } from '@eventana/shared';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 import { renderFinanceDocEmail } from './notify.js';
 import { nextOrderId, nextEventId } from './orders.js';
+import { titleCaseName } from './maintenance.js';
 
 /**
  * The dashboard's simple QuickBooks-style finance module: customers, items,
@@ -122,7 +123,7 @@ export async function addCustomer(d: { fullName: string; email?: string; phone?:
        email = COALESCE(EXCLUDED.email, historical_customers.email),
        emirate = COALESCE(EXCLUDED.emirate, historical_customers.emirate)
      RETURNING id, full_name, email, phone, phone_alt, emirate`,
-    [d.fullName.trim(), (d.phone ?? '').trim() || null, (d.backupPhone ?? '').trim() || null, (d.email ?? '').trim() || null, (d.emirate ?? '').trim() || null, dedupe],
+    [titleCaseName(d.fullName), (d.phone ?? '').trim() || null, (d.backupPhone ?? '').trim() || null, (d.email ?? '').trim() || null, (d.emirate ?? '').trim() || null, dedupe],
   );
   return rows[0];
 }
@@ -161,7 +162,7 @@ export async function updateCustomer(
         emirate   = COALESCE($6, emirate)
       WHERE id = $1
       RETURNING id, full_name, phone, phone_alt, email, emirate`,
-    [id, (d.fullName ?? '').trim(), d.phone ?? null, d.backupPhone ?? null, d.email ?? null, d.emirate ?? null],
+    [id, d.fullName ? titleCaseName(d.fullName) : '', d.phone ?? null, d.backupPhone ?? null, d.email ?? null, d.emirate ?? null],
   );
   return rows[0] ?? null;
 }
@@ -299,7 +300,7 @@ export async function createInvoice(d: DocInput & { dueDate?: string | null; iss
   const { rows } = await pool.query(
     `INSERT INTO finance_invoices (number, customer_id, customer_name, issue_date, due_date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, status, message, commission_rep, event_for, theme, age, event_time)
      VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.status ?? 'sent', d.message ?? null, d.commissionRep ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.eventTime ?? null],
+    [number, d.customerId ?? null, titleCaseName(d.customerName), d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.status ?? 'sent', d.message ?? null, d.commissionRep ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ?? null, d.age ?? null, d.eventTime ?? null],
   );
   return decorateInvoice(rows[0]);
 }
@@ -394,7 +395,7 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const { rows } = await pool.query(
     `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, date_tbd, commission_rep)
      VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null],
+    [number, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ?? null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null],
   );
   // An upcoming sale becomes an operational event automatically, so it shows on
   // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.

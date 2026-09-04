@@ -52,6 +52,22 @@ export function toValidCustomerPhone(raw: string | null | undefined): string | n
   return null;
 }
 
+/**
+ * Title-case a person's name: the first letter of each word capitalised, the
+ * rest lower — "AISHA ALI" and "aisha ali" both become "Aisha Ali". Handles
+ * hyphen/apostrophe sub-parts ("al-naami" → "Al-Naami", "o'brien" → "O'Brien").
+ * Non-Latin scripts (Arabic) are left unchanged — they have no case.
+ */
+export function titleCaseName(raw: string | null | undefined): string {
+  const s = String(raw ?? '').trim().replace(/\s+/g, ' ');
+  if (!s) return s;
+  const cap = (w: string) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w);
+  return s
+    .split(' ')
+    .map((word) => word.split(/([-'])/).map((part) => (part === '-' || part === "'" ? part : cap(part))).join(''))
+    .join(' ');
+}
+
 /** Normalise every confidently-fixable phone across the live + QuickBooks books. */
 export async function normalizePhones(): Promise<any> {
   const targets = [

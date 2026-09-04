@@ -24,7 +24,7 @@ import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, createSessionForOrder, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
 import { getOffer } from '../domain/offers.js';
 import { orderViewTokenValid } from '../domain/orders.js';
-import { toValidCustomerPhone } from '../domain/maintenance.js';
+import { toValidCustomerPhone, titleCaseName } from '../domain/maintenance.js';
 import { processDelivery } from '../domain/webhooks.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken, verifyFeedbackToken } from '../domain/customerAuth.js';
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
@@ -982,7 +982,8 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     }
-    const { name, email, phone, backupPhone, password, referralCode, dateOfBirth } = parsed.data;
+    const { email, phone, backupPhone, password, referralCode, dateOfBirth } = parsed.data;
+    const name = titleCaseName(parsed.data.name);
     // A phone must carry a dialling key (country code). UAE 05X/5X is accepted and
     // stored as +9715XXXXXXXX; anything without a usable key is rejected.
     const validPhone = toValidCustomerPhone(phone);

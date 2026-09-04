@@ -136,6 +136,16 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sweepAbandonedCartReminders }) => sweepAbandonedCartReminders())
     .catch((err) => console.error('[cart-reminder] sweep failed:', err));
 
+  // Wish every team member a happy birthday (once a year, on the day).
+  await import('./staffBirthdays.js')
+    .then(({ sendStaffBirthdayEmails }) => sendStaffBirthdayEmails())
+    .catch((err) => console.error('[birthday] failed:', err));
+
+  // Monthly reconciliation + audit email to the owner + Marsha (once a month).
+  await import('./reconReport.js')
+    .then(({ sweepReconReport }) => sweepReconReport())
+    .catch((err) => console.error('[recon-report] failed:', err));
+
   return report;
 }
 

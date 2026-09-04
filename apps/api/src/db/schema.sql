@@ -236,6 +236,14 @@ CREATE TABLE IF NOT EXISTS site_visits (
 );
 CREATE INDEX IF NOT EXISTS site_visits_day_idx ON site_visits (day);
 
+-- Monthly reconciliation + audit report: one row per month once it's emailed,
+-- so the sweep sends it exactly once (like finance_reports).
+CREATE TABLE IF NOT EXISTS recon_reports (
+  month      TEXT PRIMARY KEY,          -- YYYY-MM
+  sent_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  recipients INT NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS payments (
   id                   TEXT PRIMARY KEY,
   order_id             TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,

@@ -86,6 +86,9 @@ async function main() {
     // email Marsha the numbers that still need a human check. Owner-approved.
     const { phoneMaintenanceFromEnv } = await import('./db/phoneMaintenance.js');
     await phoneMaintenanceFromEnv().catch((err) => console.error('[phone-fix] failed:', err));
+    // Title-case every name across the system (NORMALIZE_NAMES=true). Idempotent.
+    const { normalizeNamesFromEnv } = await import('./db/normalizeNames.js');
+    await normalizeNamesFromEnv().catch((err) => console.error('[names] failed:', err));
     // Self-heal: clear any prep_issue alert whose task is no longer an issue, so a
     // resolved/completed task never keeps showing as an open problem. Idempotent.
     const { clearResolvedPrepIssueAlerts } = await import('./domain/prep.js');

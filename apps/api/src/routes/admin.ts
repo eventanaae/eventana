@@ -4411,6 +4411,29 @@ export async function adminRoutes(app: FastifyInstance) {
         `SELECT id, event_id, amount_fils, note, created_at FROM staff_rewards
           WHERE member_id=$1 AND created_at > now() - interval '60 days' ORDER BY created_at DESC LIMIT 20`, [staff.id]);
       for (const r of rewards.rows) items.push({ id: `rw-${r.id}`, level: 'info', icon: '🏆', title: `You earned ${formatAed(Number(r.amount_fils))}!`, text: 'Positive customer feedback · view in Achievements', eventId: r.event_id, at: r.created_at });
+
+      // New bookings on events this member is assigned to, upcoming at-risk events
+      // (prep unfinished within 3 days), and missing-item reports on their events.
+      const [newBookings, atRisk, missing] = await Promise.all([
+        pool.query(`SELECT DISTINCT e.id, e.created_at, c.name AS customer, p.name AS package
+                      FROM events e JOIN event_team et ON et.event_id=e.id
+                      JOIN customers c ON c.id=e.customer_id LEFT JOIN packages p ON p.id=e.package_id
+                     WHERE et.member_id=$1 AND e.phase<>'Cancelled' AND e.created_at > now() - interval '21 days'
+                     ORDER BY e.created_at DESC LIMIT 15`, [staff.id]),
+        pool.query(`SELECT DISTINCT e.id, to_char(e.event_date,'YYYY-MM-DD') AS d, e.event_date
+                      FROM events e JOIN event_team et ON et.event_id=e.id
+                     WHERE et.member_id=$1 AND e.phase<>'Cancelled'
+                       AND e.event_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 3
+                       AND EXISTS (SELECT 1 FROM prep_tasks pt WHERE pt.event_id=e.id AND pt.status <> 'completed')
+                     ORDER BY e.event_date LIMIT 10`, [staff.id]),
+        pool.query(`SELECT mi.id, mi.item, mi.quantity, mi.event_id, mi.created_at
+                      FROM missing_items mi JOIN event_team et ON et.event_id=mi.event_id
+                     WHERE et.member_id=$1 AND mi.status <> 'cancelled' AND mi.created_at > now() - interval '21 days'
+                     ORDER BY mi.created_at DESC LIMIT 15`, [staff.id]),
+      ]);
+      for (const b of newBookings.rows) items.push({ id: `nb-${b.id}`, level: 'info', icon: '🎉', title: 'New event assigned to you', text: `${b.customer}${b.package ? ` · ${b.package}` : ''}`, eventId: b.id, at: b.created_at });
+      for (const e of atRisk.rows) items.push({ id: `ar-${e.id}`, level: 'high', icon: '🧰', title: 'Event coming up — prep not finished', text: `On ${e.d} · finish your tasks`, eventId: e.id, at: e.event_date });
+      for (const m of missing.rows) items.push({ id: `mi-${m.id}`, level: 'high', icon: '📦', title: 'Missing item reported', text: `${m.quantity}× ${m.item}`, eventId: m.event_id, at: m.created_at });
     }
 
     // Every staff member sees the good-feedback celebration (who earned it).
@@ -4421,6 +4444,24 @@ export async function adminRoutes(app: FastifyInstance) {
     for (const b of broadcasts.rows) {
       const p = b.payload || {};
       items.push({ id: `gf-${b.id}`, level: 'info', icon: '🌟', title: 'Great customer feedback!', text: `${p.names || 'The crew'} earned a reward${p.feedback ? ` · "${String(p.feedback).slice(0, 60)}"` : ''}`, eventId: b.event_id, at: b.created_at });
+    }
+
+    // Everyone sees today's team birthdays and who is off today.
+    const [birthdays, offToday] = await Promise.all([
+      pool.query(`SELECT name FROM team_members
+                   WHERE active AND birthday IS NOT NULL
+                     AND to_char(birthday,'MM-DD') = to_char(CURRENT_DATE,'MM-DD') ORDER BY name`),
+      pool.query(`SELECT DISTINCT tm.name FROM staff_days_off d JOIN team_members tm ON tm.id = d.member_id
+                   WHERE d.status='approved' AND tm.active
+                     AND CURRENT_DATE BETWEEN d.start_date AND d.end_date ORDER BY tm.name`),
+    ]);
+    const todayIso = new Date().toISOString();
+    for (const b of birthdays.rows) {
+      items.push({ id: `bd-${b.name}-${todayIso.slice(0, 10)}`, level: 'info', icon: '🎂', title: `It's ${b.name}'s birthday today!`, text: 'Wish them a happy birthday from the Eventana family 💕', at: todayIso });
+    }
+    if (offToday.rows.length) {
+      const names = offToday.rows.map((r) => r.name).join(', ');
+      items.push({ id: `off-${todayIso.slice(0, 10)}`, level: 'info', icon: '🌴', title: 'Off today', text: `${names} ${offToday.rows.length === 1 ? 'is' : 'are'} on a day off today`, at: todayIso });
     }
 
     // Owner/manager: a team member activated their login (set their password).
