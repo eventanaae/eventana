@@ -292,13 +292,13 @@ const themeLine = (lang, page) => {
      section names every theme in Arabic instead and points at the grid. */
   if (page.slug === THEMES_SLUG) {
     return lang === 'ar'
-      ? `<h2>الثيمات</h2><p>الثيمات الجاهزة بالعربي: ${esc(themeNames('ar'))}. الصور فوق، وكل ثيم منها مشمول في سعر الباقة بدون رسوم إضافية. وإذا ما لقيتِ ثيمك، فريق التصميم يصمّمه من الصفر بدون رسوم.</p>`
+      ? `<h2>الثيمات</h2><p>الثيمات الجاهزة بالعربي: ${esc(themeNames('ar'))}. الصور فوق، وكل ثيم منها مشمول في سعر الباقة بدون رسوم إضافية. وإذا ما لقيتِ ثيمك، فريق التصميم يصمّمه من الصفر برسم تصميم 800 درهم لحفلات الأطفال.</p>`
       : themeGallery();
   }
   const href = pageUrl(THEMES_SLUG);
   return lang === 'ar'
-    ? `<h2>الثيمات</h2><p>أكثر من 40 ثيم جاهز بدون رسوم إضافية، منها: ${esc(themeNames('ar'))}. <a href="${href}">شوفي كل الثيمات بالصور</a>. وإذا ما لقيتِ ثيمك، فريق التصميم يصممه من الصفر بدون رسوم.</p>`
-    : `<h2>Themes</h2><p>More than 40 ready themes at no extra charge, including: ${esc(themeNames('en'))}. <a href="${href}">See every theme with photos</a>. If yours isn't listed, our design team builds it from scratch at no extra charge.</p>`;
+    ? `<h2>الثيمات</h2><p>أكثر من 40 ثيم جاهز بدون رسوم إضافية، منها: ${esc(themeNames('ar'))}. <a href="${href}">شوفي كل الثيمات بالصور</a>. وإذا ما لقيتِ ثيمك، فريق التصميم يصممه من الصفر برسم تصميم 800 درهم لحفلات الأطفال.</p>`
+    : `<h2>Themes</h2><p>More than 40 ready themes at no extra charge, including: ${esc(themeNames('en'))}. <a href="${href}">See every theme with photos</a>. If yours isn't listed, our design team builds it from scratch for an AED 800 design fee on kids parties.</p>`;
 };
 
 /**
@@ -552,7 +552,7 @@ Eventana does not currently serve the Al Gharbia region.
 
 ## Themes
 
-More than 40 ready themes, included in the package price at no extra charge. The 31 with photographs are: ${themeNames('en')}. Every theme is at ${pageUrl(THEMES_SLUG)}, and a theme that is not listed is designed from scratch at no extra charge. Colours are chosen by the customer on any theme.
+More than 40 ready themes, included in the package price at no extra charge. The 31 with photographs are: ${themeNames('en')}. Every theme is at ${pageUrl(THEMES_SLUG)}. A theme that is not listed is designed from scratch for an AED 800 design fee on kids parties (no fee on other celebrations); that fee is never discounted. Colours are chosen by the customer on any theme.
 
 ## Pages
 
