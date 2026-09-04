@@ -289,8 +289,10 @@ export async function completePrepTask(taskId: string, opts: { completedBy?: str
   const t = rows[0];
   if (!t) return null;
   // If this completion resolved a reported issue, clear its standing ops-alert so
-  // owner/manager stop seeing it as open.
-  await pool.query(`DELETE FROM notifications WHERE template='prep_issue' AND event_id=$1 AND (payload->>'taskId')=$2`, [t.event_id, taskId]).catch(() => {});
+  // owner/manager stop seeing it as open. Match by taskId ALONE — the task id is a
+  // unique primary key, so adding event_id could only ever cause a real alert to
+  // be missed (e.g. a legacy alert whose event link differs).
+  await pool.query(`DELETE FROM notifications WHERE template='prep_issue' AND (payload->>'taskId')=$1`, [String(taskId)]).catch(() => {});
   // Completing a DESIGN task unlocks the physical tasks that were waiting on it.
   await pool.query(
     `UPDATE prep_tasks SET status='ready'
@@ -320,8 +322,29 @@ export async function setPrepTaskStatus(taskId: string, status: string, note: st
        VALUES ($1,'ops_alert','prep_issue', now(), $2)`,
       [t.event_id, JSON.stringify({ eventId: t.event_id, taskId, title: t.title, note })],
     ).catch(() => {});
+  } else {
+    // Moving a task OFF 'issue' (resolved without completing) clears its alert too.
+    await pool.query(`DELETE FROM notifications WHERE template='prep_issue' AND (payload->>'taskId')=$1`, [String(taskId)]).catch(() => {});
   }
   return { eventId: t.event_id };
+}
+
+/**
+ * Self-heal: delete every prep_issue ops-alert whose task is no longer flagged
+ * as an issue (completed, moved on, or deleted). Makes the "problem" always
+ * vanish once the work is resolved, and cleans up any legacy orphan the older
+ * (event_id-scoped) delete missed. Idempotent; safe to run on every boot.
+ */
+export async function clearResolvedPrepIssueAlerts(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `DELETE FROM notifications n
+      WHERE n.template = 'prep_issue'
+        AND NOT EXISTS (
+          SELECT 1 FROM prep_tasks pt
+           WHERE pt.id::text = n.payload->>'taskId' AND pt.status = 'issue'
+        )`,
+  );
+  return rowCount ?? 0;
 }
 
 /** Toggle one checklist item on a task. */

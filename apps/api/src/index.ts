@@ -78,6 +78,12 @@ async function main() {
     // (orphaned prep_issue alerts, event_tasks that kept a blocked_reason).
     const { taskAuditFromEnv } = await import('./db/taskAudit.js');
     await taskAuditFromEnv().catch((err) => console.error('[task-audit] failed:', err));
+    // Self-heal: clear any prep_issue alert whose task is no longer an issue, so a
+    // resolved/completed task never keeps showing as an open problem. Idempotent.
+    const { clearResolvedPrepIssueAlerts } = await import('./domain/prep.js');
+    await clearResolvedPrepIssueAlerts()
+      .then((n) => n && console.log(`[prep] cleared ${n} resolved prep_issue alert(s)`))
+      .catch((err) => console.error('[prep] clear alerts failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');
