@@ -127,6 +127,24 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       await db.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [ev.order_id, cart]);
     }
 
+    // ── Mirror shared display fields onto the linked sales receipt, so an edit
+    //    made on the EVENT is reflected on the RECEIPT too (event → receipt). ──
+    {
+      const sets: string[] = [];
+      const vals: any[] = [eventId];
+      if (patch.startTime !== undefined) { vals.push(patch.startTime); sets.push(`event_time = $${vals.length}`); }
+      if (patch.eventFor !== undefined) { vals.push(patch.eventFor); sets.push(`event_for = $${vals.length}`); }
+      if (customTheme) {
+        vals.push(customTheme); sets.push(`theme = $${vals.length}`);
+      } else if (patch.themeId !== undefined && patch.themeId) {
+        const { rows: th } = await db.query<{ name: string }>(`SELECT name FROM themes WHERE id = $1`, [patch.themeId]);
+        if (th[0]?.name) { vals.push(th[0].name); sets.push(`theme = $${vals.length}`); }
+      }
+      if (sets.length) {
+        await db.query(`UPDATE finance_receipts SET ${sets.join(', ')} WHERE event_id = $1`, vals).catch(() => {});
+      }
+    }
+
     // A time or location change affects the delivery — tell the assigned driver.
     const locationChanged = (patch.emirate !== undefined && patch.emirate) || patch.locationNote !== undefined
       || (patch.mapLat !== undefined && patch.mapLng !== undefined);

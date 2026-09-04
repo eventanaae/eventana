@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { randomBytes } from 'node:crypto';
 import { pool, withTransaction } from '../db/pool.js';
-import { formatAed, to12h } from '@eventana/shared';
+import { formatAed, to12h, parseHour, formatHour24 } from '@eventana/shared';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 import { renderFinanceDocEmail } from './notify.js';
 import { nextOrderId, nextEventId } from './orders.js';
@@ -763,6 +763,27 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   // (setting a real date turns TBD off; the reminders then resume normally).
   if (saved?.event_id && d.dateTbd !== undefined) {
     await pool.query(`UPDATE events SET date_tbd = $2 WHERE id = $1`, [saved.event_id, d.dateTbd]).catch(() => {});
+  }
+  // Reflect a receipt edit back onto the linked event (receipt → event): the
+  // party start time (keeping the same duration) and the guest-of-honour name.
+  if (saved?.event_id && d.eventTime) {
+    const { rows: evr } = await pool.query<{ start_time: string; base_end_time: string }>(
+      `SELECT start_time, base_end_time FROM events WHERE id = $1`, [saved.event_id],
+    );
+    const e = evr[0];
+    if (e) {
+      const dur = parseHour(e.base_end_time) - parseHour(e.start_time);
+      const newEnd = formatHour24(parseHour(d.eventTime) + (Number.isFinite(dur) && dur > 0 ? dur : 4));
+      await pool.query(`UPDATE events SET start_time = $2, base_end_time = $3 WHERE id = $1`,
+        [saved.event_id, d.eventTime, newEnd]).catch(() => {});
+    }
+  }
+  if (saved?.event_id && d.eventFor !== undefined) {
+    await pool.query(
+      `UPDATE orders SET cart = jsonb_set(COALESCE(cart, '{}'::jsonb), '{eventFor}', to_jsonb($2::text))
+        WHERE id = (SELECT order_id FROM events WHERE id = $1)`,
+      [saved.event_id, d.eventFor ?? ''],
+    ).catch(() => {});
   }
   return saved ? decorateReceipt(saved) : null;
 }
