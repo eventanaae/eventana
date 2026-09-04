@@ -124,6 +124,12 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     })
     .catch((err) => console.error('[notify] delivery failed:', err));
 
+  // Daily invoice balance reminders (opt-in per invoice; once per day until paid).
+  await import('./notify.js')
+    .then(({ sendInvoiceBalanceReminders }) => sendInvoiceBalanceReminders())
+    .then((r) => { if (r.sent) console.log(`[invoice-reminder] sent ${r.sent} balance reminder(s)`); })
+    .catch((err) => console.error('[invoice-reminder] failed:', err));
+
   return report;
 }
 

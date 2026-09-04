@@ -19,7 +19,7 @@ import { reconcileOnce } from '../domain/reconcile.js';
 import { syncEventToCalendar, calendarEnabled } from '../integrations/googleCalendar.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
 import { renderEmail, renderShopEmail, type EmailRow, type ShopEmailRow } from '../domain/notify.js';
-import { createManualOrder, createEventAddonLink, CheckoutError } from '../domain/checkout.js';
+import { createManualOrder, createEventAddonLink, createInvoicePayLink, CheckoutError } from '../domain/checkout.js';
 import { createOffer } from '../domain/offers.js';
 import { assignStaffForEvent, getStaffingPlan } from '../domain/staffing.js';
 import { issueImportTicket } from '../domain/importTicket.js';
@@ -2373,7 +2373,15 @@ export async function adminRoutes(app: FastifyInstance) {
     const p = z.object({ on: z.boolean() }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const r = await finance.setInvoiceReminder(id, p.data.on);
-    return r ?? reply.status(404).send({ error: 'not_found' });
+    if (!r) return reply.status(404).send({ error: 'not_found' });
+    // Turning reminders ON generates the reusable pay link up front, so the very
+    // first reminder already carries it. Best-effort — a missing phone just means
+    // no link (the reminder still sends without one).
+    if (p.data.on) {
+      try { const link = await createInvoicePayLink(id); if (link) (r as any).pay_url = link.payUrl; }
+      catch (e) { request.log.warn({ e }, 'invoice pay link not generated'); }
+    }
+    return r;
   });
 
   app.patch('/api/admin/finance/invoices/:id', async (request, reply) => {

@@ -855,6 +855,55 @@ export async function createManualOrder(req: ManualOrderInput): Promise<ManualOr
 }
 
 /**
+ * A reusable "pay this invoice balance" checkout link — the SAME customer
+ * checkout page as any order. The customer taps it and pays the outstanding
+ * balance; on payment, confirmBooking's invoice_pay branch settles the invoice
+ * (never a new booking or sale). The link is generated once per invoice and
+ * cached on it. Returns null when nothing is due.
+ */
+export async function createInvoicePayLink(
+  invoiceId: number,
+): Promise<{ payUrl: string; balanceFils: number } | null> {
+  const { rows } = await pool.query(
+    `SELECT i.id, i.number, i.customer_name, i.total_fils, i.amount_paid_fils, i.pay_url,
+            hc.phone, hc.phone_alt, hc.email
+       FROM finance_invoices i
+       LEFT JOIN historical_customers hc ON hc.id = i.customer_id
+      WHERE i.id = $1`,
+    [invoiceId],
+  );
+  const inv = rows[0];
+  if (!inv) return null;
+  const balance = Math.max(0, Number(inv.total_fils) - Number(inv.amount_paid_fils ?? 0));
+  if (balance <= 0) return null;
+  if (inv.pay_url) return { payUrl: inv.pay_url, balanceFils: balance }; // reuse
+
+  const phone = String(inv.phone || '').trim();
+  if (!phone) throw new CheckoutError('This customer has no phone on file for a pay link.', 'no_phone');
+  const customerId = await createGuestCustomer(
+    { name: inv.customer_name || 'Customer', phone, backupPhone: String(inv.phone_alt || ''), email: String(inv.email || '') },
+    { reuseRegistered: true },
+  );
+  const orderId = await withTransaction(async (db) => {
+    const id = await nextOrderId(db);
+    await createOrder(db, {
+      id,
+      kind: 'invoice_pay',
+      customerId,
+      totalFils: balance,
+      cart: { invoiceId, invoiceNumber: inv.number, label: `Balance for Invoice #${inv.number}` },
+      quote: {},
+      source: 'manual',
+    });
+    return id;
+  });
+  const base = (config.publicAppUrl || '').replace(/\/$/, '');
+  const payUrl = `${base}/?pay=${orderId}&t=${orderViewToken(orderId)}`;
+  await pool.query(`UPDATE finance_invoices SET pay_url = $2 WHERE id = $1`, [invoiceId, payUrl]);
+  return { payUrl, balanceFils: balance };
+}
+
+/**
  * Manager-built add-on pay link for an EXISTING booking.
  *
  * The customer already has an order/event — they just asked to add something.

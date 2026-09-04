@@ -942,6 +942,18 @@ ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS remind_daily BOOLEAN NOT N
 -- Timestamp of the last balance reminder sent, so the daily sweep fires at most
 -- once per day per invoice.
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS last_reminded_at TIMESTAMPTZ;
+-- A reusable "pay this balance" checkout link (the same customer checkout page),
+-- generated once per invoice and re-used in every reminder.
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS pay_url TEXT;
+
+-- One row per order that paid (part of) an invoice — makes applying a balance
+-- payment to its invoice strictly idempotent even if the payment webhook replays.
+CREATE TABLE IF NOT EXISTS invoice_payments (
+  order_id    TEXT PRIMARY KEY,
+  invoice_id  BIGINT NOT NULL,
+  amount_fils BIGINT NOT NULL,
+  applied_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 -- Party details echoed on the invoice (mirrors finance_receipts).
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS event_for TEXT;
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS theme TEXT;

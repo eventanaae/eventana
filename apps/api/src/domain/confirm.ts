@@ -89,6 +89,33 @@ export async function confirmBooking(
   ]);
   if (existing[0]) return { eventId: existing[0].id, created: false };
 
+  // An invoice-balance payment isn't a new sale or booking — it settles part (or
+  // all) of an existing invoice. Idempotent via invoice_payments (a replayed
+  // webhook can never double-apply). Never posts a receipt / creates an event.
+  if (order.kind === 'invoice_pay') {
+    const invoiceId = Number((order.cart as { invoiceId?: number } | null)?.invoiceId);
+    const amt = Number(order.total_fils);
+    if (invoiceId) {
+      const { rows: applied } = await db.query(
+        `INSERT INTO invoice_payments (order_id, invoice_id, amount_fils)
+         VALUES ($1,$2,$3) ON CONFLICT (order_id) DO NOTHING RETURNING order_id`,
+        [order.id, invoiceId, amt],
+      );
+      if (applied[0]) {
+        await db.query(
+          `UPDATE finance_invoices
+              SET amount_paid_fils = LEAST(total_fils, amount_paid_fils + $2),
+                  status = CASE WHEN amount_paid_fils + $2 >= total_fils THEN 'paid' ELSE 'partial' END,
+                  paid_at = CASE WHEN amount_paid_fils + $2 >= total_fils THEN now() ELSE paid_at END,
+                  remind_daily = CASE WHEN amount_paid_fils + $2 >= total_fils THEN FALSE ELSE remind_daily END
+            WHERE id = $1`,
+          [invoiceId, amt],
+        );
+      }
+    }
+    return { eventId: '', created: false };
+  }
+
   // Every paid order becomes a sale on the finance Sales page — website, app,
   // shop or manual pay-link alike. Tips are crew money, not a sale, so skip
   // them. Idempotent and failure-isolated (see recordSaleFromOrder).

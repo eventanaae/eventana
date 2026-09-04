@@ -1100,3 +1100,72 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
 
   return { emails, pushes, whatsapps };
 }
+
+/** A firm balance-due reminder email for an unpaid / part-paid invoice. */
+export function renderInvoiceReminder(doc: {
+  number: string; customerName?: string | null; balanceFils: number;
+  issueDate?: unknown; lineItems?: unknown; payUrl?: string | null;
+}): { subject: string; html: string } {
+  const first = cap(String(doc.customerName ?? 'there').trim().split(/\s+/)[0] || 'there');
+  const since = longDate(doc.issueDate);
+  const items = (Array.isArray(doc.lineItems) ? doc.lineItems : [])
+    .map((l: any) => String(l?.name ?? '').trim()).filter(Boolean);
+  const orderLine = items.length ? items.join(', ') : 'your order';
+  const rows: Array<[string, string]> = [
+    ['Invoice', `#${doc.number}`],
+    ['For', orderLine],
+    ['Outstanding since', since],
+    ['Balance due', aed(doc.balanceFils)],
+  ];
+  const body =
+    `<p style="margin:0 0 10px;font-size:15px;line-height:1.6">This is a reminder that <b>${aed(doc.balanceFils)}</b> is still outstanding on your invoice — unpaid since <b>${since}</b> for ${orderLine}. Please settle it now to keep your account with Eventana in good standing.</p>` +
+    detailCard(rows) +
+    (doc.payUrl
+      ? `<p style="margin:16px 0 6px;font-size:14px;line-height:1.6">You can pay the balance securely here:</p>`
+      : `<p style="margin:16px 0 6px;font-size:14px;line-height:1.6">Please arrange payment at your earliest convenience.</p>`) +
+    `<p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:${MUTED}">This is an automated daily reminder and will continue until the balance is cleared.</p>`;
+  const html = shell({
+    first, emoji: '🧾', eyebrow: 'Payment reminder', heading: 'Your balance is due',
+    bodyHtml: body,
+    cta: doc.payUrl ? { href: doc.payUrl, label: 'Pay the balance' } : undefined,
+  });
+  return { subject: `Payment reminder — balance due on Invoice #${doc.number}`, html };
+}
+
+/**
+ * Daily dunning sweep: email the outstanding balance to every invoice the owner
+ * opted into (remind_daily = true), at most once per day, until it is paid.
+ * WhatsApp business-initiated messages need an approved Meta template, so that
+ * channel is skipped until one exists — email goes out now.
+ */
+export async function sendInvoiceBalanceReminders(): Promise<{ sent: number }> {
+  const { rows } = await pool.query(`
+    SELECT i.id, i.number, i.customer_name, i.total_fils, i.amount_paid_fils, i.issue_date,
+           i.line_items, i.pay_url, hc.email
+      FROM finance_invoices i
+      LEFT JOIN historical_customers hc ON hc.id = i.customer_id
+     WHERE i.remind_daily = TRUE
+       AND i.total_fils > i.amount_paid_fils
+       AND (i.last_reminded_at IS NULL OR i.last_reminded_at < date_trunc('day', now()))
+     LIMIT 50`);
+  let sent = 0;
+  for (const inv of rows as any[]) {
+    try {
+      const balance = Number(inv.total_fils) - Number(inv.amount_paid_fils ?? 0);
+      if (balance <= 0) continue;
+      if (inv.email && emailEnabled()) {
+        const msg = renderInvoiceReminder({
+          number: inv.number, customerName: inv.customer_name, balanceFils: balance,
+          issueDate: inv.issue_date, lineItems: inv.line_items, payUrl: inv.pay_url,
+        });
+        const res = await sendEmail({ to: inv.email, subject: msg.subject, html: msg.html });
+        if (res.ok) sent += 1;
+      }
+      // Throttle to once per day regardless of the channel outcome.
+      await pool.query(`UPDATE finance_invoices SET last_reminded_at = now() WHERE id = $1`, [inv.id]);
+    } catch (e) {
+      console.error('[invoice-reminder] failed for', inv.id, (e as Error).message);
+    }
+  }
+  return { sent };
+}
