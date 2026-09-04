@@ -20,13 +20,13 @@ interface ReviewRow { book: string; name: string; phone: string; field: string }
 /** Numbers that are non-empty but can't be auto-fixed — for a human to verify. */
 async function collectReviewNumbers(): Promise<ReviewRow[]> {
   const out: ReviewRow[] = [];
-  const sources: Array<{ table: string; book: string; cols: Array<[string, string]> }> = [
-    { table: 'customers', book: 'App', cols: [['phone', 'Phone'], ['backup_phone', 'Backup']] },
-    { table: 'historical_customers', book: 'QuickBooks', cols: [['phone', 'Phone'], ['phone_alt', 'Alternate']] },
+  const sources: Array<{ table: string; book: string; nameCol: string; cols: Array<[string, string]> }> = [
+    { table: 'customers', book: 'App', nameCol: 'name', cols: [['phone', 'Phone'], ['backup_phone', 'Backup']] },
+    { table: 'historical_customers', book: 'QuickBooks', nameCol: 'full_name', cols: [['phone', 'Phone'], ['phone_alt', 'Alternate']] },
   ];
   for (const s of sources) {
     const { rows } = await pool.query(
-      `SELECT name, ${s.cols.map(([c]) => c).join(', ')} FROM ${s.table}
+      `SELECT ${s.nameCol} AS name, ${s.cols.map(([c]) => c).join(', ')} FROM ${s.table}
         WHERE ${s.cols.map(([c]) => `COALESCE(${c},'') <> ''`).join(' OR ')}`,
     );
     for (const r of rows) {
