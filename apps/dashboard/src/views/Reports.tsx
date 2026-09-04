@@ -40,17 +40,10 @@ function KV({ k, v, tone }: { k: string; v: React.ReactNode; tone?: string }) {
 function Reconcile() {
   const [d, setD] = useState<Record<string, any>>({});
   const load = (s: string) => api.auditReport(s).then((r) => setD((p) => ({ ...p, [s]: r }))).catch(() => {});
-  useEffect(() => { ['outstanding', 'payment_methods', 'phones', 'dup_customers'].forEach(load); }, []);
-  const o = d.outstanding, pm = d.payment_methods, ph = d.phones, dup = d.dup_customers;
+  useEffect(() => { ['payment_methods', 'phones', 'dup_customers'].forEach(load); }, []);
+  const pm = d.payment_methods, ph = d.phones, dup = d.dup_customers;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Panel title="Outstanding / expected-in — what it really is">
-        {!o ? <Spinner /> : (<>
-          <KV k="Total unpaid orders" v={`AED ${o.totalDisplay}`} tone={C.pinkDeep} />
-          <KV k="Count" v={o.count} />
-          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>{o.note}</div>
-        </>)}
-      </Panel>
       <Panel title="Payment method coverage">
         {!pm ? <Spinner /> : (<>
           {(pm.receiptsByMethod || []).map((r: any, i: number) => <KV key={i} k={`${r.method} · ${r.source}`} v={`${r.n} · AED ${r.display}`} />)}
