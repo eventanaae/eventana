@@ -769,7 +769,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
       {kind === 'receipt' && (
         <Field label="Payment method">
           <select value={paidWith} onChange={(e) => setPaidWith(e.target.value)} style={input}>
-            {['Bank transfer', 'Cash', 'Tabby', 'Tamara', 'Stripe', 'Card'].map((m) => <option key={m} value={m}>{m}</option>)}
+            {['Tabby', 'Tamara', 'Bank transfer', 'Ziina', 'Stripe'].map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </Field>
       )}
