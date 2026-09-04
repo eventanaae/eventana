@@ -74,6 +74,10 @@ async function main() {
     // revenue/expenses/events per month so the finance-report fix can be verified.
     const { reportAuditFromEnv } = await import('./db/reportAudit.js');
     await reportAuditFromEnv().catch((err) => console.error('[report-audit] failed:', err));
+    // Read-only TASK-PROBLEM audit (TASK_AUDIT=true) — finds stale problem rows
+    // (orphaned prep_issue alerts, event_tasks that kept a blocked_reason).
+    const { taskAuditFromEnv } = await import('./db/taskAudit.js');
+    await taskAuditFromEnv().catch((err) => console.error('[task-audit] failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');
