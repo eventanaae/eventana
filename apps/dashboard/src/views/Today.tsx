@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { to12h, timeRange12h } from '@eventana/shared';
 import type { View } from '../App';
 import { api } from '../api';
 import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner } from '../ui';
@@ -46,8 +47,8 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
 
   const when = (e: any) =>
     isToday(e)
-      ? `Today · ${e.start_time}`
-      : `${new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} · ${e.start_time}`;
+      ? `Today · ${to12h(e.start_time)}`
+      : `${new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} · ${to12h(e.start_time)}`;
 
   const hour = new Date().getHours();
   const partOfDay = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -106,7 +107,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
               </div>
               <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(todays[0])}</div>
               {todays[0].eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {todays[0].customer}</div>}
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>Today · {todays[0].start_time}–{todays[0].base_end_time} · {todays[0].emirate}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>Today · {timeRange12h(todays[0].start_time, todays[0].base_end_time)} · {todays[0].emirate}</div>
               {themeOf(todays[0]) && (
                 <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(todays[0])}</div>
               )}
@@ -147,7 +148,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
                 </div>
                 <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(ev)}</div>
                 {ev.eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {ev.customer}</div>}
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{when(ev)}–{ev.base_end_time} · {ev.emirate}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{when(ev)}–{to12h(ev.base_end_time)} · {ev.emirate}</div>
                 {themeOf(ev) && (
                   <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(ev)}</div>
                 )}
@@ -430,7 +431,7 @@ function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void 
             <div key={s.event_id} style={{ ...rowS, cursor: 'pointer' }} onClick={() => onOpenEvent(s.event_id)}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, flex: 'none' }} />
               <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 96 }}>{new Date(s.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>{s.emirate} · {s.start_time} · {(s.roles ?? []).join(', ').replace(/_/g, ' ')}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>{s.emirate} · {to12h(s.start_time)} · {(s.roles ?? []).join(', ').replace(/_/g, ' ')}</span>
               <span style={{ fontSize: 11.5, fontWeight: 800, color: C.red }}>{s.open} to confirm</span>
             </div>
           ))}

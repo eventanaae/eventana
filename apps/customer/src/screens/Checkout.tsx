@@ -524,7 +524,7 @@ export function Checkout({
         )}
         {draft.startTime && quote?.endTime && (
           <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
-            {timeLabel(draft.startTime)} – {quote.endTime}
+            {timeLabel(draft.startTime)} – {timeLabel(quote.endTime)}
           </div>
         )}
         {/* Number of children only matters for Build-Your-Own (per-child
