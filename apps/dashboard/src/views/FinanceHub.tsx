@@ -305,12 +305,12 @@ function ExpensesTab() {
   const [month, setMonth] = useState(thisMonth);
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
   const load = (m: string) => api.expenses(m).then(setData).catch(() => setData({ expenses: [] }));
   useEffect(() => { load(month); }, [month]);
   if (!data) return <Spinner />;
   const rows = data.expenses ?? [];
   const total = rows.reduce((s: number, e: any) => s + Number(e.amount_fils), 0);
-  const qbCount = rows.filter((e: any) => e.source === 'quickbooks').length;
   const shiftMonth = (delta: number) => {
     const [y, mo] = month.split('-').map(Number);
     const d = new Date(y, mo - 1 + delta, 1);
@@ -333,30 +333,26 @@ function ExpensesTab() {
       </div>
       <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 12 }}>
         Total: <b style={{ color: C.ink }}>AED {money(total)}</b> · {rows.length} item(s)
-        {qbCount > 0 && <span style={{ color: C.muted }}> · {qbCount} from QuickBooks</span>}
       </div>
       {rows.length === 0 && <Empty>No expenses in this month. Use ‹ Prev to browse imported history.</Empty>}
-      {rows.map((e: any) => {
-        const isQb = e.source === 'quickbooks';
-        return (
-          <DocRow key={e.id}
-            title={prettyCat(e.category)}
-            sub={`${fmtDate(e.spent_on)}${e.vendor ? ' · ' + e.vendor : ''}${isQb ? ' · QuickBooks' : ''}`}
-            amount={money(Number(e.amount_fils))}
-            action={
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                {e.receipt_url && (
-                  <a href={e.receipt_url} target="_blank" rel="noreferrer" style={linkBtn}>🧾 Receipt</a>
-                )}
-                {!isQb && (
-                  <button style={{ ...linkBtn, color: C.red }} onClick={async () => { if (confirm('Delete this expense?')) { await api.deleteExpense(e.id); load(month); } }}>Delete</button>
-                )}
-              </div>
-            }
-          />
-        );
-      })}
+      {rows.map((e: any) => (
+        <DocRow key={e.id}
+          title={prettyCat(e.category)}
+          sub={`${fmtDate(e.spent_on)}${e.vendor ? ' · ' + e.vendor : ''}`}
+          amount={money(Number(e.amount_fils))}
+          action={
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              {e.receipt_url && (
+                <a href={e.receipt_url} target="_blank" rel="noreferrer" style={linkBtn}>🧾 Receipt</a>
+              )}
+              <button style={linkBtn} onClick={() => setEditing(e)}>Edit</button>
+              <button style={{ ...linkBtn, color: C.red }} onClick={async () => { if (confirm('Delete this expense?')) { await api.deleteExpense(e.id); load(month); } }}>Delete</button>
+            </div>
+          }
+        />
+      ))}
       {creating && <ExpenseForm categories={data.categories ?? []} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(month); }} />}
+      {editing && <EditExpenseForm expense={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(month); }} />}
     </Panel>
   );
 }
@@ -430,6 +426,61 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
       </Field>
       {receiptUrl && <a href={receiptUrl} target="_blank" rel="noreferrer"><img src={receiptUrl} alt="receipt" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.line}`, marginBottom: 8 }} /></a>}
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2 }}>Paid from: <b style={{ color: C.ink }}>Cash on hand</b></div>
+    </Modal>
+  );
+}
+
+function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose: () => void; onSaved: () => void }) {
+  const [category, setCategory] = useState<string>(expense.category || 'other');
+  const [vendor, setVendor] = useState<string>(expense.vendor || '');
+  const [amount, setAmount] = useState<string>(String((Number(expense.amount_fils) || 0) / 100));
+  const [description, setDescription] = useState<string>(expense.description || '');
+  const [spentOn, setSpentOn] = useState<string>(String(expense.spent_on || '').slice(0, 10));
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(expense.receipt_url ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    const fils = Math.round((Number(amount.replace(/,/g, '')) || 0) * 100);
+    if (fils <= 0) { setErr('Enter an amount.'); return; }
+    setBusy(true); setErr(null);
+    try {
+      await api.updateExpense(expense.id, {
+        category: (category || 'other').trim(),
+        vendor: vendor.trim() || null,
+        amountFils: fils,
+        description: description.trim() || undefined,
+        spentOn: spentOn || undefined,
+        receiptUrl, // null clears the receipt, a URL sets/replaces it
+      });
+      onSaved();
+    } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title="Edit expense" onClose={onClose} onSave={save} busy={busy || uploading} err={err}>
+      <Field label="Account name"><input value={category} onChange={(e) => setCategory(e.target.value)} style={input} placeholder="e.g. Fuel, Salaries, Supplies" /></Field>
+      <Field label="Supplier name"><input value={vendor} onChange={(e) => setVendor(e.target.value)} style={input} placeholder="e.g. Hot Pack Packaging" /></Field>
+      <Field label="Date"><input type="date" value={spentOn} onChange={(e) => setSpentOn(e.target.value)} style={input} /></Field>
+      <Field label="Amount (AED) *"><input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} style={input} placeholder="0.00" /></Field>
+      <Field label="Description / memo"><input value={description} onChange={(e) => setDescription(e.target.value)} style={input} /></Field>
+      <Field label="Receipt">
+        <label style={{ ...input, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: receiptUrl ? C.green : C.muted, fontWeight: 700 }}>
+          {uploading ? 'Uploading…' : receiptUrl ? '✓ Attached — tap to replace' : '📎 Upload / take photo'}
+          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+            const f = e.target.files?.[0]; if (!f) return;
+            setUploading(true); setErr(null);
+            try { setReceiptUrl(await api.uploadImage(f, 'receipts')); }
+            catch (err2: any) { setErr(err2?.message ?? 'Upload failed'); }
+            finally { setUploading(false); }
+          }} />
+        </label>
+      </Field>
+      {receiptUrl && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <a href={receiptUrl} target="_blank" rel="noreferrer"><img src={receiptUrl} alt="receipt" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.line}` }} /></a>
+          <button type="button" style={{ ...linkBtn, color: C.red }} onClick={() => setReceiptUrl(null)}>Remove receipt</button>
+        </div>
+      )}
     </Modal>
   );
 }

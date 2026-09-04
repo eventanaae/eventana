@@ -1760,12 +1760,15 @@ export async function adminRoutes(app: FastifyInstance) {
     const schema = z.object({
       // Lenient string (not enum) so editing a historical expense with an older
       // category label never fails validation.
-      category: z.string().min(1).max(40).optional(),
+      category: z.string().min(1).max(80).optional(),
       description: z.string().min(1).max(300).optional(),
       amountFils: z.number().int().min(0).optional(),
       vendor: z.string().max(200).nullable().optional(),
       spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional(),
+      // A receipt image URL, or null to remove the attached receipt. Absent =
+      // leave the current receipt untouched.
+      receiptUrl: z.string().url().nullable().optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -1777,9 +1780,11 @@ export async function adminRoutes(app: FastifyInstance) {
          amount_fils = COALESCE($4, amount_fils),
          vendor = COALESCE($5, vendor),
          spent_on = COALESCE($6, spent_on),
-         payment_method = COALESCE($7, payment_method)
+         payment_method = COALESCE($7, payment_method),
+         receipt_url = CASE WHEN $8::boolean THEN $9::text ELSE receipt_url END
        WHERE id = $1 RETURNING *`,
-      [id, d.category ?? null, d.description ?? null, d.amountFils ?? null, d.vendor ?? null, d.spentOn ?? null, d.paymentMethod ?? null],
+      [id, d.category ?? null, d.description ?? null, d.amountFils ?? null, d.vendor ?? null, d.spentOn ?? null, d.paymentMethod ?? null,
+       d.receiptUrl !== undefined, d.receiptUrl ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return { ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) };

@@ -223,10 +223,24 @@ export async function syncExpenses(onProgress?: (msg: string) => void): Promise<
       const amountFils = Math.round(Number(p.TotalAmt ?? 0) * 100);
       const spentOn = p.TxnDate ?? null;
       const vendor: string | null = p.EntityRef?.name ?? null;
-      const firstLine = (p.Line ?? []).find((l: any) => l?.DetailType === 'AccountBasedExpenseLineDetail');
-      const accountName = firstLine?.AccountBasedExpenseLineDetail?.AccountRef?.name;
-      const description = firstLine?.Description || accountName || p.PrivateNote || 'QuickBooks expense';
-      const category = bucketFor(accountName);
+      // The expense account (the "category" in QuickBooks) lives on a line, and
+      // the first line isn't always an AccountBasedExpenseLineDetail — so scan
+      // every line for the first account/item reference and line memo.
+      let accountName: string | undefined;
+      let lineDesc: string | undefined;
+      for (const l of (p.Line ?? []) as any[]) {
+        if (!lineDesc && l?.Description) lineDesc = l.Description;
+        const a =
+          l?.AccountBasedExpenseLineDetail?.AccountRef?.name ||
+          l?.ItemBasedExpenseLineDetail?.ItemRef?.name;
+        if (a && !accountName) accountName = a;
+      }
+      const description = lineDesc || accountName || p.PrivateNote || 'QuickBooks expense';
+      // Show the REAL QuickBooks account name (e.g. "Fuel", "Transportation",
+      // "Salaries") instead of collapsing everything into a few buckets that
+      // leave most rows as "Other". These rows are browse-only, so the raw
+      // account name is what the owner actually wants to see.
+      const category = (accountName ?? '').trim().slice(0, 60) || bucketFor(accountName);
       const paymentMethod = (p.PaymentType ?? '').toString().toLowerCase() || null;
 
       // Download + re-host the receipt image if this purchase has one AND we
