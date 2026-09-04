@@ -206,17 +206,19 @@ export async function sendAbandonedCartReminder(o: {
     ['Amount', aed(o.amountFils)],
     ['Reference', o.orderId],
   ];
+  const occ = o.occasionPhrase ? `your <b>${o.occasionPhrase}</b>` : 'your celebration';
   const html = shell({
     first: o.firstName,
     emoji: '🎈',
-    eyebrow: 'Almost there',
-    heading: 'Your celebration is waiting!',
-    bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">We noticed you started planning your celebration with us but didn't quite finish — no worries at all, we've saved every detail for you! 🎈 Your party is just one step away.</p>
+    eyebrow: 'Don’t miss out',
+    heading: 'Your celebration is waiting! 🎈',
+    bodyHtml: `<p style="margin:0 0 10px;font-size:15.5px;line-height:1.65">You're just <b>one step away</b> from something magical! ✨ You started planning ${occ} with us — and we've lovingly saved every little detail, ready and waiting for you.</p>
+      <p style="margin:0 0 6px;font-size:15.5px;line-height:1.65">🗓️ Our favourite dates get booked up <b>fast</b> — so grab yours before someone else does and let the countdown to a day full of smiles begin! 🎉</p>
       ${detailCard(rows)}
-      <p style="margin:16px 0 0;font-size:15px;line-height:1.6">Tap below to complete your booking whenever you're ready, and let's make the magic happen. 💕</p>`,
-    cta: resumeUrl ? { href: resumeUrl, label: 'Finish your booking →' } : undefined,
+      <p style="margin:16px 0 0;font-size:15.5px;line-height:1.65">It only takes a minute — tap below and we'll take care of <i>all</i> the magic. We can't wait to celebrate with you! 💕</p>`,
+    cta: resumeUrl ? { href: resumeUrl, label: 'Complete my booking →' } : undefined,
   });
-  const res = await sendEmail({ to: o.email, subject: 'Your Eventana celebration is waiting for you 🎈', html });
+  const res = await sendEmail({ to: o.email, subject: `${o.firstName}, your Eventana celebration is waiting 🎈✨`, html });
   // App push — best-effort; a no-op if the customer has no registered device.
   await pushToOwner(
     'customer',

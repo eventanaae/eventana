@@ -46,10 +46,16 @@ export interface CartCandidate {
   occasion: string | null;
 }
 
-/** Find genuine abandoned customer carts eligible for a reminder right now. */
+/**
+ * Find genuine abandoned customer carts eligible for a reminder right now — ONE
+ * per customer (their most recent attempt), so a customer with two unpaid carts
+ * gets a single email, not two. Cadence: at most one email every 3 days, up to
+ * 5 in total (≈ every 3 days for two weeks), only carts 3h–45d old.
+ */
 export async function findAbandonedCarts(): Promise<CartCandidate[]> {
   const { rows } = await pool.query(
-    `SELECT o.id, o.total_fils, o.cart, (now()::date - o.created_at::date) AS age_days,
+    `SELECT DISTINCT ON (c.id)
+            o.id, o.total_fils, o.cart, (now()::date - o.created_at::date) AS age_days,
             c.id AS customer_id, c.name, c.email
        FROM orders o JOIN customers c ON c.id = o.customer_id
       WHERE o.status = 'awaiting_payment'
@@ -59,8 +65,8 @@ export async function findAbandonedCarts(): Promise<CartCandidate[]> {
         AND o.total_fils > 0
         AND c.email IS NOT NULL AND btrim(c.email) <> ''
         AND (o.cart_reminded_at IS NULL OR o.cart_reminded_at < now() - interval '3 days')
-        AND o.cart_reminder_count < 3
-      ORDER BY o.total_fils DESC`,
+        AND o.cart_reminder_count < 5
+      ORDER BY c.id, o.created_at DESC`,
   );
   const staff = await pool.query<{ e: string }>(
     `SELECT lower(btrim(email)) e FROM team_members WHERE email IS NOT NULL AND btrim(email) <> ''`,
@@ -104,13 +110,27 @@ export async function sendAbandonedCartReminders(): Promise<{ eligible: number; 
     }).catch(() => false);
     if (ok) {
       sent++;
+      // Stamp EVERY unpaid app cart this customer has, so a second cart doesn't
+      // trigger another email and the 3-day cadence counts once per customer.
       await pool.query(
-        `UPDATE orders SET cart_reminded_at = now(), cart_reminder_count = cart_reminder_count + 1 WHERE id = $1`,
-        [c.orderId],
+        `UPDATE orders SET cart_reminded_at = now(), cart_reminder_count = cart_reminder_count + 1
+          WHERE customer_id = $1 AND status = 'awaiting_payment' AND COALESCE(source,'app') = 'app'`,
+        [c.customerId],
       ).catch(() => {});
     }
   }
   return { eligible: carts.length, sent };
+}
+
+/**
+ * Recurring sweep for the reconcile loop: delivers due reminders (every 3 days,
+ * up to 5 per customer) but ONLY when the owner has switched reminders on with
+ * CART_REMINDERS=send. Off otherwise, so nothing is sent by accident.
+ */
+export async function sweepAbandonedCartReminders(): Promise<void> {
+  if (String(process.env.CART_REMINDERS ?? '').toLowerCase() !== 'send') return;
+  const res = await sendAbandonedCartReminders();
+  if (res.sent) console.log(`[cart-reminder] sweep sent ${res.sent} reminder(s)`);
 }
 
 /**

@@ -130,6 +130,12 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then((r) => { if (r.sent) console.log(`[invoice-reminder] sent ${r.sent} balance reminder(s)`); })
     .catch((err) => console.error('[invoice-reminder] failed:', err));
 
+  // Abandoned-cart recovery — nudge real customers who didn't finish paying,
+  // every 3 days for up to two weeks. Only runs when CART_REMINDERS=send.
+  await import('./abandonedCart.js')
+    .then(({ sweepAbandonedCartReminders }) => sweepAbandonedCartReminders())
+    .catch((err) => console.error('[cart-reminder] sweep failed:', err));
+
   return report;
 }
 
