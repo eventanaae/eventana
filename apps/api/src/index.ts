@@ -71,6 +71,14 @@ async function main() {
     // BACKFILL_EVENT_NOTIFS=true; idempotent and skips past-dated reminders.
     const { backfillEventNotificationsFromEnv } = await import('./db/backfillEventNotifs.js');
     await backfillEventNotificationsFromEnv().catch((err) => console.error('[backfill-notif] failed:', err));
+    // Owner-approved: finish importing QuickBooks receipt images. The sync is
+    // resumable (skips receipts already downloaded), so it continues across
+    // restarts until every image is re-hosted. Gated by SYNC_QB_RECEIPTS=true;
+    // fire-and-forget so a slow image download never blocks boot / health checks.
+    if (String(process.env.SYNC_QB_RECEIPTS ?? '').toLowerCase() === 'true') {
+      const { startExpenseSync } = await import('./domain/quickbooks.js');
+      console.log('[qb-sync] boot trigger:', startExpenseSync());
+    }
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();

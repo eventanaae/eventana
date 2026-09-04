@@ -167,7 +167,23 @@ function bucketFor(accountName: string | undefined): string {
  * profit sum because the imported P&L aggregate already counts them.
  */
 export async function syncExpenses(onProgress?: (msg: string) => void): Promise<{ imported: number; withReceipt: number; total: number }> {
-  const log = (m: string) => { try { onProgress?.(m); } catch { /* ignore */ } };
+  // Log to the server console too, so progress is visible in the Render logs
+  // regardless of who kicked the sync off (boot task or dashboard button).
+  const log = (m: string) => { console.log(`[qb-sync] ${m}`); try { onProgress?.(m); } catch { /* ignore */ } };
+
+  // Resume support: a receipt image already downloaded on a previous run keeps
+  // its Cloudinary URL, so we never fetch + re-host it again. This makes the
+  // whole job resumable — a restart (deploy, free-tier sleep) continues from
+  // where it stopped instead of downloading the ~1,000+ images from scratch,
+  // which is exactly why it never used to finish.
+  const doneReceipts = new Set<string>();
+  try {
+    const r = await pool.query(
+      `SELECT qb_id FROM expenses WHERE source='quickbooks' AND qb_id IS NOT NULL AND receipt_url IS NOT NULL`,
+    );
+    for (const row of r.rows) doneReceipts.add(String(row.qb_id));
+    log(`Resuming — ${doneReceipts.size} receipts already downloaded`);
+  } catch { /* first run, nothing to resume */ }
 
   // 1. Map every attachment to the Purchase it's attached to (id -> download URL).
   const attByPurchase = new Map<string, { uri: string; name: string }>();
@@ -195,7 +211,7 @@ export async function syncExpenses(onProgress?: (msg: string) => void): Promise<
 
   // 2. Page through Purchases and upsert each.
   let imported = 0;
-  let withReceipt = 0;
+  let withReceipt = doneReceipts.size;
   let total = 0;
   let pos = 1;
   for (;;) {
@@ -213,16 +229,17 @@ export async function syncExpenses(onProgress?: (msg: string) => void): Promise<
       const category = bucketFor(accountName);
       const paymentMethod = (p.PaymentType ?? '').toString().toLowerCase() || null;
 
-      // Download + re-host the receipt image if this purchase has one.
+      // Download + re-host the receipt image if this purchase has one AND we
+      // haven't already fetched it on an earlier run (resume support).
       let receiptUrl: string | null = null;
       const att = attByPurchase.get(qbId);
-      if (att) {
+      if (att && !doneReceipts.has(qbId)) {
         try {
           const r = await fetch(att.uri);
           if (r.ok) {
             const bytes = new Uint8Array(await r.arrayBuffer());
             receiptUrl = await uploadBytes(bytes, 'eventana/receipts', att.name);
-            if (receiptUrl) withReceipt++;
+            if (receiptUrl) { withReceipt++; doneReceipts.add(qbId); }
           }
         } catch { /* keep the expense even if the image fails */ }
       }
@@ -238,7 +255,7 @@ export async function syncExpenses(onProgress?: (msg: string) => void): Promise<
       );
       imported++;
     }
-    log(`Imported ${imported} expenses…`);
+    log(`Imported ${imported} expenses, ${withReceipt} with receipts…`);
     if (rows.length < 100) break;
     pos += 100;
   }
