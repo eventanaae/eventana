@@ -370,11 +370,16 @@ export async function previewReceiptMethods(): Promise<void> {
   for (const [name, n] of [...tally.entries()].sort((a, b) => b[1] - a[1])) {
     log(`   "${name}" → ${labelForQbMethod(name)} · ${n} doc(s)`);
   }
-  // How many of our receipts would actually get updated.
-  const nums = await pool.query(`SELECT number FROM finance_receipts WHERE source='quickbooks'`);
-  let matched = 0;
-  for (const r of nums.rows) if (byDoc.has(String(r.number).trim())) matched++;
-  log(`our QB receipts: ${nums.rowCount} · matched to a QuickBooks method: ${matched}`);
+  // How many of our receipts would actually get updated — and WHICH ones won't
+  // (they'll stay Unknown), so the owner can see exactly what's left.
+  const nums = await pool.query<{ number: string; customer_name: string; date: any; total_fils: any }>(
+    `SELECT number, customer_name, to_char(date,'YYYY-MM-DD') AS date, total_fils
+       FROM finance_receipts WHERE source='quickbooks' ORDER BY date`,
+  );
+  const unmatched = nums.rows.filter((r) => !byDoc.has(String(r.number).trim()));
+  log(`our QB receipts: ${nums.rowCount} · matched: ${nums.rows.length - unmatched.length} · NO method in QuickBooks: ${unmatched.length}`);
+  log(`receipts with NO payment method in QuickBooks (stay Unknown):`);
+  for (const r of unmatched) log(`   #${r.number} · ${r.customer_name} · ${r.date} · AED ${(Number(r.total_fils) / 100).toLocaleString('en-US')}`);
 }
 
 /** Apply: set finance_receipts.paid_with from the real QuickBooks method. */
