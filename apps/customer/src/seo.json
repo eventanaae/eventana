@@ -110,6 +110,7 @@
   "pages": [
     {
       "slug": "kids-birthday",
+      "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157649/eventana/themes/gqyqbxqjis0li3ebb4g4.jpg",
       "celebrationType": "kids",
       "priority": "0.9",
       "priceFromAed": 2199,
@@ -164,6 +165,7 @@
     },
     {
       "slug": "balloon-decoration",
+      "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152048/eventana/themes/vjhw6ryjq98fudiedstv.jpg",
       "celebrationType": "kids",
       "priority": "0.9",
       "priceFromAed": 1500,
@@ -216,6 +218,7 @@
     },
     {
       "slug": "baby-shower",
+      "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152085/eventana/themes/dsovfxoeyelwrxdmvfxi.jpg",
       "celebrationType": "baby",
       "priority": "0.8",
       "priceFromAed": 1500,
@@ -320,6 +323,7 @@
     },
     {
       "slug": "bride-to-be",
+      "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152448/eventana/themes/lahwo4bmdiem72jmfnw6.jpg",
       "celebrationType": "bride",
       "priority": "0.8",
       "priceFromAed": 1500,
@@ -476,6 +480,7 @@
     },
     {
       "slug": "adult-birthday",
+      "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157781/eventana/themes/cggonmvalujnna1jytec.jpg",
       "celebrationType": "adult",
       "priority": "0.7",
       "priceFromAed": 1500,
@@ -528,6 +533,7 @@
     },
     {
       "slug": "party-organizer-dubai",
+      "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787157649/eventana/themes/gqyqbxqjis0li3ebb4g4.jpg",
       "celebrationType": "kids",
       "priority": "0.8",
       "areaName": "Dubai",
@@ -906,6 +912,7 @@
     },
     {
       "slug": "party-themes-dubai",
+      "image": "https://res.cloudinary.com/ndggkvdu/image/upload/v1787152246/eventana/themes/crsqufg93gd0m5xeoosm.jpg",
       "celebrationType": "kids",
       "priority": "0.9",
       "priceFromAed": 2199,
