@@ -39,13 +39,23 @@ function section(title: string, rowsHtml: string): string {
 }
 
 async function buildHtml(monthStr: string): Promise<string> {
-  const [acct, outstanding, methods, phones, dups] = await Promise.all([
+  const { computeSummary } = await import('./financeReport.js');
+  const [acct, outstanding, methods, phones, dups, month] = await Promise.all([
     accountingSummary(),
     auditReport('outstanding'),
     auditReport('payment_methods'),
     auditReport('phones'),
     auditReport('dup_customers'),
+    computeSummary(monthStr),
   ]);
+
+  const monthRevenue = month.revenueFils - month.expensesFils;
+  const monthRows = kv('Orders', String(month.ordersCount))
+    + kv('Total amount (sales)', `AED ${formatAed(month.revenueFils)}`, '#1F7A5C')
+    + kv('Expenses', `AED ${formatAed(month.expensesFils)}`, '#D24B6E')
+    + kv('Revenue (after expenses)', `${monthRevenue < 0 ? '−' : ''}AED ${formatAed(Math.abs(monthRevenue))}`, monthRevenue < 0 ? '#D24B6E' : '#1F7A5C')
+    + kv('Tips (to staff)', `AED ${formatAed(month.tipsFils)}`)
+    + (month.topEmirates ?? []).map((e: any) => kv(`  ${e.emirate}`, `${e.count} order${e.count === 1 ? '' : 's'}`)).join('');
 
   const acctRows = kv('Cash on hand', `AED ${formatAed(acct.cashOnHandFils)}`, '#1F7A5C')
     + kv('Accounts Receivable (unpaid invoices)', `AED ${formatAed(acct.arFils)}`, '#D24B6E');
@@ -77,6 +87,7 @@ async function buildHtml(monthStr: string): Promise<string> {
             <div style="padding:30px 26px 34px">
               <div style="text-align:center;font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:6px">Reconciliation &amp; Audit</div>
               <h1 style="margin:0 0 4px;text-align:center;font-family:${DISPLAY};font-size:23px;font-weight:700;color:${INK}">${monthLabel(monthStr)}</h1>
+              ${section(`This month (${monthLabel(monthStr)})`, monthRows)}
               ${section('Cash position', acctRows)}
               ${section('Unpaid orders (not receivables)', outRows)}
               ${section('Payment method coverage', methodRows)}
