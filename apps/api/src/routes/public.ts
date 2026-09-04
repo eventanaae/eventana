@@ -24,6 +24,7 @@ import { loadConfig } from '../domain/settings.js';
 import { CheckoutError, createSessionForOrder, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
 import { getOffer } from '../domain/offers.js';
 import { orderViewTokenValid } from '../domain/orders.js';
+import { toValidCustomerPhone } from '../domain/maintenance.js';
 import { processDelivery } from '../domain/webhooks.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken, verifyFeedbackToken } from '../domain/customerAuth.js';
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
@@ -982,6 +983,19 @@ export async function publicRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     }
     const { name, email, phone, backupPhone, password, referralCode, dateOfBirth } = parsed.data;
+    // A phone must carry a dialling key (country code). UAE 05X/5X is accepted and
+    // stored as +9715XXXXXXXX; anything without a usable key is rejected.
+    const validPhone = toValidCustomerPhone(phone);
+    if (!validPhone) {
+      return reply.status(400).send({ error: 'invalid_phone', message: 'Please enter your phone number with its country code, e.g. +971 50 123 4567.' });
+    }
+    let validBackup: string | null = null;
+    if (backupPhone) {
+      validBackup = toValidCustomerPhone(backupPhone);
+      if (!validBackup) {
+        return reply.status(400).send({ error: 'invalid_backup_phone', message: 'Please enter the backup number with its country code, e.g. +971 50 123 4567.' });
+      }
+    }
     const existing = await pool.query('SELECT id FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
     if (existing.rowCount) {
       return reply.status(409).send({ error: 'email_taken', message: 'An account with this email already exists — please sign in.' });
@@ -1012,7 +1026,7 @@ export async function publicRoutes(app: FastifyInstance) {
     await pool.query(
       `INSERT INTO customers (id, name, phone, backup_phone, email, password_hash, referral_code, referred_by, referral_credit_fils, date_of_birth)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [id, name, phone, backupPhone ?? null, email, hashPassword(password), myCode, referredBy, welcomeCredit, dateOfBirth ?? null],
+      [id, name, validPhone, validBackup, email, hashPassword(password), myCode, referredBy, welcomeCredit, dateOfBirth ?? null],
     );
     // Report the sign-up to Meta (CompleteRegistration) so ads can optimise for
     // registrations, not only purchases. Best-effort — never blocks the response.

@@ -316,9 +316,10 @@ function labelForQbMethod(name: string | null | undefined): string {
  */
 async function fetchQbDocMethods(log: (m: string) => void): Promise<Map<string, string>> {
   const byDoc = new Map<string, string>();
-  // 1) SalesReceipt: method is on the document itself.
+  // 1) SalesReceipt: method is on the document itself. QuickBooks only lets us
+  //    project scalar columns, so read the whole entity and pick the fields.
   for (let pos = 1; ; pos += 100) {
-    const q = await qbQuery(`select DocNumber, PaymentMethodRef from SalesReceipt startposition ${pos} maxresults 100`);
+    const q = await qbQuery(`select * from SalesReceipt startposition ${pos} maxresults 100`);
     const rows = q.SalesReceipt ?? [];
     for (const r of rows) {
       const doc = String(r.DocNumber ?? '').trim();
@@ -332,14 +333,14 @@ async function fetchQbDocMethods(log: (m: string) => void): Promise<Map<string, 
   //    the invoice DocNumbers it settled.
   const invIdToDoc = new Map<string, string>();
   for (let pos = 1; ; pos += 100) {
-    const q = await qbQuery(`select Id, DocNumber from Invoice startposition ${pos} maxresults 100`);
+    const q = await qbQuery(`select * from Invoice startposition ${pos} maxresults 100`);
     const rows = q.Invoice ?? [];
     for (const r of rows) if (r.Id && r.DocNumber) invIdToDoc.set(String(r.Id), String(r.DocNumber).trim());
     if (rows.length < 100) break;
   }
   let payMapped = 0;
   for (let pos = 1; ; pos += 100) {
-    const q = await qbQuery(`select PaymentMethodRef, Line from Payment startposition ${pos} maxresults 100`);
+    const q = await qbQuery(`select * from Payment startposition ${pos} maxresults 100`);
     const rows = q.Payment ?? [];
     for (const p of rows) {
       const m = p.PaymentMethodRef?.name;

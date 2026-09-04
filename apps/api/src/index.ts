@@ -82,6 +82,10 @@ async function main() {
     // book, is their receipt right?". Logs only; sends/changes nothing.
     const { customerLookupFromEnv } = await import('./db/customerLookup.js');
     await customerLookupFromEnv().catch((err) => console.error('[cust-lookup] failed:', err));
+    // Phone maintenance (PHONE_MAINTENANCE=clean|clean+email) — safe normalise +
+    // email Marsha the numbers that still need a human check. Owner-approved.
+    const { phoneMaintenanceFromEnv } = await import('./db/phoneMaintenance.js');
+    await phoneMaintenanceFromEnv().catch((err) => console.error('[phone-fix] failed:', err));
     // Self-heal: clear any prep_issue alert whose task is no longer an issue, so a
     // resolved/completed task never keeps showing as an open problem. Idempotent.
     const { clearResolvedPrepIssueAlerts } = await import('./domain/prep.js');

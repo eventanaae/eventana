@@ -35,6 +35,23 @@ export function normalizeUaePhone(raw: string | null | undefined): { value: stri
   return { value: e164, changed: e164 !== original };
 }
 
+/**
+ * The phone a NEW customer is allowed to save: it must carry a dialling key.
+ * A UAE mobile typed as 05X/5X is accepted and promoted to +9715XXXXXXXX; any
+ * other number must already be international (+<country><digits>). Returns the
+ * value to store, or null when the number has no usable key (reject it).
+ */
+export function toValidCustomerPhone(raw: string | null | undefined): string | null {
+  const original = String(raw ?? '').trim();
+  if (!original) return null;
+  const uae = normalizeUaePhone(original);
+  if (uae) return uae.value; // UAE mobile (already-correct or 05X/5X/… variants)
+  // International: a leading + and 8–15 digits total (E.164), spaces/dashes ok.
+  const compact = original.replace(/[\s()-]/g, '');
+  if (/^\+\d{8,15}$/.test(compact)) return compact;
+  return null;
+}
+
 /** Normalise every confidently-fixable phone across the live + QuickBooks books. */
 export async function normalizePhones(): Promise<any> {
   const targets = [
