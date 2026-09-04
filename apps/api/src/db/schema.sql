@@ -923,6 +923,11 @@ ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS commission_rep TEXT;
 -- Marks invoices carried over from the QuickBooks migration, so (like receipts)
 -- they are not double-counted against the Cash-on-hand opening balance.
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS source TEXT;
+-- Party details echoed on the invoice (mirrors finance_receipts).
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS event_for TEXT;
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS theme TEXT;
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS age TEXT;
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS event_time TEXT;
 
 CREATE TABLE IF NOT EXISTS finance_receipts (
   id            BIGSERIAL PRIMARY KEY,
@@ -949,6 +954,9 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAU
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_for TEXT;
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS theme TEXT;
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS age TEXT;
+-- The party START TIME the receipt should show (the "date" column already holds
+-- the event/sale date). Stored as "HH:MM" 24h text, like events.start_time.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_time TEXT;
 -- When an upcoming sale is turned into an operational event, we link it here so
 -- it is never converted twice.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_id TEXT;

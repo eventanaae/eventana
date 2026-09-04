@@ -78,6 +78,27 @@ export async function timeAuditFromEnv(): Promise<void> {
       P(`  R#${r.number} ${r.date} event=${r.event_id ?? '—'} for="${r.event_for ?? '—'}" "${r.customer_name ?? '—'}" (${r.source ?? 'manual'})`);
     }
 
+    // ── FULL DETAIL for recent/upcoming events, to diff against the customer's
+    //    original booking message (name, phones, email, date, start-end, baby,
+    //    theme). Joins the customer contact + the linked receipt's party fields.
+    const detail = await pool.query(`
+      SELECT e.id,
+             to_char(e.event_date,'YYYY-MM-DD') AS event_date,
+             e.start_time, e.base_end_time, e.emirate,
+             e.theme_id, e.custom_theme,
+             c.name AS customer, c.phone, c.backup_phone, c.email,
+             r.event_for AS baby, r.theme AS receipt_theme, r.number AS receipt_no
+        FROM events e
+        LEFT JOIN customers c ON c.id = e.customer_id
+        LEFT JOIN finance_receipts r ON r.event_id = e.id
+       WHERE e.event_date >= date '2026-08-01' AND e.phase <> 'Cancelled'
+       ORDER BY e.event_date
+    `);
+    P(`FULL DETAIL: ${detail.rows.length} event(s)`);
+    for (const r of detail.rows) {
+      P(`DET ${r.id} | ${r.event_date} ${r.start_time}-${r.base_end_time} | "${r.customer ?? '—'}" ph=${r.phone ?? '—'}/${r.backup_phone ?? '—'} <${r.email ?? '—'}> | baby="${r.baby ?? '—'}" theme=${r.theme_id ?? (r.custom_theme ? 'custom' : '—')}/${r.receipt_theme ?? '—'} | ${r.emirate ?? '—'} | R#${r.receipt_no ?? '—'}`);
+    }
+
     P('DONE');
   } catch (e) {
     console.error('[time-audit] failed:', (e as Error).message);

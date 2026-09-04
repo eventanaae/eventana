@@ -257,7 +257,7 @@ export function renderFinanceDocEmail(
     number: string; customer_name?: string | null; date?: unknown; issue_date?: unknown; due_date?: unknown;
     lineItems?: Array<{ name: string; qty: number; priceFils: number }>;
     discount_fils?: number; shipping_fils?: number; total_fils: number; message?: string | null;
-    event_for?: string | null; theme?: string | null; age?: string | null;
+    event_for?: string | null; theme?: string | null; age?: string | null; event_time?: string | null;
   },
   kind: 'receipt' | 'invoice',
 ): { subject: string; html: string } {
@@ -270,6 +270,7 @@ export function renderFinanceDocEmail(
     [kind === 'receipt' ? 'Receipt no.' : 'Invoice no.', `#${doc.number}`],
     ['Date', longDate(doc.date ?? doc.issue_date)],
   ];
+  if (doc.event_time) detailRows.push(['Time', time12(String(doc.event_time))]);
   if (doc.event_for) detailRows.push(['Celebration for', String(doc.event_for)]);
   if (doc.age) detailRows.push(['Age', String(doc.age)]);
   if (doc.theme) detailRows.push(['Theme', String(doc.theme)]);

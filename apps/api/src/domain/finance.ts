@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { randomBytes } from 'node:crypto';
 import { pool, withTransaction } from '../db/pool.js';
-import { formatAed } from '@eventana/shared';
+import { formatAed, to12h } from '@eventana/shared';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 import { renderFinanceDocEmail } from './notify.js';
 import { nextOrderId, nextEventId } from './orders.js';
@@ -274,15 +274,17 @@ type DocInput = {
   message?: string;
   // Party details echoed on the receipt (guest-of-honour / baby name + theme + age).
   eventFor?: string | null; theme?: string | null; age?: string | null;
+  // Party START time shown on the receipt, "HH:MM" 24h (the "date" is the event date).
+  eventTime?: string | null;
 };
 
 export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextInvoiceNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_invoices (number, customer_id, customer_name, issue_date, due_date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, status, message, commission_rep)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.status ?? 'sent', d.message ?? null, d.commissionRep ?? null],
+    `INSERT INTO finance_invoices (number, customer_id, customer_name, issue_date, due_date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, status, message, commission_rep, event_for, theme, age, event_time)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+    [number, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.status ?? 'sent', d.message ?? null, d.commissionRep ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.eventTime ?? null],
   );
   return decorateInvoice(rows[0]);
 }
@@ -326,9 +328,9 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextReceiptNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, commission_rep)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null],
+    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, commission_rep)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+    [number, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.eventTime ?? null, d.commissionRep ?? null],
   );
   // An upcoming sale becomes an operational event automatically, so it shows on
   // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.
@@ -715,10 +717,10 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   const { rows } = await pool.query(
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
-       event_for=$12, theme=$13, age=$14,
+       event_for=$12, theme=$13, age=$14, event_time=$17,
        commission_rep = CASE WHEN $16::boolean THEN $15 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null, touchComm],
+    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null],
   );
   const saved = rows[0];
   if (saved && d.date) {
@@ -745,9 +747,10 @@ export async function updateInvoice(id: number, d: DocInput & { dueDate?: string
   const { rows } = await pool.query(
     `UPDATE finance_invoices SET customer_id=$2, customer_name=$3, issue_date=COALESCE($4,issue_date), due_date=$5, line_items=$6,
        subtotal_fils=$7, discount_fils=$8, shipping_fils=$9, total_fils=$10, message=$11,
+       event_for=$14, theme=$15, age=$16, event_time=$17,
        commission_rep = CASE WHEN $13::boolean THEN $12 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null, d.commissionRep ?? null, touchComm],
+    [id, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null, d.commissionRep ?? null, touchComm, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.eventTime ?? null],
   );
   return rows[0] ? decorateInvoice(rows[0]) : null;
 }
@@ -775,7 +778,8 @@ export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
       ${kind === 'receipt' ? '<div style="margin-top:6px;font-weight:800;letter-spacing:1px">PAID</div>' : ''}
     </div>
     <div style="font-size:14px;margin-bottom:14px"><b>${escapeHtml(doc.customer_name ?? '')}</b><br><span style="color:#999">${dateStr}</span></div>
-    ${doc.event_for || doc.theme || doc.age ? `<table style="width:100%;font-size:13px;margin-bottom:12px;color:#3B3641">
+    ${doc.event_time || doc.event_for || doc.theme || doc.age ? `<table style="width:100%;font-size:13px;margin-bottom:12px;color:#3B3641">
+      ${doc.event_time ? `<tr><td style="color:#999;padding:2px 0">Time</td><td style="text-align:right;font-weight:700">${escapeHtml(to12h(String(doc.event_time)))}</td></tr>` : ''}
       ${doc.event_for ? `<tr><td style="color:#999;padding:2px 0">Celebration for</td><td style="text-align:right;font-weight:700">${escapeHtml(doc.event_for)}</td></tr>` : ''}
       ${doc.age ? `<tr><td style="color:#999;padding:2px 0">Age</td><td style="text-align:right;font-weight:700">${escapeHtml(doc.age)}</td></tr>` : ''}
       ${doc.theme ? `<tr><td style="color:#999;padding:2px 0">Theme</td><td style="text-align:right;font-weight:700">${escapeHtml(doc.theme)}</td></tr>` : ''}

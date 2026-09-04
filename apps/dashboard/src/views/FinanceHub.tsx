@@ -649,6 +649,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const [eventFor, setEventFor] = useState(initial?.eventFor ?? '');
   const [age, setAge] = useState(initial?.age ?? '');
   const [theme, setTheme] = useState(initial?.theme ?? '');
+  const [eventTime, setEventTime] = useState(initial?.eventTime ?? '');
   const [commissionMarsha, setCommissionMarsha] = useState<boolean>(String(initial?.commissionRep ?? '').toLowerCase() === 'marsha');
   const [pickCustomer, setPickCustomer] = useState(false);
   const [pickItem, setPickItem] = useState(false);
@@ -664,7 +665,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
     if (!customer) { setErr('Choose a customer.'); return; }
     if (items.length === 0) { setErr('Add at least one item.'); return; }
     setBusy(true); setErr(null);
-    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null };
+    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null, eventTime: eventTime || null };
     try {
       if (kind === 'invoice') {
         const commissionRep = commissionMarsha ? 'Marsha' : null;
@@ -716,9 +717,12 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         <Field label="Discount (AED)"><input value={discount} inputMode="decimal" onChange={(e) => setDiscount(e.target.value)} style={input} placeholder="0" /></Field>
         <Field label="Shipping (AED)"><input value={shipping} inputMode="decimal" onChange={(e) => setShipping(e.target.value)} style={input} placeholder="0" /></Field>
       </div>
-      {kind === 'invoice'
-        ? <Field label="Due date"><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={input} /></Field>
-        : <Field label="Date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} /></Field>}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {kind === 'invoice'
+          ? <Field label="Due date"><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={input} /></Field>
+          : <Field label="Event date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} /></Field>}
+        <Field label="Event time"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} style={input} /></Field>
+      </div>
 
       {/* Commission approval is the OWNER's decision alone: only the owner sees the
           switch. Marsha (or anyone else) can see it was approved, but can't grant
@@ -778,6 +782,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
     eventFor: doc.event_for ?? '',
     age: doc.age ?? '',
     theme: doc.theme ?? '',
+    eventTime: doc.event_time ?? '',
     commissionRep: doc.commission_rep ?? doc.commissionRep ?? null,
   });
 

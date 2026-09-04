@@ -2135,6 +2135,8 @@ export async function adminRoutes(app: FastifyInstance) {
     eventFor: z.string().max(120).nullable().optional(),
     theme: z.string().max(120).nullable().optional(),
     age: z.string().max(40).nullable().optional(),
+    // Party start time shown on the receipt, "HH:MM" 24h.
+    eventTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
   });
 
   app.get('/api/admin/finance/customers', async (request) =>
