@@ -24,6 +24,10 @@ interface Summary {
   topEmirates: Array<{ emirate: string; count: number }>;
 }
 
+// The monthly revenue target the owner set (AED 30,000 by default; override with
+// MONTHLY_REVENUE_TARGET_AED). The report says whether the month hit it.
+const MONTHLY_TARGET_FILS = Math.round(Number(process.env.MONTHLY_REVENUE_TARGET_AED || 30000) * 100);
+
 const monthLabel = (m: string) => {
   const [y, mo] = m.split('-').map(Number);
   return new Date(y, mo - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
@@ -117,6 +121,22 @@ function buildHtml(s: Summary): string {
            )
            .join('')}</table>`
       : '';
+  // Target status (AED 30,000/month): a green banner when hit, an amber "still
+  // needed" banner when short.
+  const hitTarget = s.revenueFils >= MONTHLY_TARGET_FILS;
+  const gap = MONTHLY_TARGET_FILS - s.revenueFils;
+  const targetBanner = `<div style="margin:14px 0 0;padding:12px 14px;border-radius:12px;font-weight:800;font-size:13.5px;
+      background:${hitTarget ? '#e9f7f1' : '#fff4e5'};color:${hitTarget ? '#1f7a5c' : '#b26a00'}">
+      ${hitTarget
+        ? `🎯 Target reached — AED ${formatAed(s.revenueFils)} of the AED ${formatAed(MONTHLY_TARGET_FILS)} monthly target`
+        : `🎯 Below target — AED ${formatAed(gap)} short of the AED ${formatAed(MONTHLY_TARGET_FILS)} monthly target`}
+    </div>`;
+  // Loss warning: shown ONLY when expenses exceeded income (no profit line otherwise).
+  const lossBanner = s.profitFils < 0
+    ? `<div style="margin:10px 0 0;padding:12px 14px;border-radius:12px;font-weight:800;font-size:13.5px;background:#fdecea;color:#b3261e">
+        ⚠️ Loss this month — expenses were AED ${formatAed(-s.profitFils)} more than income
+      </div>`
+    : '';
   return `<div style="max-width:560px;margin:0 auto;font-family:Segoe UI,Arial,sans-serif;background:#faf6f2;padding:24px">
     <div style="text-align:center;padding:8px 0 16px"><span style="font-size:22px;font-weight:800;color:#E94F9C">Eventana</span></div>
     <div style="background:#fff;border-radius:18px;padding:26px 24px;color:#3B3641">
@@ -128,6 +148,8 @@ function buildHtml(s: Summary): string {
         ${row('Expenses', `AED ${formatAed(s.expensesFils)}`, '#F06C6C')}
         ${row('Tips collected (to staff)', `AED ${formatAed(s.tipsFils)}`)}
       </table>
+      ${targetBanner}
+      ${lossBanner}
       ${rankList('Top 5 most requested', s.topItems.map((t) => ({ left: t.name, right: `${t.count}×` })))}
       ${rankList('Top 3 emirates', s.topEmirates.map((e) => ({ left: e.emirate, right: `${e.count} order${e.count === 1 ? '' : 's'}` })))}
       ${rankList('Top 3 expenses', s.byCategory.map((c) => ({ left: c.category, right: `AED ${formatAed(c.amountFils)}` })))}
