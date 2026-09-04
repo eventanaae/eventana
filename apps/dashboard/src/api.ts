@@ -449,11 +449,6 @@ export const api = {
     request<any>(`/api/admin/expenses${search ? `?search=${encodeURIComponent(search)}` : month ? `?month=${month}` : ''}`),
   addExpense: (body: Record<string, unknown>) =>
     request<any>('/api/admin/expenses', { method: 'POST', body: JSON.stringify(body) }),
-  scanReceipt: (imageUrl: string) =>
-    request<{ available: boolean; fields?: { amountFils: number | null; vendor: string | null; spentOn: string | null; category: string | null; description: string | null }; error?: string }>(
-      '/api/admin/expenses/scan-receipt',
-      { method: 'POST', body: JSON.stringify({ imageUrl }) },
-    ),
   updateExpense: (id: number, body: Record<string, unknown>) =>
     request<any>(`/api/admin/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteExpense: (id: number) =>

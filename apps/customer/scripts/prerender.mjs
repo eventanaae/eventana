@@ -297,8 +297,8 @@ const themeLine = (lang, page) => {
   }
   const href = pageUrl(THEMES_SLUG);
   return lang === 'ar'
-    ? `<h2>الثيمات</h2><p>أكثر من 40 ثيم جاهز بدون رسوم إضافية، منها: ${esc(themeNames('ar'))}. <a href="${href}">شوفي كل الثيمات بالصور</a>. وإذا ما لقيتِ ثيمك، فريق التصميم يصممه من الصفر برسم تصميم 800 درهم لحفلات الأطفال.</p>`
-    : `<h2>Themes</h2><p>More than 40 ready themes at no extra charge, including: ${esc(themeNames('en'))}. <a href="${href}">See every theme with photos</a>. If yours isn't listed, our design team builds it from scratch for an AED 800 design fee on kids parties.</p>`;
+    ? `<h2>الثيمات</h2><p>40 ثيم جاهز لحفلات الأطفال بدون رسوم إضافية، منها: ${esc(themeNames('ar'))}. <a href="${href}">شوفي كل الثيمات بالصور</a>. وإذا ما لقيتِ ثيمك، فريق التصميم يصممه من الصفر برسم تصميم 800 درهم لحفلات الأطفال.</p>`
+    : `<h2>Themes</h2><p>40 ready themes for kids parties at no extra charge, including: ${esc(themeNames('en'))}. <a href="${href}">See every theme with photos</a>. If yours isn't listed, our design team builds it from scratch for an AED 800 design fee on kids parties.</p>`;
 };
 
 /**
@@ -552,7 +552,9 @@ Eventana does not currently serve the Al Gharbia region.
 
 ## Themes
 
-More than 40 ready themes, included in the package price at no extra charge. The 31 with photographs are: ${themeNames('en')}. Every theme is at ${pageUrl(THEMES_SLUG)}. A theme that is not listed is designed from scratch for an AED 800 design fee on kids parties (no fee on other celebrations); that fee is never discounted. Colours are chosen by the customer on any theme.
+40 ready themes, included in the package price at no extra charge. The 31 with photographs are: ${themeNames('en')}. Every theme is at ${pageUrl(THEMES_SLUG)}.
+
+The ready themes are for kids birthday parties only. Baby showers, gender reveals, graduations, bride-to-be celebrations and adult birthdays have no ready-theme library: the design team creates the theme from scratch instead, and for those celebrations there is no design fee. On a kids party a custom theme carries an AED 800 design fee that is never discounted. Colours are chosen by the customer on any theme.
 
 ## Pages
 

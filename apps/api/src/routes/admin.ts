@@ -9,7 +9,6 @@ import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { formatAed, isCancelled, celebrationLabel, computeRefund } from '@eventana/shared';
 import { refundOrderMoney } from '../domain/refund.js';
-import { scanReceipt, receiptOcrAvailable } from '../domain/receiptOcr.js';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import { getProvider, integrationStatus } from '../payments/index.js';
@@ -1764,19 +1763,6 @@ export async function adminRoutes(app: FastifyInstance) {
       paymentMethods: PAYMENT_METHODS,
       expenses: rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) })),
     };
-  });
-
-  /** Read a receipt image with Gemini and suggest the expense fields. The
-   *  owner always reviews the result before saving. */
-  app.post('/api/admin/expenses/scan-receipt', async (request, reply) => {
-    const body = request.body as { imageUrl?: string };
-    const url = String(body?.imageUrl ?? '');
-    if (!/^https:\/\/res\.cloudinary\.com\//.test(url)) {
-      return reply.status(400).send({ error: 'invalid_image' });
-    }
-    if (!receiptOcrAvailable()) return { available: false };
-    const r = await scanReceipt(url);
-    return r;
   });
 
   /** Record an expense. */
