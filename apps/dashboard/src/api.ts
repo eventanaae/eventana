@@ -445,7 +445,8 @@ export const api = {
   finance: (month?: string) => request<any>(`/api/admin/finance${month ? `?month=${month}` : ''}`),
   emailFinanceReport: (month?: string) =>
     request<any>(`/api/admin/finance/report${month ? `?month=${month}` : ''}`, { method: 'POST' }),
-  expenses: (month?: string) => request<any>(`/api/admin/expenses${month ? `?month=${month}` : ''}`),
+  expenses: (month?: string, search?: string) =>
+    request<any>(`/api/admin/expenses${search ? `?search=${encodeURIComponent(search)}` : month ? `?month=${month}` : ''}`),
   addExpense: (body: Record<string, unknown>) =>
     request<any>('/api/admin/expenses', { method: 'POST', body: JSON.stringify(body) }),
   updateExpense: (id: number, body: Record<string, unknown>) =>

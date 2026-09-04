@@ -1702,9 +1702,33 @@ export async function adminRoutes(app: FastifyInstance) {
   ] as const;
   const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'cheque', 'other'] as const;
 
-  /** List expenses (default: current month). */
+  /** List expenses. Default: current month. With ?search=, searches ACROSS all
+   *  months by account name / supplier / memo, and by exact AED amount. */
   app.get('/api/admin/expenses', async (request) => {
-    const q = request.query as { month?: string };
+    const q = request.query as { month?: string; search?: string };
+    const search = (q.search ?? '').trim();
+
+    if (search) {
+      const like = `%${search}%`;
+      const num = Number(search.replace(/[,\s]/g, ''));
+      const amountFils = Number.isFinite(num) && num > 0 ? Math.round(num * 100) : null;
+      const { rows } = await pool.query(
+        `SELECT e.*, ev.id AS event_ref
+           FROM expenses e LEFT JOIN events ev ON ev.id = e.event_id
+          WHERE e.vendor ILIKE $1 OR e.category ILIKE $1 OR e.description ILIKE $1
+             OR ($2::bigint IS NOT NULL AND e.amount_fils = $2)
+          ORDER BY e.spent_on DESC, e.id DESC
+          LIMIT 300`,
+        [like, amountFils],
+      );
+      return {
+        search,
+        categories: EXPENSE_CATEGORIES,
+        paymentMethods: PAYMENT_METHODS,
+        expenses: rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) })),
+      };
+    }
+
     const now = new Date();
     const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
       ? q.month!
@@ -2153,7 +2177,22 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // ── Suppliers directory — who we buy from ──────────────────────────────────
   app.get('/api/admin/suppliers', async () => {
-    const { rows } = await pool.query(`SELECT * FROM suppliers WHERE active ORDER BY lower(name)`);
+    // The saved suppliers list PLUS every distinct vendor already used on an
+    // expense (e.g. the QuickBooks-imported ones), so the dropdown offers the
+    // names the owner actually pays without having to re-add each one.
+    const sup = await pool.query(`SELECT * FROM suppliers WHERE active`);
+    const vend = await pool.query(
+      `SELECT min(vendor) AS name FROM expenses
+        WHERE vendor IS NOT NULL AND btrim(vendor) <> ''
+        GROUP BY lower(vendor)`,
+    );
+    const existing = new Set(sup.rows.map((s: any) => String(s.name).toLowerCase()));
+    const extra = vend.rows
+      .filter((v: any) => !existing.has(String(v.name).toLowerCase()))
+      .map((v: any) => ({ id: `v:${String(v.name).toLowerCase()}`, name: v.name, fromExpenses: true }));
+    const rows = [...sup.rows, ...extra].sort((a: any, b: any) =>
+      String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase()),
+    );
     return { rows };
   });
   app.post('/api/admin/suppliers', async (request, reply) => {

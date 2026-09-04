@@ -299,15 +299,44 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
 }
 
 // ── Expenses ─────────────────────────────────────────────────────────────────
+function ReceiptViewer({ url, onClose }: { url: string; onClose: () => void }) {
+  const isPdf = /\.pdf(\?|$)/i.test(url);
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', maxWidth: '94vw', maxHeight: '90vh' }}>
+        <button type="button" onClick={onClose} aria-label="Close" style={{ position: 'absolute', top: -14, insetInlineEnd: -14, width: 34, height: 34, borderRadius: '50%', border: 'none', background: '#fff', color: C.ink, fontWeight: 800, fontSize: 16, cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,.35)', zIndex: 1 }}>✕</button>
+        {isPdf ? (
+          <iframe src={url} title="Receipt" style={{ width: '94vw', height: '86vh', border: 'none', borderRadius: 12, background: '#fff' }} />
+        ) : (
+          <img src={url} alt="Receipt" style={{ maxWidth: '94vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: 12, background: '#fff' }} />
+        )}
+        <div style={{ textAlign: 'center', marginTop: 10 }}>
+          <a href={url} target="_blank" rel="noreferrer" style={{ color: '#fff', fontWeight: 700, fontSize: 12.5 }}>Open full size ↗</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExpensesTab() {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [month, setMonth] = useState(thisMonth);
+  const [search, setSearch] = useState('');
   const [data, setData] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const load = (m: string) => api.expenses(m).then(setData).catch(() => setData({ expenses: [] }));
-  useEffect(() => { load(month); }, [month]);
+  const [viewing, setViewing] = useState<string | null>(null);
+  const searching = search.trim().length > 0;
+  const load = () =>
+    (searching ? api.expenses(undefined, search.trim()) : api.expenses(month))
+      .then(setData)
+      .catch(() => setData({ expenses: [] }));
+  useEffect(() => {
+    const t = setTimeout(load, searching ? 300 : 0); // debounce while typing a search
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, search]);
   if (!data) return <Spinner />;
   const rows = data.expenses ?? [];
   const total = rows.reduce((s: number, e: any) => s + Number(e.amount_fils), 0);
@@ -317,24 +346,34 @@ function ExpensesTab() {
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
   return (
-    <Panel title={`Expenses · ${data.month ?? month}`} action={<Button onClick={() => setCreating(true)}>+ New expense</Button>}>
+    <Panel title="Expenses" action={<Button onClick={() => setCreating(true)}>+ New expense</Button>}>
+      {/* Search across ALL months by account name, supplier, or exact amount. */}
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="🔎 Search by account, supplier, or amount…"
+        style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e7dfe3', borderRadius: 10, padding: '9px 12px', fontWeight: 600, fontSize: 12.5, color: C.ink, marginBottom: 10 }}
+      />
       {/* Month navigator — imported QuickBooks expenses sit on their original
-          (historical) dates, so browse past months to see them. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <button type="button" style={linkBtn} onClick={() => shiftMonth(-1)}>‹ Prev</button>
-        <input
-          type="month"
-          value={month}
-          max={thisMonth}
-          onChange={(e) => setMonth(e.target.value || thisMonth)}
-          style={{ border: '1px solid #e7dfe3', borderRadius: 8, padding: '5px 9px', fontWeight: 700, fontSize: 12.5, color: C.ink }}
-        />
-        <button type="button" style={linkBtn} onClick={() => shiftMonth(1)} disabled={month >= thisMonth}>Next ›</button>
-      </div>
+          (historical) dates, so browse past months to see them. Hidden while searching. */}
+      {!searching && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+          <button type="button" style={linkBtn} onClick={() => shiftMonth(-1)}>‹ Prev</button>
+          <input
+            type="month"
+            value={month}
+            max={thisMonth}
+            onChange={(e) => setMonth(e.target.value || thisMonth)}
+            style={{ border: '1px solid #e7dfe3', borderRadius: 8, padding: '5px 9px', fontWeight: 700, fontSize: 12.5, color: C.ink }}
+          />
+          <button type="button" style={linkBtn} onClick={() => shiftMonth(1)} disabled={month >= thisMonth}>Next ›</button>
+        </div>
+      )}
       <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 12 }}>
-        Total: <b style={{ color: C.ink }}>AED {money(total)}</b> · {rows.length} item(s)
+        {searching ? `Results: ` : 'Total: '}
+        <b style={{ color: C.ink }}>AED {money(total)}</b> · {rows.length} item(s)
       </div>
-      {rows.length === 0 && <Empty>No expenses in this month. Use ‹ Prev to browse imported history.</Empty>}
+      {rows.length === 0 && <Empty>{searching ? 'No matching expenses.' : 'No expenses in this month. Use ‹ Prev to browse imported history.'}</Empty>}
       {rows.map((e: any) => (
         <DocRow key={e.id}
           title={prettyCat(e.category)}
@@ -343,16 +382,17 @@ function ExpensesTab() {
           action={
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               {e.receipt_url && (
-                <a href={e.receipt_url} target="_blank" rel="noreferrer" style={linkBtn}>🧾 Receipt</a>
+                <button type="button" style={linkBtn} onClick={() => setViewing(e.receipt_url)}>🧾 Receipt</button>
               )}
-              <button style={linkBtn} onClick={() => setEditing(e)}>Edit</button>
-              <button style={{ ...linkBtn, color: C.red }} onClick={async () => { if (confirm('Delete this expense?')) { await api.deleteExpense(e.id); load(month); } }}>Delete</button>
+              <button type="button" style={linkBtn} onClick={() => setEditing(e)}>Edit</button>
+              <button type="button" style={{ ...linkBtn, color: C.red }} onClick={async () => { if (confirm('Delete this expense?')) { await api.deleteExpense(e.id); load(); } }}>Delete</button>
             </div>
           }
         />
       ))}
-      {creating && <ExpenseForm categories={data.categories ?? []} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(month); }} />}
-      {editing && <EditExpenseForm expense={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(month); }} />}
+      {creating && <ExpenseForm categories={data.categories ?? []} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {editing && <EditExpenseForm expense={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {viewing && <ReceiptViewer url={viewing} onClose={() => setViewing(null)} />}
     </Panel>
   );
 }
