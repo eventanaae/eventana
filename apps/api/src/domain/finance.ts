@@ -762,9 +762,9 @@ export async function reconcileInvoicesFromHistory() {
     UPDATE finance_invoices i
        SET customer_id = m.id
       FROM (
-        SELECT DISTINCT ON (lower(btrim(name))) lower(btrim(name)) AS k, id
+        SELECT DISTINCT ON (lower(btrim(full_name))) lower(btrim(full_name)) AS k, id
           FROM historical_customers
-         ORDER BY lower(btrim(name)),
+         ORDER BY lower(btrim(full_name)),
                   (email IS NOT NULL AND btrim(email) <> '') DESC,
                   (phone IS NOT NULL AND btrim(phone) <> '') DESC, id
       ) m

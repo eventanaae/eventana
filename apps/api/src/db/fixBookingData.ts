@@ -172,9 +172,9 @@ export async function fixBookingDataFromEnv(): Promise<void> {
     // QuickBooks) — the import stored only the name, not the customer link.
     await pool.query(`
       UPDATE finance_invoices i SET customer_id = m.id
-        FROM (SELECT DISTINCT ON (lower(btrim(name))) lower(btrim(name)) AS k, id
+        FROM (SELECT DISTINCT ON (lower(btrim(full_name))) lower(btrim(full_name)) AS k, id
                 FROM historical_customers
-               ORDER BY lower(btrim(name)),
+               ORDER BY lower(btrim(full_name)),
                         (email IS NOT NULL AND btrim(email) <> '') DESC,
                         (phone IS NOT NULL AND btrim(phone) <> '') DESC, id) m
        WHERE i.number = '1362' AND lower(btrim(i.customer_name)) = m.k`);

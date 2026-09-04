@@ -22,8 +22,21 @@ export async function sendEmail(args: {
   subject: string;
   html: string;
   replyTo?: string;
+  /** Silent monitoring recipient(s) — BCC, so the customer never sees them.
+   *  The primary recipient is never BCC'd to itself. */
+  bcc?: string | string[];
 }): Promise<SendResult> {
   if (!config.email.resendApiKey) return { ok: false, error: 'email_disabled' };
+  // Merge the caller's BCC with the global monitor inbox (config), so a manager
+  // silently sees a copy of every email — and knows what reached vs bounced.
+  const bccList = Array.from(new Set(
+    [
+      ...(Array.isArray(args.bcc) ? args.bcc : args.bcc ? [args.bcc] : []),
+      ...config.email.monitorBcc,
+    ]
+      .map((s) => String(s).trim())
+      .filter((s) => s && s.toLowerCase() !== args.to.toLowerCase()),
+  ));
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -36,6 +49,7 @@ export async function sendEmail(args: {
         to: [args.to],
         subject: args.subject,
         html: args.html,
+        ...(bccList.length ? { bcc: bccList } : {}),
         ...(args.replyTo ? { reply_to: args.replyTo } : {}),
       }),
     });

@@ -215,6 +215,12 @@ export const config = {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
+    // Silent monitor: every customer email is BCC'd here so a manager (Marsha)
+    // sees exactly what was sent and whether it bounced. Comma-separated.
+    monitorBcc: (env.EMAIL_MONITOR_BCC ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
   },
 
   /**
