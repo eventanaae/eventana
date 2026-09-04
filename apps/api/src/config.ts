@@ -177,6 +177,13 @@ export const config = {
   googleMapsApiKey: env.GOOGLE_MAPS_API_KEY ?? null,
 
   /**
+   * Where the team / driver departs from (Eventana's base / warehouse) — the
+   * ORIGIN for auto-ETA. Either an address string or "lat,lng". Absent → ETA
+   * auto-calculation reports unavailable and the manual field still works.
+   */
+  eventanaBase: env.EVENTANA_BASE_LOCATION ?? null,
+
+  /**
    * Google Calendar sync (service-account model). Paste the whole service
    * account JSON key into GOOGLE_SERVICE_ACCOUNT_JSON and share the target
    * calendar with that account's email; GOOGLE_CALENDAR_ID is the calendar

@@ -38,8 +38,12 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   // "Past" section so the main list is only what's still coming up / live.
   const todayStr = new Date().toISOString().slice(0, 10);
   const isDone = (e: any) =>
-    e.phase === 'Event Completed' || e.phase === 'Cancelled' || String(e.event_date).slice(0, 10) < todayStr;
-  const upcoming = filtered.filter((e) => !isDone(e));
+    e.phase === 'Event Completed' || e.phase === 'Cancelled' ||
+    // A date-not-decided (TBD) event is never "past" — it has no real date yet.
+    (!e.date_tbd && String(e.event_date).slice(0, 10) < todayStr);
+  // TBD events float to the very top (stable — the date order of the rest holds).
+  const upcoming = filtered.filter((e) => !isDone(e))
+    .sort((a, b) => (a.date_tbd === b.date_tbd ? 0 : a.date_tbd ? -1 : 1));
   const past = filtered.filter(isDone).reverse(); // most-recent first
 
   // One event card.
@@ -70,19 +74,20 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
     );
   };
 
-  // A list of events with month dividers.
+  // A list of events with month dividers ('Date TBD' groups first).
+  const groupKey = (x: any) => x.date_tbd ? 'TBD' : `${new Date(x.event_date).getFullYear()}-${new Date(x.event_date).getMonth()}`;
   const grouped = (list: any[]) => list.map((e, i) => {
-    const d = new Date(e.event_date);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    const prev = i > 0 ? new Date(list[i - 1].event_date) : null;
-    const showMonth = !prev || `${prev.getFullYear()}-${prev.getMonth()}` !== key;
-    const count = list.filter((x) => { const xd = new Date(x.event_date); return `${xd.getFullYear()}-${xd.getMonth()}` === key; }).length;
+    const key = groupKey(e);
+    const prevKey = i > 0 ? groupKey(list[i - 1]) : null;
+    const showMonth = key !== prevKey;
+    const count = list.filter((x) => groupKey(x) === key).length;
+    const groupLabel = e.date_tbd ? 'Date to be confirmed' : new Date(e.event_date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
     return (
       <div key={e.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {showMonth && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: i === 0 ? 0 : 8 }}>
             <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: C.pinkDeep, whiteSpace: 'nowrap' }}>
-              {d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+              {groupLabel}
             </span>
             <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, background: C.pinkSoft, borderRadius: 20, padding: '1px 8px', whiteSpace: 'nowrap' }}>{count}</span>
             <div style={{ flex: 1, height: 1, background: C.line }} />

@@ -257,12 +257,34 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
         const showTotals = data.totalDisplay != null;
         const monthKey = (d: any) => { const t = new Date(d); return isNaN(+t) ? '—' : `${t.getFullYear()}-${String(t.getMonth()).padStart(2, '0')}`; };
         const monthLabel = (d: any) => { const t = new Date(d); return isNaN(+t) ? 'Undated' : t.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); };
+        // Receipts whose event date isn't decided yet (TBD) float to the TOP in
+        // their own group, shown as "TBD" — not buried under a placeholder month.
+        const tbdList = list.filter((r: any) => r.date_tbd);
+        const dated = list.filter((r: any) => !r.date_tbd);
         const totals: Record<string, number> = {};
         const counts: Record<string, number> = {};
-        for (const r of list) { const k = monthKey(r.date); totals[k] = (totals[k] ?? 0) + Number(r.total_fils || 0); counts[k] = (counts[k] ?? 0) + 1; }
+        for (const r of dated) { const k = monthKey(r.date); totals[k] = (totals[k] ?? 0) + Number(r.total_fils || 0); counts[k] = (counts[k] ?? 0) + 1; }
         const out: ReactNode[] = [];
+        const receiptRow = (r: any, tbd: boolean) => (
+          <DocRow key={r.id} onClick={() => setSel(r)}
+            title={r.customer_name} sub={`Receipt ${r.number} · ${tbd ? 'TBD' : fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
+            amount={r.totalDisplay}
+            badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
+          />
+        );
+        if (tbdList.length) {
+          const tbdTotal = tbdList.reduce((s, r) => s + Number(r.total_fils || 0), 0);
+          out.push(
+            <div key="m-tbd" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4, marginBottom: 6, paddingBottom: 6, borderBottom: `2px solid ${C.line}` }}>
+              <span style={{ ...fredoka(14), color: C.ink }}>🗓️ Date to be confirmed</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>· {tbdList.length} receipt{tbdList.length > 1 ? 's' : ''}</span>
+              {showTotals && <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, color: C.green }}>AED {money(tbdTotal)}</span>}
+            </div>,
+          );
+          for (const r of tbdList) out.push(receiptRow(r, true));
+        }
         let cur: string | null = null;
-        for (const r of list) {
+        for (const r of dated) {
           const k = monthKey(r.date);
           if (k !== cur) {
             cur = k;
@@ -276,13 +298,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
               </div>,
             );
           }
-          out.push(
-            <DocRow key={r.id} onClick={() => setSel(r)}
-              title={r.customer_name} sub={`Receipt ${r.number} · ${fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
-              amount={r.totalDisplay}
-              badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
-            />,
-          );
+          out.push(receiptRow(r, false));
         }
         return out;
       })()}
@@ -734,10 +750,9 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         </label>
       )}
 
-      {/* Commission approval is the OWNER's decision alone: only the owner sees the
-          switch. Marsha (or anyone else) can see it was approved, but can't grant
-          it — nothing reaches her KPI until the owner ticks this. */}
-      {isOwner ? (
+      {/* Commission approval is the OWNER's decision alone, and only relevant to
+          corporate INVOICES — never shown on a sales receipt. */}
+      {kind === 'invoice' ? (isOwner ? (
         <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, padding: '10px 12px', borderRadius: 12, border: `1px solid ${commissionMarsha ? C.pink : C.line}`, background: commissionMarsha ? C.pinkSoft : '#fff', cursor: 'pointer' }}>
           <input type="checkbox" checked={commissionMarsha} onChange={(e) => setCommissionMarsha(e.target.checked)} />
           <span style={{ fontSize: 12.5, fontWeight: 700, color: commissionMarsha ? C.pinkDeep : C.ink }}>
@@ -749,7 +764,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: C.pinkSoft, fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
           ✓ Commission approved for Marsha
         </div>
-      ) : null}
+      ) : null) : null}
 
       {/* Party details echoed on the receipt — guest of honour + age + theme. */}
       <div style={{ marginTop: 4, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
