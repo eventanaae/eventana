@@ -581,7 +581,7 @@ export async function ensureEventForReceipt(receiptId: number): Promise<string |
   const today = new Date().toISOString().slice(0, 10);
   if (!dateStr || dateStr < today) return null; // only upcoming sales become events
 
-  return withTransaction(async (db) => {
+  const newEventId = await withTransaction(async (db) => {
     // Customer in the app customers table (find by phone/name, else create).
     const phone = String(r.hc_phone ?? '').trim() || '00000000';
     const name = String(r.customer_name ?? 'Customer').trim() || 'Customer';
@@ -640,6 +640,16 @@ export async function ensureEventForReceipt(receiptId: number): Promise<string |
     await db.query(`UPDATE finance_receipts SET event_id = $2 WHERE id = $1`, [receiptId, eventId]);
     return eventId;
   }).catch(() => null);
+
+  // A converted sale is now a real event — give it the same automatic treatment
+  // as a booked party: generate + fair-assign its preparation tasks, and assign
+  // the day-of crew. Best-effort and post-commit, so it appears in the prep list
+  // and is distributed to staff without anyone pressing "Generate prep".
+  if (newEventId) {
+    void import('./prep.js').then(({ generatePrepTasks }) => generatePrepTasks(newEventId)).catch((e) => console.error('[prep] convert auto-generate failed:', (e as Error).message));
+    void import('./staffing.js').then(({ assignStaffForEvent }) => assignStaffForEvent(newEventId)).catch((e) => console.error('[staffing] convert auto-assign failed:', (e as Error).message));
+  }
+  return newEventId;
 }
 
 /** One-time (and safe to re-run): convert every upcoming sale that has no event yet. */
