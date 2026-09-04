@@ -712,6 +712,168 @@
           { "q": "كيف أحجز؟", "a": "احجزي أونلاين من eventanauae.com، أو اتصلي وراسلينا واتساب على 056 450 0777." }
         ]
       }
+    },
+    {
+      "_comment": "A guide, not a service page. Someone asking an assistant 'how much does a kids party in Dubai cost' should get a real answer with real numbers, and the assistant should be able to cite where it came from. Every figure here is the live catalogue price.",
+      "slug": "kids-party-cost-dubai",
+      "celebrationType": "kids",
+      "priority": "0.9",
+      "priceFromAed": 2199,
+      "en": {
+        "headline": "How Much Does a Kids Birthday Party Cost in Dubai?",
+        "subhead": "The real numbers — packages, add-ons and delivery — so you can budget before you enquire.",
+        "includes": [
+          "Full party packages: AED 2,199 to AED 5,999",
+          "Decor-only setups: from AED 1,500",
+          "Delivery: AED 280 Dubai, AED 380 Sharjah and Ajman",
+          "Food stations: from AED 780 each",
+          "Bouncy castle: AED 1,100",
+          "Entertainers: from AED 950"
+        ],
+        "cta": "Build my party and see the total",
+        "title": "Kids Birthday Party Cost in Dubai 2026 | Eventana",
+        "description": "What a kids birthday party actually costs in Dubai: packages AED 2,199–5,999 for 4 hours and 40 children, decor from AED 1,500, delivery AED 280. Real prices, no enquiry needed.",
+        "intro": "Most party companies in Dubai make you enquire before they tell you a price. Here is Eventana's, in full. A complete party package runs 4 hours and covers up to 40 children, and costs between AED 2,199 and AED 5,999 depending on what is included. Decor-only setups — a styled backdrop with balloon work, no food stations or entertainers — start at AED 1,500. On top of the package there is one delivery fee that depends on the emirate, from AED 280 in Dubai to AED 660 in Fujairah. Everything else is optional and priced individually, so a party is as simple or as full as you want it. Note that some companies advertise from AED 299 or AED 499: those are decor-only prices for a backdrop, not a staffed four-hour party — worth checking what a quote actually covers before comparing.",
+        "faq": [
+          { "q": "What is the cheapest full party package?", "a": "Movie Night at AED 2,199. It runs 4 hours, covers up to 40 children and includes 5 items — the themed backdrop, balloon decor and a projection screen among them." },
+          { "q": "What do the six packages cost?", "a": "Movie Night AED 2,199, Bronze Birthday AED 3,599, Silver Birthday AED 4,799, Summer Party AED 4,999, Spa Party AED 5,999 (up to 20 girls) and Golden Birthday AED 5,999. All run 4 hours and, apart from Spa, cover up to 40 children." },
+          { "q": "How much is decoration on its own?", "a": "A small styled backdrop with balloon work is AED 1,500, a medium AED 1,650 and a giant backdrop AED 2,200. No package required." },
+          { "q": "What does delivery cost?", "a": "Dubai AED 280, Sharjah and Ajman AED 380, Abu Dhabi AED 420, Umm Al Quwain AED 480, Al Ain and Ras Al Khaimah AED 530, Fujairah AED 660. One fee per booking, covering delivery, setup and collection." },
+          { "q": "How much are the food stations?", "a": "Popcorn AED 780, cotton candy AED 780, ice cream AED 900, corn AED 900, slush AED 950, hot dog AED 1,200, pancake AED 1,500, burger sliders AED 1,500, hot chocolate AED 1,500, nachos AED 1,600, chocolate fountain AED 2,200. Each runs 4 hours for up to 40 guests and is operated by Eventana staff." },
+          { "q": "How much do entertainers and inflatables add?", "a": "Face painting AED 950, balloon twisting AED 950, a costumed mascot AED 950, an acrobat clown AED 1,500. A 4x4m bouncy castle is AED 1,100, a bubbles house AED 1,500, the Amwaj slide AED 1,250 and a 12x6m slippery football pitch AED 1,100." },
+          { "q": "So what is a realistic total?", "a": "A common booking is a mid package plus a bouncy castle and two food stations: Silver Birthday AED 4,799 + castle AED 1,100 + popcorn AED 780 + cotton candy AED 780 + Dubai delivery AED 280 = AED 7,739. A simple one is Movie Night AED 2,199 + delivery AED 280 = AED 2,479. You can build either on the website and see the total before paying." }
+        ]
+      },
+      "ar": {
+        "headline": "كم تكلفة حفلة عيد ميلاد أطفال في دبي؟",
+        "subhead": "الأرقام الحقيقية — الباقات والإضافات والتوصيل — عشان تعرفين ميزانيتك قبل ما تسألين.",
+        "includes": [
+          "الباقات الكاملة: من 2,199 إلى 5,999 درهم",
+          "الديكور فقط: من 1,500 درهم",
+          "التوصيل: 280 دبي · 380 الشارقة وعجمان",
+          "محطات الأكل: من 780 درهم للوحدة",
+          "القلعة النطاطة: 1,100 درهم",
+          "الترفيه: من 950 درهم"
+        ],
+        "cta": "جهّزي حفلتك وشوفي الإجمالي",
+        "title": "كم تكلفة حفلة عيد ميلاد أطفال في دبي ٢٠٢٦ | إيفنتانا",
+        "description": "التكلفة الحقيقية لحفلة عيد ميلاد أطفال في دبي: الباقات 2,199–5,999 درهم لـ4 ساعات و40 طفل، الديكور من 1,500، التوصيل 280. أسعار واضحة بلا استفسار.",
+        "intro": "أغلب شركات الحفلات في دبي تطلب منك تستفسرين قبل ما تعرفين السعر. هذي أسعار إيفنتانا كاملة. الباقة الكاملة مدّتها 4 ساعات وتغطي حتى 40 طفل، وسعرها بين 2,199 و5,999 درهم حسب اللي تشمله. وتجهيزات الديكور فقط — خلفية منسّقة مع بالونات بلا محطات أكل ولا ترفيه — تبدأ من 1,500 درهم. ويضاف على الباقة رسم توصيل واحد حسب الإمارة، من 280 درهم في دبي إلى 660 في الفجيرة. وكل شيء غير ذلك اختياري ومُسعّر على حدة، فالحفلة تصير بسيطة أو كاملة على كيفك. ملاحظة: بعض الشركات تعلن «من 299 أو 499 درهم» — هذي أسعار ديكور فقط لخلفية، مو حفلة كاملة بأربع ساعات وطاقم تشغيل، فيستاهل تتأكدين وش يغطي العرض قبل المقارنة.",
+        "faq": [
+          { "q": "شنو أرخص باقة كاملة؟", "a": "باقة ليلة السينما بـ2,199 درهم. مدّتها 4 ساعات وتغطي حتى 40 طفل وتشمل 5 عناصر منها الخلفية بالثيم وديكور البالونات وشاشة العرض." },
+          { "q": "كم أسعار الباقات الست؟", "a": "ليلة السينما 2,199 درهم، البرونزية 3,599، الفضية 4,799، الحفلة الصيفية 4,999، حفلة السبا 5,999 (حتى 20 طفلة)، والذهبية 5,999. كلها 4 ساعات، وكلها حتى 40 طفل ما عدا السبا." },
+          { "q": "كم سعر الديكور لحاله؟", "a": "الخلفية الصغيرة المنسّقة مع شغل البالونات 1,500 درهم، المتوسطة 1,650، والعملاقة 2,200. بدون باقة." },
+          { "q": "كم رسم التوصيل؟", "a": "دبي 280 درهم، الشارقة وعجمان 380، أبوظبي 420، أم القيوين 480، العين ورأس الخيمة 530، الفجيرة 660. رسم واحد للحجز يشمل التوصيل والتركيب والاستلام." },
+          { "q": "كم أسعار محطات الأكل؟", "a": "بوبكورن 780 درهم، غزل بنات 780، آيس كريم 900، ذرة 900، سلاش 950، هوت دوق 1,200، بان كيك 1,500، برجر سلايدر 1,500، شوكولاتة ساخنة 1,500، ناتشوز 1,600، نافورة شوكولاتة 2,200. كل محطة 4 ساعات وحتى 40 ضيف ويشغّلها فريق إيفنتانا." },
+          { "q": "كم يزيد الترفيه والنطاطيات؟", "a": "رسم على الوجه 950 درهم، تشكيل بالونات 950، شخصية كرتونية 950، مهرج أكروبات 1,500. والقلعة النطاطة 4×4 م بـ1,100، بيت الفقاعات 1,500، زحليقة أمواج 1,250، والملعب الزلق 12×6 م بـ1,100." },
+          { "q": "طيب كم الإجمالي الواقعي؟", "a": "حجز شائع: باقة متوسطة مع قلعة نطاطة ومحطتين — الفضية 4,799 + قلعة 1,100 + بوبكورن 780 + غزل بنات 780 + توصيل دبي 280 = 7,739 درهم. وحجز بسيط: ليلة السينما 2,199 + توصيل 280 = 2,479 درهم. تقدرين تبنين أي منهما على الموقع وتشوفين الإجمالي قبل الدفع." }
+        ]
+      }
+    },
+    {
+      "slug": "compare-packages",
+      "celebrationType": "kids",
+      "priority": "0.8",
+      "priceFromAed": 2199,
+      "en": {
+        "headline": "Compare Eventana's Six Party Packages",
+        "subhead": "What each one includes, who it suits, and what it costs — side by side.",
+        "includes": [
+          "Movie Night — AED 2,199 · 5 items",
+          "Bronze Birthday — AED 3,599 · 10 items",
+          "Silver Birthday — AED 4,799 · 11 items",
+          "Summer Party — AED 4,999 · outdoor and water",
+          "Spa Party — AED 5,999 · up to 20 girls",
+          "Golden Birthday — AED 5,999 · 12 items · most booked"
+        ],
+        "cta": "Pick my package",
+        "title": "Compare Party Packages — Prices & What's Included | Eventana",
+        "description": "All six Eventana party packages compared: Movie Night AED 2,199 to Golden Birthday AED 5,999. What each includes, capacity and who it suits.",
+        "intro": "Every Eventana package runs 4 hours and is delivered, installed and taken down by our team. What changes between them is how many elements are included and what kind of party they create. Movie Night (AED 2,199) is the simplest — a themed backdrop, balloon decor and a projection screen, five items in total, best for a small cosy evening. Bronze (AED 3,599) adds food stations and more decor across ten items. Silver (AED 4,799) is eleven items and the usual middle choice. Summer Party (AED 4,999) is built around outdoor and water play. Spa Party (AED 5,999) is a pampering theme for up to 20 girls rather than 40 children. Golden Birthday (AED 5,999) is the fullest at twelve items and the one most often booked. Any package can be extended with inflatables, extra food stations or entertainers, and a delivery fee applies per emirate.",
+        "faq": [
+          { "q": "Which package is most popular?", "a": "Golden Birthday at AED 5,999. It is the fullest — twelve items over 4 hours for up to 40 children." },
+          { "q": "What is the difference between Silver and Golden?", "a": "Golden includes twelve items against Silver's eleven and is the more complete setup. Silver at AED 4,799 is the value middle option; Golden at AED 5,999 is the fullest." },
+          { "q": "Which package suits a small party?", "a": "Movie Night at AED 2,199. Five items, 4 hours, and it still covers up to 40 children — it is the simplest setup rather than the smallest capacity." },
+          { "q": "Is Spa Party only for girls?", "a": "It is designed as a pampering theme and is capped at 20 guests rather than 40, so it suits a smaller group. The theme and colours are yours to choose." },
+          { "q": "Can I start with one package and add to it?", "a": "Yes. Every package can take inflatables (from AED 800), extra food stations (from AED 780) and entertainers (from AED 950). You add them on the website and the total updates as you go." }
+        ]
+      },
+      "ar": {
+        "headline": "مقارنة باقات إيفنتانا الست",
+        "subhead": "وش تشمل كل باقة، ولمين تناسب، وكم سعرها — جنب بعض.",
+        "includes": [
+          "ليلة السينما — 2,199 درهم · 5 عناصر",
+          "البرونزية — 3,599 درهم · 10 عناصر",
+          "الفضية — 4,799 درهم · 11 عنصر",
+          "الحفلة الصيفية — 4,999 درهم · ألعاب خارجية ومائية",
+          "حفلة السبا — 5,999 درهم · حتى 20 طفلة",
+          "الذهبية — 5,999 درهم · 12 عنصر · الأكثر حجزًا"
+        ],
+        "cta": "اختاري باقتك",
+        "title": "مقارنة باقات الحفلات — الأسعار وما تشمله | إيفنتانا",
+        "description": "مقارنة باقات إيفنتانا الست: من ليلة السينما 2,199 درهم إلى الذهبية 5,999. وش تشمل كل واحدة وعدد الضيوف ولمين تناسب.",
+        "intro": "كل باقات إيفنتانا مدّتها 4 ساعات، ويوصّلها ويركّبها ويفكّها فريقنا. اللي يختلف بينها هو عدد العناصر المشمولة ونوع الحفلة اللي تصنعها. ليلة السينما (2,199 درهم) أبسطها — خلفية بالثيم وديكور بالونات وشاشة عرض، خمسة عناصر، مناسبة لأمسية صغيرة هادية. البرونزية (3,599) تضيف محطات أكل وديكور أكثر بعشرة عناصر. الفضية (4,799) أحد عشر عنصرًا وهي الخيار الأوسط المعتاد. الحفلة الصيفية (4,999) مبنية على الألعاب الخارجية والمائية. حفلة السبا (5,999) ثيم تدليل لحتى 20 طفلة لا 40. والذهبية (5,999) الأشمل باثني عشر عنصرًا وهي الأكثر حجزًا. وأي باقة تقدرين تزيدين عليها نطاطيات أو محطات أكل أو ترفيه، ويضاف رسم التوصيل حسب الإمارة.",
+        "faq": [
+          { "q": "أي باقة الأكثر طلبًا؟", "a": "الباقة الذهبية بـ5,999 درهم. هي الأشمل — اثنا عشر عنصرًا خلال 4 ساعات وحتى 40 طفل." },
+          { "q": "وش الفرق بين الفضية والذهبية؟", "a": "الذهبية تشمل اثني عشر عنصرًا مقابل أحد عشر للفضية وهي التجهيز الأكمل. الفضية بـ4,799 هي الخيار الأوسط، والذهبية بـ5,999 هي الأشمل." },
+          { "q": "أي باقة تناسب حفلة صغيرة؟", "a": "ليلة السينما بـ2,199 درهم. خمسة عناصر و4 ساعات، ومع ذلك تغطي حتى 40 طفل — يعني هي الأبسط تجهيزًا لا الأقل عددًا." },
+          { "q": "حفلة السبا للبنات بس؟", "a": "مصمّمة كثيم تدليل وحدّها 20 ضيفة بدل 40، فتناسب مجموعة أصغر. والثيم والألوان تختارينها أنتِ." },
+          { "q": "أقدر أبدأ بباقة وأزيد عليها؟", "a": "نعم. كل باقة تقبل نطاطيات (من 800 درهم) ومحطات أكل إضافية (من 780) وترفيه (من 950). تضيفينها على الموقع والإجمالي يتحدّث معك." }
+        ]
+      }
+    },
+    {
+      "slug": "party-organizer-al-barsha",
+      "celebrationType": "kids",
+      "priority": "0.7",
+      "areaName": "Al Barsha",
+      "deliveryFeeAed": 280,
+      "en": {
+        "headline": "Party Organizer in Al Barsha, Dubai",
+        "subhead": "We are based in Al Barsha 2 — birthdays, baby showers and celebrations set up at your home here.",
+        "includes": [
+          "Based in Al Barsha 2, Dubai",
+          "Kids birthdays and themed setups",
+          "Baby showers and gender reveals",
+          "Balloon decor and custom backdrops",
+          "Food stations, inflatables and entertainment",
+          "Delivery across Dubai AED 280"
+        ],
+        "cta": "Plan my event",
+        "title": "Party Organizer in Al Barsha, Dubai | Eventana Events",
+        "description": "Eventana Events is based in Al Barsha 2 and sets up kids birthdays, baby showers and celebrations across Al Barsha and Dubai. Packages from AED 2,199.",
+        "intro": "Eventana Events is based on 9B Street in Al Barsha 2, so Al Barsha is our own neighbourhood — Al Barsha 1, 2 and 3, Al Barsha South and Barsha Heights included. We set up kids birthdays, baby showers, gender reveals, graduations, bride-to-be celebrations and adult birthdays at villas, apartments, gardens and majlis here, as well as at the nurseries and schools in the area. Full packages run 4 hours for up to 40 children from AED 2,199; decor-only setups start at AED 1,500. Delivery within Dubai is AED 280.",
+        "faq": [
+          { "q": "Where in Al Barsha are you based?", "a": "9B Street, Al Barsha 2, Dubai. We cover Al Barsha 1, 2 and 3, Al Barsha South and Barsha Heights, and the rest of Dubai." },
+          { "q": "How much is a party in Al Barsha?", "a": "Packages from AED 2,199 to AED 5,999 for 4 hours and up to 40 children, plus AED 280 delivery within Dubai. Decor-only setups start at AED 1,500." },
+          { "q": "Can you set up in an apartment?", "a": "Yes — apartments, villas, gardens, majlis and building party rooms. Tell us the access and lift arrangements when you book so the team plans the setup time around them." },
+          { "q": "Do you cover nurseries and schools in Al Barsha?", "a": "Yes. School and nursery events are one of our regular setups, with decor, food stations and activity corners, and invoicing arranged with the school." },
+          { "q": "How do I book?", "a": "Book online at eventanauae.com, or call and WhatsApp 056 450 0777. We are open every day from 10:00 to 22:00." }
+        ]
+      },
+      "ar": {
+        "headline": "تنظيم حفلات في البرشاء، دبي",
+        "subhead": "مقرّنا البرشاء الثانية — أعياد ميلاد وبيبي شاور ومناسبات نجهّزها في بيتك هنا.",
+        "includes": [
+          "مقرّنا البرشاء الثانية في دبي",
+          "أعياد ميلاد أطفال وتجهيزات بالثيمات",
+          "بيبي شاور وتحديد جنس المولود",
+          "ديكور بالونات وخلفيات مخصصة",
+          "محطات أكل ونطاطيات وترفيه",
+          "توصيل داخل دبي 280 درهم"
+        ],
+        "cta": "جهّزي مناسبتك",
+        "title": "تنظيم حفلات في البرشاء، دبي | إيفنتانا إيفنتس",
+        "description": "إيفنتانا إيفنتس مقرّها البرشاء الثانية وتجهّز أعياد ميلاد الأطفال والبيبي شاور والمناسبات في البرشاء وكل دبي. الباقات من 2,199 درهم.",
+        "intro": "إيفنتانا إيفنتس مقرّها شارع 9B في البرشاء الثانية بدبي، فالبرشاء منطقتنا نفسها — البرشاء الأولى والثانية والثالثة وجنوب البرشاء ومرتفعات البرشاء. نجهّز أعياد ميلاد الأطفال والبيبي شاور وتحديد جنس المولود وحفلات التخرّج وحفلات العروس وأعياد ميلاد الكبار في الفلل والشقق والحدائق والمجالس هنا، وكذلك في حضانات ومدارس المنطقة. الباقات الكاملة 4 ساعات وحتى 40 طفل من 2,199 درهم؛ وتجهيزات الديكور فقط من 1,500 درهم. والتوصيل داخل دبي 280 درهم.",
+        "faq": [
+          { "q": "وين مقرّكم في البرشاء؟", "a": "شارع 9B، البرشاء الثانية، دبي. ونغطي البرشاء الأولى والثانية والثالثة وجنوب البرشاء ومرتفعات البرشاء وباقي دبي." },
+          { "q": "كم تكلفة حفلة في البرشاء؟", "a": "الباقات من 2,199 إلى 5,999 درهم لـ4 ساعات وحتى 40 طفل، بالإضافة إلى 280 درهم توصيل داخل دبي. وتجهيزات الديكور فقط من 1,500 درهم." },
+          { "q": "تقدرون تجهّزون في شقة؟", "a": "نعم — شقق وفلل وحدائق ومجالس وقاعات المباني. عرّفينا على ترتيبات الدخول والمصعد وقت الحجز عشان الفريق يحسب وقت التركيب على أساسها." },
+          { "q": "تغطون حضانات ومدارس البرشاء؟", "a": "نعم. مناسبات المدارس والحضانات من تجهيزاتنا المعتادة، بديكور ومحطات أكل وأركان أنشطة، والفواتير تُرتّب مع إدارة المدرسة." },
+          { "q": "كيف أحجز؟", "a": "احجزي أونلاين من eventanauae.com، أو اتصلي وراسلينا واتساب على 056 450 0777. مفتوحون كل يوم من 10:00 صباحًا حتى 10:00 مساءً." }
+        ]
+      }
     }
   ]
 }
