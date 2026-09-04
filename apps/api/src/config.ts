@@ -167,6 +167,14 @@ export const config = {
   /** Staff token for dashboard/admin routes. Replace with real SSO. */
   staffToken: env.STAFF_TOKEN ?? 'dev-staff-token',
 
+  /**
+   * Google Gemini (Generative Language API) — powers receipt OCR: snap a
+   * receipt and the amount / supplier / date / account are read off it. The
+   * key is server-side only (never shipped to a client). Absent → the scan
+   * endpoint reports unavailable and the form stays fully manual.
+   */
+  gemini: { apiKey: env.GEMINI_API_KEY ?? null, model: env.GEMINI_MODEL ?? 'gemini-2.0-flash' },
+
   /** How often the reconciliation sweep runs, ms. */
   reconcileIntervalMs: Number(env.RECONCILE_INTERVAL_MS ?? 5 * 60_000),
   /** An order Processing longer than this is chased via retrieve-payment. */

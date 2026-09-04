@@ -408,9 +408,34 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
   const [spentOn, setSpentOn] = useState(new Date().toISOString().slice(0, 10));
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { api.suppliers().then((r) => setSuppliers(r.rows)).catch(() => setSuppliers([])); }, []);
+  // Upload the photo, then let Gemini read it and pre-fill the blank fields.
+  // Everything stays editable — the read is only a suggestion.
+  const handleReceipt = async (f: File) => {
+    setUploading(true); setErr(null); setScanNote(null);
+    let url: string | null = null;
+    try { url = await api.uploadImage(f, 'receipts'); setReceiptUrl(url); }
+    catch (e: any) { setErr(e?.message ?? 'Upload failed'); setUploading(false); return; }
+    setUploading(false);
+    setScanning(true);
+    try {
+      const r = await api.scanReceipt(url);
+      const fx = r.fields;
+      if (r.available && fx) {
+        if (fx.amountFils && !amount) setAmount(String(fx.amountFils / 100));
+        if (fx.vendor && !supplier) setSupplier(fx.vendor);
+        if (fx.spentOn) setSpentOn(fx.spentOn);
+        if (fx.category) setCategory(fx.category);
+        if (fx.description && !description) setDescription(fx.description);
+        setScanNote('Auto-filled from the receipt — please review.');
+      }
+    } catch { /* best-effort */ }
+    finally { setScanning(false); }
+  };
   const addNew = async () => {
     const name = newSupplier.trim(); if (!name) return;
     try { await api.supplierCreate({ name }); const r = await api.suppliers(); setSuppliers(r.rows); setSupplier(name); setAddingSupplier(false); setNewSupplier(''); }
@@ -426,7 +451,19 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
   };
   return (
-    <Modal title="New expense" onClose={onClose} onSave={save} busy={busy || uploading} err={err}>
+    <Modal title="New expense" onClose={onClose} onSave={save} busy={busy || uploading || scanning} err={err}>
+      <Field label="Receipt — snap it and we fill the rest in">
+        <label style={{ ...input, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: receiptUrl ? C.green : C.pinkDeep, fontWeight: 700 }}>
+          {uploading ? 'Uploading…' : scanning ? 'Reading receipt…' : receiptUrl ? '✓ Attached — tap to replace' : '📸 Snap or upload receipt'}
+          <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReceipt(f); }} />
+        </label>
+      </Field>
+      {receiptUrl && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <a href={receiptUrl} target="_blank" rel="noreferrer"><img src={receiptUrl} alt="receipt" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.line}` }} /></a>
+          {scanNote && <span style={{ fontSize: 11.5, fontWeight: 700, color: C.green }}>{scanNote}</span>}
+        </div>
+      )}
       <Field label="Supplier">
         {addingSupplier ? (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -458,19 +495,6 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
       </Field>
       <Field label="Amount (AED) *"><input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} style={input} placeholder="0.00" /></Field>
       <Field label="Description / memo"><input value={description} onChange={(e) => setDescription(e.target.value)} style={input} /></Field>
-      <Field label="Receipt (upload or take photo)">
-        <label style={{ ...input, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: receiptUrl ? C.green : C.muted, fontWeight: 700 }}>
-          {uploading ? 'Uploading…' : receiptUrl ? '✓ Receipt attached — tap to replace' : '📎 Upload / take photo'}
-          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
-            const f = e.target.files?.[0]; if (!f) return;
-            setUploading(true); setErr(null);
-            try { setReceiptUrl(await api.uploadImage(f, 'receipts')); }
-            catch (err2: any) { setErr(err2?.message ?? 'Upload failed'); }
-            finally { setUploading(false); }
-          }} />
-        </label>
-      </Field>
-      {receiptUrl && <a href={receiptUrl} target="_blank" rel="noreferrer"><img src={receiptUrl} alt="receipt" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.line}`, marginBottom: 8 }} /></a>}
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2 }}>Paid from: <b style={{ color: C.ink }}>Cash on hand</b></div>
     </Modal>
   );
