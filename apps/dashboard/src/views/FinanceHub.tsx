@@ -327,6 +327,7 @@ function ExpensesTab() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const searching = search.trim().length > 0;
   const load = () =>
     (searching ? api.expenses(undefined, search.trim()) : api.expenses(month))
@@ -346,7 +347,12 @@ function ExpensesTab() {
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
   return (
-    <Panel title="Expenses" action={<Button onClick={() => setCreating(true)}>+ New expense</Button>}>
+    <Panel title="Expenses" action={
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Button tone="ghost" onClick={() => setReviewing(true)}>📋 Accounts review</Button>
+        <Button onClick={() => setCreating(true)}>+ New expense</Button>
+      </div>
+    }>
       {/* Search across ALL months by account name, supplier, or exact amount. */}
       <input
         value={search}
@@ -393,7 +399,75 @@ function ExpensesTab() {
       {creating && <ExpenseForm categories={data.categories ?? []} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
       {editing && <EditExpenseForm expense={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
       {viewing && <ReceiptViewer url={viewing} onClose={() => setViewing(null)} />}
+      {reviewing && <AccountsReview onClose={() => setReviewing(false)} />}
     </Panel>
+  );
+}
+
+/** Review report: each expense account with the suppliers filed under it, so
+ *  the owner can check every supplier sits under the right account. Read-only. */
+function AccountsReview({ onClose }: { onClose: () => void }) {
+  const [data, setData] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [q, setQ] = useState('');
+  useEffect(() => {
+    api.expenseAccounts().then(setData).catch((e) => setErr(e?.message || 'Could not load.'));
+  }, []);
+  const accounts: any[] = data?.accounts ?? [];
+  const needle = q.trim().toLowerCase();
+  const shown = needle
+    ? accounts.filter((a) => a.account.toLowerCase().includes(needle) ||
+        a.suppliers.some((s: any) => (s.vendor || '').toLowerCase().includes(needle)))
+    : accounts;
+  return (
+    <Modal title="Accounts review — suppliers under each account" onClose={onClose}>
+      {err && <div style={{ color: C.red, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
+      {!data && !err && <Spinner />}
+      {data && (
+        <>
+          <div style={{ fontSize: 12, color: C.muted2, fontWeight: 600, marginBottom: 10 }}>
+            Every account is built from your real receipts. Tap an account to see the suppliers filed under it.
+          </div>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="🔎 Filter by account or supplier…"
+            style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e7dfe3', borderRadius: 10, padding: '9px 12px', fontWeight: 600, fontSize: 12.5, color: C.ink, marginBottom: 12 }}
+          />
+          {shown.length === 0 && <Empty>No matching accounts.</Empty>}
+          {shown.map((a: any) => {
+            const isOpen = needle ? true : open[a.account];
+            return (
+              <div key={a.account} style={{ border: `1px solid ${C.line}`, borderRadius: 12, marginBottom: 8, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => setOpen((o) => ({ ...o, [a.account]: !o[a.account] }))}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 13px', background: '#faf6f8', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <span style={{ color: C.muted2, fontSize: 11, fontWeight: 700 }}>{isOpen ? '▾' : '▸'}</span>
+                    <span style={{ fontWeight: 800, fontSize: 13, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prettyCat(a.account)}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>· {a.suppliers.length} supplier(s)</span>
+                  </span>
+                  <span style={{ fontWeight: 800, fontSize: 12.5, color: C.pinkDeep, whiteSpace: 'nowrap' }}>AED {money(a.totalFils)}</span>
+                </button>
+                {isOpen && (
+                  <div style={{ padding: '4px 13px 10px' }}>
+                    {a.suppliers.map((s: any, i: number) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderTop: i === 0 ? 'none' : `1px solid ${C.line}` }}>
+                        <span style={{ fontSize: 12.5, color: s.vendor === '(no supplier)' ? C.muted2 : C.ink, fontWeight: 600, fontStyle: s.vendor === '(no supplier)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
+                        <span style={{ fontSize: 11.5, color: C.muted2, fontWeight: 700, whiteSpace: 'nowrap' }}>{s.count}× · AED {money(s.totalFils)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+    </Modal>
   );
 }
 

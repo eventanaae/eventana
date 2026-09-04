@@ -453,6 +453,10 @@ export const api = {
     request<any>(`/api/admin/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteExpense: (id: number) =>
     request<any>(`/api/admin/expenses/${id}`, { method: 'DELETE' }),
+  expenseAccounts: () =>
+    request<{ accounts: Array<{ account: string; count: number; totalFils: number; totalDisplay: string; suppliers: Array<{ vendor: string; count: number; totalFils: number; totalDisplay: string }> }> }>(
+      '/api/admin/expense-accounts',
+    ),
 
   // ── Finance module ──
   finCustomers: (q?: string) => request<any[]>(`/api/admin/finance/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),

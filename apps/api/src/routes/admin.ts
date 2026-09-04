@@ -1772,6 +1772,46 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  /** Review report: every expense account with the suppliers used under it,
+   *  and the count + total spent for each — so the owner can review that each
+   *  supplier sits under the right account. Read-only, across all time. */
+  app.get('/api/admin/expense-accounts', async () => {
+    const { rows } = await pool.query(
+      `SELECT btrim(category) AS account,
+              COALESCE(NULLIF(btrim(vendor), ''), '') AS vendor,
+              COUNT(*)::int AS n,
+              COALESCE(SUM(amount_fils), 0)::bigint AS total_fils
+         FROM expenses
+        WHERE category IS NOT NULL AND btrim(category) <> ''
+        GROUP BY 1, 2`,
+    );
+    // Group flat (account, vendor) rows into accounts -> suppliers.
+    const byAccount = new Map<
+      string,
+      { account: string; count: number; totalFils: number; suppliers: Array<{ vendor: string; count: number; totalFils: number }> }
+    >();
+    for (const r of rows as Array<{ account: string; vendor: string; n: number; total_fils: string }>) {
+      const acc = String(r.account);
+      const total = Number(r.total_fils);
+      let a = byAccount.get(acc);
+      if (!a) { a = { account: acc, count: 0, totalFils: 0, suppliers: [] }; byAccount.set(acc, a); }
+      a.count += r.n;
+      a.totalFils += total;
+      a.suppliers.push({ vendor: String(r.vendor) || '(no supplier)', count: r.n, totalFils: total });
+    }
+    const accounts = [...byAccount.values()]
+      .map((a) => ({
+        ...a,
+        totalDisplay: formatAed(a.totalFils),
+        suppliers: a.suppliers
+          .sort((x, y) => y.totalFils - x.totalFils)
+          .map((s) => ({ ...s, totalDisplay: formatAed(s.totalFils) })),
+      }))
+      // Biggest-spend accounts first — where a mis-filed supplier matters most.
+      .sort((x, y) => y.totalFils - x.totalFils);
+    return { accounts };
+  });
+
   /** Record an expense. */
   app.post('/api/admin/expenses', async (request, reply) => {
     const schema = z.object({
