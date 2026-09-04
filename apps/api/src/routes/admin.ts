@@ -857,7 +857,8 @@ export async function adminRoutes(app: FastifyInstance) {
       `SELECT e.id, e.event_date, e.date_tbd, e.start_time, e.base_end_time, e.phase, e.emirate,
               e.celebration_type, e.custom_theme, th.name AS theme_name, o.cart,
               c.name AS customer, c.phone, o.id AS order_id,
-              o.status AS order_status, o.total_fils
+              o.status AS order_status, o.total_fils,
+              (SELECT fr.number FROM finance_receipts fr WHERE fr.event_id = e.id ORDER BY fr.id LIMIT 1) AS receipt_number
          FROM events e
          JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id
@@ -876,6 +877,9 @@ export async function adminRoutes(app: FastifyInstance) {
         cart: undefined,
         eventFor: cart.eventFor ?? null,
         theme_name: r.theme_name ?? cart.customTheme ?? null,
+        // Booking reference the team + customer see: matches the sales-receipt
+        // number (which continues the QuickBooks series), prefixed EV-.
+        reference: r.receipt_number ? `EV-${r.receipt_number}` : r.id,
         total_fils: hideMoney ? null : r.total_fils,
         totalDisplay: hideMoney ? null : formatAed(Number(r.total_fils)),
       };
@@ -897,6 +901,7 @@ export async function adminRoutes(app: FastifyInstance) {
       `SELECT e.*, c.name AS customer, c.phone, c.backup_phone, c.email, o.id AS order_id,
               o.status AS order_status, o.total_fils, o.quote, o.cart,
               th.name AS theme_name,
+              (SELECT fr.number FROM finance_receipts fr WHERE fr.event_id = e.id ORDER BY fr.id LIMIT 1) AS receipt_number,
               cx.cancelled_by, cx.reason AS cancellation_note, cx.total_paid_fils AS cx_total_paid,
               cx.delivery_fils AS cx_delivery, cx.non_refundable_fils AS cx_non_refundable,
               cx.party_value_fils AS cx_party_value, cx.refund_percent, cx.refund_amount_fils,
@@ -976,6 +981,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const result: any = {
       event: {
         ...rows[0],
+        // Booking reference matching the sales-receipt number (EV-<number>).
+        reference: rows[0].receipt_number ? `EV-${rows[0].receipt_number}` : rows[0].id,
         totalDisplay: formatAed(Number(rows[0].total_fils)),
         // Theme name for display: the catalogue theme, or a free-typed custom one.
         theme_name: rows[0].theme_name ?? ((rows[0].cart as { customTheme?: string } | null)?.customTheme ?? null),

@@ -62,7 +62,7 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         </div>
         {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
-          <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.id}</span> ·{' '}
+          <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.reference ?? e.id}</span> ·{' '}
           {e.date_tbd ? 'Date TBD' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {timeRange12h(e.start_time, e.base_end_time)} · {e.emirate}
           {e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
         </div>
@@ -223,7 +223,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-              <div style={fredoka(20)}>{data.event.id}</div>
+              <div style={fredoka(20)}>{data.event.reference ?? data.event.id}</div>
               <Button tone="ghost" onClick={onClose}>Close</Button>
             </div>
             <div style={{ marginBottom: 18 }}>
