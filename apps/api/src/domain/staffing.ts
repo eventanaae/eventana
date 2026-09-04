@@ -306,10 +306,12 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     if (role === 'staff') return heldSize === 0 && [...st.skills].some((s) => s !== 'driver');
     if (role === 'driver') return st.skills.has('driver');
     if (!st.skills.has(role)) return false;
-    if (heldSize > 0) {                                // only balloon_artist + clown may combine
-      const combo = new Set<Skill>([...held!, role]);
-      return combo.size === 2 && combo.has('balloon_artist') && combo.has('clown');
-    }
+    // One person = one role per event: a single person can't cover two on-site
+    // roles at the same party (e.g. Balloon Artist AND Clown) — they'd need to be
+    // in two places at once. A party needing 1 Balloon + 2 Clowns is 3 people.
+    // (Working two DIFFERENT events on the same day at non-overlapping times is
+    // still fine — that's handled by the time-overlap `busy` check above.)
+    if (heldSize > 0) return false;
     return true;
   };
 
