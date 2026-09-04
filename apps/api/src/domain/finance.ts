@@ -771,6 +771,21 @@ export async function reconcileInvoicesFromHistory() {
      WHERE i.customer_id IS NULL
        AND lower(btrim(i.customer_name)) = m.k`);
   if (linked.rowCount) console.log(`[fix] linked ${linked.rowCount} invoice(s) to their customer record`);
+  // Same for sales RECEIPTS — the receipt import stored only the name too, so
+  // link each receipt to its customer record (by name) for the contact + history.
+  const linkedR = await pool.query(`
+    UPDATE finance_receipts r
+       SET customer_id = m.id
+      FROM (
+        SELECT DISTINCT ON (lower(btrim(full_name))) lower(btrim(full_name)) AS k, id
+          FROM historical_customers
+         ORDER BY lower(btrim(full_name)),
+                  (email IS NOT NULL AND btrim(email) <> '') DESC,
+                  (phone IS NOT NULL AND btrim(phone) <> '') DESC, id
+      ) m
+     WHERE r.customer_id IS NULL
+       AND lower(btrim(r.customer_name)) = m.k`);
+  if (linkedR.rowCount) console.log(`[fix] linked ${linkedR.rowCount} receipt(s) to their customer record`);
   // Re-point the sequences at the true max per type.
   await pool.query(`SELECT setval('finance_invoice_seq', GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_invoices WHERE number ~ '^[0-9]+$'),1), true)`).catch(() => {});
   await pool.query(`SELECT setval('finance_receipt_seq', GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_receipts WHERE number ~ '^[0-9]+$'),1), true)`).catch(() => {});
