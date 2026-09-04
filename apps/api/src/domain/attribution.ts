@@ -7,9 +7,29 @@
  * the reconciliation sweep can reuse the exact same call.
  */
 import { pool } from '../db/pool.js';
-import { sendPurchaseEvent, metaCapiEnabled, type Attribution } from '../integrations/metaCapi.js';
+import { sendPurchaseEvent, sendRegistrationEvent, metaCapiEnabled, type Attribution } from '../integrations/metaCapi.js';
 import { recordPaymentEvent } from './orders.js';
 import { linkOrderToLead } from './whatsappLeads.js';
+
+/**
+ * Reports a new customer account to Meta as CompleteRegistration — the middle
+ * of the funnel, so the ad account can optimise for sign-ups, not only paid
+ * bookings. Best-effort and never throws. `event_id` is de-duplicated with the
+ * browser pixel's own CompleteRegistration.
+ */
+export async function reportRegistrationToMeta(
+  customer: { id: string; name?: string | null; phone?: string | null; email?: string | null },
+  attribution?: Attribution | null,
+): Promise<void> {
+  try {
+    if (!metaCapiEnabled()) return;
+    await sendRegistrationEvent({
+      customerId: customer.id,
+      customer: { name: customer.name, phone: customer.phone, email: customer.email },
+      attribution: attribution ?? null,
+    });
+  } catch { /* analytics must never affect registration */ }
+}
 
 /**
  * Closes the loop on a paid order: marks the WhatsApp lead as booked, and

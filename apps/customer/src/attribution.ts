@@ -195,3 +195,16 @@ export function trackInitiateCheckout(valueFils: number): void {
     /* ignore */
   }
 }
+
+/**
+ * Fires when a visitor creates an account — the middle of the funnel.
+ * `eventID` matches the server's CompleteRegistration so Meta counts the
+ * sign-up once whether the pixel, the server, or both reported it.
+ */
+export function trackCompleteRegistration(customerId: string): void {
+  try {
+    window.fbq?.('track', 'CompleteRegistration', {}, { eventID: `reg-${customerId}` });
+  } catch {
+    /* ignore */
+  }
+}

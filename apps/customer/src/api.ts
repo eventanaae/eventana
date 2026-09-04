@@ -7,7 +7,7 @@
  */
 import type { CartInput, Quote } from '@eventana/shared';
 import { currentCustomerId, currentToken } from './account';
-import { attributionPayload } from './attribution';
+import { attributionPayload, trackCompleteRegistration } from './attribution';
 
 /**
  * Render blueprints can only inject another service's HOST, not a full
@@ -232,11 +232,15 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ code, subtotalFils }) },
     ),
 
-  register: (body: { name: string; email: string; phone: string; backupPhone?: string; password: string; referralCode?: string; dateOfBirth?: string }) =>
-    request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number }>(
+  register: async (body: { name: string; email: string; phone: string; backupPhone?: string; password: string; referralCode?: string; dateOfBirth?: string }) => {
+    const res = await request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number }>(
       '/api/customers/register',
-      { method: 'POST', body: JSON.stringify(body) },
-    ),
+      { method: 'POST', body: JSON.stringify({ ...body, attribution: attributionPayload() }) },
+    );
+    // Middle-of-funnel conversion → Meta (pixel; the server mirrors it via CAPI).
+    trackCompleteRegistration(res.customerId);
+    return res;
+  },
 
   me: () =>
     request<{ name: string; email: string; phone: string; backupPhone: string | null; dateOfBirth: string | null }>(

@@ -973,6 +973,9 @@ export async function publicRoutes(app: FastifyInstance) {
       password: z.string().min(6).max(200),
       referralCode: z.string().trim().max(40).optional(),
       dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      // Ad attribution the app captured on landing (fbc/fbp/utm…), passed through
+      // so the CompleteRegistration reported to Meta is credited to the right ad.
+      attribution: z.record(z.string()).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
@@ -1011,6 +1014,14 @@ export async function publicRoutes(app: FastifyInstance) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [id, name, phone, backupPhone ?? null, email, hashPassword(password), myCode, referredBy, welcomeCredit, dateOfBirth ?? null],
     );
+    // Report the sign-up to Meta (CompleteRegistration) so ads can optimise for
+    // registrations, not only purchases. Best-effort — never blocks the response.
+    void import('../domain/attribution.js').then(({ reportRegistrationToMeta }) =>
+      reportRegistrationToMeta(
+        { id, name, phone, email },
+        { ...(parsed.data.attribution ?? {}), clientIp: request.ip, userAgent: request.headers['user-agent'] ?? null } as any,
+      ),
+    ).catch(() => {});
     return {
       customerId: id, name, email, phone, token: issueCustomerToken(id),
       referralCode: myCode, welcomeCreditFils: welcomeCredit,

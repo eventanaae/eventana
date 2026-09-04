@@ -71,21 +71,23 @@ function splitName(name: string | null | undefined): { fn?: string; ln?: string 
 }
 
 /**
- * Posts one Purchase event.
+ * Posts one standard event to the Conversions API.
  *
- * `eventId` must be the Eventana order id: Meta de-duplicates on it, so a
- * replayed webhook — or a browser pixel that later sends the same purchase
- * — is counted once, not twice.
+ * `eventId` de-duplicates against the browser pixel (and replayed webhooks):
+ * pass the order id for a Purchase, the customer id for a registration, etc.
+ * so the same conversion is counted once whether the pixel or the server (or
+ * both) reported it.
  */
-export async function sendPurchaseEvent(args: {
-  orderId: string;
-  valueFils: number;
+export async function sendMetaEvent(args: {
+  eventName: 'Purchase' | 'CompleteRegistration' | 'Lead' | 'InitiateCheckout' | 'ViewContent' | 'PageView';
+  eventId: string;
+  valueFils?: number;
   currency?: string;
-  /** When the payment was confirmed. Meta rejects events older than 7 days. */
+  /** Meta rejects events older than 7 days. */
   occurredAt?: Date;
   customer?: { name?: string | null; phone?: string | null; email?: string | null };
   attribution?: Attribution | null;
-  /** 'booking' | 'shop' — reported as the content category. */
+  /** Reported as the content category. */
   kind?: string;
 }): Promise<CapiResult> {
   const pixelId = config.meta.pixelId;
@@ -114,17 +116,17 @@ export async function sendPurchaseEvent(args: {
     return { ok: false, error: 'no_match_keys' };
   }
 
+  const hasValue = typeof args.valueFils === 'number';
   const event = {
-    event_name: 'Purchase',
+    event_name: args.eventName,
     event_time: Math.floor((args.occurredAt ?? new Date()).getTime() / 1000),
-    event_id: args.orderId,
+    event_id: args.eventId,
     action_source: 'website',
     ...(attr.landingUrl ? { event_source_url: attr.landingUrl } : {}),
     user_data: userData,
     custom_data: {
       currency: (args.currency ?? 'AED').toUpperCase(),
-      value: Number((args.valueFils / 100).toFixed(2)),
-      order_id: args.orderId,
+      ...(hasValue ? { value: Number((args.valueFils! / 100).toFixed(2)) } : {}),
       ...(args.kind ? { content_category: args.kind } : {}),
     },
   };
@@ -149,4 +151,42 @@ export async function sendPurchaseEvent(args: {
   } catch (err) {
     return { ok: false, error: (err as Error).message.slice(0, 300) };
   }
+}
+
+/** Posts one Purchase event (event_id = the Eventana order id). */
+export function sendPurchaseEvent(args: {
+  orderId: string;
+  valueFils: number;
+  currency?: string;
+  occurredAt?: Date;
+  customer?: { name?: string | null; phone?: string | null; email?: string | null };
+  attribution?: Attribution | null;
+  kind?: string;
+}): Promise<CapiResult> {
+  return sendMetaEvent({
+    eventName: 'Purchase',
+    eventId: args.orderId,
+    valueFils: args.valueFils,
+    currency: args.currency,
+    occurredAt: args.occurredAt,
+    customer: args.customer,
+    attribution: args.attribution,
+    kind: args.kind,
+  });
+}
+
+/** Posts one CompleteRegistration event (event_id = the customer id). */
+export function sendRegistrationEvent(args: {
+  customerId: string;
+  occurredAt?: Date;
+  customer?: { name?: string | null; phone?: string | null; email?: string | null };
+  attribution?: Attribution | null;
+}): Promise<CapiResult> {
+  return sendMetaEvent({
+    eventName: 'CompleteRegistration',
+    eventId: `reg-${args.customerId}`,
+    occurredAt: args.occurredAt,
+    customer: args.customer,
+    attribution: args.attribution,
+  });
 }
