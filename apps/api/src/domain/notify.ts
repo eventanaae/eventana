@@ -258,7 +258,7 @@ export function renderFinanceDocEmail(
     lineItems?: Array<{ name: string; qty: number; priceFils: number }>;
     discount_fils?: number; shipping_fils?: number; total_fils: number; message?: string | null;
     event_for?: string | null; theme?: string | null; age?: string | null; event_time?: string | null;
-    date_tbd?: boolean;
+    date_tbd?: boolean; paid_with?: string | null;
   },
   kind: 'receipt' | 'invoice',
 ): { subject: string; html: string } {
@@ -275,8 +275,10 @@ export function renderFinanceDocEmail(
   if (doc.event_for) detailRows.push(['Celebration for', String(doc.event_for)]);
   if (doc.age) detailRows.push(['Age', String(doc.age)]);
   if (doc.theme) detailRows.push(['Theme', String(doc.theme)]);
-  if (kind === 'receipt') detailRows.push(['Status', 'Paid ✓']);
-  else if (doc.due_date) detailRows.push(['Payment due', longDate(doc.due_date)]);
+  if (kind === 'receipt') {
+    if (doc.paid_with) detailRows.push(['Paid with', String(doc.paid_with)]);
+    detailRows.push(['Status', 'Paid ✓']);
+  } else if (doc.due_date) detailRows.push(['Payment due', longDate(doc.due_date)]);
 
   const intro = kind === 'receipt'
     ? `Thank you so much! Here's your receipt for your celebration with Eventana. 💛`

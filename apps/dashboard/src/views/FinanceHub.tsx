@@ -651,6 +651,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const [theme, setTheme] = useState(initial?.theme ?? '');
   const [eventTime, setEventTime] = useState(initial?.eventTime ?? '');
   const [dateTbd, setDateTbd] = useState<boolean>(initial?.dateTbd ?? false);
+  const [paidWith, setPaidWith] = useState<string>(initial?.paidWith ?? 'Bank transfer');
   const [commissionMarsha, setCommissionMarsha] = useState<boolean>(String(initial?.commissionRep ?? '').toLowerCase() === 'marsha');
   const [pickCustomer, setPickCustomer] = useState(false);
   const [pickItem, setPickItem] = useState(false);
@@ -674,8 +675,8 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         else await api.finCreateInvoice({ ...body, dueDate: dueDate || null, status: 'sent', commissionRep });
       } else {
         const commissionRep = commissionMarsha ? 'Marsha' : null;
-        if (editId) await api.finUpdateReceipt(editId, { ...body, date, paidWith: 'Cash', commissionRep });
-        else await api.finCreateReceipt({ ...body, date, paidWith: 'Cash', commissionRep });
+        if (editId) await api.finUpdateReceipt(editId, { ...body, date, paidWith, commissionRep });
+        else await api.finCreateReceipt({ ...body, date, paidWith, commissionRep });
       }
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
@@ -765,7 +766,13 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         <Row label={<b>Total</b>} value={<b style={{ ...fredoka(16), color: C.pinkDeep }}>AED {money(total)}</b>} />
       </div>
       <Field label="Message to customer (optional)"><input value={message} onChange={(e) => setMessage(e.target.value)} style={input} /></Field>
-      {kind === 'receipt' && <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2 }}>Deposit to: <b style={{ color: C.ink }}>Cash on hand</b></div>}
+      {kind === 'receipt' && (
+        <Field label="Payment method">
+          <select value={paidWith} onChange={(e) => setPaidWith(e.target.value)} style={input}>
+            {['Bank transfer', 'Cash', 'Tabby', 'Tamara', 'Stripe', 'Card'].map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </Field>
+      )}
 
       {pickCustomer && <CustomerPicker onPick={(c) => { setCustomer(c); setPickCustomer(false); }} onClose={() => setPickCustomer(false)} />}
       {pickItem && <ItemPicker onPick={(it) => { setItems((a) => [...a, { name: it.name, qty: 1, priceFils: it.priceFils, description: it.description ?? '' }]); setPickItem(false); }} onClose={() => setPickItem(false)} />}
@@ -793,6 +800,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
     theme: doc.theme ?? '',
     eventTime: doc.event_time ?? '',
     dateTbd: doc.date_tbd ?? false,
+    paidWith: doc.paid_with ?? 'Bank transfer',
     commissionRep: doc.commission_rep ?? doc.commissionRep ?? null,
   });
 

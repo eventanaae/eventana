@@ -74,6 +74,9 @@ async function main() {
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');
     await fixBookingDataFromEnv().catch((err) => console.error('[fix-bookings] failed:', err));
+    // Backfill real payment method onto older order-linked receipts (BACKFILL_PAID_WITH=true).
+    const { backfillPaidWithFromEnv } = await import('./db/backfillPaidWith.js');
+    await backfillPaidWithFromEnv().catch((err) => console.error('[paid-with] failed:', err));
     // Owner-approved backfill of the standard notification set for upcoming
     // events that never got one (QuickBooks-converted bookings). Gated by
     // BACKFILL_EVENT_NOTIFS=true; idempotent and skips past-dated reminders.

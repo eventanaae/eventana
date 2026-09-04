@@ -13,6 +13,23 @@ import { nextOrderId, nextEventId } from './orders.js';
  * short form per document, Cash on hand as the only account.
  */
 
+/** Friendly payment-method label from a provider code (payments.provider). */
+export function paymentMethodLabel(provider: string | null | undefined): string | null {
+  const p = String(provider ?? '').toLowerCase().trim();
+  if (!p) return null;
+  const map: Record<string, string> = {
+    tabby: 'Tabby',
+    tamara: 'Tamara',
+    stripe: 'Stripe',
+    ziina: 'Ziina',
+    card: 'Card',
+    cash: 'Cash',
+    bank_transfer: 'Bank transfer',
+    'bank transfer': 'Bank transfer',
+  };
+  return map[p] ?? provider!.charAt(0).toUpperCase() + provider!.slice(1);
+}
+
 /**
  * Normalise a free-typed / imported emirate value to one of Eventana's canonical
  * delivery zones. Al Ain, Khor Fakkan and Kalba are kept as their OWN zones (per
@@ -440,16 +457,25 @@ export async function recordSaleFromOrder(
       (await db.query(`SELECT nextval('finance_receipt_seq')::bigint AS n`)).rows[0].n,
     );
 
+    // The real payment method the customer used, from the provider payment on
+    // this order (Tabby / Tamara / Stripe / …). Falls back to a generic label.
+    const payRow = await db.query<{ provider: string }>(
+      `SELECT provider FROM payments WHERE order_id = $1
+        ORDER BY (status IN ('paid','captured','succeeded','authorized')) DESC, updated_at DESC LIMIT 1`,
+      [order.id],
+    );
+    const paidWith = paymentMethodLabel(payRow.rows[0]?.provider) ?? 'Card';
+
     await db.query(
       `INSERT INTO finance_receipts
          (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils,
           shipping_fils, total_fils, paid_with, source, order_id, event_for, theme, age)
-       VALUES ($1,$2,$3,COALESCE($4::date,current_date),$5,$6,$7,$8,$9,'Card',$10,$11,$12,$13,$14)
+       VALUES ($1,$2,$3,COALESCE($4::date,current_date),$5,$6,$7,$8,$9,$15,$10,$11,$12,$13,$14)
        ON CONFLICT (order_id) WHERE order_id IS NOT NULL DO NOTHING`,
       [
         number, financeCustomerId, customerName, cart.eventDate ?? null, JSON.stringify(items),
         subtotal, discount, shipping, total, source, order.id,
-        cart.eventFor ?? null, theme, cart.ageBand ?? null,
+        cart.eventFor ?? null, theme, cart.ageBand ?? null, paidWith,
       ],
     );
     await db.query('RELEASE SAVEPOINT fin_sale');
@@ -797,6 +823,7 @@ export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
       ${doc.discount_fils > 0 ? `<tr><td style="color:#777">Discount</td><td style="text-align:right">− AED ${money(doc.discount_fils)}</td></tr>` : ''}
       ${doc.shipping_fils > 0 ? `<tr><td style="color:#777">Shipping</td><td style="text-align:right">AED ${money(doc.shipping_fils)}</td></tr>` : ''}
       <tr><td style="font-weight:800;padding-top:8px">Total</td><td style="text-align:right;font-weight:800;color:#E94F9C;padding-top:8px">AED ${doc.totalDisplay}</td></tr>
+      ${kind === 'receipt' && doc.paid_with ? `<tr><td style="color:#777;padding-top:6px">Paid with</td><td style="text-align:right;padding-top:6px;font-weight:700">${escapeHtml(String(doc.paid_with))}</td></tr>` : ''}
     </table>
     ${doc.message ? `<div style="margin-top:18px;color:#777;font-size:13px">${escapeHtml(doc.message)}</div>` : ''}
     <div style="margin-top:24px;color:#bbb;font-size:12px;text-align:center">Thank you for choosing Eventana 🎉</div>
