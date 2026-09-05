@@ -10,6 +10,20 @@ import type { PoolClient } from 'pg';
 import type { OrderStatus, PaymentStatus, ProviderName, Quote } from '@eventana/shared';
 import { pool, type Db } from '../db/pool.js';
 import { config } from '../config.js';
+import { titleCaseName } from './maintenance.js';
+
+/**
+ * Return a shallow copy of the cart with the free-text people/theme names
+ * title-cased (guest of honour + custom theme). Leaves everything else — and
+ * Arabic text — untouched. Safe on any shape; no-op when the fields are absent.
+ */
+function normalizeCartNames(cart: unknown): unknown {
+  if (!cart || typeof cart !== 'object') return cart;
+  const c = { ...(cart as Record<string, unknown>) };
+  if (typeof c.eventFor === 'string' && c.eventFor.trim()) c.eventFor = titleCaseName(c.eventFor);
+  if (typeof c.customTheme === 'string' && c.customTheme.trim()) c.customTheme = titleCaseName(c.customTheme);
+  return c;
+}
 
 /**
  * An unguessable, stateless token for reading an order's public status. Order
@@ -137,6 +151,11 @@ export interface CreateOrderInput {
 }
 
 export async function createOrder(db: PoolClient, input: CreateOrderInput) {
+  // Title-case the free-text names carried inside the cart JSON at the single
+  // write choke-point, so the guest-of-honour name and a custom theme render
+  // properly EVERYWHERE (Events list, receipts, customer app) without every
+  // read query needing its own initcap(). Arabic is left unchanged.
+  const cart = normalizeCartNames(input.cart);
   const { rows } = await db.query(
     `INSERT INTO orders (id, kind, customer_id, event_id, status, total_fils, cart, quote, idempotency_key, attribution, source)
      VALUES ($1,$2,$3,$4,'awaiting_payment',$5,$6,$7,$8,$9,$10)
@@ -147,7 +166,7 @@ export async function createOrder(db: PoolClient, input: CreateOrderInput) {
       input.customerId,
       input.eventId ?? null,
       input.totalFils,
-      JSON.stringify(input.cart),
+      JSON.stringify(cart),
       JSON.stringify(input.quote),
       input.idempotencyKey ?? null,
       input.attribution ? JSON.stringify(input.attribution) : null,

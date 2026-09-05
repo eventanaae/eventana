@@ -35,6 +35,20 @@ export async function normalizeNamesFromEnv(): Promise<void> {
       P(`${table}.${col}: ${res.rowCount ?? 0} name(s) title-cased`);
       total += res.rowCount ?? 0;
     }
+    // The guest-of-honour name + custom theme live INSIDE the order cart JSON
+    // (not a column), so the loop above can't reach them. Title-case them in
+    // place — this is what fixes titles like "mohammed's Birthday" / "JOUDI's
+    // Birthday" in the Events list and everywhere else that reads eventFor.
+    for (const key of ['eventFor', 'customTheme']) {
+      const res = await pool.query(
+        `UPDATE orders
+            SET cart = jsonb_set(cart, $1, to_jsonb(initcap(cart->>$2)))
+          WHERE cart ? $2 AND btrim(cart->>$2) <> '' AND cart->>$2 <> initcap(cart->>$2)`,
+        [`{${key}}`, key],
+      ).catch((e) => { P(`orders.cart.${key}: skipped (${(e as Error).message.slice(0, 60)})`); return { rowCount: 0 }; });
+      P(`orders.cart.${key}: ${res.rowCount ?? 0} title-cased`);
+      total += res.rowCount ?? 0;
+    }
     P(`done — ${total} name(s) reformatted.`);
   } catch (err) {
     console.error('[names] failed:', (err as Error).message);
