@@ -139,6 +139,10 @@ async function main() {
     // Owner-only: create ONE test booking to trial the customer flow (MAKE_TEST_EVENT=true).
     const { makeTestEventFromEnv } = await import('./db/makeTestEvent.js');
     await makeTestEventFromEnv().catch((err) => console.error('[test-event] failed:', err));
+    const { setEventPhaseFromEnv } = await import('./db/setPhase.js');
+    await setEventPhaseFromEnv().catch((err) => console.error('[set-phase] failed:', err));
+    const { cleanupTestEventFromEnv } = await import('./db/cleanupTestEvent.js');
+    await cleanupTestEventFromEnv().catch((err) => console.error('[del-event] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
