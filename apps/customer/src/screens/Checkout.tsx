@@ -97,7 +97,7 @@ export function Checkout({
   // Savings: promo code, store credit, point redemption.
   const [rewards, setRewards] = useState<Awaited<ReturnType<typeof api.rewards>> | null>(null);
   const [promoInput, setPromoInput] = useState('');
-  const [promo, setPromo] = useState<{ code: string; amountFils: number } | null>(null);
+  const [promo, setPromo] = useState<{ code: string; amountFils: number; freeDelivery: boolean } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoBusy, setPromoBusy] = useState(false);
   const [useCredit, setUseCredit] = useState(false);
@@ -196,19 +196,23 @@ export function Checkout({
   }, [account]);
 
   const subtotalFils = quote?.totalFils ?? 0;
+  const deliveryFils = quote?.deliveryFils ?? 0;
 
-  // Estimated savings, mirroring the server's priority order (promo → credit →
-  // points), each capped so at least AED 5 stays payable. The server is
-  // authoritative at payment; this is the live preview.
+  // Estimated savings, mirroring the server's priority order (promo → free
+  // delivery → credit → points), each capped so at least AED 5 stays payable.
+  // The server is authoritative at payment; this is the live preview.
   const MIN_PAYABLE = 500;
   let remaining = subtotalFils;
   const promoFils = promo ? Math.min(promo.amountFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
   remaining -= promoFils;
+  // The win-back code also waives delivery.
+  const freeDeliveryFils = promo?.freeDelivery ? Math.min(deliveryFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
+  remaining -= freeDeliveryFils;
   const creditFils = useCredit && rewards ? Math.min(rewards.creditFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
   remaining -= creditFils;
   const pointsFils = redeemPoints && rewards ? Math.min(rewards.redeemableFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
   remaining -= pointsFils;
-  const savingsFils = promoFils + creditFils + pointsFils;
+  const savingsFils = promoFils + freeDeliveryFils + creditFils + pointsFils;
   const estTotalFils = Math.max(0, subtotalFils - savingsFils);
 
   const applyPromo = async () => {
@@ -218,7 +222,7 @@ export function Checkout({
     setPromoError(null);
     try {
       const r = await api.checkPromo(code, subtotalFils);
-      if (r.ok && r.code) { setPromo({ code: r.code, amountFils: r.amountFils ?? 0 }); setPromoError(null); }
+      if (r.ok && r.code) { setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false }); setPromoError(null); }
       else { setPromo(null); setPromoError(r.reason ?? 'This code isn’t valid.'); }
     } catch {
       setPromoError('Couldn’t check that code. Try again.');
@@ -237,7 +241,7 @@ export function Checkout({
       .checkPromo(promo.code, subtotalFils)
       .then((r) => {
         if (!alive) return;
-        if (r.ok && r.code) setPromo({ code: r.code, amountFils: r.amountFils ?? 0 });
+        if (r.ok && r.code) setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false });
         else { setPromo(null); setPromoError(r.reason ?? null); }
       })
       .catch(() => {});
@@ -817,7 +821,13 @@ export function Checkout({
                 style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
               >✕</button>
             </div>
-          ) : (
+          ) : null}
+          {promo?.freeDelivery && freeDeliveryFils > 0 && (
+            <div style={{ marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: C.green }}>
+              {t('checkout.freeDelivery', { aed: `${t('common.aed')} ${money(freeDeliveryFils)}` })}
+            </div>
+          )}
+          {!promo && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
               <input
                 placeholder={t('checkout.promoPh')}

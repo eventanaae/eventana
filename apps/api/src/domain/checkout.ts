@@ -231,6 +231,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     customerId,
     subtotalFils: serverQuote.totalFils,
     input: req.discounts ?? {},
+    deliveryFils: serverQuote.deliveryFils,
   });
   if (applied.totalFils > 0) {
     serverQuote.lines.push(...applied.lines);

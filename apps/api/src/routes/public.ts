@@ -1097,7 +1097,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const customerId = customerFromRequest(request);
     const v = await validatePromo(pool, parsed.data.code, customerId, parsed.data.subtotalFils);
     return v.ok
-      ? { ok: true, code: v.code, amountFils: v.amountFils }
+      ? { ok: true, code: v.code, amountFils: v.amountFils, freeDelivery: v.freeDelivery }
       : { ok: false, reason: v.reason };
   });
 

@@ -46,7 +46,7 @@ export async function validatePromo(
   code: string,
   customerId: string | null,
   subtotalFils: number,
-): Promise<{ ok: true; amountFils: number; code: string } | { ok: false; reason: string }> {
+): Promise<{ ok: true; amountFils: number; code: string; freeDelivery: boolean } | { ok: false; reason: string }> {
   const norm = code.trim().toUpperCase();
   if (!norm) return { ok: false, reason: 'Enter a code.' };
   const { rows } = await db.query(`SELECT * FROM promo_codes WHERE code = $1`, [norm]);
@@ -57,7 +57,7 @@ export async function validatePromo(
     // the crew member who brought the booking. Accept it (amount 0) so the app
     // shows it applied instead of an error; the staff credit happens at confirm.
     const staff = await db.query(`SELECT 1 FROM staff_referral_codes WHERE code = $1 AND active`, [norm]);
-    if (staff.rowCount) return { ok: true, amountFils: 0, code: norm };
+    if (staff.rowCount) return { ok: true, amountFils: 0, code: norm, freeDelivery: false };
     return { ok: false, reason: 'This code isn’t valid.' };
   }
   // A personal voucher (e.g. a next-booking reward) belongs to one customer.
@@ -74,7 +74,8 @@ export async function validatePromo(
     p.kind === 'percent'
       ? Math.min(subtotalFils, Math.round((subtotalFils * p.value) / 100))
       : Math.min(subtotalFils, p.value);
-  return { ok: true, amountFils, code: norm };
+  // The win-back "come back" code also makes delivery free (owner's rule).
+  return { ok: true, amountFils, code: norm, freeDelivery: p.campaign === 'winback' };
 }
 
 /**
@@ -83,7 +84,7 @@ export async function validatePromo(
  */
 export async function computeDiscounts(
   db: Pool | PoolClient,
-  args: { customerId: string; subtotalFils: number; input: DiscountInput },
+  args: { customerId: string; subtotalFils: number; input: DiscountInput; deliveryFils?: number },
 ): Promise<AppliedDiscounts> {
   const out: AppliedDiscounts = { lines: [], totalFils: 0, promo: null, creditFils: 0, points: null };
   const { rows } = await db.query(
@@ -102,6 +103,15 @@ export async function computeDiscounts(
       if (amt > 0) {
         out.promo = { code: v.code, amountFils: amt };
         out.lines.push(line(`Promo ${v.code}`, amt));
+        out.totalFils += amt;
+      }
+    }
+    // The win-back code also waives delivery: an extra discount line equal to the
+    // delivery fee, on top of the AED 600. Capped by room() like every discount.
+    if (v.ok && v.freeDelivery && (args.deliveryFils ?? 0) > 0) {
+      const amt = Math.min(args.deliveryFils!, room());
+      if (amt > 0) {
+        out.lines.push(line('Free delivery', amt));
         out.totalFils += amt;
       }
     }

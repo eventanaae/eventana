@@ -227,7 +227,7 @@ export const api = {
     }),
 
   checkPromo: (code: string, subtotalFils: number) =>
-    request<{ ok: boolean; code?: string; amountFils?: number; reason?: string }>(
+    request<{ ok: boolean; code?: string; amountFils?: number; freeDelivery?: boolean; reason?: string }>(
       '/api/promo/check',
       { method: 'POST', body: JSON.stringify({ code, subtotalFils }) },
     ),

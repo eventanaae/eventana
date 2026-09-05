@@ -7,7 +7,7 @@
  * touched, no email sent.
  */
 import { pool } from './pool.js';
-import { validatePromo } from '../domain/discounts.js';
+import { validatePromo, computeDiscounts } from '../domain/discounts.js';
 import { issueWinbackCode, WINBACK_AMOUNT_FILS } from '../domain/winback.js';
 
 const P = (s: string) => console.log(`[winback-test] ${s}`);
@@ -46,6 +46,17 @@ export async function winbackTestFromEnv(): Promise<void> {
     // AED 5,000 → still exactly AED 600 (fixed, not percent).
     const hi = await validatePromo(pool, code, TEST_ID, 500_000);
     check('fixed-600-above-3000', hi.ok && hi.amountFils === WINBACK_AMOUNT_FILS, hi.ok ? `amount=${hi.amountFils}` : hi.reason);
+    check('flag-free-delivery', hi.ok && hi.freeDelivery === true, hi.ok ? `freeDelivery=${hi.freeDelivery}` : hi.reason);
+
+    // Full checkout path: AED 5,000 order with AED 280 delivery → total discount
+    // must be AED 600 + AED 280 (free delivery), with both lines present.
+    const applied = await computeDiscounts(pool, {
+      customerId: TEST_ID, subtotalFils: 500_000, input: { promoCode: code }, deliveryFils: 28_000,
+    });
+    const hasFreeDelivery = applied.lines.some((l) => l.label === 'Free delivery');
+    check('checkout-600-plus-free-delivery',
+      applied.totalFils === WINBACK_AMOUNT_FILS + 28_000 && hasFreeDelivery,
+      `totalDiscount=${applied.totalFils} lines=[${applied.lines.map((l) => l.label).join(', ')}]`);
 
     // Wrong customer can't use a personal code.
     const other = await validatePromo(pool, code, 'CUST-SOMEONELSE', 500_000);
