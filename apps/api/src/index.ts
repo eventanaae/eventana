@@ -97,6 +97,10 @@ async function main() {
     // "same pink card 10+ times on Home" report.
     const { eventsAuditFromEnv } = await import('./db/eventsAudit.js');
     await eventsAuditFromEnv().catch((err) => console.error('[events-audit] failed:', err));
+    // Re-pick the Event Leader for upcoming events from their current roster
+    // (LEADER_FIX=true) — preserves manual crew, only fixes a stale leader badge.
+    const { leaderFixFromEnv } = await import('./db/leaderFix.js');
+    await leaderFixFromEnv().catch((err) => console.error('[leader-fix] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {

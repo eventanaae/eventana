@@ -502,6 +502,53 @@ async function syncEventTeam(eventId: string): Promise<void> {
   ).catch(() => {});
 }
 
+/**
+ * Re-pick the Event Leader from the event's CURRENT roster, following the same
+ * mandatory rule as auto-assignment: a designated on-site leader (Jane/Dindo)
+ * who is actually on the crew always leads; otherwise the first assigned on-site
+ * crew member (never the driver/designer when there IS floor crew); and only a
+ * fully external part-time event falls back to Marsha leading remotely.
+ *
+ * This MUST run after any MANUAL roster change (override / part-timer confirm),
+ * because those edits change who is on the floor without re-running the planner —
+ * so without this the `is_leader` marker (and the customer's "Leader" badge)
+ * would keep pointing at whoever led before the owner edited the team.
+ */
+export async function recomputeEventLeader(eventId: string): Promise<void> {
+  const { rows } = await pool.query<{ assignee_id: string; name: string; role: string }>(
+    `SELECT es.assignee_id, tm.name, es.role
+       FROM event_staff es JOIN team_members tm ON tm.id = es.assignee_id
+      WHERE es.event_id = $1 AND es.is_leader = false AND es.assignee_id IS NOT NULL
+        AND es.status IN ('assigned','confirmed')`,
+    [eventId],
+  );
+  let leaderId: string | null = null;
+  let remote = false;
+  // 1) A designated on-site leader (Jane/Dindo) actually working the event — always leads.
+  for (const name of ONSITE_LEADERS) {
+    const hit = rows.find((r) => r.name === name);
+    if (hit) { leaderId = hit.assignee_id; break; }
+  }
+  // 2) Otherwise the first assigned on-site crew member (never a remote driver/designer).
+  if (!leaderId) {
+    const onsite = rows.find((r) => r.role !== 'driver' && r.role !== 'design') ?? rows[0];
+    if (onsite) leaderId = onsite.assignee_id;
+  }
+  // 3) Whole event is external part-timers → Marsha leads remotely.
+  if (!leaderId) {
+    const marsha = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE name = 'Marsha' LIMIT 1`);
+    if (marsha.rows[0]) { leaderId = marsha.rows[0].id; remote = true; }
+  }
+  await pool.query(`DELETE FROM event_staff WHERE event_id = $1 AND is_leader = true`, [eventId]).catch(() => {});
+  if (leaderId) {
+    await pool.query(
+      `INSERT INTO event_staff (event_id, role, slot, assignee_id, is_leader, status, reason, source)
+       VALUES ($1,'leader',1,$2,true,'assigned',$3,'Leader')`,
+      [eventId, leaderId, remote ? 'Remote event leader' : 'Event leader'],
+    ).catch(() => {});
+  }
+}
+
 export async function confirmPartTimeSlot(slotId: string, name: string): Promise<{ eventId: string } | null> {
   const { rows } = await pool.query<{ event_id: string }>(
     `UPDATE event_staff
@@ -513,6 +560,7 @@ export async function confirmPartTimeSlot(slotId: string, name: string): Promise
   const eventId = rows[0]?.event_id;
   if (!eventId) return null;
   await syncEventTeam(eventId); // the replaced internal member drops off the crew
+  await recomputeEventLeader(eventId); // leadership follows the new roster
   const open = await pool.query(
     `SELECT count(*)::int c FROM event_staff WHERE event_id = $1 AND status IN ('part_time_required','to_confirm')`,
     [eventId],
@@ -533,6 +581,7 @@ export async function overrideSlotAssignee(slotId: string, assigneeId: string): 
   );
   if (!rows[0]) return null;
   await syncEventTeam(rows[0].event_id); // keep the crew mirror in step
+  await recomputeEventLeader(rows[0].event_id); // Jane/Dindo lead once they're on the floor
   return { eventId: rows[0].event_id };
 }
 
