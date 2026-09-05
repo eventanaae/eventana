@@ -120,8 +120,12 @@ async function buildHtml(monthStr: string): Promise<string> {
   </body></html>`;
 }
 
-/** Compute + email the reconciliation report for a month, once. */
-export async function sendReconReport(monthStr: string): Promise<{ sent: number }> {
+/**
+ * Compute + email the monthly report for a month, once.
+ * `record` (default true) writes the dedup row so the month is not re-sent; an
+ * on-demand preview passes false so it never consumes the real end-of-month slot.
+ */
+export async function sendReconReport(monthStr: string, record = true): Promise<{ sent: number }> {
   if (!emailEnabled()) return { sent: 0 };
   const html = await buildHtml(monthStr);
   const recipients = Array.from(new Set([OWNER, MARSHA, ...config.email.financeReportTo]));
@@ -130,21 +134,30 @@ export async function sendReconReport(monthStr: string): Promise<{ sent: number 
     const res = await sendEmail({ to, subject: `Eventana — Monthly Report · ${monthLabel(monthStr)}`, html });
     if (res.ok) sent++;
   }
-  await pool.query(
-    `INSERT INTO recon_reports (month, recipients) VALUES ($1,$2)
-     ON CONFLICT (month) DO UPDATE SET sent_at = now(), recipients = EXCLUDED.recipients`,
-    [monthStr, sent],
-  );
+  if (record) {
+    await pool.query(
+      `INSERT INTO recon_reports (month, recipients) VALUES ($1,$2)
+       ON CONFLICT (month) DO UPDATE SET sent_at = now(), recipients = EXCLUDED.recipients`,
+      [monthStr, sent],
+    );
+  }
   return { sent };
 }
 
-/** Sweep: once the month turns over, email the previous month's report once. */
+/**
+ * Sweep: email THIS month's report once, on the LAST calendar day of the month
+ * (owner's rule — "only the last day of the month"). Deduped by month in
+ * recon_reports, so even though the reconcile loop runs many times that day the
+ * report is sent exactly once.
+ */
 export async function sweepReconReport(): Promise<void> {
   if (!emailEnabled()) return;
   try {
     const now = new Date();
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const monthStr = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    // Last day of the current month? (day-0 of next month = last day of this one.)
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    if (now.getDate() !== lastDay) return;
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const { rowCount } = await pool.query(
       `INSERT INTO recon_reports (month, recipients) VALUES ($1, 0) ON CONFLICT (month) DO NOTHING`,
       [monthStr],

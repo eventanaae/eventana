@@ -107,8 +107,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // auto-sent — it waits for Manager/CEO approval).
   await sweepAnniversarySuggestions().catch((err) => console.error('[marketing] anniversary sweep failed:', err));
 
-  // Mail the previous month's finance report once the month turns over.
-  await sweepMonthlyReport().catch((err) => console.error('[finance-report] sweep failed:', err));
+  // The monthly report is now sent by sweepReconReport (below) as ONE email on
+  // the last day of each month — the standalone finance-report sweep is disabled
+  // so the owner never gets two monthly report emails.
+  void sweepMonthlyReport;
 
   // Flag any event within 3 days whose preparation isn't finished, so the
   // Owner + Manager see "Event Preparation At Risk" in time to act.
