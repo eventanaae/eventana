@@ -160,6 +160,88 @@ export async function sweepVoucherReminders(): Promise<number> {
 }
 
 /**
+ * Win-back reminders: every ~2 weeks, re-send the AED 600 (+ free delivery)
+ * win-back email to a customer who still hasn't used their code, until they use
+ * it or it expires. Modelled on sweepVoucherReminders, but with the win-back
+ * template and a fortnightly cadence. GATED by WINBACK_REMINDERS=send so it can
+ * never fire before the owner turns it on (like abandoned-cart's CART_REMINDERS).
+ * Safe to call as often as the sweep runs — the 14-day WHERE clause de-dupes.
+ */
+export async function sweepWinbackReminders(): Promise<number> {
+  if (String(process.env.WINBACK_REMINDERS ?? '').toLowerCase() !== 'send') return 0;
+  if (!emailEnabled()) return 0;
+  const { sendWinbackEmail } = await import('./notify.js');
+  const { rows } = await pool.query<{
+    code: string; expires_at: Date | null; id: string; email: string; name: string;
+  }>(
+    `SELECT p.code, p.expires_at, c.id, c.email, c.name
+       FROM promo_codes p
+       JOIN customers c ON c.id = p.customer_id
+      WHERE p.campaign = 'winback' AND p.auto_reminder AND p.active
+        AND c.email IS NOT NULL AND c.email <> '' AND c.email_opt_out = FALSE
+        AND (p.expires_at IS NULL OR p.expires_at > now())
+        AND (p.max_uses IS NULL OR p.uses < p.max_uses)
+        AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code)
+        AND p.last_reminded_at IS NOT NULL
+        AND p.last_reminded_at <= now() - interval '14 days'
+      ORDER BY p.last_reminded_at
+      LIMIT 50`,
+  );
+  let sent = 0;
+  for (const v of rows) {
+    const ok = await sendWinbackEmail({
+      firstName: (v.name || '').split(' ')[0],
+      email: v.email,
+      code: v.code,
+      expiresAt: v.expires_at,
+    }).catch(() => false);
+    if (ok) sent++;
+    // Stamp regardless so a hard-bouncing address waits for the next window.
+    await pool.query(`UPDATE promo_codes SET last_reminded_at = now() WHERE code = $1`, [v.code]);
+  }
+  return sent;
+}
+
+/**
+ * Post-event win-back: ~3 days after an event, email that customer their win-back
+ * code (if they have one and it hasn't been sent yet). Sets last_reminded_at so
+ * the fortnightly reminder takes over and no other path double-sends. GATED by
+ * WINBACK_POSTEVENT=send. This is the ongoing flow for new bookings; the one-off
+ * campaign task handles the existing backlog.
+ */
+export async function sweepPostEventWinback(): Promise<number> {
+  if (String(process.env.WINBACK_POSTEVENT ?? '').toLowerCase() !== 'send') return 0;
+  if (!emailEnabled()) return 0;
+  const { sendWinbackEmail } = await import('./notify.js');
+  const { rows } = await pool.query<{
+    code: string; expires_at: Date | null; email: string; name: string;
+  }>(
+    `SELECT DISTINCT ON (p.code) p.code, p.expires_at, c.email, c.name
+       FROM events e
+       JOIN customers c ON c.id = e.customer_id
+       JOIN promo_codes p ON p.customer_id = c.id AND p.campaign = 'winback' AND p.active
+      WHERE e.event_date >= (CURRENT_DATE - interval '4 days')
+        AND e.event_date <= (CURRENT_DATE - interval '3 days')
+        AND e.phase <> 'Cancelled'
+        AND c.email IS NOT NULL AND c.email <> '' AND c.email_opt_out = FALSE
+        AND (p.expires_at IS NULL OR p.expires_at > now())
+        AND (p.max_uses IS NULL OR p.uses < p.max_uses)
+        AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code)
+        AND p.last_reminded_at IS NULL
+      LIMIT 50`,
+  );
+  let sent = 0;
+  for (const v of rows) {
+    const ok = await sendWinbackEmail({
+      firstName: (v.name || '').split(' ')[0], email: v.email, code: v.code, expiresAt: v.expires_at,
+    }).catch(() => false);
+    await pool.query(`UPDATE promo_codes SET last_reminded_at = now() WHERE code = $1`, [v.code]);
+    if (ok) sent++;
+  }
+  return sent;
+}
+
+/**
  * Smart anniversary marketing. Once a month, if there are customers whose
  * confirmed event was ~a year ago (their re-book window), create ONE campaign
  * suggestion targeted at them — as `pending_approval`, never auto-sent. The

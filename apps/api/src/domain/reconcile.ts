@@ -15,7 +15,7 @@ import { pool } from '../db/pool.js';
 import { expireStaleHolds } from './inventory.js';
 import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
-import { sweepScheduledCampaigns, sweepVoucherReminders, sweepAnniversarySuggestions } from './marketing.js';
+import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepAnniversarySuggestions } from './marketing.js';
 import { sweepMonthlyReport } from './financeReport.js';
 import { deliverPendingNotifications } from './notify.js';
 
@@ -102,6 +102,13 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
 
   // Nudge customers about an unused 20%-off reward every ~6 months.
   await sweepVoucherReminders().catch((err) => console.error('[marketing] voucher reminders failed:', err));
+
+  // Email the win-back code ~3 days after each event (gated WINBACK_POSTEVENT=send).
+  await sweepPostEventWinback().catch((err) => console.error('[marketing] winback post-event failed:', err));
+
+  // Re-send the win-back AED 600 code every ~2 weeks while it's unused (gated by
+  // WINBACK_REMINDERS=send, and only after the initial campaign send).
+  await sweepWinbackReminders().catch((err) => console.error('[marketing] winback reminders failed:', err));
 
   // Once a month, draft an anniversary re-engagement campaign for review (never
   // auto-sent — it waits for Manager/CEO approval).
