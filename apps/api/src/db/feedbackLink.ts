@@ -14,7 +14,19 @@ export async function feedbackLinkFromEnv(): Promise<void> {
   if (!raw) return;
   const base = (config.publicAppUrl || '').replace(/\/$/, '');
   if (!base) { P('no publicAppUrl configured — cannot build link'); return; }
-  const ids = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  // Each token is either an event id (EV-...) or a customer NAME to resolve to
+  // their most recent non-cancelled event(s).
+  const tokens = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const ids: string[] = [];
+  for (const tk of tokens) {
+    if (/^EV-/i.test(tk)) { ids.push(tk); continue; }
+    const found = await pool.query(
+      `SELECT e.id FROM events e JOIN customers c ON c.id = e.customer_id
+        WHERE e.phase <> 'Cancelled' AND c.name ILIKE $1
+        ORDER BY e.event_date DESC NULLS LAST LIMIT 5`, [`%${tk}%`]);
+    if (!found.rowCount) P(`name "${tk}": no event found`);
+    for (const r of found.rows) ids.push(r.id);
+  }
   for (const eventId of ids) {
     try {
       const { rows } = await pool.query(
