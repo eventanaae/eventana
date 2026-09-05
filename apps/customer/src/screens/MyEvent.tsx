@@ -156,7 +156,7 @@ export function MyEvent({
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
         <span style={fredoka(24)}>{list && list.length > 1 ? t('me.titlePlural') : t('me.title')}</span>
-        <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: C.muted }}>{event.id}</span>
+        <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: C.muted }}>{event.reference ?? event.id}</span>
       </div>
 
       {/* Switcher — only when there is more than one booking to move between. */}
@@ -1124,7 +1124,7 @@ function ReceiptCard({ event, t, lang }: { event: any; t: TFn; lang: Lang }) {
       </button>
       {!open ? null : (
       <div style={{ marginTop: 8 }}>
-      <SummaryRow label={t('pay.eventId')} value={event.id} />
+      <SummaryRow label={t('pay.eventId')} value={event.reference ?? event.id} />
       {typeLabel && <SummaryRow label={t('me.rcType')} value={typeLabel} />}
       {event.eventFor && <SummaryRow label={t('me.rcFor')} value={event.eventFor} />}
       {event.ageBand && <SummaryRow label={t('me.rcAge')} value={String(event.ageBand)} />}

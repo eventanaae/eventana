@@ -664,7 +664,10 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const [discount, setDiscount] = useState(initial?.discount ?? '');
   const [shipping, setShipping] = useState(initial?.shipping ?? '');
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? '');
-  const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10));
+  // Event date starts EMPTY (never silently "today") so a receipt can't go out
+  // showing today's date for a future party — the user must set the real date or
+  // tick "date not decided yet".
+  const [date, setDate] = useState(initial?.date ?? '');
   const [message, setMessage] = useState(initial?.message ?? '');
   const [eventFor, setEventFor] = useState(initial?.eventFor ?? '');
   const [age, setAge] = useState(initial?.age ?? '');
@@ -687,6 +690,9 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const save = async () => {
     if (!customer) { setErr('Choose a customer.'); return; }
     if (items.length === 0) { setErr('Add at least one item.'); return; }
+    // A receipt shows the event date to the customer — never let it go out blank
+    // or as a silent "today". Require a real date, or an explicit "TBD".
+    if (kind === 'receipt' && !dateTbd && !date) { setErr('Set the event date, or tick “date not decided yet”.'); return; }
     setBusy(true); setErr(null);
     const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null, eventTime: eventTime || null, addressNote: addressNote.trim() || null, dateTbd };
     try {
@@ -696,8 +702,8 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         else await api.finCreateInvoice({ ...body, dueDate: dueDate || null, status: 'sent', commissionRep });
       } else {
         const commissionRep = commissionMarsha ? 'Marsha' : null;
-        if (editId) await api.finUpdateReceipt(editId, { ...body, date, paidWith, commissionRep });
-        else await api.finCreateReceipt({ ...body, date, paidWith, commissionRep });
+        if (editId) await api.finUpdateReceipt(editId, { ...body, date: date || null, paidWith, commissionRep });
+        else await api.finCreateReceipt({ ...body, date: date || null, paidWith, commissionRep });
       }
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }

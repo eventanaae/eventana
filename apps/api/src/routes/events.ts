@@ -463,6 +463,11 @@ export async function eventRoutes(app: FastifyInstance) {
     const { rows } = await pool.query(
       `SELECT e.*, o.total_fils, o.status AS order_status, o.cart, o.quote, p.name AS package_name,
               th.name AS theme_name,
+              -- Booking reference the customer sees: the linked sales-receipt
+              -- number (EV-<number>), matching the dashboard; event_id fallback.
+              (SELECT fr.number FROM finance_receipts fr
+                WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+                ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number,
               c.name AS contact_name, c.phone AS contact_phone, c.email AS contact_email,
               cx.cancelled_by, cx.refund_percent, cx.refund_amount_fils,
               cx.total_paid_fils AS cx_total_paid, cx.refund_status, cx.refund_reference,
@@ -556,6 +561,9 @@ export async function eventRoutes(app: FastifyInstance) {
 
     return {
       id: event.id,
+      // Customer-facing booking reference: EV-<sales-receipt number>, matching the
+      // dashboard and all customer emails/WhatsApp; falls back to the event id.
+      reference: event.receipt_number ? `EV-${event.receipt_number}` : event.id,
       orderId: event.order_id,
       phase: event.phase,
       cancelled,

@@ -1261,6 +1261,9 @@ export async function adminRoutes(app: FastifyInstance) {
     // Party bookings (events).
     const { rows: eventRows } = await pool.query<EmailRow & { customer_email: string | null }>(
       `SELECT e.id AS event_id, 'booking_confirmation'::text AS template,
+              (SELECT fr.number FROM finance_receipts fr
+                WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+                ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number,
               e.event_date, e.start_time, e.emirate,
               e.celebration_type, e.custom_theme, o.cart, o.quote, o.total_fils, p.name AS package_name,
               c.name AS customer_name, c.email AS customer_email
