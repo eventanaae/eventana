@@ -109,6 +109,11 @@ async function main() {
     // fixes converted/imported bookings; never overwrites a manual roster.
     const { staffEmptyFixFromEnv } = await import('./db/staffEmptyFix.js');
     await staffEmptyFixFromEnv().catch((err) => console.error('[staff-empty] failed:', err));
+    // Owner-approved corrected receipt re-send to Ghaya (RESEND_GHAYA=true) —
+    // verifies the live data (12 Sep, 5 PM) BEFORE sending; aborts if anything
+    // is off. Marsha is BCC'd automatically.
+    const { resendGhayaFromEnv } = await import('./db/resendGhaya.js');
+    await resendGhayaFromEnv().catch((err) => console.error('[resend-ghaya] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
