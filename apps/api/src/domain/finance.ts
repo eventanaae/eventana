@@ -651,6 +651,16 @@ export async function ensureEventForReceipt(receiptId: number): Promise<string |
   if (newEventId) {
     void import('./prep.js').then(({ generatePrepTasks }) => generatePrepTasks(newEventId)).catch((e) => console.error('[prep] convert auto-generate failed:', (e as Error).message));
     void import('./staffing.js').then(({ assignStaffForEvent }) => assignStaffForEvent(newEventId)).catch((e) => console.error('[staffing] convert auto-assign failed:', (e as Error).message));
+    // Same customer notification lifecycle as an app booking (confirmation now,
+    // reminder 3 days before, event-day, feedback after) — but NOT for bulk
+    // QuickBooks history imports (those are past sales already known to the
+    // customer). enqueueBookingLifecycle self-guards on a valid email + real date.
+    if (String(r.source ?? '') !== 'quickbooks') {
+      void import('./lifecycle.js')
+        .then(({ enqueueBookingLifecycle }) => enqueueBookingLifecycle(newEventId!))
+        .then((res) => console.log(`[lifecycle] ${newEventId}: scheduled [${res.scheduled.join(', ') || '—'}]${res.skipped ? ' — ' + res.skipped : ''}`))
+        .catch((e) => console.error('[lifecycle] convert enqueue failed:', (e as Error).message));
+    }
   }
   return newEventId;
 }

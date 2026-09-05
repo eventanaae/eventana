@@ -126,6 +126,10 @@ async function main() {
     // exactly what was emailed/WhatsApp'd to the customer and when.
     const { bookingHistoryFromEnv } = await import('./db/bashayerCheck.js');
     await bookingHistoryFromEnv().catch((err) => console.error('[booking-history] failed:', err));
+    // Owner-approved: schedule the notification lifecycle for existing event(s)
+    // that never got it (ENQUEUE_LIFECYCLE=<id>[,<id>...]).
+    const { enqueueLifecycleFromEnv } = await import('./db/enqueueLifecycle.js');
+    await enqueueLifecycleFromEnv().catch((err) => console.error('[enqueue-lifecycle] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {

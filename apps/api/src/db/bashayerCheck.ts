@@ -9,8 +9,13 @@ import { pool } from './pool.js';
 const P = (s: string) => console.log(`[booking-history] ${s}`);
 
 export async function bookingHistoryFromEnv(): Promise<void> {
-  const eventId = String(process.env.BOOKING_HISTORY ?? '').trim();
-  if (!eventId) return;
+  const raw = String(process.env.BOOKING_HISTORY ?? '').trim();
+  if (!raw) return;
+  const ids = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  for (const eventId of ids) await oneBookingHistory(eventId);
+}
+
+async function oneBookingHistory(eventId: string): Promise<void> {
   try {
     const ev = await pool.query(`
       SELECT to_char(e.event_date,'YYYY-MM-DD') AS event_date, e.start_time, e.base_end_time, e.date_tbd,
