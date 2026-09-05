@@ -39,15 +39,21 @@ export async function enqueueBookingLifecycle(eventId: string, db: Db = pool): P
   const payload = JSON.stringify({ eventId });
   const scheduled: string[] = [];
   for (const t of TEMPLATES) {
+    const isNow = t.offset === 'now';
+    // Only bind the params each branch actually uses, so an unused $3 can never
+    // leave Postgres unable to infer its type.
+    const schedExpr = isNow ? 'now()' : `$3::timestamptz ${t.offset}`;
+    const payloadPos = isNow ? '$3' : '$4';
+    const params = isNow ? [eventId, t.template, payload] : [eventId, t.template, eventStart, payload];
     // Skip if this template is already queued or sent (not cancelled) for the event.
     const r = await db.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-       SELECT $1, 'email', $2, ${t.offset === 'now' ? 'now()' : `$3::timestamptz ${t.offset}`}, $4::jsonb
+       SELECT $1, 'email', $2, ${schedExpr}, ${payloadPos}::jsonb
         WHERE NOT EXISTS (
           SELECT 1 FROM notifications n
            WHERE n.event_id = $1 AND n.template = $2 AND n.cancelled_at IS NULL)
        RETURNING id`,
-      [eventId, t.template, t.offset === 'now' ? null : eventStart, payload],
+      params,
     );
     if (r.rowCount) scheduled.push(t.template);
   }
