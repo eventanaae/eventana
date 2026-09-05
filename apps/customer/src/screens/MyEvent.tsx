@@ -4,7 +4,7 @@ import type { Screen } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Spinner, timeLabel } from '../ui';
 import type { Lang, TFn } from '../i18n';
 import { TermsSheet } from './Terms';
-import { loadAccount } from '../account';
+import { loadAccount, currentFb } from '../account';
 import { AuthSheet } from './AuthSheet';
 
 // The customer sees a short, four-stage journey. The dashboard "Advance status"
@@ -874,6 +874,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
   const [feedback, setFeedback] = useState<string>(existing?.feedback ?? '');
   const [saved, setSaved] = useState<boolean>(Boolean(existing));
   const [savingRating, setSavingRating] = useState(false);
+  const [ratingErr, setRatingErr] = useState<string | null>(null);
 
   const [amountFils, setAmountFils] = useState<number>(presets[0] ?? 5000);
   const [customAed, setCustomAed] = useState<string>('');
@@ -885,10 +886,24 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
     if (stars < 1) return;
     if (stars < 4 && !feedback.trim()) return; // 1–3 stars: must say why (internal only)
     setSavingRating(true);
+    setRatingErr(null);
     try {
-      await api.rateEvent(event.id, stars, feedback.trim() || undefined);
+      // A viewer WITHOUT an account (opened their booking from the signed email
+      // link) can't use the logged-in rating endpoint — it needs a session. Send
+      // their rating through the public feedback route with the signed token
+      // instead, so an account-less rating actually saves. A signed-in customer
+      // uses the normal authenticated route.
+      const fb = currentFb();
+      if (!loadAccount()?.token && fb) {
+        await api.submitGuestFeedback(event.id, fb, stars, feedback.trim() || undefined);
+      } else {
+        await api.rateEvent(event.id, stars, feedback.trim() || undefined);
+      }
       setSaved(true);
       await onDone();
+    } catch (e: any) {
+      // Never leave the customer unsure whether it went through.
+      setRatingErr(e?.body?.message ?? e?.message ?? t('me.errAddon'));
     } finally {
       setSavingRating(false);
     }
@@ -990,6 +1005,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
               </button>
             );
           })()}
+          {ratingErr && <Notice tone="warn">{ratingErr}</Notice>}
         </>
       )}
 
