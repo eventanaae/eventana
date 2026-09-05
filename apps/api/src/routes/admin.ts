@@ -1423,6 +1423,7 @@ export async function adminRoutes(app: FastifyInstance) {
       mapLng: z.number().min(-180).max(180).nullable().optional(),
       phone: z.string().max(40).nullable().optional(),
       backupPhone: z.string().max(40).nullable().optional(),
+      email: z.string().max(160).nullable().optional(),
       referenceImages: z.array(z.string().url()).max(30).optional(),
     });
     const parsed = schema.safeParse(request.body);

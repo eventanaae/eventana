@@ -1030,6 +1030,7 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
   const [customThemeName, setCustomThemeName] = useState(event.custom_theme ? (event.theme_name ?? '') : '');
   const [phone, setPhone] = useState(event.phone ?? '');
   const [backupPhone, setBackupPhone] = useState(event.backup_phone ?? '');
+  const [email, setEmail] = useState(event.email ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { if (open && themes.length === 0) api.themesList().then((r) => setThemes(r.rows)).catch(() => {}); }, [open]);
@@ -1057,6 +1058,7 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
     if ((eventFor ?? '') !== (event.eventFor ?? '')) patch.eventFor = eventFor.trim() || null;
     if ((phone ?? '') !== (event.phone ?? '') && phone.trim()) patch.phone = phone.trim();
     if ((backupPhone ?? '') !== (event.backup_phone ?? '')) patch.backupPhone = backupPhone.trim() || null;
+    if ((email ?? '') !== (event.email ?? '')) patch.email = email.trim() || null;
     const ct = customThemeName.trim();
     if (ct) {
       if (ct !== (event.custom_theme ? (event.theme_name ?? '') : '')) patch.customThemeName = ct;
@@ -1128,6 +1130,10 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
               <input type="tel" value={backupPhone} onChange={(e) => setBackupPhone(e.target.value)} style={inputStyle} placeholder="optional" />
             </label>
           </div>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={editLbl}>Email (for the receipt &amp; confirmation)</span>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="name@email.com" />
+          </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={editLbl}>Theme</span>
             <select value={customThemeName.trim() ? '' : themeId} onChange={(e) => { setThemeId(e.target.value); if (e.target.value) setCustomThemeName(''); }} style={inputStyle}>

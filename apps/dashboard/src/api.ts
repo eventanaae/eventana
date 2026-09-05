@@ -487,7 +487,7 @@ export const api = {
   finAddCustomer: (body: Record<string, unknown>) => request<any>('/api/admin/finance/customers', { method: 'POST', body: JSON.stringify(body) }),
   // Edit an event's operational details (manager/owner). Time change safely
   // shifts the reserved inventory holds.
-  eventUpdateDetails: (eventId: string, patch: { startTime?: string; endTime?: string; emirate?: string; eventFor?: string | null; themeId?: string | null; customThemeName?: string; locationNote?: string | null; mapLat?: number | null; mapLng?: number | null; phone?: string | null; backupPhone?: string | null; referenceImages?: string[] }) =>
+  eventUpdateDetails: (eventId: string, patch: { startTime?: string; endTime?: string; emirate?: string; eventFor?: string | null; themeId?: string | null; customThemeName?: string; locationNote?: string | null; mapLat?: number | null; mapLng?: number | null; phone?: string | null; backupPhone?: string | null; email?: string | null; referenceImages?: string[] }) =>
     request(`/api/admin/events/${eventId}/details`, { method: 'PATCH', body: JSON.stringify(patch) }),
   themesList: () => request<{ rows: Array<{ id: string; name: string; celebration_type: string }> }>('/api/admin/themes-list'),
   // QuickBooks Online connection (owner).

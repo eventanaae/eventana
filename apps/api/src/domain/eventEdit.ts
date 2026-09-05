@@ -31,6 +31,7 @@ export type EventPatch = {
   mapLng?: number | null;
   phone?: string | null;        // customer's primary contact number
   backupPhone?: string | null;  // customer's second contact number
+  email?: string | null;        // customer's email (for receipts/confirmations)
   referenceImages?: string[];   // design reference photos (hosted URLs), for the team
 };
 
@@ -83,8 +84,8 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       await db.query(`UPDATE events SET start_time = $2, base_end_time = $3 WHERE id = $1`, [eventId, newStart, newEnd]);
     }
 
-    // ── Customer contact numbers (live on the customer record) ──────────────
-    if (patch.phone !== undefined || patch.backupPhone !== undefined) {
+    // ── Customer contact (phones + email) live on the customer record ───────
+    if (patch.phone !== undefined || patch.backupPhone !== undefined || patch.email !== undefined) {
       if (patch.phone !== undefined) {
         // Primary phone is NOT NULL on the customer — never blank it.
         const p = (patch.phone ?? '').trim();
@@ -93,6 +94,10 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       if (patch.backupPhone !== undefined) {
         await db.query(`UPDATE customers SET backup_phone = $2 WHERE id = $1`,
           [ev.customer_id, (patch.backupPhone ?? '').trim() || null]);
+      }
+      if (patch.email !== undefined) {
+        await db.query(`UPDATE customers SET email = $2 WHERE id = $1`,
+          [ev.customer_id, (patch.email ?? '').trim() || null]);
       }
     }
 
