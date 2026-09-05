@@ -11,7 +11,15 @@ const P = (s: string) => console.log(`[booking-history] ${s}`);
 export async function bookingHistoryFromEnv(): Promise<void> {
   const raw = String(process.env.BOOKING_HISTORY ?? '').trim();
   if (!raw) return;
-  const ids = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const tokens = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const ids: string[] = [];
+  for (const tk of tokens) {
+    if (/^EV-/i.test(tk)) { ids.push(tk); continue; }
+    const found = await pool.query(
+      `SELECT e.id FROM events e JOIN customers c ON c.id = e.customer_id
+        WHERE c.name ILIKE $1 ORDER BY e.event_date DESC NULLS LAST LIMIT 3`, [`%${tk}%`]);
+    for (const r of found.rows) ids.push(r.id);
+  }
   for (const eventId of ids) await oneBookingHistory(eventId);
 }
 
