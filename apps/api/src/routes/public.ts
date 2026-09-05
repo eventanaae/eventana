@@ -997,26 +997,18 @@ export async function publicRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: 'invalid_backup_phone', message: 'Please enter the backup number with its country code, e.g. +971 50 123 4567.' });
       }
     }
-    const existing = await pool.query('SELECT id FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
-    if (existing.rowCount) {
-      return reply.status(409).send({ error: 'email_taken', message: 'An account with this email already exists — please sign in.' });
-    }
-
-    // A valid referral code grants the new customer welcome credit and links
-    // them to the referrer (who is rewarded on this customer's first booking).
+    // A valid referral code links the new customer to the referrer (who is
+    // rewarded on this customer's FIRST confirmed booking, in confirm.ts — never
+    // instantly, so throwaway accounts can't mint credit).
     let referredBy: string | null = null;
-    let welcomeCredit = 0;
+    const welcomeCredit = 0;
     if (referralCode) {
       const norm = referralCode.toUpperCase();
       const { rows } = await pool.query(`SELECT id FROM customers WHERE referral_code = $1`, [norm]);
-      // Record the link only. The referee's AED 250 is granted at their FIRST
-      // confirmed booking (see confirm.ts), not instantly — otherwise anyone
-      // could mint spendable credit by registering throwaway accounts.
       if (rows[0]) referredBy = norm;
     }
 
-    const id = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
-    // Retry a couple of times in the unlikely event of a code collision.
+    // A unique personal referral code for this customer (retry on a rare clash).
     let myCode = makeReferralCode(name);
     for (let attempt = 0; attempt < 3; attempt++) {
       const clash = await pool.query(`SELECT 1 FROM customers WHERE referral_code = $1`, [myCode]);
@@ -1024,6 +1016,41 @@ export async function publicRoutes(app: FastifyInstance) {
       myCode = makeReferralCode(name);
     }
 
+    // Is there already a customer record for this email?
+    //  - WITH a password → a real account; ask them to sign in (409).
+    //  - WITHOUT a password → a guest / QuickBooks-migrated record carrying their
+    //    PAST bookings and points. CLAIM it (set their name + password) so all of
+    //    that history stays under their new login. The row is UPDATED, never
+    //    deleted — their record is never lost.
+    const existing = await pool.query(
+      'SELECT id, password_hash, referral_code FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
+    if (existing.rowCount) {
+      const row = existing.rows[0] as { id: string; password_hash: string | null; referral_code: string | null };
+      if (row.password_hash) {
+        return reply.status(409).send({ error: 'email_taken', message: 'An account with this email already exists — please sign in.' });
+      }
+      await pool.query(
+        `UPDATE customers
+            SET name = $2, phone = $3,
+                backup_phone  = COALESCE($4, backup_phone),
+                password_hash = $5,
+                date_of_birth = COALESCE($6, date_of_birth),
+                referral_code = COALESCE(referral_code, $7),
+                referred_by   = COALESCE(referred_by, $8)
+          WHERE id = $1`,
+        [row.id, name, validPhone, validBackup, hashPassword(password), dateOfBirth ?? null, myCode, referredBy],
+      );
+      void import('../domain/attribution.js').then(({ reportRegistrationToMeta }) =>
+        reportRegistrationToMeta({ id: row.id, name, phone, email },
+          { ...(parsed.data.attribution ?? {}), clientIp: request.ip, userAgent: request.headers['user-agent'] ?? null } as any),
+      ).catch(() => {});
+      return {
+        customerId: row.id, name, email, phone, token: issueCustomerToken(row.id),
+        referralCode: row.referral_code || myCode, welcomeCreditFils: 0, linked: true,
+      };
+    }
+
+    const id = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
     await pool.query(
       `INSERT INTO customers (id, name, phone, backup_phone, email, password_hash, referral_code, referred_by, referral_credit_fils, date_of_birth)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
