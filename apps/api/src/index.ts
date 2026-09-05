@@ -145,6 +145,8 @@ async function main() {
     await setEventPhaseFromEnv().catch((err) => console.error('[set-phase] failed:', err));
     const { sqlCheckFromEnv } = await import('./db/sqlCheck.js');
     await sqlCheckFromEnv().catch((err) => console.error('[sql-check] failed:', err));
+    const { diagFromEnv } = await import('./db/diag.js');
+    await diagFromEnv().catch((err) => console.error('[diag] failed:', err));
     const { cleanupTestEventFromEnv } = await import('./db/cleanupTestEvent.js');
     await cleanupTestEventFromEnv().catch((err) => console.error('[del-event] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
