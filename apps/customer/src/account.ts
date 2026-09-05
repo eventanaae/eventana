@@ -53,3 +53,44 @@ export function currentCustomerId(): string {
 export function currentToken(): string {
   return loadAccount()?.token ?? '';
 }
+
+/**
+ * A booking opened from the signed email link (?event=<id>&fb=<token>) by a
+ * customer WITHOUT an account. We keep the event id + its signed token here so
+ * the event GET can authorise read-only access, and — once the customer logs in
+ * or registers — the booking can be claimed onto their new account. Kept in
+ * sessionStorage so it survives the reload that follows a successful sign-in but
+ * doesn't linger once the tab is closed.
+ */
+export interface PendingClaim {
+  eventId: string;
+  fb: string;
+}
+
+const PENDING_KEY = 'eventana.pendingClaim';
+
+export function loadPendingClaim(): PendingClaim | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as PendingClaim;
+    return p && p.eventId && p.fb ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setPendingClaim(p: PendingClaim): void {
+  try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(p)); } catch { /* storage blocked */ }
+}
+
+export function clearPendingClaim(): void {
+  try { sessionStorage.removeItem(PENDING_KEY); } catch { /* ignore */ }
+}
+
+/** The signed token for the booking currently being viewed via an email link
+ *  (empty when there is none). Sent with the event GET so an account-less
+ *  viewer is authorised read-only. */
+export function currentFb(): string {
+  return loadPendingClaim()?.fb ?? '';
+}

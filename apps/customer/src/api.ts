@@ -6,7 +6,7 @@
  * server recomputes is what gets charged.
  */
 import type { CartInput, Quote } from '@eventana/shared';
-import { currentCustomerId, currentToken } from './account';
+import { currentCustomerId, currentFb, currentToken } from './account';
 import { attributionPayload, trackCompleteRegistration } from './attribution';
 
 /**
@@ -286,7 +286,21 @@ export const api = {
     ),
 
   events: () => request<any[]>('/api/events'),
-  event: (eventId: string) => request<any>(`/api/events/${eventId}`),
+  // When the booking was opened from the signed email link, pass its token so an
+  // account-less viewer is authorised read-only (the server also accepts it for
+  // a logged-in owner). A signed-in owner with no pending token loads normally.
+  event: (eventId: string) => {
+    const fb = currentFb();
+    return request<any>(`/api/events/${eventId}${fb ? `?fb=${encodeURIComponent(fb)}` : ''}`);
+  },
+
+  /** Link a booking opened from the signed email link onto the signed-in
+   *  account (uses the normal auth headers). Called right after login/register. */
+  claimBooking: (eventId: string, fb: string) =>
+    request<{ ok: true }>(`/api/events/${eventId}/claim`, {
+      method: 'POST',
+      body: JSON.stringify({ fb }),
+    }),
 
   rebook: (eventId: string) => request<Record<string, unknown>>(`/api/events/${eventId}/rebook`),
 

@@ -1159,6 +1159,35 @@ export async function adminRoutes(app: FastifyInstance) {
           [eventId, emailTemplate, JSON.stringify({ eventId })],
         );
       }
+      // When the party is marked COMPLETE, send the feedback ask right away —
+      // both the email AND the WhatsApp — instead of waiting for the day-after
+      // schedule. Pull any pending feedback rows to now; if none were scheduled
+      // (e.g. an older booking), create both channels now. The delivery sweep
+      // then sends them; WhatsApp goes only once its template is enabled.
+      if (ev.phase === 'Event Completed') {
+        try {
+          const pulled = await pool.query(
+            `UPDATE notifications SET scheduled_for = now()
+              WHERE event_id = $1 AND template = 'feedback_request'
+                AND sent_at IS NULL AND whatsapp_sent_at IS NULL AND cancelled_at IS NULL
+              RETURNING id`,
+            [eventId],
+          );
+          if (!pulled.rowCount) {
+            await pool.query(
+              `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+               SELECT $1, v.ch, 'feedback_request', now(), $2::jsonb
+                 FROM (VALUES ('email'),('whatsapp')) v(ch)
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM notifications n
+                   WHERE n.event_id = $1 AND n.template = 'feedback_request' AND n.channel = v.ch AND n.cancelled_at IS NULL)`,
+              [eventId, JSON.stringify({ eventId })],
+            );
+          }
+        } catch (err) {
+          request.log.error({ err }, 'feedback-on-complete failed');
+        }
+      }
     }
     return ev;
   });

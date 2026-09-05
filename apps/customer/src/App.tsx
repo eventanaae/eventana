@@ -25,6 +25,7 @@ import { PrivacySheet } from './screens/Privacy';
 import { Landing } from './screens/Landing';
 import { landingFromPath, type LandingRoute } from './landing';
 import { useProfile } from './profile';
+import { loadAccount, loadPendingClaim, setPendingClaim, clearPendingClaim } from './account';
 import { useLang, makeT, type Lang, type TFn } from './i18n';
 
 export type Screen =
@@ -255,11 +256,20 @@ export default function App() {
     const openEvent = params.get('event');
     const feedbackToken = params.get('fb');
     const openPay = params.get('pay');
-    if (openEvent && feedbackToken) {
-      // Feedback link — rate this one event, no login needed. Checked before the
-      // plain ?event path so the link opens the feedback screen, not My Event.
+    if (openEvent && feedbackToken && params.get('rate')) {
+      // Post-party feedback link (?event=&fb=&rate=1) — rate this one event, no
+      // login needed. The `rate` intent marker is the only thing distinguishing
+      // it from the otherwise-identical "view your booking" link handled below.
       setFeedbackLink({ event: openEvent, token: feedbackToken });
       setScreen('feedback');
+      history.replaceState({}, '', location.pathname);
+    } else if (openEvent && feedbackToken) {
+      // "View your booking" link — opens the booking read-only for a customer
+      // WITHOUT an account (the signed token authorises it). Stash the token so
+      // My Event can load the event, and so a later login/register can claim it.
+      setPendingClaim({ eventId: openEvent, fb: feedbackToken });
+      setEventId(openEvent);
+      setScreen('myevent');
       history.replaceState({}, '', location.pathname);
     } else if (returned) {
       setOrderId(returned);
@@ -306,6 +316,27 @@ export default function App() {
       setShowPrivacy(true);
       history.replaceState({}, '', location.pathname);
     }
+  }, []);
+
+  // A booking opened from the signed email link is linked to the account the
+  // moment the customer is signed in — whether they already were, or they just
+  // logged in / registered and the app reloaded (the token is kept in
+  // sessionStorage, which survives that reload). On success the token is cleared
+  // and the now-owned booking is shown; a failed claim never blocks the user.
+  useEffect(() => {
+    const pending = loadPendingClaim();
+    if (!pending || !loadAccount()?.token) return;
+    let alive = true;
+    api
+      .claimBooking(pending.eventId, pending.fb)
+      .catch(() => { /* expired/invalid token — keep them signed in regardless */ })
+      .finally(() => {
+        if (!alive) return;
+        clearPendingClaim();
+        setEventId(pending.eventId);
+        setScreen('myevent');
+      });
+    return () => { alive = false; };
   }, []);
 
   const update = useCallback((patch: Partial<Draft>) => {
