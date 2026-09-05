@@ -19,6 +19,7 @@ import { pushToStaff, pushToOwner } from '../integrations/push.js';
 import { whatsappCustomerNotifyEnabled, whatsappDriverNotifyEnabled, sendWhatsAppTemplate } from '../integrations/whatsapp.js';
 import { issueFeedbackToken } from './customerAuth.js';
 import { orderViewToken } from './orders.js';
+import { imageToPdf } from './imagePdf.js';
 
 export interface EmailRow {
   id: number;
@@ -1063,8 +1064,39 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
           <img src="${row.image_url}" alt="Your Eventana design" style="max-width:100%;border-radius:14px;border:1px solid ${HAIR};margin:6px 0" />
           <p style="margin:14px 0 0;font-size:15px;line-height:1.6">We hope you love it! If you need anything, just reply to this email. 💕</p>`,
       });
-      const res = await sendEmail({ to: row.customer_email, subject: 'Your Eventana design is ready 🎨', html });
-      if (res.ok) { await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]); emails++; }
+      // Best-effort: also attach the design as downloadable files (the image
+      // itself, plus a PDF wrapping it for JPEGs). Any failure here must NEVER
+      // block the email — fall back to the inline-only send below.
+      let attachments: Array<{ filename: string; content: string; contentType?: string }> | undefined;
+      try {
+        const resp = await fetch(row.image_url);
+        if (resp.ok) {
+          const buf = Buffer.from(await resp.arrayBuffer());
+          const ct = (resp.headers.get('content-type') || '').toLowerCase();
+          const urlLower = row.image_url.toLowerCase();
+          const isPng = ct.includes('png') || /\.png(?:[?#]|$)/.test(urlLower);
+          const kind: 'jpeg' | 'png' = isPng ? 'png' : 'jpeg';
+          const imgContentType = isPng ? 'image/png' : 'image/jpeg';
+          const imgExt = isPng ? 'png' : 'jpg';
+          attachments = [
+            { filename: `Eventana-invitation.${imgExt}`, content: buf.toString('base64'), contentType: imgContentType },
+          ];
+          const pdf = imageToPdf(buf, kind);
+          if (pdf) {
+            attachments.push({ filename: 'Eventana-invitation.pdf', content: pdf.toString('base64'), contentType: 'application/pdf' });
+          }
+        }
+      } catch {
+        attachments = undefined; // fall back to inline-only
+      }
+      const res = await sendEmail({ to: row.customer_email, subject: 'Your Eventana design is ready 🎨', html, ...(attachments ? { attachments } : {}) });
+      if (res.ok) {
+        await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
+        // Design delivered — the order is done; mark it completed so it drops
+        // off Home's "Upcoming" shop list (which filters status = 'paid').
+        await pool.query(`UPDATE orders SET status = 'completed' WHERE id = $1`, [row.order_id]);
+        emails++;
+      }
     }
   }
 

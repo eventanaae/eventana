@@ -25,6 +25,9 @@ export async function sendEmail(args: {
   /** Silent monitoring recipient(s) — BCC, so the customer never sees them.
    *  The primary recipient is never BCC'd to itself. */
   bcc?: string | string[];
+  /** Optional file attachments. `content` is base64-encoded; `contentType`
+   *  maps to Resend's `content_type` when given. */
+  attachments?: Array<{ filename: string; content: string; contentType?: string }>;
 }): Promise<SendResult> {
   if (!config.email.resendApiKey) return { ok: false, error: 'email_disabled' };
   // Merge the caller's BCC with the global monitor inbox (config), so a manager
@@ -51,6 +54,15 @@ export async function sendEmail(args: {
         html: args.html,
         ...(bccList.length ? { bcc: bccList } : {}),
         ...(args.replyTo ? { reply_to: args.replyTo } : {}),
+        ...(args.attachments && args.attachments.length
+          ? {
+              attachments: args.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content,
+                ...(a.contentType ? { content_type: a.contentType } : {}),
+              })),
+            }
+          : {}),
       }),
     });
     if (!res.ok) return { ok: false, error: `${res.status}: ${(await res.text()).slice(0, 300)}` };
