@@ -22,9 +22,10 @@ export const WINBACK_VALID_MONTHS = 3;
 /** The site link that goes in every win-back message. */
 export const WINBACK_SITE_URL = 'https://eventanauae.com';
 
-/** A personal code that carries the customer's name, e.g. MARYAM600-K2P. */
+/** A personal code that carries the customer's FIRST name, e.g. MARYAM600-K2P. */
 export function makeWinbackCode(name: string): string {
-  const base = (name.replace(/[^A-Za-z]/g, '').slice(0, 10) || 'GUEST').toUpperCase();
+  const first = (name.trim().split(/\s+/)[0] ?? '').replace(/[^A-Za-z]/g, '');
+  const base = (first.slice(0, 10) || 'GUEST').toUpperCase();
   const rand = Array.from({ length: 3 }, () =>
     'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)],
   ).join('');
