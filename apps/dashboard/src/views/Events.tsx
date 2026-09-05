@@ -1016,7 +1016,14 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
   const [themes, setThemes] = useState<Array<{ id: string; name: string }>>([]);
   const [eventFor, setEventFor] = useState(event.eventFor ?? '');
   const [emirate, setEmirate] = useState(event.emirate ?? '');
-  const [locationInput, setLocationInput] = useState(event.locationNote ?? '');
+  // Two separate location fields: a dedicated villa / place name (free text) and
+  // an optional map pin (coordinates or a Google Maps link). A legacy note that
+  // is really coordinates is shown in the map field, not the villa field.
+  const noteIsPin = isCoordsOrUrl(event.locationNote ?? '');
+  const [villaInput, setVillaInput] = useState(noteIsPin ? '' : (event.locationNote ?? ''));
+  const [mapInput, setMapInput] = useState(
+    event.mapPin ? `${event.mapPin.lat},${event.mapPin.lng}` : (noteIsPin ? (event.locationNote ?? '') : ''),
+  );
   const [startTime, setStartTime] = useState(event.start_time ?? '');
   const [endTime, setEndTime] = useState(event.base_end_time ?? '');
   const [themeId, setThemeId] = useState(event.theme_id ?? '');
@@ -1033,11 +1040,19 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
     if (startTime && startTime !== event.start_time) patch.startTime = startTime;
     if (endTime && endTime !== event.base_end_time) patch.endTime = endTime;
     if (emirate && emirate !== event.emirate) patch.emirate = emirate;
-    if ((locationInput ?? '') !== (event.locationNote ?? '')) {
-      patch.locationNote = locationInput.trim() || null;
-      const c = parseLatLng(locationInput);
+    // Villa / building / place name → the free-text location note. Also written
+    // when the old note held coordinates, so that legacy value is cleared out of
+    // the text field (the coordinates live on the map pin instead).
+    const villa = villaInput.trim();
+    const origVilla = noteIsPin ? '' : (event.locationNote ?? '');
+    if (villa !== origVilla || noteIsPin) patch.locationNote = villa || null;
+    // Map pin — coordinates or a Google Maps link.
+    const map = mapInput.trim();
+    const origMap = event.mapPin ? `${event.mapPin.lat},${event.mapPin.lng}` : '';
+    if (map !== origMap) {
+      const c = parseLatLng(map);
       if (c) { patch.mapLat = c.lat; patch.mapLng = c.lng; }
-      else if (!locationInput.trim()) { patch.mapLat = 0; patch.mapLng = 0; } // cleared
+      else if (!map) { patch.mapLat = 0; patch.mapLng = 0; } // cleared
     }
     if ((eventFor ?? '') !== (event.eventFor ?? '')) patch.eventFor = eventFor.trim() || null;
     if ((phone ?? '') !== (event.phone ?? '') && phone.trim()) patch.phone = phone.trim();
@@ -1086,10 +1101,17 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={editLbl}>Villa / building / place name — or Google Maps link</span>
-            <input value={locationInput} onChange={(e) => setLocationInput(e.target.value)} style={inputStyle} placeholder="e.g. Villa 24, Al Falah St — or a Google Maps link" />
+            <span style={editLbl}>🏠 Villa number / building / place name</span>
+            <input value={villaInput} onChange={(e) => setVillaInput(e.target.value)} style={inputStyle} placeholder="e.g. Villa 24, Al Falah St · Building 3, Flat 502" />
             <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, lineHeight: 1.4 }}>
-              Type the villa number / building / place name so the crew and driver can find the door. Or paste a Google Maps link (or “lat, lng”) to also set the exact map pin.
+              The exact door — villa / house number, building, or place name — so the crew and driver find it. Shows on the event location.
+            </span>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={editLbl}>📍 Map pin — Google Maps link or coordinates (optional)</span>
+            <input value={mapInput} onChange={(e) => setMapInput(e.target.value)} style={inputStyle} placeholder="Paste a Google Maps link, or 25.197, 55.274" />
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, lineHeight: 1.4 }}>
+              Sets the exact pin for the map &amp; driver directions. Leave blank if you only have the villa/place name above.
             </span>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -1152,6 +1174,14 @@ function parseLatLng(input: string): { lat: number; lng: number } | null {
   }
   return null;
 }
+/** True when a location note is really a map link / coordinates (a pin), not a
+ *  human address — so it belongs in the map field, never the villa field. */
+function isCoordsOrUrl(s: string): boolean {
+  const t = (s || '').trim();
+  if (!t) return false;
+  return /^https?:\/\//i.test(t) || parseLatLng(t) !== null;
+}
+
 /** Coerce a possibly "5:00 PM"/"17:00" string to a 24h "HH:MM" for <input type=time>. */
 function to24(t: string): string {
   if (!t) return '';
@@ -1239,7 +1269,7 @@ function LocationPanel({ event }: { event: any }) {
         // to the free-text villa/building/place note the team typed — so a pin
         // never hides the villa number / place name (esp. converted bookings).
         const note = (event.locationNote ?? '').trim();
-        const showNote = note && !/^https?:\/\//i.test(note);
+        const showNote = note && !isCoordsOrUrl(note);
         return parts ? (
           <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 4, lineHeight: 1.5 }}>
             🏠 {parts}
