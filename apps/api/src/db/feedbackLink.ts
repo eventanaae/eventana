@@ -34,9 +34,12 @@ export async function feedbackLinkFromEnv(): Promise<void> {
            FROM events e JOIN customers c ON c.id = e.customer_id WHERE e.id = $1`, [eventId]);
       const r = rows[0];
       if (!r) { P(`${eventId}: not found`); continue; }
-      const link = `${base}/?event=${encodeURIComponent(eventId)}&fb=${encodeURIComponent(issueFeedbackToken(eventId))}`;
+      const tok = encodeURIComponent(issueFeedbackToken(eventId));
+      const view = `${base}/?event=${encodeURIComponent(eventId)}&fb=${tok}`;
+      const rate = `${view}&rate=1`;
       P(`${eventId} "${r.name}" <${r.email ?? 'no-email'}> ph=${r.phone ?? '—'} date=${r.d ?? 'TBD'}`);
-      P(`  LINK: ${link}`);
+      P(`  VIEW (booking): ${view}`);
+      P(`  RATE (feedback): ${rate}`);
     } catch (err) {
       P(`${eventId} failed: ${(err as Error).message}`);
     }
