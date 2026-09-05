@@ -130,6 +130,9 @@ async function main() {
     // that never got it (ENQUEUE_LIFECYCLE=<id>[,<id>...]).
     const { enqueueLifecycleFromEnv } = await import('./db/enqueueLifecycle.js');
     await enqueueLifecycleFromEnv().catch((err) => console.error('[enqueue-lifecycle] failed:', err));
+    // Log the signed My-Event/feedback link for an event (FEEDBACK_LINK=<id>[,..]).
+    const { feedbackLinkFromEnv } = await import('./db/feedbackLink.js');
+    await feedbackLinkFromEnv().catch((err) => console.error('[feedback-link] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
