@@ -57,5 +57,22 @@ export async function enqueueBookingLifecycle(eventId: string, db: Db = pool): P
     );
     if (r.rowCount) scheduled.push(t.template);
   }
+
+  // Also a WhatsApp feedback nudge at the SAME time as the email feedback
+  // (event + 1 day), carrying the same My-Event/feedback link. It only actually
+  // sends once customer WhatsApp is enabled AND its Meta template is approved;
+  // until then it sits queued (deliverPendingNotifications skips it), so this is
+  // safe to schedule now.
+  const wa = await db.query(
+    `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+     SELECT $1, 'whatsapp', 'feedback_request', $2::timestamptz + interval '1 day', $3::jsonb
+      WHERE NOT EXISTS (
+        SELECT 1 FROM notifications n
+         WHERE n.event_id = $1 AND n.template = 'feedback_request' AND n.channel = 'whatsapp' AND n.cancelled_at IS NULL)
+     RETURNING id`,
+    [eventId, eventStart, payload],
+  );
+  if (wa.rowCount) scheduled.push('feedback_request(whatsapp)');
+
   return { scheduled, skipped: scheduled.length ? '' : 'all already scheduled' };
 }
