@@ -74,10 +74,13 @@ function wordmark(): string {
     .join('');
 }
 
-/** Deep link into the customer app's "My Event" tab to follow a booking. */
+/** Deep link into the customer app's "My Event" tab to follow a booking. Carries
+ *  the signed event token so a customer WITHOUT an account can open their
+ *  booking straight from the email (the app reads the token; the event GET
+ *  accepts it as read-only access, and login/register can then claim it). */
 function trackUrl(eventId: string): string | null {
   const base = (config.publicAppUrl || '').replace(/\/$/, '');
-  return base ? `${base}/?event=${encodeURIComponent(eventId)}` : null;
+  return base ? `${base}/?event=${encodeURIComponent(eventId)}&fb=${encodeURIComponent(issueFeedbackToken(eventId))}` : null;
 }
 
 /**

@@ -24,7 +24,7 @@ import { CheckoutError, startAddonCheckout, startTipCheckout } from '../domain/c
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToStaff } from '../integrations/push.js';
 import { generateEventPass, walletEnabled } from '../integrations/wallet.js';
-import { customerFromRequest } from '../domain/customerAuth.js';
+import { customerFromRequest, verifyFeedbackToken } from '../domain/customerAuth.js';
 import { rescheduleEvent, RescheduleError, RESCHEDULE_MIN_HOURS } from '../domain/reschedule.js';
 import { refundOrderMoney } from '../domain/refund.js';
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
@@ -458,6 +458,10 @@ export async function eventRoutes(app: FastifyInstance) {
   app.get('/api/events/:eventId', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const customerId = customerIdOf(request);
+    // A customer WITHOUT an account can open their own booking from the signed
+    // link in our emails: the event-scoped feedback token grants read-only
+    // access to THAT event only. A logged-in owner still sees it the normal way.
+    const tokenOk = verifyFeedbackToken((request.query as { fb?: string })?.fb) === eventId;
     const cfg = await loadConfig();
 
     const { rows } = await pool.query(
@@ -478,8 +482,8 @@ export async function eventRoutes(app: FastifyInstance) {
          LEFT JOIN packages p ON p.id = e.package_id
          LEFT JOIN themes th ON th.id = e.theme_id
          LEFT JOIN cancellations cx ON cx.order_id = e.order_id
-        WHERE e.id = $1 AND e.customer_id = $2`,
-      [eventId, customerId],
+        WHERE e.id = $1 AND (e.customer_id = $2 OR $3 = true)`,
+      [eventId, customerId, tokenOk],
     );
     const event = rows[0];
     if (!event) return reply.status(404).send({ error: 'not_found' });
@@ -761,6 +765,29 @@ export async function eventRoutes(app: FastifyInstance) {
         inflatable: hasInflatable,
       },
     };
+  });
+
+  /**
+   * Claim a booking to a logged-in account. The customer opened it from the
+   * signed email link (proving they own THAT event via the feedback token) and
+   * has just signed in or registered — link the event + its order to their
+   * account so it lives under "My Events" for good.
+   */
+  app.post('/api/events/:eventId/claim', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const accountId = customerFromRequest(request);
+    if (!accountId) return reply.status(401).send({ error: 'login_required' });
+    const fb = (request.body as { fb?: string })?.fb ?? (request.query as { fb?: string })?.fb;
+    if (verifyFeedbackToken(fb) !== eventId) return reply.status(403).send({ error: 'invalid_token' });
+    const { rows } = await pool.query<{ order_id: string | null; customer_id: string }>(
+      `SELECT order_id, customer_id FROM events WHERE id = $1`, [eventId]);
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    if (rows[0].customer_id === accountId) return { ok: true, already: true };
+    await withTransaction(async (db) => {
+      await db.query(`UPDATE events SET customer_id = $2 WHERE id = $1`, [eventId, accountId]);
+      if (rows[0].order_id) await db.query(`UPDATE orders SET customer_id = $2 WHERE id = $1`, [rows[0].order_id, accountId]);
+    });
+    return { ok: true };
   });
 
   /** Price an "Add More to My Event" basket without charging anything. */
