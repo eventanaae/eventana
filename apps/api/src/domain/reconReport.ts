@@ -22,6 +22,7 @@ const MUTED = '#9B8A94';
 const GROUND = '#FBEAF2';
 const PANEL = '#FCEEF6';
 const HAIR = '#F4DDEC';
+const RAINBOW = 'linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0)';
 const DISPLAY = "'Fredoka','Baloo 2','Segoe UI',Arial,sans-serif";
 
 // The monthly REVENUE target the owner set (AED 30,000 by default) — revenue is
@@ -116,9 +117,11 @@ async function buildHtml(monthStr: string): Promise<string> {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${GROUND}">
       <tr><td align="center" style="padding:30px 16px 44px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px">
-          <tr><td style="text-align:center;padding:2px 0 22px"><span style="font-family:${DISPLAY};font-size:28px;font-weight:700;color:${BRAND}">Eventana</span></td></tr>
+          <tr><td style="text-align:center;padding:2px 0 22px">${config.emailLogoUrl
+            ? `<img src="${config.emailLogoUrl}" alt="Eventana Events" width="210" style="display:inline-block;width:210px;max-width:70%;height:auto">`
+            : `<span style="font-family:${DISPLAY};font-size:28px;font-weight:700;color:${BRAND}">Eventana</span>`}</td></tr>
           <tr><td style="background:#ffffff;border-radius:26px;overflow:hidden;border:1px solid #F6E4EF;box-shadow:0 10px 34px rgba(214,49,127,.10)">
-            <div style="height:7px;background:${BRAND}"></div>
+            <div style="height:7px;background:${BRAND};background:${RAINBOW}"></div>
             <div style="padding:30px 26px 34px">
               <div style="text-align:center;font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:6px">Reconciliation &amp; Audit</div>
               <h1 style="margin:0 0 4px;text-align:center;font-family:${DISPLAY};font-size:23px;font-weight:700;color:${INK}">${monthLabel(monthStr)}</h1>
