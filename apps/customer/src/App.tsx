@@ -460,7 +460,7 @@ export default function App() {
       go,
       reset,
       startBuild,
-      customerName: profile?.name ?? '',
+      customerName: loadAccount()?.name || profile?.name || '',
       lang,
       t,
       social,
@@ -603,7 +603,7 @@ export default function App() {
           />
         )}
         {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} t={t} lang={lang} />}
-        {screen === 'profile' && <Profile go={go} onRebook={rebook} t={t} lang={lang} setLang={setLang} />}
+        {screen === 'profile' && <Profile go={go} onRebook={rebook} onOpenEvent={(id) => { setEventId(id); go('myevent'); }} t={t} lang={lang} setLang={setLang} />}
         {screen === 'shop' && <Shop {...shared} />}
         {screen === 'shopcheckout' && (
           <ShopCheckout {...shared} onOrder={(id, embed, tok, stripe) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); setStripeInfo(stripe ?? null); go('confirming'); }} />

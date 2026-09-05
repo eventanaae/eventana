@@ -114,7 +114,7 @@ export function GuestFeedback({
               <Notice tone="ok">{t('me.gfDone')}</Notice>
               {stars >= 4 && (
                 <a
-                  href="https://maps.google.com/?cid=6038496074473768848"
+                  href="https://g.page/r/CZi09M69VVZ6EBE/review"
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{

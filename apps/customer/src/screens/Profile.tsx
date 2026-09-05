@@ -12,12 +12,14 @@ import type { Lang, TFn } from '../i18n';
 export function Profile({
   go,
   onRebook,
+  onOpenEvent,
   t,
   lang,
   setLang,
 }: {
   go: (s: Screen) => void;
   onRebook: (eventId: string) => Promise<void>;
+  onOpenEvent: (eventId: string) => void;
   t: TFn;
   lang: Lang;
   setLang: (l: Lang) => void;
@@ -29,6 +31,9 @@ export function Profile({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const dateFmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   const account = loadAccount();
   const profile = loadProfile();
   const name = account?.name?.trim() || profile?.name?.trim() || t('profile.guest');
@@ -84,7 +89,10 @@ export function Profile({
         </div>
       )}
 
-      <div style={{ background: 'linear-gradient(135deg,#5BCFC5,#3aa79d)', borderRadius: 24, padding: '20px 22px', color: '#fff', marginBottom: 16 }}>
+      <div
+        onClick={() => { if (rewards && rewards.history.length > 0) setShowHistory(true); }}
+        style={{ background: 'linear-gradient(135deg,#5BCFC5,#3aa79d)', borderRadius: 24, padding: '20px 22px', color: '#fff', marginBottom: 16, cursor: rewards && rewards.history.length > 0 ? 'pointer' : 'default' }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <span style={fredoka(17)}>{t('profile.rewards')}</span>
           <span style={{ background: 'rgba(255,255,255,.25)', fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 12, letterSpacing: '.4px' }}>
@@ -110,6 +118,12 @@ export function Profile({
         <div style={{ fontSize: 10.5, fontWeight: 600, opacity: 0.85, marginTop: 10 }}>
           {t('profile.pointsToward')}
         </div>
+        {rewards && rewards.history.length > 0 && (
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.22)', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>{t('profile.viewHistory')}</span>
+            <span style={{ fontSize: 14 }}>{lang === 'ar' ? '‹' : '›'}</span>
+          </div>
+        )}
       </div>
 
       {rewards?.referralCode && (
@@ -199,9 +213,10 @@ export function Profile({
           {events.map((e) => (
             <div
               key={e.id}
+              onClick={() => onOpenEvent(e.id)}
               style={{
                 background: '#fff', borderRadius: 18, padding: '13px 16px', boxShadow: C.shadow,
-                display: 'flex', alignItems: 'center', gap: 13,
+                display: 'flex', alignItems: 'center', gap: 13, cursor: 'pointer',
               }}
             >
               <div style={{ width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(135deg,#F9C6DC,#F7C948)', flex: 'none' }} />
@@ -213,7 +228,8 @@ export function Profile({
               </div>
               <button
                 disabled={rebooking === e.id}
-                onClick={async () => {
+                onClick={async (ev) => {
+                  ev.stopPropagation();
                   setRebooking(e.id);
                   try { await onRebook(e.id); } catch { setRebooking(null); }
                 }}
@@ -249,6 +265,37 @@ export function Profile({
           onClose={() => setShowEdit(false)}
           onSaved={() => window.location.reload()}
         />
+      )}
+
+      {showHistory && rewards && (
+        <div
+          onClick={() => setShowHistory(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(60,40,52,.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 70 }}
+          dir={lang === 'ar' ? 'rtl' : 'ltr'}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: '22px 22px 0 0', width: '100%', maxWidth: 480, maxHeight: '78vh', display: 'flex', flexDirection: 'column', animation: 'rise .3s ease' }}
+          >
+            <div style={{ padding: '18px 22px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={fredoka(18)}>{t('profile.historyTitle')}</span>
+              <button onClick={() => setShowHistory(false)} style={{ border: 'none', background: C.cream, borderRadius: '50%', width: 30, height: 30, fontSize: 15, cursor: 'pointer', color: C.muted }}>✕</button>
+            </div>
+            <div className="scroll" style={{ overflowY: 'auto', padding: '4px 22px 26px' }}>
+              {rewards.history.map((h, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: i < rewards.history.length - 1 ? `1px solid ${C.pinkLine}` : 'none' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{h.reason}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>{dateFmt(h.at)}</div>
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: h.points < 0 ? C.red : C.green, whiteSpace: 'nowrap' }}>
+                    {h.points < 0 ? '−' : '+'}{Math.abs(h.points).toLocaleString('en-US')} {t('profile.points')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

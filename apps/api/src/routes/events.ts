@@ -124,7 +124,7 @@ export async function eventRoutes(app: FastifyInstance) {
     const { rows: history } = await pool.query(
       `SELECT points, reason, created_at
          FROM loyalty_transactions WHERE customer_id = $1
-        ORDER BY created_at DESC LIMIT 10`,
+        ORDER BY created_at DESC LIMIT 50`,
       [customerId],
     );
 
