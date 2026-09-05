@@ -324,7 +324,7 @@ export const api = {
       points: number; redeemableFils: number; referralCode: string | null; creditFils: number;
       lifetimeEarned: number; tier: string;
       nextTier: string | null; pointsToNextTier: number; progressPct: number;
-      vouchers: Array<{ code: string; percent: number; expiresAt: string | null }>;
+      vouchers: Array<{ code: string; amountFils: number; minSpendFils: number; expiresAt: string | null }>;
       history: Array<{ points: number; reason: string; at: string | null }>;
     }>('/api/rewards'),
 

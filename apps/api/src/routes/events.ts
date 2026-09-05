@@ -101,11 +101,13 @@ export async function eventRoutes(app: FastifyInstance) {
     );
     const lifetimeEarned = Number(earned[0]?.earned ?? 0);
 
-    // Personal, unused, unexpired vouchers (e.g. the 20%-off next-booking reward).
+    // Personal, unused, unexpired vouchers — the AED 600 "come back" win-back code
+    // (a fixed-amount code with a minimum spend). Any legacy percent vouchers are
+    // deliberately excluded now that the win-back replaces them.
     const { rows: voucherRows } = await pool.query(
-      `SELECT code, value, expires_at
+      `SELECT code, kind, value, min_spend_fils, expires_at
          FROM promo_codes p
-        WHERE p.customer_id = $1 AND p.active AND p.kind = 'percent'
+        WHERE p.customer_id = $1 AND p.active AND p.kind = 'fixed'
           AND (p.expires_at IS NULL OR p.expires_at > now())
           AND (p.max_uses IS NULL OR p.uses < p.max_uses)
           AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code AND r.customer_id = $1)
@@ -114,7 +116,8 @@ export async function eventRoutes(app: FastifyInstance) {
     );
     const vouchers = voucherRows.map((v) => ({
       code: v.code,
-      percent: Number(v.value),
+      amountFils: Number(v.value),
+      minSpendFils: Number(v.min_spend_fils),
       expiresAt: v.expires_at?.toISOString?.() ?? null,
     }));
 

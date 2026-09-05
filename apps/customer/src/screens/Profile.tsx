@@ -149,7 +149,7 @@ export function Profile({
           {rewards.vouchers.map((v) => (
             <div key={v.code} style={{ marginTop: 10 }}>
               <div style={{ fontSize: 11.5, fontWeight: 600, color: '#9a6a4c', marginBottom: 6, lineHeight: 1.5 }}>
-                {t('profile.voucherSub', { percent: String(v.percent) })}
+                {t('profile.voucherSub', { amount: String(Math.round(v.amountFils / 100)), min: String(Math.round(v.minSpendFils / 100)) })}
                 {v.expiresAt
                   ? ` · ${t('profile.voucherExpiry', { date: new Date(v.expiresAt).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) })}`
                   : ''}

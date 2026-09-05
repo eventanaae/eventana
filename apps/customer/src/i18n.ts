@@ -121,7 +121,7 @@ const en: Dict = {
   'auth.tabLogin': 'Log in',
   'auth.tabRegister': 'Create account',
   'auth.registerTitle': 'Create your account',
-  'auth.registerSub': 'Save your bookings, earn points, and get a 20% next-booking voucher.',
+  'auth.registerSub': 'Save your bookings, earn points, and get an AED 600 next-booking voucher.',
   'auth.name': 'Full name',
   'auth.phone': 'Mobile (05XXXXXXXX)',
   'auth.createAccount': 'Create account',
@@ -154,7 +154,7 @@ const en: Dict = {
   'profile.copied': 'Copied!',
   'profile.share': 'Share',
   'profile.voucherTitle': 'Your next-booking reward',
-  'profile.voucherSub': '{percent}% off your next Eventana booking — tap to copy the code, then enter it at checkout.',
+  'profile.voucherSub': 'AED {amount} off your next Eventana booking (on orders over AED {min}) — tap to copy the code, then enter it at checkout.',
   'profile.voucherExpiry': 'valid until {date}',
 
   // assistant
@@ -419,7 +419,7 @@ const en: Dict = {
   'checkout.createOrSignin': 'Create your account (or sign in) to confirm your booking. Your event details are kept.',
   'checkout.guestSub': 'Enter your details to book — no account needed.',
   'checkout.signinSub': 'Sign in to your account.',
-  'checkout.createAccountOpt': 'Create an account — earn points + 20% off your next booking',
+  'checkout.createAccountOpt': 'Create an account — earn points + AED 600 off your next booking',
   'checkout.detailsRequired': 'Please fill in your details above to confirm',
   'checkout.signinToConfirm': 'Sign in above to confirm your booking',
   'checkout.phBackup': 'Backup mobile number',
@@ -743,7 +743,7 @@ const ar: Dict = {
   'auth.tabLogin': 'تسجيل دخول',
   'auth.tabRegister': 'حساب جديد',
   'auth.registerTitle': 'أنشئ حسابك',
-  'auth.registerSub': 'احفظ حجوزاتك، اجمع نقاط، واحصل على قسيمة ٢٠٪ لحجزك القادم.',
+  'auth.registerSub': 'احفظ حجوزاتك، اجمع نقاط، واحصل على قسيمة ٦٠٠ درهم لحجزك القادم.',
   'auth.name': 'الاسم الكامل',
   'auth.phone': 'الجوال (05XXXXXXXX)',
   'auth.createAccount': 'إنشاء حساب',
@@ -776,7 +776,7 @@ const ar: Dict = {
   'profile.copied': 'تم النسخ!',
   'profile.share': 'مشاركة',
   'profile.voucherTitle': 'مكافأة حجزك القادم',
-  'profile.voucherSub': 'خصم {percent}٪ على حجزك القادم في إيفنتانا — اضغطي لنسخ الكود ثم أدخليه عند الدفع.',
+  'profile.voucherSub': 'خصم {amount} درهم على حجزك القادم في إيفنتانا (للطلبات فوق {min} درهم) — اضغطي لنسخ الكود ثم أدخليه عند الدفع.',
   'profile.voucherExpiry': 'صالح حتى {date}',
 
   // assistant
@@ -1041,7 +1041,7 @@ const ar: Dict = {
   'checkout.createOrSignin': 'أنشئ حسابك (أو سجّل الدخول) لتأكيد حجزك. تفاصيل مناسبتك محفوظة.',
   'checkout.guestSub': 'أدخلي بياناتك للحجز — بدون حساب.',
   'checkout.signinSub': 'سجّلي الدخول لحسابك.',
-  'checkout.createAccountOpt': 'أنشئي حساباً — اكسبي نقاط + خصم ٢٠٪ لحجزك القادم',
+  'checkout.createAccountOpt': 'أنشئي حساباً — اكسبي نقاط + خصم ٦٠٠ درهم لحجزك القادم',
   'checkout.detailsRequired': 'الرجاء تعبئة بياناتك بالأعلى للتأكيد',
   'checkout.signinToConfirm': 'سجّلي الدخول بالأعلى لتأكيد الحجز',
   'checkout.phBackup': 'رقم جوال احتياطي',

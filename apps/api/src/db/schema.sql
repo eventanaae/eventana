@@ -169,6 +169,10 @@ CREATE TABLE IF NOT EXISTS promo_codes (
 ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS customer_id TEXT;
 ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS auto_reminder BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS last_reminded_at TIMESTAMPTZ;
+-- Which campaign minted this code (NULL = ad-hoc / dashboard). 'winback' = the
+-- post-event & old-customer "come back" AED 600 code; its reminder cadence and
+-- email copy differ from the 20%-off next-booking voucher.
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS campaign TEXT;
 CREATE INDEX IF NOT EXISTS promo_codes_customer_idx ON promo_codes (customer_id);
 
 -- One redemption per customer per code (also the audit trail).

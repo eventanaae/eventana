@@ -155,6 +155,10 @@ async function main() {
     await lineItemsAuditFromEnv().catch((err) => console.error('[line-items] failed:', err));
     const { prepListFromEnv } = await import('./db/prepList.js');
     await prepListFromEnv().catch((err) => console.error('[prep-list] failed:', err));
+    const { winbackTestFromEnv } = await import('./db/winbackTest.js');
+    await winbackTestFromEnv().catch((err) => console.error('[winback-test] failed:', err));
+    const { winbackRolloutFromEnv } = await import('./db/winbackRollout.js');
+    await winbackRolloutFromEnv().catch((err) => console.error('[winback-rollout] failed:', err));
     const { cleanupTestEventFromEnv } = await import('./db/cleanupTestEvent.js');
     await cleanupTestEventFromEnv().catch((err) => console.error('[del-event] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
