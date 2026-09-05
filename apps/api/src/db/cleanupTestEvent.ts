@@ -5,7 +5,7 @@
  * messages), then the linked receipt/invoice, the event, its order + payments,
  * and finally the test customer if it has no other events.
  */
-import { pool, withTransaction } from './pool.js';
+import { pool } from './pool.js';
 
 const P = (s: string) => console.log(`[del-event] ${s}`);
 
@@ -20,9 +20,11 @@ export async function cleanupTestEventFromEnv(): Promise<void> {
     const { order_id, customer_id, name } = info.rows[0];
     P(`deleting ${eventId} (order=${order_id}, customer=${customer_id} "${name}")`);
 
-    await withTransaction(async (db) => {
+    {
+      // NB: each delete is its OWN statement (no shared transaction) — a missing
+      // table would otherwise abort the whole transaction and roll everything back.
       const del = async (sql: string, params: any[], label: string) => {
-        try { const r = await db.query(sql, params); if (r.rowCount) P(`  ${label}: ${r.rowCount}`); }
+        try { const r = await pool.query(sql, params); if (r.rowCount) P(`  ${label}: ${r.rowCount}`); }
         catch (e) { P(`  ${label}: skip (${(e as Error).message.slice(0, 50)})`); }
       };
       // Child rows keyed by event_id.
@@ -52,11 +54,11 @@ export async function cleanupTestEventFromEnv(): Promise<void> {
       }
       // The test customer, only if nothing else references them.
       if (customer_id) {
-        const other = await db.query(`SELECT 1 FROM events WHERE customer_id=$1 LIMIT 1`, [customer_id]);
+        const other = await pool.query(`SELECT 1 FROM events WHERE customer_id=$1 LIMIT 1`, [customer_id]);
         if (!other.rowCount) await del(`DELETE FROM customers WHERE id=$1`, [customer_id], 'customers');
         else P(`  customers: kept (has other events)`);
       }
-    });
+    }
     P('DONE');
   } catch (err) {
     console.error('[del-event] failed:', (err as Error).message);
