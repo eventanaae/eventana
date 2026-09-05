@@ -45,13 +45,17 @@ export async function enqueueBookingLifecycle(eventId: string, db: Db = pool): P
     const schedExpr = isNow ? 'now()' : `$3::timestamptz ${t.offset}`;
     const payloadPos = isNow ? '$3' : '$4';
     const params = isNow ? [eventId, t.template, payload] : [eventId, t.template, eventStart, payload];
+    // Never schedule a reminder whose moment has already passed (e.g. a booking
+    // made on/near the event day — the customer must not get a late "3 days to
+    // go"). booking_confirmation (now) always goes.
+    const notPast = isNow ? '' : ` AND (${schedExpr}) > now()`;
     // Skip if this template is already queued or sent (not cancelled) for the event.
     const r = await db.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
        SELECT $1, 'email', $2, ${schedExpr}, ${payloadPos}::jsonb
         WHERE NOT EXISTS (
           SELECT 1 FROM notifications n
-           WHERE n.event_id = $1 AND n.template = $2 AND n.cancelled_at IS NULL)
+           WHERE n.event_id = $1 AND n.template = $2 AND n.cancelled_at IS NULL)${notPast}
        RETURNING id`,
       params,
     );

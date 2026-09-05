@@ -459,13 +459,19 @@ export async function confirmBooking(
   // letting them fire for an event that is no longer happening.
   const eventStart = `${cart.eventDate}T${startTime}:00+04:00`;
   await db.query(
-    `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload) VALUES
-       ($1,'email','booking_confirmation', now(), $2),
-       ($1,'email','three_day_reminder', ($3::timestamptz - interval '3 days'), $2),
-       ($1,'email','event_day', ($3::timestamptz - interval '4 hours'), $2),
-       ($1,'email','feedback_request', ($3::timestamptz + interval '1 day'), $2),
-       ($1,'whatsapp','feedback_request', ($3::timestamptz + interval '1 day'), $2),
-       ($1,'driver','driver_new_order', now(), $2)`,
+    // Never schedule a reminder whose moment has already passed (a same-day /
+    // near booking must not get a late "3 days to go"). booking_confirmation and
+    // the driver order always go out now.
+    `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+     SELECT $1, channel, template, sched, $2::jsonb FROM (VALUES
+       ('email','booking_confirmation', now()),
+       ('email','three_day_reminder', ($3::timestamptz - interval '3 days')),
+       ('email','event_day', ($3::timestamptz - interval '4 hours')),
+       ('email','feedback_request', ($3::timestamptz + interval '1 day')),
+       ('whatsapp','feedback_request', ($3::timestamptz + interval '1 day')),
+       ('driver','driver_new_order', now())
+     ) v(channel,template,sched)
+     WHERE v.sched > now() OR v.template IN ('booking_confirmation','driver_new_order')`,
     [eventId, JSON.stringify({ orderId: order.id, eventId }), eventStart],
   );
 
