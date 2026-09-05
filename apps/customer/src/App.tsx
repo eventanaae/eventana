@@ -203,6 +203,16 @@ export default function App() {
   const [resetToken] = useState<string | null>(() => {
     try { return new URLSearchParams(window.location.search).get('reset'); } catch { return null; }
   });
+  // A customer who arrives on a deep link — their booking, a feedback/track link,
+  // a payment or offer link — came to DO that one thing, not to sign up. Captured
+  // synchronously on mount (before the routing effect strips the query) so the
+  // first-run "tell us your name" gate below never buries the thing they clicked.
+  const [deepLinkIntent] = useState<boolean>(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      return Boolean(p.get('event') || p.get('order') || p.get('pay') || p.get('offer'));
+    } catch { return false; }
+  });
 
   const [social, setSocial] = useState<Awaited<ReturnType<typeof api.socialProof>> | null>(null);
   // If the very first catalogue load runs unusually long (a free-tier API can
@@ -492,8 +502,10 @@ export default function App() {
     );
   }
 
-  // First run: ask the customer's name and birthday before anything else.
-  if (!profile) {
+  // First run: ask the customer's name and birthday before anything else — but
+  // NOT when they followed a deep link (their booking, a feedback/track/pay/offer
+  // link); those open straight to what they clicked, so it doesn't look broken.
+  if (!profile && !deepLinkIntent) {
     return (
       <Frame lang={lang}>
         <Onboarding onDone={saveProfile} t={t} lang={lang} setLang={setLang} />
