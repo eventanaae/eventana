@@ -136,6 +136,9 @@ async function main() {
     // WhatsApp token validity/expiry + template approval status (WA_TOKEN_CHECK=true).
     const { waTokenCheckFromEnv } = await import('./db/waCheck.js');
     await waTokenCheckFromEnv().catch((err) => console.error('[wa-check] failed:', err));
+    // Owner-only: create ONE test booking to trial the customer flow (MAKE_TEST_EVENT=true).
+    const { makeTestEventFromEnv } = await import('./db/makeTestEvent.js');
+    await makeTestEventFromEnv().catch((err) => console.error('[test-event] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
