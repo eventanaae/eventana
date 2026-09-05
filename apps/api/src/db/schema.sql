@@ -131,6 +131,12 @@ CREATE TABLE IF NOT EXISTS customers (
 -- before self-registration simply have NULL here.
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
+-- Where this customer record came from. NULL = created in the app (guest checkout
+-- or self-registration). 'quickbooks' = migrated from historical_customers so we
+-- can market to past WhatsApp customers; they're passwordless until they register
+-- (which claims the row). Their invoices stay in historical_orders untouched.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS origin TEXT;
+
 -- A mandatory backup contact number, captured at checkout (guest or account).
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS backup_phone TEXT;
 

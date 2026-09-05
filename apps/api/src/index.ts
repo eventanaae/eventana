@@ -159,6 +159,8 @@ async function main() {
     await winbackTestFromEnv().catch((err) => console.error('[winback-test] failed:', err));
     const { winbackRolloutFromEnv } = await import('./db/winbackRollout.js');
     await winbackRolloutFromEnv().catch((err) => console.error('[winback-rollout] failed:', err));
+    const { qbMigrateFromEnv } = await import('./db/winbackMigrateQb.js');
+    await qbMigrateFromEnv().catch((err) => console.error('[qb-migrate] failed:', err));
     const { winbackCampaignFromEnv } = await import('./db/winbackCampaign.js');
     await winbackCampaignFromEnv().catch((err) => console.error('[winback-campaign] failed:', err));
     const { cleanupTestEventFromEnv } = await import('./db/cleanupTestEvent.js');
