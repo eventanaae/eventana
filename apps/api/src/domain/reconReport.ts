@@ -24,10 +24,40 @@ const PANEL = '#FCEEF6';
 const HAIR = '#F4DDEC';
 const DISPLAY = "'Fredoka','Baloo 2','Segoe UI',Arial,sans-serif";
 
+// The monthly REVENUE target the owner set (AED 30,000 by default) — revenue is
+// what's left AFTER expenses, never gross sales. Kept in step with the monthly
+// finance report's MONTHLY_REVENUE_TARGET_AED.
+const MONTHLY_TARGET_FILS = Math.round(Number(process.env.MONTHLY_REVENUE_TARGET_AED || 30000) * 100);
+
 const monthLabel = (m: string) => {
   const [y, mo] = m.split('-').map(Number);
   return new Date(y, mo - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 };
+
+/** A numbered ranked list (top items / emirates / expenses), as table rows. */
+function rankedRows(items: Array<{ left: string; right: string }>): string {
+  return items
+    .map((r, i) => `<tr><td style="padding:8px 14px;color:${INK};font-size:13px;border-bottom:1px solid ${HAIR}">${i + 1}. ${r.left}</td>
+      <td style="padding:8px 14px;text-align:right;font-weight:700;font-size:13px;color:${INK};border-bottom:1px solid ${HAIR}">${r.right}</td></tr>`)
+    .join('');
+}
+
+/** The revenue-vs-target banner (loss / reached / below), same rule as the finance report. */
+function targetBanner(revenue: number): string {
+  const gap = MONTHLY_TARGET_FILS - revenue;
+  const box = (bg: string, fg: string, text: string) =>
+    `<div style="margin:12px 0 0;padding:12px 15px;border-radius:12px;font-weight:700;font-size:13px;line-height:1.5;background:${bg};color:${fg}">${text}</div>`;
+  if (revenue < 0) {
+    return box('#FDE7EA', '#B3261E',
+      `⚠️ Loss this month — revenue was −AED ${formatAed(-revenue)} after expenses (AED ${formatAed(gap)} below the AED ${formatAed(MONTHLY_TARGET_FILS)} revenue target)`);
+  }
+  if (revenue >= MONTHLY_TARGET_FILS) {
+    return box('#E4F6EE', '#1F7A5C',
+      `🎯 Target reached — AED ${formatAed(revenue)} revenue vs the AED ${formatAed(MONTHLY_TARGET_FILS)} target`);
+  }
+  return box('#FFF3E0', '#B26A00',
+    `🎯 Below target — AED ${formatAed(revenue)} revenue, AED ${formatAed(gap)} short of the AED ${formatAed(MONTHLY_TARGET_FILS)} target`);
+}
 
 function kv(label: string, value: string, color = INK): string {
   return `<tr><td style="padding:8px 14px;color:${MUTED};font-size:13px;border-bottom:1px solid ${HAIR}">${label}</td>
@@ -50,12 +80,17 @@ async function buildHtml(monthStr: string): Promise<string> {
   ]);
 
   const monthRevenue = month.revenueFils - month.expensesFils;
+  // Exactly what the owner specified for the monthly report: orders, total,
+  // expenses, revenue-after-expenses, tips, top 5 products, top 3 emirates,
+  // top 3 expenses excluding salaries, and the AED 30k revenue-target banner.
   const monthRows = kv('Orders', String(month.ordersCount))
     + kv('Total amount (sales)', `AED ${formatAed(month.revenueFils)}`, '#1F7A5C')
     + kv('Expenses', `AED ${formatAed(month.expensesFils)}`, '#D24B6E')
     + kv('Revenue (after expenses)', `${monthRevenue < 0 ? '−' : ''}AED ${formatAed(Math.abs(monthRevenue))}`, monthRevenue < 0 ? '#D24B6E' : '#1F7A5C')
-    + kv('Tips (to staff)', `AED ${formatAed(month.tipsFils)}`)
-    + (month.topEmirates ?? []).map((e: any) => kv(`  ${e.emirate}`, `${e.count} order${e.count === 1 ? '' : 's'}`)).join('');
+    + kv('Tips (to staff)', `AED ${formatAed(month.tipsFils)}`);
+  const topItemsRows = rankedRows((month.topItems ?? []).map((t: any) => ({ left: t.name, right: `${t.count}×` })));
+  const topEmiratesRows = rankedRows((month.topEmirates ?? []).map((e: any) => ({ left: e.emirate, right: `${e.count} order${e.count === 1 ? '' : 's'}` })));
+  const topExpenseRows = rankedRows((month.byCategory ?? []).map((c: any) => ({ left: c.category, right: `AED ${formatAed(c.amountFils)}` })));
 
   const acctRows = kv('Cash on hand', `AED ${formatAed(acct.cashOnHandFils)}`, '#1F7A5C')
     + kv('Accounts Receivable (unpaid invoices)', `AED ${formatAed(acct.arFils)}`, '#D24B6E');
@@ -88,6 +123,10 @@ async function buildHtml(monthStr: string): Promise<string> {
               <div style="text-align:center;font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:6px">Reconciliation &amp; Audit</div>
               <h1 style="margin:0 0 4px;text-align:center;font-family:${DISPLAY};font-size:23px;font-weight:700;color:${INK}">${monthLabel(monthStr)}</h1>
               ${section(`This month (${monthLabel(monthStr)})`, monthRows)}
+              ${targetBanner(monthRevenue)}
+              ${topItemsRows ? section('Top 5 most requested', topItemsRows) : ''}
+              ${topEmiratesRows ? section('Top 3 emirates', topEmiratesRows) : ''}
+              ${topExpenseRows ? section('Top 3 expenses (excl. wages)', topExpenseRows) : ''}
               ${section('Cash position', acctRows)}
               ${section('Unpaid orders (not receivables)', outRows)}
               ${section('Payment method coverage', methodRows)}
