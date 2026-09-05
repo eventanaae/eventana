@@ -7,16 +7,31 @@ import { TermsSheet } from './Terms';
 import { loadAccount } from '../account';
 import { AuthSheet } from './AuthSheet';
 
+// The customer sees a short, four-stage journey. The dashboard "Advance status"
+// stepper was reduced to these same four, so going forward event.phase is always
+// one of them — but legacy events may still carry an old intermediate phase, so
+// PHASE_TO_STEP maps every historical value onto one of the four stages instead
+// of falling through to -1 (which would render nothing as done).
 const PHASES = [
   'Booking Confirmed',
-  'Preparing',
   'On The Way',
-  'Arrived',
-  'Setting Up',
-  'Setup Ready',
   'Party Started',
   'Event Completed',
 ];
+
+const PHASE_TO_STEP: Record<string, number> = {
+  'Booking Confirmed': 0,
+  Preparing: 0,
+  'On The Way': 1,
+  Arrived: 1,
+  'Setting Up': 1,
+  'Setup Ready': 1,
+  'Party Started': 2,
+  'Event Completed': 3,
+};
+
+/** Map any server phase (current or legacy) onto its four-stage index. */
+const stepOf = (phase: string | undefined): number => (phase ? PHASE_TO_STEP[phase] ?? 0 : 0);
 
 /** A cancelled event shows two steps, not the eight-step timeline. */
 const CANCELLED_STEPS = [
@@ -47,8 +62,17 @@ export function MyEvent({
   const [busy, setBusy] = useState(false);
   const [addonError, setAddonError] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   const load = useCallback(async () => {
+    // A customer viewing their booking from the signed email link has no account
+    // yet — load only that one event (its token authorises the read), and skip
+    // the account-only list, which would 401 and blank the screen.
+    if (!loadAccount()?.token) {
+      setList([]);
+      if (eventId) setEvent(await api.event(eventId));
+      return;
+    }
     // Always keep the full list so a customer with several bookings can switch
     // between them — not just see the most recent one.
     const events = await api.events();
@@ -125,9 +149,12 @@ export function MyEvent({
   }
 
   const cancelled = Boolean(event.cancelled);
-  const phaseIndex = PHASES.indexOf(event.phase);
+  const phaseIndex = stepOf(event.phase);
   const design = event.designs?.[0];
   const phaseLabel = (p: string) => t(`me.phase.${p}`);
+  // Always show one of the four canonical stages in the header pill, even when
+  // the stored phase is a legacy intermediate value.
+  const canonicalPhase = PHASES[phaseIndex] ?? PHASES[0];
   const dateFmt = (d: string) =>
     new Date(d).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -152,12 +179,49 @@ export function MyEvent({
     }
   };
 
+  const signedIn = Boolean(loadAccount()?.token);
+
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
         <span style={fredoka(24)}>{list && list.length > 1 ? t('me.titlePlural') : t('me.title')}</span>
         <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: C.muted }}>{event.reference ?? event.id}</span>
       </div>
+
+      {/* Opened from the signed email link without an account — invite them to
+          keep the booking under their own account (App claims it after auth). */}
+      {!signedIn && (
+        <div style={{ background: C.pinkSoft, borderRadius: 20, padding: '16px 18px', marginBottom: 14 }}>
+          <div style={{ ...fredoka(16), color: C.pinkDeep, marginBottom: 4 }}>{t('me.guestTitle')}</div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, lineHeight: 1.55, marginBottom: 13 }}>
+            {t('me.guestBody')}
+          </div>
+          <div style={{ display: 'flex', gap: 9 }}>
+            <button
+              onClick={() => { setAuthMode('login'); setShowAuth(true); }}
+              style={{ flex: 1, background: C.pink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, padding: '12px 0', borderRadius: 14, cursor: 'pointer' }}
+            >
+              {t('auth.tabLogin')}
+            </button>
+            <button
+              onClick={() => { setAuthMode('register'); setShowAuth(true); }}
+              style={{ flex: 1, background: '#fff', color: C.pinkDeep, border: `1.5px solid ${C.pink}`, fontWeight: 700, fontSize: 13, padding: '12px 0', borderRadius: 14, cursor: 'pointer' }}
+            >
+              {t('auth.tabRegister')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showAuth && (
+        <AuthSheet
+          t={t}
+          lang={lang}
+          initialMode={authMode}
+          onClose={() => setShowAuth(false)}
+          onSignedIn={() => window.location.reload()}
+        />
+      )}
 
       {/* Switcher — only when there is more than one booking to move between. */}
       {list && list.length > 1 && (
@@ -178,7 +242,7 @@ export function MyEvent({
                   {e.packageName ?? t('me.celebration')}
                 </div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-                  {new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short' })} · {e.phase ? phaseLabel(e.phase) : ''}
+                  {new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short' })} · {e.phase ? phaseLabel(PHASES[stepOf(e.phase)]) : ''}
                 </div>
               </button>
             );
@@ -204,7 +268,7 @@ export function MyEvent({
               borderRadius: 12, letterSpacing: '.4px', whiteSpace: 'nowrap',
             }}
           >
-            {phaseLabel(event.phase)}
+            {phaseLabel(canonicalPhase)}
           </span>
         </div>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#8b7d84', marginTop: 6 }}>

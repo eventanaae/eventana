@@ -18,17 +18,19 @@ export function AuthSheet({
   t,
   lang,
   initialEmail,
+  initialMode,
   onClose,
   onSignedIn,
 }: {
   t: TFn;
   lang: Lang;
   initialEmail?: string;
+  initialMode?: 'login' | 'register';
   onClose: () => void;
   onSignedIn: (acc: Account) => void;
 }) {
   const ar = lang === 'ar';
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode ?? 'login');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState(initialEmail ?? '');

@@ -91,7 +91,7 @@ function trackUrl(eventId: string): string | null {
 function feedbackUrl(eventId: string): string | null {
   const base = (config.publicAppUrl || '').replace(/\/$/, '');
   if (!base) return null;
-  return `${base}/?event=${encodeURIComponent(eventId)}&fb=${encodeURIComponent(issueFeedbackToken(eventId))}`;
+  return `${base}/?event=${encodeURIComponent(eventId)}&fb=${encodeURIComponent(issueFeedbackToken(eventId))}&rate=1`;
 }
 
 /** Deep link that opens the Terms & Conditions sheet in the customer app. */
