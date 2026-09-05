@@ -63,7 +63,8 @@ const HAIR = '#F4DDEC';
 // Pastel rainbow used for the card's top strip (mint→lime→yellow→peach→pink→lilac).
 const RAINBOW = 'linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0)';
 // Rounded, playful display face (Fredoka, same as the app), with safe fallbacks.
-const DISPLAY = "'Fredoka','Baloo 2','Segoe UI',Arial,sans-serif";
+// Fredoka carries Latin; Baloo Bhaijaan 2 gives Arabic the same rounded feel.
+const DISPLAY = "'Fredoka','Baloo Bhaijaan 2','Baloo 2','Segoe UI',Arial,sans-serif";
 
 /** The multicolour "Eventana" wordmark (pastel letters), matching the logo. */
 function wordmark(): string {
@@ -149,11 +150,13 @@ interface Shell {
   heading: string;
   bodyHtml: string;
   cta?: { href: string; label: string };
+  /** Overrides the default "Hi {first} 👋" greeting (e.g. an Arabic one). */
+  greeting?: string;
 }
 
-function shell({ first, emoji, eyebrow, heading, bodyHtml, cta }: Shell): string {
+function shell({ first, emoji, eyebrow, heading, bodyHtml, cta, greeting }: Shell): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet"></head>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+Bhaijaan+2:wght@500;600;700;800&display=swap" rel="stylesheet"></head>
   <body style="margin:0;padding:0;background:${GROUND};font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:${INK};-webkit-font-smoothing:antialiased">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:${GROUND}">${heading}</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${GROUND}">
@@ -173,7 +176,7 @@ function shell({ first, emoji, eyebrow, heading, bodyHtml, cta }: Shell): string
               <div style="text-align:center;font-size:48px;line-height:1;margin-bottom:10px">${emoji}</div>
               ${eyebrow ? `<div style="text-align:center;font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:8px">${eyebrow}</div>` : ''}
               <h1 style="margin:0;text-align:center;font-family:${DISPLAY};font-size:25px;font-weight:700;color:${INK};line-height:1.25">${heading}</h1>
-              <p style="margin:20px 0 14px;font-size:15px;line-height:1.6">Hi ${first} 👋</p>
+              <p style="margin:20px 0 14px;font-size:15px;line-height:1.6">${greeting ?? `Hi ${first} 👋`}</p>
               ${bodyHtml}
               ${cta ? button(cta.href, cta.label) : ''}
             </div>
@@ -235,6 +238,62 @@ export async function sendAbandonedCartReminder(o: {
     "You didn't finish your booking — tap to complete it and let's celebrate!",
     { orderId: o.orderId, kind: 'abandoned_cart' },
   ).catch(() => {});
+  return res.ok;
+}
+
+/** A cute boy in a party hat + balloons/confetti, in brand colours. Inline SVG
+ *  renders in Apple Mail and previews; Gmail may drop it, so a hosted PNG can be
+ *  swapped in later without touching the copy. */
+const WINBACK_ART = `<div style="text-align:center"><svg width="200" height="172" viewBox="0 0 320 272" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ولد بقبعة احتفال">
+<rect x="40" y="40" width="9" height="9" rx="2" fill="#F7C948" transform="rotate(20 44 44)"/><rect x="270" y="30" width="9" height="9" rx="2" fill="#5BCFC5" transform="rotate(-15 274 34)"/><circle cx="30" cy="120" r="5" fill="#EF5D95"/><circle cx="292" cy="150" r="5" fill="#F7C948"/><path d="M96 44 l3 9 l9 3 l-9 3 l-3 9 l-3 -9 l-9 -3 l9 -3 z" fill="#F7C948"/><path d="M232 60 l2.5 7 l7 2.5 l-7 2.5 l-2.5 7 l-2.5 -7 l-7 -2.5 l7 -2.5 z" fill="#F9C6DC"/>
+<path d="M60 150 q6 24 0 44" stroke="#d9a7bf" stroke-width="2" fill="none"/><ellipse cx="60" cy="118" rx="30" ry="36" fill="#F58FB8"/><path d="M60 154 l-6 8 l12 0 z" fill="#F58FB8"/>
+<path d="M262 140 q-7 24 0 46" stroke="#e0c68a" stroke-width="2" fill="none"/><ellipse cx="262" cy="108" rx="27" ry="33" fill="#F7C948"/><path d="M262 141 l-6 8 l12 0 z" fill="#F7C948"/>
+<path d="M124 272 q0 -60 36 -60 q36 0 36 60 z" fill="#5BCFC5"/><rect x="150" y="196" width="20" height="20" rx="8" fill="#F0B98A"/><circle cx="160" cy="168" r="42" fill="#F6C79B"/><circle cx="120" cy="170" r="8" fill="#F6C79B"/><circle cx="200" cy="170" r="8" fill="#F6C79B"/><path d="M126 150 q34 -26 68 0 q-14 -8 -34 -8 q-20 0 -34 8 z" fill="#5b3d2e"/><circle cx="138" cy="180" r="9" fill="#F79BC0" opacity=".6"/><circle cx="182" cy="180" r="9" fill="#F79BC0" opacity=".6"/><circle cx="145" cy="168" r="5" fill="#3B3641"/><circle cx="175" cy="168" r="5" fill="#3B3641"/><path d="M146 186 q14 16 28 0" stroke="#B4632F" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M160 74 L133 138 Q160 150 187 138 Z" fill="#EF5D95"/><path d="M141 122 q19 8 38 0 l-3 -12 q-16 6 -32 0 z" fill="#F7C948"/><circle cx="160" cy="72" r="9" fill="#F7C948"/>
+</svg></div>`;
+
+/**
+ * The win-back "come back and celebrate" email — an AED 600 code (+ free
+ * delivery) for the customer's next booking, on the official Eventana template
+ * (shell). Warm Emirati-Arabic copy. BCCs the monitor inbox like every send.
+ * Sends nothing on its own — called by the owner-approved campaign / +3-day flow.
+ */
+export async function sendWinbackEmail(o: {
+  firstName: string;
+  email: string;
+  code: string;
+  expiresAt?: Date | string | null;
+}): Promise<boolean> {
+  const expiry = o.expiresAt
+    ? new Date(o.expiresAt).toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+  const bodyHtml = `${WINBACK_ART}
+    <p style="margin:16px 0 14px;font-size:15px;line-height:1.95">كل حفلة نجهّزها نحطّ فيها قلبنا… وفرحتكم عندنا ذكرى ما تُنسى. واليوم جهّزنا لكم هدية صغيرة عشان نرجع نصنع لكم لحظة سحرية تليق بكم 🥹</p>
+    <div style="background:${PANEL};border:2px dashed #F3B6D2;border-radius:18px;padding:22px 18px;text-align:center;margin:18px 0">
+      <div style="font-size:12px;font-weight:700;color:#c98bb0;letter-spacing:1px;margin-bottom:8px">🎁 هديتكم الخاصة</div>
+      <div style="font-family:${DISPLAY};font-size:38px;font-weight:800;color:${BRAND};line-height:1.25">600 درهم خصم</div>
+      <div style="font-size:13px;font-weight:500;color:${MUTED};margin-top:2px">على أي حفلة جاية 🎉</div>
+      <div style="margin:16px auto 4px">
+        <span style="display:inline-block;background:#EAF8F6;color:#2f9488;border-radius:14px;padding:9px 16px;font-size:14px;font-weight:700;margin:4px">🚚 توصيل مجاني</span>
+        <span style="display:inline-block;background:#FFF4DA;color:#c79218;border-radius:14px;padding:9px 16px;font-size:14px;font-weight:700;margin:4px">💛 لكم وحدكم</span>
+      </div>
+      <div style="margin:16px auto 0;max-width:300px;background:linear-gradient(135deg,#FFEFD4,#FFDCEA);border-radius:16px;padding:13px">
+        <div style="font-size:11.5px;font-weight:700;color:#b3679a;letter-spacing:1px;margin-bottom:4px">كودكم</div>
+        <div style="font-family:${DISPLAY};font-size:25px;font-weight:800;color:${BRAND};letter-spacing:1.5px;direction:ltr">${o.code}</div>
+      </div>
+    </div>
+    <p style="margin:0 0 6px;font-size:14.5px;line-height:1.95">استخدموه لأي مناسبة على قلبكم — <b style="color:#c0356f">عيد ميلاد 🎂</b>، <b style="color:#c0356f">برايد تو بي 👰</b>، <b style="color:#c0356f">تخرّج 🎓</b> وغيرها ✨</p>
+    <p style="margin:6px 0 0;font-size:13.5px;line-height:1.9;color:${MUTED}">على أي حجز فوق <b style="color:${BRAND}">3,000 درهم</b> — صالح <b style="color:${BRAND}">3 شهور</b>${expiry ? ` (حتى ${expiry})` : ''}، ويُستخدم مرة وحدة 🌸</p>
+    <p style="margin:12px 0 0;font-size:13px;line-height:1.9;color:${MUTED}">✨ سجّلي دخول أو أنشئي حساب بنفس إيميلك، وبتلقين <b>كل حفلاتكم السابقة ونقاطكم محفوظة</b> — دايماً معكم.</p>`;
+  const html = shell({
+    first: o.firstName || 'حبيبتنا',
+    emoji: '🎈',
+    eyebrow: 'هدية لكم 💕',
+    heading: `اشتقنا لكم يا ${o.firstName || ''}!`.trim(),
+    greeting: `هلا ${o.firstName || ''} 👋`.replace('  ', ' ').trim(),
+    bodyHtml: `<div dir="rtl" style="text-align:right">${bodyHtml}</div>`,
+    cta: { href: (config.publicAppUrl || 'https://eventanauae.com').replace(/\/$/, ''), label: 'نبدأ الاحتفال 🎉' },
+  });
+  const res = await sendEmail({ to: o.email, subject: `هديتكم من إيفنتانا 🎁 خصم 600 درهم + توصيل مجاني`, html });
   return res.ok;
 }
 
