@@ -122,6 +122,10 @@ async function main() {
     // suppress pending sends for unreachable customers. Changes data, sends nothing.
     const { integrityFixFromEnv } = await import('./db/integrityFix.js');
     await integrityFixFromEnv().catch((err) => console.error('[integrity-fix] failed:', err));
+    // Read-only: full notification history for one event (BOOKING_HISTORY=<id>) —
+    // exactly what was emailed/WhatsApp'd to the customer and when.
+    const { bookingHistoryFromEnv } = await import('./db/bashayerCheck.js');
+    await bookingHistoryFromEnv().catch((err) => console.error('[booking-history] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
