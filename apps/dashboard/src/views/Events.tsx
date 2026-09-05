@@ -842,7 +842,6 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
   // Defensive: the panel only ever renders an array of slots. If any handler ever
   // hands us a non-array, treat it as empty instead of throwing (white screen).
   const planArr: any[] = Array.isArray(plan) ? plan : [];
-  const leader = planArr.find((s) => s.is_leader);
   const slots = planArr.filter((s) => !s.is_leader);
   const open = slots.filter((s) => s.status === 'part_time_required' || s.status === 'to_confirm').length;
 
@@ -877,15 +876,10 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
             </div>
           )}
 
-          {leader && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 11px', borderRadius: 10, background: C.pinkSoft, border: `1px solid ${C.pink}` }}>
-              <span style={{ flex: 1, fontSize: 12.5, fontWeight: 800, color: C.pinkDeep }}>
-                👑 Event Leader
-                <span style={{ fontWeight: 600, color: C.muted }}>{leader.reason === 'Remote event leader' ? ' · remote' : ''}</span>
-              </span>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>{leader.assignee_name ?? '—'}</span>
-            </div>
-          )}
+          {/* The Event Leader is NOT shown or edited here — it is derived
+              automatically from the crew (Jane/Dindo lead when on the floor) and
+              shown, read-only, in "Team for this event" below. Editing it here
+              only caused stale/confusing leaders. */}
 
           {slots.map((s) => {
             const filled = s.status === 'assigned';
