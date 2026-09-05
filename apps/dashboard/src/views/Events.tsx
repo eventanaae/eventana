@@ -1086,10 +1086,10 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={editLbl}>Exact location (Google Maps link or coordinates)</span>
-            <input value={locationInput} onChange={(e) => setLocationInput(e.target.value)} style={inputStyle} placeholder="Paste a Google Maps link, or 25.197, 55.274" />
+            <span style={editLbl}>Villa / building / place name — or Google Maps link</span>
+            <input value={locationInput} onChange={(e) => setLocationInput(e.target.value)} style={inputStyle} placeholder="e.g. Villa 24, Al Falah St — or a Google Maps link" />
             <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, lineHeight: 1.4 }}>
-              Paste the location's Google Maps link (or “lat, lng”). This sets the exact pin the driver &amp; team use for directions.
+              Type the villa number / building / place name so the crew and driver can find the door. Or paste a Google Maps link (or “lat, lng”) to also set the exact map pin.
             </span>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -1235,9 +1235,18 @@ function LocationPanel({ event }: { event: any }) {
         const parts = [a.area, a.street, a.villa && `Villa/House ${a.villa}`]
           .filter(Boolean)
           .join(' · ');
+        // Show the structured checkout address if we have one; otherwise fall back
+        // to the free-text villa/building/place note the team typed — so a pin
+        // never hides the villa number / place name (esp. converted bookings).
+        const note = (event.locationNote ?? '').trim();
+        const showNote = note && !/^https?:\/\//i.test(note);
         return parts ? (
           <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 4, lineHeight: 1.5 }}>
             🏠 {parts}
+          </div>
+        ) : showNote ? (
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 4, lineHeight: 1.5 }}>
+            🏠 {note}
           </div>
         ) : null;
       })()}
