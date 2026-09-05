@@ -109,6 +109,13 @@ async function moveDateTime(eventId: string, newDate: string, newStart: string, 
     );
     // Keep the linked receipt's date in step with the event.
     await db.query(`UPDATE finance_receipts SET date = $2::date WHERE event_id = $1`, [eventId, newDate]);
+    // Keep the order cart's date/time snapshot in step too, so the cart never
+    // drifts from the event (the integrity audit flags any such mismatch).
+    await db.query(
+      `UPDATE orders o SET cart = jsonb_set(jsonb_set(cart, '{eventDate}', to_jsonb($2::text)), '{startTime}', to_jsonb($3::text))
+        FROM events e WHERE e.id = $1 AND e.order_id = o.id AND cart ? 'eventDate'`,
+      [eventId, newDate, newStart],
+    );
     L(`  ${eventId} date/time ${curDate} ${ev.start_time}-${ev.base_end_time} → ${newDate} ${newStart}-${newEnd}`);
   });
 }

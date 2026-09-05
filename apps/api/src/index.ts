@@ -118,6 +118,10 @@ async function main() {
     // verdict across event/receipt/cart/customer; the pre-send safety gate.
     const { dataIntegrityAuditFromEnv } = await import('./db/dataIntegrityAudit.js');
     await dataIntegrityAuditFromEnv().catch((err) => console.error('[data-audit] failed:', err));
+    // One-off integrity repairs (INTEGRITY_FIX=true) — align carts to events,
+    // suppress pending sends for unreachable customers. Changes data, sends nothing.
+    const { integrityFixFromEnv } = await import('./db/integrityFix.js');
+    await integrityFixFromEnv().catch((err) => console.error('[integrity-fix] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {

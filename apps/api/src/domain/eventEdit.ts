@@ -119,14 +119,20 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       await db.query(`UPDATE events SET theme_id = $2, custom_theme = FALSE WHERE id = $1`, [eventId, patch.themeId]);
     }
 
-    // ── Guest-of-honour name, theme + reference images live in the order cart ─
-    if (patch.eventFor !== undefined || (patch.themeId !== undefined && patch.themeId) || customTheme || patch.referenceImages !== undefined) {
+    // ── Guest-of-honour name, theme, ref images AND the date/time snapshot live
+    //    in the order cart — keep ALL of them in step with the event so the cart
+    //    can never drift from the event (the source of a wrong-date discrepancy).
+    if (patch.eventFor !== undefined || (patch.themeId !== undefined && patch.themeId) || customTheme
+        || patch.referenceImages !== undefined || patch.startTime !== undefined) {
       const { rows: o } = await db.query(`SELECT cart FROM orders WHERE id = $1`, [ev.order_id]);
       const cart = { ...((o[0]?.cart ?? {}) as Record<string, unknown>) };
       if (patch.eventFor !== undefined) cart.eventFor = patch.eventFor ? titleCaseName(patch.eventFor) : patch.eventFor;
       if (customTheme) { cart.customTheme = titleCaseName(customTheme); delete cart.themeId; }
       else if (patch.themeId !== undefined && patch.themeId) { cart.themeId = patch.themeId; delete cart.customTheme; }
       if (patch.referenceImages !== undefined) cart.referenceImages = patch.referenceImages;
+      // Only overwrite the cart's time snapshot if it actually held one, so we
+      // don't invent keys on carts that never carried them.
+      if (patch.startTime !== undefined && cart.startTime !== undefined) cart.startTime = patch.startTime;
       await db.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [ev.order_id, cart]);
     }
 
