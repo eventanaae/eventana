@@ -4,9 +4,12 @@ import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty, eventTitle } from './Today';
 
+// A short, fast journey for the team on the day (owner's call): 4 steps only.
+// 'On The Way' still notifies the customer; the dropped in-between steps just
+// mean fewer status emails. Party Started / Event Completed still gate the
+// customer's rating + tip.
 const PHASES = [
-  'Booking Confirmed', 'Preparing', 'On The Way', 'Arrived',
-  'Setting Up', 'Setup Ready', 'Party Started', 'Event Completed',
+  'Booking Confirmed', 'On The Way', 'Party Started', 'Event Completed',
 ];
 
 /**
