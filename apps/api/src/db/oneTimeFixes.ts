@@ -99,9 +99,13 @@ async function dedupeAutoReceipts(): Promise<void> {
  * their reserved inventory holds by the same +1 hour so availability stays
  * consistent. Guarded to the known event ids AND to start_time='17:00', so it
  * runs once and never touches a genuine future booking.
+ *
+ * EXCLUDED: EV-2026-0203 (Ghaya Al Muhairy) genuinely chose 5:00–9:00 PM
+ * (17:00–21:00), confirmed by the owner — it must NOT be bumped to 18:00. This
+ * boot fix was silently reverting her correct 5 PM back to 6 PM on every deploy.
  */
 async function fixSeededEventTimes(): Promise<void> {
-  const ids = ['EV-2026-0204', 'EV-2026-0196', 'EV-2026-0201', 'EV-2026-0203', 'EV-2026-0202', 'EV-2026-0197', 'EV-2026-0198', 'EV-2026-0199', 'EV-2026-0200'];
+  const ids = ['EV-2026-0204', 'EV-2026-0196', 'EV-2026-0201', 'EV-2026-0202', 'EV-2026-0197', 'EV-2026-0198', 'EV-2026-0199', 'EV-2026-0200'];
   try {
     const { rows } = await pool.query(
       `UPDATE events SET start_time = '18:00', base_end_time = '22:00'
