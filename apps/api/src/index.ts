@@ -101,6 +101,10 @@ async function main() {
     // (LEADER_FIX=true) — preserves manual crew, only fixes a stale leader badge.
     const { leaderFixFromEnv } = await import('./db/leaderFix.js');
     await leaderFixFromEnv().catch((err) => console.error('[leader-fix] failed:', err));
+    // Read-only Home/Upcoming audit (TODAY_AUDIT=true) — lists upcoming events and
+    // flags any the old Home query dropped (missing order row / undated).
+    const { todayAuditFromEnv } = await import('./db/todayAudit.js');
+    await todayAuditFromEnv().catch((err) => console.error('[today-audit] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
