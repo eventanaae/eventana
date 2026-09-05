@@ -151,6 +151,8 @@ async function main() {
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
     await generatePrepMissingFromEnv().catch((err) => console.error('[prep-gen] failed:', err));
+    const { lineItemsAuditFromEnv } = await import('./db/lineItemsAudit.js');
+    await lineItemsAuditFromEnv().catch((err) => console.error('[line-items] failed:', err));
     const { cleanupTestEventFromEnv } = await import('./db/cleanupTestEvent.js');
     await cleanupTestEventFromEnv().catch((err) => console.error('[del-event] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
