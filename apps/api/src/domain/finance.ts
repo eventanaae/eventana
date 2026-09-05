@@ -295,6 +295,9 @@ type DocInput = {
   addressNote?: string | null;
   // Customer hasn't fixed a date yet → show "TBD" on the receipt + event.
   dateTbd?: boolean;
+  // The celebration type id (CELEBRATION_TYPES) carried onto the converted event,
+  // so a manual booking is not always a kids birthday. Defaults to 'kids'.
+  celebrationType?: string | null;
 };
 
 export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string; commissionRep?: string | null }) {
@@ -396,9 +399,9 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextReceiptNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, date_tbd, commission_rep, location_note)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
-    [number, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null, d.addressNote ?? null],
+    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, date_tbd, commission_rep, location_note, celebration_type)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
+    [number, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null, d.addressNote ?? null, d.celebrationType ?? 'kids'],
   );
   // An upcoming sale becomes an operational event automatically, so it shows on
   // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.
@@ -628,8 +631,8 @@ export async function ensureEventForReceipt(receiptId: number): Promise<string |
          (id, order_id, customer_id, celebration_type, package_id, theme_id, custom_theme,
           event_date, start_time, base_end_time, extra_hours, children_count, emirate,
           address, map_lat, map_lng, phase, location_note)
-       VALUES ($1,$2,$3,'kids',$4,$5,false,$6,'17:00','21:00',0,0,$7,'{}'::jsonb,0,0,'Booking Confirmed',$8)`,
-      [eventId, orderId, customerId, packageId, themeId, dateStr, emirate, r.location_note ?? null],
+       VALUES ($1,$2,$3,$9,$4,$5,false,$6,'17:00','21:00',0,0,$7,'{}'::jsonb,0,0,'Booking Confirmed',$8)`,
+      [eventId, orderId, customerId, packageId, themeId, dateStr, emirate, r.location_note ?? null, r.celebration_type ?? 'kids'],
     );
 
     // Booked items → event_services so the job shows what's going out.
@@ -853,9 +856,10 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
        event_for=$12, theme=$13, age=$14, event_time=$17, date_tbd=COALESCE($18, date_tbd), location_note=$19,
+       celebration_type=$20,
        commission_rep = CASE WHEN $16::boolean THEN $15 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null, d.addressNote ?? null],
+    [id, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null, d.addressNote ?? null, d.celebrationType ?? null],
   );
   const saved = rows[0];
   if (saved && d.date) {

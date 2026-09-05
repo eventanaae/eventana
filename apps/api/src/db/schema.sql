@@ -1041,6 +1041,10 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_id TEXT;
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;
 -- Sales commission on a MANUAL sale the owner approves (e.g. Marsha's corporate deal).
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS commission_rep TEXT;
+-- The celebration type chosen for a manual sales receipt (id from CELEBRATION_TYPES,
+-- e.g. 'kids' / 'graduation' / 'baby'). Carried onto the event so a manual booking
+-- is not always a kids birthday. Defaults to 'kids' at INSERT time.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS celebration_type TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS finance_receipts_order_idx
   ON finance_receipts (order_id) WHERE order_id IS NOT NULL;
 

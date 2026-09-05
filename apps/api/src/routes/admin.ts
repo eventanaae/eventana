@@ -2165,6 +2165,8 @@ export async function adminRoutes(app: FastifyInstance) {
     dateTbd: z.boolean().optional(),
     // Payment method shown on the receipt (Tabby / Tamara / Bank transfer / …).
     paidWith: z.string().max(40).optional(),
+    // Celebration type id (CELEBRATION_TYPES) carried onto the converted event.
+    celebrationType: z.string().max(40).nullable().optional(),
   });
 
   app.get('/api/admin/finance/customers', async (request) =>

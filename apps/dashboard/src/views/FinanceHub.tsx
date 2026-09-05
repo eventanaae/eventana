@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { CELEBRATION_TYPES } from '@eventana/shared';
 import { api } from '../api';
 import { Button, C, Panel, Spinner, fredoka, money } from '../ui';
 import { NewOrder } from './NewOrder';
@@ -675,6 +676,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const [eventTime, setEventTime] = useState(initial?.eventTime ?? '');
   const [addressNote, setAddressNote] = useState(initial?.addressNote ?? '');
   const [dateTbd, setDateTbd] = useState<boolean>(initial?.dateTbd ?? false);
+  const [celebrationType, setCelebrationType] = useState<string>(initial?.celebrationType ?? 'kids');
   const [paidWith, setPaidWith] = useState<string>(initial?.paidWith ?? 'Debit');
   const [commissionMarsha, setCommissionMarsha] = useState<boolean>(String(initial?.commissionRep ?? '').toLowerCase() === 'marsha');
   const [pickCustomer, setPickCustomer] = useState(false);
@@ -694,7 +696,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
     // or as a silent "today". Require a real date, or an explicit "TBD".
     if (kind === 'receipt' && !dateTbd && !date) { setErr('Set the event date, or tick “date not decided yet”.'); return; }
     setBusy(true); setErr(null);
-    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null, eventTime: eventTime || null, addressNote: addressNote.trim() || null, dateTbd };
+    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null, eventTime: eventTime || null, addressNote: addressNote.trim() || null, dateTbd, celebrationType };
     try {
       if (kind === 'invoice') {
         const commissionRep = commissionMarsha ? 'Marsha' : null;
@@ -777,6 +779,14 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         </div>
       ) : null) : null}
 
+      {/* Celebration type — so a manual booking is not always a kids birthday.
+          Carried onto the operational event when a receipt is converted. */}
+      <Field label="Celebration type">
+        <select value={celebrationType} onChange={(e) => setCelebrationType(e.target.value)} style={input}>
+          {CELEBRATION_TYPES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+      </Field>
+
       {/* Party details echoed on the receipt — guest of honour + age + theme. */}
       <div style={{ marginTop: 4, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Field label="Baby / celebrant name"><input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={input} placeholder="e.g. Sara" /></Field>
@@ -829,6 +839,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
     eventTime: doc.event_time ?? '',
     addressNote: doc.location_note ?? '',
     dateTbd: doc.date_tbd ?? false,
+    celebrationType: doc.celebration_type ?? 'kids',
     paidWith: doc.paid_with ?? 'Debit',
     commissionRep: doc.commission_rep ?? doc.commissionRep ?? null,
   });
