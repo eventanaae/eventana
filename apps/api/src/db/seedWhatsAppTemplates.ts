@@ -146,6 +146,10 @@ const TEMPLATES_AR: Tpl[] = [
 ];
 
 export async function seedWhatsAppTemplatesFromEnv(): Promise<void> {
+  // Only upload on demand (WA_SEED=true). Running on every boot re-submitted ~20
+  // templates each deploy and tripped Meta's rate limit (#80008). Now it uploads
+  // deliberately, once, when we actually change a template.
+  if (String(process.env.WA_SEED ?? '').toLowerCase() !== 'true') return;
   const waba = process.env.WHATSAPP_WABA_ID;
   if (!waba) return;
   const token = config.whatsapp.accessToken;

@@ -133,6 +133,9 @@ async function main() {
     // Log the signed My-Event/feedback link for an event (FEEDBACK_LINK=<id>[,..]).
     const { feedbackLinkFromEnv } = await import('./db/feedbackLink.js');
     await feedbackLinkFromEnv().catch((err) => console.error('[feedback-link] failed:', err));
+    // WhatsApp token validity/expiry + template approval status (WA_TOKEN_CHECK=true).
+    const { waTokenCheckFromEnv } = await import('./db/waCheck.js');
+    await waTokenCheckFromEnv().catch((err) => console.error('[wa-check] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
