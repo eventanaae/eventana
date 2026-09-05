@@ -11,7 +11,6 @@ import { formatAed } from '@eventana/shared';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
-import { auditReport } from './audit.js';
 import { accountingSummary } from './finance.js';
 
 const OWNER = 'sheem@eventanauae.com';
@@ -71,12 +70,8 @@ function section(title: string, rowsHtml: string): string {
 
 async function buildHtml(monthStr: string): Promise<string> {
   const { computeSummary } = await import('./financeReport.js');
-  const [acct, outstanding, methods, phones, dups, month] = await Promise.all([
+  const [acct, month] = await Promise.all([
     accountingSummary(),
-    auditReport('outstanding'),
-    auditReport('payment_methods'),
-    auditReport('phones'),
-    auditReport('dup_customers'),
     computeSummary(monthStr),
   ]);
 
@@ -96,21 +91,6 @@ async function buildHtml(monthStr: string): Promise<string> {
   const acctRows = kv('Cash on hand', `AED ${formatAed(acct.cashOnHandFils)}`, '#1F7A5C')
     + kv('Accounts Receivable (unpaid invoices)', `AED ${formatAed(acct.arFils)}`, '#D24B6E');
 
-  const outRows = kv('Unpaid live orders', `${outstanding.count} · AED ${outstanding.totalDisplay}`)
-    + Object.entries(outstanding.bySource || {}).map(([src, v]: any) => kv(`  from ${src}`, `${v.n} · AED ${formatAed(v.fils)}`)).join('');
-
-  const methodRows = (methods.receiptsByMethod || [])
-    .map((r: any) => kv(`${r.method} · ${r.source}`, `${r.n} · AED ${r.display}`)).join('');
-
-  const ph = phones;
-  const phoneRows = kv('App customers', `${ph.liveCustomers?.valid_e164} valid · ${ph.liveCustomers?.other_review} review`)
-    + kv('QuickBooks', `${ph.historicalCustomers?.valid_e164} valid · ${ph.historicalCustomers?.other_review} review · ${ph.historicalCustomers?.empty} empty`)
-    + kv('Alternate numbers', `${ph.historicalAlt?.valid_e164} valid`);
-
-  const dupRows = (dups.rows || []).length === 0
-    ? kv('Possible duplicates', 'None')
-    : (dups.rows || []).slice(0, 12).map((r: any) => kv(`…${r.tail} (${r.n})`, (r.who || []).slice(0, 3).join(', '))).join('');
-
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet"></head>
   <body style="margin:0;padding:0;background:${GROUND};font-family:'Segoe UI',Arial,sans-serif;color:${INK}">
@@ -123,7 +103,7 @@ async function buildHtml(monthStr: string): Promise<string> {
           <tr><td style="background:#ffffff;border-radius:26px;overflow:hidden;border:1px solid #F6E4EF;box-shadow:0 10px 34px rgba(214,49,127,.10)">
             <div style="height:7px;background:${BRAND};background:${RAINBOW}"></div>
             <div style="padding:30px 26px 34px">
-              <div style="text-align:center;font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:6px">Reconciliation &amp; Audit</div>
+              <div style="text-align:center;font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:6px">Monthly Report</div>
               <h1 style="margin:0 0 4px;text-align:center;font-family:${DISPLAY};font-size:23px;font-weight:700;color:${INK}">${monthLabel(monthStr)}</h1>
               ${section(`This month (${monthLabel(monthStr)})`, monthRows)}
               ${targetBanner(monthRevenue)}
@@ -131,14 +111,9 @@ async function buildHtml(monthStr: string): Promise<string> {
               ${topEmiratesRows ? section('Top 3 emirates', topEmiratesRows) : ''}
               ${topExpenseRows ? section('Top 3 expenses (excl. wages)', topExpenseRows) : ''}
               ${section('Cash position', acctRows)}
-              ${section('Unpaid orders (not receivables)', outRows)}
-              ${section('Payment method coverage', methodRows)}
-              ${section('Phone number health', phoneRows)}
-              ${section('Possible duplicate customers', dupRows)}
-              <p style="margin:22px 0 0;font-size:11.5px;color:${MUTED};line-height:1.6">${outstanding.note}</p>
             </div>
           </td></tr>
-          <tr><td style="text-align:center;color:#b8a6b0;font-size:11.5px;padding:24px 12px 0;line-height:1.8">Eventana Events · Abu Dhabi &amp; Dubai, UAE<br>Automated monthly reconciliation from your Eventana dashboard. 💛</td></tr>
+          <tr><td style="text-align:center;color:#b8a6b0;font-size:11.5px;padding:24px 12px 0;line-height:1.8">Eventana Events · Abu Dhabi &amp; Dubai, UAE<br>Automated monthly report from your Eventana dashboard. 💛</td></tr>
         </table>
       </td></tr>
     </table>
@@ -152,7 +127,7 @@ export async function sendReconReport(monthStr: string): Promise<{ sent: number 
   const recipients = Array.from(new Set([OWNER, MARSHA, ...config.email.financeReportTo]));
   let sent = 0;
   for (const to of recipients) {
-    const res = await sendEmail({ to, subject: `Eventana — Reconciliation & Audit · ${monthLabel(monthStr)}`, html });
+    const res = await sendEmail({ to, subject: `Eventana — Monthly Report · ${monthLabel(monthStr)}`, html });
     if (res.ok) sent++;
   }
   await pool.query(

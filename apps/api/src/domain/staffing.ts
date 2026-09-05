@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { loadConfig } from './settings.js';
+import { titleCaseName } from './maintenance.js';
 
 /**
  * Smart Automatic Staff Assignment — Phase 1: the requirements engine.
@@ -114,6 +115,8 @@ function serviceReqs(s: ServiceInput): RoleReq[] {
   else if (id === 'twisting' || /twist/i.test(s.name)) push('balloon_twisting', 1, 'Balloon Twisting service');
   else if (id === 'mascot' || /mascot/i.test(s.name)) push('helper', 1, 'Mascot character needs a helper');
   else if (id === 'glamdolls' || /glam/i.test(s.name)) push('performer', qty, `${qty} Glam Doll(s) — 1 performer each`, { partTimeOnly: true });
+  // Host / MC service — one entertainer (clown) runs the party.
+  else if (id === 'host' || /\bhost\b|master of ceremon|\bmc\b/i.test(s.name)) push('clown', 1, 'Host service — entertainer');
   // Food stations — one helper each, running concurrently.
   else if (s.isFoodStation || cat === 'food') push('helper', qty, `${qty} food station(s) — 1 helper each`);
   // Inflatables — two staff each.
@@ -125,8 +128,10 @@ function serviceReqs(s: ServiceInput): RoleReq[] {
   }
   // Games — 1 staff each.
   else if (cat === 'games') push('staff', qty, `${qty} game(s) — 1 staff each`);
-  // Backdrop — a balloon artist (+ optional helper).
-  else if (cat === 'backdrop') {
+  // Backdrop / main stand — a balloon artist (+ one optional helper). Matched by
+  // category OR name, so converted/imported bookings ("Medium Main Backdrop")
+  // that carry no category are still staffed.
+  else if (cat === 'backdrop' || /back\s*drop|main\s*stand/i.test(s.name)) {
     push('balloon_artist', 1, 'Main backdrop & decoration');
     push('helper', 1, 'Backdrop helper (optional)', { optional: true });
   }
@@ -165,8 +170,11 @@ export function computeRequirements(input: { packageName?: string | null; servic
   // backdrop, inflatable, machine, food station, games or giveaways) needs a
   // driver to transport and collect the gear. Shan handles this.
   const EQUIP_CATS = new Set(['backdrop', 'inflatables', 'machines', 'food', 'games', 'giveaways', 'extras', 'activities']);
+  // Equipment detectable by NAME too, so a converted/imported booking with no
+  // category (e.g. "Medium Main Backdrop") still triggers a delivery driver.
+  const isEquipByName = (nm: string) => /back\s*drop|main\s*stand|inflatable|bounce|castle|slide|machine|foam|food\s*station|game|tent|stage|d[eé]cor/i.test(nm);
   const needsDriver = !!pk || input.services.some(
-    (s) => s.isInflatable || s.isFoodStation || (s.categoryId ? EQUIP_CATS.has(s.categoryId) : false),
+    (s) => s.isInflatable || s.isFoodStation || (s.categoryId ? EQUIP_CATS.has(s.categoryId) : false) || isEquipByName(s.name),
   );
   if (needsDriver) {
     reqs.push({ role: 'driver', count: 1, reason: 'Equipment delivery & collection', source: 'Logistics' });
@@ -555,7 +563,7 @@ export async function confirmPartTimeSlot(slotId: string, name: string): Promise
         SET part_time_name = $2, status = 'confirmed', assignee_id = NULL
       WHERE id = $1 AND is_leader = false
       RETURNING event_id`,
-    [slotId, name.trim()],
+    [slotId, titleCaseName(name)],
   );
   const eventId = rows[0]?.event_id;
   if (!eventId) return null;

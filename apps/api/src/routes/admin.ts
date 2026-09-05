@@ -26,7 +26,7 @@ import { issueImportTicket } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
 import * as finance from '../domain/finance.js';
 import { auditReport } from '../domain/audit.js';
-import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, toValidCustomerPhone } from '../domain/maintenance.js';
+import { normalizePhones, markUnknownPaymentMethods, backfillRefundEmails, toValidCustomerPhone, titleCaseName } from '../domain/maintenance.js';
 import { listAchievements, loadIncentiveRules, saveIncentiveRules } from '../domain/incentives.js';
 import { flooredStart, COUNTING_START } from '../domain/period.js';
 import { staffUpdateEvent, EventEditError } from '../domain/eventEdit.js';
@@ -2723,7 +2723,7 @@ export async function adminRoutes(app: FastifyInstance) {
                 o.cart->>'emirate'         AS emirate,
                 o.cart->>'celebrationType' AS celebration_type,
                 o.cart->>'themeId'         AS theme_id,
-                o.cart->>'eventFor'        AS event_for,
+                initcap(o.cart->>'eventFor') AS event_for,
                 o.cart->>'packageId'       AS package_id,
                 (o.cart->>'customTheme')::boolean AS custom_theme
            FROM orders o JOIN customers c ON c.id = o.customer_id
@@ -2761,7 +2761,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const p = parsed.data;
     if (p.celebrationType !== undefined) cart.celebrationType = p.celebrationType;
     if (p.themeId !== undefined) cart.themeId = p.themeId;
-    if (p.eventFor !== undefined) cart.eventFor = p.eventFor;
+    if (p.eventFor !== undefined) cart.eventFor = p.eventFor ? titleCaseName(p.eventFor) : p.eventFor;
     await pool.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [orderId, cart]);
     await pool.query(
       `INSERT INTO payment_events (order_id, provider, new_status, source, note, payload)
@@ -3603,8 +3603,8 @@ export async function adminRoutes(app: FastifyInstance) {
         // Read from the REAL assignments (event_staff), so an employee sees every
         // event they were actually rostered onto — not the stale checkout crew.
         `SELECT DISTINCT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta, e.emirate,
-                e.celebration_type, e.custom_theme, COALESCE(th.name, o.cart->>'customTheme') AS theme_name,
-                o.cart->>'eventFor' AS "eventFor",
+                e.celebration_type, e.custom_theme, COALESCE(th.name, initcap(o.cart->>'customTheme')) AS theme_name,
+                initcap(o.cart->>'eventFor') AS "eventFor",
                 c.name AS customer, e.map_lat, e.map_lng
            FROM events e
            JOIN event_staff es ON es.event_id = e.id AND es.assignee_id = $1
@@ -3620,8 +3620,8 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     const { rows } = await pool.query(
       `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase, e.eta, e.emirate,
-              e.celebration_type, e.custom_theme, COALESCE(th.name, o.cart->>'customTheme') AS theme_name,
-              o.cart->>'eventFor' AS "eventFor",
+              e.celebration_type, e.custom_theme, COALESCE(th.name, initcap(o.cart->>'customTheme')) AS theme_name,
+              initcap(o.cart->>'eventFor') AS "eventFor",
               c.name AS customer, e.map_lat, e.map_lng
          FROM events e JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id

@@ -105,6 +105,10 @@ async function main() {
     // flags any the old Home query dropped (missing order row / undated).
     const { todayAuditFromEnv } = await import('./db/todayAudit.js');
     await todayAuditFromEnv().catch((err) => console.error('[today-audit] failed:', err));
+    // Staff any upcoming event that has an EMPTY team (STAFF_EMPTY_FIX=true) —
+    // fixes converted/imported bookings; never overwrites a manual roster.
+    const { staffEmptyFixFromEnv } = await import('./db/staffEmptyFix.js');
+    await staffEmptyFixFromEnv().catch((err) => console.error('[staff-empty] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {

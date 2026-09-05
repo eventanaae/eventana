@@ -300,7 +300,7 @@ export async function createInvoice(d: DocInput & { dueDate?: string | null; iss
   const { rows } = await pool.query(
     `INSERT INTO finance_invoices (number, customer_id, customer_name, issue_date, due_date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, status, message, commission_rep, event_for, theme, age, event_time)
      VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-    [number, d.customerId ?? null, titleCaseName(d.customerName), d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.status ?? 'sent', d.message ?? null, d.commissionRep ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ?? null, d.age ?? null, d.eventTime ?? null],
+    [number, d.customerId ?? null, titleCaseName(d.customerName), d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.status ?? 'sent', d.message ?? null, d.commissionRep ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.eventTime ?? null],
   );
   return decorateInvoice(rows[0]);
 }
@@ -395,7 +395,7 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const { rows } = await pool.query(
     `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, date_tbd, commission_rep)
      VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-    [number, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ?? null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null],
+    [number, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null],
   );
   // An upcoming sale becomes an operational event automatically, so it shows on
   // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.
@@ -842,7 +842,7 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
        event_for=$12, theme=$13, age=$14, event_time=$17, date_tbd=COALESCE($18, date_tbd),
        commission_rep = CASE WHEN $16::boolean THEN $15 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null],
+    [id, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null],
   );
   const saved = rows[0];
   if (saved && d.date) {
@@ -898,7 +898,7 @@ export async function updateInvoice(id: number, d: DocInput & { dueDate?: string
        event_for=$14, theme=$15, age=$16, event_time=$17,
        commission_rep = CASE WHEN $13::boolean THEN $12 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, d.customerName, d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null, d.commissionRep ?? null, touchComm, d.eventFor ?? null, d.theme ?? null, d.age ?? null, d.eventTime ?? null],
+    [id, d.customerId ?? null, titleCaseName(d.customerName), d.issueDate ?? null, d.dueDate ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.message ?? null, d.commissionRep ?? null, touchComm, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.eventTime ?? null],
   );
   return rows[0] ? decorateInvoice(rows[0]) : null;
 }

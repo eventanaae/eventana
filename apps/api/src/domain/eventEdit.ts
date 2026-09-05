@@ -10,6 +10,7 @@
 import { parseHour } from '@eventana/shared';
 import { withTransaction } from '../db/pool.js';
 import { eventWindow, getAssets } from './inventory.js';
+import { titleCaseName } from './maintenance.js';
 
 export class EventEditError extends Error {
   constructor(message: string, readonly code: string) {
@@ -122,8 +123,8 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
     if (patch.eventFor !== undefined || (patch.themeId !== undefined && patch.themeId) || customTheme || patch.referenceImages !== undefined) {
       const { rows: o } = await db.query(`SELECT cart FROM orders WHERE id = $1`, [ev.order_id]);
       const cart = { ...((o[0]?.cart ?? {}) as Record<string, unknown>) };
-      if (patch.eventFor !== undefined) cart.eventFor = patch.eventFor;
-      if (customTheme) { cart.customTheme = customTheme; delete cart.themeId; }
+      if (patch.eventFor !== undefined) cart.eventFor = patch.eventFor ? titleCaseName(patch.eventFor) : patch.eventFor;
+      if (customTheme) { cart.customTheme = titleCaseName(customTheme); delete cart.themeId; }
       else if (patch.themeId !== undefined && patch.themeId) { cart.themeId = patch.themeId; delete cart.customTheme; }
       if (patch.referenceImages !== undefined) cart.referenceImages = patch.referenceImages;
       await db.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [ev.order_id, cart]);
@@ -135,9 +136,9 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       const sets: string[] = [];
       const vals: any[] = [eventId];
       if (patch.startTime !== undefined) { vals.push(patch.startTime); sets.push(`event_time = $${vals.length}`); }
-      if (patch.eventFor !== undefined) { vals.push(patch.eventFor); sets.push(`event_for = $${vals.length}`); }
+      if (patch.eventFor !== undefined) { vals.push(patch.eventFor ? titleCaseName(patch.eventFor) : patch.eventFor); sets.push(`event_for = $${vals.length}`); }
       if (customTheme) {
-        vals.push(customTheme); sets.push(`theme = $${vals.length}`);
+        vals.push(titleCaseName(customTheme)); sets.push(`theme = $${vals.length}`);
       } else if (patch.themeId !== undefined && patch.themeId) {
         const { rows: th } = await db.query<{ name: string }>(`SELECT name FROM themes WHERE id = $1`, [patch.themeId]);
         if (th[0]?.name) { vals.push(th[0].name); sets.push(`theme = $${vals.length}`); }

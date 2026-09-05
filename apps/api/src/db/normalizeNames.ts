@@ -19,6 +19,10 @@ const TARGETS: Array<[string, string]> = [
   ['finance_receipts', 'event_for'],
   ['finance_invoices', 'customer_name'],
   ['finance_invoices', 'event_for'],
+  ['finance_receipts', 'theme'],
+  ['finance_invoices', 'theme'],
+  ['event_staff', 'part_time_name'],
+  ['historical_orders', 'customer_name'],
   ['expenses', 'vendor'],
   ['suppliers', 'name'],
 ];
