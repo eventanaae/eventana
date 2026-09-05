@@ -670,6 +670,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const [age, setAge] = useState(initial?.age ?? '');
   const [theme, setTheme] = useState(initial?.theme ?? '');
   const [eventTime, setEventTime] = useState(initial?.eventTime ?? '');
+  const [addressNote, setAddressNote] = useState(initial?.addressNote ?? '');
   const [dateTbd, setDateTbd] = useState<boolean>(initial?.dateTbd ?? false);
   const [paidWith, setPaidWith] = useState<string>(initial?.paidWith ?? 'Debit');
   const [commissionMarsha, setCommissionMarsha] = useState<boolean>(String(initial?.commissionRep ?? '').toLowerCase() === 'marsha');
@@ -687,7 +688,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
     if (!customer) { setErr('Choose a customer.'); return; }
     if (items.length === 0) { setErr('Add at least one item.'); return; }
     setBusy(true); setErr(null);
-    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null, eventTime: eventTime || null, dateTbd };
+    const body = { customerId: customer.id, customerName: customer.name, items, discountFils, shippingFils, message: message || undefined, eventFor: eventFor.trim() || null, age: age.trim() || null, theme: theme.trim() || null, eventTime: eventTime || null, addressNote: addressNote.trim() || null, dateTbd };
     try {
       if (kind === 'invoice') {
         const commissionRep = commissionMarsha ? 'Marsha' : null;
@@ -776,6 +777,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         <Field label="Age"><input value={age} onChange={(e) => setAge(e.target.value)} style={input} placeholder="e.g. 3" /></Field>
         <Field label="Theme"><input value={theme} onChange={(e) => setTheme(e.target.value)} style={input} placeholder="e.g. Mermaid" /></Field>
       </div>
+      <Field label="Villa / building / place name (delivery address)"><input value={addressNote} onChange={(e) => setAddressNote(e.target.value)} style={input} placeholder="e.g. Villa 24, Al Falah St" maxLength={300} /></Field>
 
       <div style={{ marginTop: 8, padding: '10px 12px', background: C.pinkSoft, borderRadius: 12 }}>
         <Row label="Subtotal" value={`AED ${money(subtotal)}`} />
@@ -819,6 +821,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
     age: doc.age ?? '',
     theme: doc.theme ?? '',
     eventTime: doc.event_time ?? '',
+    addressNote: doc.location_note ?? '',
     dateTbd: doc.date_tbd ?? false,
     paidWith: doc.paid_with ?? 'Debit',
     commissionRep: doc.commission_rep ?? doc.commissionRep ?? null,

@@ -995,6 +995,8 @@ ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS event_for TEXT;
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS theme TEXT;
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS age TEXT;
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS event_time TEXT;
+-- Free-text delivery address (villa / building / place name) the team works from.
+ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS location_note TEXT;
 
 CREATE TABLE IF NOT EXISTS finance_receipts (
   id            BIGSERIAL PRIMARY KEY,
@@ -1024,6 +1026,9 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS age TEXT;
 -- The party START TIME the receipt should show (the "date" column already holds
 -- the event/sale date). Stored as "HH:MM" 24h text, like events.start_time.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS event_time TEXT;
+-- Free-text delivery address (villa / building / place name) the team works from;
+-- flows through to the event's location_note when the receipt becomes an event.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS location_note TEXT;
 -- The customer hasn't chosen an event date yet: show "TBD" instead of the
 -- placeholder date, on the receipt and in the app.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS date_tbd BOOLEAN NOT NULL DEFAULT FALSE;

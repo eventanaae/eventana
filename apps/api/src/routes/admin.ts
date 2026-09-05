@@ -2155,6 +2155,8 @@ export async function adminRoutes(app: FastifyInstance) {
     age: z.string().max(40).nullable().optional(),
     // Party start time shown on the receipt, "HH:MM" 24h.
     eventTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+    // Free-text delivery address (villa / building / place name) for the team.
+    addressNote: z.string().max(300).nullable().optional(),
     // Customer hasn't fixed a date yet → show "TBD" and hold reminders.
     dateTbd: z.boolean().optional(),
     // Payment method shown on the receipt (Tabby / Tamara / Bank transfer / …).
