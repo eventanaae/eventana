@@ -18,9 +18,9 @@ import { pool } from '../db/pool.js';
 // behind-the-scenes preparation abilities.
 export const PREP_SKILLS: Record<string, string[]> = {
   Marsha: ['design'],
-  Dindo: ['backdrop', 'cake_stand', 'inflatable', 'foam', 'ice_cream_machine', 'braid_corner'],
-  Diana: ['inflatable', 'popcorn', 'cotton_candy', 'table_setup', 'robes', 'braid_corner', 'food_station'],
-  Gloria: ['entertainer_costume', 'inflatable', 'tables_chairs', 'speaker', 'foam', 'kids_pedicure', 'food_station'],
+  Dindo: ['backdrop', 'cake_stand', 'inflatable', 'foam', 'ice_cream_machine', 'braid_corner', 'balloons'],
+  Diana: ['inflatable', 'popcorn', 'cotton_candy', 'table_setup', 'robes', 'braid_corner', 'food_station', 'balloons'],
+  Gloria: ['entertainer_costume', 'inflatable', 'tables_chairs', 'speaker', 'foam', 'kids_pedicure', 'food_station', 'glam_dolls'],
   Jane: ['face_painting_prep', 'inflatable', 'entrance_stand', 'table_setup', 'giveaways', 'instant_camera', 'slide_balls', 'kids_manicure', 'spa_tables', 'food_station'],
 };
 
@@ -37,6 +37,7 @@ interface Ctx {
   has: (id: string) => boolean;
   cat: (c: string) => boolean;
   inflatables: number;                      // how many inflatable rides booked
+  noEntranceStand: boolean;                 // summer/splash & offer bundles skip it
 }
 
 interface Template {
@@ -56,23 +57,23 @@ const TEMPLATES: Template[] = [
   { key: 'design_cricut', title: 'Cricut', category: 'design', skill: 'design', people: 1, when: (c) => c.isDesignPackage },
   { key: 'design_plate_papers', title: 'Plate Papers (design)', category: 'design', skill: 'design', people: 1, when: (c) => c.isDesignPackage },
   { key: 'design_water_labels', title: 'Water Labels', category: 'design', skill: 'design', people: 1, when: (c) => c.isDesignPackage && c.packageKey !== 'spa' },
-  { key: 'design_entrance_stand', title: 'Entrance Stand Design', category: 'design', skill: 'design', people: 1, when: (c) => c.isDesignPackage },
+  { key: 'design_entrance_stand', title: 'Entrance Stand Design', category: 'design', skill: 'design', people: 1, when: (c) => (c.isDesignPackage || c.has('entrance')) && !c.noEntranceStand },
   { key: 'design_new_backdrop', title: 'New Backdrop Design (New Theme)', category: 'design', skill: 'design', people: 1, when: (c) => c.customTheme },
   { key: 'design_giveaways', title: 'Giveaways Design + print', category: 'design', skill: 'design', people: 1, when: (c) => c.cat('giveaways') },
 
   // ── Physical preparation ──
   { key: 'prep_backdrop', title: 'Main Backdrop — clean & ready', category: 'physical', skill: 'backdrop', people: 1,
-    dependsOnKey: 'design_new_backdrop', when: (c) => c.isDesignPackage || c.cat('backdrop') },
+    dependsOnKey: 'design_new_backdrop', when: (c) => c.isDesignPackage || c.cat('backdrop') || c.has('backdrop') },
   { key: 'prep_cake_stand', title: 'Cake Stand — maintenance', category: 'physical', skill: 'cake_stand', people: 1,
-    when: (c) => c.isDesignPackage },
+    when: (c) => c.isDesignPackage || c.has('cakestand') },
   { key: 'prep_entrance_stand', title: 'Entrance Stand — prepare', category: 'physical', skill: 'entrance_stand', people: 1,
-    dependsOnKey: 'design_entrance_stand', when: (c) => c.isDesignPackage },
+    dependsOnKey: 'design_entrance_stand', when: (c) => (c.isDesignPackage || c.has('entrance')) && !c.noEntranceStand },
   { key: 'prep_table_setup', title: 'Table Theme Setup', category: 'physical', skill: 'table_setup', people: 1,
     dependsOnKey: 'design_plate_papers', checklist: ['Plate Papers', 'Plates', 'Spoons / Forks', 'Cutlery Cards', 'Water with Theme'],
-    when: (c) => c.isDesignPackage },
+    when: (c) => c.isDesignPackage || c.has('tables') },
   { key: 'prep_tables_chairs', title: 'Tables & Chairs — clean & dress', category: 'physical', skill: 'tables_chairs', people: 1,
     checklist: ['Covers clean', 'Covers scented', 'Covers ironed', 'Tables clean', 'Chairs clean'],
-    when: (c) => c.isDesignPackage },
+    when: (c) => c.isDesignPackage || c.has('tables') },
   { key: 'prep_giveaways', title: '10 Giveaways — prepare', category: 'physical', skill: 'giveaways', people: 1,
     dependsOnKey: 'design_giveaways', when: (c) => c.cat('giveaways') },
   { key: 'prep_face_paint', title: 'Face Painting — tools, corner table, chairs', category: 'physical', skill: 'face_painting_prep', people: 1,
@@ -90,11 +91,33 @@ const TEMPLATES: Template[] = [
   { key: 'prep_slide_balls', title: 'Wave Slide — clean the balls', category: 'physical', skill: 'slide_balls', people: 1,
     when: (c) => c.has('amwaj') || c.has('bluewater') },
   { key: 'prep_speaker', title: 'Music Speaker — charged & ready', category: 'physical', skill: 'speaker', people: 1,
-    when: (c) => c.isDesignPackage },
+    when: (c) => c.isDesignPackage || c.has('speaker') },
   { key: 'prep_entertainer', title: 'Entertainer costume — clean & ironed', category: 'physical', skill: 'entertainer_costume', people: 1,
     when: (c) => c.has('clown') || c.has('mascot') },
   { key: 'prep_instant_camera', title: 'Instant Camera — 10 photos/films ready', category: 'physical', skill: 'instant_camera', people: 1,
     when: (c) => c.has('camera') || c.has('instantcamera') },
+
+  // ── Balloons ──
+  { key: 'prep_balloons_box', title: 'Balloons Box — prepare', category: 'physical', skill: 'balloons', people: 1,
+    when: (c) => c.has('balloons') },
+  { key: 'prep_helium_tank', title: 'Helium Tank — prepare (if needed)', category: 'physical', skill: 'balloons', people: 1,
+    when: (c) => c.has('balloons') },
+
+  // ── Host ──
+  { key: 'prep_host_costume', title: 'Host Costume — prepare', category: 'physical', skill: 'entertainer_costume', people: 1,
+    when: (c) => c.has('host') },
+  { key: 'prep_host_music', title: 'Music Box — prepare (Host)', category: 'physical', skill: 'speaker', people: 1,
+    when: (c) => c.has('host') },
+
+  // ── Glam Dolls ──
+  { key: 'prep_glam_mascot', title: 'Glam Dolls Mascot — ensure it’s teddy & clean', category: 'physical', skill: 'entertainer_costume', people: 1,
+    when: (c) => c.has('glamdolls') },
+  { key: 'prep_glam_clothes', title: 'Glam Dolls Clothes — 2 outfits for each', category: 'physical', skill: 'glam_dolls', people: 1,
+    when: (c) => c.has('glamdolls') },
+  { key: 'prep_glam_music', title: 'Music Box — prepare (Glam Dolls)', category: 'physical', skill: 'speaker', people: 1,
+    when: (c) => c.has('glamdolls') },
+  { key: 'prep_glam_flash', title: 'Flash — ensure it’s there', category: 'physical', skill: 'instant_camera', people: 1,
+    when: (c) => c.has('glamdolls') },
 
   // ── Spa Party set ──
   { key: 'prep_robes', title: '15 Pink Robes — clean, ironed, on stand', category: 'physical', skill: 'robes', people: 1,
@@ -116,7 +139,40 @@ function packageKeyOf(name?: string | null): string | null {
   if (/bronze/.test(n)) return 'bronze';
   if (/spa/.test(n)) return 'spa';
   if (/summer|splash/.test(n)) return 'summer';
+  // A generic "AED … Offer" bundle prepares like Bronze but without the
+  // welcoming stand or instant photo (owner's rule).
+  if (/offer/.test(n)) return 'offer';
   return null;
+}
+
+/**
+ * Map a free-text line-item label (manual/converted bookings store products as
+ * text, not catalogue ids) onto the same product flags the templates check, so a
+ * text-only booking still gets its tasks. Mirrors the keyword approach used for
+ * package names.
+ */
+function classifyLabel(label: string, serviceIds: Set<string>, categories: Set<string>): number {
+  const n = (label ?? '').toLowerCase();
+  let inflatable = 0;
+  if (/popcorn/.test(n)) serviceIds.add('popcorn');
+  if (/cotton/.test(n)) serviceIds.add('cotton');
+  if (/face\s*paint/.test(n)) serviceIds.add('facepaint');
+  if (/foam/.test(n)) serviceIds.add('foam');
+  if (/ice\s*cream/.test(n)) serviceIds.add('icecream');
+  if (/instant|camera|photograph/.test(n)) serviceIds.add('camera');
+  if (/(entertainer|clown|mascot)/.test(n) && !/glam/.test(n)) serviceIds.add('clown');
+  if (/giveaway/.test(n)) categories.add('giveaways');
+  if (/backdrop/.test(n)) serviceIds.add('backdrop');
+  if (/inflatable|bouncy|bouncer|castle|jumping|jumper/.test(n)) inflatable += 1;
+  if (/wave\s*slide|amwaj|blue\s*water/.test(n)) serviceIds.add('amwaj');
+  if (/cake\s*stand/.test(n)) serviceIds.add('cakestand');
+  if (/speaker/.test(n)) serviceIds.add('speaker');
+  if (/table|chair/.test(n)) serviceIds.add('tables');
+  if (/entrance|welcoming\s*stand|welcome\s*stand/.test(n)) serviceIds.add('entrance');
+  if (/balloon/.test(n)) serviceIds.add('balloons');
+  if (/\bhost\b/.test(n)) serviceIds.add('host');
+  if (/glam\s*doll/.test(n)) serviceIds.add('glamdolls');
+  return inflatable;
 }
 
 /** Resolve the internal crew (name → id) once, seeding skills if needed. */
@@ -162,18 +218,19 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
       if (svc?.isInflatable) inflatables += Number(s.quantity) || 1;
     }
   }
-  // Fall back to the booked line items (converted / manual bookings).
-  if (!cart.services?.length || !packageKey) {
-    const es = await pool.query(`SELECT label, service_id FROM event_services WHERE event_id = $1`, [eventId]);
-    for (const row of es.rows) {
-      if (row.service_id) {
-        serviceIds.add(row.service_id);
-        const svc = cfg.services.get(row.service_id) as any;
-        if (svc?.categoryId) categories.add(svc.categoryId);
-        if (svc?.isInflatable) inflatables += 1;
-      }
-      if (!packageKey) packageKey = packageKeyOf(String(row.label ?? ''));
+  // Always read the booked line items. Manual & converted bookings store every
+  // product as free text (no catalogue id), so classifyLabel derives the product
+  // flags from the label text — otherwise these bookings generate no tasks.
+  const es = await pool.query(`SELECT label, service_id FROM event_services WHERE event_id = $1`, [eventId]);
+  for (const row of es.rows) {
+    if (row.service_id) {
+      serviceIds.add(row.service_id);
+      const svc = cfg.services.get(row.service_id) as any;
+      if (svc?.categoryId) categories.add(svc.categoryId);
+      if (svc?.isInflatable) inflatables += 1;
     }
+    inflatables += classifyLabel(String(row.label ?? ''), serviceIds, categories);
+    if (!packageKey) packageKey = packageKeyOf(String(row.label ?? ''));
   }
 
   const ctx: Ctx = {
@@ -185,6 +242,8 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
     has: (id) => serviceIds.has(id),
     cat: (c) => categories.has(c),
     inflatables,
+    // Summer/Splash and the generic Offer bundle don't include a welcoming stand.
+    noEntranceStand: packageKey === 'summer' || packageKey === 'offer',
   };
 
   const needed = TEMPLATES.filter((t) => t.when(ctx));
