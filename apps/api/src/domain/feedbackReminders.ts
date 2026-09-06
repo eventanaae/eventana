@@ -195,6 +195,34 @@ export async function feedbackRemindersFromEnv(): Promise<void> {
     const b = brk.rows[0];
     console.log(`[feedback-reminder] last-90d past parties: total ${b.total} · rated ${b.rated} · unrated ${b.unrated} (reachable ${b.unrated_reachable}) · cancelled ${b.cancelled}`);
 
+    // Deeper picture: are there July/Aug/Sep PARTIES that this pipeline can't
+    // see because they live as receipts without a dated event row?
+    const byMonth = await pool.query<{ ym: string; events: string; past: string; rated: string }>(
+      `SELECT to_char(e.event_date,'YYYY-MM') AS ym,
+              count(*) AS events,
+              count(*) FILTER (WHERE e.event_date < current_date) AS past,
+              count(*) FILTER (WHERE EXISTS (SELECT 1 FROM event_ratings r WHERE r.event_id = e.id)) AS rated
+         FROM events e
+        WHERE e.event_date >= date '2026-07-01' AND e.event_date < date '2026-10-01'
+          AND lower(coalesce(e.phase,'')) NOT LIKE '%cancel%'
+        GROUP BY 1 ORDER BY 1`,
+    );
+    for (const r of byMonth.rows) {
+      console.log(`[feedback-reminder]   events ${r.ym}: ${r.events} total · ${r.past} past · ${r.rated} rated`);
+    }
+    const recs = await pool.query<{ ym: string; receipts: string; with_event: string }>(
+      `SELECT to_char(fr.date,'YYYY-MM') AS ym,
+              count(*) AS receipts,
+              count(*) FILTER (WHERE fr.event_id IS NOT NULL) AS with_event
+         FROM finance_receipts fr
+        WHERE fr.date >= date '2026-07-01' AND fr.date < date '2026-10-01'
+          AND coalesce(fr.source,'') <> 'quickbooks'
+        GROUP BY 1 ORDER BY 1`,
+    );
+    for (const r of recs.rows) {
+      console.log(`[feedback-reminder]   receipts ${r.ym}: ${r.receipts} total · ${r.with_event} linked to an event`);
+    }
+
     const due = await findFeedbackReminderDue();
     console.log(`[feedback-reminder] events awaiting feedback, due for a reminder now: ${due.length}`);
     for (const d of due) {
