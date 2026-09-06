@@ -203,6 +203,12 @@ async function main() {
     // approval; send queues them + activates the recurring 3-day sweep.
     const { feedbackRemindersFromEnv } = await import('./domain/feedbackReminders.js');
     await feedbackRemindersFromEnv().catch((err) => console.error('[feedback-reminder] failed:', err));
+    // Convert the QuickBooks party backlog (Jul–Aug 2026) into first-class
+    // events so those WhatsApp customers are reachable for feedback. QB_TO_EVENTS
+    // =list previews the parties (creates nothing); =apply creates the events
+    // (sends nothing — feedback still waits behind FEEDBACK_REMINDERS=send).
+    const { qbBacklogToEventsFromEnv } = await import('./db/qbBacklogToEvents.js');
+    await qbBacklogToEventsFromEnv().catch((err) => console.error('[qb-to-events] failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');

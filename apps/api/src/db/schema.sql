@@ -361,6 +361,11 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS location_note TEXT;
 -- date-based customer reminder is sent. Cleared when a real date is set.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS date_tbd BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Where an event came from. NULL = a normal app/dashboard booking.
+-- 'quickbooks_import' = a past WhatsApp party converted from historical_orders
+-- so it's a first-class event (feedback, unified history), not split by source.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS source TEXT;
+
 -- Feedback-reminder cadence: a customer who didn't rate their party after it
 -- ended is nudged again every 3 days for up to two weeks, then left alone.
 -- These track the last nudge + how many, so reminders never spam and stop the
