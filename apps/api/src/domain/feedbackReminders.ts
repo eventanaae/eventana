@@ -222,6 +222,27 @@ export async function feedbackRemindersFromEnv(): Promise<void> {
     for (const r of recs.rows) {
       console.log(`[feedback-reminder]   receipts ${r.ym}: ${r.receipts} total · ${r.with_event} linked to an event`);
     }
+    // The QuickBooks-migrated party backlog (historical_orders) the owner wants
+    // unified into events. Size it by month + how many are reachable via a
+    // matched historical_customers contact, so a recent-window conversion +
+    // feedback send can be scoped safely (never the 2023-24 history).
+    const hist = await pool.query<{ ym: string; parties: string; reachable: string }>(
+      `SELECT to_char(h.txn_date,'YYYY-MM') AS ym,
+              count(DISTINCT h.id) AS parties,
+              count(DISTINCT h.id) FILTER (WHERE hc.id IS NOT NULL
+                 AND ((hc.email IS NOT NULL AND btrim(hc.email) <> '')
+                   OR (hc.phone IS NOT NULL AND btrim(hc.phone) <> ''))) AS reachable
+         FROM historical_orders h
+         LEFT JOIN historical_customers hc
+                ON hc.dedupe_key = lower(regexp_replace(coalesce(h.customer_name,''),'[^a-z0-9]','','g'))
+                OR lower(hc.full_name) = lower(h.customer_name)
+        WHERE h.txn_date >= date '2026-06-01' AND h.txn_date < date '2026-10-01'
+          AND (coalesce(h.txn_type,'') ILIKE '%Invoice%' OR coalesce(h.txn_type,'') ILIKE '%Receipt%')
+        GROUP BY 1 ORDER BY 1`,
+    ).catch((err) => { console.error('[feedback-reminder] hist audit failed:', (err as Error).message); return { rows: [] as any[] }; });
+    for (const r of hist.rows) {
+      console.log(`[feedback-reminder]   QB parties ${r.ym}: ${r.parties} · reachable (email/phone) ${r.reachable}`);
+    }
 
     const due = await findFeedbackReminderDue();
     console.log(`[feedback-reminder] events awaiting feedback, due for a reminder now: ${due.length}`);
