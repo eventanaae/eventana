@@ -36,14 +36,44 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // Auto-complete events whose end time (in UAE) has passed. base_end_time
   // already reflects any extra hours the customer bought, so this respects a
   // longer party. Never touches cancelled events. Non-fatal.
-  await pool.query(
-    `UPDATE events SET phase = 'Event Completed'
-      WHERE phase NOT IN ('Event Completed', 'Cancelled')
-        AND cancelled_at IS NULL
-        AND base_end_time ~ '^[0-2][0-9]:[0-5][0-9]$'
-        AND ((event_date + base_end_time::time) AT TIME ZONE 'Asia/Dubai') < now()`,
-  ).then((r) => { if (r.rowCount) console.log(`[events] auto-completed ${r.rowCount} finished event(s)`); })
-    .catch((err) => console.error('[events] auto-complete failed:', err));
+  try {
+    const done = await pool.query<{ id: string }>(
+      `UPDATE events SET phase = 'Event Completed'
+        WHERE phase NOT IN ('Event Completed', 'Cancelled')
+          AND cancelled_at IS NULL
+          AND base_end_time ~ '^[0-2][0-9]:[0-5][0-9]$'
+          AND ((event_date + base_end_time::time) AT TIME ZONE 'Asia/Dubai') < now()
+       RETURNING id`,
+    );
+    if (done.rowCount) {
+      console.log(`[events] auto-completed ${done.rowCount} finished event(s)`);
+      // Fire the feedback ask RIGHT AWAY for each just-finished party — exactly
+      // like pressing "Event Complete" by hand — so a customer is asked the
+      // moment their event ends, never a day later, even if nobody clicked it.
+      const ids = done.rows.map((r) => r.id);
+      // Pull any already-scheduled (event+1day) feedback_request forward to now.
+      await pool.query(
+        `UPDATE notifications SET scheduled_for = now()
+          WHERE event_id = ANY($1::text[]) AND template = 'feedback_request'
+            AND sent_at IS NULL AND whatsapp_sent_at IS NULL AND cancelled_at IS NULL`,
+        [ids],
+      );
+      // And create email + WhatsApp feedback rows for any event that had none.
+      await pool.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         SELECT e.id, v.ch, 'feedback_request', now(), jsonb_build_object('eventId', e.id)
+           FROM unnest($1::text[]) AS e(id)
+           CROSS JOIN (VALUES ('email'),('whatsapp')) v(ch)
+          WHERE NOT EXISTS (
+            SELECT 1 FROM notifications n
+             WHERE n.event_id = e.id AND n.template = 'feedback_request'
+               AND n.channel = v.ch AND n.cancelled_at IS NULL)`,
+        [ids],
+      );
+    }
+  } catch (err) {
+    console.error('[events] auto-complete failed:', err);
+  }
 
   const stuckSince = new Date(Date.now() - config.reconcileStuckAfterMs);
   const { rows } = await pool.query(

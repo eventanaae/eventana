@@ -1184,6 +1184,13 @@ export async function adminRoutes(app: FastifyInstance) {
               [eventId, JSON.stringify({ eventId })],
             );
           }
+          // Send it NOW instead of waiting for the next 5-minute sweep — the
+          // owner wants the feedback ask to reach the customer the moment she
+          // taps "Event Complete". Best-effort, in the background.
+          void import('../domain/notify.js')
+            .then(({ deliverPendingNotifications }) => deliverPendingNotifications())
+            .then((r) => request.log.info(`feedback-on-complete: delivered ${r.emails} email(s), ${r.whatsapps} whatsapp(s)`))
+            .catch((err) => request.log.error({ err }, 'feedback-on-complete deliver failed'));
         } catch (err) {
           request.log.error({ err }, 'feedback-on-complete failed');
         }
