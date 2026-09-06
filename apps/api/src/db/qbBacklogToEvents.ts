@@ -49,6 +49,14 @@ function maskEmail(e: string | null): string {
 function digits(s: string | null): string {
   return String(s ?? '').replace(/\D+/g, '');
 }
+// Names that are clearly NOT an individual party customer — banks, merchant
+// services, companies. Sending "how was your celebration?" to these is wrong,
+// so they're excluded from conversion (and therefore from feedback).
+const NON_CUSTOMER = /\bnbd\b|\bbank\b|merchant|settlement|\bpos\b|\bllc\b|\bco\.?\b|company|trading|holding|\bgroup\b|authority|municipality|government|corporation|\bcorp\b/i;
+function isNonCustomer(name: string | null): boolean {
+  return NON_CUSTOMER.test(String(name ?? ''));
+}
+
 /** Light celebration-type guess from the QuickBooks product/memo text. */
 function celebrationFor(products: string | null): string {
   const t = String(products ?? '').toLowerCase();
@@ -87,8 +95,11 @@ async function findBacklogParties(): Promise<Party[]> {
        ) hc ON true
       ORDER BY p.txn_date, p.customer_name`,
   );
-  // Reachable only: a real email or a usable phone (≥7 digits).
-  return rows.filter((r) => (r.email && r.email.trim()) || digits(r.phone).length >= 7);
+  // Reachable only (real email or usable phone), and a real individual — never
+  // a bank/company account like "Emirates NBD Services".
+  return rows.filter(
+    (r) => !isNonCustomer(r.customer_name) && ((r.email && r.email.trim()) || digits(r.phone).length >= 7),
+  );
 }
 
 interface ConvertResult { converted: number; skipped: number; reachable: number }
