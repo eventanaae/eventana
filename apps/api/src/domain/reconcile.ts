@@ -96,6 +96,16 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     }
   }
 
+  // Deliver queued TRANSACTIONAL customer emails FIRST (booking confirmation,
+  // reminders, cancellation) + staff tip pushes — before any marketing send, so a
+  // customer who just paid always gets their confirmation even when the daily
+  // email quota is tight. Marketing (win-back) uses whatever quota is left.
+  await deliverPendingNotifications()
+    .then((r) => {
+      if (r.emails || r.pushes || r.whatsapps) console.log(`[notify] delivered ${r.emails} email(s), ${r.pushes} push(es), ${r.whatsapps} whatsapp(s)`);
+    })
+    .catch((err) => console.error('[notify] delivery failed:', err));
+
   // Send any marketing campaigns whose scheduled time has arrived. Non-fatal:
   // a mail hiccup must never disturb payment reconciliation.
   await sweepScheduledCampaigns().catch((err) => console.error('[marketing] sweep failed:', err));
@@ -133,14 +143,6 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   await import('./prep.js')
     .then(({ sweepPrepAtRisk }) => sweepPrepAtRisk())
     .catch((err) => console.error('[prep] at-risk sweep failed:', err));
-
-  // Deliver queued customer emails (booking confirmation, reminders,
-  // cancellation) and staff tip pushes. Non-fatal.
-  await deliverPendingNotifications()
-    .then((r) => {
-      if (r.emails || r.pushes || r.whatsapps) console.log(`[notify] delivered ${r.emails} email(s), ${r.pushes} push(es), ${r.whatsapps} whatsapp(s)`);
-    })
-    .catch((err) => console.error('[notify] delivery failed:', err));
 
   // Daily invoice balance reminders (opt-in per invoice; once per day until paid).
   await import('./notify.js')
