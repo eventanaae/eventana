@@ -48,8 +48,8 @@ export async function winbackCampaignFromEnv(): Promise<void> {
     }
 
     const { sendWinbackEmail } = await import('../domain/notify.js');
-    const { rows } = await pool.query<{ name: string; email: string; code: string; expires_at: Date | null }>(
-      `SELECT c.name, c.email, p.code, p.expires_at ${where} ORDER BY c.name LIMIT ${limit}`);
+    const { rows } = await pool.query<{ id: string; name: string; email: string; code: string; expires_at: Date | null }>(
+      `SELECT c.id, c.name, c.email, p.code, p.expires_at ${where} ORDER BY c.name LIMIT ${limit}`);
     P(`sending to ${rows.length} (limit ${limit})…`);
     let sent = 0; let failed = 0;
     for (const r of rows) {
@@ -58,6 +58,7 @@ export async function winbackCampaignFromEnv(): Promise<void> {
         email: r.email,
         code: r.code,
         expiresAt: r.expires_at,
+        customerId: r.id,
       }).catch(() => false);
       if (ok) {
         // Stamp only on success, so a failed send (e.g. a rate-limit blip) is

@@ -194,6 +194,7 @@ export async function sweepWinbackReminders(): Promise<number> {
       email: v.email,
       code: v.code,
       expiresAt: v.expires_at,
+      customerId: v.id,
     }).catch(() => false);
     if (ok) sent++;
     // Stamp regardless so a hard-bouncing address waits for the next window.
@@ -214,9 +215,9 @@ export async function sweepPostEventWinback(): Promise<number> {
   if (!emailEnabled()) return 0;
   const { sendWinbackEmail } = await import('./notify.js');
   const { rows } = await pool.query<{
-    code: string; expires_at: Date | null; email: string; name: string;
+    code: string; expires_at: Date | null; email: string; name: string; id: string;
   }>(
-    `SELECT DISTINCT ON (p.code) p.code, p.expires_at, c.email, c.name
+    `SELECT DISTINCT ON (p.code) p.code, p.expires_at, c.email, c.name, c.id
        FROM events e
        JOIN customers c ON c.id = e.customer_id
        JOIN promo_codes p ON p.customer_id = c.id AND p.campaign = 'winback' AND p.active
@@ -233,7 +234,7 @@ export async function sweepPostEventWinback(): Promise<number> {
   let sent = 0;
   for (const v of rows) {
     const ok = await sendWinbackEmail({
-      firstName: (v.name || '').split(' ')[0], email: v.email, code: v.code, expiresAt: v.expires_at,
+      firstName: (v.name || '').split(' ')[0], email: v.email, code: v.code, expiresAt: v.expires_at, customerId: v.id,
     }).catch(() => false);
     await pool.query(`UPDATE promo_codes SET last_reminded_at = now() WHERE code = $1`, [v.code]);
     if (ok) sent++;

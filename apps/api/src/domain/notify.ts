@@ -11,6 +11,7 @@
  * `sent_at` NULL so the next sweep retries; a permanent skip (unknown template,
  * no recipient) is stamped so the queue can't back up forever.
  */
+import { createHmac } from 'node:crypto';
 import { formatAed, celebrationLabel } from '@eventana/shared';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
@@ -262,9 +263,16 @@ export async function sendWinbackEmail(o: {
   email: string;
   code: string;
   expiresAt?: Date | string | null;
+  /** Customer id — used to build a one-click unsubscribe link (bulk marketing). */
+  customerId?: string;
 }): Promise<boolean> {
   const expiry = o.expiresAt
     ? new Date(o.expiresAt).toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+  // One-click unsubscribe — deterministic HMAC token, matching /api/unsubscribe.
+  const base = (config.email.publicBaseUrl || config.publicAppUrl || 'https://eventanauae.com').replace(/\/$/, '');
+  const unsubUrl = o.customerId
+    ? `${base}/api/unsubscribe?c=${encodeURIComponent(o.customerId)}&t=${createHmac('sha256', config.staffToken).update(o.customerId).digest('hex').slice(0, 24)}`
     : null;
   const bodyHtml = `${WINBACK_ART}
     <p style="margin:16px 0 14px;font-size:15px;line-height:1.95">كل حفلة نجهّزها نحطّ فيها قلبنا… وفرحتكم عندنا ذكرى ما تُنسى. واليوم جهّزنا لكم هدية صغيرة عشان نرجع نصنع لكم لحظة سحرية تليق بكم 🥹</p>
@@ -283,7 +291,11 @@ export async function sendWinbackEmail(o: {
     </div>
     <p style="margin:0 0 6px;font-size:14.5px;line-height:1.95">استخدموه لأي مناسبة على قلبكم — <b style="color:#c0356f">عيد ميلاد 🎂</b>، <b style="color:#c0356f">برايد تو بي 👰</b>، <b style="color:#c0356f">تخرّج 🎓</b> وغيرها ✨</p>
     <p style="margin:6px 0 0;font-size:13.5px;line-height:1.9;color:${MUTED}">على أي حجز فوق <b style="color:${BRAND}">3,000 درهم</b> — صالح <b style="color:${BRAND}">3 شهور</b>${expiry ? ` (حتى ${expiry})` : ''}، ويُستخدم مرة وحدة 🌸</p>
-    <p style="margin:12px 0 0;font-size:13px;line-height:1.9;color:${MUTED}">✨ سجّلي دخول أو أنشئي حساب بنفس إيميلك، وبتلقين <b>كل حفلاتكم السابقة ونقاطكم محفوظة</b> — دايماً معكم.</p>`;
+    <p style="margin:12px 0 0;font-size:13px;line-height:1.9;color:${MUTED}">✨ سجّلي دخول أو أنشئي حساب بنفس إيميلك، وبتلقين <b>كل حفلاتكم السابقة ونقاطكم محفوظة</b> — دايماً معكم.</p>${
+      unsubUrl
+        ? `<p style="margin:18px 0 0;font-size:11px;line-height:1.6;color:#c2b4bb;text-align:center">لا تبين تستقبلين عروضنا؟ <a href="${unsubUrl}" style="color:#c2b4bb">إلغاء الاشتراك</a></p>`
+        : ''
+    }`;
   const html = shell({
     first: o.firstName || 'حبيبتنا',
     emoji: '🎈',
