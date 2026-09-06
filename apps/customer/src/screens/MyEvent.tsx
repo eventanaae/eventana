@@ -183,6 +183,9 @@ export function MyEvent({
   }
 
   const cancelled = Boolean(event.cancelled);
+  // The party is over — nothing more can be added to it. Hides the "add more"
+  // and setup-photo sections once it's done (or cancelled).
+  const eventOver = cancelled || event.phase === 'Event Completed';
   const phaseIndex = stepOf(event.phase);
   const design = event.designs?.[0];
   const phaseLabel = (p: string) => t(`me.phase.${p}`);
@@ -407,8 +410,9 @@ export function MyEvent({
       {/* ---------------- add more ----------------
           Hidden entirely once cancelled: no additional hour, no socks,
           no extra servings. The API refuses them too. Also signed-in only —
-          paying for an add-on needs the account that owns the booking. */}
-      {!cancelled && signedIn && (
+          paying for an add-on needs the account that owns the booking — and
+          hidden once the party is over (can't add hours to a finished event). */}
+      {!eventOver && signedIn && (
       <div style={card}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{t('me.addMore')}</div>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 14px' }}>
@@ -599,8 +603,8 @@ export function MyEvent({
         );
       })()}
 
-      {/* ---------------- setup-spot photos (signed-in only: upload needs auth) ---------------- */}
-      {!cancelled && signedIn && <SetupSpotPhotos eventId={event.id} photos={event.setupPhotos ?? []} t={t} />}
+      {/* ---------------- setup-spot photos (signed-in only; hidden once the party is over) ---------------- */}
+      {!eventOver && signedIn && <SetupSpotPhotos eventId={event.id} photos={event.setupPhotos ?? []} t={t} />}
 
       {/* ---------------- rate & tip ---------------- */}
       {!cancelled && event.review?.canReview && (
