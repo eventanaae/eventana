@@ -872,8 +872,12 @@ export async function adminRoutes(app: FastifyInstance) {
         WHERE ($1::text IS NULL OR o.status = $1)
           AND ($2::text IS NULL OR EXISTS (
                 SELECT 1 FROM event_team et WHERE et.event_id = e.id AND et.member_id = $2))
-        ORDER BY e.event_date ASC, e.start_time ASC
-        LIMIT 200`,
+        -- Upcoming + TBD events first (soonest first), then past most-recent
+        -- first. A plain ASC+LIMIT put the OLDEST history first and silently
+        -- cut off real upcoming events once the table grew past the limit.
+        ORDER BY (e.date_tbd OR e.event_date >= CURRENT_DATE) DESC,
+                 e.event_date ASC, e.start_time ASC
+        LIMIT 500`,
       [status ?? null, driverOnly ? (staff?.id ?? '__none__') : null],
     );
     return rows.map((r) => {

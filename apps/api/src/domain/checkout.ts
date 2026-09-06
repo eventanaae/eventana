@@ -1060,10 +1060,27 @@ async function createGuestCustomer(
   const phone = toValidCustomerPhone(g.phone) ?? g.phone;
   const backupPhone = g.backupPhone ? (toValidCustomerPhone(g.backupPhone) ?? g.backupPhone) : g.backupPhone;
   const name = titleCaseName(g.name);
-  const existing = await pool.query<{ id: string; password_hash: string | null }>(
-    `SELECT id, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1`,
-    [g.email],
-  );
+  // Resolve an existing customer WITHOUT the old bug: a blank email ('' on
+  // manual/pay-link bookings) must NEVER match — it used to match the first
+  // row whose email was '' and overwrite that unrelated person's name/phone.
+  // 1) match by email only when a real email is given; 2) otherwise fall back
+  // to the normalised phone, but only reuse a passwordless (guest) row.
+  const emailGiven = Boolean(g.email && g.email.trim());
+  const phoneDigits = String(phone ?? '').replace(/\D/g, '');
+  let existing = emailGiven
+    ? await pool.query<{ id: string; password_hash: string | null }>(
+        `SELECT id, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1`,
+        [g.email],
+      )
+    : { rows: [] as Array<{ id: string; password_hash: string | null }> };
+  if (!existing.rows[0] && phoneDigits.length >= 7) {
+    existing = await pool.query<{ id: string; password_hash: string | null }>(
+      `SELECT id, password_hash FROM customers
+        WHERE regexp_replace(coalesce(phone,''),'\\D','','g') = $1 AND password_hash IS NULL
+        LIMIT 1`,
+      [phoneDigits],
+    );
+  }
   if (existing.rows[0]) {
     // Security: if this email already belongs to a REGISTERED account (it has a
     // password), a guest must not be able to take it over. Reusing it here would

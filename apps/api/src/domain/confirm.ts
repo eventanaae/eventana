@@ -34,6 +34,8 @@ export interface ConfirmResult {
   /** Null for orders that create no event (e.g. standalone shop orders). */
   eventId: string | null;
   created: boolean;
+  /** True when this was an add-on to an existing event (re-run staffing/prep). */
+  addon?: boolean;
 }
 
 /** Department tasks generated for every confirmed booking. */
@@ -132,7 +134,10 @@ export async function confirmBooking(
   if (order.kind === 'addon') {
     // Add-ons attach to an event that already exists.
     await applyAddonOrder(db, order, args.rules);
-    return { eventId: order.event_id, created: false };
+    // Flag it so the caller re-runs staffing + prep after commit: an add-on can
+    // add services that need crew (face painter, host, inflatable) or prep, and
+    // those engines only ran at first booking.
+    return { eventId: order.event_id, created: false, addon: true };
   }
 
   if (order.kind === 'tip') {
@@ -471,7 +476,6 @@ export async function confirmBooking(
        ('email','three_day_reminder', ($3::timestamptz - interval '3 days')),
        ('email','event_day', ($3::timestamptz - interval '4 hours')),
        ('email','feedback_request', ($3::timestamptz + interval '1 day')),
-       ('whatsapp','feedback_request', ($3::timestamptz + interval '1 day')),
        ('driver','driver_new_order', now())
      ) v(channel,template,sched)
      WHERE v.sched > now() OR v.template IN ('booking_confirmation','driver_new_order')`,
@@ -565,6 +569,15 @@ export async function confirmBooking(
     eventId,
   ]);
 
+  // Link the sales receipt to the event at write time (SSOT). recordSaleFromOrder
+  // inserts the receipt with event_id NULL; stamp it now so every downstream
+  // consumer (add-on merge, upcoming-conversion dedup, customer EV-<number>
+  // reference) resolves by event_id instead of relying on a boot-time repair.
+  await db.query(
+    `UPDATE finance_receipts SET event_id = $2 WHERE order_id = $1 AND event_id IS NULL`,
+    [order.id, eventId],
+  );
+
   return { eventId, created: true };
 }
 
@@ -620,8 +633,15 @@ async function applyAddonOrder(db: PoolClient, order: any, rules: PricingRules):
     const amt = Number(l.amountFils) || 0;
     return { name: l.label, qty, priceFils: qty > 0 ? Math.round(amt / qty) : amt, amountFils: amt };
   });
+  // Find the event's existing receipt by event_id, OR by the event's order_id
+  // (legacy app/website receipts created before event_id was stamped at
+  // confirmation still carry only order_id). This makes the "same event = same
+  // receipt" rule hold for organic app bookings too, not just converted ones.
   const { rows: rcpt } = await db.query(
-    `SELECT id, line_items FROM finance_receipts WHERE event_id = $1 ORDER BY id LIMIT 1`,
+    `SELECT id, line_items FROM finance_receipts
+      WHERE event_id = $1
+         OR order_id = (SELECT order_id FROM events WHERE id = $1)
+      ORDER BY (event_id = $1) DESC, id LIMIT 1`,
     [eventId],
   );
   if (rcpt[0]) {

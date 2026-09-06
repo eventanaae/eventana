@@ -189,6 +189,7 @@ export async function processDelivery(
 
   let confirmedEventId: string | null = null;
   let newBooking = false;
+  let addonBooking = false;
   let paidNow = false;
   const outcome = await withTransaction(async (db) => {
     const { applied } = await applyPaymentStatus(db, {
@@ -214,6 +215,7 @@ export async function processDelivery(
       });
       confirmedEventId = confirmed.eventId;
       newBooking = confirmed.created;
+      addonBooking = confirmed.addon === true;
       paidNow = true;
     }
 
@@ -237,7 +239,10 @@ export async function processDelivery(
     // Smart staff assignment: analyse the booked services, assign internal crew
     // first, and raise a part-time alert if we can't fully staff it. Runs after
     // commit (reads the freshly-committed event) and never blocks the booking.
-    if (newBooking) {
+    // Run on a NEW booking, and also after an ADD-ON (it can add services that
+    // need crew/prep). Both engines are idempotent rebuilds that preserve
+    // already-completed work, so re-running on an add-on is safe.
+    if (newBooking || addonBooking) {
       void import('./staffing.js')
         .then(({ assignStaffForEvent }) => assignStaffForEvent(confirmedEventId!))
         .catch((err) => console.error('[staffing] auto-assign failed:', err));

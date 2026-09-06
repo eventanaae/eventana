@@ -58,16 +58,19 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
             AND sent_at IS NULL AND whatsapp_sent_at IS NULL AND cancelled_at IS NULL`,
         [ids],
       );
-      // And create email + WhatsApp feedback rows for any event that had none.
+      // Create ONE feedback row (channel='email') per event that had none. That
+      // single row drives BOTH the email and the WhatsApp send (deliverPending
+      // stamps sent_at / whatsapp_sent_at independently). A separate
+      // channel='whatsapp' row would be an orphan — no sweep consumes it — so we
+      // never insert one.
       await pool.query(
         `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-         SELECT e.id, v.ch, 'feedback_request', now(), jsonb_build_object('eventId', e.id)
+         SELECT e.id, 'email', 'feedback_request', now(), jsonb_build_object('eventId', e.id)
            FROM unnest($1::text[]) AS e(id)
-           CROSS JOIN (VALUES ('email'),('whatsapp')) v(ch)
           WHERE NOT EXISTS (
             SELECT 1 FROM notifications n
              WHERE n.event_id = e.id AND n.template = 'feedback_request'
-               AND n.channel = v.ch AND n.cancelled_at IS NULL)`,
+               AND n.channel = 'email' AND n.cancelled_at IS NULL)`,
         [ids],
       );
     }
@@ -208,19 +211,32 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
 }
 
 let timer: NodeJS.Timeout | null = null;
+// Re-entrancy guard: a sweep sends up to 100 emails + 100 WhatsApps + campaigns
+// and can run longer than the interval. Without this, the next tick would start
+// while the first is mid-send, both SELECT the same un-stamped rows, and a
+// customer gets the SAME email/WhatsApp twice. Skip a tick if one is in flight.
+let sweeping = false;
+async function runSweepGuarded(label: string): Promise<void> {
+  if (sweeping) {
+    console.log(`[reconcile] ${label} skipped — previous sweep still running`);
+    return;
+  }
+  sweeping = true;
+  try {
+    await reconcileOnce();
+  } catch (err) {
+    console.error(`[reconcile] ${label} failed:`, err);
+  } finally {
+    sweeping = false;
+  }
+}
 
 export function startReconciliation(): void {
   if (timer) return;
   // Run once shortly after boot so a fresh/restarted instance doesn't wait a
   // full interval before delivering queued emails or chasing stuck payments.
-  setTimeout(() => {
-    reconcileOnce().catch((err) => console.error('[reconcile] boot sweep failed:', err));
-  }, 15_000).unref();
-  timer = setInterval(() => {
-    reconcileOnce().catch((err) => {
-      console.error('[reconcile] sweep failed:', err);
-    });
-  }, config.reconcileIntervalMs);
+  setTimeout(() => { void runSweepGuarded('boot sweep'); }, 15_000).unref();
+  timer = setInterval(() => { void runSweepGuarded('sweep'); }, config.reconcileIntervalMs);
   // Never hold the process open just for the sweep.
   timer.unref();
 }

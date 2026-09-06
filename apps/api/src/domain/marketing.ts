@@ -90,8 +90,12 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
     // Light personalisation: {{name}} → the customer's first name.
     const personalised = camp.body_html.replace(/\{\{\s*name\s*\}\}/gi, (r.name || 'there').split(' ')[0]);
     const html = renderCampaignHtml(personalised, unsub);
-    const res = await sendEmail({ to: r.email, subject: camp.subject, html });
+    // Bulk send: never BCC the manager monitor inbox (one copy per recipient
+    // would flood it and double the send volume). Pace to respect Resend's
+    // per-second limit and only count a real success.
+    const res = await sendEmail({ to: r.email, subject: camp.subject, html, skipMonitorBcc: true });
     if (res.ok) sent++;
+    await new Promise((res) => setTimeout(res, 120));
   }
   await pool.query(
     `UPDATE email_campaigns SET status = $2, sent_count = $3, sent_at = now() WHERE id = $1`,
@@ -192,6 +196,7 @@ export async function sweepVoucherReminders(): Promise<number> {
       to: v.email,
       subject: `Your ${v.value}% Eventana reward is waiting 🎁`,
       html: renderCampaignHtml(body, unsub),
+      skipMonitorBcc: true, // bulk send — don't copy the manager per recipient
     });
     if (res.ok) sent++;
     // Stamp regardless of send outcome so a hard-bouncing address is not retried

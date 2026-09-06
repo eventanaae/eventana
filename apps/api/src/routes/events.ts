@@ -855,6 +855,14 @@ export async function eventRoutes(app: FastifyInstance) {
       `SELECT order_id, customer_id FROM events WHERE id = $1`, [eventId]);
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     if (rows[0].customer_id === accountId) return { ok: true, already: true };
+    // Security: the feedback token ships in a forwardable email link. Only a
+    // GUEST-owned booking (passwordless row) may be claimed onto an account.
+    // Once it belongs to a REGISTERED account it must never be reassigned by a
+    // forwarded link — that would let a stranger move someone's event onto
+    // their own account. Such cases must go through sign-in, not claim.
+    const owner = await pool.query<{ password_hash: string | null }>(
+      `SELECT password_hash FROM customers WHERE id = $1`, [rows[0].customer_id]);
+    if (owner.rows[0]?.password_hash) return reply.status(409).send({ error: 'already_claimed' });
     await withTransaction(async (db) => {
       await db.query(`UPDATE events SET customer_id = $2 WHERE id = $1`, [eventId, accountId]);
       if (rows[0].order_id) await db.query(`UPDATE orders SET customer_id = $2 WHERE id = $1`, [rows[0].order_id, accountId]);
