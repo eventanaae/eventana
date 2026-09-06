@@ -118,8 +118,11 @@ export async function confirmBooking(
 
   // Every paid order becomes a sale on the finance Sales page — website, app,
   // shop or manual pay-link alike. Tips are crew money, not a sale, so skip
-  // them. Idempotent and failure-isolated (see recordSaleFromOrder).
-  if (order.kind !== 'tip') await recordSaleFromOrder(db, order);
+  // them. Add-ons are NOT a new sale either: they belong to a party that already
+  // has a receipt, and the owner's rule is "same event = same receipt" — so
+  // applyAddonOrder merges the add-on into that existing receipt instead.
+  // Idempotent and failure-isolated (see recordSaleFromOrder).
+  if (order.kind !== 'tip' && order.kind !== 'addon') await recordSaleFromOrder(db, order);
 
   // A booking made through a manual-order link consumes its offer now that it is
   // paid, so the same link can never produce a second booking.
@@ -605,6 +608,36 @@ async function applyAddonOrder(db: PoolClient, order: any, rules: PricingRules):
         order.id,
       ],
     );
+  }
+
+  // Owner rule: an add-on to the SAME event updates the SAME receipt (a new
+  // receipt is only for a brand-new party on a new date). Merge the add-on lines
+  // into the event's existing sales receipt and grow its total. The event_services
+  // guard above makes this run at most once per add-on order.
+  const addonTotal = quote.lines.reduce((s, l) => s + (Number(l.amountFils) || 0), 0);
+  const addonLines = quote.lines.map((l) => {
+    const qty = Number(l.quantity) || 1;
+    const amt = Number(l.amountFils) || 0;
+    return { name: l.label, qty, priceFils: qty > 0 ? Math.round(amt / qty) : amt, amountFils: amt };
+  });
+  const { rows: rcpt } = await db.query(
+    `SELECT id, line_items FROM finance_receipts WHERE event_id = $1 ORDER BY id LIMIT 1`,
+    [eventId],
+  );
+  if (rcpt[0]) {
+    const existing = Array.isArray(rcpt[0].line_items) ? rcpt[0].line_items : [];
+    await db.query(
+      `UPDATE finance_receipts
+          SET line_items = $2::jsonb,
+              subtotal_fils = subtotal_fils + $3,
+              total_fils = total_fils + $3
+        WHERE id = $1`,
+      [rcpt[0].id, JSON.stringify([...existing, ...addonLines]), addonTotal],
+    );
+  } else {
+    // No receipt on this event yet (e.g. a converted/manual booking) — fall back
+    // to a standalone sale so the add-on still shows on the Sales page.
+    await recordSaleFromOrder(db, order);
   }
 
   if (extraHours > 0) {
