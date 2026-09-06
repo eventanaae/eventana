@@ -97,3 +97,26 @@ export async function restoreCrew1724FromEnv(): Promise<void> {
     console.error('[restore-1724] crew failed:', (err as Error).message);
   }
 }
+
+/**
+ * Put Maryam's review TEXT back on the restored EV-1724 rating (the customer's
+ * words, which weren't in the screenshots). Gated by SET_REVIEW_1724=<text>.
+ */
+export async function setReview1724FromEnv(): Promise<void> {
+  const text = String(process.env.SET_REVIEW_1724 ?? '').trim();
+  if (!text) return;
+  try {
+    const r = await pool.query<{ event_id: string }>(`SELECT event_id FROM finance_receipts WHERE number = '1724'`);
+    const eventId = r.rows[0]?.event_id;
+    if (!eventId) { P(`[review] receipt #1724 has no event`); return; }
+    const upd = await pool.query(
+      `UPDATE event_ratings SET feedback = $2 WHERE event_id = $1 RETURNING id`,
+      [eventId, text],
+    );
+    if (!upd.rowCount) { P(`[review] no rating row on ${eventId} to update`); return; }
+    P(`[review] set feedback on ${eventId}: "${text.slice(0, 80)}"`);
+    P('[review] DONE');
+  } catch (err) {
+    console.error('[restore-1724] review failed:', (err as Error).message);
+  }
+}
