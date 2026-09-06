@@ -120,9 +120,31 @@ export async function receiptEventAuditFromEnv(): Promise<void> {
         WHERE date < $1 AND event_id IS NULL AND coalesce(source,'dashboard') = 'quickbooks'`,
       [today],
     );
-    P(`PAST real (non-QB) sales with NO event: ${pastGap.rowCount} (QuickBooks history w/o event: ${qbPast.rows[0].n})`);
+    P(`PAST real (non-QB) sales with NO event LINK: ${pastGap.rowCount} (QuickBooks history w/o event: ${qbPast.rows[0].n})`);
     for (const r of pastGap.rows) {
-      P(`  • #${r.number} · ${r.customer_name} · ${r.d} · AED ${aed(r.total_fils)} · src=${r.source}`);
+      // The receipt has no event_id, but an app/manual booking may already have a
+      // real event (created at checkout) that simply was never linked back to the
+      // receipt row. Look it up by the source order, then by customer name + date.
+      const rr = await pool.query(
+        `SELECT r.order_id, to_char(r.date,'YYYY-MM-DD') AS d FROM finance_receipts r WHERE r.number = $1`,
+        [r.number],
+      );
+      const orderId = rr.rows[0]?.order_id ?? null;
+      let ev: { id: string } | undefined;
+      if (orderId) {
+        const byOrder = await pool.query(`SELECT id FROM events WHERE order_id = $1 LIMIT 1`, [orderId]);
+        ev = byOrder.rows[0];
+      }
+      if (!ev) {
+        const byCust = await pool.query(
+          `SELECT e.id FROM events e JOIN customers c ON c.id = e.customer_id
+            WHERE lower(c.name) = lower($1) AND e.event_date = $2::date LIMIT 1`,
+          [r.customer_name, r.d],
+        );
+        ev = byCust.rows[0];
+      }
+      const verdict = ev ? `EVENT EXISTS (unlinked): ${ev.id}` : 'TRULY MISSING';
+      P(`  • #${r.number} · ${r.customer_name} · ${r.d} · AED ${aed(r.total_fils)} · src=${r.source} → ${verdict}`);
     }
 
     // ---- Upcoming events that have NO prep tasks (the "system doesn't know
