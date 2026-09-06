@@ -25,6 +25,9 @@ export async function sendEmail(args: {
   /** Silent monitoring recipient(s) — BCC, so the customer never sees them.
    *  The primary recipient is never BCC'd to itself. */
   bcc?: string | string[];
+  /** Skip the global monitor BCC for this send — e.g. a bulk marketing blast we
+   *  don't want to copy the manager on hundreds of times. */
+  skipMonitorBcc?: boolean;
   /** Optional file attachments. `content` is base64-encoded; `contentType`
    *  maps to Resend's `content_type` when given. */
   attachments?: Array<{ filename: string; content: string; contentType?: string }>;
@@ -35,7 +38,7 @@ export async function sendEmail(args: {
   const bccList = Array.from(new Set(
     [
       ...(Array.isArray(args.bcc) ? args.bcc : args.bcc ? [args.bcc] : []),
-      ...config.email.monitorBcc,
+      ...(args.skipMonitorBcc ? [] : config.email.monitorBcc),
     ]
       .map((s) => String(s).trim())
       .filter((s) => s && s.toLowerCase() !== args.to.toLowerCase()),

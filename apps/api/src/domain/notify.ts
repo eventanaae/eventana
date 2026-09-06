@@ -293,7 +293,8 @@ export async function sendWinbackEmail(o: {
     bodyHtml: `<div dir="rtl" style="text-align:right">${bodyHtml}</div>`,
     cta: { href: (config.publicAppUrl || 'https://eventanauae.com').replace(/\/$/, ''), label: 'نبدأ الاحتفال 🎉' },
   });
-  const res = await sendEmail({ to: o.email, subject: `هديتكم من إيفنتانا 🎁 خصم 600 درهم + توصيل مجاني`, html });
+  // A bulk win-back blast: don't copy the monitor inbox on every one (owner's call).
+  const res = await sendEmail({ to: o.email, subject: `هديتكم من إيفنتانا 🎁 خصم 600 درهم + توصيل مجاني`, html, skipMonitorBcc: true });
   return res.ok;
 }
 

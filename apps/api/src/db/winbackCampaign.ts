@@ -59,12 +59,17 @@ export async function winbackCampaignFromEnv(): Promise<void> {
         code: r.code,
         expiresAt: r.expires_at,
       }).catch(() => false);
-      // Stamp regardless so a failed address isn't retried instantly; the reminder
-      // sweep will pick it up on the next 14-day window.
-      await pool.query(`UPDATE promo_codes SET last_reminded_at = now() WHERE code = $1`, [r.code]);
-      if (ok) sent++; else failed++;
+      if (ok) {
+        // Stamp only on success, so a failed send (e.g. a rate-limit blip) is
+        // simply retried on the next run instead of being lost.
+        await pool.query(`UPDATE promo_codes SET last_reminded_at = now() WHERE code = $1`, [r.code]);
+        sent++;
+      } else {
+        failed++;
+      }
+      await new Promise((res) => setTimeout(res, 120)); // gentle on the email provider
     }
-    P(`DONE — sent ${sent}, failed ${failed}. Remaining un-sent will need another run.`);
+    P(`DONE — sent ${sent}, failed ${failed}. Re-run WINBACK_CAMPAIGN=send to catch any remaining/failed.`);
   } catch (e) {
     P(`FAILED: ${(e as Error).message}`);
   }
