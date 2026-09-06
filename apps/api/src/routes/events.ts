@@ -622,8 +622,17 @@ export async function eventRoutes(app: FastifyInstance) {
     );
     const canReschedule = !cancelled && startMs - Date.now() > RESCHEDULE_MIN_HOURS * 3_600_000;
 
+    // Setup-spot photos the customer added ("put the main backdrop here"), so the
+    // app can show each photo with its note and offer a delete.
+    const setupPhotoRows = await pool.query(
+      `SELECT id, photo_url AS url, description AS note
+         FROM event_setup_photos WHERE event_id = $1 ORDER BY id`,
+      [eventId],
+    );
+
     return {
       id: event.id,
+      setupPhotos: setupPhotoRows.rows,
       // Customer-facing booking reference: EV-<sales-receipt number>, matching the
       // dashboard and all customer emails/WhatsApp; falls back to the event id.
       reference: event.receipt_number ? `EV-${event.receipt_number}` : event.id,
@@ -1110,10 +1119,23 @@ export async function eventRoutes(app: FastifyInstance) {
 
     const inserted = await pool.query(
       `INSERT INTO event_setup_photos (event_id, item_key, photo_url, description)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
+       VALUES ($1,$2,$3,$4) RETURNING id, photo_url AS url, description AS note`,
       [eventId, parsed.data.itemKey, parsed.data.photoUrl ?? null, parsed.data.description ?? null],
     );
     return inserted.rows[0];
+  });
+
+  /** Remove one setup-placement photo (the customer can delete what they added). */
+  app.delete('/api/events/:eventId/setup-photos/:id', async (request, reply) => {
+    const { eventId, id } = request.params as { eventId: string; id: string };
+    const del = await pool.query(
+      `DELETE FROM event_setup_photos
+        WHERE id = $1 AND event_id = $2
+          AND event_id IN (SELECT id FROM events WHERE customer_id = $3)`,
+      [id, eventId, customerIdOf(request)],
+    );
+    if (!del.rowCount) return reply.status(404).send({ error: 'not_found' });
+    return { ok: true };
   });
 
   /** Design approval. Approving locks the version and clears the task. */

@@ -630,6 +630,8 @@ const en: Dict = {
   'me.setupAdd': '📷 Add a photo',
   'me.setupDisabled': 'Photo upload isn’t available yet.',
   'me.setupFailed': 'Upload failed.',
+  'me.setupNoNote': 'No note added',
+  'me.setupDelete': 'Delete photo',
   // rate & tip
   'me.rateTitle': 'How was your celebration? ⭐',
   'me.rateSub': 'Your rating helps the crew — and a tip goes straight to them.',
@@ -1263,6 +1265,8 @@ const ar: Dict = {
   'me.setupAdd': '📷 أضف صورة',
   'me.setupDisabled': 'رفع الصور غير متاح بعد.',
   'me.setupFailed': 'فشل الرفع.',
+  'me.setupNoNote': 'بدون ملاحظة',
+  'me.setupDelete': 'حذف الصورة',
   // rate & tip
   'me.rateTitle': 'كيف كانت حفلتكم؟ 🌸',
   'me.rateSub': 'رأيج يهمنا وايد حبيبتي — تقييمج يوصل الفريق مباشرة، والبقشيش لهم.',

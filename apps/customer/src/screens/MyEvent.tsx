@@ -600,7 +600,7 @@ export function MyEvent({
       })()}
 
       {/* ---------------- setup-spot photos (signed-in only: upload needs auth) ---------------- */}
-      {!cancelled && signedIn && <SetupSpotPhotos eventId={event.id} t={t} />}
+      {!cancelled && signedIn && <SetupSpotPhotos eventId={event.id} photos={event.setupPhotos ?? []} t={t} />}
 
       {/* ---------------- rate & tip ---------------- */}
       {!cancelled && event.review?.canReview && (
@@ -843,25 +843,44 @@ function Reschedule({ eventId, t, onDone }: { eventId: string; t: TFn; onDone: (
   );
 }
 
-function SetupSpotPhotos({ eventId, t }: { eventId: string; t: TFn }) {
+type SetupPhoto = { id: number; url: string | null; note: string | null };
+
+function SetupSpotPhotos({ eventId, photos, t }: { eventId: string; photos: SetupPhoto[]; t: TFn }) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState<string[]>([]);
+  // Start from the photos already saved on the event, so a returning customer
+  // sees (and can delete) what they added before — not just this session's.
+  const [list, setList] = useState<SetupPhoto[]>(photos ?? []);
+  const [deleting, setDeleting] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Type the note FIRST ("main backdrop here"), then add the photo — they're
+  // saved together and shown as one card.
   const upload = async (file: File) => {
     setBusy(true);
     setError(null);
     try {
       const url = await api.uploadEventImage(eventId, file);
-      await api.setupPhoto(eventId, 'spot', note.trim(), url);
-      setSent((s) => [url, ...s]);
+      const row = await api.setupPhoto(eventId, 'spot', note.trim(), url);
+      setList((s) => [{ id: row.id, url: row.url ?? url, note: row.note ?? note.trim() || null }, ...s]);
       setNote('');
     } catch (e: any) {
       // Cloudinary not configured yet, or upload failed.
       setError(e?.body?.error === 'uploads_disabled' ? t('me.setupDisabled') : (e?.message ?? t('me.setupFailed')));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const remove = async (id: number) => {
+    setDeleting(id);
+    try {
+      await api.deleteSetupPhoto(eventId, id);
+      setList((s) => s.filter((p) => p.id !== id));
+    } catch (e: any) {
+      setError(e?.message ?? t('me.setupFailed'));
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -876,7 +895,7 @@ function SetupSpotPhotos({ eventId, t }: { eventId: string; t: TFn }) {
         value={note}
         onChange={(e) => setNote(e.target.value)}
         style={{
-          width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
+          width: '100%', boxSizing: 'border-box', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '11px 14px',
           fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 10,
         }}
       />
@@ -896,10 +915,21 @@ function SetupSpotPhotos({ eventId, t }: { eventId: string; t: TFn }) {
         />
       </label>
       {error && <div style={{ marginTop: 8 }}><Notice tone="info">{error}</Notice></div>}
-      {sent.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-          {sent.map((u) => (
-            <img key={u} src={u} alt="setup spot" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.pinkLine}` }} />
+      {list.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+          {list.map((p) => (
+            <div key={p.id} style={{ display: 'flex', gap: 10, alignItems: 'center', background: '#fff', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: 8 }}>
+              {p.url && <img src={p.url} alt="setup spot" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10, flex: 'none' }} />}
+              <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: p.note ? C.ink : C.muted, wordBreak: 'break-word' }}>
+                {p.note || t('me.setupNoNote')}
+              </div>
+              <button
+                onClick={() => remove(p.id)}
+                disabled={deleting === p.id}
+                aria-label={t('me.setupDelete')}
+                style={{ flex: 'none', width: 32, height: 32, borderRadius: 10, border: 'none', background: C.pinkSoft, color: C.pinkDeep, fontSize: 16, fontWeight: 800, cursor: 'pointer' }}
+              >{deleting === p.id ? '…' : '×'}</button>
+            </div>
           ))}
         </div>
       )}

@@ -347,10 +347,13 @@ export const api = {
     }),
 
   setupPhoto: (eventId: string, itemKey: string, description: string, photoUrl?: string) =>
-    request<any>(`/api/events/${eventId}/setup-photos`, {
+    request<{ id: number; url: string | null; note: string | null }>(`/api/events/${eventId}/setup-photos`, {
       method: 'POST',
       body: JSON.stringify({ itemKey, description, photoUrl }),
     }),
+
+  deleteSetupPhoto: (eventId: string, id: number) =>
+    request<{ ok: true }>(`/api/events/${eventId}/setup-photos/${id}`, { method: 'DELETE' }),
 
   /** Sign + upload an event photo straight to Cloudinary; returns its URL. */
   uploadEventImage: async (eventId: string, file: File): Promise<string> => {
