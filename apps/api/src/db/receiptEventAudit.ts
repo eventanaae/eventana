@@ -62,6 +62,42 @@ export async function receiptEventAuditFromEnv(): Promise<void> {
     const t = tot.rows[0];
     P(`totals: upcoming=${t.upcoming_receipts} · have_event=${t.have_event} · missing=${t.missing_event}`);
 
+    // ---- Proof: every upcoming receipt → its event id ----------------------
+    const linked = await pool.query(
+      `SELECT r.number, r.customer_name, to_char(r.date,'YYYY-MM-DD') AS d,
+              r.date_tbd, r.event_id
+         FROM finance_receipts r
+        WHERE (r.date >= $1 OR r.date_tbd = TRUE)
+        ORDER BY r.date`,
+      [today],
+    );
+    P(`upcoming receipt → event map:`);
+    for (const r of linked.rows) {
+      P(`  #${r.number} ${r.customer_name} · ${r.date_tbd ? 'TBD' : r.d} → ${r.event_id ?? 'NO EVENT'}`);
+    }
+
+    // ---- PAST real sales (non-QuickBooks) with no event: these are completed
+    // bookings that never became an operational event at all (not even in Past
+    // Events). QuickBooks history is expected to have none, so it is only counted.
+    const pastGap = await pool.query(
+      `SELECT r.number, r.customer_name, to_char(r.date,'YYYY-MM-DD') AS d,
+              r.total_fils, coalesce(r.source,'dashboard') AS source
+         FROM finance_receipts r
+        WHERE r.date < $1 AND r.date_tbd = FALSE AND r.event_id IS NULL
+          AND coalesce(r.source,'dashboard') <> 'quickbooks'
+        ORDER BY r.date DESC LIMIT 40`,
+      [today],
+    );
+    const qbPast = await pool.query(
+      `SELECT count(*) AS n FROM finance_receipts
+        WHERE date < $1 AND event_id IS NULL AND coalesce(source,'dashboard') = 'quickbooks'`,
+      [today],
+    );
+    P(`PAST real (non-QB) sales with NO event: ${pastGap.rowCount} (QuickBooks history w/o event: ${qbPast.rows[0].n})`);
+    for (const r of pastGap.rows) {
+      P(`  • #${r.number} · ${r.customer_name} · ${r.d} · AED ${aed(r.total_fils)} · src=${r.source}`);
+    }
+
     // ---- Upcoming events that have NO prep tasks (the "system doesn't know
     // the tasks" concern) ----------------------------------------------------
     const noPrep = await pool.query(
