@@ -222,7 +222,7 @@ export function Profile({
               <div style={{ width: 44, height: 44, borderRadius: 14, background: e.historical ? 'linear-gradient(135deg,#E9E1E6,#D9CEDA)' : 'linear-gradient(135deg,#F9C6DC,#F7C948)', flex: 'none' }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 12.5 }}>
-                  {e.packageName ?? 'Celebration'}
+                  {e.packageName ?? t('me.celebration')}
                   {e.historical && <span style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, background: C.cream, borderRadius: 8, padding: '2px 6px', marginInlineStart: 6 }}>{t('profile.pastLabel')}</span>}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>

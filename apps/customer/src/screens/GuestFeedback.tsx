@@ -98,7 +98,7 @@ export function GuestFeedback({
     setTipping(true);
     setTipError(null);
     try {
-      const res = await api.tipCheckout(event, effectiveTip, null);
+      const res = await api.tipCheckout(event, effectiveTip, null, token);
       if (res.checkoutUrl) window.location.href = res.checkoutUrl;
       else setTipError(t('me.errCheckout'));
     } catch (e: any) {

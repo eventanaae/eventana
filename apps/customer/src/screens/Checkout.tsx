@@ -168,7 +168,7 @@ export function Checkout({
       saveAccount(acc);
       setAccount(acc);
     } catch (e: any) {
-      setAuthError(e?.body?.message ?? e?.message ?? 'Something went wrong. Please try again.');
+      setAuthError(e?.body?.message ?? e?.message ?? t('checkout.authError'));
     } finally {
       setAuthBusy(false);
     }

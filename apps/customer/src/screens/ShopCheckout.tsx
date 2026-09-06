@@ -5,6 +5,7 @@ import { trackInitiateCheckout } from '../attribution';
 import { trackGoogleBeginCheckout } from '../googleTag';
 import { C, Field, fredoka, money, Notice, PrimaryButton } from '../ui';
 import { quoteShop, SHOP_DRAWING_IDS, SHOP_EMIRATES, SHOP_READY_DAYS } from '@eventana/shared';
+import { TermsSheet } from './Terms';
 
 /**
  * A UAE mobile number, normalized to 5XXXXXXXX (or null if not valid). Accepts
@@ -29,6 +30,7 @@ export function ShopCheckout({
   shopCart,
   go,
   t,
+  lang,
   onOrder,
 }: ScreenProps & {
   onOrder: (
@@ -57,6 +59,7 @@ export function ShopCheckout({
   const [wantDraw, setWantDraw] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -266,7 +269,14 @@ export function ShopCheckout({
       {/* terms */}
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', margin: '4px 2px 12px' }}>
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 2, width: 16, height: 16, accentColor: C.pink, flexShrink: 0 }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>{t('checkout.agreePre')} {t('checkout.agreeLink')}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>
+          {t('checkout.agreePre')}{' '}
+          <a
+            href="#"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTerms(true); }}
+            style={{ color: C.pinkDeep, fontWeight: 700, textDecoration: 'underline' }}
+          >{t('checkout.agreeLink')}</a>
+        </span>
       </label>
 
       {/* payment */}
@@ -284,6 +294,7 @@ export function ShopCheckout({
             : ''}
         </div>
       )}
+      {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
     </div>
   );
 }

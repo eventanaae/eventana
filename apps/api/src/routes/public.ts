@@ -614,6 +614,20 @@ export async function publicRoutes(app: FastifyInstance) {
       }
     }
 
+    // Customer-facing booking reference = EV-<sales-receipt number>, the SAME
+    // number shown on My Event, the receipt and every email/WhatsApp. Never show
+    // the raw internal event id on the "you're booked" screen.
+    let reference: string | null = order.event_id ?? null;
+    if (order.event_id || order.id) {
+      const rr = await pool.query<{ number: string }>(
+        `SELECT number FROM finance_receipts
+          WHERE event_id = $1 OR order_id = $2
+          ORDER BY (event_id = $1) DESC, id LIMIT 1`,
+        [order.event_id ?? null, order.id],
+      );
+      if (rr.rows[0]?.number) reference = `EV-${rr.rows[0].number}`;
+    }
+
     return {
       orderId: order.id,
       status: order.status,
@@ -621,6 +635,7 @@ export async function publicRoutes(app: FastifyInstance) {
       paymentStatus: order.payment_status,
       provider: order.provider,
       eventId: order.event_id,
+      reference,
       totalFils: Number(order.total_fils),
       totalDisplay: formatAed(Number(order.total_fils)),
       // The app shows a neutral waiting state until this flips. A booking is

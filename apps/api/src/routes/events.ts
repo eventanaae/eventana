@@ -1013,14 +1013,26 @@ export async function eventRoutes(app: FastifyInstance) {
       memberId: z.string().nullable().optional(),
       provider: z.enum(['tabby', 'tamara', 'stripe']).default('stripe'),
       lang: z.enum(['en', 'ar']).optional(),
+      // Signed feedback/booking token — lets an account-less customer (who rated
+      // from the post-party link) tip the crew. Resolves to the booking's own
+      // customer so the tip attaches to the right event.
+      t: z.string().optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
 
+    // Effective customer: the signed-in account, or — for a guest with a valid
+    // feedback token for THIS event — the event's own customer.
+    let tipCustomerId = customerIdOf(request);
+    if (!tipCustomerId && parsed.data.t && verifyFeedbackToken(eventId, parsed.data.t)) {
+      const ev = await pool.query<{ customer_id: string }>(`SELECT customer_id FROM events WHERE id = $1`, [eventId]);
+      tipCustomerId = ev.rows[0]?.customer_id ?? '';
+    }
+
     try {
       return await startTipCheckout({
         eventId,
-        customerId: customerIdOf(request),
+        customerId: tipCustomerId,
         amountFils: parsed.data.amountFils,
         memberId: parsed.data.memberId ?? null,
         provider: parsed.data.provider,

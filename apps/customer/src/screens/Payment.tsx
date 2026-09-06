@@ -38,6 +38,9 @@ export function PaymentReturn({
 }) {
   const [status, setStatus] = useState<string>('checking');
   const [eventId, setEventId] = useState<string | null>(null);
+  // The number shown to the customer: EV-<receipt> (matches My Event, the receipt
+  // and every email) — never the raw internal event id.
+  const [reference, setReference] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [kind, setKind] = useState<string>('booking');
   const [waited, setWaited] = useState(0);
@@ -54,6 +57,7 @@ export function PaymentReturn({
           done.current = true;
           setConfirmed(true);
           setEventId(order.eventId ?? null);
+          setReference((order as any).reference ?? order.eventId ?? null);
           // The server has confirmed the money — the only moment a Purchase is
           // true. Google Ads learns about the booking here; Meta's copy is
           // posted server-side from the payment webhook. Reporting is
@@ -100,7 +104,7 @@ export function PaymentReturn({
           <div style={{ background: '#fff', borderRadius: 20, padding: 16, boxShadow: C.shadowLg, display: 'inline-block', minWidth: 220 }}>
             <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 1 }}>{t('pay.eventId')}</div>
             <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 21, fontWeight: 700, marginTop: 4, letterSpacing: 1 }}>
-              {eventId}
+              {reference ?? eventId}
             </div>
           </div>
         )}

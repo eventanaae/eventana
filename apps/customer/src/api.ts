@@ -400,10 +400,11 @@ export const api = {
       body: JSON.stringify({ stars, feedback }),
     }),
 
-  tipCheckout: (eventId: string, amountFils: number, memberId: string | null) =>
+  tipCheckout: (eventId: string, amountFils: number, memberId: string | null, fb?: string | null) =>
     request<{ orderId: string; checkoutUrl: string | null }>(
       `/api/events/${eventId}/tip/checkout`,
-      { method: 'POST', body: JSON.stringify({ amountFils, memberId, provider: 'ziina' }) },
+      // Pass the signed feedback token so an account-less customer can still tip.
+      { method: 'POST', body: JSON.stringify({ amountFils, memberId, provider: 'ziina', t: fb ?? currentFb() ?? undefined }) },
     ),
 
   assistant: (question: string, celebrationType: string) =>
