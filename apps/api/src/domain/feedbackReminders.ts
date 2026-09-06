@@ -55,7 +55,7 @@ export async function findFeedbackReminderDue(): Promise<FeedbackReminderCandida
        FROM events e
        JOIN customers c ON c.id = e.customer_id
       WHERE e.cancelled_at IS NULL
-        AND e.phase = 'Event Completed'
+        AND lower(coalesce(e.phase,'')) NOT LIKE '%cancel%'
         AND e.date_tbd IS NOT TRUE
         -- The party is over (≥3 days ago) and within the last 90 days — this
         -- covers the July/August backlog the owner wants caught up, plus every
@@ -174,6 +174,27 @@ export async function feedbackRemindersFromEnv(): Promise<void> {
   const mode = String(process.env.FEEDBACK_REMINDERS ?? '').toLowerCase();
   if (mode !== 'list' && mode !== 'send') return;
   try {
+    // Diagnostic: why the eligible count is what it is — how the last-90-day
+    // past parties break down (rated vs not, has-contact, cancelled).
+    const brk = await pool.query<{ total: string; rated: string; unrated: string; unrated_reachable: string; cancelled: string }>(
+      `SELECT
+         count(*) FILTER (WHERE lower(coalesce(e.phase,'')) NOT LIKE '%cancel%') AS total,
+         count(*) FILTER (WHERE lower(coalesce(e.phase,'')) NOT LIKE '%cancel%'
+                            AND EXISTS (SELECT 1 FROM event_ratings r WHERE r.event_id = e.id)) AS rated,
+         count(*) FILTER (WHERE lower(coalesce(e.phase,'')) NOT LIKE '%cancel%'
+                            AND NOT EXISTS (SELECT 1 FROM event_ratings r WHERE r.event_id = e.id)) AS unrated,
+         count(*) FILTER (WHERE lower(coalesce(e.phase,'')) NOT LIKE '%cancel%'
+                            AND NOT EXISTS (SELECT 1 FROM event_ratings r WHERE r.event_id = e.id)
+                            AND ((c.email IS NOT NULL AND btrim(c.email) <> '') OR (c.phone IS NOT NULL AND btrim(c.phone) <> ''))) AS unrated_reachable,
+         count(*) FILTER (WHERE lower(coalesce(e.phase,'')) LIKE '%cancel%') AS cancelled
+       FROM events e JOIN customers c ON c.id = e.customer_id
+      WHERE e.date_tbd IS NOT TRUE
+        AND e.event_date <= current_date - interval '3 days'
+        AND e.event_date >= current_date - interval '90 days'`,
+    );
+    const b = brk.rows[0];
+    console.log(`[feedback-reminder] last-90d past parties: total ${b.total} · rated ${b.rated} · unrated ${b.unrated} (reachable ${b.unrated_reachable}) · cancelled ${b.cancelled}`);
+
     const due = await findFeedbackReminderDue();
     console.log(`[feedback-reminder] events awaiting feedback, due for a reminder now: ${due.length}`);
     for (const d of due) {
