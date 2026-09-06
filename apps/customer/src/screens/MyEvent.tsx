@@ -133,15 +133,36 @@ export function MyEvent({
 
   if (!event) {
     if (loadError) {
+      // A load failure for someone WITHOUT an account is almost always an older
+      // email link that carried no signed token (sent before the token fix). Give
+      // them a way in — signing in opens the booking straight from their account —
+      // instead of a dead end.
+      const noAccount = !loadAccount()?.token;
       return (
         <div style={{ padding: '60px 30px', textAlign: 'center' }}>
           <div style={{ fontSize: 34, marginBottom: 8 }}>🎈</div>
           <div style={{ ...fredoka(20) }}>{t('me.loadFailed')}</div>
-          <div style={{ marginTop: 16 }}>
-            <PrimaryButton onClick={() => { setLoadError(false); setEvent(null); load().catch(() => setLoadError(true)); }}>
+          {noAccount && (
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, margin: '10px auto 0', maxWidth: 300 }}>
+              {t('me.loadFailedLogin')}
+            </div>
+          )}
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+            {noAccount && (
+              <PrimaryButton onClick={() => { setAuthMode('login'); setShowAuth(true); }}>
+                {t('auth.tabLogin')}
+              </PrimaryButton>
+            )}
+            <button
+              onClick={() => { setLoadError(false); setEvent(null); load().catch(() => setLoadError(true)); }}
+              style={{ background: 'none', border: 'none', color: C.pinkDeep, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+            >
               {t('common.tryAgain')}
-            </PrimaryButton>
+            </button>
           </div>
+          {showAuth && (
+            <AuthSheet t={t} lang={lang} initialMode={authMode} onClose={() => setShowAuth(false)} onSignedIn={() => window.location.reload()} />
+          )}
         </div>
       );
     }
