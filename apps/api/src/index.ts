@@ -219,7 +219,9 @@ async function main() {
     await rescheduleFeedbackFromEnv().catch((err) => console.error('[feedback-reminder] reschedule failed:', err));
     // One-off WhatsApp test send (WA_TEST=<phone>) to confirm customer WhatsApp
     // works + surface Meta's exact error. Owner's own number; no customer send.
-    const { waTestFromEnv } = await import('./db/waTest.js');
+    const { waTestFromEnv, waPhoneStatusFromEnv, waRegisterFromEnv } = await import('./db/waTest.js');
+    await waPhoneStatusFromEnv().catch((err) => console.error('[wa-phone] failed:', err));
+    await waRegisterFromEnv().catch((err) => console.error('[wa-register] failed:', err));
     await waTestFromEnv().catch((err) => console.error('[wa-test] failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
