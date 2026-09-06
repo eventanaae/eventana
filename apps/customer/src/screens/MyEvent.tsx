@@ -606,16 +606,19 @@ export function MyEvent({
       {/* ---------------- setup-spot photos (signed-in only; hidden once the party is over) ---------------- */}
       {!eventOver && signedIn && <SetupSpotPhotos eventId={event.id} photos={event.setupPhotos ?? []} t={t} />}
 
-      {/* ---------------- rate & tip ---------------- */}
-      {!cancelled && event.review?.canReview && (
+      {/* ---------------- rate & tip ----------------
+          Only ask ONCE: once the customer has rated (event.review.rating exists)
+          the section disappears — no re-prompting the stars or the tip on every
+          visit to a finished event. They already gave their feedback. */}
+      {!cancelled && event.review?.canReview && !event.review?.rating && (
         <RateAndTip event={event} onDone={async () => setEvent(await api.event(event.id))} t={t} />
       )}
 
       {/* ---------------- chat ---------------- */}
-      {/* Messaging closes with the booking — a cancelled event has no team chat.
-          Signed-in only: posting a message needs the account that owns the event
-          (a guest link would just hit "auth required"). */}
-      {!cancelled && signedIn && (
+      {/* Team chat is for the run-up to the party. It's signed-in only (posting
+          needs the owning account) AND hidden once the event is over/cancelled —
+          there's nothing to coordinate after a finished celebration. */}
+      {!eventOver && signedIn && (
       <div style={card}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{t('me.chatTitle')}</div>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 12px' }}>
