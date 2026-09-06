@@ -91,6 +91,28 @@ export async function receiptEventAuditFromEnv(): Promise<void> {
       const pt = await pool.query(`SELECT title, category, skill, status FROM prep_tasks WHERE event_id = $1 ORDER BY category, id`, [id]);
       P(`  prep tasks (${pt.rowCount}):`);
       for (const p of pt.rows) P(`    - [${p.category}] ${p.title} (skill=${p.skill ?? '—'}, ${p.status})`);
+      // Booking reference the customer sees (EV-<receipt number>), + confirmation.
+      const rf = await pool.query(
+        `SELECT (SELECT fr.number FROM finance_receipts fr
+                  WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+                  ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number
+           FROM events e WHERE e.id = $1`, [id]);
+      const rn = rf.rows[0]?.receipt_number;
+      P(`  reference shown to customer: ${rn ? `EV-${rn}` : id} (internal id ${id})`);
+      const bc = await pool.query(
+        `SELECT to_char(scheduled_for,'MM-DD HH24:MI') AS sched, to_char(sent_at,'MM-DD HH24:MI') AS sent
+           FROM notifications WHERE event_id=$1 AND template='booking_confirmation' ORDER BY id DESC LIMIT 1`, [id]);
+      P(`  booking_confirmation: ${bc.rows[0] ? `sched=${bc.rows[0].sched ?? '—'} sent=${bc.rows[0].sent ?? 'NOT SENT'}` : 'NOT SCHEDULED'}`);
+      // Win-back / promo codes this customer holds.
+      const pc = await pool.query(
+        `SELECT p.code, p.kind, p.value, p.campaign, p.active, p.uses, p.max_uses,
+                to_char(p.expires_at,'YYYY-MM-DD') AS exp,
+                (SELECT count(*)::int FROM promo_redemptions r WHERE r.code = p.code) AS redeemed
+           FROM promo_codes p
+           JOIN events e ON e.customer_id = p.customer_id
+          WHERE e.id = $1 ORDER BY p.campaign, p.code`, [id]);
+      P(`  promo codes for this customer (${pc.rowCount}):`);
+      for (const c of pc.rows) P(`    - ${c.code} · ${c.campaign ?? '—'} · ${c.kind}=${c.value} · active=${c.active} · uses=${c.uses}/${c.max_uses ?? '∞'} · redeemed=${c.redeemed} · exp=${c.exp ?? '—'}`);
     } catch (err) { P(`detail ${id} failed: ${(err as Error).message}`); }
   }
   if (detailIds.length && !audit && !fixMode) { P('DONE'); return; }
