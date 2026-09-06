@@ -62,7 +62,7 @@ export async function eventRoutes(app: FastifyInstance) {
         ORDER BY e.event_date DESC`,
       [customerId],
     );
-    return rows.map((r) => ({
+    const live = rows.map((r) => ({
       id: r.id,
       date: r.event_date,
       startTime: r.start_time,
@@ -74,7 +74,46 @@ export async function eventRoutes(app: FastifyInstance) {
       packageName: r.package_name,
       emirate: r.emirate,
       totalDisplay: formatAed(Number(r.total_fils)),
+      historical: false,
     }));
+
+    // Past QuickBooks celebrations (the WhatsApp-era sales) — shown read-only so a
+    // returning customer sees their full history. Matched to this customer by
+    // EMAIL only (never by name), so one customer can never see another's orders;
+    // the historical_customers → historical_orders join stays within QuickBooks's
+    // own consistent naming. Best-effort: never breaks the live list.
+    let historical: Array<Record<string, unknown>> = [];
+    try {
+      const cust = await pool.query<{ email: string | null }>(`SELECT email FROM customers WHERE id = $1`, [customerId]);
+      const email = cust.rows[0]?.email;
+      if (email) {
+        const h = await pool.query<{ id: string; txn_date: string | null; product: string | null; total_fils: string; emirate: string | null }>(
+          `SELECT ho.id, to_char(ho.txn_date,'YYYY-MM-DD') AS txn_date, ho.product, ho.total_fils, hc.emirate
+             FROM historical_customers hc
+             JOIN historical_orders ho ON lower(btrim(ho.customer_name)) = lower(btrim(hc.full_name))
+            WHERE lower(hc.email) = lower($1)
+              AND ho.txn_type IN ('Invoice', 'Sales Receipt')
+              AND ho.total_fils > 0
+            ORDER BY ho.txn_date DESC NULLS LAST`,
+          [email],
+        );
+        historical = h.rows.map((r) => ({
+          id: `HIST-${r.id}`,
+          date: r.txn_date,
+          startTime: null, endTime: null, startDisplay: '', endDisplay: '',
+          phase: null,
+          celebrationType: null,
+          packageName: r.product || 'Celebration',
+          emirate: r.emirate || '',
+          totalDisplay: formatAed(Number(r.total_fils)),
+          historical: true,
+        }));
+      }
+    } catch {
+      /* history is a bonus; a failure here must never break My Events */
+    }
+
+    return [...live, ...historical];
   });
 
   /**

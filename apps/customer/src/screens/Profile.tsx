@@ -213,34 +213,39 @@ export function Profile({
           {events.map((e) => (
             <div
               key={e.id}
-              onClick={() => onOpenEvent(e.id)}
+              onClick={e.historical ? undefined : () => onOpenEvent(e.id)}
               style={{
                 background: '#fff', borderRadius: 18, padding: '13px 16px', boxShadow: C.shadow,
-                display: 'flex', alignItems: 'center', gap: 13, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 13, cursor: e.historical ? 'default' : 'pointer',
               }}
             >
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(135deg,#F9C6DC,#F7C948)', flex: 'none' }} />
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: e.historical ? 'linear-gradient(135deg,#E9E1E6,#D9CEDA)' : 'linear-gradient(135deg,#F9C6DC,#F7C948)', flex: 'none' }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 12.5 }}>{e.packageName ?? 'Celebration'}</div>
+                <div style={{ fontWeight: 700, fontSize: 12.5 }}>
+                  {e.packageName ?? 'Celebration'}
+                  {e.historical && <span style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, background: C.cream, borderRadius: 8, padding: '2px 6px', marginInlineStart: 6 }}>{t('profile.pastLabel')}</span>}
+                </div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>
-                  {new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · {e.emirate} · {t('common.aed')} {e.totalDisplay}
+                  {e.date ? new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}{e.emirate ? ` · ${e.emirate}` : ''} · {t('common.aed')} {e.totalDisplay}
                 </div>
               </div>
-              <button
-                disabled={rebooking === e.id}
-                onClick={async (ev) => {
-                  ev.stopPropagation();
-                  setRebooking(e.id);
-                  try { await onRebook(e.id); } catch { setRebooking(null); }
-                }}
-                style={{
-                  background: C.pinkSoft, border: 'none', color: C.pinkDeep, fontWeight: 700,
-                  fontSize: 10.5, padding: '8px 11px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
-                  opacity: rebooking === e.id ? 0.6 : 1,
-                }}
-              >
-                {rebooking === e.id ? t('profile.opening') : t('profile.bookAgain')}
-              </button>
+              {!e.historical && (
+                <button
+                  disabled={rebooking === e.id}
+                  onClick={async (ev) => {
+                    ev.stopPropagation();
+                    setRebooking(e.id);
+                    try { await onRebook(e.id); } catch { setRebooking(null); }
+                  }}
+                  style={{
+                    background: C.pinkSoft, border: 'none', color: C.pinkDeep, fontWeight: 700,
+                    fontSize: 10.5, padding: '8px 11px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                    opacity: rebooking === e.id ? 0.6 : 1,
+                  }}
+                >
+                  {rebooking === e.id ? t('profile.opening') : t('profile.bookAgain')}
+                </button>
+              )}
             </div>
           ))}
         </div>

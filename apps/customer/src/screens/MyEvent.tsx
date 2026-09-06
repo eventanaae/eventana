@@ -76,7 +76,9 @@ export function MyEvent({
     // Always keep the full list so a customer with several bookings can switch
     // between them — not just see the most recent one.
     const events = await api.events();
-    setList(events);
+    // Past QuickBooks celebrations are read-only history (shown in the Profile),
+    // never openable event tabs here — exclude them from the switcher.
+    setList(events.filter((e: any) => !e.historical));
     if (eventId) {
       setEvent(await api.event(eventId));
     } else if (events.length > 0) {
