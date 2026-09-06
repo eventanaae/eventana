@@ -171,6 +171,8 @@ async function main() {
     await cleanupTestEventFromEnv().catch((err) => console.error('[del-event] failed:', err));
     const { receiptEventAuditFromEnv } = await import('./db/receiptEventAudit.js');
     await receiptEventAuditFromEnv().catch((err) => console.error('[rcpt-event] failed:', err));
+    const { restoreEv1724FromEnv } = await import('./db/restoreEv1724.js');
+    await restoreEv1724FromEnv().catch((err) => console.error('[restore-1724] failed:', err));
     const { winbackEnsureFromEnv } = await import('./db/winbackEnsure.js');
     await winbackEnsureFromEnv().catch((err) => console.error('[winback-ensure] failed:', err));
     const { deliverNowFromEnv } = await import('./db/deliverNow.js');
