@@ -151,6 +151,17 @@ export async function sendFeedbackReminders(opts: { whenSql?: string } = {}): Pr
  * "now" sends on the next sweep. Delivery is handled by deliverPendingNotifications
  * once scheduled_for arrives. Clear the env var after it has queued.
  */
+/**
+ * SQL for the NEXT time HH:MM Asia/Dubai occurs, always in the future. Uses the
+ * Dubai calendar day (now() AT TIME ZONE 'Asia/Dubai'), NOT the server's UTC
+ * current_date — otherwise late-UTC/early-Dubai crossings compute a time that
+ * has already passed and the batch fires immediately. hhmm is caller-validated.
+ */
+function nextDubaiTimeSql(hhmm: string): string {
+  const base = `((date_trunc('day', now() AT TIME ZONE 'Asia/Dubai') + time '${hhmm}') AT TIME ZONE 'Asia/Dubai')`;
+  return `(CASE WHEN ${base} > now() THEN ${base} ELSE ${base} + interval '1 day' END)`;
+}
+
 export async function scheduleFeedbackBacklogFromEnv(): Promise<void> {
   const raw = String(process.env.FEEDBACK_SCHEDULE ?? '').trim();
   if (!raw) return;
@@ -159,8 +170,8 @@ export async function scheduleFeedbackBacklogFromEnv(): Promise<void> {
   const m = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
   if (m) {
     const hhmm = `${m[1].padStart(2, '0')}:${m[2]}`;
-    whenSql = `((current_date + time '${hhmm}') AT TIME ZONE 'Asia/Dubai')`;
-    label = `${hhmm} Asia/Dubai today`;
+    whenSql = nextDubaiTimeSql(hhmm);
+    label = `${hhmm} Asia/Dubai (next occurrence)`;
   } else if (raw.toLowerCase() !== 'now') {
     console.log(`[feedback-reminder] unrecognized FEEDBACK_SCHEDULE="${raw}" (use HH:MM or "now") — nothing scheduled`);
     return;
@@ -170,6 +181,41 @@ export async function scheduleFeedbackBacklogFromEnv(): Promise<void> {
     console.log(`[feedback-reminder] SCHEDULED ${res.queued} feedback message(s) for ${label} (of ${res.due} due). Clear FEEDBACK_SCHEDULE now so it doesn't re-run.`);
   } catch (err) {
     console.error('[feedback-reminder] schedule failed:', (err as Error).message);
+  }
+}
+
+/**
+ * Repair task: move every feedback message that hasn't fully gone out yet
+ * (WhatsApp still pending) to HH:MM Asia/Dubai, and re-sync the cadence stamp.
+ * Fixes a batch whose scheduled_for was computed in the past. Also logs whether
+ * customer WhatsApp is actually switched on, so a silent 0-WhatsApp is visible.
+ * Gated FEEDBACK_RESCHEDULE="HH:MM". Does NOT resend email (sent_at is kept).
+ */
+export async function rescheduleFeedbackFromEnv(): Promise<void> {
+  const raw = String(process.env.FEEDBACK_RESCHEDULE ?? '').trim();
+  if (!raw) return;
+  const m = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (!m) { console.log(`[feedback-reminder] bad FEEDBACK_RESCHEDULE="${raw}" (use HH:MM)`); return; }
+  const hhmm = `${m[1].padStart(2, '0')}:${m[2]}`;
+  const when = nextDubaiTimeSql(hhmm);
+  try {
+    const { whatsappCustomerNotifyEnabled } = await import('../integrations/whatsapp.js');
+    console.log(`[feedback-reminder] WhatsApp customer-notify enabled = ${whatsappCustomerNotifyEnabled()} (needs WHATSAPP_CUSTOMER_NOTIFY=true + phone id + token)`);
+    const upd = await pool.query<{ event_id: string }>(
+      `UPDATE notifications SET scheduled_for = ${when}
+        WHERE template = 'feedback_request' AND channel = 'email'
+          AND cancelled_at IS NULL AND whatsapp_sent_at IS NULL
+        RETURNING event_id`,
+    );
+    if (upd.rowCount) {
+      await pool.query(
+        `UPDATE events SET feedback_reminded_at = ${when} WHERE id = ANY($1::text[])`,
+        [upd.rows.map((r) => r.event_id)],
+      );
+    }
+    console.log(`[feedback-reminder] RESCHEDULED ${upd.rowCount} pending feedback message(s) to ${hhmm} Asia/Dubai (next occurrence). Email already-sent rows are untouched; WhatsApp fires at that time. Clear FEEDBACK_RESCHEDULE after.`);
+  } catch (err) {
+    console.error('[feedback-reminder] reschedule failed:', (err as Error).message);
   }
 }
 

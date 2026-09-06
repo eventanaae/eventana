@@ -212,8 +212,11 @@ async function main() {
     // One-time scheduled feedback backlog send (FEEDBACK_SCHEDULE=HH:MM, Dubai
     // today). Runs AFTER the QB conversion so the new events are already there.
     // Sends nothing itself — it queues rows timed for HH:MM; delivery fires then.
-    const { scheduleFeedbackBacklogFromEnv } = await import('./domain/feedbackReminders.js');
+    const { scheduleFeedbackBacklogFromEnv, rescheduleFeedbackFromEnv } = await import('./domain/feedbackReminders.js');
     await scheduleFeedbackBacklogFromEnv().catch((err) => console.error('[feedback-reminder] schedule failed:', err));
+    // Repair mistimed batches (FEEDBACK_RESCHEDULE=HH:MM) — runs before the
+    // reconcile/delivery loop starts, so nothing goes out at the wrong time.
+    await rescheduleFeedbackFromEnv().catch((err) => console.error('[feedback-reminder] reschedule failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');
