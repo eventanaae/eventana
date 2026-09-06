@@ -27,6 +27,25 @@ export async function cleanupTestEventFromEnv(): Promise<void> {
         try { const r = await pool.query(sql, params); if (r.rowCount) P(`  ${label}: ${r.rowCount}`); }
         catch (e) { P(`  ${label}: skip (${(e as Error).message.slice(0, 50)})`); }
       };
+      // Loyalty points: reverse whatever this event/order earned the customer,
+      // then remove the ledger rows — so the deleted test order leaves no points
+      // behind on their balance.
+      try {
+        const lp = await pool.query<{ net: number }>(
+          `SELECT COALESCE(SUM(points),0)::int AS net FROM loyalty_transactions
+            WHERE event_id = $1 OR ($2::text IS NOT NULL AND order_id = $2)`,
+          [eventId, order_id ?? null],
+        );
+        const net = Number(lp.rows[0]?.net ?? 0);
+        if (net && customer_id) {
+          await pool.query(
+            `UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`,
+            [customer_id, net],
+          );
+          P(`  loyalty_points: reversed ${net}`);
+        }
+      } catch (e) { P(`  loyalty_points: skip (${(e as Error).message.slice(0, 50)})`); }
+      await del(`DELETE FROM loyalty_transactions WHERE event_id=$1 OR ($2::text IS NOT NULL AND order_id=$2)`, [eventId, order_id ?? null], 'loyalty_transactions');
       // Child rows keyed by event_id.
       await del(`DELETE FROM prep_task_staff WHERE task_id IN (SELECT id FROM prep_tasks WHERE event_id=$1)`, [eventId], 'prep_task_staff');
       await del(`DELETE FROM prep_tasks WHERE event_id=$1`, [eventId], 'prep_tasks');
