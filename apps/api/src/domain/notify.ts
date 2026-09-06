@@ -19,6 +19,7 @@ import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { pushToStaff, pushToOwner } from '../integrations/push.js';
 import { whatsappCustomerNotifyEnabled, whatsappDriverNotifyEnabled, sendWhatsAppTemplate } from '../integrations/whatsapp.js';
 import { issueFeedbackToken } from './customerAuth.js';
+import { toValidCustomerPhone } from './maintenance.js';
 import { orderViewToken } from './orders.js';
 import { imageToPdf } from './imagePdf.js';
 
@@ -964,7 +965,12 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     );
     for (const row of rows) {
       const tpl = whatsAppTemplateFor(row);
-      const to = String(row.customer_phone ?? '').replace(/\D+/g, '');
+      // Meta needs the number in E.164 (9715XXXXXXXX). A UAE mobile stored as a
+      // local 05X — common for older/QuickBooks-migrated customers — would be
+      // rejected as an invalid recipient, so promote it first. Falls back to the
+      // raw digits if it isn't a recognisable UAE mobile.
+      const e164 = toValidCustomerPhone(row.customer_phone) ?? row.customer_phone;
+      const to = String(e164 ?? '').replace(/\D+/g, '');
       if (!tpl || !to) {
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         continue;
@@ -975,9 +981,12 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
       if (res.ok) {
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         whatsapps++;
+      } else {
+        // Surface WHY a customer WhatsApp didn't go out (bad number, template
+        // issue, Meta limit) instead of silently retrying forever.
+        console.error(`[notify] whatsapp send FAILED template=${row.template} event=${row.event_id} to=${to}: ${res.error}`);
       }
-      // Transient failure (e.g. template still pending approval): leave
-      // whatsapp_sent_at NULL so the next sweep retries once it's approved.
+      // Transient failure: leave whatsapp_sent_at NULL so the next sweep retries.
     }
   }
 

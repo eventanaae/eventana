@@ -217,6 +217,10 @@ async function main() {
     // Repair mistimed batches (FEEDBACK_RESCHEDULE=HH:MM) — runs before the
     // reconcile/delivery loop starts, so nothing goes out at the wrong time.
     await rescheduleFeedbackFromEnv().catch((err) => console.error('[feedback-reminder] reschedule failed:', err));
+    // One-off WhatsApp test send (WA_TEST=<phone>) to confirm customer WhatsApp
+    // works + surface Meta's exact error. Owner's own number; no customer send.
+    const { waTestFromEnv } = await import('./db/waTest.js');
+    await waTestFromEnv().catch((err) => console.error('[wa-test] failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');
