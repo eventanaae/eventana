@@ -956,7 +956,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
           AND (
                 e.event_date >= current_date
              OR n.template IN ('event_cancelled','cancellation_refund')
-             OR (n.template = 'feedback_request' AND e.event_date >= current_date - interval '30 days')
+             OR (n.template = 'feedback_request' AND e.event_date >= current_date - interval '95 days')
           )
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST
@@ -1062,7 +1062,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
           AND (
                 e.event_date >= current_date
              OR n.template IN ('event_cancelled','cancellation_refund')
-             OR (n.template = 'feedback_request' AND e.event_date >= current_date - interval '30 days')
+             OR (n.template = 'feedback_request' AND e.event_date >= current_date - interval '95 days')
           )
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST

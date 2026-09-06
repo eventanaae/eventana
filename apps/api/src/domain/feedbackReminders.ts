@@ -57,10 +57,12 @@ export async function findFeedbackReminderDue(): Promise<FeedbackReminderCandida
       WHERE e.cancelled_at IS NULL
         AND e.phase = 'Event Completed'
         AND e.date_tbd IS NOT TRUE
-        -- The party is over (≥3 days ago) but still recent (≤14 days) — the
-        -- two-week reminder window. Older events are left alone forever.
+        -- The party is over (≥3 days ago) and within the last 90 days — this
+        -- covers the July/August backlog the owner wants caught up, plus every
+        -- recent party going forward. Each customer still gets at most 4
+        -- reminders (~2 weeks) via the count cap below, then is left alone.
         AND e.event_date <= current_date - interval '3 days'
-        AND e.event_date >= current_date - interval '14 days'
+        AND e.event_date >= current_date - interval '90 days'
         -- No rating yet. A single event_ratings row (guest 3-step OR signed-in)
         -- means feedback was given → they drop out immediately.
         AND NOT EXISTS (SELECT 1 FROM event_ratings r WHERE r.event_id = e.id)
