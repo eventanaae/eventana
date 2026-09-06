@@ -1024,7 +1024,7 @@ export async function eventRoutes(app: FastifyInstance) {
     // Effective customer: the signed-in account, or — for a guest with a valid
     // feedback token for THIS event — the event's own customer.
     let tipCustomerId = customerIdOf(request);
-    if (!tipCustomerId && parsed.data.t && verifyFeedbackToken(eventId, parsed.data.t)) {
+    if (!tipCustomerId && parsed.data.t && verifyFeedbackToken(parsed.data.t) === eventId) {
       const ev = await pool.query<{ customer_id: string }>(`SELECT customer_id FROM events WHERE id = $1`, [eventId]);
       tipCustomerId = ev.rows[0]?.customer_id ?? '';
     }
