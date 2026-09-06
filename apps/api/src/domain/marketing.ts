@@ -101,6 +101,48 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
 }
 
 /**
+ * Auto-continue the win-back campaign, one daily batch at a time, so the whole
+ * audience is reached over a few days WITHOUT hitting the email provider's daily
+ * send cap (which stopped the bulk blast after ~200). GATED by WINBACK_AUTO=send.
+ * Sends at most WINBACK_AUTO_DAILY (default 120) un-sent codes, and only once per
+ * ~20h (guarded by the most recent win-back send), so the 5-minute sweep can call
+ * it freely. Stamps only on success, so a failed address simply waits for the
+ * next day instead of being lost.
+ */
+export async function sweepWinbackCampaignAuto(): Promise<number> {
+  if (String(process.env.WINBACK_AUTO ?? '').toLowerCase() !== 'send') return 0;
+  if (!emailEnabled()) return 0;
+  // Already sent a batch in the last ~20h? Then hold until tomorrow.
+  const recent = await pool.query(
+    `SELECT 1 FROM promo_codes WHERE campaign = 'winback' AND last_reminded_at > now() - interval '20 hours' LIMIT 1`);
+  if (recent.rowCount) return 0;
+
+  const daily = Math.max(1, Math.min(400, Number(process.env.WINBACK_AUTO_DAILY ?? 120) || 120));
+  const { sendWinbackEmail } = await import('./notify.js');
+  const { rows } = await pool.query<{ id: string; name: string; email: string; code: string; expires_at: Date | null }>(
+    `SELECT c.id, c.name, c.email, p.code, p.expires_at
+       FROM promo_codes p JOIN customers c ON c.id = p.customer_id
+      WHERE p.campaign = 'winback' AND p.active
+        AND c.email IS NOT NULL AND c.email <> '' AND c.email_opt_out = FALSE
+        AND (p.expires_at IS NULL OR p.expires_at > now())
+        AND (p.max_uses IS NULL OR p.uses < p.max_uses)
+        AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code)
+        AND p.last_reminded_at IS NULL
+      ORDER BY c.name LIMIT ${daily}`);
+  if (!rows.length) return 0;
+  let sent = 0;
+  for (const r of rows) {
+    const ok = await sendWinbackEmail({
+      firstName: (r.name || '').split(' ')[0], email: r.email, code: r.code, expiresAt: r.expires_at, customerId: r.id,
+    }).catch(() => false);
+    if (ok) { await pool.query(`UPDATE promo_codes SET last_reminded_at = now() WHERE code = $1`, [r.code]); sent++; }
+    await new Promise((res) => setTimeout(res, 120));
+  }
+  console.log(`[winback-auto] daily batch — sent ${sent}/${rows.length}`);
+  return sent;
+}
+
+/**
  * Reminds customers about an unused personal reward (the 20%-off next-booking
  * voucher) every ~6 months until they use it or it expires. Runs from the same
  * periodic sweep; the 6-month WHERE clause keeps it from ever emailing twice in
