@@ -58,3 +58,42 @@ export async function restoreEv1724FromEnv(): Promise<void> {
     console.error('[restore-1724] failed:', (err as Error).message);
   }
 }
+
+/**
+ * Put Diana back on the restored EV-1724 crew and re-award her good-feedback
+ * points (the "نجوم ديانا" that were lost when the event was deleted). Gated by
+ * RESTORE_CREW1724=true. Idempotent (staff_rewards de-dupes on kind+source_ref+member).
+ */
+export async function restoreCrew1724FromEnv(): Promise<void> {
+  if (String(process.env.RESTORE_CREW1724 ?? '').toLowerCase() !== 'true') return;
+  try {
+    const r = await pool.query<{ event_id: string }>(`SELECT event_id FROM finance_receipts WHERE number = '1724'`);
+    const eventId = r.rows[0]?.event_id;
+    if (!eventId) { P(`[crew] receipt #1724 has no event — run RESTORE_EV1724 first`); return; }
+
+    const d = await pool.query<{ id: string; name: string }>(
+      `SELECT id, name FROM team_members WHERE lower(name) = 'diana' AND active LIMIT 1`);
+    if (!d.rowCount) { P(`[crew] team member "Diana" not found`); return; }
+    const diana = d.rows[0];
+
+    await pool.query(
+      `INSERT INTO event_team (event_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+      [eventId, diana.id]);
+    P(`[crew] Diana (${diana.id}) added to ${eventId} team`);
+
+    const rating = await pool.query<{ id: string; stars: number; feedback: string | null }>(
+      `SELECT id, stars, feedback FROM event_ratings WHERE event_id = $1 ORDER BY id DESC LIMIT 1`, [eventId]);
+    if (rating.rowCount) {
+      const { recordGoodFeedbackRewards } = await import('../domain/incentives.js');
+      const out = await recordGoodFeedbackRewards({
+        eventId, ratingId: rating.rows[0].id, stars: rating.rows[0].stars, feedback: rating.rows[0].feedback,
+      });
+      P(`[crew] good-feedback reward re-applied → ${out.rewarded.map((x) => x.name).join(', ') || 'none (already had it)'}`);
+    } else {
+      P(`[crew] no rating on ${eventId} to reward`);
+    }
+    P('[crew] DONE');
+  } catch (err) {
+    console.error('[restore-1724] crew failed:', (err as Error).message);
+  }
+}
