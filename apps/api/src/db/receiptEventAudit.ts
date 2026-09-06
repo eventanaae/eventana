@@ -22,9 +22,52 @@ export async function receiptEventAuditFromEnv(): Promise<void> {
   const audit = String(process.env.RECEIPT_EVENT_AUDIT ?? '').toLowerCase() === 'true';
   const fixMode = String(process.env.RECEIPT_EVENT_FIX ?? '').toLowerCase() === 'convert';
   const hasDetail = String(process.env.EVENT_DETAIL ?? '').trim().length > 0;
-  if (!audit && !fixMode && !hasDetail) return;
+  const hasTrace = String(process.env.RECEIPT_TRACE ?? '').trim().length > 0;
+  if (!audit && !fixMode && !hasDetail && !hasTrace) return;
 
   const today = new Date().toISOString().slice(0, 10);
+
+  // ---- On-demand: trace recent receipts by customer name — why did (or didn't)
+  // the confirmation email go out? Shows event link, the email on both the app
+  // customer row and the finance book, and the booking_confirmation notification.
+  const trace = String(process.env.RECEIPT_TRACE ?? '').trim();
+  if (trace) {
+    try {
+      const rows = await pool.query(
+        `SELECT r.number, r.customer_name, to_char(r.date,'YYYY-MM-DD') AS d,
+                to_char(r.created_at,'MM-DD HH24:MI') AS made, r.event_id,
+                coalesce(r.source,'dashboard') AS source
+           FROM finance_receipts r
+          WHERE lower(r.customer_name) LIKE lower($1)
+            AND r.created_at >= now() - interval '3 days'
+          ORDER BY r.created_at DESC LIMIT 10`,
+        [`%${trace}%`],
+      );
+      P(`trace "${trace}": ${rows.rowCount} recent receipt(s)`);
+      for (const r of rows.rows) {
+        P(`  #${r.number} · ${r.customer_name} · date=${r.d} · made=${r.made} · src=${r.source} · event=${r.event_id ?? 'NONE'}`);
+        // email on the app customer row (what enqueueBookingLifecycle reads)
+        if (r.event_id) {
+          const ce = await pool.query(
+            `SELECT c.email, c.phone FROM events e JOIN customers c ON c.id = e.customer_id WHERE e.id = $1`, [r.event_id]);
+          P(`     app customer email=${ce.rows[0]?.email ?? 'NONE'} phone=${ce.rows[0]?.phone ?? '—'}`);
+          const nt = await pool.query(
+            `SELECT template, to_char(scheduled_for,'MM-DD HH24:MI') AS sched,
+                    to_char(sent_at,'MM-DD HH24:MI') AS sent
+               FROM notifications WHERE event_id = $1 AND template = 'booking_confirmation'
+              ORDER BY id DESC LIMIT 1`, [r.event_id]);
+          const n = nt.rows[0];
+          P(`     booking_confirmation: ${n ? `sched=${n.sched ?? '—'} sent=${n.sent ?? 'NOT SENT'}` : 'NOT SCHEDULED'}`);
+        }
+        // finance-book email (where a manual receipt's email would live)
+        const he = await pool.query(
+          `SELECT email FROM historical_customers WHERE lower(full_name) = lower($1) AND email IS NOT NULL AND email <> '' LIMIT 1`,
+          [r.customer_name]);
+        P(`     finance-book email=${he.rows[0]?.email ?? 'NONE'}`);
+      }
+    } catch (e) { P(`trace failed: ${(e as Error).message}`); }
+    if (!audit && !fixMode && !hasDetail) { P('DONE'); return; }
+  }
 
   // ---- On-demand: dump one event's package/theme/services/prep tasks --------
   const detailIds = String(process.env.EVENT_DETAIL ?? '').split(',').map((s) => s.trim()).filter(Boolean);

@@ -664,7 +664,17 @@ export async function ensureEventForReceipt(
     if (!opts.skipLifecycle && String(r.source ?? '') !== 'quickbooks') {
       void import('./lifecycle.js')
         .then(({ enqueueBookingLifecycle }) => enqueueBookingLifecycle(newEventId!))
-        .then((res) => console.log(`[lifecycle] ${newEventId}: scheduled [${res.scheduled.join(', ') || '—'}]${res.skipped ? ' — ' + res.skipped : ''}`))
+        .then(async (res) => {
+          console.log(`[lifecycle] ${newEventId}: scheduled [${res.scheduled.join(', ') || '—'}]${res.skipped ? ' — ' + res.skipped : ''}`);
+          // Send the just-queued confirmation NOW instead of waiting up to the
+          // next 5-minute sweep — the owner wants the customer emailed the moment
+          // the receipt is made. Best-effort; the sweep is the safety net.
+          if (res.scheduled.includes('booking_confirmation')) {
+            const { deliverPendingNotifications } = await import('./notify.js');
+            const out = await deliverPendingNotifications();
+            console.log(`[lifecycle] ${newEventId}: immediate deliver → ${out.emails} email(s)`);
+          }
+        })
         .catch((e) => console.error('[lifecycle] convert enqueue failed:', (e as Error).message));
     }
   }
