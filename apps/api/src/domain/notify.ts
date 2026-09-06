@@ -1079,6 +1079,10 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
       if (res.ok) {
         await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
         emails++;
+      } else {
+        // Surface WHY a customer email didn't go out (Resend rate/cap, bad
+        // address, disabled key) instead of silently retrying forever.
+        console.error(`[notify] email send FAILED template=${row.template} event=${row.event_id} to=${row.customer_email}: ${res.error}`);
       }
       // Transient failure: leave sent_at NULL — the next sweep retries.
     }
