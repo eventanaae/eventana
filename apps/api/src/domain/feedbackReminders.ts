@@ -113,20 +113,25 @@ export async function findFeedbackReminderDue(): Promise<FeedbackReminderCandida
  * due event and stamp the cadence. deliverPendingNotifications does the actual
  * sending on this/the next sweep. Idempotent per 3-day window per event.
  */
-export async function sendFeedbackReminders(): Promise<{ due: number; queued: number }> {
+export async function sendFeedbackReminders(opts: { whenSql?: string } = {}): Promise<{ due: number; queued: number }> {
+  // `whenSql` is a trusted SQL time expression (default now()); the only other
+  // caller passes a validated "…AT TIME ZONE 'Asia/Dubai'" literal. Both the
+  // send time and the cadence stamp use it, so a scheduled batch doesn't get
+  // re-queued before it even goes out.
+  const when = opts.whenSql ?? 'now()';
   const due = await findFeedbackReminderDue();
   let queued = 0;
   for (const d of due) {
     try {
       await pool.query(
         `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-         VALUES ($1, 'email', 'feedback_request', now(),
+         VALUES ($1, 'email', 'feedback_request', ${when},
                  jsonb_build_object('eventId', $1::text, 'reminder', true))`,
         [d.eventId],
       );
       await pool.query(
         `UPDATE events
-            SET feedback_reminded_at = now(),
+            SET feedback_reminded_at = ${when},
                 feedback_reminder_count = feedback_reminder_count + 1
           WHERE id = $1`,
         [d.eventId],
@@ -137,6 +142,35 @@ export async function sendFeedbackReminders(): Promise<{ due: number; queued: nu
     }
   }
   return { due: due.length, queued };
+}
+
+/**
+ * One-time scheduled backlog send. FEEDBACK_SCHEDULE="HH:MM" queues a feedback
+ * message for every due unrated party, timed for HH:MM Asia/Dubai TODAY (so the
+ * owner can catch up the July/Aug backlog at a civil hour, not at midnight).
+ * "now" sends on the next sweep. Delivery is handled by deliverPendingNotifications
+ * once scheduled_for arrives. Clear the env var after it has queued.
+ */
+export async function scheduleFeedbackBacklogFromEnv(): Promise<void> {
+  const raw = String(process.env.FEEDBACK_SCHEDULE ?? '').trim();
+  if (!raw) return;
+  let whenSql = 'now()';
+  let label = 'now';
+  const m = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (m) {
+    const hhmm = `${m[1].padStart(2, '0')}:${m[2]}`;
+    whenSql = `((current_date + time '${hhmm}') AT TIME ZONE 'Asia/Dubai')`;
+    label = `${hhmm} Asia/Dubai today`;
+  } else if (raw.toLowerCase() !== 'now') {
+    console.log(`[feedback-reminder] unrecognized FEEDBACK_SCHEDULE="${raw}" (use HH:MM or "now") — nothing scheduled`);
+    return;
+  }
+  try {
+    const res = await sendFeedbackReminders({ whenSql });
+    console.log(`[feedback-reminder] SCHEDULED ${res.queued} feedback message(s) for ${label} (of ${res.due} due). Clear FEEDBACK_SCHEDULE now so it doesn't re-run.`);
+  } catch (err) {
+    console.error('[feedback-reminder] schedule failed:', (err as Error).message);
+  }
 }
 
 /**
