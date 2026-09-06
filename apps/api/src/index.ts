@@ -169,6 +169,8 @@ async function main() {
     await winbackCampaignFromEnv().catch((err) => console.error('[winback-campaign] failed:', err));
     const { cleanupTestEventFromEnv } = await import('./db/cleanupTestEvent.js');
     await cleanupTestEventFromEnv().catch((err) => console.error('[del-event] failed:', err));
+    const { receiptEventAuditFromEnv } = await import('./db/receiptEventAudit.js');
+    await receiptEventAuditFromEnv().catch((err) => console.error('[rcpt-event] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {

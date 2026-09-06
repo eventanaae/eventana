@@ -570,7 +570,10 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
  * exact time start as placeholders the team completes on the job. Idempotent.
  * Returns the new event id, or null when nothing was created.
  */
-export async function ensureEventForReceipt(receiptId: number): Promise<string | null> {
+export async function ensureEventForReceipt(
+  receiptId: number,
+  opts: { skipLifecycle?: boolean } = {},
+): Promise<string | null> {
   const { rows } = await pool.query(
     `SELECT r.*, to_char(r.date,'YYYY-MM-DD') AS date_str,
             hc.phone AS hc_phone, hc.email AS hc_email, hc.emirate AS hc_emirate
@@ -658,7 +661,7 @@ export async function ensureEventForReceipt(receiptId: number): Promise<string |
     // reminder 3 days before, event-day, feedback after) — but NOT for bulk
     // QuickBooks history imports (those are past sales already known to the
     // customer). enqueueBookingLifecycle self-guards on a valid email + real date.
-    if (String(r.source ?? '') !== 'quickbooks') {
+    if (!opts.skipLifecycle && String(r.source ?? '') !== 'quickbooks') {
       void import('./lifecycle.js')
         .then(({ enqueueBookingLifecycle }) => enqueueBookingLifecycle(newEventId!))
         .then((res) => console.log(`[lifecycle] ${newEventId}: scheduled [${res.scheduled.join(', ') || '—'}]${res.skipped ? ' — ' + res.skipped : ''}`))
@@ -669,7 +672,9 @@ export async function ensureEventForReceipt(receiptId: number): Promise<string |
 }
 
 /** One-time (and safe to re-run): convert every upcoming sale that has no event yet. */
-export async function convertUpcomingReceiptsToEvents(): Promise<{ created: string[]; considered: number }> {
+export async function convertUpcomingReceiptsToEvents(
+  opts: { skipLifecycle?: boolean } = {},
+): Promise<{ created: string[]; considered: number }> {
   const today = new Date().toISOString().slice(0, 10);
   const { rows } = await pool.query(
     `SELECT id FROM finance_receipts WHERE event_id IS NULL AND date >= $1 ORDER BY date`,
@@ -677,7 +682,7 @@ export async function convertUpcomingReceiptsToEvents(): Promise<{ created: stri
   );
   const created: string[] = [];
   for (const row of rows) {
-    const ev = await ensureEventForReceipt(row.id);
+    const ev = await ensureEventForReceipt(row.id, opts);
     if (ev) created.push(ev);
   }
   return { created, considered: rows.length };
