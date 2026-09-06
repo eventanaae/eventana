@@ -104,14 +104,20 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   await sweepVoucherReminders().catch((err) => console.error('[marketing] voucher reminders failed:', err));
 
   // Continue the win-back campaign one daily batch at a time (gated WINBACK_AUTO=send).
-  await sweepWinbackCampaignAuto().catch((err) => console.error('[marketing] winback auto-campaign failed:', err));
+  await sweepWinbackCampaignAuto()
+    .then((n) => { if (n) console.log(`[marketing] winback auto-campaign sent ${n}`); })
+    .catch((err) => console.error('[marketing] winback auto-campaign failed:', err));
 
   // Email the win-back code ~3 days after each event (gated WINBACK_POSTEVENT=send).
-  await sweepPostEventWinback().catch((err) => console.error('[marketing] winback post-event failed:', err));
+  await sweepPostEventWinback()
+    .then((n) => { if (n) console.log(`[marketing] winback post-event sent ${n}`); })
+    .catch((err) => console.error('[marketing] winback post-event failed:', err));
 
   // Re-send the win-back AED 600 code every ~2 weeks while it's unused (gated by
   // WINBACK_REMINDERS=send, and only after the initial campaign send).
-  await sweepWinbackReminders().catch((err) => console.error('[marketing] winback reminders failed:', err));
+  await sweepWinbackReminders()
+    .then((n) => { if (n) console.log(`[marketing] winback reminders sent ${n}`); })
+    .catch((err) => console.error('[marketing] winback reminders failed:', err));
 
   // Once a month, draft an anniversary re-engagement campaign for review (never
   // auto-sent — it waits for Manager/CEO approval).
