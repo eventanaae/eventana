@@ -163,6 +163,39 @@ export async function receiptEventAuditFromEnv(): Promise<void> {
 
     // ---- Apply the fix ------------------------------------------------------
     if (fixMode) {
+      // (0) Re-link past receipts whose event already exists but was never linked
+      // back to the receipt row (app/manual bookings create the event at
+      // checkout; only the receipt→event conversion path sets event_id). Safe:
+      // this only stamps the link column, it creates nothing.
+      const unlinked = await pool.query(
+        `SELECT r.number, r.customer_name, r.order_id, to_char(r.date,'YYYY-MM-DD') AS d
+           FROM finance_receipts r
+          WHERE r.event_id IS NULL AND r.date_tbd = FALSE
+            AND coalesce(r.source,'dashboard') <> 'quickbooks'`,
+      );
+      let linked = 0;
+      for (const r of unlinked.rows) {
+        let evId: string | null = null;
+        if (r.order_id) {
+          const byOrder = await pool.query(`SELECT id FROM events WHERE order_id = $1 LIMIT 1`, [r.order_id]);
+          evId = byOrder.rows[0]?.id ?? null;
+        }
+        if (!evId) {
+          const byCust = await pool.query(
+            `SELECT e.id FROM events e JOIN customers c ON c.id = e.customer_id
+              WHERE lower(c.name) = lower($1) AND e.event_date = $2::date LIMIT 1`,
+            [r.customer_name, r.d],
+          );
+          evId = byCust.rows[0]?.id ?? null;
+        }
+        if (evId) {
+          await pool.query(`UPDATE finance_receipts SET event_id = $2 WHERE number = $1`, [r.number, evId]);
+          P(`FIX: linked receipt #${r.number} → ${evId}`);
+          linked++;
+        }
+      }
+      P(`FIX: re-linked ${linked} receipt(s) to existing events`);
+
       P('FIX: converting upcoming receipts → events (emails suppressed) …');
       const { convertUpcomingReceiptsToEvents } = await import('../domain/finance.js');
       const res = await convertUpcomingReceiptsToEvents({ skipLifecycle: true });
