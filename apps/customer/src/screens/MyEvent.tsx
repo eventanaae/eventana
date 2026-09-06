@@ -597,7 +597,7 @@ export function MyEvent({
       <div style={card}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{t('me.chatTitle')}</div>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 12px' }}>
-          {t('me.chatConnected', { id: event.id })}
+          {t('me.chatConnected', { id: event.reference ?? event.id })}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
           {event.messages.map((m: any) => (
