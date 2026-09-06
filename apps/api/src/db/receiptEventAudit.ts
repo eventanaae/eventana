@@ -21,9 +21,36 @@ const aed = (fils: unknown) => (Number(fils || 0) / 100).toLocaleString('en-US')
 export async function receiptEventAuditFromEnv(): Promise<void> {
   const audit = String(process.env.RECEIPT_EVENT_AUDIT ?? '').toLowerCase() === 'true';
   const fixMode = String(process.env.RECEIPT_EVENT_FIX ?? '').toLowerCase() === 'convert';
-  if (!audit && !fixMode) return;
+  const hasDetail = String(process.env.EVENT_DETAIL ?? '').trim().length > 0;
+  if (!audit && !fixMode && !hasDetail) return;
 
   const today = new Date().toISOString().slice(0, 10);
+
+  // ---- On-demand: dump one event's package/theme/services/prep tasks --------
+  const detailIds = String(process.env.EVENT_DETAIL ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  for (const id of detailIds) {
+    try {
+      const e = await pool.query(
+        `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS d, e.phase,
+                e.package_id, e.theme_id, e.custom_theme, e.celebration_type,
+                p.name AS package_name, t.name AS theme_name, c.name AS customer
+           FROM events e
+           LEFT JOIN packages p ON p.id = e.package_id
+           LEFT JOIN themes   t ON t.id = e.theme_id
+           LEFT JOIN customers c ON c.id = e.customer_id
+          WHERE e.id = $1`, [id]);
+      if (!e.rowCount) { P(`detail ${id}: NOT FOUND`); continue; }
+      const r = e.rows[0];
+      P(`detail ${id} "${r.customer}" ${r.d} phase=${r.phase} pkg=${r.package_name ?? r.package_id ?? 'NONE'} theme=${r.theme_name ?? r.custom_theme ?? 'NONE'}`);
+      const sv = await pool.query(`SELECT label, quantity, amount_fils FROM event_services WHERE event_id = $1 ORDER BY id`, [id]);
+      P(`  services (${sv.rowCount}):`);
+      for (const s of sv.rows) P(`    - ${s.label} ×${s.quantity} (AED ${aed(s.amount_fils)})`);
+      const pt = await pool.query(`SELECT title, category, skill, status FROM prep_tasks WHERE event_id = $1 ORDER BY category, id`, [id]);
+      P(`  prep tasks (${pt.rowCount}):`);
+      for (const p of pt.rows) P(`    - [${p.category}] ${p.title} (skill=${p.skill ?? '—'}, ${p.status})`);
+    } catch (err) { P(`detail ${id} failed: ${(err as Error).message}`); }
+  }
+  if (detailIds.length && !audit && !fixMode) { P('DONE'); return; }
 
   try {
     // ---- The gap: upcoming receipts with no linked event -------------------
