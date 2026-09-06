@@ -24,7 +24,7 @@ import { CheckoutError, startAddonCheckout, startTipCheckout } from '../domain/c
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToStaff } from '../integrations/push.js';
 import { generateEventPass, walletEnabled } from '../integrations/wallet.js';
-import { customerFromRequest, verifyFeedbackToken } from '../domain/customerAuth.js';
+import { customerFromRequest, verifyFeedbackToken, issueFeedbackToken } from '../domain/customerAuth.js';
 import { rescheduleEvent, RescheduleError, RESCHEDULE_MIN_HOURS } from '../domain/reschedule.js';
 import { refundOrderMoney } from '../domain/refund.js';
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
@@ -54,7 +54,9 @@ export async function eventRoutes(app: FastifyInstance) {
     const { rows } = await pool.query(
       `SELECT e.id, e.event_date, e.start_time, e.base_end_time, e.phase,
               e.celebration_type, e.package_id, p.name AS package_name,
-              e.emirate, o.total_fils
+              e.emirate, o.total_fils,
+              -- Has this event already been rated? (drives the auto feedback pop-up)
+              NOT EXISTS (SELECT 1 FROM event_ratings er WHERE er.event_id = e.id) AS unrated
          FROM events e
          JOIN orders o ON o.id = e.order_id
          LEFT JOIN packages p ON p.id = e.package_id
@@ -62,20 +64,35 @@ export async function eventRoutes(app: FastifyInstance) {
         ORDER BY e.event_date DESC`,
       [customerId],
     );
-    const live = rows.map((r) => ({
-      id: r.id,
-      date: r.event_date,
-      startTime: r.start_time,
-      endTime: r.base_end_time,
-      startDisplay: display(r.start_time),
-      endDisplay: display(r.base_end_time),
-      phase: r.phase,
-      celebrationType: r.celebration_type,
-      packageName: r.package_name,
-      emirate: r.emirate,
-      totalDisplay: formatAed(Number(r.total_fils)),
-      historical: false,
-    }));
+    const today = new Date().toISOString().slice(0, 10);
+    const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const live = rows.map((r) => {
+      const dateStr = r.event_date ? new Date(r.event_date).toISOString().slice(0, 10) : null;
+      // The party is over (or started) AND still un-rated AND finished within the
+      // last 30 days → the app should pop the 3-step feedback for it. Carry a
+      // signed token so the same GuestFeedback wizard works for a logged-in
+      // customer without a separate authenticated path.
+      const needsFeedback =
+        ['Party Started', 'Event Completed'].includes(r.phase) &&
+        r.unrated === true &&
+        dateStr != null && dateStr <= today && dateStr >= thirtyAgo;
+      return {
+        id: r.id,
+        date: r.event_date,
+        startTime: r.start_time,
+        endTime: r.base_end_time,
+        startDisplay: display(r.start_time),
+        endDisplay: display(r.base_end_time),
+        phase: r.phase,
+        celebrationType: r.celebration_type,
+        packageName: r.package_name,
+        emirate: r.emirate,
+        totalDisplay: formatAed(Number(r.total_fils)),
+        historical: false,
+        needsFeedback,
+        feedbackToken: needsFeedback ? issueFeedbackToken(r.id) : null,
+      };
+    });
 
     // Past QuickBooks celebrations (the WhatsApp-era sales) — shown read-only so a
     // returning customer sees their full history. Matched to this customer by

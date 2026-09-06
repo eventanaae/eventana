@@ -256,6 +256,10 @@ export default function App() {
   const [offerError, setOfferError] = useState<'used' | 'invalid' | null>(null);
   // Guest feedback link (?event=<id>&fb=<token>): rate without an account.
   const [feedbackLink, setFeedbackLink] = useState<{ event: string; token: string } | null>(null);
+  // Auto feedback POP-UP: when a signed-in customer opens the app after their
+  // party, surface the same 3-step feedback wizard as an overlay (no link needed).
+  const [autoFeedback, setAutoFeedback] = useState<{ event: string; token: string } | null>(null);
+  const fbCheckedRef = useRef(false);
 
   // Returning from a provider's hosted checkout, opening a booking straight from
   // an email's "Track your booking" button (?event=<id>), the Terms link, or a
@@ -327,6 +331,39 @@ export default function App() {
       history.replaceState({}, '', location.pathname);
     }
   }, []);
+
+  // Auto feedback pop-up: once a signed-in customer is in the app (and didn't
+  // arrive on a specific deep link), look for a just-finished, still-unrated
+  // party and pop the 3-step feedback wizard for it. Runs once per session; a
+  // pop-up the customer closes is remembered so it doesn't nag again.
+  useEffect(() => {
+    if (fbCheckedRef.current || autoFeedback || feedbackLink) return;
+    if (deepLinkIntent) return;
+    if (!loadAccount()?.token) return;
+    if (!['home', 'profile', 'myevent'].includes(screen)) return;
+    fbCheckedRef.current = true;
+    api
+      .events()
+      .then((evs: any[]) => {
+        let dismissed: string[] = [];
+        try { dismissed = JSON.parse(localStorage.getItem('fbDismissed') || '[]'); } catch { /* ignore */ }
+        const ev = (evs || []).find(
+          (e) => !e.historical && e.needsFeedback && e.feedbackToken && !dismissed.includes(e.id),
+        );
+        if (ev) setAutoFeedback({ event: ev.id, token: ev.feedbackToken });
+      })
+      .catch(() => { /* never block the app on the feedback check */ });
+  }, [screen, deepLinkIntent, autoFeedback, feedbackLink]);
+
+  const dismissAutoFeedback = () => {
+    if (autoFeedback) {
+      try {
+        const cur: string[] = JSON.parse(localStorage.getItem('fbDismissed') || '[]');
+        if (!cur.includes(autoFeedback.event)) localStorage.setItem('fbDismissed', JSON.stringify([...cur, autoFeedback.event]));
+      } catch { /* ignore */ }
+    }
+    setAutoFeedback(null);
+  };
 
   // A booking opened from the signed email link is linked to the account the
   // moment the customer is signed in — whether they already were, or they just
@@ -618,6 +655,23 @@ export default function App() {
 
       {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
       {showPrivacy && <PrivacySheet lang={lang} onClose={() => setShowPrivacy(false)} />}
+
+      {/* Auto feedback POP-UP for a signed-in customer whose party just finished. */}
+      {autoFeedback && (
+        <div
+          onClick={dismissAutoFeedback}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(60,40,52,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 70, overflowY: 'auto' }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: '100%', maxWidth: 440 }}>
+            <button
+              onClick={dismissAutoFeedback}
+              aria-label="Close"
+              style={{ position: 'absolute', top: 6, insetInlineEnd: 6, zIndex: 2, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.9)', color: C.muted, fontSize: 20, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,.15)' }}
+            >×</button>
+            <GuestFeedback event={autoFeedback.event} token={autoFeedback.token} t={t} lang={lang} />
+          </div>
+        </div>
+      )}
 
       {offerError && (
         <div
