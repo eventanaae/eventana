@@ -53,9 +53,14 @@ export async function makeTestEventFromEnv(): Promise<void> {
     P(`lifecycle: [${res.scheduled.join(', ') || '—'}]${res.skipped ? ' — ' + res.skipped : ''}`);
 
     const base = (config.publicAppUrl || '').replace(/\/$/, '');
-    const link = `${base}/?event=${encodeURIComponent(eventId)}&fb=${encodeURIComponent(issueFeedbackToken(eventId))}`;
+    const tok = encodeURIComponent(issueFeedbackToken(eventId));
+    const view = `${base}/?event=${encodeURIComponent(eventId)}&fb=${tok}`;
+    const rate = `${view}&rate=1`;
+    // Make it look completed so the rating flow is natural to try.
+    await pool.query(`UPDATE events SET phase = 'Event Completed' WHERE id = $1`, [eventId]);
     P(`TEST event=${eventId} · ref=EV-${receipt.number} · date=${dateStr} 5:00 PM · to ${email}`);
-    P(`  FEEDBACK/MY-EVENT LINK: ${link}`);
+    P(`  MY-EVENT (booking) LINK: ${view}`);
+    P(`  RATE (3-step feedback) LINK: ${rate}`);
     P('DONE');
   } catch (err) {
     console.error('[test-event] failed:', (err as Error).message);
