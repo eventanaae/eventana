@@ -3,7 +3,9 @@ import { api } from '../api';
 import { C, Card, Notice, Spinner, money } from '../ui';
 import type { Lang, TFn } from '../i18n';
 
-const GOOGLE_REVIEW_URL = 'https://g.page/r/CZi09M69VVZ6EBE/review';
+// Managed "Eventana Events" listing (Al Barsha, Dubai — CID 0x53cd0c2fb8998790).
+// Replaces the old duplicate-listing link so reviews land on the real profile.
+const GOOGLE_REVIEW_URL = 'https://g.page/r/CZCHmbgvDM1TEBE/review';
 const TIP_PRESETS = [5000, 10000, 15000];
 
 /**

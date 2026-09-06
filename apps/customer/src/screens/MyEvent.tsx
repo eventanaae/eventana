@@ -1056,7 +1056,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
           <Notice tone="ok">{t('me.rateThanks', { stars })}</Notice>
           {stars >= 4 && (
             <a
-              href="https://g.page/r/CZi09M69VVZ6EBE/review"
+              href="https://g.page/r/CZCHmbgvDM1TEBE/review"
               target="_blank"
               rel="noopener noreferrer"
               style={{
