@@ -173,6 +173,8 @@ async function main() {
     await receiptEventAuditFromEnv().catch((err) => console.error('[rcpt-event] failed:', err));
     const { winbackEnsureFromEnv } = await import('./db/winbackEnsure.js');
     await winbackEnsureFromEnv().catch((err) => console.error('[winback-ensure] failed:', err));
+    const { deliverNowFromEnv } = await import('./db/deliverNow.js');
+    await deliverNowFromEnv().catch((err) => console.error('[deliver-now] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
