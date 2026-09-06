@@ -162,7 +162,7 @@ async function convertOne(p: Party): Promise<'converted' | 'skipped'> {
     if (!customerId) {
       customerId = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
       await db.query(
-        `INSERT INTO customers (id, name, phone, email, source) VALUES ($1,$2,$3,$4,'quickbooks')`,
+        `INSERT INTO customers (id, name, phone, email, origin) VALUES ($1,$2,$3,$4,'quickbooks')`,
         [customerId, name, phoneVal, email]);
     } else {
       // Backfill contact if the matched record is missing it.
