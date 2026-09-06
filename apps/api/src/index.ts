@@ -177,6 +177,11 @@ async function main() {
     await setReview1724FromEnv().catch((err) => console.error('[restore-1724] review failed:', err));
     const { winbackEnsureFromEnv } = await import('./db/winbackEnsure.js');
     await winbackEnsureFromEnv().catch((err) => console.error('[winback-ensure] failed:', err));
+    // One-time bulk send of the held win-back code emails (WINBACK_SEND_ALL=
+    // list|send) now the Resend daily cap is gone. list previews the count;
+    // send delivers every never-emailed code once.
+    const { winbackSendAllFromEnv } = await import('./db/winbackSendAll.js');
+    await winbackSendAllFromEnv().catch((err) => console.error('[winback-all] failed:', err));
     const { deliverNowFromEnv } = await import('./db/deliverNow.js');
     await deliverNowFromEnv().catch((err) => console.error('[deliver-now] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
