@@ -183,9 +183,16 @@ export function MyEvent({
   }
 
   const cancelled = Boolean(event.cancelled);
-  // The party is over — nothing more can be added to it. Hides the "add more"
-  // and setup-photo sections once it's done (or cancelled).
-  const eventOver = cancelled || event.phase === 'Event Completed';
+  // The party is over — nothing more can be added to it. Hides the "add more",
+  // setup-photo and chat sections once it's done (or cancelled). A past event
+  // that hasn't been auto-completed yet still counts as over.
+  const eventPast = (() => {
+    try {
+      const d = event.date ? new Date(event.date).toISOString().slice(0, 10) : null;
+      return d != null && d < new Date().toISOString().slice(0, 10);
+    } catch { return false; }
+  })();
+  const eventOver = cancelled || event.phase === 'Event Completed' || eventPast;
   const phaseIndex = stepOf(event.phase);
   const design = event.designs?.[0];
   const phaseLabel = (p: string) => t(`me.phase.${p}`);
