@@ -157,7 +157,7 @@ function CustomerDrawer({ id, onClose, onSaved }: { id: number; onClose: () => v
               ) : data.history.map((h: any) => (
                 <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{h.eventFor ? `${h.eventFor}${h.theme ? ` · ${h.theme}` : ''}` : `Receipt #${h.number}`}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{h.eventFor ? `${h.eventFor}${h.theme ? ` · ${h.theme}` : ''}` : `EV-${h.number}`}</div>
                     <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2 }}>{h.date} · {h.paidWith}</div>
                   </div>
                   <div style={{ ...fredoka(14), color: C.ink }}>AED {h.totalDisplay}</div>

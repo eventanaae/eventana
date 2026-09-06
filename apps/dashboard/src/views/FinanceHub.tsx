@@ -272,7 +272,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
         const out: ReactNode[] = [];
         const receiptRow = (r: any, tbd: boolean) => (
           <DocRow key={r.id} onClick={() => setSel(r)}
-            title={r.customer_name} sub={`Receipt ${r.number} · ${tbd ? 'TBD' : fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
+            title={r.customer_name} sub={`EV-${r.number} · ${tbd ? 'TBD' : fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
             amount={r.totalDisplay}
             badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
           />
@@ -876,7 +876,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         <div style={{ fontWeight: 800, letterSpacing: '1px', marginTop: 4, fontSize: 12 }}>{paid ? 'PAID' : (doc.status || 'SENT').toUpperCase()}</div>
       </div>
       <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 700, marginBottom: 4 }}>
-        {kind === 'receipt' ? 'SALES RECEIPT' : 'INVOICE'} #{doc.number} · {fmtDate(doc.date ?? doc.issue_date)}
+        {kind === 'receipt' ? `SALES RECEIPT · EV-${doc.number}` : `INVOICE #${doc.number}`} · {fmtDate(doc.date ?? doc.issue_date)}
       </div>
       {kind === 'receipt' && <div style={{ fontSize: 12, color: C.muted2, marginBottom: 10 }}>Deposit to: <b style={{ color: C.ink }}>Cash on hand</b></div>}
       {(doc.event_for || doc.age || doc.theme) && (
@@ -943,7 +943,7 @@ function docHtml(doc: any, kind: 'invoice' | 'receipt') {
   return `<!doctype html><html><head><meta charset="utf8"><title>Eventana ${kind} ${esc(doc.number)}</title></head><body style="font-family:Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
     <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:18px;padding:22px;text-align:center;margin-bottom:20px">
       <div style="font-size:22px;font-weight:800">Eventana</div>
-      <div style="font-size:13px;opacity:.9">${kind === 'receipt' ? 'Sales Receipt' : 'Invoice'} · ${esc(doc.number)}</div>
+      <div style="font-size:13px;opacity:.9">${kind === 'receipt' ? `Sales Receipt · EV-${esc(doc.number)}` : `Invoice · #${esc(doc.number)}`}</div>
       <div style="font-size:30px;font-weight:800;margin-top:8px">AED ${doc.totalDisplay}</div>
       ${kind === 'receipt' ? '<div style="margin-top:4px;font-weight:800;letter-spacing:1px">PAID</div>' : ''}
     </div>
