@@ -76,13 +76,18 @@ export function MyEvent({
     // Always keep the full list so a customer with several bookings can switch
     // between them — not just see the most recent one.
     const events = await api.events();
-    // Past QuickBooks celebrations are read-only history (shown in the Profile),
-    // never openable event tabs here — exclude them from the switcher.
-    setList(events.filter((e: any) => !e.historical));
+    // My Event holds only ACTIVE bookings (upcoming / in progress). A finished or
+    // cancelled party is history and lives in the Profile — not in this switcher.
+    // Past QuickBooks celebrations are read-only history too, so also excluded.
+    const isActive = (e: any) => !e.historical && !['Event Completed', 'Cancelled'].includes(e.phase);
+    const active = events.filter(isActive);
+    setList(active);
     if (eventId) {
+      // An event opened explicitly (e.g. tapped from the Profile history) still
+      // shows here, even if it's already finished.
       setEvent(await api.event(eventId));
-    } else if (events.length > 0) {
-      onPickEvent(events[0].id);
+    } else if (active.length > 0) {
+      onPickEvent(active[0].id);
     }
   }, [eventId, onPickEvent]);
 
@@ -304,7 +309,11 @@ export function MyEvent({
 
       <ReceiptCard event={event} t={t} lang={lang} />
 
-      {!cancelled && (
+      {/* Wallet, reschedule, cancel and add-ons all call authenticated endpoints,
+          so they are ONLY for a signed-in owner of the booking. A guest opening
+          the read-only link would just hit "auth required" — so hide them and let
+          the "Create account / Log in" card above be their next step. */}
+      {!cancelled && signedIn && event.walletEnabled && (
         <button
           onClick={async () => {
             try {
@@ -324,11 +333,11 @@ export function MyEvent({
         </button>
       )}
 
-      {!cancelled && event.canReschedule && (
+      {!cancelled && signedIn && event.canReschedule && (
         <Reschedule eventId={event.id} t={t} onDone={async () => setEvent(await api.event(event.id))} />
       )}
 
-      {!cancelled && event.canCancel && (
+      {!cancelled && signedIn && event.canCancel && (
         <CancelBooking
           event={event}
           t={t}
@@ -391,8 +400,9 @@ export function MyEvent({
 
       {/* ---------------- add more ----------------
           Hidden entirely once cancelled: no additional hour, no socks,
-          no extra servings. The API refuses them too. */}
-      {!cancelled && (
+          no extra servings. The API refuses them too. Also signed-in only —
+          paying for an add-on needs the account that owns the booking. */}
+      {!cancelled && signedIn && (
       <div style={card}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{t('me.addMore')}</div>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 14px' }}>
@@ -583,8 +593,8 @@ export function MyEvent({
         );
       })()}
 
-      {/* ---------------- setup-spot photos ---------------- */}
-      {!cancelled && <SetupSpotPhotos eventId={event.id} t={t} />}
+      {/* ---------------- setup-spot photos (signed-in only: upload needs auth) ---------------- */}
+      {!cancelled && signedIn && <SetupSpotPhotos eventId={event.id} t={t} />}
 
       {/* ---------------- rate & tip ---------------- */}
       {!cancelled && event.review?.canReview && (
@@ -592,8 +602,10 @@ export function MyEvent({
       )}
 
       {/* ---------------- chat ---------------- */}
-      {/* Messaging closes with the booking — a cancelled event has no team chat. */}
-      {!cancelled && (
+      {/* Messaging closes with the booking — a cancelled event has no team chat.
+          Signed-in only: posting a message needs the account that owns the event
+          (a guest link would just hit "auth required"). */}
+      {!cancelled && signedIn && (
       <div style={card}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{t('me.chatTitle')}</div>
         <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 12px' }}>

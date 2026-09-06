@@ -631,6 +631,9 @@ export async function eventRoutes(app: FastifyInstance) {
       phase: event.phase,
       cancelled,
       canReschedule,
+      // Only offer "Add to Apple Wallet" when the pass certificates are actually
+      // configured — otherwise the button just errors "Pass not available yet".
+      walletEnabled: !cancelled && walletEnabled(),
       cancelledAt: event.cancelled_at,
       cancellationReason: event.cancellation_reason,
       // Whether the customer may cancel from the app right now, and (once
