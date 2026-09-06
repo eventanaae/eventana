@@ -876,7 +876,7 @@ function SetupSpotPhotos({ eventId, photos, t }: { eventId: string; photos: Setu
     try {
       const url = await api.uploadEventImage(eventId, file);
       const row = await api.setupPhoto(eventId, 'spot', note.trim(), url);
-      setList((s) => [{ id: row.id, url: row.url ?? url, note: row.note ?? note.trim() || null }, ...s]);
+      setList((s) => [{ id: row.id, url: row.url ?? url, note: row.note ?? (note.trim() || null) }, ...s]);
       setNote('');
     } catch (e: any) {
       // Cloudinary not configured yet, or upload failed.
