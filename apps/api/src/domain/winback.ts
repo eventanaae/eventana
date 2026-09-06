@@ -22,14 +22,22 @@ export const WINBACK_VALID_MONTHS = 3;
 /** The site link that goes in every win-back message. */
 export const WINBACK_SITE_URL = 'https://eventanauae.com';
 
-/** A personal code that carries the customer's FIRST name, e.g. MARYAM600-K2P. */
-export function makeWinbackCode(name: string): string {
+/** Cute, celebration-y words paired with the name so the code feels friendly. */
+const WINBACK_CUTE = ['PARTY', 'JOY', 'MAGIC', 'STAR', 'HAPPY', 'GLOW', 'SHINE', 'BLOOM', 'CHEERS', 'LOVELY', 'FIESTA', 'CUTIE', 'SPARKLE', 'DREAMY', 'GLAM'];
+
+/**
+ * A personal code: the customer's FIRST name + a cute word, e.g. MARYAM-PARTY.
+ * `extraEntropy` appends two characters (e.g. MARYAM-PARTY-K2) — only used as a
+ * fallback when a plain name+word is already taken (common first names at scale).
+ */
+export function makeWinbackCode(name: string, extraEntropy = false): string {
   const first = (name.trim().split(/\s+/)[0] ?? '').replace(/[^A-Za-z]/g, '');
-  const base = (first.slice(0, 10) || 'GUEST').toUpperCase();
-  const rand = Array.from({ length: 3 }, () =>
-    'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)],
-  ).join('');
-  return `${base}600-${rand}`;
+  const base = (first.slice(0, 8) || 'GUEST').toUpperCase();
+  const cute = WINBACK_CUTE[Math.floor(Math.random() * WINBACK_CUTE.length)];
+  const tail = extraEntropy
+    ? '-' + Array.from({ length: 2 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('')
+    : '';
+  return `${base}-${cute}${tail}`;
 }
 
 /**
@@ -58,9 +66,10 @@ export async function issueWinbackCode(
   );
   if (existing.rowCount) return { code: existing.rows[0].code, reused: true };
 
-  // Insert a fresh one, retrying on the tiny chance of a code collision.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = makeWinbackCode(name);
+  // Insert a fresh one. First few tries stay clean (NAME-CUTE); if that name+word
+  // is already taken, later tries add a short tail to guarantee uniqueness.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const code = makeWinbackCode(name, attempt >= 3);
     const ins = await db.query(
       `INSERT INTO promo_codes
          (code, kind, value, min_spend_fils, max_uses, active, expires_at, customer_id, auto_reminder, campaign)
