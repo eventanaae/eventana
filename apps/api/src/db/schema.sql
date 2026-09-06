@@ -361,6 +361,13 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS location_note TEXT;
 -- date-based customer reminder is sent. Cleared when a real date is set.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS date_tbd BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Feedback-reminder cadence: a customer who didn't rate their party after it
+-- ended is nudged again every 3 days for up to two weeks, then left alone.
+-- These track the last nudge + how many, so reminders never spam and stop the
+-- moment a rating is submitted. NULL/0 for every event before this existed.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS feedback_reminded_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS feedback_reminder_count INT NOT NULL DEFAULT 0;
+
 -- Drivers roster. Shan is the main driver; for far / multiple same-day events we
 -- hire drivers with their own car (kind 'own_car') or a part-timer to drive the
 -- company van (kind 'van'). Kept OUT of team_members so freelance drivers don't

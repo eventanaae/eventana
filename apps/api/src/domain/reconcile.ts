@@ -186,6 +186,14 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sweepAbandonedCartReminders }) => sweepAbandonedCartReminders())
     .catch((err) => console.error('[cart-reminder] sweep failed:', err));
 
+  // Feedback reminders — nudge a customer who didn't rate their finished party,
+  // every 3 days for up to two weeks, and stop the moment they submit a rating.
+  // Reuses the approved feedback_request template (email + WhatsApp). Only runs
+  // when FEEDBACK_REMINDERS=send.
+  await import('./feedbackReminders.js')
+    .then(({ sweepFeedbackReminders }) => sweepFeedbackReminders())
+    .catch((err) => console.error('[feedback-reminder] sweep failed:', err));
+
   // Wish every team member a happy birthday (once a year, on the day).
   await import('./staffBirthdays.js')
     .then(({ sendStaffBirthdayEmails }) => sendStaffBirthdayEmails())

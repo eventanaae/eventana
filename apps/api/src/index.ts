@@ -198,6 +198,11 @@ async function main() {
     // emailed (sends nothing) for owner approval; send delivers once. Off by default.
     const { abandonedCartFromEnv } = await import('./domain/abandonedCart.js');
     await abandonedCartFromEnv().catch((err) => console.error('[cart-reminder] failed:', err));
+    // Feedback reminders (FEEDBACK_REMINDERS=list|send) — list shows which
+    // recent unrated parties WOULD be reminded (sends nothing) for owner
+    // approval; send queues them + activates the recurring 3-day sweep.
+    const { feedbackRemindersFromEnv } = await import('./domain/feedbackReminders.js');
+    await feedbackRemindersFromEnv().catch((err) => console.error('[feedback-reminder] failed:', err));
     // Owner-approved one-time booking-data corrections (FIX_BOOKINGS=true).
     // Guarded + idempotent; sends nothing to customers.
     const { fixBookingDataFromEnv } = await import('./db/fixBookingData.js');

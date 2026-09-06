@@ -28,6 +28,7 @@ import { toValidCustomerPhone, titleCaseName } from '../domain/maintenance.js';
 import { processDelivery } from '../domain/webhooks.js';
 import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken, verifyFeedbackToken } from '../domain/customerAuth.js';
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
+import { cancelPendingFeedbackNotifications } from '../domain/feedbackReminders.js';
 import { pushToStaff } from '../integrations/push.js';
 import { makeReferralCode, validatePromo } from '../domain/discounts.js';
 import { isImportTicketValid } from '../domain/importTicket.js';
@@ -869,6 +870,8 @@ export async function publicRoutes(app: FastifyInstance) {
     ).catch(() => {});
     void pushToStaff('New rating ⭐', `${event} was rated ${stars}/5`, { eventId: event });
     void recordGoodFeedbackRewards({ eventId: event, ratingId: inserted.rows[0].id, stars, feedback: feedback ?? null }).catch(() => {});
+    // They gave feedback — stop any pending feedback reminder (email + WhatsApp).
+    void cancelPendingFeedbackNotifications(event);
     return { ok: true, stars };
   });
 

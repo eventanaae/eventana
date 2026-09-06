@@ -28,6 +28,7 @@ import { customerFromRequest, verifyFeedbackToken, issueFeedbackToken } from '..
 import { rescheduleEvent, RescheduleError, RESCHEDULE_MIN_HOURS } from '../domain/reschedule.js';
 import { refundOrderMoney } from '../domain/refund.js';
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
+import { cancelPendingFeedbackNotifications } from '../domain/feedbackReminders.js';
 
 /**
  * The customer is identified by their signed session token — never a raw
@@ -1010,6 +1011,8 @@ export async function eventRoutes(app: FastifyInstance) {
     // settings), recorded to their Achievements with a double-pay guard, and
     // announced to the whole team. Best-effort — never blocks the rating.
     void recordGoodFeedbackRewards({ eventId, ratingId: inserted.rows[0].id, stars: parsed.data.stars, feedback: parsed.data.feedback ?? null }).catch(() => {});
+    // They gave feedback — stop any pending feedback reminder (email + WhatsApp).
+    void cancelPendingFeedbackNotifications(eventId);
     return { stars: inserted.rows[0].stars, feedback: inserted.rows[0].feedback };
   });
 
