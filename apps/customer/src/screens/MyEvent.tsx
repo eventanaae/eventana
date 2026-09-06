@@ -7,6 +7,12 @@ import { TermsSheet } from './Terms';
 import { loadAccount, currentFb } from '../account';
 import { AuthSheet } from './AuthSheet';
 
+// Apple Wallet is OFF until the pass is verified end-to-end (needs a valid Apple
+// Developer pass certificate + working signing on the server). The button was
+// showing but erroring "Pass not available yet", so keep it hidden until real
+// passes generate. Flip to true ONLY after confirming a pass downloads.
+const APPLE_WALLET_LIVE = false;
+
 // The customer sees a short, four-stage journey. The dashboard "Advance status"
 // stepper was reduced to these same four, so going forward event.phase is always
 // one of them — but legacy events may still carry an old intermediate phase, so
@@ -313,7 +319,7 @@ export function MyEvent({
           so they are ONLY for a signed-in owner of the booking. A guest opening
           the read-only link would just hit "auth required" — so hide them and let
           the "Create account / Log in" card above be their next step. */}
-      {!cancelled && signedIn && event.walletEnabled && (
+      {APPLE_WALLET_LIVE && !cancelled && signedIn && event.walletEnabled && (
         <button
           onClick={async () => {
             try {
