@@ -578,7 +578,7 @@ export function MyEvent({
         // Prefer the smart-staffing crew (names + "to be confirmed"); fall back
         // to the legacy team list. The customer never sees internal status.
         const crew: any[] = (event.crew && event.crew.length ? event.crew : null)
-          ?? event.team.map((m: any) => ({ role: m.role, name: m.name, confirmed: true, isLeader: false }));
+          ?? (event.team ?? []).map((m: any) => ({ role: m.role, name: m.name, confirmed: true, isLeader: false }));
         if (!crew.length) return null;
         const AV = ['#ff8fab', '#8ecae6', '#ffb703', '#a3d977', '#c8a2ff', '#ff9f7a'];
         return (
@@ -1116,7 +1116,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
         {/* who */}
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
           <TipChip label={t('me.tipWholeTeam')} active={memberId === null} onClick={() => setMemberId(null)} />
-          {event.team.map((m: any) => (
+          {(event.team ?? []).map((m: any) => (
             <TipChip key={m.id} label={m.name} active={memberId === m.id} onClick={() => setMemberId(m.id)} />
           ))}
         </div>
@@ -1161,7 +1161,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
           {tipping
             ? t('me.opening')
             : memberId
-              ? t('me.tipTo', { aed: `${t('common.aed')} ${money(effectiveTip)}`, who: event.team.find((m: any) => m.id === memberId)?.name ?? t('me.crew') })
+              ? t('me.tipTo', { aed: `${t('common.aed')} ${money(effectiveTip)}`, who: (event.team ?? []).find((m: any) => m.id === memberId)?.name ?? t('me.crew') })
               : t('me.tipToTeam', { aed: `${t('common.aed')} ${money(effectiveTip)}` })}
         </button>
         {tipError && (

@@ -199,6 +199,10 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   );
   const ev = evRes.rows[0];
   if (!ev) return null;
+  // No real date (TBD/unset) → no prep plan yet. Guards dueOf against building
+  // `new Date("nullT00:00:00Z")` (Invalid Date → toISOString throws). Prep is
+  // regenerated once the date is finalised.
+  if (!ev.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(ev.date))) return null;
 
   // Load the catalogue lazily so we can classify services by id/category.
   const { loadConfig } = await import('./settings.js');

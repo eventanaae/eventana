@@ -278,6 +278,17 @@ export async function eventRoutes(app: FastifyInstance) {
         newDate: parsed.data.date,
         newStartTime: parsed.data.startTime,
       });
+      // The event window moved: re-run staffing (so crew/driver double-booking
+      // conflicts are re-evaluated for the NEW time and stale ones clear) and
+      // regenerate prep (so task due-dates track the new date). Both are
+      // idempotent rebuilds that keep completed work; fire-and-forget so a slow
+      // engine never blocks the customer's reschedule response.
+      void import('../domain/staffing.js')
+        .then(({ assignStaffForEvent }) => assignStaffForEvent(eventId))
+        .catch((e) => console.error('[staffing] reschedule re-assign failed:', (e as Error).message));
+      void import('../domain/prep.js')
+        .then(({ generatePrepTasks }) => generatePrepTasks(eventId))
+        .catch((e) => console.error('[prep] reschedule re-generate failed:', (e as Error).message));
       return { ok: true, ...r };
     } catch (err) {
       if (err instanceof RescheduleError) {

@@ -9,6 +9,7 @@ import { loadAccount, saveAccount, clearAccount, type Account } from '../account
 import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
 import { TermsSheet } from './Terms';
+import { uaeMobile } from './ShopCheckout';
 
 /* ---- Payment-method brand marks (small, recognisable, self-contained) ---- */
 const brandBox: React.CSSProperties = {
@@ -144,11 +145,17 @@ export function Checkout({
   const eventForLabel = t(`checkout.for.${forKeys.includes(draft.celebrationType) ? draft.celebrationType : 'default'}`);
 
   const emailOk = /.+@.+\..+/.test(reg.email.trim());
+  // Validate the contact + backup as real UAE mobiles (same rule as the shop /
+  // profile flows), and require them to differ — this data feeds the driver &
+  // ops WhatsApp/callbacks, so "123456" or a duplicated number must be rejected.
+  const phoneN = uaeMobile(reg.phone);
+  const backupN = uaeMobile(reg.backupPhone);
+  const phonesDiffer = Boolean(phoneN) && Boolean(backupN) && phoneN !== backupN;
   // Guest details needed to book (backup phone + email are mandatory). If they
   // opt into an account, a password is needed too.
   const guestReady =
-    reg.name.trim().length >= 2 && emailOk && reg.phone.trim().length >= 6 &&
-    reg.backupPhone.trim().length >= 6 && (!wantAccount || reg.password.length >= 6);
+    reg.name.trim().length >= 2 && emailOk && Boolean(phoneN) && Boolean(backupN) &&
+    phonesDiffer && (!wantAccount || reg.password.length >= 6);
   const loginReady = emailOk && reg.password.length >= 1;
 
   const submitAuth = async () => {
@@ -289,8 +296,8 @@ export function Checkout({
       let guest: { name: string; phone: string; backupPhone: string; email: string } | undefined;
       if (!account) {
         const g = {
-          name: reg.name.trim(), phone: reg.phone.trim(),
-          backupPhone: reg.backupPhone.trim(), email: reg.email.trim(),
+          name: reg.name.trim(), phone: phoneN ?? reg.phone.trim(),
+          backupPhone: backupN ?? reg.backupPhone.trim(), email: reg.email.trim(),
         };
         if (wantAccount) {
           const acc = await api.register({ ...g, password: reg.password, referralCode: reg.referralCode.trim() || undefined });
