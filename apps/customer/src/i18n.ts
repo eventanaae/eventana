@@ -625,7 +625,8 @@ const en: Dict = {
   // setup photos
   'me.setupTitle': 'Show us your setup spot 📸',
   'me.setupSub': 'Snap where you’d like everything placed — your team sees it before they arrive.',
-  'me.setupNotePh': 'Note (optional) — e.g. backdrop by the pool',
+  'me.setupNotePh': 'Note (required) — where should it go? e.g. main backdrop here',
+  'me.setupNoteRequired': 'Please write a note first — tell us where this photo’s spot is.',
   'me.setupUploading': 'Uploading…',
   'me.setupAdd': '📷 Add a photo',
   'me.setupDisabled': 'Photo upload isn’t available yet.',
@@ -1260,7 +1261,8 @@ const ar: Dict = {
   // setup photos
   'me.setupTitle': 'أرِنا مكان التركيب 📸',
   'me.setupSub': 'صوّر المكان اللي تبي كل شيء فيه — يشوفه فريقك قبل وصوله.',
-  'me.setupNotePh': 'ملاحظة (اختياري) — مثال: الخلفية عند المسبح',
+  'me.setupNotePh': 'ملاحظة (إجباري) — وين يكون مكانه؟ مثال: الباك دروب الرئيسي هنا',
+  'me.setupNoteRequired': 'اكتبي ملاحظة أول — قوليلنا وين مكان هالصورة.',
   'me.setupUploading': 'جارٍ الرفع…',
   'me.setupAdd': '📷 أضف صورة',
   'me.setupDisabled': 'رفع الصور غير متاح بعد.',

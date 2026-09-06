@@ -871,6 +871,9 @@ function SetupSpotPhotos({ eventId, photos, t }: { eventId: string; photos: Setu
   // Type the note FIRST ("main backdrop here"), then add the photo — they're
   // saved together and shown as one card.
   const upload = async (file: File) => {
+    // A note is required — where does this photo's spot go? (belt-and-braces; the
+    // picker is already inert until a note is typed.)
+    if (!note.trim()) { setError(t('me.setupNoteRequired')); return; }
     setBusy(true);
     setError(null);
     try {
@@ -898,6 +901,8 @@ function SetupSpotPhotos({ eventId, photos, t }: { eventId: string; photos: Setu
     }
   };
 
+  const noteReady = note.trim().length > 0;
+
   return (
     <div style={card}>
       <div style={{ fontWeight: 700, fontSize: 14 }}>{t('me.setupTitle')}</div>
@@ -913,20 +918,27 @@ function SetupSpotPhotos({ eventId, photos, t }: { eventId: string; photos: Setu
           fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 10,
         }}
       />
+      {/* A note is REQUIRED before adding a photo — the whole section is optional,
+          but any photo must say where it goes. Until a note is typed the picker
+          is inert and tapping it shows the hint. */}
       <label
+        onClick={() => { if (!noteReady) setError(t('me.setupNoteRequired')); }}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           border: `1.5px dashed ${C.pinkDash}`, borderRadius: 14, padding: '14px',
-          fontWeight: 700, fontSize: 13, color: C.pinkDeep, cursor: 'pointer',
+          fontWeight: 700, fontSize: 13, color: C.pinkDeep,
+          cursor: noteReady ? 'pointer' : 'not-allowed', opacity: noteReady ? 1 : 0.5,
         }}
       >
         {busy ? t('me.setupUploading') : t('me.setupAdd')}
-        <input
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }}
-        />
+        {noteReady && (
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }}
+          />
+        )}
       </label>
       {error && <div style={{ marginTop: 8 }}><Notice tone="info">{error}</Notice></div>}
       {list.length > 0 && (
