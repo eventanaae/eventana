@@ -254,9 +254,9 @@ export async function processDelivery(
     // Buzz the team's phones (and WhatsApp) the moment a real new booking lands —
     // with the booking ref + the party details, not just the internal id.
     if (newBooking) {
-      const evId = confirmedEventId!;
+      const evId: string = confirmedEventId!;
       void (async () => {
-        let ref = evId;
+        let ref: string = evId;
         let bits = '';
         try {
           const { rows } = await pool.query<{ num: string | null; d: string | null; emirate: string | null; baby: string | null; customer: string | null }>(
