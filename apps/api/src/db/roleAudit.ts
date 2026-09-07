@@ -1,21 +1,23 @@
 /**
- * Diagnostic: log every team-member account's role so we can confirm the owner's
- * login is `owner` (owners/managers are never money-hidden and can always update
- * status / reply to customers). Gated by ROLE_AUDIT=true; read-only; idempotent.
+ * Diagnostic: log every team-member account's access_level so we can confirm the
+ * owner's login is `owner`. The status/reply gate keys off access_level
+ * (owner/manager are never money-hidden and can always update status / reply to
+ * the customer; employee/driver are view-only unless they're the event leader).
+ * Gated by ROLE_AUDIT=true; read-only; idempotent.
  */
 import { pool } from './pool.js';
 
 export async function roleAuditFromEnv(): Promise<void> {
   if (String(process.env.ROLE_AUDIT ?? '').toLowerCase() !== 'true') return;
   const rows = await pool.query<{
-    id: string; name: string; role: string; event_role: string | null; email: string | null;
+    id: string; name: string; role: string; access_level: string | null; job_title: string | null; active: boolean;
   }>(
-    `SELECT id, name, role, event_role, email FROM team_members ORDER BY role, name`,
+    `SELECT id, name, role, access_level, job_title, active FROM team_members ORDER BY access_level, name`,
   );
   console.log(`[role-audit] ${rows.rows.length} account(s):`);
   for (const r of rows.rows) {
     console.log(
-      `[role-audit] ${r.name} | role=${r.role} | event_role=${r.event_role ?? '-'} | email=${r.email ?? '-'} | id=${r.id}`,
+      `[role-audit] ${r.name} | access_level=${r.access_level ?? '(null→employee)'} | job_role=${r.role} | title=${r.job_title ?? '-'} | active=${r.active} | id=${r.id}`,
     );
   }
 }
