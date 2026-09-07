@@ -209,12 +209,14 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sendStaffBirthdayEmails }) => sendStaffBirthdayEmails())
     .catch((err) => console.error('[birthday] failed:', err));
 
-  // Every Tuesday, remind the team on WhatsApp that tomorrow is the missing-items
-  // shopping run, with the current list they've reported. Gated by the staff
-  // WhatsApp switch; deduped to once per Tuesday.
+  // Weekly team WhatsApps: Monday = shopping heads-up + list; Tuesday (day off)
+  // = a warm "enjoy your day off" message. Gated by the staff WhatsApp switch.
   await import('./shoppingReminder.js')
-    .then(({ sweepMissingItemsShoppingReminder }) => sweepMissingItemsShoppingReminder())
-    .catch((err) => console.error('[shopping-reminder] failed:', err));
+    .then(async ({ sweepMissingItemsShoppingReminder, sweepDayOffMessage }) => {
+      await sweepMissingItemsShoppingReminder();
+      await sweepDayOffMessage();
+    })
+    .catch((err) => console.error('[team-reminder] failed:', err));
 
   // Google Business Profile — reply to new reviews: 4–5★ get an automatic
   // thank-you (in the review's language); 1–3★ become a draft the owner

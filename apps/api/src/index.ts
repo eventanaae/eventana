@@ -259,6 +259,9 @@ async function main() {
     // them (SET_STAFF_PHONES=true). Idempotent; sends nothing.
     const { setStaffPhonesFromEnv } = await import('./db/setStaffPhones.js');
     await setStaffPhonesFromEnv().catch((err) => console.error('[staff-phones] failed:', err));
+    // Owner decision: the whole team's weekly day off is Tuesday (SET_TEAM_DAYOFF=true).
+    const { setTeamDayOffFromEnv } = await import('./db/setTeamDayOff.js');
+    await setTeamDayOffFromEnv().catch((err) => console.error('[team-dayoff] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.
