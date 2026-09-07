@@ -587,6 +587,9 @@ ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS assigned_to   TEXT;
 ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS assigned_name TEXT;
 -- Optional photo (a reference shot of exactly what's needed, or proof once bought).
 ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS photo_url     TEXT;
+-- Where to buy it (area / emirate) — so the driver's shopping run is organised
+-- by supplier + location.
+ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS location      TEXT;
 CREATE INDEX IF NOT EXISTS missing_items_status_idx ON missing_items (status, created_at);
 
 -- ── Ratings & tips (#30) ─────────────────────────────────────────────────

@@ -5005,6 +5005,7 @@ export async function adminRoutes(app: FastifyInstance) {
       reportedBy: z.string().max(80).optional(),
       photoUrl: z.string().url().max(500).optional(),
       assignTo: z.string().optional(),
+      location: z.string().max(120).optional(),
     });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
@@ -5020,9 +5021,9 @@ export async function adminRoutes(app: FastifyInstance) {
       if (m.rows[0]) { assignId = d.assignTo; assignName = m.rows[0].name; }
     }
     const { rows } = await pool.query(
-      `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by, photo_url, assigned_to, assigned_name)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, by, d.photoUrl ?? null, assignId, assignName],
+      `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by, photo_url, assigned_to, assigned_name, location)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, by, d.photoUrl ?? null, assignId, assignName, d.location ?? null],
     );
     // If assigned at creation, tell the assignee it's theirs.
     if (assignId) void pushToOwner('staff', assignId, '📦 A missing item is yours to sort out', `${d.item} ×${d.quantity}`);

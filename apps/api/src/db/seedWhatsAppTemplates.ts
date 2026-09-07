@@ -84,11 +84,12 @@ const TEMPLATES: Tpl[] = [
     example: ['Friday, 4 September 2026', 'Dubai — Jumeirah', 'EV-2026-0195'],
   },
   // --- Team (one warm, English alert that carries any internal notification;
-  //     the whole crew reads English, so this stays English on purpose) ---
+  //     the whole crew reads English, so this stays English on purpose.
+  //     {{1}} = the member's first name, {{2}} = headline, {{3}} = details) ---
   {
     name: 'staff_alert',
-    body: `Hi lovely team 💛\n\n{{1}}\n\n{{2}}\n\nEverything's waiting for you in the Eventana app 🤍`,
-    example: ['🎉 A new booking just came in — EV-1651', 'Maryam · Kids Birthday · Fri 12 Sep · Dubai'],
+    body: `Hi {{1}} 💛\n\n{{2}}\n\n{{3}}`,
+    example: ['Gloria', '🛒 Update the missing-items list before your day off', 'Tomorrow is your day off — please update anything missing so we can buy it Wednesday 🤍'],
   },
 ];
 

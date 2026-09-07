@@ -160,17 +160,25 @@ function waPhone(raw: string | null): string | null {
  * `staff_alert` template. `memberId` targets one member; omitting it sends to
  * the whole active crew. Gated by WHATSAPP_STAFF_NOTIFY; non-fatal.
  */
-export async function staffWhatsApp(title: string, body: string, memberId?: string): Promise<void> {
+export async function staffWhatsApp(headline: string, details: string, memberId?: string): Promise<void> {
   if (!config.whatsapp.staffNotify) return;
   try {
     const { rows } = memberId
-      ? await pool.query<{ phone: string | null }>(`SELECT phone FROM team_members WHERE id = $1 AND active`, [memberId])
-      : await pool.query<{ phone: string | null }>(`SELECT phone FROM team_members WHERE active AND phone IS NOT NULL AND phone <> ''`);
-    const phones = Array.from(new Set(rows.map((r) => waPhone(r.phone)).filter((p): p is string => !!p)));
-    if (phones.length === 0) return;
+      ? await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE id = $1 AND active`, [memberId])
+      : await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE active AND phone IS NOT NULL AND phone <> ''`);
     const { sendWhatsAppTemplate } = await import('./whatsapp.js');
-    for (const to of phones) {
-      await sendWhatsAppTemplate({ to, name: 'staff_alert', language: 'en', params: [title, body && body.trim() ? body : '—'], fromStaff: true }).catch(() => {});
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const to = waPhone(r.phone);
+      if (!to || seen.has(to)) continue;
+      seen.add(to);
+      const first = (r.name || '').trim().split(/\s+/)[0] || 'there';
+      // staff_alert params: {{1}} first name, {{2}} headline, {{3}} details.
+      await sendWhatsAppTemplate({
+        to, name: 'staff_alert', language: 'en',
+        params: [first, headline, details && details.trim() ? details : '—'],
+        fromStaff: true,
+      }).catch(() => {});
     }
   } catch (err) {
     console.error('[staff-wa] failed:', (err as Error).message);

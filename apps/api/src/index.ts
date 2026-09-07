@@ -262,6 +262,9 @@ async function main() {
     // Owner decision: the whole team's weekly day off is Tuesday (SET_TEAM_DAYOFF=true).
     const { setTeamDayOffFromEnv } = await import('./db/setTeamDayOff.js');
     await setTeamDayOffFromEnv().catch((err) => console.error('[team-dayoff] failed:', err));
+    // Re-submit the staff_alert WhatsApp template with a name variable (WA_RESEED_STAFF=true).
+    const { reseedStaffAlertFromEnv } = await import('./db/reseedStaffAlert.js');
+    await reseedStaffAlertFromEnv().catch((err) => console.error('[wa-reseed] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.

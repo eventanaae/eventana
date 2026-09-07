@@ -27,7 +27,7 @@ export function Inventory({ role }: { role?: string }) {
   const [crew, setCrew] = useState<any[]>([]);
   const [q, setQ] = useState('');
   const [nc, setNc] = useState({ name: '', category: 'plates', onHand: '', reorderLevel: '', perGuest: true, supplier: '' });
-  const [nm, setNm] = useState({ item: '', quantity: '', supplier: '', photoUrl: '', assignTo: '' });
+  const [nm, setNm] = useState({ item: '', quantity: '', supplier: '', location: '', photoUrl: '', assignTo: '' });
   const [report, setReport] = useState<{ code: string; name: string } | null>(null);
 
   const load = () => {
@@ -45,8 +45,8 @@ export function Inventory({ role }: { role?: string }) {
 
   const reportMissing = async () => {
     if (!nm.item.trim()) return;
-    await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, photoUrl: nm.photoUrl || undefined, assignTo: nm.assignTo || undefined });
-    setNm({ item: '', quantity: '', supplier: '', photoUrl: '', assignTo: '' });
+    await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, location: nm.location.trim() || undefined, photoUrl: nm.photoUrl || undefined, assignTo: nm.assignTo || undefined });
+    setNm({ item: '', quantity: '', supplier: '', location: '', photoUrl: '', assignTo: '' });
     load();
   };
   const addConsumable = async () => {
@@ -75,6 +75,7 @@ export function Inventory({ role }: { role?: string }) {
             <input placeholder="What's missing?" value={nm.item} onChange={(e) => setNm({ ...nm, item: e.target.value })} style={inp('min(220px,55vw)')} />
             <input placeholder="Qty" value={nm.quantity} onChange={(e) => setNm({ ...nm, quantity: e.target.value.replace(/\D/g, '') })} style={inp(64)} />
             <input placeholder="Supplier (optional)" value={nm.supplier} onChange={(e) => setNm({ ...nm, supplier: e.target.value })} style={inp('min(160px,40vw)')} />
+            <input placeholder="Location / emirate (optional)" value={nm.location} onChange={(e) => setNm({ ...nm, location: e.target.value })} style={inp('min(180px,44vw)')} />
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${nm.photoUrl ? C.pink : C.line}`, background: nm.photoUrl ? C.pinkSoft : '#fff', color: nm.photoUrl ? C.pinkDeep : C.ink, borderRadius: 12, padding: '9px 12px', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
               📷 {nm.photoUrl ? 'Photo added ✓' : 'Photo (optional)'}
               <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'reference'); setNm((s) => ({ ...s, photoUrl: url })); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
@@ -103,7 +104,7 @@ export function Inventory({ role }: { role?: string }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{m.item}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</div>
                     <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-                      by {m.reported_by ?? '—'} · {m.created ?? (m.created_at ? String(m.created_at).slice(0, 10) : '')}{m.supplier ? ` · ${m.supplier}` : ''}{m.note ? ` · "${m.note}"` : ''}
+                      by {m.reported_by ?? '—'} · {m.created ?? (m.created_at ? String(m.created_at).slice(0, 10) : '')}{m.supplier ? ` · 🏬 ${m.supplier}` : ''}{m.location ? ` · 📍 ${m.location}` : ''}{m.note ? ` · "${m.note}"` : ''}
                     </div>
                     {m.assigned_name && (
                       <div style={{ fontSize: 10.5, fontWeight: 800, color: C.pinkDeep, marginTop: 3 }}>

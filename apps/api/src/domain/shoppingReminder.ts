@@ -82,6 +82,46 @@ export async function sweepShoppingListReminders(): Promise<number> {
   return rows.length;
 }
 
+/**
+ * WEDNESDAY (shopping day): send the driver the full list to buy, organised by
+ * supplier + location (emirate) so his run is efficient — with the supplier name
+ * and where to go for each.
+ */
+export async function sweepDriverShoppingList(): Promise<number> {
+  const { dow, hr } = await dubaiNow();
+  if (dow !== 3 || hr < 9 || hr >= 11) return 0; // Wednesday, 09:00–10:59
+  if (await sentToday('driver_shopping_list')) return 0;
+
+  const { rows: items } = await pool.query<{ item: string; quantity: number; supplier: string | null; location: string | null }>(
+    `SELECT item, quantity, supplier, location FROM missing_items
+      WHERE status NOT IN ('received','cancelled')
+      ORDER BY supplier NULLS LAST, location NULLS LAST, created_at`,
+  );
+  if (items.length === 0) return 0;
+
+  const drv = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND name ILIKE 'shan%' LIMIT 1`);
+  if (!drv.rows[0]) return 0;
+
+  // Group by supplier + location so each stop is one block.
+  const groups = new Map<string, { supplier: string; location: string | null; lines: string[] }>();
+  for (const it of items) {
+    const supplier = it.supplier?.trim() || 'Supplier not set';
+    const key = `${supplier}||${it.location ?? ''}`;
+    const g = groups.get(key) ?? { supplier, location: it.location ?? null, lines: [] };
+    g.lines.push(`• ${it.item}${it.quantity > 1 ? ` ×${it.quantity}` : ''}`);
+    groups.set(key, g);
+  }
+  const details = [...groups.values()]
+    .map((g) => `🏬 ${g.supplier}${g.location ? ` (📍 ${g.location})` : ''}\n${g.lines.join('\n')}`)
+    .join('\n\n');
+  const headline = `🛒 Today's shopping run — ${items.length} item(s), sorted by shop & location:`;
+
+  await staffWhatsApp(headline, details, drv.rows[0].id);
+  await markSent('driver_shopping_list', { items: items.length });
+  console.log(`[driver-shopping] sent Shan the organised list (${items.length} item(s))`);
+  return 1;
+}
+
 /** A warm break-and-recharge message to each member whose day off is today. */
 export async function sweepDayOffMessage(): Promise<number> {
   const { dow, hr } = await dubaiNow();
