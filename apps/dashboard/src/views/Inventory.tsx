@@ -27,7 +27,7 @@ export function Inventory({ role }: { role?: string }) {
   const [crew, setCrew] = useState<any[]>([]);
   const [q, setQ] = useState('');
   const [nc, setNc] = useState({ name: '', category: 'plates', onHand: '', reorderLevel: '', perGuest: true, supplier: '' });
-  const [nm, setNm] = useState({ item: '', quantity: '', supplier: '', photoUrl: '' });
+  const [nm, setNm] = useState({ item: '', quantity: '', supplier: '', photoUrl: '', assignTo: '' });
   const [report, setReport] = useState<{ code: string; name: string } | null>(null);
 
   const load = () => {
@@ -45,8 +45,8 @@ export function Inventory({ role }: { role?: string }) {
 
   const reportMissing = async () => {
     if (!nm.item.trim()) return;
-    await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, photoUrl: nm.photoUrl || undefined });
-    setNm({ item: '', quantity: '', supplier: '', photoUrl: '' });
+    await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, photoUrl: nm.photoUrl || undefined, assignTo: nm.assignTo || undefined });
+    setNm({ item: '', quantity: '', supplier: '', photoUrl: '', assignTo: '' });
     load();
   };
   const addConsumable = async () => {
@@ -79,6 +79,13 @@ export function Inventory({ role }: { role?: string }) {
               📷 {nm.photoUrl ? 'Photo added ✓' : 'Photo (optional)'}
               <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'reference'); setNm((s) => ({ ...s, photoUrl: url })); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
             </label>
+            {canManage && (
+              <select value={nm.assignTo} onChange={(e) => setNm({ ...nm, assignTo: e.target.value })}
+                style={{ border: `1px solid ${nm.assignTo ? C.pink : C.line}`, borderRadius: 12, padding: '10px 12px', fontSize: 13, fontWeight: 700, color: nm.assignTo ? C.pinkDeep : C.muted2, background: '#fff', cursor: 'pointer' }}>
+                <option value="">Assign to… (optional)</option>
+                {crew.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
             <Button onClick={reportMissing} disabled={!nm.item.trim()}>Report</Button>
           </div>
         </div>

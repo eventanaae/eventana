@@ -5004,17 +5004,28 @@ export async function adminRoutes(app: FastifyInstance) {
       note: z.string().max(300).optional(),
       reportedBy: z.string().max(80).optional(),
       photoUrl: z.string().url().max(500).optional(),
+      assignTo: z.string().optional(),
     });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
     const d = p.data;
-    const staff = (request as any).staff as { name?: string };
+    const staff = (request as any).staff as { name?: string; role?: string };
     const by = d.reportedBy ?? staff?.name ?? 'staff';
+    // Optionally assign at report time (owner/manager only, mirroring the /assign
+    // route). Anyone can report; only a manager/owner may hand it to someone.
+    let assignId: string | null = null;
+    let assignName: string | null = null;
+    if (d.assignTo && (staff?.role === 'owner' || staff?.role === 'manager')) {
+      const m = await pool.query(`SELECT name FROM team_members WHERE id = $1 AND active`, [d.assignTo]);
+      if (m.rows[0]) { assignId = d.assignTo; assignName = m.rows[0].name; }
+    }
     const { rows } = await pool.query(
-      `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by, photo_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, by, d.photoUrl ?? null],
+      `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by, photo_url, assigned_to, assigned_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, by, d.photoUrl ?? null, assignId, assignName],
     );
+    // If assigned at creation, tell the assignee it's theirs.
+    if (assignId) void pushToOwner('staff', assignId, '📦 A missing item is yours to sort out', `${d.item} ×${d.quantity}`);
     // Surface to owner/manager: bell feed + best-effort push (who + what).
     await pool.query(
       `INSERT INTO notifications (channel, template, scheduled_for, payload)
