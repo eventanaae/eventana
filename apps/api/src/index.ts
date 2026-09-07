@@ -182,6 +182,9 @@ async function main() {
     // send delivers every never-emailed code once.
     const { winbackSendAllFromEnv } = await import('./db/winbackSendAll.js');
     await winbackSendAllFromEnv().catch((err) => console.error('[winback-all] failed:', err));
+    // URGENT read-only: find customers wrongly carrying the owner's email.
+    const { emailAuditFromEnv } = await import('./db/emailAudit.js');
+    await emailAuditFromEnv().catch((err) => console.error('[email-audit] failed:', err));
     const { deliverNowFromEnv } = await import('./db/deliverNow.js');
     await deliverNowFromEnv().catch((err) => console.error('[deliver-now] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
