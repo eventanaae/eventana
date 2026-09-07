@@ -984,12 +984,14 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
     for (const row of rows) {
       const tpl = whatsAppTemplateFor(row);
       // Meta needs the number in E.164 (9715XXXXXXXX). A UAE mobile stored as a
-      // local 05X — common for older/QuickBooks-migrated customers — would be
-      // rejected as an invalid recipient, so promote it first. Falls back to the
-      // raw digits if it isn't a recognisable UAE mobile.
-      const e164 = toValidCustomerPhone(row.customer_phone) ?? row.customer_phone;
-      const to = String(e164 ?? '').replace(/\D+/g, '');
-      if (!tpl || !to) {
+      // local 05X — common for older/QuickBooks-migrated customers — is promoted
+      // first. A number that ISN'T a recognisable, well-formed mobile (e.g. a
+      // truncated "054003230") is skipped, NOT sent raw — sending it just fails at
+      // Meta and, with whatsapp_sent_at left NULL, retries + errors on every sweep
+      // forever. Stamp it handled (the email already went out) and move on.
+      const e164 = toValidCustomerPhone(row.customer_phone);
+      const to = e164 ? String(e164).replace(/\D+/g, '') : '';
+      if (!tpl || !to || to.length < 11 || to.length > 15) {
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         continue;
       }
