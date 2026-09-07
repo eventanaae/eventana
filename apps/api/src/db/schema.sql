@@ -1208,6 +1208,9 @@ CREATE TABLE IF NOT EXISTS prep_tasks (
 );
 CREATE INDEX IF NOT EXISTS prep_tasks_event_idx ON prep_tasks (event_id);
 CREATE INDEX IF NOT EXISTS prep_tasks_status_idx ON prep_tasks (status);
+-- Manual tasks (owner/manager assigns a to-do to a staff member, no event):
+-- event_id is NULL, category='manual'. Relax the NOT NULL so they can exist.
+ALTER TABLE prep_tasks ALTER COLUMN event_id DROP NOT NULL;
 
 -- Who is assigned to each prep task (many, for two-person tasks).
 CREATE TABLE IF NOT EXISTS prep_task_staff (

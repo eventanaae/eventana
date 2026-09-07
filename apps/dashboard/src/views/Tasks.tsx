@@ -78,7 +78,7 @@ function MyTasks() {
           {tasks.map((t) => (
             <div key={t.id} style={{ background: '#fff', border: `1px solid ${t.status === 'issue' ? '#f2c9c2' : C.line}`, borderRadius: 14, padding: '12px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: C.ink, flex: 1 }}>{t.category === 'design' ? '🖌️ ' : ''}{t.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: C.ink, flex: 1 }}>{t.category === 'design' ? '🖌️ ' : t.category === 'manual' ? '📌 ' : ''}{t.title}</span>
                 <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
               </div>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, margin: '4px 0 8px' }}>
@@ -116,16 +116,77 @@ function MyTasks() {
   );
 }
 
+// ── Assign a manual task to a staff member ───────────────────────────────────
+function NewTaskForm({ onCreated }: { onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [crew, setCrew] = useState<any[]>([]);
+  const [title, setTitle] = useState('');
+  const [ids, setIds] = useState<Set<string>>(new Set());
+  const [due, setDue] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open && crew.length === 0) api.staffingCrew().then(setCrew).catch(() => {}); }, [open]);
+
+  const submit = async () => {
+    if (!title.trim() || ids.size === 0) { alert('Add a title and pick at least one person.'); return; }
+    setBusy(true);
+    try {
+      await api.prepCreateManual({ title: title.trim(), memberIds: [...ids], dueDate: due || undefined, note: note.trim() || undefined });
+      setTitle(''); setIds(new Set()); setDue(''); setNote(''); setOpen(false);
+      onCreated();
+    } catch (e: any) { alert(e?.message ?? 'Could not create the task.'); }
+    finally { setBusy(false); }
+  };
+
+  if (!open) return <div><Button onClick={() => setOpen(true)}>➕ New task</Button></div>;
+  return (
+    <Panel title="Assign a task">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Task (e.g. Follow up: Dubai TV payment)"
+          style={{ padding: '10px 12px', border: `1px solid ${C.line}`, borderRadius: 10, fontSize: 13, fontWeight: 600 }} />
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>Assign to</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {crew.length === 0 ? <span style={{ fontSize: 12, color: C.muted2 }}>Loading team…</span> : crew.map((m) => {
+              const on = ids.has(m.id);
+              return <Button key={m.id} tone={on ? 'primary' : 'ghost'} onClick={() => {
+                const n = new Set(ids); on ? n.delete(m.id) : n.add(m.id); setIds(n);
+              }}>{m.name}</Button>;
+            })}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <label style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, display: 'flex', alignItems: 'center', gap: 6 }}>
+            Deadline
+            <input type="date" value={due} onChange={(e) => setDue(e.target.value)}
+              style={{ padding: '8px 10px', border: `1px solid ${C.line}`, borderRadius: 9, fontSize: 12.5 }} />
+          </label>
+        </div>
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)"
+          style={{ padding: '9px 12px', border: `1px solid ${C.line}`, borderRadius: 10, fontSize: 12.5, fontWeight: 600 }} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button onClick={submit} disabled={busy}>{busy ? 'Assigning…' : '✓ Assign task'}</Button>
+          <Button tone="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 // ── By person ────────────────────────────────────────────────────────────────
 function ByPerson() {
   const [board, setBoard] = useState<any[] | null>(null);
   const load = () => api.prepBoard().then(setBoard).catch(() => setBoard([]));
   useEffect(() => { load(); }, []);
   if (!board) return <Spinner />;
-  if (board.length === 0) return <Panel><Empty>No prep tasks yet — they’re generated when a booking is confirmed.</Empty></Panel>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <NewTaskForm onCreated={load} />
+      {board.length === 0 ? (
+        <Panel><Empty>No prep tasks yet — assign one above, or they’re generated when a booking is confirmed.</Empty></Panel>
+      ) : (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
       {board.map((p) => (
         <Panel key={p.id} title={p.name}
           action={<Badge tone={p.open_count > 0 ? 'warn' : 'ok'}>{p.open_count} open</Badge>}>
@@ -137,7 +198,7 @@ function ByPerson() {
                 <div key={t.id} style={{ border: `1px solid ${C.lineSoft}`, borderRadius: 12, padding: '9px 11px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, flex: 1 }}>
-                      {t.category === 'design' ? '🖌️ ' : ''}{t.title}
+                      {t.category === 'design' ? '🖌️ ' : t.category === 'manual' ? '📌 ' : ''}{t.title}
                     </span>
                     <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
                   </div>
@@ -167,6 +228,8 @@ function ByPerson() {
           )}
         </Panel>
       ))}
+      </div>
+      )}
     </div>
   );
 }
@@ -286,7 +349,7 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
                 <div key={t.id} style={{ background: '#fff', border: `1px solid ${t.status === 'issue' ? '#f2c9c2' : C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: C.ink, flex: 1 }}>
-                      {t.category === 'design' ? '🖌️ ' : ''}{t.title}
+                      {t.category === 'design' ? '🖌️ ' : t.category === 'manual' ? '📌 ' : ''}{t.title}
                     </span>
                     <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
                   </div>

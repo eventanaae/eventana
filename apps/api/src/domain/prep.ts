@@ -437,6 +437,42 @@ export async function setPrepAssignees(taskId: string, memberIds: string[], acto
   return { eventId: t.event_id };
 }
 
+/**
+ * Manual task: the owner/manager assigns a standalone to-do to one or more staff
+ * members (title + optional deadline + note), with NO event. It shows up in that
+ * member's "My tasks" and (for the prep crew) the By-person board, and notifies
+ * them. Reuses the prep_tasks machinery (completion, issues, checklist, proof).
+ */
+export async function createManualTask(opts: {
+  title: string; memberIds: string[]; dueDate?: string | null; note?: string | null;
+  actor?: string; notify?: boolean;
+}): Promise<{ id: string } | null> {
+  const title = (opts.title ?? '').trim();
+  const members = (opts.memberIds ?? []).filter(Boolean);
+  if (!title || members.length === 0) return null;
+  const key = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const { rows } = await pool.query<{ id: string }>(
+    `INSERT INTO prep_tasks (event_id, key, title, category, people_needed, due_date, status, notes)
+     VALUES (NULL, $1, $2, 'manual', $3, $4, 'not_started', $5) RETURNING id`,
+    [key, title, members.length, opts.dueDate || null, (opts.note ?? '').trim() || null],
+  );
+  const taskId = rows[0].id;
+  for (const m of members) {
+    await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, m]);
+  }
+  await logTask(taskId, null as any, 'manual_created', `${title} → ${members.length} assignee(s)`, opts.actor ?? 'owner');
+  // Notify each assignee (in-app push + WhatsApp), unless seeding silently.
+  if (opts.notify !== false) {
+    const { pushToOwner } = await import('../integrations/push.js');
+    const due = opts.dueDate ? ` · Deadline ${opts.dueDate}` : '';
+    for (const m of members) {
+      await pushToOwner('staff', m, '📌 New task assigned to you', `${title}${due}`, { taskId: String(taskId), manual: true })
+        .catch(() => {});
+    }
+  }
+  return { id: String(taskId) };
+}
+
 /** Every prep task assigned to one staff member (their personal work list). */
 export async function getPrepTasksForMember(memberId: string) {
   const { rows } = await pool.query(
@@ -444,20 +480,23 @@ export async function getPrepTasksForMember(memberId: string) {
             c.name AS customer, e.emirate
        FROM prep_tasks pt
        JOIN prep_task_staff pts ON pts.task_id = pt.id
-       JOIN events e ON e.id = pt.event_id
-       JOIN customers c ON c.id = e.customer_id
+       LEFT JOIN events e ON e.id = pt.event_id
+       LEFT JOIN customers c ON c.id = e.customer_id
       WHERE pts.member_id = $1 AND pt.status <> 'completed'
-        -- Only my prep for events still ahead (or date-TBD) and not cancelled;
-        -- a past event's leftover tasks are done business, not my open work.
-        AND e.phase IS DISTINCT FROM 'Cancelled'
-        AND (COALESCE(e.date_tbd, false) OR e.event_date >= CURRENT_DATE)
-      ORDER BY pt.due_date, pt.id`,
+        -- Manual tasks (no event) always show; event prep only for events still
+        -- ahead (or date-TBD) and not cancelled — a past event's leftover tasks
+        -- are done business, not my open work.
+        AND (pt.event_id IS NULL OR (
+             e.phase IS DISTINCT FROM 'Cancelled'
+             AND (COALESCE(e.date_tbd, false) OR e.event_date >= CURRENT_DATE)))
+      ORDER BY pt.due_date NULLS LAST, pt.id`,
     [memberId],
   );
   // Attach the party meta (reference, date, baby, type, theme) so the employee
-  // reads the party, not an internal id + customer name.
+  // reads the party, not an internal id + customer name. Manual tasks (no event)
+  // read "General task".
   const meta = await eventMetaFor(rows.map((r: any) => r.event_id));
-  for (const t of rows) { const m = meta.get(t.event_id); if (m) Object.assign(t, m); else t.reference = t.event_id; }
+  for (const t of rows) { const m = meta.get(t.event_id); if (m) Object.assign(t, m); else t.reference = t.event_id ?? 'General task'; }
   return rows;
 }
 
@@ -518,8 +557,8 @@ export async function getPrepByPerson() {
             COALESCE(json_agg(json_build_object(
               'id', pt.id, 'title', pt.title, 'status', pt.status, 'category', pt.category,
               'eventId', pt.event_id, 'due', to_char(pt.due_date,'YYYY-MM-DD'), 'customer', c.name
-            ) ORDER BY pt.due_date) FILTER (WHERE pt.id IS NOT NULL AND upcoming), '[]') AS tasks,
-            count(pt.id) FILTER (WHERE pt.status NOT IN ('completed') AND upcoming)::int AS open_count
+            ) ORDER BY pt.due_date) FILTER (WHERE pt.id IS NOT NULL AND (upcoming OR pt.event_id IS NULL)), '[]') AS tasks,
+            count(pt.id) FILTER (WHERE pt.status NOT IN ('completed') AND (upcoming OR pt.event_id IS NULL))::int AS open_count
        FROM team_members tm
        LEFT JOIN prep_task_staff pts ON pts.member_id = tm.id
        LEFT JOIN prep_tasks pt ON pt.id = pts.task_id AND pt.status <> 'completed'
@@ -540,7 +579,7 @@ export async function getPrepByPerson() {
   const meta = await eventMetaFor(rows.flatMap((p: any) => (p.tasks ?? []).map((t: any) => t.eventId)));
   for (const p of rows) for (const t of (p.tasks ?? [])) {
     const m = meta.get(t.eventId);
-    if (m) Object.assign(t, m); else t.reference = t.eventId;
+    if (m) Object.assign(t, m); else t.reference = t.eventId ?? 'General task';
   }
   return rows;
 }

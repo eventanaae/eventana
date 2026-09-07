@@ -274,6 +274,9 @@ async function main() {
     // READ-ONLY customer + supplier reconciliation report (CUSTOMER_SUPPLIER_RECON=true).
     const { customerSupplierReconFromEnv } = await import('./db/customerSupplierRecon.js');
     await customerSupplierReconFromEnv().catch((err) => console.error('[recon] failed:', err));
+    // Seed the owner's first manual tasks for Marsha (SEED_MARSHA_TASKS=true).
+    const { seedMarshaTasksFromEnv } = await import('./db/seedMarshaTasks.js');
+    await seedMarshaTasksFromEnv().catch((err) => console.error('[seed-marsha-tasks] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.

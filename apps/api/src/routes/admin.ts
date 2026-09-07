@@ -756,6 +756,24 @@ export async function adminRoutes(app: FastifyInstance) {
     const staff = (request as any).staff as { id?: string };
     return staff.id ? getPrepTasksForMember(staff.id) : [];
   });
+  // Owner/Manager assigns a standalone manual task (no event) to staff members,
+  // with an optional deadline + note. Shows in their "My tasks" + notifies them.
+  app.post('/api/admin/prep/task/manual', async (request, reply) => {
+    const staff = (request as any).staff as { role?: string; name?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const b = (request.body ?? {}) as { title?: string; memberIds?: string[]; dueDate?: string; note?: string };
+    const { createManualTask } = await import('../domain/prep.js');
+    const r = await createManualTask({
+      title: String(b.title ?? ''),
+      memberIds: Array.isArray(b.memberIds) ? b.memberIds : [],
+      dueDate: b.dueDate ?? null,
+      note: b.note ?? null,
+      actor: String(staff?.name ?? 'owner'),
+      notify: true,
+    });
+    if (!r) return reply.status(400).send({ error: 'invalid', message: 'title and at least one assignee are required' });
+    return { ok: true, id: r.id };
+  });
   app.post('/api/admin/prep/task/:taskId/complete', async (request, reply) => {
     const { taskId } = request.params as { taskId: string };
     const b = (request.body ?? {}) as { completedBy?: string; photoUrl?: string };
