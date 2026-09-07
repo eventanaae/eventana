@@ -209,11 +209,13 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sendStaffBirthdayEmails }) => sendStaffBirthdayEmails())
     .catch((err) => console.error('[birthday] failed:', err));
 
-  // Weekly team WhatsApps: Monday = shopping heads-up + list; Tuesday (day off)
-  // = a warm "enjoy your day off" message. Gated by the staff WhatsApp switch.
+  // Weekly team WhatsApps: the day before each person's day off, a "finalise the
+  // missing-items list" reminder (Mon → Tue-off crew, Tue → Wed-off crew); and on
+  // each person's day off, a warm "enjoy your day off" message. Gated by the staff
+  // WhatsApp switch.
   await import('./shoppingReminder.js')
-    .then(async ({ sweepMissingItemsShoppingReminder, sweepDayOffMessage }) => {
-      await sweepMissingItemsShoppingReminder();
+    .then(async ({ sweepShoppingListReminders, sweepDayOffMessage }) => {
+      await sweepShoppingListReminders();
       await sweepDayOffMessage();
     })
     .catch((err) => console.error('[team-reminder] failed:', err));
