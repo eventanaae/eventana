@@ -33,7 +33,7 @@ export interface EmailRow {
   receipt_number?: number | string | null;
   event_date: string | null;
   start_time: string | null;
-  base_end_time: string | null;
+  base_end_time?: string | null;
   emirate: string | null;
   eta?: string | null;
   customer_name: string | null;
@@ -439,7 +439,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
   // celebration is for. Plus the event type (Birthday, Gender Reveal, …).
   const first = (row.customer_name || 'there').split(' ')[0];
   const date = longDate(row.event_date);
-  const time = [time12(row.start_time), time12(row.base_end_time)].filter(Boolean).join(' – ');
+  const time = [time12(row.start_time), time12(row.base_end_time ?? null)].filter(Boolean).join(' – ');
   const place = row.emirate || 'UAE';
   const track = trackUrl(row.event_id);
   // Customer-facing booking reference: EV-<sales-receipt number>, falling back to
@@ -653,7 +653,7 @@ export function renderWhatsApp(row: EmailRow): string | null {
   const honour = (row.cart?.eventFor || '').trim();
   const who = honour ? `${honour}'s` : 'your';
   const date = longDate(row.event_date);
-  const time = [time12(row.start_time), time12(row.base_end_time)].filter(Boolean).join(' – ');
+  const time = [time12(row.start_time), time12(row.base_end_time ?? null)].filter(Boolean).join(' – ');
   const place = row.emirate || 'UAE';
   const link = trackUrl(row.event_id);
   // Customer-facing booking reference: EV-<sales-receipt number>, event_id fallback.
@@ -710,7 +710,7 @@ export function whatsAppTemplateFor(row: EmailRow): { name: string; params: stri
   const first = (row.customer_name || 'حبيبتنا').split(' ')[0];
   const honour = (row.cart?.eventFor || '').trim();
   const date = longDate(row.event_date);
-  const time = [time12(row.start_time), time12(row.base_end_time)].filter(Boolean).join(' – ');
+  const time = [time12(row.start_time), time12(row.base_end_time ?? null)].filter(Boolean).join(' – ');
   const place = row.emirate || 'الإمارات';
   const link = trackUrl(row.event_id) || (config.publicAppUrl || 'https://ops.eventanauae.com');
   const total = row.total_fils != null ? aed(row.total_fils) : '—';
@@ -750,7 +750,7 @@ export interface DriverRow {
   event_id: string;
   event_date: string | null; // to_char'd YYYY-MM-DD
   start_time: string | null;
-  base_end_time: string | null;
+  base_end_time?: string | null;
   emirate: string | null;
   address: { area?: string; building?: string; notes?: string } | null;
   map_lat: number | null;
