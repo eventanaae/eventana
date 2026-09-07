@@ -80,17 +80,28 @@ export function Inventory({ role }: { role?: string }) {
              re-buys something already handled: who reported it, when, and its
              current status. ── */}
       {missing.filter((m: any) => m.status !== 'received' && m.status !== 'cancelled').length > 0 && (
-        <Panel title="🛒 Reported missing — status">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Panel title={`🛒 Reported missing${canManage ? ` — ${openMissing} to action` : ' — status'}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {missing.filter((m: any) => m.status !== 'received' && m.status !== 'cancelled').map((m: any) => (
-              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${C.lineSoft}`, paddingBottom: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{m.item}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</div>
-                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-                    by {m.reported_by ?? '—'} · {m.created ?? (m.created_at ? String(m.created_at).slice(0, 10) : '')}{m.supplier ? ` · ${m.supplier}` : ''}{m.note ? ` · "${m.note}"` : ''}
+              <div key={m.id} style={{ borderBottom: `1px solid ${C.lineSoft}`, paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{m.item}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+                      by {m.reported_by ?? '—'} · {m.created ?? (m.created_at ? String(m.created_at).slice(0, 10) : '')}{m.supplier ? ` · ${m.supplier}` : ''}{m.note ? ` · "${m.note}"` : ''}
+                    </div>
                   </div>
+                  <Badge tone={m.status === 'requested' ? 'error' : m.status === 'ordered' ? 'warn' : 'ok'}>{m.status}</Badge>
                 </div>
-                <Badge tone={m.status === 'requested' ? 'error' : m.status === 'ordered' ? 'warn' : 'ok'}>{m.status}</Badge>
+                {/* Owner/manager can act right here — no need to hunt for a
+                    separate panel. Employees see the status only. */}
+                {canManage && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                    {m.status !== 'ordered' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'ordered'); load(); }}>🛒 Ordered</Button>}
+                    <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'received'); load(); }}>✓ Received</Button>
+                    <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -210,33 +221,8 @@ export function Inventory({ role }: { role?: string }) {
         </Panel>
       )}
 
-      {/* ── Manager/owner only: missing items — take action ── */}
-      {canManage && (
-        <Panel title={`Missing items (${openMissing} open)`}>
-          {missing.length === 0 ? (
-            <Empty>No missing items reported.</Empty>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {missing.map((m: any) => (
-                <div key={m.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{m.item} <span style={{ fontWeight: 600, color: C.muted }}>×{m.quantity}</span></div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>{m.reported_by ? `by ${m.reported_by}` : ''}{m.supplier ? ` · ${m.supplier}` : ''}</div>
-                    </div>
-                    <Badge tone={m.status === 'received' ? 'ok' : m.status === 'cancelled' ? 'error' : 'warn'}>{m.status}</Badge>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                    {['ordered', 'received', 'cancelled'].map((s) => (
-                      <Button key={s} tone="ghost" style={{ padding: '6px 11px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, s); load(); }}>{s}</Button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Panel>
-      )}
+      {/* Missing-items actions now live inline in the "Reported missing" list at
+          the top — one place, no separate buried panel. */}
 
       {/* ── Report-issue modal ── */}
       {report && <ReportModal target={report} onClose={() => setReport(null)} onDone={() => { setReport(null); load(); }} />}
