@@ -642,7 +642,10 @@ export async function getPrepPlan(eventId: string) {
   const meta = (await eventMetaFor([eventId])).get(eventId);
   // A short brief of what the customer actually ordered: the package + every
   // booked line item (services/add-ons), so the team sees the order at a glance.
-  const pkg = (await pool.query<{ package_name: string | null }>(`SELECT package_name FROM events WHERE id=$1`, [eventId])).rows[0];
+  const pkg = (await pool.query<{ package_name: string | null }>(
+    `SELECT p.name AS package_name FROM events e LEFT JOIN packages p ON p.id = e.package_id WHERE e.id=$1`,
+    [eventId],
+  )).rows[0];
   const items = (await pool.query<{ label: string | null }>(`SELECT label FROM event_services WHERE event_id=$1 ORDER BY id`, [eventId]))
     .rows.map((r) => (r.label ?? '').trim()).filter(Boolean);
   return {
