@@ -35,30 +35,50 @@ export async function fetchBuildCommit(): Promise<string | null> {
  */
 const STAFF_TOKEN_KEY = 'eventana.staffToken';
 
+// The session token is persisted in BOTH localStorage and a first-party cookie.
+// Some contexts the team actually uses — the in-app browsers inside WhatsApp /
+// Instagram, and Safari private mode — drop or partition localStorage between
+// loads, which logged people out on every refresh. A 30-day cookie survives
+// those better, so we write to both and read from whichever still has it.
+const TOKEN_COOKIE = 'ev_staff';
+function readCookie(name: string): string {
+  try {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  } catch { return ''; }
+}
+function writeCookie(name: string, value: string, days: number): void {
+  try {
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `${name}=${encodeURIComponent(value)}; Max-Age=${days * 86400}; Path=/; SameSite=Lax${secure}`;
+  } catch { /* ignore */ }
+}
+function deleteCookie(name: string): void {
+  try { document.cookie = `${name}=; Max-Age=0; Path=/`; } catch { /* ignore */ }
+}
+
 export function getStaffToken(): string {
   // Security cutover (2026-08-27): the dashboard NO LONGER carries a baked
-  // owner token. Access requires a real login — a session token stored here by
+  // owner token. Access requires a real login — a session token stored by
   // email/password sign-in (or, as an emergency backdoor, a token pasted under
   // "Advanced"). No credential ships in the public bundle any more.
-  try {
-    return localStorage.getItem(STAFF_TOKEN_KEY) || '';
-  } catch {
-    return '';
-  }
+  let ls = '';
+  try { ls = localStorage.getItem(STAFF_TOKEN_KEY) || ''; } catch { ls = ''; }
+  if (ls) return ls;
+  // localStorage was empty/blocked — fall back to the cookie and, if found,
+  // mirror it back into localStorage so the rest of the app behaves normally.
+  const ck = readCookie(TOKEN_COOKIE);
+  if (ck) { try { localStorage.setItem(STAFF_TOKEN_KEY, ck); } catch { /* ignore */ } }
+  return ck;
 }
 export function setStaffToken(t: string): void {
-  try {
-    localStorage.setItem(STAFF_TOKEN_KEY, t.trim());
-  } catch {
-    /* storage unavailable — kept for this session only */
-  }
+  const v = t.trim();
+  try { localStorage.setItem(STAFF_TOKEN_KEY, v); } catch { /* storage blocked — cookie still holds it */ }
+  writeCookie(TOKEN_COOKIE, v, 30);
 }
 export function clearStaffToken(): void {
-  try {
-    localStorage.removeItem(STAFF_TOKEN_KEY);
-  } catch {
-    /* ignore */
-  }
+  try { localStorage.removeItem(STAFF_TOKEN_KEY); } catch { /* ignore */ }
+  deleteCookie(TOKEN_COOKIE);
 }
 export function hasStaffToken(): boolean {
   return getStaffToken().length > 0;
