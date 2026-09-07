@@ -13,7 +13,7 @@ import { SimulatedProvider } from '../payments/simulated.js';
 import { receiveWebhook } from '../domain/webhooks.js';
 import { pool } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
-import { parseInbound, verifyWebhookSignature } from '../integrations/whatsapp.js';
+import { parseInbound, parseStatuses, verifyWebhookSignature } from '../integrations/whatsapp.js';
 import { recordInboundMessage } from '../domain/whatsappLeads.js';
 import { respondToLead } from '../domain/whatsappAgent.js';
 
@@ -60,6 +60,22 @@ export async function webhookRoutes(app: FastifyInstance) {
       body = JSON.parse(rawBody);
     } catch {
       return reply.status(400).send({ error: 'unparseable' });
+    }
+
+    // Delivery/read receipts + FAILURES for messages we sent. A failed status
+    // carries Meta's real reason (e.g. 131049 engagement throttling, 131026
+    // undeliverable) — the only place it's visible, since the send call returns
+    // ok before delivery. Log every failure so a "sent but never arrived" is
+    // no longer silent.
+    for (const st of parseStatuses(body)) {
+      if (st.status === 'failed') {
+        request.log.error(
+          { messageId: st.messageId, recipient: st.recipient, code: st.errorCode, title: st.errorTitle, detail: st.errorDetail },
+          `[wa-delivery] FAILED to ${st.recipient}: (#${st.errorCode ?? '?'}) ${st.errorTitle ?? ''} — ${st.errorDetail ?? ''}`,
+        );
+      } else if (st.status === 'delivered' || st.status === 'read') {
+        request.log.info({ messageId: st.messageId, recipient: st.recipient }, `[wa-delivery] ${st.status} to ${st.recipient}`);
+      }
     }
 
     const messages = parseInbound(body);

@@ -146,6 +146,49 @@ export function parseInbound(body: unknown): InboundMessage[] {
   return out;
 }
 
+export interface DeliveryStatus {
+  messageId: string;
+  status: string;            // sent | delivered | read | failed
+  recipient: string;
+  errorCode?: number;
+  errorTitle?: string;
+  errorDetail?: string;
+}
+
+/**
+ * Pulls delivery/read receipts (and failures) out of the same webhook payload.
+ * Meta reports a message it ACCEPTED (returned a wamid for) but could not
+ * deliver as a `statuses[]` entry with status='failed' and an `errors[]` reason
+ * — the only place that reason is visible, since the send call returns ok before
+ * delivery is attempted.
+ */
+export function parseStatuses(body: unknown): DeliveryStatus[] {
+  const out: DeliveryStatus[] = [];
+  const entries = (body as { entry?: unknown[] })?.entry;
+  if (!Array.isArray(entries)) return out;
+  for (const entry of entries) {
+    const changes = (entry as { changes?: unknown[] })?.changes;
+    if (!Array.isArray(changes)) continue;
+    for (const change of changes) {
+      const value = (change as { value?: Record<string, unknown> })?.value;
+      const statuses = value && Array.isArray(value.statuses) ? value.statuses : [];
+      for (const raw of statuses) {
+        const s = raw as Record<string, any>;
+        const err = Array.isArray(s.errors) ? s.errors[0] : undefined;
+        out.push({
+          messageId: String(s.id ?? ''),
+          status: String(s.status ?? ''),
+          recipient: String(s.recipient_id ?? ''),
+          errorCode: err?.code,
+          errorTitle: err?.title,
+          errorDetail: err?.error_data?.details ?? err?.message,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------------ */
 /* Outbound                                                            */
 /* ------------------------------------------------------------------ */
