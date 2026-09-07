@@ -255,6 +255,10 @@ async function main() {
     // (QB_METHODS=preview logs what it finds; =apply writes finance_receipts.paid_with).
     const { qbMethodsFromEnv } = await import('./domain/quickbooks.js');
     await qbMethodsFromEnv().catch((err) => console.error('[qb-methods] failed:', err));
+    // Store the team's WhatsApp numbers so the staff WhatsApp mirror can reach
+    // them (SET_STAFF_PHONES=true). Idempotent; sends nothing.
+    const { setStaffPhonesFromEnv } = await import('./db/setStaffPhones.js');
+    await setStaffPhonesFromEnv().catch((err) => console.error('[staff-phones] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.

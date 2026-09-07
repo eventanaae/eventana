@@ -83,6 +83,13 @@ const TEMPLATES: Tpl[] = [
     body: `❌ An Eventana delivery has been cancelled.\n\n📅 {{1}}\n📍 {{2}}\n🔖 Order: {{3}}\n\nIt has been removed from your schedule.`,
     example: ['Friday, 4 September 2026', 'Dubai — Jumeirah', 'EV-2026-0195'],
   },
+  // --- Team (one warm, English alert that carries any internal notification;
+  //     the whole crew reads English, so this stays English on purpose) ---
+  {
+    name: 'staff_alert',
+    body: `Hi lovely team 💛\n\n{{1}}\n\n{{2}}\n\nEverything's waiting for you in the Eventana app 🤍`,
+    example: ['🎉 A new booking just came in — EV-1651', 'Maryam · Kids Birthday · Fri 12 Sep · Dubai'],
+  },
 ];
 
 /**

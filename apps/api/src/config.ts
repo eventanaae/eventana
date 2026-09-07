@@ -308,6 +308,11 @@ export const config = {
     // cancellation). Separate from customerNotify so the driver pipeline can go
     // live independently. OFF by default.
     driverNotify: String(env.WHATSAPP_DRIVER_NOTIFY ?? '').toLowerCase() === 'true',
+    // Master switch for TEAM WhatsApp — mirrors the in-app staff notifications
+    // (new booking, rating, tip, message, birthday…) to each member's WhatsApp,
+    // because iOS push isn't reliable. English, via the staff_alert template.
+    // OFF by default.
+    staffNotify: String(env.WHATSAPP_STAFF_NOTIFY ?? '').toLowerCase() === 'true',
   },
 
   /**

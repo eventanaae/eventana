@@ -153,6 +153,11 @@ export async function sweepWinbackCampaignAuto(): Promise<number> {
  * a window, so it is safe to call as often as the sweep fires.
  */
 export async function sweepVoucherReminders(): Promise<number> {
+  // Disabled at the owner's request (2026-09-08): the 20%-off voucher was an
+  // older, separate reward and the business has standardised on the AED 600
+  // win-back code, so this reminder was confusing. Re-enable with
+  // VOUCHER_REMINDERS=send if the 20% reward is ever brought back.
+  if (String(process.env.VOUCHER_REMINDERS ?? '').toLowerCase() !== 'send') return 0;
   if (!emailEnabled()) return 0;
   const { rows } = await pool.query<{
     code: string;
@@ -296,6 +301,9 @@ export async function sweepPostEventWinback(): Promise<number> {
  * Manager/CEO reviews and approves (or edits/rejects) it before anything goes
  * out. Deduped by month so it is only ever suggested once per month.
  */
+// Retired at the owner's request (2026-09-08) in favour of a real customer-
+// birthday greeting (sweepCustomerBirthdays). No longer called from the sweep;
+// kept only so any other reference still compiles.
 export async function sweepAnniversarySuggestions(): Promise<number> {
   const now = new Date();
   const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -325,6 +333,42 @@ export async function sweepAnniversarySuggestions(): Promise<number> {
     [`We'd love to celebrate with you again 🎉`, body, dedupeKey],
   );
   return 1;
+}
+
+/**
+ * Warm birthday greeting to a CUSTOMER on their real birthday (not the baby's
+ * birthday from the order). Only fires for customers whose personal `birthday`
+ * is on file — so it stays dormant until birthdays are collected. Auto-sent
+ * (owner asked to just handle it), once per customer per year. Email only.
+ */
+export async function sweepCustomerBirthdays(): Promise<number> {
+  if (!emailEnabled()) return 0;
+  const { rows } = await pool.query<{ id: string; name: string; email: string }>(
+    `SELECT id, name, email FROM customers
+      WHERE birthday IS NOT NULL
+        AND to_char(birthday,'MM-DD') = to_char(current_date,'MM-DD')
+        AND email IS NOT NULL AND email <> '' AND email_opt_out = FALSE
+        AND (birthday_greeted_year IS NULL OR birthday_greeted_year < extract(year from current_date)::int)
+      LIMIT 200`,
+  );
+  let sent = 0;
+  for (const c of rows) {
+    const first = (c.name || '').trim().split(/\s+/)[0] || '';
+    const body = `
+      <p style="font-size:20px;font-weight:800;margin:0 0 12px">كل عام وانتِ بخير ${first} 🎂🤍</p>
+      <p style="margin:0 0 14px;font-size:15px">اليوم يومك، وحبينا نكون أول من يعايدك 🌸 من كل قلوبنا في ايفينتانا، نتمنى لك سنة مليانة فرح ولحظات حلوة تستاهلينها.</p>
+      <p style="margin:0 0 14px;font-size:15px">وإذا في مناسبة قريبة تبين نزيّنها لك، احنا دايماً حاضرين نسوي لك يوم ما يننسى 💕</p>
+      <p style="margin:16px 0 0;font-size:15px">بكل الحب،<br/>فريق ايفينتانا 🎈</p>`;
+    const unsub = `${config.email.publicBaseUrl}/api/unsubscribe?c=${encodeURIComponent(c.id)}&t=${unsubToken(c.id)}`;
+    const res = await sendEmail({ to: c.email, subject: `كل عام وانتِ بخير ${first} 🎂`, html: renderCampaignHtml(body, unsub) });
+    if (res.ok) {
+      await pool.query(`UPDATE customers SET birthday_greeted_year = extract(year from current_date)::int WHERE id = $1`, [c.id]);
+      sent++;
+    }
+    await new Promise((r) => setTimeout(r, 120)); // gentle pacing
+  }
+  if (sent) console.log(`[birthday] greeted ${sent} customer(s)`);
+  return sent;
 }
 
 /** Sends any scheduled campaigns whose time has come. Called from the sweep. */

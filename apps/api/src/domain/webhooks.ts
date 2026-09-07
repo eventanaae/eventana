@@ -251,11 +251,30 @@ export async function processDelivery(
         .then(({ generatePrepTasks }) => generatePrepTasks(confirmedEventId!))
         .catch((err) => console.error('[prep] auto-generate failed:', err));
     }
-    // Buzz the team's phones the moment a real new booking lands.
+    // Buzz the team's phones (and WhatsApp) the moment a real new booking lands —
+    // with the booking ref + the party details, not just the internal id.
     if (newBooking) {
-      void pushToStaff('New booking 🎉', `${confirmedEventId} just booked — tap to view.`, {
-        eventId: confirmedEventId,
-      });
+      const evId = confirmedEventId!;
+      void (async () => {
+        let ref = evId;
+        let bits = '';
+        try {
+          const { rows } = await pool.query<{ num: string | null; d: string | null; emirate: string | null; baby: string | null; customer: string | null }>(
+            `SELECT (SELECT fr.number FROM finance_receipts fr
+                       WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+                       ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS num,
+                    to_char(e.event_date,'Dy DD Mon') AS d, e.emirate,
+                    initcap(o.cart->>'eventFor') AS baby, c.name AS customer
+               FROM events e LEFT JOIN orders o ON o.id = e.order_id
+               JOIN customers c ON c.id = e.customer_id WHERE e.id = $1`,
+            [evId],
+          );
+          const r = rows[0];
+          if (r?.num) ref = `EV-${r.num}`;
+          bits = [r?.customer, r?.baby ? `for ${r.baby}` : null, r?.d, r?.emirate].filter(Boolean).join(' · ');
+        } catch { /* fall back to the id */ }
+        await pushToStaff('🎉 A new booking just came in!', `${ref}${bits ? ` — ${bits}` : ''} — tap to view.`, { eventId: evId });
+      })();
     }
   }
 

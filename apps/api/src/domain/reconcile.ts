@@ -15,7 +15,7 @@ import { pool } from '../db/pool.js';
 import { expireStaleHolds } from './inventory.js';
 import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
-import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepWinbackCampaignAuto, sweepAnniversarySuggestions } from './marketing.js';
+import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepWinbackCampaignAuto, sweepCustomerBirthdays } from './marketing.js';
 import { sweepMonthlyReport } from './financeReport.js';
 import { deliverPendingNotifications } from './notify.js';
 
@@ -162,9 +162,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then((n) => { if (n) console.log(`[marketing] winback reminders sent ${n}`); })
     .catch((err) => console.error('[marketing] winback reminders failed:', err));
 
-  // Once a month, draft an anniversary re-engagement campaign for review (never
-  // auto-sent — it waits for Manager/CEO approval).
-  await sweepAnniversarySuggestions().catch((err) => console.error('[marketing] anniversary sweep failed:', err));
+  // Warm birthday greeting to any customer whose real birthday is today (replaces
+  // the old event-anniversary campaign, at the owner's request). Dormant until
+  // customer birthdays are collected; auto-sent, once per customer per year.
+  await sweepCustomerBirthdays().catch((err) => console.error('[birthday] sweep failed:', err));
 
   // The monthly report is now sent by sweepReconReport (below) as ONE email on
   // the last day of each month — the standalone finance-report sweep is disabled

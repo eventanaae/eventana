@@ -116,6 +116,9 @@ export async function pushToStaff(
   body: string,
   data?: Record<string, string>,
 ): Promise<void> {
+  // WhatsApp mirror first — it must reach the team even when FCM isn't
+  // configured or a phone has no app installed (iOS push is unreliable).
+  void staffWhatsApp(title, body);
   if (!pushEnabled()) return;
   try {
     await sendToTokens(await tokensFor('staff'), { title, body, data });
@@ -132,11 +135,45 @@ export async function pushToOwner(
   body: string,
   data?: Record<string, string>,
 ): Promise<void> {
+  // Mirror staff-directed notifications to that member's WhatsApp too.
+  if (ownerType === 'staff') void staffWhatsApp(title, body, ownerId);
   if (!pushEnabled()) return;
   try {
     await sendToTokens(await tokensFor(ownerType, ownerId), { title, body, data });
   } catch (err) {
     console.error('[push] owner push failed:', (err as Error).message);
+  }
+}
+
+/** WhatsApp digits for a UAE number, or null if it doesn't look sendable. */
+function waPhone(raw: string | null): string | null {
+  if (!raw) return null;
+  let d = String(raw).replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('0') && d.length === 10) d = '971' + d.slice(1); // 05xxxxxxxx
+  else if (d.startsWith('5') && d.length === 9) d = '971' + d;      // 5xxxxxxxx
+  return d.length >= 11 && d.length <= 15 ? d : null;
+}
+
+/**
+ * Mirror a staff notification to the team's WhatsApp via the English
+ * `staff_alert` template. `memberId` targets one member; omitting it sends to
+ * the whole active crew. Gated by WHATSAPP_STAFF_NOTIFY; non-fatal.
+ */
+export async function staffWhatsApp(title: string, body: string, memberId?: string): Promise<void> {
+  if (!config.whatsapp.staffNotify) return;
+  try {
+    const { rows } = memberId
+      ? await pool.query<{ phone: string | null }>(`SELECT phone FROM team_members WHERE id = $1 AND active`, [memberId])
+      : await pool.query<{ phone: string | null }>(`SELECT phone FROM team_members WHERE active AND phone IS NOT NULL AND phone <> ''`);
+    const phones = Array.from(new Set(rows.map((r) => waPhone(r.phone)).filter((p): p is string => !!p)));
+    if (phones.length === 0) return;
+    const { sendWhatsAppTemplate } = await import('./whatsapp.js');
+    for (const to of phones) {
+      await sendWhatsAppTemplate({ to, name: 'staff_alert', language: 'en', params: [title, body && body.trim() ? body : '—'], fromStaff: true }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[staff-wa] failed:', (err as Error).message);
   }
 }
 

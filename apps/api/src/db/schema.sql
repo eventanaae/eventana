@@ -139,6 +139,10 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS origin TEXT;
 
 -- A mandatory backup contact number, captured at checkout (guest or account).
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS backup_phone TEXT;
+-- The customer's OWN birthday (not the celebrant's) — powers the yearly birthday
+-- greeting. Dormant until collected. birthday_greeted_year dedupes to once a year.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS birthday DATE;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS birthday_greeted_year INT;
 
 -- Date of birth (optional): powers birthday greetings/automation and age-based
 -- marketing segments. Collected at registration and editable in the profile.

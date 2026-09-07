@@ -449,12 +449,24 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   // Raise a single ops alert for the Owner/Manager when we can't fully staff
   // internally (part-time / prep needed). Not repeated if one already stands.
   if (shortages > 0) {
-    await pool.query(
+    const ins = await pool.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
        SELECT $1,'ops_alert','staffing_required', now(), $2
         WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template = 'staffing_required' AND event_id = $1)`,
       [eventId, JSON.stringify({ eventId, shortages, roles: assigned.filter((a) => a.status !== 'assigned').map((a) => ({ role: a.role, reason: a.reason, source: a.source, noPartTime: a.noPartTime })) })],
-    ).catch(() => {});
+    ).catch(() => ({ rowCount: 0 }));
+    // A part-timer is needed — WhatsApp Marsha so she can confirm one. Only on
+    // the first alert for this event (the INSERT above is deduped).
+    if (ins?.rowCount) {
+      void (async () => {
+        try {
+          const m = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE lower(name) = 'marsha' AND active LIMIT 1`);
+          if (!m.rows[0]) return;
+          const { pushToOwner } = await import('../integrations/push.js');
+          await pushToOwner('staff', m.rows[0].id, '🧩 A part-timer is needed', `${eventId} needs ${shortages} more crew — please arrange & confirm a part-timer.`);
+        } catch { /* non-fatal */ }
+      })();
+    }
   } else {
     // Fully staffed now — clear any stale staffing alert.
     await pool.query(`DELETE FROM notifications WHERE template = 'staffing_required' AND event_id = $1`, [eventId]).catch(() => {});
