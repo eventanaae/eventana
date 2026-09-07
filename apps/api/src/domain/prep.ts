@@ -299,9 +299,12 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   for (const t of needed) {
     if (completedKeys.has(t.key)) continue; // already done — leave it
     // A physical task that waits on a design task starts as 'waiting_design'
-    // only if that design task is actually part of this order.
+    // only if that design task is actually part of this order AND isn't already
+    // finished. If the design was completed on an earlier pass (regenerate /
+    // add-on), the physical task is born ready — otherwise it would sit on
+    // 'waiting_design' forever, since the one-time release fired before it existed.
     const dep = t.dependsOnKey && needed.some((n) => n.key === t.dependsOnKey) ? t.dependsOnKey : null;
-    const status = dep ? 'waiting_design' : 'not_started';
+    const status = dep && !completedKeys.has(dep) ? 'waiting_design' : 'not_started';
     const checklist = t.checklist ? JSON.stringify(t.checklist.map((label) => ({ label, done: false }))) : null;
 
     const ins = await pool.query<{ id: string }>(
