@@ -271,6 +271,9 @@ async function main() {
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
+    // READ-ONLY customer + supplier reconciliation report (CUSTOMER_SUPPLIER_RECON=true).
+    const { customerSupplierReconFromEnv } = await import('./db/customerSupplierRecon.js');
+    await customerSupplierReconFromEnv().catch((err) => console.error('[recon] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.
