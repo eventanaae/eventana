@@ -255,6 +255,11 @@ async function main() {
     // (QB_METHODS=preview logs what it finds; =apply writes finance_receipts.paid_with).
     const { qbMethodsFromEnv } = await import('./domain/quickbooks.js');
     await qbMethodsFromEnv().catch((err) => console.error('[qb-methods] failed:', err));
+    // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
+    // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
+    // current reviews (posts nothing). =poll is handled by the reconcile sweep.
+    const { googleReviewsFromEnv } = await import('./domain/googleReviews.js');
+    await googleReviewsFromEnv().catch((err) => console.error('[google-reviews] failed:', err));
     // Reconcile the live roster to the real team and purge demo/QA data so the
     // apps never show mock data. Runs last; idempotent and non-fatal.
     await productionReconcile();

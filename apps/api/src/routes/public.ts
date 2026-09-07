@@ -330,6 +330,27 @@ export async function publicRoutes(app: FastifyInstance) {
     }
   });
 
+  /**
+   * Google Business Profile OAuth redirect target. Google sends the owner's
+   * browser here with ?code&scope&state after they consent. Public (no staff
+   * token — it's a browser redirect), protected by the signed `state`. On
+   * success it stores the tokens and bounces back to the dashboard's Reviews view.
+   */
+  app.get('/api/google/callback', async (request, reply) => {
+    const q = request.query as { code?: string; state?: string; error?: string };
+    const dash = config.publicDashboardUrl.replace(/\/$/, '');
+    const { verifyState, exchangeCode } = await import('../domain/googleReviews.js');
+    if (q.error) return reply.redirect(`${dash}/?view=reviews&google=denied`);
+    if (!q.code || !verifyState(q.state)) return reply.redirect(`${dash}/?view=reviews&google=error`);
+    try {
+      await exchangeCode(q.code, 'owner');
+      return reply.redirect(`${dash}/?view=reviews&google=connected`);
+    } catch (err) {
+      request.log.error({ err }, 'google callback failed');
+      return reply.redirect(`${dash}/?view=reviews&google=error`);
+    }
+  });
+
   /** Everything the apps need to render the catalogue. */
   /**
    * A manual-order offer, opened from the unique link the team sent. Returns the

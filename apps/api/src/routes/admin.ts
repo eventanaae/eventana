@@ -197,6 +197,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // /api/admin/alerts is now role-scoped in the handler (employees get their
       // own "Latest updates" feed), so it is NOT gated to managers here.
       path.startsWith('/api/admin/marketing') ||
+      path.startsWith('/api/admin/google') ||
       path === '/api/admin/team' ||
       // Editing catalogue prices / availability / inventory is a money change:
       // only mutations (not reads) are Manager+Owner (#security-M1).
@@ -282,6 +283,62 @@ export async function adminRoutes(app: FastifyInstance) {
     } catch (e: any) {
       return reply.status(502).send({ error: 'qb_error', message: e?.message ?? 'QuickBooks query failed' });
     }
+  });
+
+  // ── Google Business Profile — review auto-reply (owner/manager) ─────────────
+  app.get('/api/admin/google/reviews/status', async () => {
+    const gr = await import('../domain/googleReviews.js');
+    if (!gr.googleConfigured()) return { configured: false, connected: false };
+    return gr.status();
+  });
+  app.get('/api/admin/google/connect', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
+    const gr = await import('../domain/googleReviews.js');
+    if (!gr.googleConfigured()) return reply.status(409).send({ error: 'not_configured', message: 'Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET on the server.' });
+    return { url: gr.authorizeUrl(gr.makeState()) };
+  });
+  app.post('/api/admin/google/disconnect', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+    const gr = await import('../domain/googleReviews.js');
+    await gr.disconnect();
+    return { ok: true };
+  });
+  // The review list the dashboard shows (pending drafts first, then history).
+  app.get('/api/admin/google/reviews', async () => {
+    const gr = await import('../domain/googleReviews.js');
+    if (!gr.googleConfigured()) return { configured: false, reviews: [] };
+    return { configured: true, reviews: await gr.listReviews() };
+  });
+  // Owner/manager edits a pending draft's wording (does not post). The review id
+  // contains slashes (accounts/…/reviews/…), so it travels in the body, never the path.
+  app.patch('/api/admin/google/reviews', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const body = (request.body ?? {}) as { id?: string; text?: string };
+    const id = String(body.id ?? '');
+    const text = String(body.text ?? '').trim();
+    if (!id || !text) return reply.status(400).send({ error: 'empty' });
+    const ok = await (await import('../domain/googleReviews.js')).editDraft(id, text);
+    return ok ? { ok: true } : reply.status(404).send({ error: 'not_a_draft' });
+  });
+  // Owner/manager approves a draft → publish the reply to Google.
+  app.post('/api/admin/google/reviews/post', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const id = String(((request.body ?? {}) as { id?: string }).id ?? '');
+    if (!id) return reply.status(400).send({ error: 'empty' });
+    const res = await (await import('../domain/googleReviews.js')).postDraft(id);
+    return res.ok ? { ok: true } : reply.status(502).send(res);
+  });
+  // Owner/manager dismisses a draft (no reply will be posted).
+  app.post('/api/admin/google/reviews/skip', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const id = String(((request.body ?? {}) as { id?: string }).id ?? '');
+    if (!id) return reply.status(400).send({ error: 'empty' });
+    const ok = await (await import('../domain/googleReviews.js')).skipDraft(id);
+    return ok ? { ok: true } : reply.status(404).send({ error: 'not_a_draft' });
   });
 
   /**

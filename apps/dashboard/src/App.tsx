@@ -27,10 +27,11 @@ import { Products } from './views/Products';
 import { Suppliers } from './views/Suppliers';
 import { Menu } from './views/Menu';
 import { Leave } from './views/Leave';
+import { GoogleReviews } from './views/GoogleReviews';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -60,6 +61,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   // Marketing
   { id: 'marketing', label: 'Marketing', icon: '📣', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'marketing' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'marketing' },
+  { id: 'reviews', label: 'Google Reviews', icon: '⭐', title: 'Google Reviews', sub: 'Auto-replies & drafts awaiting your approval', section: 'marketing' },
   // Staff
   { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
@@ -77,7 +79,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'team', 'leave', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'reviews', 'team', 'leave', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
@@ -86,7 +88,16 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
 
 export default function App() {
   const [authed, setAuthed] = useState(hasStaffToken());
-  const [view, setView] = useState<View>('today');
+  // Open straight to a view when linked with ?view= (e.g. the Google-review
+  // approval email, or the OAuth callback redirect). Snapped back by the
+  // role-visibility effect below if the role can't see it.
+  const [view, setView] = useState<View>(() => {
+    try {
+      const v = new URLSearchParams(window.location.search).get('view');
+      if (v) return v as View;
+    } catch { /* ignore */ }
+    return 'today';
+  });
   const [role, setRole] = useState<string>('owner');
   const [staffName, setStaffName] = useState<string>('Owner');
   const [counts, setCounts] = useState<{ tasks: number; review: number }>({ tasks: 0, review: 0 });
@@ -127,6 +138,16 @@ export default function App() {
     const id = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(id);
   }, [toast]);
+
+  // Feedback after a Google connect/callback (?google=connected|denied|error).
+  useEffect(() => {
+    try {
+      const g = new URLSearchParams(window.location.search).get('google');
+      if (g === 'connected') setToast('✅ Google connected — the bot will now reply to new reviews.');
+      else if (g === 'denied') setToast('Google connection was cancelled.');
+      else if (g === 'error') setToast('Google connection failed — please try again.');
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     if (!authed) return;
@@ -217,6 +238,7 @@ export default function App() {
       {view === 'shop' && <ShopOrders />}
       {view === 'neworder' && <NewOrder />}
       {view === 'leads' && <Leads />}
+      {view === 'reviews' && <GoogleReviews />}
       {view === 'customers' && <Customers />}
       {view === 'profile' && <Profile onSignedOut={() => setAuthed(false)} />}
       {view === 'feedback' && <Feedback onBack={() => setView('today')} onOpenEvent={openEvent} />}

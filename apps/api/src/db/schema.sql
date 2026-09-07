@@ -1407,3 +1407,45 @@ CREATE TABLE IF NOT EXISTS suppliers (
   created_by TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Google Business Profile OAuth connection (single row: id=1). Same singleton
+-- shape as quickbooks_connection. Google only returns a refresh_token on the
+-- first consent, so it is preserved across refreshes. location_name pins which
+-- listing (accounts/{a}/locations/{l}) we manage when GOOGLE_BUSINESS_LOCATION
+-- isn't set in the environment.
+CREATE TABLE IF NOT EXISTS google_oauth_connection (
+  id             INT PRIMARY KEY DEFAULT 1,
+  access_token   TEXT NOT NULL,
+  refresh_token  TEXT NOT NULL,
+  expires_at     TIMESTAMPTZ NOT NULL,       -- access-token expiry
+  scope          TEXT,
+  location_name  TEXT,                        -- accounts/{a}/locations/{l}
+  connected_by   TEXT,
+  connected_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_polled_at TIMESTAMPTZ,
+  CONSTRAINT google_oauth_connection_singleton CHECK (id = 1)
+);
+
+-- Every Google review we've seen + how we handled it. review_id is Google's
+-- review resource name (accounts/../locations/../reviews/..), so it dedupes
+-- across polls and a review is only ever acted on once.
+--   status: new | auto_posted | draft_pending | posted | skipped | failed | already_replied
+-- Positive (4–5★) reviews are auto_posted; negative (1–3★) become draft_pending
+-- until the owner approves them in the dashboard, then posted.
+CREATE TABLE IF NOT EXISTS google_reviews (
+  review_id         TEXT PRIMARY KEY,
+  reviewer_name     TEXT,
+  rating            INT,                       -- 1..5
+  comment           TEXT,
+  lang              TEXT,                       -- 'ar' | 'en'
+  review_created_at TIMESTAMPTZ,
+  review_updated_at TIMESTAMPTZ,
+  reply_text        TEXT,
+  status            TEXT NOT NULL DEFAULT 'new',
+  reply_posted_at   TIMESTAMPTZ,
+  notified_at       TIMESTAMPTZ,                -- owner emailed about a draft
+  seen_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS google_reviews_status_idx ON google_reviews (status);

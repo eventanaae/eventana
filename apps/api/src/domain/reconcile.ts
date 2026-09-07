@@ -202,6 +202,14 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sendStaffBirthdayEmails }) => sendStaffBirthdayEmails())
     .catch((err) => console.error('[birthday] failed:', err));
 
+  // Google Business Profile — reply to new reviews: 4–5★ get an automatic
+  // thank-you (in the review's language); 1–3★ become a draft the owner
+  // approves before it's posted. Throttled internally; runs only when
+  // GOOGLE_REVIEWS=poll and the owner has connected.
+  await import('./googleReviews.js')
+    .then(({ sweepGoogleReviews }) => sweepGoogleReviews())
+    .catch((err) => console.error('[google-reviews] sweep failed:', err));
+
   // Monthly reconciliation + audit email to the owner + Marsha (once a month).
   await import('./reconReport.js')
     .then(({ sweepReconReport }) => sweepReconReport())

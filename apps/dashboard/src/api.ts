@@ -497,6 +497,14 @@ export const api = {
   qbSyncExpenses: () => request<{ started: boolean; already: boolean }>('/api/admin/quickbooks/sync-expenses', { method: 'POST' }),
   qbSyncStatus: () => request<{ running: boolean; message: string; error: string | null; result: { imported: number; withReceipt: number; total: number } | null }>('/api/admin/quickbooks/sync-status'),
   qbPreview: () => request<{ purchases: number; attachments: number; sample: { date: string | null; vendor: string | null; amount: number; account: string | null }[] }>('/api/admin/quickbooks/preview'),
+  // Google Business Profile — review auto-reply (owner/manager).
+  googleStatus: () => request<{ configured: boolean; connected: boolean; locationSet?: boolean; polling?: boolean; pendingDrafts?: number; autoRepliedTotal?: number }>('/api/admin/google/reviews/status'),
+  googleConnect: () => request<{ url: string }>('/api/admin/google/connect'),
+  googleDisconnect: () => request('/api/admin/google/disconnect', { method: 'POST' }),
+  googleReviews: () => request<{ configured: boolean; reviews: Array<{ review_id: string; reviewer_name: string | null; rating: number | null; comment: string | null; lang: string | null; reply_text: string | null; status: string; review_created_at: string | null; reply_posted_at: string | null }> }>('/api/admin/google/reviews'),
+  googleReviewEdit: (id: string, text: string) => request('/api/admin/google/reviews', { method: 'PATCH', body: JSON.stringify({ id, text }) }),
+  googleReviewPost: (id: string) => request<{ ok: boolean; error?: string }>('/api/admin/google/reviews/post', { method: 'POST', body: JSON.stringify({ id }) }),
+  googleReviewSkip: (id: string) => request('/api/admin/google/reviews/skip', { method: 'POST', body: JSON.stringify({ id }) }),
   // The real customer catalogue — packages & services with live prices.
   catalog: () => request<{ packages: any[]; services: any[] }>('/api/admin/catalog'),
   packageUpdate: (id: string, patch: { priceFils?: number; name?: string; active?: boolean }) => request(`/api/admin/packages/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),

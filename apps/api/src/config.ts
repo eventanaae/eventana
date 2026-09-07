@@ -326,6 +326,37 @@ export const config = {
       `${toUrl(env.PUBLIC_API_URL ?? env.PUBLIC_API_HOST, 'http://localhost:4000').replace(/\/$/, '')}/api/quickbooks/callback`,
   },
 
+  /**
+   * Google Business Profile — automatic replies to the Eventana listing's
+   * reviews (OAuth 2.0 authorization_code, `business.manage` scope). CLIENT_ID
+   * and CLIENT_SECRET come from a Google Cloud OAuth client; the redirect URI
+   * must be registered on that client exactly. businessLocation pins which
+   * listing to manage as `accounts/{id}/locations/{id}` (run GOOGLE_REVIEWS=
+   * discover to find it). Absent → the whole feature is a silent no-op, and no
+   * reply is ever published until the owner connects and GOOGLE_REVIEWS=poll.
+   */
+  google: {
+    clientId: env.GOOGLE_OAUTH_CLIENT_ID ?? null,
+    clientSecret: env.GOOGLE_OAUTH_CLIENT_SECRET ?? null,
+    redirectUri:
+      env.GOOGLE_OAUTH_REDIRECT_URI ??
+      `${toUrl(env.PUBLIC_API_URL ?? env.PUBLIC_API_HOST, 'http://localhost:4000').replace(/\/$/, '')}/api/google/callback`,
+    businessLocation: env.GOOGLE_BUSINESS_LOCATION ?? null,
+  },
+
+  /**
+   * Anthropic (Claude) — used to write personalised, on-brand replies to Google
+   * reviews that actually respond to what each customer wrote (not canned
+   * templates). ANTHROPIC_API_KEY enables it; absent → the review feature falls
+   * back to warm fixed templates so it still works. ANTHROPIC_MODEL overrides the
+   * model (defaults to the latest Opus; a cheaper model like claude-sonnet-5 or
+   * claude-haiku-4-5 can be set to trim cost — replies are short and low-volume).
+   */
+  anthropic: {
+    apiKey: env.ANTHROPIC_API_KEY ?? null,
+    model: env.ANTHROPIC_MODEL ?? 'claude-opus-5',
+  },
+
   providers: {
     tabby: providerConfig('tabby', {
       publicKey: env.TABBY_PUBLIC_KEY,
