@@ -183,7 +183,12 @@ export async function customersMaster(search?: string) {
        FROM historical_customers hc
        LEFT JOIN LATERAL (
          SELECT SUM(r.total_fils) spend, COUNT(*) orders FROM finance_receipts r
-          WHERE r.customer_id = hc.id OR lower(r.customer_name) = lower(hc.full_name)
+          -- Attribute a receipt by its ACTUAL customer link (customer_id). Only
+          -- fall back to the name for receipts that were never linked to anyone
+          -- (customer_id IS NULL) — otherwise two different people who share a
+          -- first name (e.g. "Shaima") each show the other's orders and spend.
+          WHERE r.customer_id = hc.id
+             OR (r.customer_id IS NULL AND lower(r.customer_name) = lower(hc.full_name))
        ) sp ON true
        LEFT JOIN LATERAL (
          SELECT to_char(e.event_date,'YYYY-MM-DD') AS next_event_date, e.id AS next_event_id
@@ -213,7 +218,8 @@ export async function customerDetail(id: number) {
     pool.query(
       `SELECT id, number, to_char(date,'YYYY-MM-DD') AS date, total_fils, paid_with, event_for, theme
          FROM finance_receipts
-        WHERE customer_id = $1 OR lower(customer_name) = lower($2)
+        WHERE customer_id = $1
+           OR (customer_id IS NULL AND lower(customer_name) = lower($2))
         ORDER BY date DESC LIMIT 100`,
       [id, profile.full_name],
     ),
