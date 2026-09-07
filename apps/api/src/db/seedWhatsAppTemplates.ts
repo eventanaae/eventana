@@ -53,6 +53,11 @@ const TEMPLATES: Tpl[] = [
     example: ['Sara', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
   },
   {
+    name: 'booking_updated',
+    body: `✏️ {{1}}, your Eventana booking has been updated:\n📅 {{2}}\n📍 {{3}}\n\nSee all the details: {{4}}\n\nIf anything doesn't look right, just message us. 💛`,
+    example: ['Sara', 'Friday, 4 September 2026 · 4:00 PM – 8:00 PM', 'Dubai', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+  },
+  {
     name: 'cancellation_refund',
     body: `🌸 {{1}}, your Eventana booking has been cancelled.\n\n🔖 Order: {{2}}\n📅 Event date: {{3}}\n💳 Paid: {{4}}\n↩️ Refund: {{5}} ({{6}}%)\n\nYour refund may take ~7 business days to appear, depending on your bank. 💛`,
     example: ['Sara', 'ORD-2026-0195', 'Friday, 4 September 2026', 'AED 4,000', 'AED 3,000', '75'],
@@ -130,6 +135,12 @@ const TEMPLATES_AR: Tpl[] = [
     language: 'ar',
     body: `هلا {{1}} ياقلبي عساج طيبة 🤍\nحبيت آخذ فيدباك عن الحفلة اللي سويناها لكم. إذا تحسّين في أي شي يحتاج تعديل أو تطوير، أو في شي عيّبج وحبيتي تخبريني عنه، لا تترددين — رايكم يهمّنا وايد ويساعدنا نطوّر ونخلّي كل حفلة أحلى من اللي قبلها 🌸\nتقييمكم ما ياخذ منكم ثواني: {{2}}\nيسلمو من قلب على ثقتكم فينا 🤍`,
     example: ['سارة', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+  },
+  {
+    name: 'booking_updated',
+    language: 'ar',
+    body: `✏️ هلا {{1}} 🤍 حدّثنا تفاصيل حجزكم:\n📅 {{2}}\n📍 {{3}}\nتشوفين كل التفاصيل هني: {{4}}\nلو في أي ملاحظة راسلينا 🌸`,
+    example: ['سارة', 'الجمعة ٤ سبتمبر ٢٠٢٦ · ٤:٠٠ – ٨:٠٠ مساءً', 'دبي', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
   },
   {
     name: 'cancellation_refund',

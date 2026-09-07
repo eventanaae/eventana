@@ -8,8 +8,9 @@ import { config } from '../config.js';
 
 const P = (s: string) => console.log(`[wa-edit] ${s}`);
 
+// Short so WhatsApp doesn't truncate it with "Read more" (owner's request).
 const NEW_FEEDBACK_AR =
-  `هلا {{1}} ياقلبي عساج طيبة 🤍\nحبيت آخذ فيدباك عن الحفلة اللي سويناها لكم. إذا تحسّين في أي شي يحتاج تعديل أو تطوير، أو في شي عيّبج وحبيتي تخبريني عنه، لا تترددين — رايكم يهمّنا وايد ويساعدنا نطوّر ونخلّي كل حفلة أحلى من اللي قبلها 🌸\nتقييمكم ما ياخذ منكم ثواني: {{2}}\nيسلمو من قلب على ثقتكم فينا 🤍`;
+  `هلا {{1}} ياقلبي 🤍 كيف كانت حفلتكم معنا؟\nرأيك يهمّنا ويساعدنا نطوّر — تقييمك ما ياخذ ثواني 👇\n{{2}}\nيسلمو على ثقتكم فينا 🌸`;
 
 export async function waEditFeedbackFromEnv(): Promise<void> {
   if (String(process.env.WA_EDIT_FEEDBACK ?? '').toLowerCase() !== 'true') return;
