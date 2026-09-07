@@ -466,7 +466,7 @@ export async function createManualTask(opts: {
     const { pushToOwner } = await import('../integrations/push.js');
     const due = opts.dueDate ? ` · Deadline ${opts.dueDate}` : '';
     for (const m of members) {
-      await pushToOwner('staff', m, '📌 New task assigned to you', `${title}${due}`, { taskId: String(taskId), manual: true })
+      await pushToOwner('staff', m, '📌 New task assigned to you', `${title}${due}`, { taskId: String(taskId), manual: 'true' })
         .catch(() => {});
     }
   }
