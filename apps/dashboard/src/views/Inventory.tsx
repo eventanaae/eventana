@@ -27,7 +27,7 @@ export function Inventory({ role }: { role?: string }) {
   const [crew, setCrew] = useState<any[]>([]);
   const [q, setQ] = useState('');
   const [nc, setNc] = useState({ name: '', category: 'plates', onHand: '', reorderLevel: '', perGuest: true, supplier: '' });
-  const [nm, setNm] = useState({ item: '', quantity: '', supplier: '' });
+  const [nm, setNm] = useState({ item: '', quantity: '', supplier: '', photoUrl: '' });
   const [report, setReport] = useState<{ code: string; name: string } | null>(null);
 
   const load = () => {
@@ -45,8 +45,8 @@ export function Inventory({ role }: { role?: string }) {
 
   const reportMissing = async () => {
     if (!nm.item.trim()) return;
-    await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined });
-    setNm({ item: '', quantity: '', supplier: '' });
+    await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, photoUrl: nm.photoUrl || undefined });
+    setNm({ item: '', quantity: '', supplier: '', photoUrl: '' });
     load();
   };
   const addConsumable = async () => {
@@ -75,6 +75,10 @@ export function Inventory({ role }: { role?: string }) {
             <input placeholder="What's missing?" value={nm.item} onChange={(e) => setNm({ ...nm, item: e.target.value })} style={inp('min(220px,55vw)')} />
             <input placeholder="Qty" value={nm.quantity} onChange={(e) => setNm({ ...nm, quantity: e.target.value.replace(/\D/g, '') })} style={inp(64)} />
             <input placeholder="Supplier (optional)" value={nm.supplier} onChange={(e) => setNm({ ...nm, supplier: e.target.value })} style={inp('min(160px,40vw)')} />
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${nm.photoUrl ? C.pink : C.line}`, background: nm.photoUrl ? C.pinkSoft : '#fff', color: nm.photoUrl ? C.pinkDeep : C.ink, borderRadius: 12, padding: '9px 12px', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
+              📷 {nm.photoUrl ? 'Photo added ✓' : 'Photo (optional)'}
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'reference'); setNm((s) => ({ ...s, photoUrl: url })); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
+            </label>
             <Button onClick={reportMissing} disabled={!nm.item.trim()}>Report</Button>
           </div>
         </div>
@@ -99,16 +103,27 @@ export function Inventory({ role }: { role?: string }) {
                         → {String(m.assigned_to) === String(myId) ? 'Assigned to you' : `Assigned to ${m.assigned_name}`}
                       </div>
                     )}
+                    {m.photo_url && (
+                      <a href={m.photo_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6 }}>
+                        <img src={m.photo_url} alt="reference" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 9, border: `1px solid ${C.line}` }} />
+                      </a>
+                    )}
                   </div>
                   <Badge tone={m.status === 'requested' ? 'error' : m.status === 'ordered' ? 'warn' : 'ok'}>{m.status}</Badge>
                 </div>
                 {/* Owner/manager act on any item; the person it's assigned to gets
                     the same buttons. Everyone else just sees the status. */}
                 {(canManage || String(m.assigned_to ?? '') === String(myId)) && (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     {m.status !== 'ordered' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'ordered'); load(); }}>🛒 Ordered</Button>}
                     <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'received'); load(); }}>✓ Received</Button>
                     <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>
+                    {/* Optional photo — a reference of what's needed, or proof it was bought. */}
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, borderRadius: 10, padding: '6px 11px', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                      📷 {m.photo_url ? 'Change photo' : 'Add photo'}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'reference'); await api.setMissingPhoto(m.id, url); load(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
+                    </label>
+                    {m.photo_url && <button onClick={async () => { await api.setMissingPhoto(m.id, null); load(); }} style={{ border: 'none', background: 'none', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Remove</button>}
                   </div>
                 )}
                 {/* Owner/manager can hand it to a specific person to sort out. */}

@@ -5003,6 +5003,7 @@ export async function adminRoutes(app: FastifyInstance) {
       supplier: z.string().max(120).optional(),
       note: z.string().max(300).optional(),
       reportedBy: z.string().max(80).optional(),
+      photoUrl: z.string().url().max(500).optional(),
     });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
@@ -5010,9 +5011,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const staff = (request as any).staff as { name?: string };
     const by = d.reportedBy ?? staff?.name ?? 'staff';
     const { rows } = await pool.query(
-      `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, by],
+      `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by, photo_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [d.item, d.quantity, d.eventId ?? null, d.supplier ?? null, d.note ?? null, by, d.photoUrl ?? null],
     );
     // Surface to owner/manager: bell feed + best-effort push (who + what).
     await pool.query(
@@ -5051,6 +5052,30 @@ export async function adminRoutes(app: FastifyInstance) {
     if (p.data.memberId) {
       void pushToOwner('staff', p.data.memberId, '📦 A missing item is yours to sort out', `${rows[0].item} ×${rows[0].quantity}`);
     }
+    return rows[0];
+  });
+
+  // Attach / replace / clear an optional photo on a missing item. Allowed for the
+  // owner, a manager, or the person it's assigned to (same as acting on it).
+  app.patch('/api/admin/missing-items/:id/photo', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string; role?: string };
+    const role = staff?.role;
+    const { id } = request.params as { id: string };
+    const schema = z.object({ photoUrl: z.string().url().max(500).nullable() });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    if (role !== 'owner' && role !== 'manager') {
+      const cur = await pool.query(`SELECT assigned_to FROM missing_items WHERE id = $1`, [id]);
+      if (!cur.rows[0]) return reply.status(404).send({ error: 'not_found' });
+      if (!staff?.id || String(cur.rows[0].assigned_to ?? '') !== String(staff.id)) {
+        return reply.status(403).send({ error: 'forbidden' });
+      }
+    }
+    const { rows } = await pool.query(
+      `UPDATE missing_items SET photo_url = $2 WHERE id = $1 RETURNING *`,
+      [id, p.data.photoUrl],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return rows[0];
   });
 

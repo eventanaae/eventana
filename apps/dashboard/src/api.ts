@@ -323,6 +323,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ memberId }),
     }),
+  // Attach / clear an optional photo on a missing item (url null = remove).
+  setMissingPhoto: (id: number, photoUrl: string | null) =>
+    request<any>(`/api/admin/missing-items/${id}/photo`, {
+      method: 'PATCH',
+      body: JSON.stringify({ photoUrl }),
+    }),
 
   me: () => request<{ id?: string; name: string; role: string }>('/api/admin/me'),
   latestBooking: () => request<any>('/api/admin/bookings/latest'),

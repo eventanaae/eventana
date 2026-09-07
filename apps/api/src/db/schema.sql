@@ -581,6 +581,8 @@ CREATE TABLE IF NOT EXISTS missing_items (
 -- person then gets the same ordered/received/cancelled actions on it.
 ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS assigned_to   TEXT;
 ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS assigned_name TEXT;
+-- Optional photo (a reference shot of exactly what's needed, or proof once bought).
+ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS photo_url     TEXT;
 CREATE INDEX IF NOT EXISTS missing_items_status_idx ON missing_items (status, created_at);
 
 -- ── Ratings & tips (#30) ─────────────────────────────────────────────────
