@@ -480,6 +480,29 @@ export async function getPrepByPerson() {
 }
 
 /**
+ * Self-heal the design→physical dependency: release any physical task stuck on
+ * 'waiting_design' once the design task it waits on is completed (or no longer
+ * exists for the event). Completing a design task already releases its
+ * dependents immediately (completePrepTask); this is the safety net that catches
+ * any that slipped through — a design completed before the dependency was linked,
+ * a regenerate, or an old glitch — so a task can never stay "Waiting for design"
+ * after the design is actually done. Idempotent; runs from the reconcile sweep.
+ */
+export async function releaseSatisfiedWaitingDesign(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE prep_tasks p SET status='ready'
+      WHERE p.status='waiting_design'
+        AND NOT EXISTS (
+          SELECT 1 FROM prep_tasks d
+           WHERE d.event_id = p.event_id
+             AND d.key = p.depends_on_key
+             AND d.status <> 'completed'
+        )`,
+  );
+  return rowCount ?? 0;
+}
+
+/**
  * Alert the Owner + Manager about any event within 3 days whose preparation
  * isn't finished ("Event Preparation At Risk"). One alert per event; runs from
  * the reconciliation sweep. Internal only.

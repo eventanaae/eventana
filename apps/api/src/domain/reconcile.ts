@@ -172,9 +172,15 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   void sweepMonthlyReport;
 
   // Flag any event within 3 days whose preparation isn't finished, so the
-  // Owner + Manager see "Event Preparation At Risk" in time to act.
+  // Owner + Manager see "Event Preparation At Risk" in time to act. Also
+  // self-heal any physical task left on "waiting for design" after its design
+  // task was actually completed, so nothing stays blocked by a stale dependency.
   await import('./prep.js')
-    .then(({ sweepPrepAtRisk }) => sweepPrepAtRisk())
+    .then(async ({ sweepPrepAtRisk, releaseSatisfiedWaitingDesign }) => {
+      const released = await releaseSatisfiedWaitingDesign();
+      if (released) console.log(`[prep] released ${released} task(s) whose design is done`);
+      await sweepPrepAtRisk();
+    })
     .catch((err) => console.error('[prep] at-risk sweep failed:', err));
 
   // Daily invoice balance reminders (opt-in per invoice; once per day until paid).
