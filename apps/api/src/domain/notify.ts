@@ -33,6 +33,7 @@ export interface EmailRow {
   receipt_number?: number | string | null;
   event_date: string | null;
   start_time: string | null;
+  base_end_time: string | null;
   emirate: string | null;
   eta?: string | null;
   customer_name: string | null;
@@ -438,7 +439,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
   // celebration is for. Plus the event type (Birthday, Gender Reveal, …).
   const first = (row.customer_name || 'there').split(' ')[0];
   const date = longDate(row.event_date);
-  const time = time12(row.start_time);
+  const time = [time12(row.start_time), time12(row.base_end_time)].filter(Boolean).join(' – ');
   const place = row.emirate || 'UAE';
   const track = trackUrl(row.event_id);
   // Customer-facing booking reference: EV-<sales-receipt number>, falling back to
@@ -513,6 +514,20 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           heading: honour ? `Today is ${honour}'s big day!` : "It's party day!",
           bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day and we couldn't be more excited! 🥳 <b>${cap(occasionPhrase)}</b> starts at <b>${time || 'your booked time'}</b>, and our team is already on the way with all the magic. 🚚✨</p>
             <p style="margin:14px 0 0;font-size:15px;line-height:1.6">Everything you need is in the app. Have the most wonderful time — you've earned it! 💛</p>`,
+          cta: track ? { href: track, label: 'View your booking →' } : undefined,
+        }),
+      };
+    case 'booking_updated':
+      return {
+        subject: honour ? `${honour}'s Eventana booking — updated ✏️` : 'Your Eventana booking — updated ✏️',
+        html: shell({
+          first,
+          emoji: '✏️',
+          eyebrow: 'Booking Updated',
+          heading: honour ? `${honour}'s booking has been updated` : 'Your booking has been updated',
+          bodyHtml: `<p style="margin:0 0 6px;font-size:15px;line-height:1.6">We've updated the details of ${honour ? `<b>${honour}'s celebration</b>` : 'your celebration'} — here's the latest:</p>
+            ${detailCard(partyRows)}
+            <p style="margin:16px 0 0;font-size:15px;line-height:1.6">If anything doesn't look right, just message us in the app — we're always here for you. 💛</p>`,
           cta: track ? { href: track, label: 'View your booking →' } : undefined,
         }),
       };
@@ -638,7 +653,7 @@ export function renderWhatsApp(row: EmailRow): string | null {
   const honour = (row.cart?.eventFor || '').trim();
   const who = honour ? `${honour}'s` : 'your';
   const date = longDate(row.event_date);
-  const time = time12(row.start_time);
+  const time = [time12(row.start_time), time12(row.base_end_time)].filter(Boolean).join(' – ');
   const place = row.emirate || 'UAE';
   const link = trackUrl(row.event_id);
   // Customer-facing booking reference: EV-<sales-receipt number>, event_id fallback.
@@ -695,7 +710,7 @@ export function whatsAppTemplateFor(row: EmailRow): { name: string; params: stri
   const first = (row.customer_name || 'حبيبتنا').split(' ')[0];
   const honour = (row.cart?.eventFor || '').trim();
   const date = longDate(row.event_date);
-  const time = time12(row.start_time);
+  const time = [time12(row.start_time), time12(row.base_end_time)].filter(Boolean).join(' – ');
   const place = row.emirate || 'الإمارات';
   const link = trackUrl(row.event_id) || (config.publicAppUrl || 'https://ops.eventanauae.com');
   const total = row.total_fils != null ? aed(row.total_fils) : '—';
@@ -706,6 +721,8 @@ export function whatsAppTemplateFor(row: EmailRow): { name: string; params: stri
       return { name: 'booking_confirmation', params: [first, honour || 'ضيف الشرف', date, time || 'الوقت المحجوز', place, ref, total, link] };
     case 'three_day_reminder':
       return { name: 'three_day_reminder', params: [first, `${date}${time ? ` الساعة ${time}` : ''}`, place, link] };
+    case 'booking_updated':
+      return { name: 'booking_updated', params: [first, `${date}${time ? ` · ${time}` : ''}`, place, link] };
     case 'event_day':
       return { name: 'event_day', params: [first, time || 'بالوقت المحجوز', link] };
     case 'team_on_the_way':
@@ -733,6 +750,7 @@ export interface DriverRow {
   event_id: string;
   event_date: string | null; // to_char'd YYYY-MM-DD
   start_time: string | null;
+  base_end_time: string | null;
   emirate: string | null;
   address: { area?: string; building?: string; notes?: string } | null;
   map_lat: number | null;
@@ -933,7 +951,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
               (SELECT fr.number FROM finance_receipts fr
                 WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
                 ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number,
-              e.event_date, e.start_time, e.emirate, e.eta,
+              e.event_date, e.start_time, e.base_end_time, e.emirate, e.eta,
               e.celebration_type, e.custom_theme, o.cart, o.total_fils, p.name AS package_name,
               c.name AS customer_name, c.phone AS customer_phone,
               cx.order_id AS order_ref, cx.total_paid_fils, cx.refund_percent, cx.refund_amount_fils
@@ -946,7 +964,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
         WHERE n.channel = 'email' AND n.whatsapp_sent_at IS NULL AND n.cancelled_at IS NULL
           AND n.template IN ('booking_confirmation','three_day_reminder','event_day',
                              'team_on_the_way','team_arrived','setup_ready','feedback_request',
-                             'event_cancelled','cancellation_refund')
+                             'booking_updated','event_cancelled','cancellation_refund')
           -- No dated customer WhatsApp while the event date is unconfirmed (TBD).
           AND (e.date_tbd IS NOT TRUE OR n.template IN ('event_cancelled','cancellation_refund'))
           -- SAFETY: never blast a pre-event message for an event that has already
@@ -1049,7 +1067,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
               (SELECT fr.number FROM finance_receipts fr
                 WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
                 ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number,
-              e.event_date, e.start_time, e.emirate, e.eta,
+              e.event_date, e.start_time, e.base_end_time, e.emirate, e.eta,
               e.celebration_type, e.custom_theme, o.cart, o.quote, o.total_fils, p.name AS package_name,
               c.name AS customer_name, c.email AS customer_email,
               cx.order_id AS order_ref, cx.total_paid_fils, cx.refund_percent,

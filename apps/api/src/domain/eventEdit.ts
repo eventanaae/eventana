@@ -170,6 +170,26 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       );
     }
 
+    // Tell the CUSTOMER their booking details changed (email + WhatsApp) — the
+    // one email-channel row drives both. Only when a customer-visible field
+    // actually changed (time / name / theme / location), never a silent contact
+    // fix. Coalesced: if a booking_updated is still pending (unsent) for this
+    // event, don't stack another — the pending one renders the latest details.
+    const customerVisibleChange = patch.startTime !== undefined || patch.endTime !== undefined
+      || patch.eventFor !== undefined || (patch.themeId !== undefined && patch.themeId) || Boolean(customTheme)
+      || locationChanged;
+    if (customerVisibleChange) {
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         SELECT $1,'email','booking_updated', now(), $2
+          WHERE NOT EXISTS (
+            SELECT 1 FROM notifications n
+             WHERE n.event_id = $1 AND n.template = 'booking_updated'
+               AND n.cancelled_at IS NULL AND (n.sent_at IS NULL OR n.whatsapp_sent_at IS NULL))`,
+        [eventId, JSON.stringify({ eventId })],
+      );
+    }
+
     return { ok: true };
   });
 }

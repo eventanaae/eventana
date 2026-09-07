@@ -238,10 +238,12 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     {data.event.eventFor ? (
                       <>
                         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '1px', color: '#c98fb4' }}>GUEST OF HONOUR</div>
-                        <div style={{ ...fredoka(22), color: C.pinkDeep, marginTop: 2 }}>🎉 {data.event.eventFor}</div>
+                        <div style={{ ...fredoka(22), color: C.pinkDeep, marginTop: 2 }}>🎉 {data.event.eventFor}
+                          {data.event.age ? <span style={{ fontSize: 15, fontWeight: 800 }}> · 🎂 {data.event.age}</span> : null}</div>
                       </>
                     ) : (
-                      <div style={{ ...fredoka(20), color: C.pinkDeep }}>🎉 {data.event.customer}</div>
+                      <div style={{ ...fredoka(20), color: C.pinkDeep }}>🎉 {data.event.customer}
+                        {data.event.age ? <span style={{ fontSize: 15, fontWeight: 800 }}> · 🎂 {data.event.age}</span> : null}</div>
                     )}
                   </div>
                   {/* Details grid — full-width gridlines, no lopsided gap */}
@@ -260,6 +262,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                       } />
                     )}
                     <InfoCell span label="📍 Location" value={data.event.emirate || <span style={{ color: C.muted }}>—</span>} />
+                    {data.event.age && <InfoCell label="🎂 Age" value={String(data.event.age)} />}
                   </div>
                 </div>
                 <div style={{ marginTop: 8 }}>

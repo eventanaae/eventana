@@ -914,6 +914,11 @@ export async function adminRoutes(app: FastifyInstance) {
               (SELECT fr.number FROM finance_receipts fr
                 WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
                 ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number,
+              -- The guest-of-honour's age lives on the receipt but the team needs
+              -- to see it on the event page too (for prep/theme sizing).
+              (SELECT fr.age FROM finance_receipts fr
+                WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+                ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS age,
               cx.cancelled_by, cx.reason AS cancellation_note, cx.total_paid_fils AS cx_total_paid,
               cx.delivery_fils AS cx_delivery, cx.non_refundable_fils AS cx_non_refundable,
               cx.party_value_fils AS cx_party_value, cx.refund_percent, cx.refund_amount_fils,
