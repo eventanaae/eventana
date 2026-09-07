@@ -3,20 +3,30 @@ import { clearStaffToken } from '../api';
 import { C, fredoka } from '../ui';
 
 type Item = { id: View; icon: string; label: string };
+// Every business tool the bottom bar doesn't already show. Items the current
+// role can't see are filtered out below, so this can safely list everything —
+// a view missing here is a view the owner simply can't reach on mobile.
 const GROUPS: Array<{ label: string; items: Item[] }> = [
+  { label: 'Operations', items: [
+    { id: 'inventory', icon: '📦', label: 'Inventory' },
+    { id: 'alerts', icon: '📣', label: 'Updates' },
+  ] },
   { label: 'Sales & Customers', items: [
     { id: 'finance', icon: '💸', label: 'Sales' },
     { id: 'customers', icon: '👥', label: 'Customers' },
     { id: 'products', icon: '🎁', label: 'Products' },
     { id: 'suppliers', icon: '🚚', label: 'Suppliers' },
+    { id: 'neworder', icon: '➕', label: 'New Order' },
   ] },
   { label: 'Marketing', items: [
     { id: 'marketing', icon: '📣', label: 'Marketing' },
     { id: 'leads', icon: '💬', label: 'Leads' },
+    { id: 'reviews', icon: '⭐', label: 'Google Reviews' },
   ] },
   { label: 'Staff', items: [
-    { id: 'kpis', icon: '⭐', label: 'Achievements' },
+    { id: 'kpis', icon: '🏆', label: 'Achievements' },
     { id: 'team', icon: '😊', label: 'Team' },
+    { id: 'leave', icon: '🌴', label: 'Leave' },
   ] },
   { label: '', items: [
     { id: 'settings', icon: '⚙️', label: 'Settings' },
