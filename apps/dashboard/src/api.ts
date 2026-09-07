@@ -317,6 +317,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+  // Assign a missing item to a team member (memberId null = unassign).
+  assignMissing: (id: number, memberId: string | null) =>
+    request<any>(`/api/admin/missing-items/${id}/assign`, {
+      method: 'PATCH',
+      body: JSON.stringify({ memberId }),
+    }),
 
   me: () => request<{ id?: string; name: string; role: string }>('/api/admin/me'),
   latestBooking: () => request<any>('/api/admin/bookings/latest'),

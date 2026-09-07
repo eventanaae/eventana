@@ -577,6 +577,10 @@ CREATE TABLE IF NOT EXISTS missing_items (
   note         TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Owner/manager can hand a missing item to a specific person to sort out; that
+-- person then gets the same ordered/received/cancelled actions on it.
+ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS assigned_to   TEXT;
+ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS assigned_name TEXT;
 CREATE INDEX IF NOT EXISTS missing_items_status_idx ON missing_items (status, created_at);
 
 -- ── Ratings & tips (#30) ─────────────────────────────────────────────────

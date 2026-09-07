@@ -5027,13 +5027,48 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
-  app.patch('/api/admin/missing-items/:id', async (request, reply) => {
+  // Assign (or unassign) a missing item to a team member — owner/manager only.
+  // The assignee then gets the same action buttons on that item.
+  app.patch('/api/admin/missing-items/:id/assign', async (request, reply) => {
     const role = (request as any).staff?.role;
     if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const schema = z.object({ memberId: z.string().nullable() });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    let name: string | null = null;
+    if (p.data.memberId) {
+      const m = await pool.query(`SELECT name FROM team_members WHERE id = $1 AND active`, [p.data.memberId]);
+      if (!m.rows[0]) return reply.status(404).send({ error: 'member_not_found' });
+      name = m.rows[0].name;
+    }
+    const { rows } = await pool.query(
+      `UPDATE missing_items SET assigned_to = $2, assigned_name = $3 WHERE id = $1 RETURNING *`,
+      [id, p.data.memberId, name],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    // Tell the assignee they've been handed a to-buy item.
+    if (p.data.memberId) {
+      void pushToOwner('staff', p.data.memberId, '📦 A missing item is yours to sort out', `${rows[0].item} ×${rows[0].quantity}`);
+    }
+    return rows[0];
+  });
+
+  app.patch('/api/admin/missing-items/:id', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string; name?: string; role?: string };
+    const role = staff?.role;
     const { id } = request.params as { id: string };
     const schema = z.object({ status: z.enum(['requested', 'ordered', 'received', 'cancelled']) });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    // Owner/manager can act on any item; anyone else only on an item assigned to them.
+    if (role !== 'owner' && role !== 'manager') {
+      const cur = await pool.query(`SELECT assigned_to FROM missing_items WHERE id = $1`, [id]);
+      if (!cur.rows[0]) return reply.status(404).send({ error: 'not_found' });
+      if (!staff?.id || String(cur.rows[0].assigned_to ?? '') !== String(staff.id)) {
+        return reply.status(403).send({ error: 'forbidden', message: 'Only the owner, a manager, or the person it is assigned to can update this.' });
+      }
+    }
     const { rows } = await pool.query(
       `UPDATE missing_items SET status = $2 WHERE id = $1 RETURNING *`,
       [id, p.data.status],

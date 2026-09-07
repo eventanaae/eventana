@@ -23,6 +23,8 @@ export function Inventory({ role }: { role?: string }) {
   const [consumables, setConsumables] = useState<any[]>([]);
   const [missing, setMissing] = useState<any[]>([]);
   const [issues, setIssues] = useState<any[]>([]);
+  const [myId, setMyId] = useState<string | null>(null);
+  const [crew, setCrew] = useState<any[]>([]);
   const [q, setQ] = useState('');
   const [nc, setNc] = useState({ name: '', category: 'plates', onHand: '', reorderLevel: '', perGuest: true, supplier: '' });
   const [nm, setNm] = useState({ item: '', quantity: '', supplier: '' });
@@ -31,9 +33,11 @@ export function Inventory({ role }: { role?: string }) {
   const load = () => {
     void api.inventory().then(setAssets);
     void api.missingItems().then(setMissing).catch(() => setMissing([]));
+    void api.me().then((m: any) => setMyId(m?.id ?? null)).catch(() => {});
     if (canManage) {
       void api.consumables().then(setConsumables).catch(() => setConsumables([]));
       void api.assetIssues().then(setIssues).catch(() => setIssues([]));
+      void api.staffingCrew().then((c) => setCrew((c ?? []).filter((m: any) => m.name))).catch(() => setCrew([]));
     }
   };
   useEffect(load, []);
@@ -90,16 +94,32 @@ export function Inventory({ role }: { role?: string }) {
                     <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
                       by {m.reported_by ?? '—'} · {m.created ?? (m.created_at ? String(m.created_at).slice(0, 10) : '')}{m.supplier ? ` · ${m.supplier}` : ''}{m.note ? ` · "${m.note}"` : ''}
                     </div>
+                    {m.assigned_name && (
+                      <div style={{ fontSize: 10.5, fontWeight: 800, color: C.pinkDeep, marginTop: 3 }}>
+                        → {String(m.assigned_to) === String(myId) ? 'Assigned to you' : `Assigned to ${m.assigned_name}`}
+                      </div>
+                    )}
                   </div>
                   <Badge tone={m.status === 'requested' ? 'error' : m.status === 'ordered' ? 'warn' : 'ok'}>{m.status}</Badge>
                 </div>
-                {/* Owner/manager can act right here — no need to hunt for a
-                    separate panel. Employees see the status only. */}
-                {canManage && (
+                {/* Owner/manager act on any item; the person it's assigned to gets
+                    the same buttons. Everyone else just sees the status. */}
+                {(canManage || String(m.assigned_to ?? '') === String(myId)) && (
                   <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                     {m.status !== 'ordered' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'ordered'); load(); }}>🛒 Ordered</Button>}
                     <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'received'); load(); }}>✓ Received</Button>
                     <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>
+                  </div>
+                )}
+                {/* Owner/manager can hand it to a specific person to sort out. */}
+                {canManage && (
+                  <div style={{ display: 'flex', gap: 7, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.3px', textTransform: 'uppercase', color: C.muted2 }}>Assign to</span>
+                    <select value={m.assigned_to ?? ''} onChange={async (e) => { await api.assignMissing(m.id, e.target.value || null); load(); }}
+                      style={{ border: `1px solid ${C.line}`, borderRadius: 9, padding: '6px 9px', fontSize: 12, fontWeight: 700, color: C.ink, background: '#fff', cursor: 'pointer' }}>
+                      <option value="">— nobody —</option>
+                      {crew.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
                   </div>
                 )}
               </div>
