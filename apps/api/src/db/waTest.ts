@@ -60,14 +60,14 @@ export async function waTestFromEnv(): Promise<void> {
     const e164 = toValidCustomerPhone(raw) ?? raw;
     const to = String(e164).replace(/\D+/g, '');
     console.log(`[wa-test] customerNotify=${whatsappCustomerNotifyEnabled()} · raw="${raw}" → to=${to}`);
-    const res = await sendWhatsAppTemplate({
-      to,
-      name: 'feedback_request',
-      language: 'ar',
-      params: ['ضيفتنا', 'https://eventanauae.com/'],
-      fromStaff: true,
-    });
-    console.log(`[wa-test] RESULT ok=${res.ok} id=${res.messageId ?? ''} error=${res.error ?? ''}`);
+    // Diagnostic: send a MARKETING template (feedback_request) AND a UTILITY
+    // template (team_arrived, no params) to the same number. If only the utility
+    // one arrives, the block is marketing-category throttling; if neither, it's
+    // an account/payment-level block.
+    const mk = await sendWhatsAppTemplate({ to, name: 'feedback_request', language: 'ar', params: ['ضيفتنا', 'https://eventanauae.com/'], fromStaff: true });
+    console.log(`[wa-test] MARKETING feedback_request → ok=${mk.ok} id=${mk.messageId ?? ''} error=${mk.error ?? ''}`);
+    const ut = await sendWhatsAppTemplate({ to, name: 'team_arrived', language: 'ar', params: [], fromStaff: true });
+    console.log(`[wa-test] UTILITY team_arrived → ok=${ut.ok} id=${ut.messageId ?? ''} error=${ut.error ?? ''}`);
   } catch (err) {
     console.error('[wa-test] failed:', (err as Error).message);
   }
