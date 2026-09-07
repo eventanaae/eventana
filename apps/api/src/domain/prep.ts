@@ -12,6 +12,7 @@
  * not duplicate any of them.
  */
 import { pool } from '../db/pool.js';
+import { celebrationLabel } from '@eventana/shared';
 
 // ── Prep skills per employee (from the owner's spec) ─────────────────────────
 // Distinct from the day-of performer skills in staff_skills: these are the
@@ -449,10 +450,61 @@ export async function getPrepTasksForMember(memberId: string) {
       ORDER BY pt.due_date, pt.id`,
     [memberId],
   );
+  // Attach the party meta (reference, date, baby, type, theme) so the employee
+  // reads the party, not an internal id + customer name.
+  const meta = await eventMetaFor(rows.map((r: any) => r.event_id));
+  for (const t of rows) { const m = meta.get(t.event_id); if (m) Object.assign(t, m); else t.reference = t.event_id; }
   return rows;
 }
 
 /** Board grouped by person: every staff member with their open prep tasks. */
+export type EventMeta = {
+  reference: string;        // EV-<receipt number> (falls back to internal id)
+  eventDate: string | null; // YYYY-MM-DD of the party
+  babyName: string | null;  // the celebrant / baby the party is for
+  celebrationType: string | null; // human label (Birthday, Baby shower, …)
+  theme: string | null;     // theme name (custom or catalogue)
+};
+
+/**
+ * Party meta for a set of events — the same values every other screen shows: the
+ * unified booking reference (EV-<receipt number>, NOT the internal EV-YYYY-NNNN
+ * id), the party date, who it's for, the celebration type and the theme. The
+ * team should read the party, not an internal id, on every prep screen.
+ */
+async function eventMetaFor(eventIds: string[]): Promise<Map<string, EventMeta>> {
+  const ids = Array.from(new Set(eventIds.filter(Boolean)));
+  if (ids.length === 0) return new Map();
+  const { rows } = await pool.query<{
+    id: string; receipt_number: string | null; event_date: string | null;
+    baby_name: string | null; celebration_type: string | null; custom_theme: string | null; theme_name: string | null;
+  }>(
+    `SELECT e.id,
+            to_char(e.event_date,'YYYY-MM-DD') AS event_date,
+            e.celebration_type, e.custom_theme, th.name AS theme_name,
+            initcap(o.cart->>'eventFor') AS baby_name,
+            (SELECT fr.number FROM finance_receipts fr
+              WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+              ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number
+       FROM events e
+       LEFT JOIN orders o ON o.id = e.order_id
+       LEFT JOIN themes th ON th.id = e.theme_id
+      WHERE e.id = ANY($1)`,
+    [ids],
+  );
+  const m = new Map<string, EventMeta>();
+  for (const r of rows) {
+    m.set(r.id, {
+      reference: r.receipt_number ? `EV-${r.receipt_number}` : r.id,
+      eventDate: r.event_date,
+      babyName: r.baby_name || null,
+      celebrationType: r.celebration_type ? celebrationLabel(r.celebration_type) : null,
+      theme: r.custom_theme || r.theme_name || null,
+    });
+  }
+  return m;
+}
+
 export async function getPrepByPerson() {
   // Only surface prep for events that are still ahead of us (or date-TBD) and not
   // cancelled — a past event's leftover tasks are done business and only clutter
@@ -479,6 +531,13 @@ export async function getPrepByPerson() {
       ORDER BY open_count DESC, tm.name`,
     [Object.keys(PREP_SKILLS)],
   );
+  // Stamp each task with the party meta (reference, date, baby, type, theme) the
+  // team should read, instead of the internal event id + customer name.
+  const meta = await eventMetaFor(rows.flatMap((p: any) => (p.tasks ?? []).map((t: any) => t.eventId)));
+  for (const p of rows) for (const t of (p.tasks ?? [])) {
+    const m = meta.get(t.eventId);
+    if (m) Object.assign(t, m); else t.reference = t.eventId;
+  }
   return rows;
 }
 
@@ -551,6 +610,7 @@ export async function getPrepEvents() {
       GROUP BY pt.event_id, e.event_date, c.name, e.emirate
       ORDER BY e.event_date`,
   );
+  const meta = await eventMetaFor(rows.map((r: any) => r.event_id));
   const today = Date.now();
   return rows.map((r: any) => {
     const total = Number(r.total); const done = Number(r.completed);
@@ -558,7 +618,8 @@ export async function getPrepEvents() {
     const daysToEvent = Math.ceil((Date.parse(`${r.event_date}T00:00:00+04:00`) - today) / 86_400_000);
     // "At risk" when the event is within 3 days and prep isn't finished.
     const atRisk = daysToEvent <= 3 && done < total;
-    return { ...r, total, completed: done, issues: Number(r.issues), waiting: Number(r.waiting), progressPct: pct, daysToEvent, atRisk };
+    const m = meta.get(r.event_id);
+    return { ...r, reference: m?.reference ?? r.event_id, babyName: m?.babyName ?? null, celebrationType: m?.celebrationType ?? null, theme: m?.theme ?? null, total, completed: done, issues: Number(r.issues), waiting: Number(r.waiting), progressPct: pct, daysToEvent, atRisk };
   });
 }
 
@@ -578,8 +639,24 @@ export async function getPrepPlan(eventId: string) {
   const total = rows.length;
   const done = rows.filter((r) => r.status === 'completed').length;
   const issues = rows.filter((r) => r.status === 'issue').length;
+  const meta = (await eventMetaFor([eventId])).get(eventId);
+  // A short brief of what the customer actually ordered: the package + every
+  // booked line item (services/add-ons), so the team sees the order at a glance.
+  const pkg = (await pool.query<{ package_name: string | null }>(`SELECT package_name FROM events WHERE id=$1`, [eventId])).rows[0];
+  const items = (await pool.query<{ label: string | null }>(`SELECT label FROM event_services WHERE event_id=$1 ORDER BY id`, [eventId]))
+    .rows.map((r) => (r.label ?? '').trim()).filter(Boolean);
   return {
     eventId,
+    reference: meta?.reference ?? eventId,
+    event: {
+      reference: meta?.reference ?? eventId,
+      eventDate: meta?.eventDate ?? null,
+      babyName: meta?.babyName ?? null,
+      celebrationType: meta?.celebrationType ?? null,
+      theme: meta?.theme ?? null,
+      packageName: pkg?.package_name ?? null,
+      items,
+    },
     tasks: rows,
     total,
     completed: done,

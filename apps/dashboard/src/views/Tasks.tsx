@@ -21,6 +21,16 @@ const STATUS_META: Record<string, { label: string; tone: 'ok' | 'warn' | 'error'
 const st = (s: string) => STATUS_META[s] ?? { label: s, tone: 'neutral' as const };
 const fmtDue = (d: string) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—');
 
+/**
+ * What the team should read on a prep task: the party itself — its date, who it's
+ * for, the celebration type and the theme — plus the booking reference (EV-<number>),
+ * NOT the internal event id or the customer's name.
+ */
+const partyLine = (t: any): string =>
+  [t.eventDate ? fmtDue(t.eventDate) : null, t.babyName, t.celebrationType, t.theme, t.reference]
+    .filter(Boolean)
+    .join(' · ');
+
 export function Tasks({ role }: { role?: string }) {
   const [openEvent, setOpenEvent] = useState<string | null>(null);
   const canSeeAll = role === 'owner' || role === 'manager';
@@ -72,7 +82,7 @@ function MyTasks() {
                 <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
               </div>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, margin: '4px 0 8px' }}>
-                {t.customer} · {t.event_id} · due {fmtDue(t.due)}{t.people_needed > 1 ? ` · ${t.people_needed} people` : ''}
+                {partyLine(t)} · due {fmtDue(t.due)}{t.people_needed > 1 ? ` · ${t.people_needed} people` : ''}
               </div>
               {Array.isArray(t.checklist) && t.checklist.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '4px 0 8px' }}>
@@ -85,18 +95,19 @@ function MyTasks() {
                 </div>
               )}
               {t.notes && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.red, marginBottom: 6 }}>📝 {t.notes}</div>}
-              {t.status === 'waiting_design' ? (
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: '#c98a2b' }}>⏳ Waiting for the design to be ready</div>
-              ) : (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <Button onClick={async () => { await api.prepComplete(String(t.id)); load(); }}>✓ Done</Button>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '7px 11px', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}>
-                    📷 Proof
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'setup-photos'); await api.prepComplete(String(t.id), url); load(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
-                  </label>
-                  <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); load(); } }}>⚠ Issue</Button>
-                </div>
+              {/* The design gate is a hint, never a hard block — the person can mark
+                  the task done once the design is ready in real life. */}
+              {t.status === 'waiting_design' && (
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: '#c98a2b', marginBottom: 7 }}>⏳ Waiting for the design — you can still mark it done once it's ready</div>
               )}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <Button onClick={async () => { await api.prepComplete(String(t.id)); load(); }}>✓ Done</Button>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '7px 11px', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}>
+                  📷 Proof
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'setup-photos'); await api.prepComplete(String(t.id), url); load(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
+                </label>
+                <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); load(); } }}>⚠ Issue</Button>
+              </div>
             </div>
           ))}
         </div>
@@ -131,7 +142,7 @@ function ByPerson() {
                     <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
                   </div>
                   <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 3 }}>
-                    {t.customer} · {t.eventId} · due {fmtDue(t.due)}
+                    {partyLine(t)} · due {fmtDue(t.due)}
                   </div>
                   {/* Owner/manager can act on any task right from this overview. */}
                   {t.status === 'waiting_design' ? (
@@ -190,7 +201,7 @@ function ByEvent({ onOpen, canManage }: { onOpen: (id: string) => void; canManag
               <span style={{ fontWeight: 800, fontSize: 13, color: e.progressPct === 100 ? C.green : C.ink }}>{e.progressPct}%</span>
             </div>
             <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
-              {e.event_id} · {new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} · {e.emirate}
+              {[e.reference, new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }), e.babyName, e.celebrationType, e.theme, e.emirate].filter(Boolean).join(' · ')}
               {e.waiting > 0 ? ` · ${e.waiting} waiting on design` : ''}
             </div>
             <div style={{ height: 8, borderRadius: 6, background: C.lineSoft, overflow: 'hidden' }}>
@@ -231,7 +242,7 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <div style={{ flex: 1 }}>
-                <div style={fredoka(18)}>Preparation · {eventId}</div>
+                <div style={fredoka(18)}>Preparation · {plan.reference ?? eventId}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginTop: 2 }}>
                   {plan.completed} of {plan.total} done · {plan.progressPct}% ready{plan.issues > 0 ? ` · ${plan.issues} issue(s)` : ''}
                 </div>
@@ -243,6 +254,31 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
             <div style={{ height: 8, borderRadius: 6, background: C.lineSoft, overflow: 'hidden', marginBottom: 16 }}>
               <div style={{ height: '100%', width: `${plan.progressPct}%`, background: plan.progressPct === 100 ? C.green : C.pink }} />
             </div>
+
+            {plan.event && (
+              <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, padding: '14px 16px', marginBottom: 16, boxShadow: C.shadow }}>
+                <div style={{ ...fredoka(15), marginBottom: 2 }}>
+                  🎉 {plan.event.babyName || 'The celebration'}{plan.event.celebrationType ? ` · ${plan.event.celebrationType}` : ''}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  {plan.event.eventDate && <span>📅 {new Date(plan.event.eventDate).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+                  {plan.event.theme && <span>🎨 {plan.event.theme}</span>}
+                </div>
+                {(plan.event.packageName || (plan.event.items && plan.event.items.length > 0)) && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.lineSoft}` }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.4px', textTransform: 'uppercase', color: C.muted2, marginBottom: 5 }}>What the customer ordered</div>
+                    {plan.event.packageName && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginBottom: 4 }}>📦 {plan.event.packageName}</div>}
+                    {plan.event.items && plan.event.items.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {plan.event.items.map((it: string, i: number) => (
+                          <span key={i} style={{ fontSize: 11.5, fontWeight: 600, color: C.ink, background: C.pinkSoft, borderRadius: 8, padding: '4px 9px' }}>{it}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {plan.tasks.length === 0 && <Empty>No prep tasks for this event.</Empty>}
