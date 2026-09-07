@@ -451,17 +451,25 @@ export async function getPrepTasksForMember(memberId: string) {
 
 /** Board grouped by person: every staff member with their open prep tasks. */
 export async function getPrepByPerson() {
+  // Only surface prep for events that are still ahead of us (or date-TBD) and not
+  // cancelled — a past event's leftover tasks are done business and only clutter
+  // the person board; "By event" already covers history. `upcoming` is the guard.
   const { rows } = await pool.query(
     `SELECT tm.id, tm.name, tm.color,
             COALESCE(json_agg(json_build_object(
               'id', pt.id, 'title', pt.title, 'status', pt.status, 'category', pt.category,
               'eventId', pt.event_id, 'due', to_char(pt.due_date,'YYYY-MM-DD'), 'customer', c.name
-            ) ORDER BY pt.due_date) FILTER (WHERE pt.id IS NOT NULL), '[]') AS tasks,
-            count(pt.id) FILTER (WHERE pt.status NOT IN ('completed'))::int AS open_count
+            ) ORDER BY pt.due_date) FILTER (WHERE pt.id IS NOT NULL AND upcoming), '[]') AS tasks,
+            count(pt.id) FILTER (WHERE pt.status NOT IN ('completed') AND upcoming)::int AS open_count
        FROM team_members tm
        LEFT JOIN prep_task_staff pts ON pts.member_id = tm.id
        LEFT JOIN prep_tasks pt ON pt.id = pts.task_id AND pt.status <> 'completed'
-       LEFT JOIN events e ON e.id = pt.event_id
+       LEFT JOIN LATERAL (
+         SELECT e.customer_id,
+                (e.phase IS DISTINCT FROM 'Cancelled'
+                 AND (COALESCE(e.date_tbd, false) OR e.event_date >= CURRENT_DATE)) AS upcoming
+           FROM events e WHERE e.id = pt.event_id
+       ) e ON true
        LEFT JOIN customers c ON c.id = e.customer_id
       WHERE tm.active AND tm.name = ANY($1)
       GROUP BY tm.id, tm.name, tm.color

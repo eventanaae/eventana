@@ -133,6 +133,23 @@ function ByPerson() {
                   <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 3 }}>
                     {t.customer} · {t.eventId} · due {fmtDue(t.due)}
                   </div>
+                  {/* Owner/manager can act on any task right from this overview. */}
+                  {t.status === 'waiting_design' ? (
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#c98a2b', marginTop: 7 }}>⏳ Waiting for the design</div>
+                  ) : t.status !== 'completed' ? (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                      <Button onClick={async () => { await api.prepComplete(String(t.id)); load(); }} style={{ padding: '6px 12px', fontSize: 11.5 }}>✓ Done</Button>
+                      {t.status !== 'in_progress' && (
+                        <Button tone="ghost" onClick={async () => { await api.prepSetStatus(String(t.id), 'in_progress'); load(); }} style={{ padding: '6px 11px', fontSize: 11.5 }}>Start</Button>
+                      )}
+                      <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); load(); } }} style={{ padding: '6px 11px', fontSize: 11.5 }}>⚠ Issue</Button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: C.green }}>✓ Completed</span>
+                      <Button tone="ghost" onClick={async () => { await api.prepSetStatus(String(t.id), 'not_started'); load(); }} style={{ padding: '5px 10px', fontSize: 11 }}>↺ Reopen</Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
