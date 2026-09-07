@@ -45,6 +45,11 @@ export const STAFF_SKILLS: Record<string, Skill[]> = {
 };
 // Who can lead an event on-site (Marsha leads remotely as a fallback).
 export const ONSITE_LEADERS = ['Jane', 'Dindo'];
+// Event-leader priority (owner's order): the leader is the highest person in
+// this list who is actually assigned to the event. Marsha leads remotely;
+// everyone above her is on-site. Shan (the driver) leads whenever he's on it.
+export const LEADER_PRIORITY = ['Shan', 'Jane', 'Dindo', 'Diana', 'Gloria', 'Marsha'];
+const firstNameLc = (n: string | null | undefined) => (n ?? '').trim().split(/\s+/)[0].toLowerCase();
 
 /** Seed the internal roster + skills. Idempotent; safe to run on every boot. */
 export async function seedStaffSkills(): Promise<void> {
@@ -365,20 +370,14 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   // working the event; otherwise the first assigned internal crew member on site
   // (a real person present leads, never a remote coordinator when there IS crew).
   // Marsha leads remotely ONLY when the whole event is external part-timers.
+  // Event leader — strict priority among the people actually assigned:
+  // Shan › Jane › Dindo › Diana › Gloria › Marsha. Marsha leads remotely; the
+  // rest are on-site. If none of them are on the crew (all external part-timers),
+  // Marsha coordinates remotely.
   let leader: StaffingPlan['leader'] = null;
-  // Owner's rule: Shan leads every event he's on — he's the one on the road who
-  // updates the live status for us, so he's always the leader when assigned.
-  const shanLead = assigned.find((a) => a.status === 'assigned' && a.assignee && /^shan/i.test(a.assignee.name));
-  if (shanLead?.assignee) leader = { id: shanLead.assignee.id, name: shanLead.assignee.name, remote: false };
-  for (const name of ONSITE_LEADERS) {
-    if (leader) break;
-    const st = staff.find((x) => x.name === name && rolesByStaff.has(x.id));
-    if (st) { leader = { id: st.id, name: st.name, remote: false }; break; }
-  }
-  if (!leader) {
-    const onsite = assigned.find((a) => a.status === 'assigned' && a.assignee && a.role !== 'driver')
-      ?? assigned.find((a) => a.status === 'assigned' && a.assignee);
-    if (onsite?.assignee) leader = { id: onsite.assignee.id, name: onsite.assignee.name, remote: false };
+  for (const name of LEADER_PRIORITY) {
+    const a = assigned.find((x) => x.status === 'assigned' && x.assignee && firstNameLc(x.assignee.name) === name.toLowerCase());
+    if (a?.assignee) { leader = { id: a.assignee.id, name: a.assignee.name, remote: name === 'Marsha' }; break; }
   }
   if (!leader) {
     const marsha = staff.find((x) => x.name === 'Marsha');
@@ -549,17 +548,13 @@ export async function recomputeEventLeader(eventId: string): Promise<void> {
   );
   let leaderId: string | null = null;
   let remote = false;
-  // 1) A designated on-site leader (Jane/Dindo) actually working the event — always leads.
-  for (const name of ONSITE_LEADERS) {
-    const hit = rows.find((r) => r.name === name);
-    if (hit) { leaderId = hit.assignee_id; break; }
+  // Strict priority among assigned crew: Shan › Jane › Dindo › Diana › Gloria ›
+  // Marsha (owner's order). Marsha leads remotely.
+  for (const name of LEADER_PRIORITY) {
+    const hit = rows.find((r) => firstNameLc(r.name) === name.toLowerCase());
+    if (hit) { leaderId = hit.assignee_id; remote = name === 'Marsha'; break; }
   }
-  // 2) Otherwise the first assigned on-site crew member (never a remote driver/designer).
-  if (!leaderId) {
-    const onsite = rows.find((r) => r.role !== 'driver' && r.role !== 'design') ?? rows[0];
-    if (onsite) leaderId = onsite.assignee_id;
-  }
-  // 3) Whole event is external part-timers → Marsha leads remotely.
+  // Whole event is external part-timers → Marsha leads remotely.
   if (!leaderId) {
     const marsha = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE name = 'Marsha' LIMIT 1`);
     if (marsha.rows[0]) { leaderId = marsha.rows[0].id; remote = true; }
