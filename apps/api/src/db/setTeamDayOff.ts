@@ -9,7 +9,7 @@
 import { pool } from './pool.js';
 
 const OFF: Array<[string, number]> = [
-  ['Dindo', 2], ['Gloria', 2], ['Marsha', 2],
+  ['Dindo', 2], ['Gloria', 2], ['Marsha', 2], ['Shan', 2],
   ['Jane', 3], ['Diana', 3],
 ];
 
