@@ -265,6 +265,9 @@ async function main() {
     // Re-submit the staff_alert WhatsApp template with a name variable (WA_RESEED_STAFF=true).
     const { reseedStaffAlertFromEnv } = await import('./db/reseedStaffAlert.js');
     await reseedStaffAlertFromEnv().catch((err) => console.error('[wa-reseed] failed:', err));
+    // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
+    const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
+    await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.

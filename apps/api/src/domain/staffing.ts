@@ -366,7 +366,12 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   // (a real person present leads, never a remote coordinator when there IS crew).
   // Marsha leads remotely ONLY when the whole event is external part-timers.
   let leader: StaffingPlan['leader'] = null;
+  // Owner's rule: Shan leads every event he's on — he's the one on the road who
+  // updates the live status for us, so he's always the leader when assigned.
+  const shanLead = assigned.find((a) => a.status === 'assigned' && a.assignee && /^shan/i.test(a.assignee.name));
+  if (shanLead?.assignee) leader = { id: shanLead.assignee.id, name: shanLead.assignee.name, remote: false };
   for (const name of ONSITE_LEADERS) {
+    if (leader) break;
     const st = staff.find((x) => x.name === name && rolesByStaff.has(x.id));
     if (st) { leader = { id: st.id, name: st.name, remote: false }; break; }
   }

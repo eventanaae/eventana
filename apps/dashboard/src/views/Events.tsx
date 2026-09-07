@@ -160,7 +160,10 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   );
 }
 
-export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: () => void }) {
+export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClose: () => void; role?: string }) {
+  // The driver only needs the delivery essentials — hide design, reserved
+  // inventory and setup-placement sections from him.
+  const isDriver = role === 'driver';
   const [data, setData] = useState<any>(null);
   const [audit, setAudit] = useState<any[]>([]);
   const [reply, setReply] = useState('');
@@ -345,7 +348,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
               {(data.rating || (!moneyHidden && data.tips && data.tips.length > 0)) && (
                 <RatingTipsPanel rating={data.rating} tips={moneyHidden ? [] : data.tips} />
               )}
-              {data.event.custom_theme && (
+              {!isDriver && data.event.custom_theme && (
                 <DesignPanel eventId={eventId} designs={data.designs ?? []} onChange={load} />
               )}
               {!moneyHidden && data.event.phase !== 'Cancelled' && <StaffingPanel eventId={eventId} onChange={load} />}
@@ -489,7 +492,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                 )}
               </Panel>
 
-              <Panel title="Reserved inventory">
+              {!isDriver && <Panel title="Reserved inventory">
                 {data.reservations.length === 0 ? (
                   <Empty>No physical assets reserved.</Empty>
                 ) : (
@@ -509,9 +512,9 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     ))}
                   </div>
                 )}
-              </Panel>
+              </Panel>}
 
-              <Panel title="Setup placement notes">
+              {!isDriver && <Panel title="Setup placement notes">
                 {data.setupPhotos.length === 0 ? (
                   <Empty>The customer didn’t add placement notes — that’s optional.</Empty>
                 ) : (
@@ -528,7 +531,7 @@ export function EventDrawer({ eventId, onClose }: { eventId: string; onClose: ()
                     </div>
                   ))
                 )}
-              </Panel>
+              </Panel>}
 
               <Panel
                 title="Customer messages"

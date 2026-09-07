@@ -28,10 +28,12 @@ import { Suppliers } from './views/Suppliers';
 import { Menu } from './views/Menu';
 import { Leave } from './views/Leave';
 import { GoogleReviews } from './views/GoogleReviews';
+import { DriverEvents } from './views/DriverEvents';
+import { DriverSchedule } from './views/DriverSchedule';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -51,6 +53,7 @@ const SECTIONS: Array<{ id: Section; label: string }> = [
 const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string; section: Section; mobile?: boolean }> = [
   { id: 'today', label: 'Home', icon: '◉', title: 'Home', sub: 'Your day at a glance', section: 'ops', mobile: true },
   { id: 'schedule', label: 'Events', icon: '▦', title: 'Events', sub: 'Events, jobs, bookings & tasks', section: 'ops', mobile: true },
+  { id: 'driverschedule', label: 'Schedule', icon: '🚐', title: 'My Schedule', sub: 'Your weekly delivery schedule', section: 'ops', mobile: true },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets, stock & issue reports', section: 'ops' },
   { id: 'alerts', label: 'Updates', icon: '📣', title: 'Latest updates', sub: "What's new — prep, stock, tips and ratings", section: 'ops', mobile: true },
   { id: 'finance', label: 'Sales', icon: '💸', title: 'Sales & Get Paid', sub: 'Receipts, invoices, expenses & accounts', section: 'sales' },
@@ -83,7 +86,9 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
-  driver: ['today', 'schedule', 'profile', 'feedback'],
+  // Driver: a focused two-tab app — Events (his jobs + shopping) and his weekly
+  // Schedule. No Home / Profile / By-event (owner's request).
+  driver: ['schedule', 'driverschedule'],
 };
 
 export default function App() {
@@ -185,7 +190,9 @@ export default function App() {
     ? ['today', 'schedule', 'ceo']
     : role === 'manager'
       ? ['today', 'schedule', 'inventory', 'profile'] // Updates removed; business tools live in More
-      : ['today', 'schedule', 'inventory', 'profile']; // employee/driver — filtered by isVisible
+      : role === 'driver'
+        ? ['schedule', 'driverschedule'] // driver's two tabs: Events + Schedule
+        : ['today', 'schedule', 'inventory', 'profile']; // employee — filtered by isVisible
   const primaryNav = primaryIds.filter((id) => isVisible(id)).map((id) => NAV.find((n) => n.id === id)!);
   const primarySet = new Set<View>(primaryIds);
   const moreNav = visibleNav.filter((n) => !primarySet.has(n.id));
@@ -225,7 +232,10 @@ export default function App() {
   ) : (
     <>
       {view === 'today' && <Today onOpenEvent={openEvent} onOpenShop={setOpenShopId} onGoto={go} staffName={staffName} role={role} />}
-      {view === 'schedule' && <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} role={role} />}
+      {view === 'schedule' && (role === 'driver'
+        ? <DriverEvents onOpenEvent={openEvent} />
+        : <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} role={role} />)}
+      {view === 'driverschedule' && <DriverSchedule />}
       {view === 'tasks' && <Tasks role={role} />}
       {view === 'inventory' && <Inventory role={role} />}
       {view === 'alerts' && <Alerts onOpenEvent={openEvent} />}
@@ -250,7 +260,7 @@ export default function App() {
   );
 
   const eventDrawer = openEventId && (
-    <EventDrawer eventId={openEventId} onClose={() => setOpenEventId(null)} />
+    <EventDrawer eventId={openEventId} onClose={() => setOpenEventId(null)} role={role} />
   );
   const shopDrawer = openShopId && (
     <ShopOrderDrawer orderId={openShopId} role={role} onClose={() => setOpenShopId(null)} />
