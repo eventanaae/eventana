@@ -447,6 +447,10 @@ export async function getPrepTasksForMember(memberId: string) {
        JOIN events e ON e.id = pt.event_id
        JOIN customers c ON c.id = e.customer_id
       WHERE pts.member_id = $1 AND pt.status <> 'completed'
+        -- Only my prep for events still ahead (or date-TBD) and not cancelled;
+        -- a past event's leftover tasks are done business, not my open work.
+        AND e.phase IS DISTINCT FROM 'Cancelled'
+        AND (COALESCE(e.date_tbd, false) OR e.event_date >= CURRENT_DATE)
       ORDER BY pt.due_date, pt.id`,
     [memberId],
   );
