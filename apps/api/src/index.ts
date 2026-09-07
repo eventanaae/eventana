@@ -268,6 +268,9 @@ async function main() {
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
+    // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
+    const { roleAuditFromEnv } = await import('./db/roleAudit.js');
+    await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.
