@@ -86,7 +86,7 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
       ORDER BY btrim(es.part_time_name), e.event_date`,
     [month],
   );
-  const byName = new Map<string, StaffPayReport['partTimers'][number]>();
+  const byName = new Map<string, { name: string; entries: Array<{ date: string; emirate: string; job: string; amountDisplay: string }>; totalFils: number; totalDisplay: string }>();
   let grand = 0;
   for (const r of pt.rows) {
     const { job, fils } = jobOf(r.role);
