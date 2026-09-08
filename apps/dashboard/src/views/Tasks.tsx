@@ -61,58 +61,90 @@ export function Tasks({ role }: { role?: string }) {
   );
 }
 
+// One row in the employee's own task list (checklist + Done / Proof / Issue).
+function MyTaskRow({ t, onAction }: { t: any; onAction: () => void }) {
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${t.status === 'issue' ? '#f2c9c2' : C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: C.ink, flex: 1 }}>{t.category === 'design' ? '🖌️ ' : t.category === 'manual' ? '📌 ' : ''}{t.title}</span>
+        <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
+      </div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, margin: '4px 0 8px' }}>
+        {partyLine(t)} · due {fmtDue(t.due)}{t.people_needed > 1 ? ` · ${t.people_needed} people` : ''}
+      </div>
+      {Array.isArray(t.checklist) && t.checklist.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '4px 0 8px' }}>
+          {t.checklist.map((ci: any, i: number) => (
+            <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 600, color: ci.done ? C.muted : C.ink, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!ci.done} onChange={async (e) => { await api.prepToggleChecklist(String(t.id), i, e.target.checked); onAction(); }} />
+              <span style={{ textDecoration: ci.done ? 'line-through' : 'none' }}>{ci.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      {t.notes && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.red, marginBottom: 6 }}>📝 {t.notes}</div>}
+      {t.status === 'waiting_design' && (
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: '#c98a2b', marginBottom: 7 }}>⏳ Waiting for the design — you can still mark it done once it's ready</div>
+      )}
+      {t.status === 'completed' ? (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: C.green }}>✓ Done</span>
+          <Button tone="ghost" onClick={async () => { await api.prepSetStatus(String(t.id), 'not_started'); onAction(); }} style={{ padding: '5px 10px', fontSize: 11 }}>↺ Reopen</Button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <Button onClick={async () => { await api.prepComplete(String(t.id)); onAction(); }}>✓ Done</Button>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '7px 11px', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}>
+            📷 Proof
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'setup-photos'); await api.prepComplete(String(t.id), url); onAction(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
+          </label>
+          <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); onAction(); } }}>⚠ Issue</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── An employee's own tasks only ─────────────────────────────────────────────
 function MyTasks() {
   const [tasks, setTasks] = useState<any[] | null>(null);
   const load = () => api.prepMine().then(setTasks).catch(() => setTasks([]));
   useEffect(() => { load(); }, []);
   if (!tasks) return <Spinner />;
-  const open = tasks.filter((t) => t.status !== 'completed');
+
+  const manual = tasks.filter((t) => t.category === 'manual');
+  const eventTasks = tasks.filter((t) => t.category !== 'manual');
+  const manualDone = manual.filter((t) => t.status === 'completed').length;
+  const pct = manual.length > 0 ? Math.round((manualDone / manual.length) * 100) : 0;
+  const openCount = tasks.filter((t) => t.status !== 'completed').length;
 
   return (
-    <Panel title="My preparation tasks" action={<Badge tone={open.length > 0 ? 'warn' : 'ok'}>{open.length} open</Badge>}>
-      {tasks.length === 0 ? (
-        <Empty>No tasks assigned to you right now 🎉</Empty>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {tasks.map((t) => (
-            <div key={t.id} style={{ background: '#fff', border: `1px solid ${t.status === 'issue' ? '#f2c9c2' : C.line}`, borderRadius: 14, padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: C.ink, flex: 1 }}>{t.category === 'design' ? '🖌️ ' : t.category === 'manual' ? '📌 ' : ''}{t.title}</span>
-                <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
-              </div>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, margin: '4px 0 8px' }}>
-                {partyLine(t)} · due {fmtDue(t.due)}{t.people_needed > 1 ? ` · ${t.people_needed} people` : ''}
-              </div>
-              {Array.isArray(t.checklist) && t.checklist.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '4px 0 8px' }}>
-                  {t.checklist.map((ci: any, i: number) => (
-                    <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 600, color: ci.done ? C.muted : C.ink, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={!!ci.done} onChange={async (e) => { await api.prepToggleChecklist(String(t.id), i, e.target.checked); load(); }} />
-                      <span style={{ textDecoration: ci.done ? 'line-through' : 'none' }}>{ci.label}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-              {t.notes && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.red, marginBottom: 6 }}>📝 {t.notes}</div>}
-              {/* The design gate is a hint, never a hard block — the person can mark
-                  the task done once the design is ready in real life. */}
-              {t.status === 'waiting_design' && (
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: '#c98a2b', marginBottom: 7 }}>⏳ Waiting for the design — you can still mark it done once it's ready</div>
-              )}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <Button onClick={async () => { await api.prepComplete(String(t.id)); load(); }}>✓ Done</Button>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '7px 11px', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}>
-                  📷 Proof
-                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'setup-photos'); await api.prepComplete(String(t.id), url); load(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
-                </label>
-                <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); load(); } }}>⚠ Issue</Button>
-              </div>
-            </div>
-          ))}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* 📌 Tasks assigned to me by the owner/manager */}
+      {manual.length > 0 && (
+        <Panel title="📌 Assigned to me" action={<Badge tone={pct === 100 ? 'ok' : 'warn'}>{manualDone}/{manual.length} · {pct}%</Badge>}>
+          <div style={{ height: 7, borderRadius: 5, background: C.lineSoft, overflow: 'hidden', marginBottom: 12 }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? C.green : C.pink, transition: 'width .3s' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {manual.map((t) => <MyTaskRow key={t.id} t={t} onAction={load} />)}
+          </div>
+        </Panel>
       )}
-    </Panel>
+
+      {/* 🎉 Event preparation tasks */}
+      <Panel title="My preparation tasks" action={<Badge tone={eventTasks.some((t) => t.status !== 'completed') ? 'warn' : 'ok'}>{eventTasks.filter((t) => t.status !== 'completed').length} open</Badge>}>
+        {eventTasks.length === 0 ? (
+          manual.length === 0 ? <Empty>No tasks assigned to you right now 🎉</Empty> : <Empty>No event prep right now 🎉</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {eventTasks.map((t) => <MyTaskRow key={t.id} t={t} onAction={load} />)}
+          </div>
+        )}
+      </Panel>
+
+      {openCount === 0 && manual.length === 0 && <div />}
+    </div>
   );
 }
 
