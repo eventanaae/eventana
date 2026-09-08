@@ -173,9 +173,9 @@ export async function staffWhatsApp(headline: string, details: string, memberId?
       if (!to || seen.has(to)) continue;
       seen.add(to);
       const first = (r.name || '').trim().split(/\s+/)[0] || 'there';
-      // staff_alert params: {{1}} first name, {{2}} headline, {{3}} details.
+      // staff_notify params: {{1}} first name, {{2}} headline, {{3}} details.
       await sendWhatsAppTemplate({
-        to, name: 'staff_alert', language: 'en',
+        to, name: 'staff_notify', language: 'en',
         params: [first, headline, details && details.trim() ? details : '—'],
         fromStaff: true,
       }).catch(() => {});
