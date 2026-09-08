@@ -184,6 +184,15 @@ Remove test customer accounts (only those with no events/orders).
 
 ---
 
+## Owner decisions — 2026-09-09 (approved, to execute in stages)
+- **D-1 · Merge the two leave systems** into ONE (annual-leave `leave/*` + days-off `days-off/*`), so an approved leave shows everywhere (roster, "who's off today", staffing). → updates G-017.
+- **D-2 · Weekly report email** — instead of wiring the hidden `Reports` UI, **email a weekly report to sheem@eventanauae.com** (the Eventana inbox). New req **R-118**. (Extends the existing monthly `sweepReconReport`.)
+- **D-3 · Delete unneeded dead screens:** `Overview.tsx` (not needed), `Financials.tsx` (not wanted). `Calendar.tsx` — not needed for now (leave). `ShopOrders` list — not needed. → resolves part of G-015.
+- **D-4 · Merge duplicate customers (R-003)** — approved, but **only when 100% certain it is the same person** (exact phone AND email match). Show the candidate list before any merge; never merge on a fuzzy match.
+- **D-5 · Unpaid orders (R-006/NC-3)** — owner doesn't need them; **remove/clean them**. (Destructive → show the exact list before deleting; confirm the abandoned-cart reminder email covers real customers first — it does, `abandonedCart.ts`, gated `CART_REMINDERS`.)
+- **D-6 · Loyalty points for a late-rated old event (NC-1)** — **points DO count/merge** for the staff member. Resolved.
+- **Test accounts (R-008)** — the agent may NOT create/use login accounts or enter passwords/tokens (hard safety rule). Internal-UI live testing needs an owner-driven logged-in session; customer signed links + DB reads cover the rest.
+
 ## Needs Clarification (do NOT guess — awaiting owner)
 - **NC-1 (R-024/business):** loyalty points for a past event rated later — should the staff member's points increase? (backlog #24) — need the rule.
 - **NC-2:** exact merge policy for duplicate customers — which row wins (live vs QB), and what to do with points/spend on merge.
