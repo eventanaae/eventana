@@ -277,6 +277,9 @@ async function main() {
     // Submit the warm staff day-off WhatsApp template (WA_SEED_DAYOFF=true).
     const { seedStaffDayoffFromEnv } = await import('./db/seedStaffDayoff.js');
     await seedStaffDayoffFromEnv().catch((err) => console.error('[wa-dayoff] failed:', err));
+    // Email "The Eventana Week" schedule to the team (SEND_TEAM_SCHEDULE=true).
+    const { sendTeamScheduleFromEnv } = await import('./db/sendTeamSchedule.js');
+    await sendTeamScheduleFromEnv().catch((err) => console.error('[team-schedule] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
