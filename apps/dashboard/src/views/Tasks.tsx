@@ -51,23 +51,23 @@ export function Tasks({ role }: { role?: string }) {
   const canSeeAll = role === 'owner' || role === 'manager';
   // Everyone lands on their own work. Managers/owner also get a "Team" view that
   // holds both overviews behind a light Person/Event toggle — no more 3 tabs.
-  const [tab, setTab] = useState<'mine' | 'team'>('mine');
+  const [tab, setTab] = useState<'mine' | 'team' | 'event'>('mine');
   const [teamView, setTeamView] = useState<'person' | 'event'>('person');
 
-  // Employees & drivers: just their own tasks — no tab bar, no clutter.
-  if (!canSeeAll) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <MyTasks />
-      </div>
-    );
-  }
+  // Team (employees/drivers): their own work + the event board — but NEVER the
+  // "By person" board, so they don't see the manual tasks the owner assigned to
+  // Marsha or to herself (those live only in By-person + the assignee's My tasks).
+  // Event-linked prep (incl. Marsha's design tasks) is shared via By event.
+  const topTabs: [string, string][] = canSeeAll
+    ? [['mine', '📋 My tasks'], ['team', '👥 Team']]
+    : [['mine', '📋 My tasks'], ['event', '🎉 By event']];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <TabBar tabs={[['mine', '📋 My tasks'], ['team', '👥 Team']]} tab={tab} setTab={(s) => setTab(s as any)} />
+      <TabBar tabs={topTabs} tab={tab} setTab={(s) => setTab(s as any)} />
 
       {tab === 'mine' && <MyTasks />}
+      {tab === 'event' && <ByEvent onOpen={setOpenEvent} canManage={canSeeAll} />}
       {tab === 'team' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <TabBar subtle tabs={[['person', '👤 By person'], ['event', '🎉 By event']]} tab={teamView} setTab={(s) => setTeamView(s as any)} />
