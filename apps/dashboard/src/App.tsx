@@ -25,6 +25,7 @@ import { Profile } from './views/Profile';
 import { Feedback } from './views/Feedback';
 import { Products } from './views/Products';
 import { Suppliers } from './views/Suppliers';
+import { StaffPay } from './views/StaffPay';
 import { Menu } from './views/Menu';
 import { Leave } from './views/Leave';
 import { GoogleReviews } from './views/GoogleReviews';
@@ -33,7 +34,7 @@ import { DriverSchedule } from './views/DriverSchedule';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -69,6 +70,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
   { id: 'leave', label: 'Leave', icon: '🌴', title: 'Annual Leave', sub: 'Leave requests, balances & approvals', section: 'staff' },
+  { id: 'staffpay', label: 'Part-timers & Drivers', icon: '🤡', title: 'Part-timers & Drivers', sub: 'This month’s clown/face-paint engagements & deliveries', section: 'staff' },
   // Business (owner)
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
   // Setup
@@ -82,7 +84,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'reviews', 'team', 'leave', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'reviews', 'team', 'leave', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
@@ -254,6 +256,7 @@ export default function App() {
       {view === 'feedback' && <Feedback onBack={() => setView('today')} onOpenEvent={openEvent} />}
       {view === 'products' && <Products />}
       {view === 'suppliers' && <Suppliers />}
+      {view === 'staffpay' && <StaffPay />}
       {view === 'menu' && <Menu onGoto={go} isVisible={isVisible} staffName={staffName} onSignedOut={() => setAuthed(false)} />}
       {view === 'settings' && <Settings />}
     </>

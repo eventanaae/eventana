@@ -1573,6 +1573,15 @@ export async function adminRoutes(app: FastifyInstance) {
     }
   });
 
+  // Part-timer & driver tracker (owner/manager). Optional ?month=YYYY-MM-DD.
+  app.get('/api/admin/staff-pay-report', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const month = (request.query as { month?: string })?.month;
+    const { buildStaffPayReport } = await import('../domain/staffPayReport.js');
+    return buildStaffPayReport(month && /^\d{4}-\d{2}-\d{2}$/.test(month) ? month : undefined);
+  });
+
   // Post-event photo gallery — the owner/manager uploads photos of the finished
   // party; everyone working the event sees them.
   app.post('/api/admin/events/:eventId/photos', async (request, reply) => {

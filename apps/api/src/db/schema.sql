@@ -416,6 +416,12 @@ CREATE TABLE IF NOT EXISTS event_setup_photos (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Dedup marker so the monthly part-timer/driver email is sent once per month.
+CREATE TABLE IF NOT EXISTS staff_pay_reports (
+  month   TEXT PRIMARY KEY,   -- YYYY-MM (the month the report covers)
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Post-event photo gallery: the owner/team upload photos of the finished party.
 CREATE TABLE IF NOT EXISTS event_photos (
   id          BIGSERIAL PRIMARY KEY,

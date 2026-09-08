@@ -234,6 +234,11 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sweepReconReport }) => sweepReconReport())
     .catch((err) => console.error('[recon-report] failed:', err));
 
+  // Monthly part-timer & driver report — emailed to owner + Marsha on the 1st.
+  await import('./staffPayReport.js')
+    .then(({ sweepStaffPayReport }) => sweepStaffPayReport())
+    .catch((err) => console.error('[staff-pay-report] failed:', err));
+
   return report;
 }
 

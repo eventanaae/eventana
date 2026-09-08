@@ -333,6 +333,7 @@ export const api = {
 
   missingItems: () => request<any[]>('/api/admin/missing-items'),
   supplierNames: () => request<{ names: string[] }>('/api/admin/supplier-names'),
+  staffPayReport: (month?: string) => request<any>(`/api/admin/staff-pay-report${month ? `?month=${month}` : ''}`),
   addEventPhoto: (eventId: string, url: string) =>
     request<any>(`/api/admin/events/${eventId}/photos`, { method: 'POST', body: JSON.stringify({ url }) }),
   deleteEventPhoto: (eventId: string, photoId: string | number) =>
