@@ -283,6 +283,9 @@ async function main() {
     // READ-ONLY: verify supplier is saved on reported missing items (MISSING_AUDIT=true).
     const { missingItemsAuditFromEnv } = await import('./db/missingItemsAudit.js');
     await missingItemsAuditFromEnv().catch((err) => console.error('[missing-audit] failed:', err));
+    // READ-ONLY: log every WhatsApp template's Meta approval status (WA_STATUS=true).
+    const { waTemplateStatusFromEnv } = await import('./db/waTemplateStatus.js');
+    await waTemplateStatusFromEnv().catch((err) => console.error('[wa-status] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.
