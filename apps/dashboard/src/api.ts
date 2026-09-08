@@ -219,7 +219,7 @@ export const api = {
     request<any>(`/api/admin/prep/task/${taskId}/checklist`, { method: 'POST', body: JSON.stringify({ index, done }) }),
   prepSetAssignees: (taskId: string, memberIds: string[]) =>
     request<any>(`/api/admin/prep/task/${taskId}/assignees`, { method: 'POST', body: JSON.stringify({ memberIds }) }),
-  prepCreateManual: (body: { title: string; memberIds: string[]; dueDate?: string; note?: string }) =>
+  prepCreateManual: (body: { title: string; memberIds: string[]; dueDate?: string; note?: string; checklist?: string[] }) =>
     request<{ ok: boolean; id: string }>(`/api/admin/prep/task/manual`, { method: 'POST', body: JSON.stringify(body) }),
   staffingRequirements: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}/requirements`),
   setStaffingRequirement: (eventId: string, role: string, count: number) =>

@@ -445,16 +445,18 @@ export async function setPrepAssignees(taskId: string, memberIds: string[], acto
  */
 export async function createManualTask(opts: {
   title: string; memberIds: string[]; dueDate?: string | null; note?: string | null;
-  actor?: string; notify?: boolean;
+  checklist?: string[]; actor?: string; notify?: boolean;
 }): Promise<{ id: string } | null> {
   const title = (opts.title ?? '').trim();
   const members = (opts.memberIds ?? []).filter(Boolean);
   if (!title || members.length === 0) return null;
   const key = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const checklist = (opts.checklist ?? []).map((s) => (s ?? '').trim()).filter(Boolean).map((label) => ({ label, done: false }));
   const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO prep_tasks (event_id, key, title, category, people_needed, due_date, status, notes)
-     VALUES (NULL, $1, $2, 'manual', $3, $4, 'not_started', $5) RETURNING id`,
-    [key, title, members.length, opts.dueDate || null, (opts.note ?? '').trim() || null],
+    `INSERT INTO prep_tasks (event_id, key, title, category, people_needed, due_date, status, notes, checklist)
+     VALUES (NULL, $1, $2, 'manual', $3, $4, 'not_started', $5, $6) RETURNING id`,
+    [key, title, members.length, opts.dueDate || null, (opts.note ?? '').trim() || null,
+     checklist.length ? JSON.stringify(checklist) : null],
   );
   const taskId = rows[0].id;
   for (const m of members) {
@@ -496,7 +498,7 @@ export async function getPrepTasksForMember(memberId: string) {
   // reads the party, not an internal id + customer name. Manual tasks (no event)
   // read "General task".
   const meta = await eventMetaFor(rows.map((r: any) => r.event_id));
-  for (const t of rows) { const m = meta.get(t.event_id); if (m) Object.assign(t, m); else t.reference = t.event_id ?? 'General task'; }
+  for (const t of rows) { const m = meta.get(t.event_id); if (m) Object.assign(t, m); else t.reference = t.event_id ?? 'Assigned task'; }
   return rows;
 }
 
@@ -520,11 +522,13 @@ async function eventMetaFor(eventIds: string[]): Promise<Map<string, EventMeta>>
   if (ids.length === 0) return new Map();
   const { rows } = await pool.query<{
     id: string; receipt_number: string | null; event_date: string | null;
-    baby_name: string | null; celebration_type: string | null; custom_theme: string | null; theme_name: string | null;
+    baby_name: string | null; celebration_type: string | null; theme_name: string | null;
   }>(
+    // custom_theme is a BOOLEAN flag, never the theme text — the real theme name is
+    // the catalogue theme (th.name) or, for a new/custom theme, cart->>'customTheme'.
     `SELECT e.id,
             to_char(e.event_date,'YYYY-MM-DD') AS event_date,
-            e.celebration_type, e.custom_theme, th.name AS theme_name,
+            e.celebration_type, COALESCE(th.name, initcap(o.cart->>'customTheme')) AS theme_name,
             initcap(o.cart->>'eventFor') AS baby_name,
             (SELECT fr.number FROM finance_receipts fr
               WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
@@ -542,7 +546,7 @@ async function eventMetaFor(eventIds: string[]): Promise<Map<string, EventMeta>>
       eventDate: r.event_date,
       babyName: r.baby_name || null,
       celebrationType: r.celebration_type ? celebrationLabel(r.celebration_type) : null,
-      theme: r.custom_theme || r.theme_name || null,
+      theme: r.theme_name || null,
     });
   }
   return m;
@@ -579,7 +583,7 @@ export async function getPrepByPerson() {
   const meta = await eventMetaFor(rows.flatMap((p: any) => (p.tasks ?? []).map((t: any) => t.eventId)));
   for (const p of rows) for (const t of (p.tasks ?? [])) {
     const m = meta.get(t.eventId);
-    if (m) Object.assign(t, m); else t.reference = t.eventId ?? 'General task';
+    if (m) Object.assign(t, m); else t.reference = t.eventId ?? 'Assigned task';
   }
   return rows;
 }
