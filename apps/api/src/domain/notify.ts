@@ -512,7 +512,7 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
           emoji: '🥳',
           eyebrow: 'Today',
           heading: honour ? `Today is ${honour}'s big day!` : "It's party day!",
-          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day and we couldn't be more excited! 🥳 <b>${cap(occasionPhrase)}</b> starts at <b>${time || 'your booked time'}</b>, and our team is already on the way with all the magic. 🚚✨</p>
+          bodyHtml: `<p style="margin:0 0 4px;font-size:15px;line-height:1.6">Today's the day and we couldn't be more excited! 🥳 <b>${cap(occasionPhrase)}</b> starts at <b>${time || 'your booked time'}</b>. 🎈✨</p>
             <p style="margin:14px 0 0;font-size:15px;line-height:1.6">Everything you need is in the app. Have the most wonderful time — you've earned it! 💛</p>`,
           cta: track ? { href: track, label: 'View your booking →' } : undefined,
         }),
@@ -718,13 +718,13 @@ export function whatsAppTemplateFor(row: EmailRow): { name: string; params: stri
   const ref = row.receipt_number ? `EV-${row.receipt_number}` : row.event_id;
   switch (row.template) {
     case 'booking_confirmation':
-      return { name: 'booking_confirmation', params: [first, honour || 'ضيف الشرف', date, time || 'الوقت المحجوز', place, ref, total, link] };
+      return { name: 'booking_confirmation', params: [first, honour || 'ضيف الشرف', date, time || 'الوقت المحجوز', place, ref, total] };
     case 'three_day_reminder':
-      return { name: 'three_day_reminder', params: [first, `${date}${time ? ` الساعة ${time}` : ''}`, place, link] };
+      return { name: 'three_day_reminder', params: [first, `${date}${time ? ` الساعة ${time}` : ''}`, place] };
     case 'booking_updated':
-      return { name: 'booking_updated', params: [first, `${date}${time ? ` · ${time}` : ''}`, place, link] };
+      return { name: 'booking_updated', params: [first, `${date}${time ? ` · ${time}` : ''}`, place] };
     case 'event_day':
-      return { name: 'event_day', params: [first, time || 'بالوقت المحجوز', link] };
+      return { name: 'event_day', params: [first, time || 'بالوقت المحجوز'] };
     case 'team_on_the_way':
       return { name: 'team_on_the_way', params: [row.eta ? ` — تقريباً الساعة ${row.eta}` : ' — نوصل قريب'] };
     case 'team_arrived':

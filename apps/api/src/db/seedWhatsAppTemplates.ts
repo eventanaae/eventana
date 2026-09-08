@@ -12,24 +12,24 @@ import { config } from '../config.js';
 
 interface Tpl { name: string; language?: string; category?: string; body: string; example: string[] }
 
-const TEMPLATES: Tpl[] = [
+export const TEMPLATES: Tpl[] = [
   {
     name: 'booking_confirmation',
-    body: `🎉 {{1}}, your Eventana celebration is confirmed!\n\n🎈 Guest of honour: {{2}}\n📅 {{3}}\n🕒 {{4}}\n📍 {{5}}\n🔖 Ref: {{6}}\n💳 Total: {{7}}\n\nWe've saved every detail and our team is already planning the magic.\n\n📧 Your full itemised invoice is in your email.\n\nTrack it anytime: {{8}}\n\nCan't wait to celebrate with you! 💕`,
-    example: ['Sara', 'Adam', 'Friday, 4 September 2026', '6:00 PM', 'Dubai', 'EV-2026-0195', 'AED 4,000', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+    body: `🎉 {{1}}, your Eventana celebration is confirmed!\n\n🎈 Guest of honour: {{2}}\n📅 {{3}}\n🕒 {{4}}\n📍 {{5}}\n🔖 Ref: {{6}}\n💳 Total: {{7}}\n\nWe've saved every detail and our team is already planning the magic.\n\n📧 Your full itemised invoice is in your email.\n\nCan't wait to celebrate with you! 💕`,
+    example: ['Sara', 'Adam', 'Friday, 4 September 2026', '6:00 PM', 'Dubai', 'EV-2026-0195', 'AED 4,000'],
   },
   {
     name: 'three_day_reminder',
-    body: `🎈 {{1}}, just 3 days to go!\n\nThe countdown is on for your Eventana celebration on {{2}} in {{3}}. Need to tweak anything? It's all in the app: {{4}}\n\nSee you very soon! 💖`,
-    example: ['Sara', 'Friday, 4 September 2026 at 6:00 PM', 'Dubai', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+    body: `🎈 {{1}}, just 3 days to go!\n\nThe countdown is on for your Eventana celebration on {{2}} in {{3}}.\n\nSee you very soon! 💖`,
+    example: ['Sara', 'Friday, 4 September 2026 at 6:00 PM', 'Dubai'],
   },
   {
     name: 'event_day',
     // Meta's classifier insists this is MARKETING, not UTILITY (celebratory,
     // not tied to a specific transaction). Declaring it MARKETING lets it create.
     category: 'MARKETING',
-    body: `🥳 {{1}}, it's party day!\n\nToday's the day — your celebration starts at {{2}}, and our team is on the way with all the magic. 🚐✨ Everything you need is in the app: {{3}}\n\nHave the most wonderful time! 💛`,
-    example: ['Sara', '6:00 PM', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+    body: `🥳 {{1}}, it's party day!\n\nToday's the day — your celebration starts at {{2}}. 🎈✨\n\nHave the most wonderful time! 💛`,
+    example: ['Sara', '6:00 PM'],
   },
   {
     name: 'team_on_the_way',
@@ -54,8 +54,8 @@ const TEMPLATES: Tpl[] = [
   },
   {
     name: 'booking_updated',
-    body: `✏️ {{1}}, your Eventana booking has been updated:\n📅 {{2}}\n📍 {{3}}\n\nSee all the details: {{4}}\n\nIf anything doesn't look right, just message us. 💛`,
-    example: ['Sara', 'Friday, 4 September 2026 · 4:00 PM – 8:00 PM', 'Dubai', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+    body: `✏️ {{1}}, your Eventana booking has been updated:\n📅 {{2}}\n📍 {{3}}\n\nAn updated email with all the details is on its way 📧\n\nIf anything doesn't look right, just message us. 💛`,
+    example: ['Sara', 'Friday, 4 September 2026 · 4:00 PM – 8:00 PM', 'Dubai'],
   },
   {
     name: 'cancellation_refund',
@@ -99,25 +99,25 @@ const TEMPLATES: Tpl[] = [
  * English set, language 'ar'. Wording approved by the owner 2026-09-03. Meta
  * rule: a body may not end on a variable, so each ends on a line of text.
  */
-const TEMPLATES_AR: Tpl[] = [
+export const TEMPLATES_AR: Tpl[] = [
   {
     name: 'booking_confirmation',
     language: 'ar',
-    body: `🎉 هلا {{1}}! حجزكم مع Eventana تأكد 💕\nاحتفال {{2}} صار جاهز عندنا وفريقنا بدأ يجهّز كل التفاصيل الحلوة ✨\n📅 {{3}}   🕒 {{4}}   📍 {{5}}\n🔖 رقم الحجز: {{6}}   💳 الإجمالي: {{7}}\n📧 الفاتورة الكاملة وصلتكم على الإيميل.\nتابعي التفاصيل: {{8}}\nنعدكم بيوم ما يننسى 🌸`,
-    example: ['سارة', 'آدم', 'الجمعة ٤ سبتمبر ٢٠٢٦', '٦:٠٠ مساءً', 'دبي', 'EV-2026-0195', 'AED 4,000', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+    body: `🎉 هلا {{1}}! حجزكم مع Eventana تأكد 💕\nاحتفال {{2}} صار جاهز عندنا وفريقنا بدأ يجهّز كل التفاصيل الحلوة ✨\n📅 {{3}}   🕒 {{4}}   📍 {{5}}\n🔖 رقم الحجز: {{6}}   💳 الإجمالي: {{7}}\n📧 الفاتورة الكاملة وصلتكم على الإيميل.\nنعدكم بيوم لا يُنسى 🌸`,
+    example: ['سارة', 'آدم', 'الجمعة ٤ سبتمبر ٢٠٢٦', '٦:٠٠ مساءً', 'دبي', 'EV-2026-0195', 'AED 4,000'],
   },
   {
     name: 'three_day_reminder',
     language: 'ar',
-    body: `🎈 باقي ٣ أيام {{1}}! العدّ التنازلي بدأ لاحتفالكم يوم {{2}} في {{3}}.\nتبين تعدلين شي؟ كله بالتطبيق: {{4}}\nنشوفكم قريب 💖`,
-    example: ['سارة', 'الجمعة ٤ سبتمبر ٢٠٢٦ الساعة ٦:٠٠ مساءً', 'دبي', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+    body: `🎈 باقي ٣ أيام {{1}}! العدّ التنازلي بدأ لاحتفالكم يوم {{2}} في {{3}}.\nنشوفكم قريب 💖`,
+    example: ['سارة', 'الجمعة ٤ سبتمبر ٢٠٢٦ الساعة ٦:٠٠ مساءً', 'دبي'],
   },
   {
     name: 'event_day',
     language: 'ar',
     category: 'MARKETING',
-    body: `🥳 اليوم يومكم {{1}}! احتفالكم يبدأ {{2}}، وفريقنا في الطريق لكم بكل اللمسات الحلوة 🚐✨\nتابعي من هني: {{3}}\nنتمنى لكم أحلى وقت 💛`,
-    example: ['سارة', '٦:٠٠ مساءً', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+    body: `🥳 اليوم يومكم {{1}}! احتفالكم يبدأ {{2}} 🎈✨\nنتمنى لكم أحلى وقت 💛`,
+    example: ['سارة', '٦:٠٠ مساءً'],
   },
   {
     name: 'team_on_the_way',
@@ -147,8 +147,8 @@ const TEMPLATES_AR: Tpl[] = [
   {
     name: 'booking_updated',
     language: 'ar',
-    body: `✏️ هلا {{1}} 🤍 حدّثنا تفاصيل حجزكم:\n📅 {{2}}\n📍 {{3}}\nتشوفين كل التفاصيل هني: {{4}}\nلو في أي ملاحظة راسلينا 🌸`,
-    example: ['سارة', 'الجمعة ٤ سبتمبر ٢٠٢٦ · ٤:٠٠ – ٨:٠٠ مساءً', 'دبي', 'https://ops.eventanauae.com/?event=EV-2026-0195'],
+    body: `✏️ هلا {{1}} 🤍 حدّثنا تفاصيل حجزكم:\n📅 {{2}}\n📍 {{3}}\nبيوصلكم إيميل محدّث بكل التفاصيل 📧\nلو في أي ملاحظة راسلينا 🌸`,
+    example: ['سارة', 'الجمعة ٤ سبتمبر ٢٠٢٦ · ٤:٠٠ – ٨:٠٠ مساءً', 'دبي'],
   },
   {
     name: 'cancellation_refund',
@@ -159,7 +159,7 @@ const TEMPLATES_AR: Tpl[] = [
   {
     name: 'refund_processed',
     language: 'ar',
-    body: `💸 تم تنفيذ استرجاع مبلغكم {{1}}.\n🔖 الأوردر: {{2}}   ↩️ المبلغ: {{3}}\nعطونا ٧ أيام عمل عشان يبين بحسابكم 💛`,
+    body: `💸 تم تنفيذ استرجاع مبلغكم {{1}}.\n🔖 الأوردر: {{2}}   ↩️ المبلغ: {{3}}\nممكن ياخذ ٧ أيام عمل عشان يبين بحسابكم 💛`,
     example: ['سارة', 'ORD-2026-0195', 'AED 3,000'],
   },
 ];

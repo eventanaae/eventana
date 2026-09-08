@@ -357,7 +357,7 @@ export async function sweepCustomerBirthdays(): Promise<number> {
     const body = `
       <p style="font-size:20px;font-weight:800;margin:0 0 12px">كل عام وانتِ بخير ${first} 🎂🤍</p>
       <p style="margin:0 0 14px;font-size:15px">اليوم يومك، وحبينا نكون أول من يعايدك 🌸 من كل قلوبنا في ايفينتانا، نتمنى لك سنة مليانة فرح ولحظات حلوة تستاهلينها.</p>
-      <p style="margin:0 0 14px;font-size:15px">وإذا في مناسبة قريبة تبين نزيّنها لك، احنا دايماً حاضرين نسوي لك يوم ما يننسى 💕</p>
+      <p style="margin:0 0 14px;font-size:15px">وإذا في مناسبة قريبة تبين نزيّنها لك، احنا دايماً حاضرين نسوي لك يوم لا يُنسى 💕</p>
       <p style="margin:16px 0 0;font-size:15px">بكل الحب،<br/>فريق ايفينتانا 🎈</p>`;
     const unsub = `${config.email.publicBaseUrl}/api/unsubscribe?c=${encodeURIComponent(c.id)}&t=${unsubToken(c.id)}`;
     const res = await sendEmail({ to: c.email, subject: `كل عام وانتِ بخير ${first} 🎂`, html: renderCampaignHtml(body, unsub) });

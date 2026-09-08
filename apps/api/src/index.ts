@@ -268,6 +268,9 @@ async function main() {
     // Re-submit the staff_alert WhatsApp template with a name variable (WA_RESEED_STAFF=true).
     const { reseedStaffAlertFromEnv } = await import('./db/reseedStaffAlert.js');
     await reseedStaffAlertFromEnv().catch((err) => console.error('[wa-reseed] failed:', err));
+    // Push reworded customer templates (links removed, typo fixed, etc.) to Meta (WA_EDIT_BATCH=true).
+    const { waEditBatchFromEnv } = await import('./db/waEditBatch.js');
+    await waEditBatchFromEnv().catch((err) => console.error('[wa-edit-batch] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));

@@ -1229,7 +1229,7 @@ export async function adminRoutes(app: FastifyInstance) {
           ? `Your Eventana team is on the way!${ev.eta ? ` ETA ${ev.eta}` : ''} 🚐`
           : ev.phase === 'Arrived'
             ? 'Your Eventana team has arrived! 🎉'
-            : ev.phase === 'Setup Ready'
+            : (ev.phase === 'Setup Ready' || ev.phase === 'Party Started')
               ? 'Everything is set up and ready — enjoy your celebration! ✨'
               : null;
       if (line) void pushToOwner('customer', ev.customer_id, 'Eventana', line, { eventId });
@@ -1239,7 +1239,7 @@ export async function adminRoutes(app: FastifyInstance) {
       const emailTemplate =
         ev.phase === 'On The Way' ? 'team_on_the_way'
           : ev.phase === 'Arrived' ? 'team_arrived'
-            : ev.phase === 'Setup Ready' ? 'setup_ready'
+            : (ev.phase === 'Setup Ready' || ev.phase === 'Party Started') ? 'setup_ready'
               : null;
       if (emailTemplate) {
         await pool.query(
