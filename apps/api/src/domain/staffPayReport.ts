@@ -223,7 +223,8 @@ export async function markStaffPaid(opts: {
     const { whatsappEnabled, sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
     const to = String(phone ?? '').replace(/\D+/g, '');
     if (config.whatsapp.staffNotify && whatsappEnabled() && to) {
-      const res = await sendWhatsAppTemplate({ to, name: 'staff_notify', language: 'en', params: [name.split(' ')[0], `Your Eventana payment — ${label}`, `${lines.join('\n') || '—'}\n\nTotal paid: ${total}`], fromStaff: true });
+      // WhatsApp template variables can't contain newlines — keep the breakdown on one line.
+      const res = await sendWhatsAppTemplate({ to, name: 'staff_notify', language: 'en', params: [name.split(' ')[0], `Your Eventana payment — ${label}`, `${lines.join(' • ') || '—'} — Total paid: ${total}`], fromStaff: true });
       whatsappSent = !!(res as any)?.ok;
       if (!whatsappSent) console.error(`[staff-pay] WhatsApp to ${name} failed: ${(res as any)?.error ?? 'unknown'}`);
     }

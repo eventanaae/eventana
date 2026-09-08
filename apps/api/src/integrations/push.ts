@@ -174,9 +174,11 @@ export async function staffWhatsApp(headline: string, details: string, memberId?
       seen.add(to);
       const first = (r.name || '').trim().split(/\s+/)[0] || 'there';
       // staff_notify params: {{1}} first name, {{2}} headline, {{3}} details.
+      // WhatsApp template variables may not contain newlines — collapse them.
+      const oneLine = (s: string) => s.replace(/\s*\n+\s*/g, ' • ').trim();
       await sendWhatsAppTemplate({
         to, name: 'staff_notify', language: 'en',
-        params: [first, headline, details && details.trim() ? details : '—'],
+        params: [first, oneLine(headline) || '—', details && details.trim() ? oneLine(details) : '—'],
         fromStaff: true,
       }).catch(() => {});
     }

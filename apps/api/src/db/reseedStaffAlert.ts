@@ -9,8 +9,10 @@
 import { config } from '../config.js';
 
 export const STAFF_TEMPLATE = 'staff_notify';
-const BODY = `Hi {{1}} 💛\n\n{{2}}\n\n{{3}}`;
-const EXAMPLE = ['Gloria', '🛒 Update the missing-items list before your day off', 'Tomorrow is your day off — please update anything missing so we can buy it Wednesday 🤍'];
+// Meta rejects a template whose body is mostly variables (subcode 2388293), so
+// the body carries real fixed wording around the 3 single-line variables.
+const BODY = `Hi {{1}} 💛\n\nYou have a new update from the Eventana team:\n\n{{2}}\n\n{{3}}\n\nThank you, and please let us know if you need anything 🤍`;
+const EXAMPLE = ['Gloria', '🛒 Update the missing-items list before your day off', 'Tomorrow is your day off, so please update anything missing so we can buy it Wednesday.'];
 
 export async function reseedStaffAlertFromEnv(): Promise<void> {
   if (String(process.env.WA_RESEED_STAFF ?? '').toLowerCase() !== 'true') return;
