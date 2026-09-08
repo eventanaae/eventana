@@ -18,7 +18,6 @@ import { Ceo } from './views/Ceo';
 import { NewOrder } from './views/NewOrder';
 import { Marketing } from './views/Marketing';
 import { Settings } from './views/Settings';
-import { ShopOrders } from './views/ShopOrders';
 import { Leads } from './views/Leads';
 import { Customers } from './views/Customers';
 import { Profile } from './views/Profile';
@@ -247,7 +246,6 @@ export default function App() {
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}
       {view === 'marketing' && <Marketing />}
-      {view === 'shop' && <ShopOrders />}
       {view === 'neworder' && <NewOrder />}
       {view === 'leads' && <Leads />}
       {view === 'reviews' && <GoogleReviews />}

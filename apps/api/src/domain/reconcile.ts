@@ -230,9 +230,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sweepGoogleReviews }) => sweepGoogleReviews())
     .catch((err) => console.error('[google-reviews] sweep failed:', err));
 
-  // Monthly reconciliation + audit email to the owner + Marsha (once a month).
+  // Monthly reconciliation + audit email to the owner + Marsha (once a month),
+  // and a weekly check-in of the same snapshot to the owner every Monday.
   await import('./reconReport.js')
-    .then(({ sweepReconReport }) => sweepReconReport())
+    .then(async ({ sweepReconReport, sweepWeeklyReport }) => { await sweepReconReport(); await sweepWeeklyReport(); })
     .catch((err) => console.error('[recon-report] failed:', err));
 
   // Monthly part-timer & driver report — emailed to owner + Marsha on the 1st.

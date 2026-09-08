@@ -167,3 +167,37 @@ export async function sweepReconReport(): Promise<void> {
     console.error('[recon-report] sweep failed:', (err as Error).message);
   }
 }
+
+/**
+ * Weekly check-in: email the owner (sheem@eventanauae.com) the same
+ * reconciliation snapshot every Monday morning (Dubai). Reuses buildHtml for the
+ * current month-to-date. Deduped per ISO week via an ops_alert marker row (never
+ * delivered — just a "sent this week?" flag), so the reconcile loop's many passes
+ * send it exactly once. Owner asked 2026-09-09 for a weekly report to her inbox.
+ */
+export async function sweepWeeklyReport(): Promise<void> {
+  if (!emailEnabled()) return;
+  try {
+    const { rows } = await pool.query<{ dow: number; hr: number; wk: string }>(
+      `SELECT extract(isodow from now() AT TIME ZONE 'Asia/Dubai')::int AS dow,
+              extract(hour  from now() AT TIME ZONE 'Asia/Dubai')::int AS hr,
+              to_char(now() AT TIME ZONE 'Asia/Dubai','IYYY-"W"IW')     AS wk`,
+    );
+    const t = rows[0];
+    if (!t || t.dow !== 1 || t.hr < 8 || t.hr >= 10) return; // Monday 08:00–09:59 Dubai
+    const ins = await pool.query(
+      `INSERT INTO notifications (channel, template, scheduled_for, payload)
+       SELECT 'ops_alert','weekly_report', now(), $1::jsonb
+        WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template='weekly_report' AND payload->>'wk' = $2)`,
+      [JSON.stringify({ wk: t.wk }), t.wk],
+    );
+    if (!ins.rowCount) return;
+    const now = new Date();
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const html = await buildHtml(monthStr);
+    const res = await sendEmail({ to: OWNER, subject: `Eventana — Weekly Report · ${t.wk}`, html });
+    console.log(`[weekly-report] ${res.ok ? 'sent' : 'FAILED'} to ${OWNER} for ${t.wk}`);
+  } catch (err) {
+    console.error('[weekly-report] sweep failed:', (err as Error).message);
+  }
+}
