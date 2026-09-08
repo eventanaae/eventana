@@ -76,17 +76,6 @@ export function StaffPay() {
         )}
       </Panel>
 
-      <Panel title="🚐 Deliveries" action={<Badge tone="info">total {data.deliveryTotalDisplay ?? '—'}</Badge>}>
-        <DeliveryForm onAdded={reload} />
-        {(!data.drivers || data.drivers.length === 0) ? (
-          <Empty>No deliveries this month.</Empty>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-            {data.drivers.map((d: any) => <DeliveryRow key={d.id} d={d} onChange={reload} />)}
-          </div>
-        )}
-      </Panel>
-
       {data.driverPayouts && data.driverPayouts.length > 0 && (
         <Panel title="💵 Driver payouts">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -98,9 +87,20 @@ export function StaffPay() {
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 8 }}>The suggested amount is the delivery total — you type the actual amount you transfer.</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 8 }}>The Pay covers the whole month; the suggested amount is the delivery total — you type the actual amount you transfer.</div>
         </Panel>
       )}
+
+      <Panel title="🚐 Deliveries" action={<Badge tone="info">total {data.deliveryTotalDisplay ?? '—'}</Badge>}>
+        <DeliveryForm onAdded={reload} />
+        {(!data.drivers || data.drivers.length === 0) ? (
+          <Empty>No deliveries this month.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+            {data.drivers.map((d: any) => <DeliveryRow key={d.id} d={d} onChange={reload} />)}
+          </div>
+        )}
+      </Panel>
 
       <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, padding: '0 4px' }}>
         Clown = AED 200 · Face painting = AED 350. Delivery price = truck size × emirate (you can edit any price). ⚠️ = no phone on file yet. Paying sends them their monthly summary on WhatsApp (once the template is approved) — meanwhile you can copy it.
