@@ -283,6 +283,9 @@ async function main() {
     // READ-ONLY feedback rollout report (FEEDBACK_AUDIT=true).
     const { feedbackAuditFromEnv } = await import('./db/feedbackAudit.js');
     await feedbackAuditFromEnv().catch((err) => console.error('[feedback-audit] failed:', err));
+    // READ-ONLY customer-list health report (CUSTOMER_AUDIT=true).
+    const { customerAuditFromEnv } = await import('./db/customerAudit.js');
+    await customerAuditFromEnv().catch((err) => console.error('[customer-audit] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
