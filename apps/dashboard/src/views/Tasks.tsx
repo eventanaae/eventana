@@ -31,30 +31,50 @@ const partyLine = (t: any): string =>
     .filter(Boolean)
     .join(' · ');
 
+// A pill tab-bar used for the top-level Tasks tabs and the inner Team toggle.
+function TabBar({ tabs, tab, setTab, subtle }: { tabs: [string, string][]; tab: string; setTab: (s: string) => void; subtle?: boolean }) {
+  return (
+    <div style={{ display: 'flex', gap: 4, background: subtle ? C.lineSoft : '#fff', border: subtle ? 'none' : `1px solid ${C.line}`, borderRadius: 12, padding: 4 }}>
+      {tabs.map(([id, label]) => (
+        <button key={id} onClick={() => setTab(id)} style={{
+          flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: subtle ? '7px 0' : '9px 0', fontWeight: 700, fontSize: subtle ? 12 : 12.5,
+          background: tab === id ? (subtle ? '#fff' : C.pink) : 'transparent', color: tab === id ? (subtle ? C.ink : '#fff') : C.muted2,
+          boxShadow: subtle && tab === id ? C.shadow : 'none',
+        }}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
 export function Tasks({ role }: { role?: string }) {
   const [openEvent, setOpenEvent] = useState<string | null>(null);
   const canSeeAll = role === 'owner' || role === 'manager';
-  // Tabs by role: "By person" (whole-team board) is Manager+Owner only; an
-  // employee gets their own "My tasks" instead. "By event" is for everyone.
-  const tabs: [string, string][] = canSeeAll
-    ? [['person', '👤 By person'], ['mine', '📋 My tasks'], ['event', '🎉 By event']]
-    : [['mine', '👤 My tasks'], ['event', '🎉 By event']];
-  const [tab, setTab] = useState<string>(tabs[0][0]);
+  // Everyone lands on their own work. Managers/owner also get a "Team" view that
+  // holds both overviews behind a light Person/Event toggle — no more 3 tabs.
+  const [tab, setTab] = useState<'mine' | 'team'>('mine');
+  const [teamView, setTeamView] = useState<'person' | 'event'>('person');
+
+  // Employees & drivers: just their own tasks — no tab bar, no clutter.
+  if (!canSeeAll) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <MyTasks />
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', gap: 4, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: 4 }}>
-        {tabs.map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{
-            flex: 1, border: 'none', cursor: 'pointer', borderRadius: 9, padding: '9px 0', fontWeight: 700, fontSize: 12.5,
-            background: tab === id ? C.pink : 'transparent', color: tab === id ? '#fff' : C.muted2,
-          }}>{label}</button>
-        ))}
-      </div>
+      <TabBar tabs={[['mine', '📋 My tasks'], ['team', '👥 Team']]} tab={tab} setTab={(s) => setTab(s as any)} />
 
       {tab === 'mine' && <MyTasks />}
-      {tab === 'person' && <ByPerson />}
-      {tab === 'event' && <ByEvent onOpen={setOpenEvent} canManage={canSeeAll} />}
+      {tab === 'team' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <TabBar subtle tabs={[['person', '👤 By person'], ['event', '🎉 By event']]} tab={teamView} setTab={(s) => setTeamView(s as any)} />
+          {teamView === 'person' && <ByPerson />}
+          {teamView === 'event' && <ByEvent onOpen={setOpenEvent} canManage />}
+        </div>
+      )}
 
       {openEvent && <PrepEventDrawer eventId={openEvent} role={role} onClose={() => setOpenEvent(null)} />}
     </div>
