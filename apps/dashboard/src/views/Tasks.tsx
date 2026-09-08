@@ -167,6 +167,7 @@ function MyTasks() {
                       </div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
                         <Button onClick={async () => { setBusy(String(m.id)); try { await api.setMissingStatus(Number(m.id), 'received'); load(); } finally { setBusy(null); } }} disabled={busy === String(m.id)}>✓ Bought</Button>
+                        <Button tone="ghost" onClick={async () => { if (!confirm(`Cancel "${m.item}"? It won't need to be bought.`)) return; setBusy(String(m.id)); try { await api.setMissingStatus(Number(m.id), 'cancelled'); load(); } finally { setBusy(null); } }} disabled={busy === String(m.id)}>✕ Not needed</Button>
                       </div>
                     </div>
                   ))}
