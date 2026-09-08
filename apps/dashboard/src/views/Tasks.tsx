@@ -108,7 +108,14 @@ function MyTaskRow({ t, onAction }: { t: any; onAction: () => void }) {
 // ── An employee's own tasks only ─────────────────────────────────────────────
 function MyTasks() {
   const [tasks, setTasks] = useState<any[] | null>(null);
-  const load = () => api.prepMine().then(setTasks).catch(() => setTasks([]));
+  const [items, setItems] = useState<any[]>([]);
+  const [myId, setMyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = () => {
+    api.prepMine().then(setTasks).catch(() => setTasks([]));
+    api.missingItems().then(setItems).catch(() => setItems([]));
+    api.me().then((m: any) => setMyId(m?.id ?? null)).catch(() => {});
+  };
   useEffect(() => { load(); }, []);
   if (!tasks) return <Spinner />;
 
@@ -117,6 +124,11 @@ function MyTasks() {
   const manualDone = manual.filter((t) => t.status === 'completed').length;
   const pct = manual.length > 0 ? Math.round((manualDone / manual.length) * 100) : 0;
   const openCount = tasks.filter((t) => t.status !== 'completed').length;
+
+  // 🛒 The missing items assigned to me, still to buy — grouped by emirate/location.
+  const shopping = items.filter((m) => String(m.assigned_to ?? '') === String(myId) && m.status !== 'received' && m.status !== 'cancelled');
+  const shopGroups = new Map<string, any[]>();
+  for (const m of shopping) { const k = (m.location ?? '').trim() || 'No location set'; (shopGroups.get(k) ?? shopGroups.set(k, []).get(k)!).push(m); }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -128,6 +140,39 @@ function MyTasks() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {manual.map((t) => <MyTaskRow key={t.id} t={t} onAction={load} />)}
+          </div>
+        </Panel>
+      )}
+
+      {/* 🛒 Shopping — the missing items assigned to me, grouped by emirate */}
+      {shopping.length > 0 && (
+        <Panel title="🛒 Shopping" action={<Badge tone="warn">{shopping.length} to buy</Badge>}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {[...shopGroups.entries()].map(([loc, list]) => (
+              <div key={loc}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '0 2px 8px' }}>
+                  <span style={{ fontSize: 14 }}>📍</span>
+                  <span style={{ ...fredoka(14) }}>{loc}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: C.muted2, background: C.lineSoft, padding: '2px 9px', borderRadius: 20 }}>{list.length}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {list.map((m) => (
+                    <div key={m.id} style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 13, padding: '11px 13px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{m.item}{m.quantity > 1 ? <span style={{ color: C.pinkDeep }}> ×{m.quantity}</span> : null}</div>
+                          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>{m.supplier ? `🏬 ${m.supplier}` : 'Supplier not set'}{m.note ? ` · ${m.note}` : ''}</div>
+                        </div>
+                        {m.photo_url && <a href={m.photo_url} target="_blank" rel="noreferrer"><img src={m.photo_url} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 9, border: `1px solid ${C.line}` }} /></a>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+                        <Button onClick={async () => { setBusy(String(m.id)); try { await api.setMissingStatus(Number(m.id), 'received'); load(); } finally { setBusy(null); } }} disabled={busy === String(m.id)}>✓ Bought</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </Panel>
       )}
