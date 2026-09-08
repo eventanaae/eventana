@@ -25,6 +25,7 @@ export function Inventory({ role }: { role?: string }) {
   const [issues, setIssues] = useState<any[]>([]);
   const [myId, setMyId] = useState<string | null>(null);
   const [crew, setCrew] = useState<any[]>([]);
+  const [supplierNames, setSupplierNames] = useState<string[]>([]);
   const [q, setQ] = useState('');
   const [nc, setNc] = useState({ name: '', category: 'plates', onHand: '', reorderLevel: '', perGuest: true, supplier: '' });
   const [nm, setNm] = useState({ item: '', quantity: '', supplier: '', location: '', photoUrl: '', assignTo: '' });
@@ -34,6 +35,7 @@ export function Inventory({ role }: { role?: string }) {
     void api.inventory().then(setAssets);
     void api.missingItems().then(setMissing).catch(() => setMissing([]));
     void api.me().then((m: any) => setMyId(m?.id ?? null)).catch(() => {});
+    void api.supplierNames().then((r) => setSupplierNames(r?.names ?? [])).catch(() => {});
     if (canManage) {
       void api.consumables().then(setConsumables).catch(() => setConsumables([]));
       void api.assetIssues().then(setIssues).catch(() => setIssues([]));
@@ -71,11 +73,18 @@ export function Inventory({ role }: { role?: string }) {
           <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 12px', lineHeight: 1.5 }}>
             Ran out of something, or need it re-ordered? Tell the team — the manager & owner get it instantly.
           </div>
+          <datalist id="supplier-suggestions">
+            {supplierNames.map((s) => <option key={s} value={s} />)}
+          </datalist>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <input placeholder="What's missing?" value={nm.item} onChange={(e) => setNm({ ...nm, item: e.target.value })} style={inp('min(220px,55vw)')} />
             <input placeholder="Qty" value={nm.quantity} onChange={(e) => setNm({ ...nm, quantity: e.target.value.replace(/\D/g, '') })} style={inp(64)} />
-            <input placeholder="Supplier (optional)" value={nm.supplier} onChange={(e) => setNm({ ...nm, supplier: e.target.value })} style={inp('min(160px,40vw)')} />
-            <input placeholder="Location / emirate (optional)" value={nm.location} onChange={(e) => setNm({ ...nm, location: e.target.value })} style={inp('min(180px,44vw)')} />
+          </div>
+          {/* Supplier + location on their own clear row so they're not missed —
+              supplier is a searchable dropdown of who we buy from most. */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+            <input list="supplier-suggestions" placeholder="🏬 Supplier — pick or type" value={nm.supplier} onChange={(e) => setNm({ ...nm, supplier: e.target.value })} style={inp('min(200px,48vw)')} />
+            <input placeholder="📍 Location / emirate" value={nm.location} onChange={(e) => setNm({ ...nm, location: e.target.value })} style={inp('min(180px,44vw)')} />
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${nm.photoUrl ? C.pink : C.line}`, background: nm.photoUrl ? C.pinkSoft : '#fff', color: nm.photoUrl ? C.pinkDeep : C.ink, borderRadius: 12, padding: '9px 12px', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
               📷 {nm.photoUrl ? 'Photo added ✓' : 'Photo (optional)'}
               <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'reference'); setNm((s) => ({ ...s, photoUrl: url })); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />

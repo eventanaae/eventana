@@ -332,6 +332,7 @@ export const api = {
     }),
 
   missingItems: () => request<any[]>('/api/admin/missing-items'),
+  supplierNames: () => request<{ names: string[] }>('/api/admin/supplier-names'),
   reportMissing: (body: Record<string, unknown>) =>
     request<any>('/api/admin/missing-items', { method: 'POST', body: JSON.stringify(body) }),
   setMissingStatus: (id: number, status: string) =>

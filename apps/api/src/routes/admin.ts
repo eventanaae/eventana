@@ -2416,6 +2416,27 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
+  // Supplier NAMES only, ordered by how often we buy from them (most-used first),
+  // for the "report a missing item" supplier picker. Names only — no money — so
+  // it's safe for any staff member (not just owner/manager).
+  app.get('/api/admin/supplier-names', async () => {
+    // Distinct expense vendors ranked by how many times they appear (= how often
+    // we buy from them), plus any saved-directory supplier not already there.
+    const vend = await pool.query<{ name: string; n: string }>(
+      `SELECT min(vendor) AS name, count(*) AS n
+         FROM expenses
+        WHERE vendor IS NOT NULL AND btrim(vendor) <> ''
+        GROUP BY lower(vendor)
+        ORDER BY count(*) DESC, min(vendor)
+        LIMIT 300`,
+    );
+    const seen = new Set(vend.rows.map((r) => r.name.toLowerCase()));
+    const saved = await pool.query<{ name: string }>(`SELECT name FROM suppliers WHERE active ORDER BY name`);
+    const names = [...vend.rows.map((r) => r.name)];
+    for (const s of saved.rows) if (!seen.has(s.name.toLowerCase())) names.push(s.name);
+    return { names };
+  });
+
   // ── Suppliers directory — who we buy from ──────────────────────────────────
   app.get('/api/admin/suppliers', async () => {
     // The saved suppliers list PLUS every distinct vendor already used on an
