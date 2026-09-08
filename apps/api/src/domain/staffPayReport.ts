@@ -41,15 +41,32 @@ export function deliveryPriceFils(truck: string | null, emirate: string | null):
 
 export type StaffPayReport = {
   monthLabel: string;
-  partTimers: Array<{ name: string; entries: Array<{ date: string; emirate: string; job: string; amountDisplay: string }>; totalFils: number; totalDisplay: string }>;
+  month: string;
+  partTimers: Array<{ name: string; phone: string | null; entries: Array<{ date: string; emirate: string; job: string; amountDisplay: string }>; totalFils: number; totalDisplay: string; paid: boolean; paidDisplay: string | null }>;
   partTimerTotalDisplay: string;
   drivers: Array<{ id: string; eventId: string | null; name: string; date: string; emirate: string; type: string; truck: string | null; priceFils: number | null; priceDisplay: string; priceManual: boolean }>;
   deliveryTotalDisplay: string;
+  driverPayouts: Array<{ name: string; phone: string | null; type: string; count: number; suggestedFils: number; suggestedDisplay: string; paid: boolean; paidDisplay: string | null }>;
 };
 
 export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayReport> {
   const month = monthISO ?? new Date().toISOString().slice(0, 10);
   const monthLabel = new Date(month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const monthStr = month.slice(0, 7); // YYYY-MM
+
+  // Phones + who's already been paid this month.
+  const [ptPhones, drPhones, payments] = await Promise.all([
+    pool.query<{ name_norm: string; phone: string | null }>(`SELECT name_norm, phone FROM part_timers WHERE active`),
+    pool.query<{ name_norm: string; phone: string | null }>(`SELECT lower(name) AS name_norm, phone FROM drivers WHERE active`),
+    pool.query<{ person_kind: string; person_name: string; amount_fils: string }>(`SELECT person_kind, lower(btrim(person_name)) AS person_name, amount_fils FROM staff_payments WHERE month = $1`, [monthStr]),
+  ]);
+  const ptPhone = new Map(ptPhones.rows.map((r) => [r.name_norm, r.phone]));
+  const drPhone = new Map(drPhones.rows.map((r) => [r.name_norm, r.phone]));
+  const paidMap = new Map(payments.rows.map((r) => [`${r.person_kind}:${r.person_name}`, Number(r.amount_fils)]));
+  const paidOf = (kind: string, name: string): number | null => {
+    const v = paidMap.get(`${kind}:${(name ?? '').trim().toLowerCase()}`);
+    return v === undefined ? null : v;
+  };
 
   // Part-timer engagements this month (event_staff rows carrying a part-timer name).
   const pt = await pool.query<{ name: string; role: string; emirate: string | null; date: string }>(
@@ -78,7 +95,11 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
     g.totalFils += fils; grand += fils;
     byName.set(r.name, g);
   }
-  const partTimers = [...byName.values()].map((g) => ({ ...g, totalDisplay: formatAed(g.totalFils) }));
+  const partTimers = [...byName.values()].map((g) => {
+    const paid = paidOf('part_timer', g.name);
+    return { ...g, totalDisplay: formatAed(g.totalFils), phone: ptPhone.get(g.name.toLowerCase()) ?? null,
+      paid: paid != null, paidDisplay: paid != null ? formatAed(paid) : null };
+  });
 
   // Event deliveries this month (a driver assigned, excluding salaried own-van
   // Shan), plus any truck/price the owner set for them (deliveries table by
@@ -132,7 +153,75 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
     }),
   ].sort((a, b) => a.date.localeCompare(b.date));
 
-  return { monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers, deliveryTotalDisplay: formatAed(deliveryTotal) };
+  // Group deliveries by driver for the monthly payout (owner enters the amount
+  // she pays; the sum of delivery prices is a suggestion).
+  const payoutMap = new Map<string, { name: string; type: string; count: number; suggestedFils: number }>();
+  for (const d of drivers) {
+    const key = d.name.toLowerCase();
+    const g = payoutMap.get(key) ?? { name: d.name, type: d.type, count: 0, suggestedFils: 0 };
+    g.count += 1; g.suggestedFils += d.priceFils ?? 0;
+    payoutMap.set(key, g);
+  }
+  const driverPayouts = [...payoutMap.values()].map((g) => {
+    const paid = paidOf('driver', g.name);
+    return { name: g.name, phone: drPhone.get(g.name.toLowerCase()) ?? null, type: g.type, count: g.count,
+      suggestedFils: g.suggestedFils, suggestedDisplay: formatAed(g.suggestedFils),
+      paid: paid != null, paidDisplay: paid != null ? formatAed(paid) : null };
+  });
+
+  return { month: monthStr, monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers, deliveryTotalDisplay: formatAed(deliveryTotal), driverPayouts };
+}
+
+/**
+ * Record a monthly payment to a part-timer or driver, and (if WhatsApp is on and
+ * the template approved) message them their orders + total for the month. Returns
+ * the summary text so the owner can send it manually meanwhile. The transfer PDF
+ * needs a document-header template (flagged) — not sent here yet.
+ */
+export async function markStaffPaid(opts: {
+  kind: 'part_timer' | 'driver'; name: string; amountFils: number; receiptUrl?: string | null; month?: string; actor?: string;
+}): Promise<{ ok: boolean; summary: string; whatsappSent: boolean }> {
+  const monthStr = (opts.month && /^\d{4}-\d{2}$/.test(opts.month)) ? opts.month : new Date().toISOString().slice(0, 7);
+  const name = (opts.name ?? '').trim();
+  await pool.query(
+    `INSERT INTO staff_payments (person_name, person_kind, month, amount_fils, receipt_url, paid_by)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (person_kind, person_name, month) DO UPDATE
+       SET amount_fils = EXCLUDED.amount_fils, receipt_url = COALESCE(EXCLUDED.receipt_url, staff_payments.receipt_url),
+           paid_at = now(), paid_by = EXCLUDED.paid_by`,
+    [name, opts.kind, monthStr, Math.max(0, Math.round(opts.amountFils || 0)), opts.receiptUrl || null, opts.actor ?? 'owner'],
+  );
+
+  // Build the person's summary for this month.
+  const rep = await buildStaffPayReport(`${monthStr}-01`);
+  const label = rep.monthLabel;
+  let lines: string[] = []; let phone: string | null = null; let total = formatAed(opts.amountFils || 0);
+  if (opts.kind === 'part_timer') {
+    const p = rep.partTimers.find((x) => x.name.toLowerCase() === name.toLowerCase());
+    if (p) { phone = p.phone; lines = p.entries.map((e) => `• ${e.date} — ${e.job} (${e.emirate}) ${e.amountDisplay}`); }
+  } else {
+    const p = rep.driverPayouts.find((x) => x.name.toLowerCase() === name.toLowerCase());
+    if (p) phone = p.phone;
+    lines = rep.drivers.filter((d) => d.name.toLowerCase() === name.toLowerCase())
+      .map((d) => `• ${d.date} — ${d.emirate}${d.truck ? ` (${d.truck} truck)` : ''} ${d.priceDisplay}`);
+  }
+  const summary = `Hi ${name.split(' ')[0]} 💛\n\nHere is your Eventana summary for ${label}:\n\n${lines.join('\n') || '—'}\n\nTotal paid: ${total}\n\nThank you! 🩷`;
+
+  // Try WhatsApp via the staff template (English). No-op/logged if the flag is off,
+  // the template isn't approved, or we have no phone for this person.
+  let whatsappSent = false;
+  try {
+    const { config } = await import('../config.js');
+    const { whatsappEnabled, sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
+    const to = String(phone ?? '').replace(/\D+/g, '');
+    if (config.whatsapp.staffNotify && whatsappEnabled() && to) {
+      const res = await sendWhatsAppTemplate({ to, name: 'staff_alert', language: 'en', params: [name.split(' ')[0], `Your Eventana payment — ${label}`, `${lines.join('\n') || '—'}\n\nTotal paid: ${total}`], fromStaff: true });
+      whatsappSent = !!(res as any)?.ok;
+      if (!whatsappSent) console.error(`[staff-pay] WhatsApp to ${name} failed: ${(res as any)?.error ?? 'unknown'}`);
+    }
+  } catch (e) { console.error('[staff-pay] whatsapp attempt failed:', (e as Error).message); }
+
+  return { ok: true, summary, whatsappSent };
 }
 
 // ── Monthly email to the owner + Marsha ──────────────────────────────────────

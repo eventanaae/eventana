@@ -62,6 +62,9 @@ async function main() {
     // Drivers roster (Shan + freelance own-car / van drivers) from DRIVERS_SEED.
     const { seedDriversFromEnv } = await import('./db/seedDrivers.js');
     await seedDriversFromEnv().catch((err) => console.error('[drivers] failed:', err));
+    // Part-timer contacts (clowns / face-painters) from PARTTIMERS_SEED.
+    const { seedPartTimersFromEnv } = await import('./db/seedPartTimers.js');
+    await seedPartTimersFromEnv().catch((err) => console.error('[part-timers] failed:', err));
     // Read-only audit report (AUDIT_REPORT=true) — logs the notification/sales
     // picture for review. Sends nothing, changes nothing.
     const { auditReportFromEnv } = await import('./db/auditReport.js');

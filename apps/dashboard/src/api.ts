@@ -341,6 +341,8 @@ export const api = {
   updateDelivery: (id: string, patch: { truck?: 'small' | 'big'; priceFils?: number | null }) =>
     request<any>(`/api/admin/deliveries/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteDelivery: (id: string) => request<any>(`/api/admin/deliveries/${id}`, { method: 'DELETE' }),
+  markStaffPaid: (body: { kind: 'part_timer' | 'driver'; name: string; amountFils: number; receiptUrl?: string; month?: string }) =>
+    request<{ ok: boolean; summary: string; whatsappSent: boolean }>('/api/admin/staff-pay/mark', { method: 'POST', body: JSON.stringify(body) }),
   addEventPhoto: (eventId: string, url: string) =>
     request<any>(`/api/admin/events/${eventId}/photos`, { method: 'POST', body: JSON.stringify({ url }) }),
   deleteEventPhoto: (eventId: string, photoId: string | number) =>

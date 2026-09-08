@@ -1582,6 +1582,16 @@ export async function adminRoutes(app: FastifyInstance) {
     return buildStaffPayReport(month && /^\d{4}-\d{2}-\d{2}$/.test(month) ? month : undefined);
   });
 
+  // Record a monthly payment to a part-timer/driver + (gated) WhatsApp them.
+  app.post('/api/admin/staff-pay/mark', async (request, reply) => {
+    const staff = (request as any).staff as { role?: string; name?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const b = (request.body ?? {}) as { kind?: 'part_timer' | 'driver'; name?: string; amountFils?: number; receiptUrl?: string; month?: string };
+    if ((b.kind !== 'part_timer' && b.kind !== 'driver') || !b.name?.trim()) return reply.status(400).send({ error: 'invalid' });
+    const { markStaffPaid } = await import('../domain/staffPayReport.js');
+    return markStaffPaid({ kind: b.kind, name: b.name, amountFils: Number(b.amountFils) || 0, receiptUrl: b.receiptUrl ?? null, month: b.month, actor: staff?.name ?? 'owner' });
+  });
+
   // Set the truck size / price for an EVENT's delivery (owner/manager).
   app.patch('/api/admin/deliveries/event/:eventId', async (request, reply) => {
     const staff = (request as any).staff as { role?: string; name?: string };

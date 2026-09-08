@@ -8,6 +8,35 @@ import { Empty } from './Today';
  * engagements with amounts + per-person totals, and the driver deliveries.
  * Also emailed to the owner + Marsha on the 1st of each month.
  */
+// "Pay" a part-timer or driver for the month: enter the amount, record it, and
+// (when WhatsApp is on) message them their summary. Shows "Paid ✓" after.
+function PayButton({ kind, name, suggestedFils, month, paid, paidDisplay, onPaid }: {
+  kind: 'part_timer' | 'driver'; name: string; suggestedFils: number; month?: string; paid: boolean; paidDisplay: string | null; onPaid: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  if (paid) return <span style={{ fontSize: 11.5, fontWeight: 800, color: C.green }}>✓ Paid {paidDisplay}</span>;
+  return (
+    <Button disabled={busy} onClick={async () => {
+      const cur = suggestedFils ? String(suggestedFils / 100) : '';
+      const v = prompt(`Amount paid to ${name} (AED):`, cur);
+      if (v == null) return;
+      const fils = Math.round(Number(v) * 100);
+      if (!Number.isFinite(fils) || fils < 0) { alert('Enter a valid amount.'); return; }
+      setBusy(true);
+      try {
+        const r = await api.markStaffPaid({ kind, name, amountFils: fils, month });
+        onPaid();
+        if (r?.summary) {
+          const msg = r.whatsappSent ? 'Paid ✓ — WhatsApp sent to them.' : 'Paid ✓\n\nWhatsApp isn’t live yet — copy their summary to send manually?';
+          if (r.whatsappSent) { alert(msg); }
+          else if (confirm(msg)) { try { await navigator.clipboard.writeText(r.summary); } catch (_) { alert(r.summary); } }
+        }
+      } catch (e: any) { alert(e?.message ?? 'Could not record the payment.'); }
+      finally { setBusy(false); }
+    }} style={{ padding: '5px 12px', fontSize: 11.5 }}>💵 Pay</Button>
+  );
+}
+
 export function StaffPay() {
   const [data, setData] = useState<any>(null);
   const reload = () => api.staffPayReport().then(setData).catch(() => setData({ partTimers: [], drivers: [] }));
@@ -29,9 +58,10 @@ export function StaffPay() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {data.partTimers.map((p: any) => (
               <div key={p.name} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 13px' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: C.ink, flex: 1 }}>{p.name}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: C.ink, flex: 1 }}>{p.name}{p.phone ? '' : ' ⚠️'}</span>
                   <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{p.totalDisplay}</span>
+                  <PayButton kind="part_timer" name={p.name} suggestedFils={p.totalFils} month={data.month} paid={p.paid} paidDisplay={p.paidDisplay} onPaid={reload} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
                   {p.entries.map((e: any, i: number) => (
@@ -57,8 +87,23 @@ export function StaffPay() {
         )}
       </Panel>
 
+      {data.driverPayouts && data.driverPayouts.length > 0 && (
+        <Panel title="💵 Driver payouts">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.driverPayouts.map((d: any) => (
+              <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, flex: 1 }}>{d.name}{d.phone ? '' : ' ⚠️'}</span>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{d.count} trip{d.count > 1 ? 's' : ''}</span>
+                <PayButton kind="driver" name={d.name} suggestedFils={d.suggestedFils} month={data.month} paid={d.paid} paidDisplay={d.paidDisplay} onPaid={reload} />
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 8 }}>The suggested amount is the delivery total — you type the actual amount you transfer.</div>
+        </Panel>
+      )}
+
       <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, padding: '0 4px' }}>
-        Clown = AED 200 · Face painting = AED 350. Delivery price = truck size × emirate (you can edit any price). Part-timer phone numbers & driver distance-from-base aren't tracked yet.
+        Clown = AED 200 · Face painting = AED 350. Delivery price = truck size × emirate (you can edit any price). ⚠️ = no phone on file yet. Paying sends them their monthly summary on WhatsApp (once the template is approved) — meanwhile you can copy it.
       </div>
     </div>
   );

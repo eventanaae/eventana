@@ -434,6 +434,31 @@ CREATE TABLE IF NOT EXISTS deliveries (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Part-timer contacts (clowns / face-painters) — name + phone, so payout
+-- WhatsApps can reach them. Seeded from PARTTIMERS_SEED (PII kept out of git).
+CREATE TABLE IF NOT EXISTS part_timers (
+  id        BIGSERIAL PRIMARY KEY,
+  name      TEXT NOT NULL,
+  name_norm TEXT NOT NULL UNIQUE,     -- lower(btrim(name)) — match key
+  phone     TEXT,
+  active    BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Monthly payout record: who was paid, for which month, how much, with the
+-- transfer receipt — so a person is marked paid and the receipt is on file.
+CREATE TABLE IF NOT EXISTS staff_payments (
+  id          BIGSERIAL PRIMARY KEY,
+  person_name TEXT NOT NULL,
+  person_kind TEXT NOT NULL,          -- part_timer | driver
+  month       TEXT NOT NULL,          -- YYYY-MM
+  amount_fils BIGINT NOT NULL DEFAULT 0,
+  receipt_url TEXT,
+  paid_by     TEXT,
+  paid_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (person_kind, person_name, month)
+);
+
 -- Dedup marker so the monthly part-timer/driver email is sent once per month.
 CREATE TABLE IF NOT EXISTS staff_pay_reports (
   month   TEXT PRIMARY KEY,   -- YYYY-MM (the month the report covers)

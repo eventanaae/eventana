@@ -1020,7 +1020,10 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
               to_char(e.event_date,'YYYY-MM-DD') AS event_date, e.start_time,
               e.emirate, e.address, e.map_lat, e.map_lng, e.location_note,
               e.celebration_type, o.cart, p.name AS package_name,
-              drv.phone AS driver_phone
+              drv.phone AS driver_phone,
+              (SELECT COALESCE(es2.part_time_name, tm2.name)
+                 FROM event_staff es2 LEFT JOIN team_members tm2 ON tm2.id = es2.assignee_id
+                WHERE es2.event_id = e.id AND es2.role = 'driver' LIMIT 1) AS driver_assigned_name
          FROM notifications n
          JOIN events e ON e.id = n.event_id
          LEFT JOIN orders o ON o.id = e.order_id
@@ -1054,7 +1057,7 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
       if (!to) {
         // Driver has no phone on file (not in the drivers roster / team_members).
         // Surface it so a missing driver isn't silently never-notified forever.
-        console.error(`[driver-notify] no phone for driver on notification ${row.id} (template ${tpl.name}) — add the driver's name+phone to DRIVERS_SEED`);
+        console.error(`[driver-notify] no phone for driver "${row.driver_assigned_name ?? '(unassigned)'}" on event ${row.event_id} (notif ${row.id}, ${tpl.name}) — add this exact name+phone to DRIVERS_SEED`);
         continue;
       }
       const res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'en', params: tpl.params, fromStaff: true });
