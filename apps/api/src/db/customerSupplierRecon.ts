@@ -134,35 +134,35 @@ export async function customerSupplierReconFromEnv(): Promise<void> {
   }
   // ---------- CUSTOMERS: event / order / receipt linkage ----------
   L('===== CUSTOMER ↔ EVENT / ORDER LINKAGE =====');
+  // NOTE finance_receipts.customer_id points at historical_customers (QB, bigint
+  // id), NOT the live customers table (text id) — that mismatch is the "money
+  // attributed by name" root — so linkage here uses events + orders only.
   const link = await pool.query(
     `SELECT
        COUNT(*) AS total,
        COUNT(*) FILTER (WHERE EXISTS(SELECT 1 FROM events e WHERE e.customer_id=c.id)) AS with_events,
        COUNT(*) FILTER (WHERE EXISTS(SELECT 1 FROM orders o WHERE o.customer_id=c.id)) AS with_orders,
-       COUNT(*) FILTER (WHERE EXISTS(SELECT 1 FROM finance_receipts r WHERE r.customer_id=c.id)) AS with_receipts,
        COUNT(*) FILTER (WHERE NOT EXISTS(SELECT 1 FROM events e WHERE e.customer_id=c.id)
-                          AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.customer_id=c.id)
-                          AND NOT EXISTS(SELECT 1 FROM finance_receipts r WHERE r.customer_id=c.id)) AS empty_rows,
+                          AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.customer_id=c.id)) AS empty_rows,
        COUNT(*) FILTER (WHERE lower(coalesce(origin,''))='quickbooks') AS qb_origin
      FROM customers c`,
   );
   const lk = link.rows[0];
-  L(`customers=${lk.total} · with_events=${lk.with_events} · with_orders=${lk.with_orders} · with_receipts=${lk.with_receipts} · with NONE (no event/order/receipt)=${lk.empty_rows} · qb_origin=${lk.qb_origin}`);
+  L(`customers=${lk.total} · with_events=${lk.with_events} · with_orders=${lk.with_orders} · with NO event/order=${lk.empty_rows} · qb_origin=${lk.qb_origin}`);
 
   // ---------- TEST-LIKE accounts, with what's attached (safe-to-delete check) ----------
-  const tests = await pool.query<{ id: string; name: string; email: string; phone: string; ev: string; od: string; rc: string; origin: string }>(
+  const tests = await pool.query<{ id: string; name: string; email: string; phone: string; ev: string; od: string; origin: string }>(
     `SELECT c.id::text, c.name, COALESCE(c.email,'') AS email, COALESCE(c.phone,'') AS phone, COALESCE(c.origin,'') AS origin,
             (SELECT COUNT(*) FROM events e WHERE e.customer_id=c.id) AS ev,
-            (SELECT COUNT(*) FROM orders o WHERE o.customer_id=c.id) AS od,
-            (SELECT COUNT(*) FROM finance_receipts r WHERE r.customer_id=c.id) AS rc
+            (SELECT COUNT(*) FROM orders o WHERE o.customer_id=c.id) AS od
        FROM customers c
       WHERE c.name ILIKE '%test%' OR COALESCE(c.email,'') ILIKE '%test%'
       ORDER BY (SELECT COUNT(*) FROM events e WHERE e.customer_id=c.id) DESC, c.name`,
   );
-  L(`----- TEST-LIKE accounts = ${tests.rows.length} (attached data shown; only 0/0/0 are safe to delete) -----`);
-  for (const r of tests.rows) L(`TEST #${r.id} "${r.name}" <${r.email}> ${r.phone} [origin=${r.origin || '—'}] events=${r.ev} orders=${r.od} receipts=${r.rc}`);
-  const safe = tests.rows.filter((r) => Number(r.ev) === 0 && Number(r.od) === 0 && Number(r.rc) === 0);
-  L(`TEST-SAFE (nothing attached, safe to delete) = ${safe.length}: ${safe.map((r) => r.id).join(',') || '(none)'}`);
+  L(`----- TEST-LIKE accounts = ${tests.rows.length} (attached data shown; only 0 events/0 orders are safe to delete) -----`);
+  for (const r of tests.rows) L(`TEST #${r.id} "${r.name}" <${r.email}> ${r.phone} [origin=${r.origin || '—'}] events=${r.ev} orders=${r.od}`);
+  const safe = tests.rows.filter((r) => Number(r.ev) === 0 && Number(r.od) === 0);
+  L(`TEST-SAFE (no event/order, safe to delete) = ${safe.length}: ${safe.map((r) => r.id).join(',') || '(none)'}`);
 
   L('===== END RECON =====');
 }
