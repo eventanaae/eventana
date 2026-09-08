@@ -27,6 +27,14 @@ export async function seedDriversFromEnv(): Promise<void> {
   }
   if (!Array.isArray(entries) || entries.length === 0) return;
 
+  // Review the current roster BEFORE changing anything (owner asked to check first).
+  const before = await pool.query<{ name: string; kind: string; active: boolean; has_phone: boolean }>(
+    `SELECT name, kind, active, (phone IS NOT NULL AND btrim(phone) <> '') AS has_phone FROM drivers ORDER BY name`,
+  ).catch(() => ({ rows: [] as any[] }));
+  console.log(`[drivers] current roster (${before.rows.length}): ${before.rows.map((r) => `${r.name}[${r.kind}${r.has_phone ? '+phone' : ''}${r.active ? '' : ',inactive'}]`).join(', ') || '(empty)'}`);
+  const { config } = await import('../config.js');
+  console.log(`[drivers] whatsapp driverNotify=${config.whatsapp.driverNotify} — if false, NO driver receives messages`);
+
   for (const e of entries) {
     if (!e?.name?.trim()) continue;
     const kind = e.kind && KINDS.has(e.kind) ? e.kind : 'own_car';

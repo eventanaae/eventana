@@ -1051,11 +1051,20 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
         continue;
       }
       const to = String(row.driver_phone ?? '').replace(/\D+/g, '');
-      if (!to) continue; // driver not assigned yet — retry on the next sweep
+      if (!to) {
+        // Driver has no phone on file (not in the drivers roster / team_members).
+        // Surface it so a missing driver isn't silently never-notified forever.
+        console.error(`[driver-notify] no phone for driver on notification ${row.id} (template ${tpl.name}) — add the driver's name+phone to DRIVERS_SEED`);
+        continue;
+      }
       const res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'en', params: tpl.params, fromStaff: true });
       if (res.ok) {
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         whatsapps++;
+      } else {
+        // Previously failed silently and retried forever — now the failure is
+        // logged (e.g. template not approved by Meta, or a bad number).
+        console.error(`[driver-notify] send FAILED for notification ${row.id} (template ${tpl.name}): ${(res as any)?.error ?? 'unknown'}`);
       }
     }
   }
