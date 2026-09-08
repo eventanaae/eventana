@@ -1057,7 +1057,10 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
       if (!to) {
         // Driver has no phone on file (not in the drivers roster / team_members).
         // Surface it so a missing driver isn't silently never-notified forever.
-        console.error(`[driver-notify] no phone for driver "${(row as any).driver_assigned_name ?? '(unassigned)'}" on event ${row.event_id} (notif ${row.id}, ${tpl.name}) — add this exact name+phone to DRIVERS_SEED`);
+        console.error(`[driver-notify] no phone for driver "${(row as any).driver_assigned_name ?? '(unassigned)'}" on event ${row.event_id} (notif ${row.id}, ${tpl.name}) — giving up (add the driver's name+phone to DRIVERS_SEED if they should be notified)`);
+        // Give up instead of retrying forever: there is no reachable driver for
+        // this notification (no driver assigned, or their name isn't in the roster).
+        await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         continue;
       }
       const res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'en', params: tpl.params, fromStaff: true });
