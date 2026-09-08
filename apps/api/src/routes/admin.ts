@@ -761,14 +761,13 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post('/api/admin/prep/task/manual', async (request, reply) => {
     const staff = (request as any).staff as { role?: string; name?: string };
     if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
-    const b = (request.body ?? {}) as { title?: string; memberIds?: string[]; dueDate?: string; note?: string; checklist?: string[] };
+    const b = (request.body ?? {}) as { title?: string; memberIds?: string[]; dueDate?: string; note?: string };
     const { createManualTask } = await import('../domain/prep.js');
     const r = await createManualTask({
       title: String(b.title ?? ''),
       memberIds: Array.isArray(b.memberIds) ? b.memberIds : [],
       dueDate: b.dueDate ?? null,
       note: b.note ?? null,
-      checklist: Array.isArray(b.checklist) ? b.checklist : [],
       actor: String(staff?.name ?? 'owner'),
       notify: true,
     });

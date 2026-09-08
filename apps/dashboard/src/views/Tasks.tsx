@@ -37,7 +37,7 @@ export function Tasks({ role }: { role?: string }) {
   // Tabs by role: "By person" (whole-team board) is Manager+Owner only; an
   // employee gets their own "My tasks" instead. "By event" is for everyone.
   const tabs: [string, string][] = canSeeAll
-    ? [['person', '👤 By person'], ['mine', '📋 My tasks'], ['event', '🎉 By event']]
+    ? [['person', '👤 By person'], ['event', '🎉 By event']]
     : [['mine', '👤 My tasks'], ['event', '🎉 By event']];
   const [tab, setTab] = useState<string>(tabs[0][0]);
 
@@ -124,7 +124,6 @@ function NewTaskForm({ onCreated }: { onCreated: () => void }) {
   const [ids, setIds] = useState<Set<string>>(new Set());
   const [due, setDue] = useState('');
   const [note, setNote] = useState('');
-  const [checklist, setChecklist] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (open && crew.length === 0) api.staffingCrew().then(setCrew).catch(() => {}); }, [open]);
 
@@ -132,11 +131,8 @@ function NewTaskForm({ onCreated }: { onCreated: () => void }) {
     if (!title.trim() || ids.size === 0) { alert('Add a title and pick at least one person.'); return; }
     setBusy(true);
     try {
-      await api.prepCreateManual({
-        title: title.trim(), memberIds: [...ids], dueDate: due || undefined, note: note.trim() || undefined,
-        checklist: checklist.split('\n').map((s) => s.trim()).filter(Boolean),
-      });
-      setTitle(''); setIds(new Set()); setDue(''); setNote(''); setChecklist(''); setOpen(false);
+      await api.prepCreateManual({ title: title.trim(), memberIds: [...ids], dueDate: due || undefined, note: note.trim() || undefined });
+      setTitle(''); setIds(new Set()); setDue(''); setNote(''); setOpen(false);
       onCreated();
     } catch (e: any) { alert(e?.message ?? 'Could not create the task.'); }
     finally { setBusy(false); }
@@ -168,8 +164,6 @@ function NewTaskForm({ onCreated }: { onCreated: () => void }) {
         </div>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)"
           style={{ padding: '9px 12px', border: `1px solid ${C.line}`, borderRadius: 10, fontSize: 12.5, fontWeight: 600 }} />
-        <textarea value={checklist} onChange={(e) => setChecklist(e.target.value)} placeholder={'Checklist — one step per line (optional)'} rows={3}
-          style={{ padding: '9px 12px', border: `1px solid ${C.line}`, borderRadius: 10, fontSize: 12.5, fontWeight: 600, resize: 'vertical', fontFamily: 'inherit' }} />
         <div style={{ display: 'flex', gap: 8 }}>
           <Button onClick={submit} disabled={busy}>{busy ? 'Assigning…' : '✓ Assign task'}</Button>
           <Button tone="ghost" onClick={() => setOpen(false)}>Cancel</Button>
