@@ -37,7 +37,7 @@ export function Tasks({ role }: { role?: string }) {
   // Tabs by role: "By person" (whole-team board) is Manager+Owner only; an
   // employee gets their own "My tasks" instead. "By event" is for everyone.
   const tabs: [string, string][] = canSeeAll
-    ? [['person', '👤 By person'], ['event', '🎉 By event']]
+    ? [['person', '👤 By person'], ['mine', '📋 My tasks'], ['event', '🎉 By event']]
     : [['mine', '👤 My tasks'], ['event', '🎉 By event']];
   const [tab, setTab] = useState<string>(tabs[0][0]);
 
