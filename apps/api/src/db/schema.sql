@@ -416,6 +416,24 @@ CREATE TABLE IF NOT EXISTS event_setup_photos (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Delivery tracking: truck size + customer price per delivery. A row keyed by
+-- event_id carries the truck/price for an event's delivery; a row with event_id
+-- NULL is a MANUAL delivery (external driver, no event) the owner added.
+CREATE TABLE IF NOT EXISTS deliveries (
+  id           BIGSERIAL PRIMARY KEY,
+  event_id     TEXT UNIQUE,            -- one row per event; NULL = manual delivery
+  del_date     DATE,
+  driver_name  TEXT,
+  driver_type  TEXT,                   -- own_van | part_time | external
+  emirate      TEXT,
+  truck        TEXT,                   -- small | big
+  price_fils   BIGINT,                 -- customer charge (from schedule or override)
+  price_manual BOOLEAN NOT NULL DEFAULT false,
+  note         TEXT,
+  created_by   TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Dedup marker so the monthly part-timer/driver email is sent once per month.
 CREATE TABLE IF NOT EXISTS staff_pay_reports (
   month   TEXT PRIMARY KEY,   -- YYYY-MM (the month the report covers)

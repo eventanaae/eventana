@@ -26,11 +26,25 @@ function jobOf(role: string): { job: string; fils: number } {
   return { job: role.replace(/_/g, ' '), fils: 0 };
 }
 
+// Customer delivery price schedule (AED, ×100 = fils), by truck size × emirate.
+// Owner-set 2026-09-08; kept here so the report and any override use one source.
+const DELIVERY_PRICE: Record<'small' | 'big', Record<string, number>> = {
+  small: { dubai: 25000, sharjah: 30000, ajman: 30000, 'abu dhabi': 40000, 'ras al khaimah': 40000, rak: 40000, fujairah: 50000, khorfakkan: 50000, 'al ain': 40000 },
+  big: { dubai: 45000, sharjah: 50000, ajman: 50000, 'abu dhabi': 60000, 'ras al khaimah': 60000, rak: 60000, fujairah: 70000, khorfakkan: 70000, 'al ain': 60000 },
+};
+export function deliveryPriceFils(truck: string | null, emirate: string | null): number | null {
+  if (truck !== 'small' && truck !== 'big') return null;
+  const key = (emirate ?? '').trim().toLowerCase();
+  const p = DELIVERY_PRICE[truck][key];
+  return p ?? null; // unknown emirate (e.g. Umm Al Quwain) → owner sets the price manually
+}
+
 export type StaffPayReport = {
   monthLabel: string;
   partTimers: Array<{ name: string; entries: Array<{ date: string; emirate: string; job: string; amountDisplay: string }>; totalFils: number; totalDisplay: string }>;
   partTimerTotalDisplay: string;
-  drivers: Array<{ name: string; date: string; emirate: string; type: string }>;
+  drivers: Array<{ id: string; eventId: string | null; name: string; date: string; emirate: string; type: string; truck: string | null; priceFils: number | null; priceDisplay: string; priceManual: boolean }>;
+  deliveryTotalDisplay: string;
 };
 
 export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayReport> {
@@ -66,29 +80,59 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
   }
   const partTimers = [...byName.values()].map((g) => ({ ...g, totalDisplay: formatAed(g.totalFils) }));
 
-  // Driver deliveries this month.
-  const dr = await pool.query<{ name: string; emirate: string | null; date: string; role: string; has_account: boolean }>(
-    `SELECT COALESCE(tm.name, btrim(es.part_time_name), 'Driver') AS name, e.emirate,
-            to_char(e.event_date,'YYYY-MM-DD') AS date, es.role,
-            (es.assignee_id IS NOT NULL) AS has_account
-       FROM event_staff es JOIN events e ON e.id = es.event_id
-       LEFT JOIN team_members tm ON tm.id = es.assignee_id
-      WHERE es.role IN ('driver','pt_driver')
-        -- Only part-time drivers we pay/track — NOT the salaried own-van driver
-        -- (Shan): a part-timer or a driver slot with no team account.
-        AND (es.role = 'pt_driver' OR es.assignee_id IS NULL)
-        AND e.phase IS DISTINCT FROM 'Cancelled'
-        AND e.event_date >= date_trunc('month', $1::date)
-        AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
-        AND e.event_date <= CURRENT_DATE
-      ORDER BY e.event_date`,
-    [month],
-  );
-  const drivers = dr.rows.map((r) => ({
-    name: r.name, date: r.date, emirate: r.emirate || '—', type: 'Part-time',
-  }));
+  // Event deliveries this month (a driver assigned, excluding salaried own-van
+  // Shan), plus any truck/price the owner set for them (deliveries table by
+  // event_id) — and MANUAL deliveries (deliveries rows with event_id NULL).
+  const [evd, man] = await Promise.all([
+    pool.query<{ event_id: string; name: string; emirate: string | null; date: string; truck: string | null; price_fils: string | null; price_manual: boolean | null }>(
+      `SELECT e.id AS event_id, COALESCE(tm.name, btrim(es.part_time_name), 'Driver') AS name,
+              e.emirate, to_char(e.event_date,'YYYY-MM-DD') AS date,
+              d.truck, d.price_fils, d.price_manual
+         FROM event_staff es JOIN events e ON e.id = es.event_id
+         LEFT JOIN team_members tm ON tm.id = es.assignee_id
+         LEFT JOIN deliveries d ON d.event_id = e.id
+        WHERE es.role IN ('driver','pt_driver')
+          AND (es.role = 'pt_driver' OR es.assignee_id IS NULL OR lower(tm.name) <> 'shan')
+          AND e.phase IS DISTINCT FROM 'Cancelled'
+          AND e.event_date >= date_trunc('month', $1::date)
+          AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
+          AND e.event_date <= CURRENT_DATE
+        ORDER BY e.event_date`,
+      [month],
+    ),
+    pool.query<{ id: string; date: string; driver_name: string | null; driver_type: string | null; emirate: string | null; truck: string | null; price_fils: string | null; price_manual: boolean | null }>(
+      `SELECT id, to_char(del_date,'YYYY-MM-DD') AS date, driver_name, driver_type, emirate, truck, price_fils, price_manual
+         FROM deliveries
+        WHERE event_id IS NULL
+          AND del_date >= date_trunc('month', $1::date)
+          AND del_date <  date_trunc('month', $1::date) + interval '1 month'
+          AND del_date <= CURRENT_DATE
+        ORDER BY del_date`,
+      [month],
+    ),
+  ]);
 
-  return { monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers };
+  const priceOf = (truck: string | null, emirate: string | null, override: string | null, manual: boolean | null): number | null =>
+    (manual && override != null) ? Number(override) : deliveryPriceFils(truck, emirate);
+
+  let deliveryTotal = 0;
+  const drivers = [
+    ...evd.rows.map((r) => {
+      const price = priceOf(r.truck, r.emirate, r.price_fils, r.price_manual);
+      if (price) deliveryTotal += price;
+      return { id: `event:${r.event_id}`, eventId: r.event_id, name: r.name, date: r.date, emirate: r.emirate || '—',
+        type: 'Delivery', truck: r.truck, priceFils: price, priceDisplay: price != null ? formatAed(price) : '—', priceManual: !!r.price_manual };
+    }),
+    ...man.rows.map((r) => {
+      const price = priceOf(r.truck, r.emirate, r.price_fils, r.price_manual);
+      if (price) deliveryTotal += price;
+      return { id: `manual:${r.id}`, eventId: null, name: r.driver_name || 'External driver', date: r.date, emirate: r.emirate || '—',
+        type: r.driver_type === 'own_van' ? 'Own van' : r.driver_type === 'part_time' ? 'Part-time' : 'External', truck: r.truck,
+        priceFils: price, priceDisplay: price != null ? formatAed(price) : '—', priceManual: !!r.price_manual };
+    }),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
+  return { monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers, deliveryTotalDisplay: formatAed(deliveryTotal) };
 }
 
 // ── Monthly email to the owner + Marsha ──────────────────────────────────────
@@ -105,7 +149,7 @@ function buildEmailHtml(r: StaffPayReport): string {
       </td></tr>`).join('');
   const drRows = r.drivers.length === 0
     ? `<tr><td style="padding:10px;color:${MUTED}">No deliveries this month.</td></tr>`
-    : r.drivers.map((d) => `<tr><td style="padding:8px 12px;border-top:1px solid ${HAIR};color:${INK}">${fmtDate(d.date)} · <b>${d.name}</b> · ${d.emirate} · <span style="color:${MUTED}">${d.type}</span></td></tr>`).join('');
+    : r.drivers.map((d) => `<tr><td style="padding:8px 12px;border-top:1px solid ${HAIR};color:${INK}">${fmtDate(d.date)} · <b>${d.name}</b> · ${d.emirate}${d.truck ? ` · ${d.truck} truck` : ''} · <b style="color:${BRAND}">${d.priceDisplay}</b> <span style="color:${MUTED}">(${d.type})</span></td></tr>`).join('');
   return `<div style="font-family:'Segoe UI',Arial,sans-serif;background:#FBEAF2;padding:22px">
     <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid ${HAIR}">
       <div style="height:6px;background:linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0)"></div>
@@ -116,7 +160,7 @@ function buildEmailHtml(r: StaffPayReport): string {
           <div style="color:${INK};font-weight:700;font-size:15px">Part-timers — total ${r.partTimerTotalDisplay}</div>
         </div>
         <table style="width:100%;border-collapse:collapse">${ptRows}</table>
-        <div style="color:${INK};font-weight:700;font-size:15px;margin:20px 0 6px">🚐 Deliveries</div>
+        <div style="color:${INK};font-weight:700;font-size:15px;margin:20px 0 6px">🚐 Deliveries — total ${r.deliveryTotalDisplay}</div>
         <table style="width:100%;border-collapse:collapse">${drRows}</table>
         <div style="color:${MUTED};font-size:12px;margin-top:18px;border-top:1px solid ${HAIR};padding-top:12px">
           Clown = AED 200 · Face painting = AED 350. Part-timer phone numbers and driver distance-from-base aren't tracked yet.

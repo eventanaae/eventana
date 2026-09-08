@@ -1582,6 +1582,54 @@ export async function adminRoutes(app: FastifyInstance) {
     return buildStaffPayReport(month && /^\d{4}-\d{2}-\d{2}$/.test(month) ? month : undefined);
   });
 
+  // Set the truck size / price for an EVENT's delivery (owner/manager).
+  app.patch('/api/admin/deliveries/event/:eventId', async (request, reply) => {
+    const staff = (request as any).staff as { role?: string; name?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { eventId } = request.params as { eventId: string };
+    const b = (request.body ?? {}) as { truck?: 'small' | 'big'; priceFils?: number | null };
+    await pool.query(`INSERT INTO deliveries (event_id, created_by) VALUES ($1,$2) ON CONFLICT (event_id) DO NOTHING`, [eventId, staff?.name ?? 'staff']);
+    if (b.truck === 'small' || b.truck === 'big') await pool.query(`UPDATE deliveries SET truck=$2 WHERE event_id=$1`, [eventId, b.truck]);
+    if (b.priceFils !== undefined) {
+      const manual = b.priceFils != null;
+      await pool.query(`UPDATE deliveries SET price_fils=$2, price_manual=$3 WHERE event_id=$1`, [eventId, b.priceFils ?? null, manual]);
+    }
+    return { ok: true };
+  });
+
+  // Add a MANUAL delivery (external driver, no event) — owner/manager.
+  app.post('/api/admin/deliveries', async (request, reply) => {
+    const staff = (request as any).staff as { role?: string; name?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const b = (request.body ?? {}) as { date?: string; driverName?: string; driverType?: string; emirate?: string; truck?: 'small' | 'big'; priceFils?: number; note?: string };
+    if (!b.date || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return reply.status(400).send({ error: 'invalid_date' });
+    const { rows } = await pool.query(
+      `INSERT INTO deliveries (event_id, del_date, driver_name, driver_type, emirate, truck, price_fils, price_manual, note, created_by)
+       VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [b.date, (b.driverName ?? '').trim() || 'External driver', b.driverType ?? 'external', b.emirate ?? null,
+       b.truck === 'small' || b.truck === 'big' ? b.truck : null, b.priceFils ?? null, b.priceFils != null, (b.note ?? '').trim() || null, staff?.name ?? 'staff'],
+    );
+    return { ok: true, id: rows[0].id };
+  });
+
+  // Edit or delete a MANUAL delivery (owner/manager).
+  app.patch('/api/admin/deliveries/:id', async (request, reply) => {
+    const staff = (request as any).staff as { role?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const b = (request.body ?? {}) as { truck?: 'small' | 'big'; priceFils?: number | null };
+    if (b.truck === 'small' || b.truck === 'big') await pool.query(`UPDATE deliveries SET truck=$2 WHERE id=$1 AND event_id IS NULL`, [Number(id), b.truck]);
+    if (b.priceFils !== undefined) await pool.query(`UPDATE deliveries SET price_fils=$2, price_manual=$3 WHERE id=$1 AND event_id IS NULL`, [Number(id), b.priceFils ?? null, b.priceFils != null]);
+    return { ok: true };
+  });
+  app.delete('/api/admin/deliveries/:id', async (request, reply) => {
+    const staff = (request as any).staff as { role?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    await pool.query(`DELETE FROM deliveries WHERE id=$1 AND event_id IS NULL`, [Number(id)]);
+    return { ok: true };
+  });
+
   // Post-event photo gallery — the owner/manager uploads photos of the finished
   // party; everyone working the event sees them.
   app.post('/api/admin/events/:eventId/photos', async (request, reply) => {

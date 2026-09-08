@@ -334,6 +334,13 @@ export const api = {
   missingItems: () => request<any[]>('/api/admin/missing-items'),
   supplierNames: () => request<{ names: string[] }>('/api/admin/supplier-names'),
   staffPayReport: (month?: string) => request<any>(`/api/admin/staff-pay-report${month ? `?month=${month}` : ''}`),
+  setEventDelivery: (eventId: string, patch: { truck?: 'small' | 'big'; priceFils?: number | null }) =>
+    request<any>(`/api/admin/deliveries/event/${eventId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  addManualDelivery: (body: { date: string; driverName?: string; driverType?: string; emirate?: string; truck?: 'small' | 'big'; priceFils?: number; note?: string }) =>
+    request<any>('/api/admin/deliveries', { method: 'POST', body: JSON.stringify(body) }),
+  updateDelivery: (id: string, patch: { truck?: 'small' | 'big'; priceFils?: number | null }) =>
+    request<any>(`/api/admin/deliveries/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteDelivery: (id: string) => request<any>(`/api/admin/deliveries/${id}`, { method: 'DELETE' }),
   addEventPhoto: (eventId: string, url: string) =>
     request<any>(`/api/admin/events/${eventId}/photos`, { method: 'POST', body: JSON.stringify({ url }) }),
   deleteEventPhoto: (eventId: string, photoId: string | number) =>
