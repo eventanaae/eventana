@@ -274,6 +274,9 @@ async function main() {
     // Submit the warm staff birthday WhatsApp template (WA_SEED_BIRTHDAY=true).
     const { seedStaffBirthdayFromEnv } = await import('./db/seedStaffBirthday.js');
     await seedStaffBirthdayFromEnv().catch((err) => console.error('[wa-birthday] failed:', err));
+    // Submit the warm staff day-off WhatsApp template (WA_SEED_DAYOFF=true).
+    const { seedStaffDayoffFromEnv } = await import('./db/seedStaffDayoff.js');
+    await seedStaffDayoffFromEnv().catch((err) => console.error('[wa-dayoff] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));

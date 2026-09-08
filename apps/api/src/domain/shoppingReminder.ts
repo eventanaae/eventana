@@ -128,16 +128,22 @@ export async function sweepDayOffMessage(): Promise<number> {
   if (hr < 9 || hr >= 11) return 0;
   if (await sentToday('team_dayoff_wellbeing')) return 0;
 
-  const { rows } = await pool.query<{ id: string; name: string }>(
-    `SELECT id, name FROM team_members WHERE active AND weekly_day_off = $1 AND phone IS NOT NULL AND phone <> ''`,
+  const { rows } = await pool.query<{ id: string; name: string; phone: string }>(
+    `SELECT id, name, phone FROM team_members WHERE active AND weekly_day_off = $1 AND phone IS NOT NULL AND phone <> ''`,
     [dow],
   );
   if (rows.length === 0) return 0;
 
+  // Dedicated warm template (clean, no repeated name), sent directly — a day-off
+  // wellbeing note is always welcome, like the birthday one.
+  const { whatsappEnabled, sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
+  const { STAFF_DAYOFF_TEMPLATE } = await import('../db/seedStaffDayoff.js');
+  if (!whatsappEnabled()) return 0;
   for (const m of rows) {
     const first = String(m.name || '').trim().split(/\s+/)[0] || 'there';
-    const body = `It's your day off today, ${first} — rest, enjoy your day, and do something you love 💛\nA walk, good food, time with the people you love… something that fills your cup 🌿\nYou've earned it. See you refreshed! 🌸`;
-    await staffWhatsApp(`🌿 Happy day off, ${first}! Enjoy every moment`, body, m.id);
+    const to = String(m.phone || '').replace(/\D+/g, '');
+    if (!to) continue;
+    await sendWhatsAppTemplate({ to, name: STAFF_DAYOFF_TEMPLATE, language: 'en', params: [first], fromStaff: true }).catch(() => null);
   }
   await markSent('team_dayoff_wellbeing', { members: rows.length });
   console.log(`[dayoff-message] sent wellbeing to ${rows.length} member(s) off today`);
