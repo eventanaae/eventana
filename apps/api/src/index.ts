@@ -277,6 +277,9 @@ async function main() {
     // Seed the owner's first manual tasks for Marsha (SEED_MARSHA_TASKS=true).
     const { seedMarshaTasksFromEnv } = await import('./db/seedMarshaTasks.js');
     await seedMarshaTasksFromEnv().catch((err) => console.error('[seed-marsha-tasks] failed:', err));
+    // READ-ONLY: verify supplier is saved on reported missing items (MISSING_AUDIT=true).
+    const { missingItemsAuditFromEnv } = await import('./db/missingItemsAudit.js');
+    await missingItemsAuditFromEnv().catch((err) => console.error('[missing-audit] failed:', err));
     // Google Business Profile reviews: GOOGLE_REVIEWS=discover logs the
     // accounts/locations so we can pin GOOGLE_BUSINESS_LOCATION; =list previews
     // current reviews (posts nothing). =poll is handled by the reconcile sweep.
