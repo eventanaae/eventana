@@ -1013,7 +1013,7 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
 
-    const [services, tasks, team, holds, messages, photos, orders, payments, rating, tips, designs] =
+    const [services, tasks, team, holds, messages, photos, orders, payments, rating, tips, designs, gallery] =
       await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(`SELECT * FROM event_tasks WHERE event_id = $1 ORDER BY department, id`, [eventId]),
@@ -1073,6 +1073,7 @@ export async function adminRoutes(app: FastifyInstance) {
         [eventId],
       ),
       pool.query(`SELECT * FROM designs WHERE event_id = $1 ORDER BY version DESC`, [eventId]),
+      pool.query(`SELECT id, url, uploaded_by, to_char(created_at,'YYYY-MM-DD') AS created FROM event_photos WHERE event_id = $1 ORDER BY created_at DESC`, [eventId]),
     ]);
 
     const result: any = {
@@ -1122,6 +1123,7 @@ export async function adminRoutes(app: FastifyInstance) {
           : null,
       },
       services: services.rows,
+      gallery: gallery.rows,
       tasks: tasks.rows,
       team: team.rows,
       // Who leads this event, and whether the person viewing IS that leader — only
@@ -1569,6 +1571,29 @@ export async function adminRoutes(app: FastifyInstance) {
       request.log.error({ err }, 'event edit failed');
       return reply.status(500).send({ error: 'edit_failed' });
     }
+  });
+
+  // Post-event photo gallery — the owner/manager uploads photos of the finished
+  // party; everyone working the event sees them.
+  app.post('/api/admin/events/:eventId/photos', async (request, reply) => {
+    const staff = (request as any).staff as { role?: string; name?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { eventId } = request.params as { eventId: string };
+    const b = (request.body ?? {}) as { url?: string };
+    if (!b.url || !/^https?:\/\//i.test(b.url)) return reply.status(400).send({ error: 'invalid_url' });
+    const { rows } = await pool.query(
+      `INSERT INTO event_photos (event_id, url, uploaded_by) VALUES ($1,$2,$3)
+       RETURNING id, url, uploaded_by, to_char(created_at,'YYYY-MM-DD') AS created`,
+      [eventId, b.url, staff?.name ?? 'staff'],
+    );
+    return rows[0];
+  });
+  app.delete('/api/admin/events/:eventId/photos/:photoId', async (request, reply) => {
+    const staff = (request as any).staff as { role?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { eventId, photoId } = request.params as { eventId: string; photoId: string };
+    await pool.query(`DELETE FROM event_photos WHERE id = $1 AND event_id = $2`, [Number(photoId), eventId]);
+    return { ok: true };
   });
 
   /**

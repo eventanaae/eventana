@@ -346,6 +346,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
               </Panel>
 
               <PartyDetailsPanel event={data.event} />
+              <EventPhotosPanel eventId={eventId} gallery={data.gallery ?? []} canEdit={!moneyHidden && !isDriver} onSaved={load} />
               {(data.rating || (!moneyHidden && data.tips && data.tips.length > 0)) && (
                 <RatingTipsPanel rating={data.rating} tips={moneyHidden ? [] : data.tips} />
               )}
@@ -1268,6 +1269,53 @@ function TeamNotePanel({ event, eventId, canEdit, onSaved }: { event: any; event
         <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, whiteSpace: 'pre-wrap', lineHeight: 1.55, background: '#fffbe9', border: '1px solid #f2e6b8', borderRadius: 10, padding: '11px 13px' }}>{note}</div>
       ) : (
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2 }}>No note yet — add a heads-up for the team.</div>
+      )}
+    </Panel>
+  );
+}
+
+// Post-event photo gallery — owner/manager upload photos of the finished party;
+// everyone working the event sees them.
+function EventPhotosPanel({ eventId, gallery, canEdit, onSaved }: { eventId: string; gallery: any[]; canEdit: boolean; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false);
+  if (gallery.length === 0 && !canEdit) return null;
+
+  const upload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setBusy(true);
+    try {
+      for (const f of Array.from(files)) {
+        const url = await api.uploadImage(f, 'event-photos');
+        await api.addEventPhoto(eventId, url);
+      }
+      await onSaved();
+    } catch (e: any) { alert(e?.message ?? 'Upload failed'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Panel title="📸 Event photos" action={canEdit ? (
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: C.pinkDeep, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+        {busy ? 'Uploading…' : '+ Add photos'}
+        <input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={busy} onChange={(e) => upload(e.target.files)} />
+      </label>
+    ) : undefined}>
+      {gallery.length === 0 ? (
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2 }}>No photos yet — add some from the party 🎉</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8 }}>
+          {gallery.map((p) => (
+            <div key={p.id} style={{ position: 'relative' }}>
+              <a href={p.url} target="_blank" rel="noreferrer">
+                <img src={p.url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.line}` }} />
+              </a>
+              {canEdit && (
+                <button onClick={async () => { if (!confirm('Remove this photo?')) return; await api.deleteEventPhoto(eventId, p.id); onSaved(); }}
+                  style={{ position: 'absolute', top: 4, insetInlineEnd: 4, background: 'rgba(0,0,0,.55)', color: '#fff', border: 'none', borderRadius: 7, width: 22, height: 22, cursor: 'pointer', fontSize: 12, lineHeight: 1 }}>✕</button>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </Panel>
   );

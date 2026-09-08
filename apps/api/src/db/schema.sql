@@ -416,6 +416,16 @@ CREATE TABLE IF NOT EXISTS event_setup_photos (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Post-event photo gallery: the owner/team upload photos of the finished party.
+CREATE TABLE IF NOT EXISTS event_photos (
+  id          BIGSERIAL PRIMARY KEY,
+  event_id    TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  url         TEXT NOT NULL,
+  uploaded_by TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS event_photos_event_idx ON event_photos (event_id);
+
 -- A hold is temporary (expires_at) and becomes a firm reservation on
 -- payment. Both live here so the transition is a status update.
 CREATE TABLE IF NOT EXISTS inventory_holds (
