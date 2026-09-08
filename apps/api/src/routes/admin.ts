@@ -1573,6 +1573,13 @@ export async function adminRoutes(app: FastifyInstance) {
     }
   });
 
+  // Known part-timer names (for the staffing name picker) — so a part-timer is
+  // picked with the exact roster name (keeps phone + payout matching reliable).
+  app.get('/api/admin/part-timer-names', async () => {
+    const { rows } = await pool.query<{ name: string }>(`SELECT name FROM part_timers WHERE active ORDER BY name`);
+    return { names: rows.map((r) => r.name) };
+  });
+
   // Part-timer & driver tracker (owner/manager). Optional ?month=YYYY-MM-DD.
   app.get('/api/admin/staff-pay-report', async (request, reply) => {
     const role = (request as any).staff?.role;

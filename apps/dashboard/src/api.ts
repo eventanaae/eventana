@@ -334,6 +334,7 @@ export const api = {
   missingItems: () => request<any[]>('/api/admin/missing-items'),
   supplierNames: () => request<{ names: string[] }>('/api/admin/supplier-names'),
   staffPayReport: (month?: string) => request<any>(`/api/admin/staff-pay-report${month ? `?month=${month}` : ''}`),
+  partTimerNames: () => request<{ names: string[] }>('/api/admin/part-timer-names'),
   setEventDelivery: (eventId: string, patch: { truck?: 'small' | 'big'; priceFils?: number | null }) =>
     request<any>(`/api/admin/deliveries/event/${eventId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   addManualDelivery: (body: { date: string; driverName?: string; driverType?: string; emirate?: string; truck?: 'small' | 'big'; priceFils?: number; note?: string }) =>

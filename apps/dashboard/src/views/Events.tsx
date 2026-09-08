@@ -818,7 +818,8 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
   // Drivers roster — suggested names for a driver slot's part-timer box, so the
   // right person (with a WhatsApp number on file) is picked, not retyped.
   const [drivers, setDrivers] = useState<any[]>([]);
-  useEffect(() => { api.drivers().then(setDrivers).catch(() => {}); }, []);
+  const [partTimers, setPartTimers] = useState<string[]>([]);
+  useEffect(() => { api.drivers().then(setDrivers).catch(() => {}); api.partTimerNames().then((r) => setPartTimers(r?.names ?? [])).catch(() => {}); }, []);
   const isDriverSlot = (role: string) => role === 'driver' || role === 'pt_driver';
 
   const load = async () => {
@@ -881,6 +882,11 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
               <option key={d.id} value={d.name}>{d.kind === 'main' ? 'Main driver' : d.kind === 'own_car' ? 'Own car' : 'Van driver'}{d.has_phone ? '' : ' · no number'}</option>
             ))}
           </datalist>
+          {/* Known part-timers (clowns / face-painters) — so a name always matches
+              the roster, keeping the phone + payout lookup reliable. */}
+          <datalist id="dl-parttimers">
+            {partTimers.map((n) => <option key={n} value={n} />)}
+          </datalist>
           {open > 0 && (
             <div style={{ background: '#fdecea', color: C.red, borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, letterSpacing: '.3px' }}>
               ⚠ ACTION REQUIRED — {open} slot{open > 1 ? 's' : ''} need{open > 1 ? '' : 's'} a part-timer
@@ -914,7 +920,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                   <div style={{ display: 'flex', gap: 6, marginTop: 7 }}>
                     <input
                       placeholder={isDriverSlot(s.role) ? 'Pick or type a driver…' : `Part-time ${ROLE_LABEL[s.role]?.replace(/^\S+\s/, '') ?? s.role} name…`}
-                      list={isDriverSlot(s.role) ? 'dl-drivers' : undefined}
+                      list={isDriverSlot(s.role) ? 'dl-drivers' : 'dl-parttimers'}
                       value={names[s.id] ?? ''}
                       onChange={(e) => setNames((n) => ({ ...n, [s.id]: e.target.value }))}
                       style={{ ...inputStyle, fontSize: 12 }}
@@ -951,7 +957,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                         <div style={{ width: '100%', display: 'flex', gap: 6, marginTop: 4 }}>
                           <input
                             placeholder={isDriverSlot(s.role) ? '…or pick / type a driver' : '…or type a part-timer name'}
-                            list={isDriverSlot(s.role) ? 'dl-drivers' : undefined}
+                            list={isDriverSlot(s.role) ? 'dl-drivers' : 'dl-parttimers'}
                             value={names[s.id] ?? ''}
                             onChange={(e) => setNames((n) => ({ ...n, [s.id]: e.target.value }))}
                             style={{ ...inputStyle, fontSize: 12 }}
