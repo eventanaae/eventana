@@ -8,17 +8,12 @@
 import { config } from '../config.js';
 import { TEMPLATES, TEMPLATES_AR } from './seedWhatsAppTemplates.js';
 
-// The exact (name, language) pairs whose wording changed.
+// The exact (name, language) pairs whose wording changed. The 8 below all
+// submitted OK on the first run; only three_day_reminder [ar] failed because it
+// had been reclassified MARKETING and we passed UTILITY — so the edit now omits
+// category entirely (keeps whatever Meta has) and re-runs just the failed one.
 const CHANGES: Array<{ name: string; language: string }> = [
-  { name: 'booking_confirmation', language: 'en' },
-  { name: 'booking_confirmation', language: 'ar' },
-  { name: 'three_day_reminder', language: 'en' },
   { name: 'three_day_reminder', language: 'ar' },
-  { name: 'event_day', language: 'en' },
-  { name: 'event_day', language: 'ar' },
-  { name: 'booking_updated', language: 'en' },
-  { name: 'booking_updated', language: 'ar' },
-  { name: 'refund_processed', language: 'ar' },
 ];
 
 const P = (s: string) => console.log(`[wa-edit-batch] ${s}`);
@@ -46,7 +41,9 @@ export async function waEditBatchFromEnv(): Promise<void> {
       const res = await fetch(`https://graph.facebook.com/${v}/${tpl.id}`, {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ category: def.category ?? 'UTILITY', components: [body] }),
+        // No `category`: editing an approved template's category is rejected
+        // (3835031). Sending only components keeps Meta's current category.
+        body: JSON.stringify({ components: [body] }),
       });
       const j: any = await res.json();
       P(res.ok && !j.error

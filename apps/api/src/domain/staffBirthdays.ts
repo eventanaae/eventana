@@ -9,6 +9,7 @@
 import { pool } from '../db/pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { pushToOwner } from '../integrations/push.js';
+import { STAFF_BIRTHDAY_TEMPLATE } from '../db/seedStaffBirthday.js';
 
 const BRAND = '#EF5D95';
 const INK = '#4A3540';
@@ -41,11 +42,13 @@ function html(first: string): string {
 }
 
 export async function sendStaffBirthdayEmails(): Promise<{ sent: number }> {
-  if (!emailEnabled()) return { sent: 0 };
   const year = new Date().getFullYear();
-  const { rows } = await pool.query<{ id: string; name: string; email: string }>(
-    `SELECT id, name, email FROM team_members
-      WHERE active AND birthday IS NOT NULL AND email IS NOT NULL AND btrim(email) <> ''
+  // Anyone with a birthday today who has an email OR a phone — so a member with
+  // only a phone still gets their WhatsApp greeting.
+  const { rows } = await pool.query<{ id: string; name: string; email: string | null; phone: string | null }>(
+    `SELECT id, name, email, phone FROM team_members
+      WHERE active AND birthday IS NOT NULL
+        AND (COALESCE(btrim(email),'') <> '' OR COALESCE(btrim(phone),'') <> '')
         AND to_char(birthday,'MM-DD') = to_char(CURRENT_DATE,'MM-DD')
         AND NOT EXISTS (
           SELECT 1 FROM notifications n
@@ -54,11 +57,27 @@ export async function sendStaffBirthdayEmails(): Promise<{ sent: number }> {
              AND (n.payload->>'year') = $1)`,
     [String(year)],
   );
+  if (!rows.length) return { sent: 0 };
+  const { whatsappEnabled, sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
+  const canEmail = emailEnabled();
+  const canWa = whatsappEnabled();
   let sent = 0;
   for (const m of rows) {
     const first = String(m.name || '').trim().split(/\s+/)[0] || 'there';
-    const res = await sendEmail({ to: m.email, subject: `🎂 Happy Birthday, ${first}!`, html: html(first) });
-    if (res.ok) {
+    let delivered = false;
+    // Warm Eventana birthday email.
+    if (canEmail && (m.email || '').trim()) {
+      const res = await sendEmail({ to: m.email!, subject: `🎂 Happy Birthday, ${first}!`, html: html(first) });
+      if (res.ok) delivered = true;
+    }
+    // Warm Eventana birthday WhatsApp — independent of the operational
+    // WHATSAPP_STAFF_NOTIFY switch (a once-a-year greeting is always welcome).
+    const to = String(m.phone || '').replace(/\D+/g, '');
+    if (canWa && to) {
+      const res = await sendWhatsAppTemplate({ to, name: STAFF_BIRTHDAY_TEMPLATE, language: 'en', params: [first], fromStaff: true }).catch(() => null);
+      if ((res as any)?.ok) delivered = true;
+    }
+    if (delivered) {
       sent++;
       await pool.query(
         `INSERT INTO notifications (channel, template, scheduled_for, payload)

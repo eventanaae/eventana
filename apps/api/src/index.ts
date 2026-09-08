@@ -271,6 +271,9 @@ async function main() {
     // Push reworded customer templates (links removed, typo fixed, etc.) to Meta (WA_EDIT_BATCH=true).
     const { waEditBatchFromEnv } = await import('./db/waEditBatch.js');
     await waEditBatchFromEnv().catch((err) => console.error('[wa-edit-batch] failed:', err));
+    // Submit the warm staff birthday WhatsApp template (WA_SEED_BIRTHDAY=true).
+    const { seedStaffBirthdayFromEnv } = await import('./db/seedStaffBirthday.js');
+    await seedStaffBirthdayFromEnv().catch((err) => console.error('[wa-birthday] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
