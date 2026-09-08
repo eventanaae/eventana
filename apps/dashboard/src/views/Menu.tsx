@@ -27,6 +27,7 @@ const GROUPS: Array<{ label: string; items: Item[] }> = [
     { id: 'kpis', icon: '🏆', label: 'Achievements' },
     { id: 'team', icon: '😊', label: 'Team' },
     { id: 'leave', icon: '🌴', label: 'Leave' },
+    { id: 'staffpay', icon: '🤡', label: 'Part-timers & Drivers' },
   ] },
   { label: '', items: [
     { id: 'settings', icon: '⚙️', label: 'Settings' },
