@@ -147,6 +147,7 @@ function MyTasks() {
       {/* 🛒 Shopping — the missing items assigned to me, grouped by emirate */}
       {shopping.length > 0 && (
         <Panel title="🛒 Shopping" action={<Badge tone="warn">{shopping.length} to buy</Badge>}>
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 9, padding: '7px 11px', marginBottom: 12, display: 'inline-block' }}>🗓️ Shopping day · Wednesday</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[...shopGroups.entries()].map(([loc, list]) => (
               <div key={loc}>
