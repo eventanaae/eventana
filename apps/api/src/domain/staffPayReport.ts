@@ -43,6 +43,9 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
             to_char(e.event_date,'YYYY-MM-DD') AS date
        FROM event_staff es JOIN events e ON e.id = es.event_id
       WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
+        -- Only the paid entertainer roles belong in this tracker (clown / face
+        -- paint); part-time drivers show under Deliveries, not here.
+        AND es.role IN ('clown', 'acrobat_clown', 'face_painting')
         AND e.phase IS DISTINCT FROM 'Cancelled'
         AND e.event_date >= date_trunc('month', $1::date)
         AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
@@ -68,6 +71,9 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
        FROM event_staff es JOIN events e ON e.id = es.event_id
        LEFT JOIN team_members tm ON tm.id = es.assignee_id
       WHERE es.role IN ('driver','pt_driver')
+        -- Only part-time drivers we pay/track — NOT the salaried own-van driver
+        -- (Shan): a part-timer or a driver slot with no team account.
+        AND (es.role = 'pt_driver' OR es.assignee_id IS NULL)
         AND e.phase IS DISTINCT FROM 'Cancelled'
         AND e.event_date >= date_trunc('month', $1::date)
         AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
@@ -75,8 +81,7 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
     [month],
   );
   const drivers = dr.rows.map((r) => ({
-    name: r.name, date: r.date, emirate: r.emirate || '—',
-    type: r.role === 'pt_driver' || !r.has_account ? 'Part-time' : 'Own van',
+    name: r.name, date: r.date, emirate: r.emirate || '—', type: 'Part-time',
   }));
 
   return { monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers };
