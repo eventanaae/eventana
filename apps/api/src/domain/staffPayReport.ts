@@ -49,6 +49,9 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
         AND e.phase IS DISTINCT FROM 'Cancelled'
         AND e.event_date >= date_trunc('month', $1::date)
         AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
+        -- Count only events that have already happened (up to today) — the total
+        -- grows as each event finishes, never counts work not done yet.
+        AND e.event_date <= CURRENT_DATE
       ORDER BY btrim(es.part_time_name), e.event_date`,
     [month],
   );
@@ -77,6 +80,7 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
         AND e.phase IS DISTINCT FROM 'Cancelled'
         AND e.event_date >= date_trunc('month', $1::date)
         AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
+        AND e.event_date <= CURRENT_DATE
       ORDER BY e.event_date`,
     [month],
   );
