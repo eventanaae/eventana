@@ -4,6 +4,12 @@
 > ships. Sourced from git history (`main`). This file starts at the 2026-09-08/09
 > session; earlier history is in `git log`.
 
+## 2026-09-09 (continued — owner-approved safe items)
+- **2b5351f** cleanup: deleted dead/unreachable dashboard screens `Overview.tsx`, `Financials.tsx`, `ShopOrders.tsx` (owner: not needed). Reversible via git; backends untouched.
+- **2b5351f** NEW: **weekly report email** to the owner (sheem@eventanauae.com) every Monday 08:00–09:59 Dubai — reuses the monthly reconciliation snapshot (`sweepWeeklyReport` in reconReport.ts, wired in reconcile.ts, deduped per ISO week). Resolves owner decision D-2.
+- **0791fcb** recorded owner decisions D-1..D-6 in MASTER_REQUIREMENTS.md.
+- Pending owner review (not executed — destructive): merge duplicate customers (only exact-match), clean unpaid orders. Leave-system unification (D-1) = larger change, staged next.
+
 ## 2026-09-09
 - **Audit governance started.** Created `MASTER_REQUIREMENTS.md`, `IMPLEMENTATION_STATUS.md`, `BUGS_AND_GAPS.md`, `CHANGELOG.md`. Began full code + DB + (pending) live audit across all 10 system areas. No feature code changed during the audit (per owner instruction).
 - **b5fa667** recon: fix customer-linkage query (finance_receipts.customer_id is QB bigint, not live text id).
