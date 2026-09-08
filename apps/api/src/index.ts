@@ -280,6 +280,9 @@ async function main() {
     // Email "The Eventana Week" schedule to the team (SEND_TEAM_SCHEDULE=true).
     const { sendTeamScheduleFromEnv } = await import('./db/sendTeamSchedule.js');
     await sendTeamScheduleFromEnv().catch((err) => console.error('[team-schedule] failed:', err));
+    // READ-ONLY feedback rollout report (FEEDBACK_AUDIT=true).
+    const { feedbackAuditFromEnv } = await import('./db/feedbackAudit.js');
+    await feedbackAuditFromEnv().catch((err) => console.error('[feedback-audit] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
