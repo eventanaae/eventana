@@ -426,7 +426,7 @@ export const api = {
   customerFeedback: (limit?: number) => request<{ rows: any[]; count: number }>(`/api/admin/customer-feedback${limit ? `?limit=${limit}` : ''}`),
 
   /** Sign + upload an image straight to Cloudinary; returns its secure URL. */
-  uploadImage: async (file: File, folder: 'receipts' | 'themes' | 'designs' | 'setup-photos' | 'reference'): Promise<string> => {
+  uploadImage: async (file: File, folder: 'receipts' | 'themes' | 'designs' | 'setup-photos' | 'reference' | 'event-photos'): Promise<string> => {
     const s = await request<any>('/api/admin/uploads/sign', { method: 'POST', body: JSON.stringify({ folder }) });
     const form = new FormData();
     form.append('file', file);
