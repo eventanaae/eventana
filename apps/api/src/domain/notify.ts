@@ -977,6 +977,10 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
              OR n.template IN ('event_cancelled','cancellation_refund')
              OR (n.template = 'feedback_request' AND e.event_date >= current_date - interval '95 days')
           )
+          -- Feedback WhatsApp only during civil hours (10:00–20:00 Dubai), same
+          -- as the email — no midnight feedback pings.
+          AND (n.template <> 'feedback_request'
+               OR extract(hour from now() AT TIME ZONE 'Asia/Dubai') BETWEEN 10 AND 19)
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST
         LIMIT 100`,
@@ -1108,6 +1112,11 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
              OR n.template IN ('event_cancelled','cancellation_refund')
              OR (n.template = 'feedback_request' AND e.event_date >= current_date - interval '95 days')
           )
+          -- Never send a feedback email in the middle of the night: only between
+          -- 10:00 and 20:00 Dubai. A row that comes due outside that window is
+          -- held and sent on the next sweep inside civil hours.
+          AND (n.template <> 'feedback_request'
+               OR extract(hour from now() AT TIME ZONE 'Asia/Dubai') BETWEEN 10 AND 19)
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST
         LIMIT 100`,
