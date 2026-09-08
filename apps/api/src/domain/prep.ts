@@ -558,7 +558,12 @@ export async function getPrepByPerson() {
               'id', pt.id, 'title', pt.title, 'status', pt.status, 'category', pt.category,
               'eventId', pt.event_id, 'due', to_char(pt.due_date,'YYYY-MM-DD'), 'customer', c.name
             ) ORDER BY pt.due_date) FILTER (WHERE pt.id IS NOT NULL AND (upcoming OR pt.event_id IS NULL)), '[]') AS tasks,
-            count(pt.id) FILTER (WHERE pt.status NOT IN ('completed') AND (upcoming OR pt.event_id IS NULL))::int AS open_count
+            count(pt.id) FILTER (WHERE pt.status NOT IN ('completed') AND (upcoming OR pt.event_id IS NULL))::int AS open_count,
+            -- Completion of the owner-assigned MANUAL tasks (all statuses, incl. done).
+            (SELECT count(*) FROM prep_task_staff x JOIN prep_tasks p ON p.id = x.task_id
+               WHERE x.member_id = tm.id AND p.category = 'manual')::int AS manual_total,
+            (SELECT count(*) FILTER (WHERE p.status = 'completed') FROM prep_task_staff x JOIN prep_tasks p ON p.id = x.task_id
+               WHERE x.member_id = tm.id AND p.category = 'manual')::int AS manual_done
        FROM team_members tm
        LEFT JOIN prep_task_staff pts ON pts.member_id = tm.id
        LEFT JOIN prep_tasks pt ON pt.id = pts.task_id AND pt.status <> 'completed'

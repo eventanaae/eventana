@@ -173,6 +173,39 @@ function NewTaskForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
+// One task row with the manager actions (Done / Start / Issue / Reopen).
+function TaskRow({ t, onAction }: { t: any; onAction: () => void }) {
+  return (
+    <div style={{ border: `1px solid ${C.lineSoft}`, borderRadius: 12, padding: '9px 11px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, flex: 1 }}>
+          {t.category === 'design' ? '🖌️ ' : t.category === 'manual' ? '📌 ' : ''}{t.title}
+        </span>
+        <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
+      </div>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 3 }}>
+        {partyLine(t)} · due {fmtDue(t.due)}
+      </div>
+      {t.status === 'waiting_design' ? (
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#c98a2b', marginTop: 7 }}>⏳ Waiting for the design</div>
+      ) : t.status !== 'completed' ? (
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <Button onClick={async () => { await api.prepComplete(String(t.id)); onAction(); }} style={{ padding: '6px 12px', fontSize: 11.5 }}>✓ Done</Button>
+          {t.status !== 'in_progress' && (
+            <Button tone="ghost" onClick={async () => { await api.prepSetStatus(String(t.id), 'in_progress'); onAction(); }} style={{ padding: '6px 11px', fontSize: 11.5 }}>Start</Button>
+          )}
+          <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); onAction(); } }} style={{ padding: '6px 11px', fontSize: 11.5 }}>⚠ Issue</Button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: C.green }}>✓ Completed</span>
+          <Button tone="ghost" onClick={async () => { await api.prepSetStatus(String(t.id), 'not_started'); onAction(); }} style={{ padding: '5px 10px', fontSize: 11 }}>↺ Reopen</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── By person ────────────────────────────────────────────────────────────────
 function ByPerson() {
   const [board, setBoard] = useState<any[] | null>(null);
@@ -187,47 +220,43 @@ function ByPerson() {
         <Panel><Empty>No prep tasks yet — assign one above, or they’re generated when a booking is confirmed.</Empty></Panel>
       ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
-      {board.map((p) => (
+      {board.map((p) => {
+        const manual = (p.tasks ?? []).filter((t: any) => t.category === 'manual');
+        const eventTasks = (p.tasks ?? []).filter((t: any) => t.category !== 'manual');
+        const manualTotal = p.manual_total ?? 0;
+        const manualDone = p.manual_done ?? 0;
+        const pct = manualTotal > 0 ? Math.round((manualDone / manualTotal) * 100) : 0;
+        return (
         <Panel key={p.id} title={p.name}
           action={<Badge tone={p.open_count > 0 ? 'warn' : 'ok'}>{p.open_count} open</Badge>}>
-          {p.tasks.length === 0 ? (
-            <Empty>All clear 🎉</Empty>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {p.tasks.map((t: any) => (
-                <div key={t.id} style={{ border: `1px solid ${C.lineSoft}`, borderRadius: 12, padding: '9px 11px' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, flex: 1 }}>
-                      {t.category === 'design' ? '🖌️ ' : t.category === 'manual' ? '📌 ' : ''}{t.title}
-                    </span>
-                    <Badge tone={st(t.status).tone}>{st(t.status).label}</Badge>
-                  </div>
-                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 3 }}>
-                    {partyLine(t)} · due {fmtDue(t.due)}
-                  </div>
-                  {/* Owner/manager can act on any task right from this overview. */}
-                  {t.status === 'waiting_design' ? (
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#c98a2b', marginTop: 7 }}>⏳ Waiting for the design</div>
-                  ) : t.status !== 'completed' ? (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                      <Button onClick={async () => { await api.prepComplete(String(t.id)); load(); }} style={{ padding: '6px 12px', fontSize: 11.5 }}>✓ Done</Button>
-                      {t.status !== 'in_progress' && (
-                        <Button tone="ghost" onClick={async () => { await api.prepSetStatus(String(t.id), 'in_progress'); load(); }} style={{ padding: '6px 11px', fontSize: 11.5 }}>Start</Button>
-                      )}
-                      <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); load(); } }} style={{ padding: '6px 11px', fontSize: 11.5 }}>⚠ Issue</Button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: C.green }}>✓ Completed</span>
-                      <Button tone="ghost" onClick={async () => { await api.prepSetStatus(String(t.id), 'not_started'); load(); }} style={{ padding: '5px 10px', fontSize: 11 }}>↺ Reopen</Button>
-                    </div>
-                  )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* 📌 Assigned by Sheem — the owner's manual tasks + completion % */}
+            {manualTotal > 0 && (
+              <div style={{ background: C.pinkSoft, border: `1px solid ${C.pink}`, borderRadius: 12, padding: '10px 11px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, flex: 1 }}>📌 Assigned by Sheem</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: pct === 100 ? C.green : C.pinkDeep }}>{manualDone}/{manualTotal} · {pct}%</span>
                 </div>
-              ))}
-            </div>
-          )}
+                <div style={{ height: 6, borderRadius: 5, background: '#fff', overflow: 'hidden', marginBottom: manual.length ? 9 : 0 }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? C.green : C.pink }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {manual.map((t: any) => <TaskRow key={t.id} t={t} onAction={load} />)}
+                  {manual.length === 0 && <span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>All assigned tasks done ✓</span>}
+                </div>
+              </div>
+            )}
+            {/* 🎉 Event preparation tasks */}
+            {eventTasks.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {eventTasks.map((t: any) => <TaskRow key={t.id} t={t} onAction={load} />)}
+              </div>
+            )}
+            {eventTasks.length === 0 && manualTotal === 0 && <Empty>All clear 🎉</Empty>}
+          </div>
         </Panel>
-      ))}
+        );
+      })}
       </div>
       )}
     </div>
