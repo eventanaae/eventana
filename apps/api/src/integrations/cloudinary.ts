@@ -21,7 +21,8 @@ export type UploadFolder =
   | 'eventana/designs'
   | 'eventana/setup-photos'
   | 'eventana/customers'
-  | 'eventana/reference';
+  | 'eventana/reference'
+  | 'eventana/event-photos';
 
 export interface SignedUpload {
   cloudName: string;
