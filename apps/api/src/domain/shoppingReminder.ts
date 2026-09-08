@@ -10,7 +10,7 @@
  * (but still gets the day-off message). Dow via Postgres/getUTCDay: 0=Sun … 6=Sat.
  */
 import { pool } from '../db/pool.js';
-import { staffWhatsApp } from '../integrations/push.js';
+import { staffWhatsApp, pushToStaff } from '../integrations/push.js';
 
 async function dubaiNow(): Promise<{ dow: number; hr: number }> {
   const { rows } = await pool.query<{ dow: number; hr: number }>(
@@ -138,5 +138,40 @@ export async function sweepDayOffMessage(): Promise<number> {
   for (const m of rows) await staffWhatsApp("🌿 It's your day off — enjoy every moment!", body, m.id);
   await markSent('team_dayoff_wellbeing', { members: rows.length });
   console.log(`[dayoff-message] sent wellbeing to ${rows.length} member(s) off today`);
+  return rows.length;
+}
+
+/**
+ * "Who's off today" — a once-a-day heads-up to the WHOLE team naming everyone
+ * off today (their weekly day off + anyone on approved leave), so the crew knows
+ * who to expect. Sent only when at least one person is off (no noise otherwise).
+ */
+export async function sweepDayOffRoster(): Promise<number> {
+  const { dow, hr } = await dubaiNow();
+  if (hr < 8 || hr >= 10) return 0; // morning heads-up, 08:00–09:59 Dubai
+  if (await sentToday('team_dayoff_roster')) return 0;
+
+  // Weekly day off today + anyone on approved leave covering today.
+  const { rows } = await pool.query<{ name: string }>(
+    `SELECT DISTINCT name FROM (
+        SELECT name FROM team_members WHERE active AND weekly_day_off = $1
+        UNION
+        SELECT m.name FROM staff_days_off d JOIN team_members m ON m.id = d.member_id
+         WHERE d.status = 'approved' AND d.start_date <= CURRENT_DATE AND d.end_date >= CURRENT_DATE
+      ) x WHERE COALESCE(btrim(name),'') <> '' ORDER BY name`,
+    [dow],
+  );
+  if (rows.length === 0) return 0;
+
+  const names = rows.map((r) => r.name).join(', ');
+  const headline = `🌴 Off today: ${names}`;
+  const body = rows.length === 1
+    ? `${names} is on a day off today — please plan around it and cover anything urgent. 💛`
+    : `${names} are on a day off today — please plan around it and cover anything urgent. 💛`;
+  // Broadcast to the whole active team (in-app now; WhatsApp too once the staff
+  // switch is on). Deduped so it fires once per day.
+  await pushToStaff(headline, body, { kind: 'dayoff_roster' }).catch(() => {});
+  await markSent('team_dayoff_roster', { off: rows.map((r) => r.name) });
+  console.log(`[dayoff-roster] notified the team — off today: ${names}`);
   return rows.length;
 }

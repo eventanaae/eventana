@@ -214,10 +214,11 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // each person's day off, a warm "enjoy your day off" message. Gated by the staff
   // WhatsApp switch.
   await import('./shoppingReminder.js')
-    .then(async ({ sweepShoppingListReminders, sweepDriverShoppingList, sweepDayOffMessage }) => {
+    .then(async ({ sweepShoppingListReminders, sweepDriverShoppingList, sweepDayOffMessage, sweepDayOffRoster }) => {
       await sweepShoppingListReminders();
       await sweepDriverShoppingList();
       await sweepDayOffMessage();
+      await sweepDayOffRoster();
     })
     .catch((err) => console.error('[team-reminder] failed:', err));
 
