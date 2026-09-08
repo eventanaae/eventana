@@ -522,11 +522,13 @@ async function eventMetaFor(eventIds: string[]): Promise<Map<string, EventMeta>>
   if (ids.length === 0) return new Map();
   const { rows } = await pool.query<{
     id: string; receipt_number: string | null; event_date: string | null;
-    baby_name: string | null; celebration_type: string | null; custom_theme: string | null; theme_name: string | null;
+    baby_name: string | null; celebration_type: string | null; theme_name: string | null;
   }>(
+    // custom_theme is a BOOLEAN flag, never the theme text — the real theme name is
+    // the catalogue theme (th.name) or, for a new/custom theme, cart->>'customTheme'.
     `SELECT e.id,
             to_char(e.event_date,'YYYY-MM-DD') AS event_date,
-            e.celebration_type, e.custom_theme, th.name AS theme_name,
+            e.celebration_type, COALESCE(th.name, initcap(o.cart->>'customTheme')) AS theme_name,
             initcap(o.cart->>'eventFor') AS baby_name,
             (SELECT fr.number FROM finance_receipts fr
               WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
@@ -544,7 +546,7 @@ async function eventMetaFor(eventIds: string[]): Promise<Map<string, EventMeta>>
       eventDate: r.event_date,
       babyName: r.baby_name || null,
       celebrationType: r.celebration_type ? celebrationLabel(r.celebration_type) : null,
-      theme: r.custom_theme || r.theme_name || null,
+      theme: r.theme_name || null,
     });
   }
   return m;

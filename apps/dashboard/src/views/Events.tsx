@@ -297,6 +297,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <TeamNotePanel event={data.event} eventId={eventId} canEdit={!moneyHidden && !isDriver} onSaved={load} />
               {!moneyHidden && data.event.phase !== 'Cancelled' && (
                 <EditEventPanel event={data.event} eventId={eventId} onSaved={load} onMessage={setMessage} />
               )}
@@ -1229,6 +1230,45 @@ function PartyDetailsPanel({ event }: { event: any }) {
           </div>
         ))}
       </div>
+    </Panel>
+  );
+}
+
+// A note the owner/manager writes for the team about this event (e.g. something
+// the customer said). Everyone working the event sees it; owner/manager edit it.
+function TeamNotePanel({ event, eventId, canEdit, onSaved }: { event: any; eventId: string; canEdit: boolean; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(event.team_note ?? '');
+  const [busy, setBusy] = useState(false);
+  const note = (event.team_note ?? '').trim();
+  // Nothing to show and can't edit → don't render an empty panel.
+  if (!note && !canEdit) return null;
+
+  const save = async () => {
+    setBusy(true);
+    try { await api.eventUpdateDetails(eventId, { teamNote: text.trim() || null }); setEditing(false); await onSaved(); }
+    catch (e: any) { alert(e?.message ?? 'Could not save the note.'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Panel title="📝 Note for the team" action={canEdit && !editing ? (
+      <button onClick={() => { setText(event.team_note ?? ''); setEditing(true); }} style={{ background: 'none', border: 'none', color: C.pinkDeep, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{note ? '✎ Edit' : '+ Add'}</button>
+    ) : undefined}>
+      {editing ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="Something the customer said, a special request, a heads-up for the team…"
+            style={{ width: '100%', padding: '10px 12px', border: `1px solid ${C.line}`, borderRadius: 10, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', resize: 'vertical' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save note'}</Button>
+            <Button tone="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+          </div>
+        </div>
+      ) : note ? (
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, whiteSpace: 'pre-wrap', lineHeight: 1.55, background: '#fffbe9', border: '1px solid #f2e6b8', borderRadius: 10, padding: '11px 13px' }}>{note}</div>
+      ) : (
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2 }}>No note yet — add a heads-up for the team.</div>
+      )}
     </Panel>
   );
 }

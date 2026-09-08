@@ -1550,6 +1550,8 @@ export async function adminRoutes(app: FastifyInstance) {
       backupPhone: z.string().max(40).nullable().optional(),
       email: z.string().max(160).nullable().optional(),
       referenceImages: z.array(z.string().url()).max(30).optional(),
+      // A note for the team about this event (e.g. something the customer said).
+      teamNote: z.string().max(2000).nullable().optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });

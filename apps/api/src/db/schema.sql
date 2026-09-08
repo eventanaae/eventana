@@ -360,6 +360,9 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS custom_theme_brief JSONB;
 -- converted/manual bookings that never captured a map pin). The exact pin, when
 -- known, still lives in map_lat/map_lng.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS location_note TEXT;
+-- A note the owner/manager writes for the team about this event (e.g. something
+-- the customer said) — internal, shown to everyone working the event.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS team_note TEXT;
 -- The customer hasn't fixed an event date yet. event_date stays NOT NULL (a
 -- placeholder), but while this is true the app/receipt show "TBD" and no
 -- date-based customer reminder is sent. Cleared when a real date is set.

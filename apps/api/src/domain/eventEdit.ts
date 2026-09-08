@@ -33,6 +33,7 @@ export type EventPatch = {
   backupPhone?: string | null;  // customer's second contact number
   email?: string | null;        // customer's email (for receipts/confirmations)
   referenceImages?: string[];   // design reference photos (hosted URLs), for the team
+  teamNote?: string | null;     // a note for the team about this event (internal)
 };
 
 export async function staffUpdateEvent(eventId: string, patch: EventPatch): Promise<{ ok: true }> {
@@ -107,6 +108,9 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
     }
     // Free-text address / Google Maps link the team can set (esp. converted
     // bookings with no captured pin), plus the exact pin parsed from that link.
+    if (patch.teamNote !== undefined) {
+      await db.query(`UPDATE events SET team_note = $2 WHERE id = $1`, [eventId, patch.teamNote || null]);
+    }
     if (patch.locationNote !== undefined) {
       await db.query(`UPDATE events SET location_note = $2 WHERE id = $1`, [eventId, patch.locationNote || null]);
     }
