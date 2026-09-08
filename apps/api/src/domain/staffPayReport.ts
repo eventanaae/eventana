@@ -57,11 +57,13 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
   // Phones + who's already been paid this month.
   const [ptPhones, drPhones, payments] = await Promise.all([
     pool.query<{ name_norm: string; phone: string | null }>(`SELECT name_norm, phone FROM part_timers WHERE active`),
-    pool.query<{ name_norm: string; phone: string | null }>(`SELECT lower(name) AS name_norm, phone FROM drivers WHERE active`),
+    pool.query<{ name_norm: string; phone: string | null; kind: string }>(`SELECT lower(name) AS name_norm, phone, kind FROM drivers WHERE active`),
     pool.query<{ person_kind: string; person_name: string; amount_fils: string }>(`SELECT person_kind, lower(btrim(person_name)) AS person_name, amount_fils FROM staff_payments WHERE month = $1`, [monthStr]),
   ]);
   const ptPhone = new Map(ptPhones.rows.map((r) => [r.name_norm, r.phone]));
   const drPhone = new Map(drPhones.rows.map((r) => [r.name_norm, r.phone]));
+  const drKind = new Map(drPhones.rows.map((r) => [r.name_norm, r.kind]));
+  const PART_TIME_DAY_FILS = 25000; // AED 250 / day for van (part-time) drivers
   const paidMap = new Map(payments.rows.map((r) => [`${r.person_kind}:${r.person_name}`, Number(r.amount_fils)]));
   const paidOf = (kind: string, name: string): number | null => {
     const v = paidMap.get(`${kind}:${(name ?? '').trim().toLowerCase()}`);
@@ -155,17 +157,23 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
 
   // Group deliveries by driver for the monthly payout (owner enters the amount
   // she pays; the sum of delivery prices is a suggestion).
-  const payoutMap = new Map<string, { name: string; type: string; count: number; suggestedFils: number }>();
+  const payoutMap = new Map<string, { name: string; count: number; priceSumFils: number; days: Set<string> }>();
   for (const d of drivers) {
     const key = d.name.toLowerCase();
-    const g = payoutMap.get(key) ?? { name: d.name, type: d.type, count: 0, suggestedFils: 0 };
-    g.count += 1; g.suggestedFils += d.priceFils ?? 0;
+    const g = payoutMap.get(key) ?? { name: d.name, count: 0, priceSumFils: 0, days: new Set<string>() };
+    g.count += 1; g.priceSumFils += d.priceFils ?? 0; g.days.add(d.date);
     payoutMap.set(key, g);
   }
   const driverPayouts = [...payoutMap.values()].map((g) => {
+    // Own-car drivers (Ubaid/Majeed) earn the delivery price; van/part-time
+    // drivers (Ali/Rashid/Rana) earn AED 250 per delivery DAY.
+    const kind = drKind.get(g.name.toLowerCase());
+    const isVan = kind === 'van';
+    const suggestedFils = isVan ? g.days.size * PART_TIME_DAY_FILS : g.priceSumFils;
     const paid = paidOf('driver', g.name);
-    return { name: g.name, phone: drPhone.get(g.name.toLowerCase()) ?? null, type: g.type, count: g.count,
-      suggestedFils: g.suggestedFils, suggestedDisplay: formatAed(g.suggestedFils),
+    return { name: g.name, phone: drPhone.get(g.name.toLowerCase()) ?? null,
+      type: isVan ? `Van · AED 250/day × ${g.days.size}` : 'Own car · delivery price',
+      count: g.count, suggestedFils, suggestedDisplay: formatAed(suggestedFils),
       paid: paid != null, paidDisplay: paid != null ? formatAed(paid) : null };
   });
 

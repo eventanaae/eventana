@@ -81,8 +81,11 @@ export function StaffPay() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {data.driverPayouts.map((d: any) => (
               <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, flex: 1 }}>{d.name}{d.phone ? '' : ' ⚠️'}</span>
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{d.count} trip{d.count > 1 ? 's' : ''}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{d.name}{d.phone ? '' : ' ⚠️'}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 2 }}>{d.count} trip{d.count > 1 ? 's' : ''} · {d.type}</div>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{d.suggestedDisplay}</span>
                 <PayButton kind="driver" name={d.name} suggestedFils={d.suggestedFils} month={data.month} paid={d.paid} paidDisplay={d.paidDisplay} onPaid={reload} />
               </div>
             ))}
