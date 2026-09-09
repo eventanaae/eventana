@@ -302,6 +302,9 @@ async function main() {
     // One-shot: email Marsha (cc Sheem) about the prep-task/design-upload fix (EMAIL_MARSHA_TASKFIX=true).
     const { sendTaskFixEmailFromEnv } = await import('./db/sendTaskFixEmail.js');
     await sendTaskFixEmailFromEnv().catch((err) => console.error('[taskfix-email] failed:', err));
+    // READ-ONLY: how many customers miss a phone + how many are backfillable from QB (CUSTOMER_PHONE_AUDIT=true).
+    const { customerPhoneAuditFromEnv } = await import('./db/customerPhoneAudit.js');
+    await customerPhoneAuditFromEnv().catch((err) => console.error('[phone-audit] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
