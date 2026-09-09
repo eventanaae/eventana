@@ -292,6 +292,9 @@ async function main() {
     // READ-ONLY exact-dup customers + unpaid orders, for owner review (CLEANUP_CANDIDATES=true).
     const { cleanupCandidatesFromEnv } = await import('./db/cleanupCandidates.js');
     await cleanupCandidatesFromEnv().catch((err) => console.error('[cleanup-cand] failed:', err));
+    // Owner-approved cleanup: soft-cancel test orders + delete the empty duplicate (CLEANUP_APPLY=true).
+    const { cleanupApplyFromEnv } = await import('./db/cleanupApply.js');
+    await cleanupApplyFromEnv().catch((err) => console.error('[cleanup-apply] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
