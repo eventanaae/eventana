@@ -296,6 +296,9 @@ async function main() {
     // Owner-approved cleanup: soft-cancel test orders + delete the empty duplicate (CLEANUP_APPLY=true).
     const { cleanupApplyFromEnv } = await import('./db/cleanupApply.js');
     await cleanupApplyFromEnv().catch((err) => console.error('[cleanup-apply] failed:', err));
+    // Create day_off_change_requests table + remove Razan/Noon completely (DAYOFF_MIGRATE=true).
+    const { applyDayOffMigrateFromEnv } = await import('./db/dayOffMigrate.js');
+    await applyDayOffMigrateFromEnv().catch((err) => console.error('[dayoff-migrate] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));

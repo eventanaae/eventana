@@ -3730,11 +3730,17 @@ export async function adminRoutes(app: FastifyInstance) {
     ].filter(Boolean);
     const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOffNum = p.weekly_day_off;
+    const { memberPendingDayOffChange } = await import('../domain/dayOff.js');
+    const pendingChange = await memberPendingDayOffChange(staff.id);
     return {
       id: p.id, name: p.name, jobTitle: p.job_title || p.role, email: p.email,
       birthday: p.birthday ?? null,
       joiningDate: p.employment_start_date ?? null,
       dayOff: (dayOffNum !== null && dayOffNum !== undefined) ? WEEKDAYS[Number(dayOffNum)] : null,
+      dayOffNum: (dayOffNum !== null && dayOffNum !== undefined) ? Number(dayOffNum) : null,
+      pendingDayOffChange: pendingChange
+        ? { id: Number(pendingChange.id), requestedDay: Number(pendingChange.requested_day), requestedDayName: WEEKDAYS[Number(pendingChange.requested_day)], reason: pendingChange.reason ?? null }
+        : null,
       salaryIncrement: p.salary_increment_note ?? null,
       passportName: p.passport_name, passportNumber: p.passport_number, emiratesId: p.emirates_id,
       eventsDone: done.rows[0].c,
@@ -4031,6 +4037,56 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const leave = await import('../domain/leave.js');
     return leave.saveLeaveConfig(p.data, String((request as any).staff?.name ?? 'owner'));
+  });
+
+  /* --------- Weekly day-off CHANGE request (self-service → owner/Marsha) ---- */
+
+  /** A staff member asks to move their recurring weekly rest day. */
+  app.post('/api/admin/dayoff-change/request', async (request, reply) => {
+    const memberId = (request as any).staff?.id as string | undefined;
+    if (!memberId) return reply.status(404).send({ error: 'no_member' });
+    const p = z.object({ requestedDay: z.number().int().min(0).max(6), reason: z.string().max(300).optional() }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const dayoff = await import('../domain/dayOff.js');
+    const res = await dayoff.submitDayOffChange(memberId, p.data.requestedDay, p.data.reason ?? null);
+    if (!res.ok) return reply.status(409).send({ error: 'rejected', message: res.reason });
+    void (async () => {
+      const staffName = String((request as any).staff?.name ?? 'A team member');
+      const approvers = await pool.query(`SELECT id FROM team_members WHERE (access_level IN ('owner','manager') OR lower(name) = 'marsha') AND active`).catch(() => ({ rows: [] as any[] }));
+      for (const o of approvers.rows) void pushToOwner('staff', o.id, 'Day-off change 🗓️', `${staffName} asked to move their weekly day off to ${dayoff.WEEKDAYS[p.data.requestedDay]} — review it in Leave.`);
+    })();
+    return { ok: true, id: res.id };
+  });
+
+  /** Cancel your own pending change. */
+  app.post('/api/admin/dayoff-change/:id/cancel', async (request, reply) => {
+    const memberId = (request as any).staff?.id as string | undefined;
+    if (!memberId) return reply.status(404).send({ error: 'no_member' });
+    const dayoff = await import('../domain/dayOff.js');
+    const res = await dayoff.cancelDayOffChange(Number((request.params as any).id), memberId);
+    if (!res.ok) return reply.status(409).send({ error: 'rejected', message: res.reason });
+    return { ok: true };
+  });
+
+  /** Owner/manager (+ Marsha): every day-off change request, pending first. */
+  app.get('/api/admin/dayoff-change/requests', async (request, reply) => {
+    if (!canManageLeave((request as any).staff)) return reply.status(403).send({ error: 'forbidden' });
+    const dayoff = await import('../domain/dayOff.js');
+    return { requests: await dayoff.listDayOffChanges() };
+  });
+
+  /** Owner/manager (+ Marsha): approve (applies the new day) or reject. */
+  app.post('/api/admin/dayoff-change/:id/decide', async (request, reply) => {
+    const s = (request as any).staff;
+    if (!canManageLeave(s)) return reply.status(403).send({ error: 'forbidden' });
+    const p = z.object({ decision: z.enum(['approved', 'rejected']), note: z.string().max(300).optional() }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const dayoff = await import('../domain/dayOff.js');
+    const res = await withTransaction((db) => dayoff.decideDayOffChange(db, Number((request.params as any).id), p.data.decision, String(s?.name ?? 'Manager'), p.data.note ?? null));
+    if (!res.ok) return reply.status(409).send({ error: 'rejected', message: res.reason });
+    void pushToOwner('staff', res.memberId, p.data.decision === 'approved' ? 'Day off updated ✅' : 'Day-off change update', p.data.decision === 'approved' ? `Your weekly day off was changed to ${dayoff.WEEKDAYS[res.requestedDay]}.` : 'Your day-off change request was declined.');
+    logAudit({ actor: String(s?.name ?? 'manager'), role: s?.role, action: `dayoff_change_${p.data.decision}`, target: String((request.params as any).id) });
+    return { ok: true };
   });
 
   /** Roster overlay for a month: days off + birthdays, for the calendar. */

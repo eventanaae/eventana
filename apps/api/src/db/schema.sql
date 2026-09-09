@@ -778,6 +778,24 @@ CREATE TABLE IF NOT EXISTS leave_requests (
 CREATE INDEX IF NOT EXISTS leave_requests_member_idx ON leave_requests (member_id, submitted_at DESC);
 CREATE INDEX IF NOT EXISTS leave_requests_status_idx ON leave_requests (status);
 
+-- A member's request to CHANGE their recurring weekly rest day. The day itself
+-- is normally set by managers on the Team screen; this is the self-service
+-- "please move my day off" flow that goes to the owner or Marsha for approval.
+-- On approval the new day is written to team_members.weekly_day_off.
+CREATE TABLE IF NOT EXISTS day_off_change_requests (
+  id            BIGSERIAL PRIMARY KEY,
+  member_id     TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  requested_day SMALLINT NOT NULL CHECK (requested_day BETWEEN 0 AND 6),  -- 0=Sun … 6=Sat
+  reason        TEXT,
+  status        TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | rejected | cancelled
+  submitted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_by    TEXT,
+  decided_at    TIMESTAMPTZ,
+  decision_note TEXT
+);
+CREATE INDEX IF NOT EXISTS dayoff_change_member_idx ON day_off_change_requests (member_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS dayoff_change_status_idx ON day_off_change_requests (status);
+
 -- Performance feedback history — every note a manager/owner writes for a member
 -- is kept (not just the latest), and shown on the member's profile newest-first.
 CREATE TABLE IF NOT EXISTS staff_feedback (
