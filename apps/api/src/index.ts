@@ -56,8 +56,9 @@ async function main() {
     // is set — seal the past notification backlog so enabling customer WhatsApp
     // never fires messages about parties that already happened. Both no-op unless
     // their env is set; the seal runs BEFORE startReconciliation() below.
-    const { logWhatsAppTemplateStatusesFromEnv, sealWhatsAppBacklogFromEnv } = await import('./db/whatsappGoLive.js');
-    await logWhatsAppTemplateStatusesFromEnv().catch((err) => console.error('[wa-status] failed:', err));
+    // Template-status logging is now handled by WA_STATUS (db/waTemplateStatus.ts);
+    // the old logWhatsAppTemplateStatusesFromEnv duplicate is no longer wired.
+    const { sealWhatsAppBacklogFromEnv } = await import('./db/whatsappGoLive.js');
     await sealWhatsAppBacklogFromEnv().catch((err) => console.error('[wa-seal] failed:', err));
     // Drivers roster (Shan + freelance own-car / van drivers) from DRIVERS_SEED.
     const { seedDriversFromEnv } = await import('./db/seedDrivers.js');

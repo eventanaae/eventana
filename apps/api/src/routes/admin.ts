@@ -163,9 +163,9 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'forbidden', message: 'Only the owner can change team access.' });
     }
 
-    // The full CEO dashboard, the P&L history, and the Cash-on-hand accounting
-    // balance are the Owner's alone (income totals). Managers get /overview.
-    if (path.startsWith('/api/admin/ceo') || path.startsWith('/api/admin/financials') || path.startsWith('/api/admin/finance/accounting')) {
+    // The full CEO dashboard and the Cash-on-hand accounting balance are the
+    // Owner's alone (income totals).
+    if (path.startsWith('/api/admin/ceo') || path.startsWith('/api/admin/finance/accounting')) {
       return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
     }
 
@@ -178,7 +178,6 @@ export async function adminRoutes(app: FastifyInstance) {
       path.startsWith('/api/admin/customers') ||
       path.startsWith('/api/admin/refunds') ||
       path.startsWith('/api/admin/reports') ||
-      path.startsWith('/api/admin/overview') ||
       path.startsWith('/api/admin/staffing') ||
       // Prep: the whole-team "By person" board + generation are Manager+Owner.
       // The per-event progress, an event's plan, "my tasks" and task actions
@@ -588,57 +587,6 @@ export async function adminRoutes(app: FastifyInstance) {
         };
       }),
       integrations: integrationStatus(),
-    };
-  });
-
-  /**
-   * Manager overview — a mini, money-free operational dashboard: how many orders
-   * this month, what they are, and the busiest emirate / theme. No revenue.
-   */
-  app.get('/api/admin/overview', async (request) => {
-    // Period filter (by event date): this month · last 3 months · this year.
-    const period = ((request.query as { period?: string }).period ?? 'month');
-    const now = new Date();
-    const y = now.getUTCFullYear(); const mo = now.getUTCMonth();
-    const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
-    let startT: number; let endT: number;
-    if (period === 'year') { startT = Date.UTC(y, 0, 1); endT = Date.UTC(y + 1, 0, 1); }
-    else if (period === 'quarter') { startT = Date.UTC(y, mo - 2, 1); endT = Date.UTC(y, mo + 1, 1); }
-    else { startT = Date.UTC(y, mo, 1); endT = Date.UTC(y, mo + 1, 1); }
-    const startS = iso(startT); const endS = iso(endT);
-
-    const { rows } = await pool.query(
-      `SELECT e.id, e.emirate, e.celebration_type,
-              to_char(e.event_date,'YYYY-MM-DD') AS date, e.phase,
-              c.name AS customer, p.name AS package_name, th.name AS theme_name
-         FROM events e
-         JOIN customers c ON c.id = e.customer_id
-         LEFT JOIN packages p ON p.id = e.package_id
-         LEFT JOIN themes th ON th.id = e.theme_id
-        WHERE e.phase <> 'Cancelled' AND e.event_date >= $1 AND e.event_date < $2
-        ORDER BY e.event_date`,
-      [startS, endS],
-    );
-    const topBy = (keyFn: (r: any) => string) => {
-      const m = new Map<string, number>();
-      for (const r of rows) { const k = keyFn(r) || '—'; m.set(k, (m.get(k) ?? 0) + 1); }
-      return [...m.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-    };
-    const byEmirate = topBy((r) => r.emirate);
-    const byTheme = topBy((r) => r.theme_name || 'No theme / custom');
-    const byType = topBy((r) => celebrationLabel(r.celebration_type));
-    const slim = (r: any) => ({ id: r.id, date: r.date, customer: r.customer, emirate: r.emirate, theme: r.theme_name, package: r.package_name, type: celebrationLabel(r.celebration_type), phase: r.phase });
-    return {
-      period,
-      orders: rows.length,
-      // kept for backward compatibility
-      ordersThisMonth: rows.length,
-      topEmirate: byEmirate[0] ?? null,
-      topTheme: byTheme[0] ?? null,
-      byEmirate: byEmirate.slice(0, 6),
-      byTheme: byTheme.slice(0, 6),
-      byType: byType.slice(0, 6),
-      list: rows.map(slim),
     };
   });
 
@@ -2131,108 +2079,6 @@ export async function adminRoutes(app: FastifyInstance) {
     return { deleted: true };
   });
 
-  // ── Historical financials (QuickBooks P&L) ─────────────────────────────────
-  // The real money history of the business lived only in QuickBooks (every
-  // sale was WhatsApp). We import it here, one row per year (or month), so the
-  // CEO dashboard can show true revenue/expenses/profit and year-over-year —
-  // the app's own bookings cover only 2026+ and would understate everything.
-
-  /** List every imported financial period, newest first, with AED displays. */
-  app.get('/api/admin/financials', async () => {
-    const { rows } = await pool.query(
-      `SELECT * FROM historical_financials ORDER BY period DESC`,
-    );
-    const withDisplay = rows.map((r) => {
-      // node-pg returns BIGINT as a string; coerce so the client can do maths.
-      const income = Number(r.income_fils);
-      const cogs = Number(r.cogs_fils);
-      const expenses = Number(r.expenses_fils);
-      const gross = Number(r.gross_profit_fils);
-      const net = Number(r.net_income_fils);
-      return {
-        ...r,
-        income_fils: income,
-        cogs_fils: cogs,
-        expenses_fils: expenses,
-        gross_profit_fils: gross,
-        net_income_fils: net,
-        incomeDisplay: formatAed(income),
-        cogsDisplay: formatAed(cogs),
-        expensesDisplay: formatAed(expenses),
-        grossProfitDisplay: formatAed(gross),
-        netIncomeDisplay: formatAed(net),
-        marginPct: income > 0 ? Math.round((net / income) * 1000) / 10 : 0,
-      };
-    });
-    // Year-over-year net-income growth, oldest→newest, for the annual rows.
-    const years = [...withDisplay].filter((r) => r.period_kind === 'year').sort((a, b) => a.period.localeCompare(b.period));
-    const yoy = years.map((r, i) => {
-      const prev = i > 0 ? Number(years[i - 1].net_income_fils) : null;
-      const cur = Number(r.net_income_fils);
-      const growthPct = prev && prev !== 0 ? Math.round(((cur - prev) / Math.abs(prev)) * 1000) / 10 : null;
-      return { period: r.period, netIncomeFils: cur, growthPct };
-    });
-    return { periods: withDisplay, yoy };
-  });
-
-  /**
-   * Upsert one financial period. Income/COGS/expenses are provided; gross and
-   * net are derived server-side so they always reconcile. Breakdowns optional.
-   * This is how 2023–2025 (and full-year 2026) get added from QuickBooks.
-   */
-  app.post('/api/admin/financials', async (request, reply) => {
-    const line = z.object({ label: z.string().min(1).max(120), fils: z.number().int() });
-    const schema = z.object({
-      period: z.string().regex(/^\d{4}(-\d{2})?$/),
-      incomeFils: z.number().int(),
-      cogsFils: z.number().int().default(0),
-      expensesFils: z.number().int().min(0),
-      incomeBreakdown: z.array(line).optional(),
-      expenseBreakdown: z.array(line).optional(),
-      note: z.string().max(300).optional(),
-    });
-    const parsed = schema.safeParse(request.body);
-    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
-    const d = parsed.data;
-    const periodKind = /^\d{4}$/.test(d.period) ? 'year' : 'month';
-    const grossProfit = d.incomeFils - d.cogsFils;
-    const netIncome = grossProfit - d.expensesFils;
-    const { rows } = await pool.query(
-      `INSERT INTO historical_financials
-         (period, period_kind, income_fils, cogs_fils, expenses_fils, gross_profit_fils, net_income_fils, income_breakdown, expense_breakdown, source, note, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'quickbooks',$10, now())
-       ON CONFLICT (period) DO UPDATE SET
-         period_kind = EXCLUDED.period_kind,
-         income_fils = EXCLUDED.income_fils,
-         cogs_fils = EXCLUDED.cogs_fils,
-         expenses_fils = EXCLUDED.expenses_fils,
-         gross_profit_fils = EXCLUDED.gross_profit_fils,
-         net_income_fils = EXCLUDED.net_income_fils,
-         income_breakdown = EXCLUDED.income_breakdown,
-         expense_breakdown = EXCLUDED.expense_breakdown,
-         note = EXCLUDED.note,
-         updated_at = now()
-       RETURNING *`,
-      [
-        d.period, periodKind, d.incomeFils, d.cogsFils, d.expensesFils, grossProfit, netIncome,
-        d.incomeBreakdown ? JSON.stringify(d.incomeBreakdown) : null,
-        d.expenseBreakdown ? JSON.stringify(d.expenseBreakdown) : null,
-        d.note ?? null,
-      ],
-    );
-    return reply.status(201).send({
-      ...rows[0],
-      incomeDisplay: formatAed(Number(rows[0].income_fils)),
-      netIncomeDisplay: formatAed(Number(rows[0].net_income_fils)),
-    });
-  });
-
-  app.delete('/api/admin/financials/:period', async (request) => {
-    const period = String((request.params as { period: string }).period);
-    await pool.query(`DELETE FROM historical_financials WHERE period = $1`, [period]);
-    return { deleted: true };
-  });
-
   // ── Data migration from QuickBooks ─────────────────────────────────────────
   // Mint a short-lived ticket so the owner's QuickBooks browser tab can pipe
   // scraped rows (customers, invoices) straight into the PUBLIC /api/import
@@ -3613,48 +3459,6 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /* ---------------------- Shop orders (owner/manager) --------------- */
-
-  /** Paid standalone shop orders (custom printed & digital goods, no event). */
-  app.get('/api/admin/shop-orders', async (request, reply) => {
-    const role = (request as any).staff?.role;
-    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
-    const cfg = await loadConfig();
-    const { rows } = await pool.query(
-      `SELECT o.id, o.total_fils, o.status, o.created_at, o.cart,
-              c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone, c.backup_phone
-         FROM orders o JOIN customers c ON c.id = o.customer_id
-        WHERE o.kind = 'shop' AND o.status = 'paid'
-        ORDER BY o.created_at DESC LIMIT 200`,
-    );
-    return rows.map((r) => {
-      const cart = (r.cart ?? {}) as {
-        items?: Array<{ serviceId: string; quantity: number }>;
-        emirate?: string | null;
-        address?: Record<string, unknown> | null;
-        customization?: { refImages?: string[]; wantDraw?: boolean } | null;
-        readyBy?: string | null;
-      };
-      return {
-        orderId: r.id,
-        totalFils: Number(r.total_fils),
-        createdAt: r.created_at,
-        readyBy: cart.readyBy ?? null,
-        emirate: cart.emirate ?? null,
-        address: cart.address ?? null,
-        items: (cart.items ?? []).map((it) => ({
-          ...it,
-          name: cfg.services.get(it.serviceId)?.name ?? it.serviceId,
-        })),
-        customization: cart.customization ?? null,
-        customer: {
-          name: r.customer_name,
-          email: r.customer_email,
-          phone: r.customer_phone,
-          backupPhone: r.backup_phone,
-        },
-      };
-    });
-  });
 
   /** One shop order's fulfilment detail (customer, items, design status). */
   app.get('/api/admin/shop-orders/:id', async (request, reply) => {
