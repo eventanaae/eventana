@@ -214,12 +214,16 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // each person's day off, a warm "enjoy your day off" message. Gated by the staff
   // WhatsApp switch.
   await import('./shoppingReminder.js')
-    .then(async ({ sweepShoppingListReminders, sweepDriverShoppingList, sweepDayOffMessage, sweepDayOffRoster }) => {
+    .then(async ({ sweepShoppingListReminders, sweepDriverShoppingList, sweepDayOffMessage }) => {
       await sweepShoppingListReminders();
       await sweepDriverShoppingList();
       await sweepDayOffMessage();
-      await sweepDayOffRoster();
     })
+    .catch((err) => console.error('[team-reminder] failed:', err));
+
+  // Deliver any staff WhatsApps deferred overnight (night guard 10:00–23:00 Dubai).
+  await import('../integrations/push.js')
+    .then(({ sweepStaffWaQueue }) => sweepStaffWaQueue())
     .catch((err) => console.error('[team-reminder] failed:', err));
 
   // Google Business Profile — reply to new reviews: 4–5★ get an automatic

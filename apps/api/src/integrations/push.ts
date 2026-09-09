@@ -163,27 +163,69 @@ function waPhone(raw: string | null): string | null {
 export async function staffWhatsApp(headline: string, details: string, memberId?: string): Promise<void> {
   if (!config.whatsapp.staffNotify) return;
   try {
-    const { rows } = memberId
-      ? await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE id = $1 AND active`, [memberId])
-      : await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE active AND phone IS NOT NULL AND phone <> ''`);
-    const { sendWhatsAppTemplate } = await import('./whatsapp.js');
-    const seen = new Set<string>();
-    for (const r of rows) {
-      const to = waPhone(r.phone);
-      if (!to || seen.has(to)) continue;
-      seen.add(to);
-      const first = (r.name || '').trim().split(/\s+/)[0] || 'there';
-      // staff_notify params: {{1}} first name, {{2}} headline, {{3}} details.
-      // WhatsApp template variables may not contain newlines — collapse them.
-      const oneLine = (s: string) => s.replace(/\s*\n+\s*/g, ' • ').trim();
-      await sendWhatsAppTemplate({
-        to, name: 'staff_notify', language: 'en',
-        params: [first, oneLine(headline) || '—', details && details.trim() ? oneLine(details) : '—'],
-        fromStaff: true,
-      }).catch(() => {});
+    // Night guard (owner's rule): staff WhatsApps only 10:00–23:00 Dubai. A
+    // message that fires outside that window is NOT lost — it's queued for the
+    // next 10:00 Dubai (a `staff_wa` notification row, delivered by the sweep).
+    const { rows: hr } = await pool.query<{ h: number }>(`SELECT extract(hour from now() AT TIME ZONE 'Asia/Dubai')::int AS h`);
+    const hour = hr[0]?.h ?? 12;
+    if (hour < 10 || hour >= 23) {
+      await pool.query(
+        `INSERT INTO notifications (channel, template, scheduled_for, payload)
+         VALUES ('staff_wa','staff_notify',
+           (CASE WHEN (date_trunc('day', now() AT TIME ZONE 'Asia/Dubai') + time '10:00') AT TIME ZONE 'Asia/Dubai' > now()
+                 THEN (date_trunc('day', now() AT TIME ZONE 'Asia/Dubai') + time '10:00') AT TIME ZONE 'Asia/Dubai'
+                 ELSE (date_trunc('day', now() AT TIME ZONE 'Asia/Dubai') + interval '1 day' + time '10:00') AT TIME ZONE 'Asia/Dubai' END),
+           $1::jsonb)`,
+        [JSON.stringify({ memberId: memberId ?? null, headline, details })],
+      ).catch(() => {});
+      return;
     }
+    await deliverStaffWhatsApp(headline, details, memberId);
   } catch (err) {
     console.error('[staff-wa] failed:', (err as Error).message);
+  }
+}
+
+/** The actual send (no time guard) — used for immediate sends and by the night queue sweep. */
+export async function deliverStaffWhatsApp(headline: string, details: string, memberId?: string | null): Promise<void> {
+  const { rows } = memberId
+    ? await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE id = $1 AND active`, [memberId])
+    : await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE active AND phone IS NOT NULL AND phone <> ''`);
+  const { sendWhatsAppTemplate } = await import('./whatsapp.js');
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const to = waPhone(r.phone);
+    if (!to || seen.has(to)) continue;
+    seen.add(to);
+    const first = (r.name || '').trim().split(/\s+/)[0] || 'there';
+    // staff_notify params: {{1}} first name, {{2}} headline, {{3}} details.
+    // WhatsApp template variables may not contain newlines — collapse them.
+    const oneLine = (s: string) => s.replace(/\s*\n+\s*/g, ' • ').trim();
+    await sendWhatsAppTemplate({
+      to, name: 'staff_notify', language: 'en',
+      params: [first, oneLine(headline) || '—', details && details.trim() ? oneLine(details) : '—'],
+      fromStaff: true,
+    }).catch(() => {});
+  }
+}
+
+/** Deliver any staff WhatsApps that were deferred overnight and are now due. */
+export async function sweepStaffWaQueue(): Promise<void> {
+  if (!config.whatsapp.staffNotify) return;
+  try {
+    const { rows } = await pool.query<{ id: string; payload: any }>(
+      `SELECT id, payload FROM notifications
+        WHERE channel = 'staff_wa' AND sent_at IS NULL AND (scheduled_for IS NULL OR scheduled_for <= now())
+        ORDER BY scheduled_for LIMIT 50`,
+    );
+    for (const r of rows) {
+      const p = r.payload || {};
+      await deliverStaffWhatsApp(String(p.headline ?? ''), String(p.details ?? ''), p.memberId ?? null).catch(() => {});
+      await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [r.id]).catch(() => {});
+    }
+    if (rows.length) console.log(`[staff-wa] delivered ${rows.length} deferred night message(s)`);
+  } catch (err) {
+    console.error('[staff-wa] queue sweep failed:', (err as Error).message);
   }
 }
 
