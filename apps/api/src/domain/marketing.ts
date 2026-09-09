@@ -294,46 +294,6 @@ export async function sweepPostEventWinback(): Promise<number> {
   return sent;
 }
 
-/**
- * Smart anniversary marketing. Once a month, if there are customers whose
- * confirmed event was ~a year ago (their re-book window), create ONE campaign
- * suggestion targeted at them — as `pending_approval`, never auto-sent. The
- * Manager/CEO reviews and approves (or edits/rejects) it before anything goes
- * out. Deduped by month so it is only ever suggested once per month.
- */
-// Retired at the owner's request (2026-09-08) in favour of a real customer-
-// birthday greeting (sweepCustomerBirthdays). No longer called from the sweep;
-// kept only so any other reference still compiles.
-export async function sweepAnniversarySuggestions(): Promise<number> {
-  const now = new Date();
-  const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-  const dedupeKey = `anniversary-${monthKey}`;
-
-  // Already suggested this month?
-  const existing = await pool.query(`SELECT 1 FROM email_campaigns WHERE dedupe_key = $1 LIMIT 1`, [dedupeKey]);
-  if (existing.rowCount) return 0;
-
-  // Any opted-in customers in the anniversary window?
-  const { rows: cnt } = await pool.query<{ n: string }>(
-    `SELECT count(*)::int AS n FROM customers c WHERE ${audienceWhere('anniversary')}`,
-  );
-  const audienceSize = Number(cnt[0].n);
-  if (audienceSize === 0) return 0;
-
-  const body = `
-    <p style="font-size:18px;font-weight:800;margin:0 0 12px">It's almost time to celebrate again 🎉</p>
-    <p style="margin:0 0 14px">Hi {{name}}, it's been almost a year since your Eventana celebration — and if another special day is coming up, we'd love to make it magical again.</p>
-    <p style="margin:0 0 14px">As a welcome-back treat, here's a little something for your next booking. Tap below in the app to start planning.</p>
-    <p style="margin:14px 0 0">With love,<br/>The Eventana Team 💕</p>`;
-
-  await pool.query(
-    `INSERT INTO email_campaigns (subject, body_html, audience, status, created_by, source, dedupe_key)
-     VALUES ($1,$2,'anniversary','pending_approval','Eventana (auto)','anniversary',$3)
-     ON CONFLICT (dedupe_key) DO NOTHING`,
-    [`We'd love to celebrate with you again 🎉`, body, dedupeKey],
-  );
-  return 1;
-}
 
 /**
  * Warm birthday greeting to a CUSTOMER on their real birthday (not the baby's

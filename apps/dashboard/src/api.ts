@@ -198,7 +198,6 @@ export const api = {
   impersonate: (id: string) => request<{ token: string; name: string; role: string }>(`/api/admin/team/${id}/impersonate`, { method: 'POST' }),
 
   today: () => request<any>('/api/admin/today'),
-  overview: (period?: string) => request<any>(`/api/admin/overview${period ? `?period=${period}` : ''}`),
   assignStaff: (eventId: string) => request<any>(`/api/admin/staffing/assign/${eventId}`, { method: 'POST' }),
   staffingPlan: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}`),
   assignAllStaff: () => request<any>('/api/admin/staffing/assign-all', { method: 'POST' }),
@@ -228,7 +227,6 @@ export const api = {
     request<any[]>(`/api/admin/staffing/slot/${slotId}/confirm`, { method: 'POST', body: JSON.stringify({ name }) }),
   overrideSlot: (slotId: string, assigneeId: string) =>
     request<any[]>(`/api/admin/staffing/slot/${slotId}/assign`, { method: 'POST', body: JSON.stringify({ assigneeId }) }),
-  shopOrders: () => request<any[]>('/api/admin/shop-orders'),
   shopOrder: (id: string) => request<any>(`/api/admin/shop-orders/${id}`),
   shopUploadDesign: (id: string, imageUrl: string) => request<any>(`/api/admin/shop-orders/${id}/design`, { method: 'POST', body: JSON.stringify({ imageUrl }) }),
   shopSendDesign: (id: string) => request<any>(`/api/admin/shop-orders/${id}/send`, { method: 'POST' }),
@@ -590,19 +588,6 @@ export const api = {
   finNormalizeEmirates: () => request<{ tables: Record<string, number>; canonical: string[] }>('/api/admin/finance/normalize-emirates', { method: 'POST' }),
   finBackfillSales: () => request<{ posted: number }>('/api/admin/finance/backfill-sales', { method: 'POST' }),
   finAttribute: (map: Record<string, string>) => request<{ updated: number }>('/api/admin/finance/attribute', { method: 'POST', body: JSON.stringify({ map }) }),
-
-  financials: () => request<any>('/api/admin/financials'),
-  saveFinancials: (body: {
-    period: string;
-    incomeFils: number;
-    cogsFils?: number;
-    expensesFils: number;
-    incomeBreakdown?: Array<{ label: string; fils: number }>;
-    expenseBreakdown?: Array<{ label: string; fils: number }>;
-    note?: string;
-  }) => request<any>('/api/admin/financials', { method: 'POST', body: JSON.stringify(body) }),
-  deleteFinancials: (period: string) =>
-    request<any>(`/api/admin/financials/${encodeURIComponent(period)}`, { method: 'DELETE' }),
 
   importRows: (kind: 'customers' | 'orders', rows: any[]) =>
     request<{ inserted: number }>('/api/admin/import/rows', { method: 'POST', body: JSON.stringify({ kind, rows }) }),

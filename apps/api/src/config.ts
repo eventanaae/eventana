@@ -155,6 +155,10 @@ export const config = {
         // CORS never silently depends on an env var that can be dropped.
         'https://eventanauae.com',
         'https://www.eventanauae.com',
+        // The raw Render deploy URLs, so opening the app/dashboard directly at
+        // *.onrender.com (e.g. for a quick test) isn't silently CORS-blocked.
+        'https://eventana-customer.onrender.com',
+        'https://eventana-dashboard.onrender.com',
         toUrl(env.PUBLIC_APP_URL ?? env.PUBLIC_APP_HOST, 'http://localhost:5173'),
         toUrl(env.PUBLIC_DASHBOARD_URL ?? env.PUBLIC_DASHBOARD_HOST, 'http://localhost:5174'),
         ...(env.CORS_ORIGINS ?? '').split(',').map((s) => toUrl(s, '')),
