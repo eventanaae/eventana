@@ -8,7 +8,7 @@ import { pool } from './pool.js';
 
 export async function reconDumpFromEnv(): Promise<void> {
   const mode = String(process.env.RECON_DUMP ?? '').toLowerCase();
-  if (!['customers', 'expenses', 'all', 'true'].includes(mode)) return;
+  if (!['customers', 'expenses', 'orders', 'all', 'true'].includes(mode)) return;
   const L = (s: string) => console.log(`[recon-dump] ${s}`);
   const chunkLog = async (tag: string, rows: any[], size = 50) => {
     const n = Math.max(1, Math.ceil(rows.length / size));
@@ -21,6 +21,15 @@ export async function reconDumpFromEnv(): Promise<void> {
       const h = await pool.query(`SELECT id, full_name, email, phone, phone_alt, emirate, bill_address FROM historical_customers ORDER BY lower(full_name), id`);
       await chunkLog('HIST', h.rows);
       L(`customers=${c.rows.length} historical=${h.rows.length}`);
+    }
+    if (mode === 'orders' || mode === 'all') {
+      const r = await pool.query(
+        `SELECT number, customer_name, to_char(date,'MM/DD/YYYY') AS date, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, jsonb_array_length(line_items) AS nlines FROM finance_receipts ORDER BY number`,
+      );
+      await chunkLog('RCPT', r.rows, 60);
+      const ev = await pool.query(`SELECT count(*) n FROM events`);
+      const od = await pool.query(`SELECT count(*) n FROM orders`);
+      L(`receipts=${r.rows.length} events=${ev.rows[0].n} orders=${od.rows[0].n}`);
     }
     if (mode === 'expenses' || mode === 'all') {
       const e = await pool.query(
