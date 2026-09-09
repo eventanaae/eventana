@@ -299,6 +299,9 @@ async function main() {
     // Create day_off_change_requests table + remove Razan/Noon completely (DAYOFF_MIGRATE=true).
     const { applyDayOffMigrateFromEnv } = await import('./db/dayOffMigrate.js');
     await applyDayOffMigrateFromEnv().catch((err) => console.error('[dayoff-migrate] failed:', err));
+    // One-shot: email Marsha (cc Sheem) about the prep-task/design-upload fix (EMAIL_MARSHA_TASKFIX=true).
+    const { sendTaskFixEmailFromEnv } = await import('./db/sendTaskFixEmail.js');
+    await sendTaskFixEmailFromEnv().catch((err) => console.error('[taskfix-email] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));

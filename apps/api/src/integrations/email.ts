@@ -22,6 +22,8 @@ export async function sendEmail(args: {
   subject: string;
   html: string;
   replyTo?: string;
+  /** Visible carbon-copy recipient(s) — the primary recipient sees who is CC'd. */
+  cc?: string | string[];
   /** Silent monitoring recipient(s) — BCC, so the customer never sees them.
    *  The primary recipient is never BCC'd to itself. */
   bcc?: string | string[];
@@ -43,6 +45,11 @@ export async function sendEmail(args: {
       .map((s) => String(s).trim())
       .filter((s) => s && s.toLowerCase() !== args.to.toLowerCase()),
   ));
+  const ccList = Array.from(new Set(
+    (Array.isArray(args.cc) ? args.cc : args.cc ? [args.cc] : [])
+      .map((s) => String(s).trim())
+      .filter((s) => s && s.toLowerCase() !== args.to.toLowerCase()),
+  ));
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -55,6 +62,7 @@ export async function sendEmail(args: {
         to: [args.to],
         subject: args.subject,
         html: args.html,
+        ...(ccList.length ? { cc: ccList } : {}),
         ...(bccList.length ? { bcc: bccList } : {}),
         ...(args.replyTo ? { reply_to: args.replyTo } : {}),
         ...(args.attachments && args.attachments.length
