@@ -13,8 +13,10 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 
-/** Names NOT on the annual-leave scheme (owner-family / off-scheme). Lower-cased. */
-export const LEAVE_EXCLUDED = ['razan', 'noon'];
+/** Names NOT on the annual-leave scheme (owner-family / off-scheme). Lower-cased.
+ *  Razan & Noon were removed from the system entirely, so the list is now empty;
+ *  the mechanism stays in case the owner needs to exclude someone later. */
+export const LEAVE_EXCLUDED: string[] = [];
 export function isLeaveExcluded(name: string | null | undefined): boolean {
   const n = (name ?? '').trim().toLowerCase();
   return LEAVE_EXCLUDED.some((x) => n === x || n.startsWith(`${x} `));

@@ -105,14 +105,7 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
 
       <LeaveSection />
 
-      <Section title="🗓️ Weekly day off">
-        {d.dayOff ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ ...fredoka(22), color: C.pinkDeep }}>{d.dayOff}</span>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>Your rest day each week — you won’t be assigned to events on this day.</span>
-          </div>
-        ) : <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No weekly day off set.</div>}
-      </Section>
+      <DayOffSection d={d} reload={load} />
 
       <FeedbackSection />
 
@@ -342,6 +335,74 @@ function LeaveSection() {
               </div>
             );
           })}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** Weekly rest day + self-service "please move my day off" request (owner/Marsha approve). */
+function DayOffSection({ d, reload }: { d: any; reload: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [day, setDay] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const pending = d.pendingDayOffChange;
+
+  const submit = async () => {
+    if (day === '') { setMsg('Pick a day.'); return; }
+    setBusy(true); setMsg(null);
+    try {
+      await api.requestDayOffChange(Number(day), reason.trim() || undefined);
+      setOpen(false); setDay(''); setReason('');
+      setMsg('Request sent for approval ✓'); reload(); setTimeout(() => setMsg(null), 2500);
+    } catch (e: any) { setMsg(e?.message ?? 'Could not send.'); } finally { setBusy(false); }
+  };
+  const cancel = async () => {
+    if (!pending) return;
+    setBusy(true);
+    try { await api.cancelDayOffChange(pending.id); reload(); } catch { /* ignore */ } finally { setBusy(false); }
+  };
+
+  return (
+    <Section title="🗓️ Weekly day off">
+      {d.dayOff ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ ...fredoka(22), color: C.pinkDeep }}>{d.dayOff}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>Your rest day each week — you won’t be assigned to events on this day.</span>
+        </div>
+      ) : <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No weekly day off set.</div>}
+
+      {pending ? (
+        <div style={{ marginTop: 12, background: C.yellowSoft, border: '1px solid #f0e0b8', borderRadius: 12, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: C.yellowInk }}>Change requested → <b>{pending.requestedDayName}</b> · awaiting approval</span>
+          <button onClick={cancel} disabled={busy} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 11.5, fontWeight: 700, color: C.muted, cursor: 'pointer' }}>Cancel request</button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 12, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
+          {!open ? (
+            <button onClick={() => setOpen(true)} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, fontWeight: 700, color: C.pinkDeep, cursor: 'pointer' }}>Request a change</button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>Ask to move your day off — the owner or Marsha will approve it.</div>
+              <Field label="New day">
+                <select value={day} onChange={(e) => setDay(e.target.value)} style={{ ...input, height: 46 }}>
+                  <option value="">Choose a day…</option>
+                  {WEEKDAY_LABELS.map((w, i) => (i === d.dayOffNum ? null : <option key={i} value={i}>{w}</option>))}
+                </select>
+              </Field>
+              <Field label="Reason (optional)"><input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why you'd like to change it" style={{ ...input, height: 46 }} /></Field>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Button onClick={submit} disabled={busy || day === ''}>{busy ? 'Sending…' : 'Send request'}</Button>
+                <button onClick={() => { setOpen(false); setDay(''); setReason(''); setMsg(null); }} style={{ border: 'none', background: 'none', fontSize: 12.5, fontWeight: 700, color: C.muted, cursor: 'pointer' }}>Cancel</button>
+                {msg && <span style={{ fontSize: 12, fontWeight: 700, color: msg.includes('✓') ? C.green : C.red }}>{msg}</span>}
+              </div>
+            </div>
+          )}
+          {msg && !open && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: msg.includes('✓') ? C.green : C.red }}>{msg}</div>}
         </div>
       )}
     </Section>

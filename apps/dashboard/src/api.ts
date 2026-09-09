@@ -405,6 +405,14 @@ export const api = {
   saveLeaveSettings: (patch: { annualEntitlementDays?: number; accrualPerMonth?: number }) =>
     request<any>('/api/admin/leave/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
 
+  // Weekly day-off change requests (self-service → owner/Marsha approval)
+  requestDayOffChange: (requestedDay: number, reason?: string) =>
+    request<any>('/api/admin/dayoff-change/request', { method: 'POST', body: JSON.stringify({ requestedDay, reason }) }),
+  cancelDayOffChange: (id: number) => request<any>(`/api/admin/dayoff-change/${id}/cancel`, { method: 'POST' }),
+  dayOffChangeRequests: () => request<{ requests: any[] }>('/api/admin/dayoff-change/requests'),
+  decideDayOffChange: (id: number, decision: 'approved' | 'rejected', note?: string) =>
+    request<any>(`/api/admin/dayoff-change/${id}/decide`, { method: 'POST', body: JSON.stringify({ decision, note }) }),
+
   settings: () => request<any>('/api/admin/settings'),
   saveRules: (patch: Record<string, unknown>) =>
     request<any>('/api/admin/settings/rules', { method: 'PATCH', body: JSON.stringify(patch) }),

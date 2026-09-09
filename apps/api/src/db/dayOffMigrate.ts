@@ -65,6 +65,18 @@ export async function applyDayOffMigrateFromEnv(): Promise<void> {
         L(`DEACTIVATED ${m.name} (${m.id}) — has history (events=${c.events}, days_off=${c.days_off}, leaves=${c.leaves}, warnings=${c.warnings}, feedback=${c.feedback})`);
       }
     }
+
+    // Razan & Noon are freelance part-timer contacts (clowns / face-painters),
+    // not staff. Remove them from part_timers too. No FK children reference this
+    // table (staff_payments history is name-keyed), so a delete is clean and any
+    // past payout record is preserved.
+    const pt = await pool.query<{ name: string }>(
+      `DELETE FROM part_timers
+        WHERE name_norm IN ('razan','noon')
+           OR name_norm LIKE 'razan %' OR name_norm LIKE 'noon %'
+       RETURNING name`,
+    );
+    L(`removed ${pt.rowCount} part-timer contact(s): ${pt.rows.map((r) => r.name).join(', ') || '(none)'}`);
     L('DONE');
   } catch (e) {
     L(`error: ${(e as Error).message.slice(0, 200)}`);

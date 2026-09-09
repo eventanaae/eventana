@@ -8,6 +8,8 @@ const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'neutral'> = {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const weekdayName = (n: number | null | undefined) => (n === null || n === undefined ? '—' : WEEKDAYS[Number(n)] ?? '—');
 const rangeDays = (a: string, b: string) =>
   Math.floor((Date.parse(String(b).slice(0, 10)) - Date.parse(String(a).slice(0, 10))) / 86_400_000) + 1;
 
@@ -43,6 +45,7 @@ const TYPE_META = {
 export function Leave({ role = 'owner' }: { role?: string }) {
   const [rows, setRows] = useState<any[] | null>(null);   // annual leave_requests
   const [daysOff, setDaysOff] = useState<any[]>([]);       // manual staff_days_off (this month)
+  const [dayChanges, setDayChanges] = useState<any[]>([]); // weekly day-off change requests
   const [team, setTeam] = useState<any[]>([]);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const isOwner = role === 'owner';
@@ -51,9 +54,15 @@ export function Leave({ role = 'owner' }: { role?: string }) {
   const load = () => {
     api.leaveRequests().then((r) => setRows(r.requests)).catch(() => setRows([]));
     api.teamSchedule(thisMonth()).then((s: any) => setDaysOff(s?.daysOff ?? [])).catch(() => setDaysOff([]));
+    api.dayOffChangeRequests().then((r) => setDayChanges(r.requests)).catch(() => setDayChanges([]));
     api.team().then((t: any) => setTeam(Array.isArray(t) ? t : [])).catch(() => setTeam([]));
   };
   useEffect(() => { load(); }, []);
+
+  const decideDayChange = async (id: number, decision: 'approved' | 'rejected') => {
+    setBusyKey(`change-${id}`);
+    try { await api.decideDayOffChange(id, decision); load(); } catch { /* toast */ } finally { setBusyKey(null); }
+  };
 
   const decideAnnual = async (id: number, decision: 'approved' | 'rejected') => {
     setBusyKey(`annual-${id}`);
@@ -84,6 +93,35 @@ export function Leave({ role = 'owner' }: { role?: string }) {
       {isOwner && <LeaveSettings />}
 
       {canManage && team.length > 0 && <AddDayOff team={team} onAdd={load} />}
+
+      {dayChanges.filter((c) => c.status === 'pending').length > 0 && (
+        <Panel title={`🗓️ Day-off change requests (${dayChanges.filter((c) => c.status === 'pending').length})`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {dayChanges.filter((c) => c.status === 'pending').map((c) => {
+              const busy = busyKey === `change-${c.id}`;
+              return (
+                <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <span style={{ width: 30, height: 30, borderRadius: '50%', background: c.color || C.muted, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flex: 'none' }}>{String(c.member_name || '?')[0]}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: C.ink }}>{c.member_name}</div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>requested {c.submitted_at}</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                    {weekdayName(c.current_day)} → <span style={{ color: C.pinkDeep }}>{weekdayName(c.requested_day)}</span>
+                  </div>
+                  {c.reason && <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>“{c.reason}”</div>}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
+                    <Button onClick={() => decideDayChange(c.id, 'approved')} disabled={busy}>{busy ? '…' : 'Approve & move'}</Button>
+                    <Button tone="danger" onClick={() => decideDayChange(c.id, 'rejected')} disabled={busy}>Reject</Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
 
       <Panel title={`Pending approval (${pending.length})`}>
         {pending.length === 0 ? (
