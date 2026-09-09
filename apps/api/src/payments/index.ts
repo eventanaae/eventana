@@ -25,7 +25,9 @@ function build(name: ProviderName): PaymentProvider {
       case 'stripe':
         // Without this, a keyless Stripe in sandbox/simulated mode fell through
         // to the real StripeProvider with a null secret and every call failed.
-        return new SimulatedProvider('stripe', 'Stripe', 'Card, Apple Pay & Google Pay', (s: string) => mapStripeSessionStatus(s), cfg);
+        // The simulator's captured state is 'complete' — treat it as paid.
+        return new SimulatedProvider('stripe', 'Stripe', 'Card, Apple Pay & Google Pay',
+          (s: string) => ((s || '').toLowerCase() === 'refunded' ? 'refunded' : mapStripeSessionStatus(s, 'paid')), cfg);
     }
   }
   switch (name) {

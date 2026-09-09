@@ -51,6 +51,7 @@ const VOCAB = {
   tabby: { pending: 'CREATED', success: 'AUTHORIZED', captured: 'CLOSED', rejected: 'REJECTED', expired: 'EXPIRED', refunded: 'REFUNDED' },
   tamara: { pending: 'new', success: 'approved', captured: 'fully_captured', rejected: 'declined', expired: 'expired', refunded: 'fully_refunded' },
   ziina: { pending: 'pending', success: 'completed', captured: 'completed', rejected: 'failed', expired: 'canceled', refunded: 'refunded' },
+  stripe: { pending: 'open', success: 'complete', captured: 'complete', rejected: 'expired', expired: 'expired', refunded: 'refunded' },
 } as const;
 
 export class SimulatedProvider implements PaymentProvider {
