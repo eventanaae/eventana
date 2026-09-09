@@ -289,6 +289,9 @@ async function main() {
     // READ-ONLY customer-list health report (CUSTOMER_AUDIT=true).
     const { customerAuditFromEnv } = await import('./db/customerAudit.js');
     await customerAuditFromEnv().catch((err) => console.error('[customer-audit] failed:', err));
+    // READ-ONLY exact-dup customers + unpaid orders, for owner review (CLEANUP_CANDIDATES=true).
+    const { cleanupCandidatesFromEnv } = await import('./db/cleanupCandidates.js');
+    await cleanupCandidatesFromEnv().catch((err) => console.error('[cleanup-cand] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
