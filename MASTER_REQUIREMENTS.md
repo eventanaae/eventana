@@ -154,7 +154,7 @@ Remove test customer accounts (only those with no events/orders).
 ### R-091 — Email verification at signup (prevent account takeover). Source: audit. Status: **Not Started**.
 ### R-092 — Unify the two EV references (internal EV-YYYY-NNNN vs customer EV-<number>). Status: **Partially Implemented**.
 ### R-093 — A reported task/issue must disappear after it's completed (stays visible now). Source #S4. Status: **Partially Implemented** — Needs Verification.
-### R-094 — Changing the emirate re-prices delivery (currently doesn't). Source #S5. Status: **Not Started**.
+### R-094 — Changing the emirate re-prices delivery. Source #S5. **Status: RESOLVED — no code change (owner decision 2026-09-09).** At checkout, delivery already prices by emirate automatically. A staff-side emirate edit stays MANUAL (owner: "any change we do manually"). The customer cannot change the emirate after booking (reschedule only moves date/time) and the owner does NOT want to add that — if a customer wants a location change they contact the team, who adjust manually. So no auto re-pricing / pay-extra / refund flow is needed. (Uses the customer `delivery_zones` schedule, not the driver-pay schedule.)
 ### R-095 — Unique-email constraint + dedup. Source #S6. Status: **Not Started**.
 ### R-096 — Password reset invalidates old sessions. Source #S7. Status: **Not Started**.
 ### R-097 — Feedback emails/WhatsApp never sent at night (10:00–20:00 Dubai). Source owner 2026-09-09. Status: **Implemented (2026-09-09)** — civil-hour guard in `notify.ts`. Needs Verification.
