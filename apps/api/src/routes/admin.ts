@@ -4652,7 +4652,7 @@ export async function adminRoutes(app: FastifyInstance) {
     if (isMgr) {
       const [alerts, bookings, refundRows, ratings, tips, cancels] = await Promise.all([
         pool.query(`SELECT id, template, event_id, payload, created_at FROM notifications
-                     WHERE channel='ops_alert' AND created_at > now() - interval '30 days'
+                     WHERE channel='ops_alert' AND cancelled_at IS NULL AND created_at > now() - interval '30 days'
                      ORDER BY created_at DESC LIMIT 40`),
         pool.query(`SELECT e.id, e.created_at, e.event_date, c.name AS customer, p.name AS package
                       FROM events e JOIN customers c ON c.id=e.customer_id

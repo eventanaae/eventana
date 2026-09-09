@@ -8,7 +8,7 @@ import { SimulatedProvider } from './simulated.js';
 import { TabbyProvider, mapTabbyStatus } from './tabby.js';
 import { TamaraProvider, mapTamaraStatus } from './tamara.js';
 import { ZiinaProvider, mapZiinaStatus } from './ziina.js';
-import { StripeProvider } from './stripe.js';
+import { StripeProvider, mapStripeSessionStatus } from './stripe.js';
 
 export type ProviderName = 'tabby' | 'tamara' | 'ziina' | 'stripe';
 
@@ -22,6 +22,10 @@ function build(name: ProviderName): PaymentProvider {
         return new SimulatedProvider('tamara', 'tamara', 'Split in 4, no interest', mapTamaraStatus, cfg);
       case 'ziina':
         return new SimulatedProvider('ziina', 'Ziina', 'Card & wallet', mapZiinaStatus, cfg);
+      case 'stripe':
+        // Without this, a keyless Stripe in sandbox/simulated mode fell through
+        // to the real StripeProvider with a null secret and every call failed.
+        return new SimulatedProvider('stripe', 'Stripe', 'Card, Apple Pay & Google Pay', (s: string) => mapStripeSessionStatus(s), cfg);
     }
   }
   switch (name) {

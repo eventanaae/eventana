@@ -5,9 +5,10 @@ import { LangToggle } from '../LangToggle';
 import type { Lang, TFn } from '../i18n';
 
 /**
- * First-run welcome. Asks only for a name and a birthday, then hands the
- * profile back to App to store. Deliberately minimal — no password, no
- * account step. Also where the customer first picks their language.
+ * First-run welcome. Asks only for a name, then hands the profile back to App
+ * to store. Deliberately minimal — no birthday, no password, no account step.
+ * The birthday is optional and set later in the profile. Also where the
+ * customer first picks their language.
  */
 export function Onboarding({
   onDone,
@@ -21,9 +22,8 @@ export function Onboarding({
   setLang: (l: Lang) => void;
 }) {
   const [name, setName] = useState('');
-  const [birthday, setBirthday] = useState('');
-  // Name is enough to personalise; the birthday is a nice-to-have. Either can
-  // be left blank, and "Skip" below bypasses both entirely.
+  // Just the name at first run — the birthday is optional and lives in the
+  // profile (owner's rule: don't ask for it up front). "Skip" bypasses this.
   const ready = name.trim().length >= 2;
 
   return (
@@ -50,29 +50,8 @@ export function Onboarding({
       <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 6 }}>{t('onboard.name')}</div>
       <Field placeholder={t('onboard.namePh')} value={name} onChange={setName} style={{ marginBottom: 18 }} />
 
-      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 6 }}>
-        {t('onboard.birthday')} <span style={{ color: C.muted, fontWeight: 600 }}>· {t('onboard.optional')}</span>
-      </div>
-      <input
-        type="date"
-        value={birthday}
-        max={new Date().toISOString().slice(0, 10)}
-        onChange={(e) => setBirthday(e.target.value)}
-        style={{
-          border: `1px solid ${C.pinkLine}`,
-          borderRadius: 14,
-          padding: '12px 14px',
-          fontWeight: 600,
-          fontSize: 12.5,
-          background: '#fff',
-          color: C.ink,
-          outline: 'none',
-          width: '100%',
-        }}
-      />
-
       <div style={{ flex: 1, minHeight: 24 }} />
-      <PrimaryButton onClick={() => onDone({ name: name.trim(), birthday })} disabled={!ready}>
+      <PrimaryButton onClick={() => onDone({ name: name.trim(), birthday: '' })} disabled={!ready}>
         {t('onboard.start')}
       </PrimaryButton>
       <button

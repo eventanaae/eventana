@@ -57,7 +57,7 @@ export class SimulatedProvider implements PaymentProvider {
   readonly mode = 'simulated' as const;
 
   constructor(
-    readonly name: 'tabby' | 'tamara' | 'ziina',
+    readonly name: 'tabby' | 'tamara' | 'ziina' | 'stripe',
     readonly label: string,
     readonly tagline: string,
     private readonly map: (s: string) => PaymentStatus,

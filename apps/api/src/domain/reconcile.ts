@@ -16,7 +16,6 @@ import { expireStaleHolds } from './inventory.js';
 import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
 import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepWinbackCampaignAuto, sweepCustomerBirthdays } from './marketing.js';
-import { sweepMonthlyReport } from './financeReport.js';
 import { deliverPendingNotifications } from './notify.js';
 
 export interface ReconcileReport {
@@ -167,10 +166,8 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // customer birthdays are collected; auto-sent, once per customer per year.
   await sweepCustomerBirthdays().catch((err) => console.error('[birthday] sweep failed:', err));
 
-  // The monthly report is now sent by sweepReconReport (below) as ONE email on
-  // the last day of each month — the standalone finance-report sweep is disabled
-  // so the owner never gets two monthly report emails.
-  void sweepMonthlyReport;
+  // The monthly report is sent by sweepReconReport (below) as ONE email on the
+  // last day of each month — the standalone finance-report sweep is retired.
 
   // Flag any event within 3 days whose preparation isn't finished, so the
   // Owner + Manager see "Event Preparation At Risk" in time to act. Also
