@@ -77,6 +77,16 @@ export async function customerPhoneAuditFromEnv(): Promise<void> {
     );
     for (const r of ex.rows) L(`  e.g. ${r.name} <${r.email}> → ${String(r.qb_phone).replace(/.(?=.{3})/g, '•')}`);
 
+    // 6. The full list of missing-phone customers, so the owner can look them up
+    //    in QuickBooks (name + email).
+    const missing = await pool.query(
+      `SELECT name, email FROM customers
+        WHERE origin = 'quickbooks' AND coalesce(btrim(phone),'') = ''
+        ORDER BY lower(name)`,
+    );
+    L(`----- MISSING-PHONE CUSTOMERS (${missing.rows.length}) -----`);
+    for (const r of missing.rows) L(`MISS | ${r.name} | ${r.email}`);
+
     L('===== END (read-only — nothing changed) =====');
   } catch (e) {
     L(`error: ${(e as Error).message.slice(0, 200)}`);
