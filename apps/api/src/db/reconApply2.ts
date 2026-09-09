@@ -84,11 +84,20 @@ export async function reconApply2FromEnv(): Promise<void> {
     let del = 0; let skip = 0;
     for (const c of test.rows) {
       const ev = Number((await pool.query(`SELECT count(*) n FROM events WHERE customer_id = $1`, [c.id])).rows[0].n);
-      const od = Number((await pool.query(`SELECT count(*) n FROM orders WHERE customer_id = $1`, [c.id])).rows[0].n);
-      if (ev === 0 && od === 0) {
-        try { await pool.query(`DELETE FROM customers WHERE id = $1`, [c.id]); del++; }
-        catch (e) { skip++; L(`SKIP ${c.name} (${c.id}) — FK: ${(e as Error).message.slice(0, 60)}`); }
-      } else { skip++; L(`KEPT ${c.name} (${c.id}) — has ${ev} events / ${od} orders`); }
+      if (ev > 0) { skip++; L(`KEPT ${c.name} (${c.id}) — has ${ev} events (manual review)`); continue; }
+      try {
+        // No events → also remove any test ORDERS (payments/inventory_holds cascade;
+        // cancellations/tips do not, so clear them first), then the customer.
+        const ords = (await pool.query<{ id: string }>(`SELECT id FROM orders WHERE customer_id = $1`, [c.id])).rows;
+        for (const o of ords) {
+          await pool.query(`DELETE FROM cancellations WHERE order_id = $1`, [o.id]).catch(() => {});
+          await pool.query(`DELETE FROM tips WHERE order_id = $1`, [o.id]).catch(() => {});
+          await pool.query(`DELETE FROM orders WHERE id = $1`, [o.id]);
+        }
+        await pool.query(`DELETE FROM customers WHERE id = $1`, [c.id]);
+        del++;
+        if (ords.length) L(`deleted ${c.name} (${c.id}) + ${ords.length} order(s)`);
+      } catch (e) { skip++; L(`SKIP ${c.name} (${c.id}) — ${(e as Error).message.slice(0, 80)}`); }
     }
     L(`test cleanup: deleted ${del}, kept/skipped ${skip}`);
     L('DONE');
