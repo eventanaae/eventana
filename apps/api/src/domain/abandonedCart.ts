@@ -19,7 +19,7 @@ import { formatAed, celebrationLabel } from '@eventana/shared';
 import { sendAbandonedCartReminder } from './notify.js';
 
 // Names that are the team's own test accounts, never real customers.
-const INTERNAL_NAME_PARTS = ['sheem', 'shaima', 'gloria', 'dindo', 'jane', 'diana', 'marsha', 'razan', 'noon', 'shan', 'test', 'qa', 'demo'];
+const INTERNAL_NAME_PARTS = ['sheem', 'shaima', 'gloria', 'dindo', 'jane', 'diana', 'marsha', 'shan', 'test', 'qa', 'demo'];
 
 function maskEmail(e: string): string {
   const [u, d] = String(e).split('@');
