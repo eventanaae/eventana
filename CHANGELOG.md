@@ -4,6 +4,14 @@
 > ships. Sourced from git history (`main`). This file starts at the 2026-09-08/09
 > session; earlier history is in `git log`.
 
+## 2026-09-09 (autonomous safe fixes — 4 items)
+- **R-026** — removed the birthday field from first-run onboarding (`Onboarding.tsx`); birthday now only in the profile (also fixes the localStorage dead-end G-003). Customer app rebuilt live.
+- **G-010** — Stripe now has a simulator branch (`payments/index.ts` + `simulated.ts` VOCAB); a keyless Stripe in sandbox no longer instantiates a real StripeProvider with a null secret. API live.
+- **R-093** — the manager alerts feed now filters `cancelled_at IS NULL`, so a cancelled ops alert disappears immediately (`admin.ts`). (Needs live verification against the exact stuck item the owner saw.)
+- **cleanup** — removed the dead `sweepMonthlyReport` import + `void` reference in `reconcile.ts`.
+- **R-094 NOT done — needs owner decision:** changing an event's emirate updates `events.emirate` but the delivery FEE lives in the order total; re-pricing a PAID order means a top-up/refund (a money/business decision, not to be guessed). Driver-pay side already recomputes from the live emirate. Flagged for owner.
+- One build failed first (Stripe VOCAB missing) and was fixed immediately; final state verified live-green on both apps.
+
 ## 2026-09-09 (continued — owner-approved safe items)
 - **2b5351f** cleanup: deleted dead/unreachable dashboard screens `Overview.tsx`, `Financials.tsx`, `ShopOrders.tsx` (owner: not needed). Reversible via git; backends untouched.
 - **2b5351f** NEW: **weekly report email** to the owner (sheem@eventanauae.com) every Monday 08:00–09:59 Dubai — reuses the monthly reconciliation snapshot (`sweepWeeklyReport` in reconReport.ts, wired in reconcile.ts, deduped per ISO week). Resolves owner decision D-2.
