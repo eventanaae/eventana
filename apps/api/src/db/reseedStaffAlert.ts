@@ -9,12 +9,11 @@
 import { config } from '../config.js';
 
 export const STAFF_TEMPLATE = 'staff_notify';
-// Owner wants it short & direct: just the greeting then the two content lines,
-// no preamble, no "Team Eventana" sign-off, no extra blank lines.
-// NOTE: Meta rejects a body that's almost all variables (subcode 2388293). If
-// this shorter body is rejected, add a short fixed line back (e.g. "New update:")
-// before {{2}} — see waEditStaffNotify.
-export const STAFF_BODY = `Hi {{1}} 💛\n\n{{2}}\n{{3}}`;
+// Owner wants it short & direct — no "Team Eventana" sign-off, no extra blank
+// lines. WhatsApp rejected a greeting + two bare variables (subcode 2388293:
+// parameter-word-ratio), so we keep ONE short fixed line before the two content
+// lines. That's the shortest body Meta will approve.
+export const STAFF_BODY = `Hi {{1}} 💛\n\nHere's a new update for you:\n{{2}}\n{{3}}`;
 export const STAFF_EXAMPLE = ['Gloria', '🛒 Update the missing-items list before your day off', 'Tomorrow is your day off, so please update anything missing so we can buy it Wednesday.'];
 const BODY = STAFF_BODY;
 const EXAMPLE = STAFF_EXAMPLE;
