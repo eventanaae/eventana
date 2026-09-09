@@ -149,76 +149,7 @@ export function Team({ role = 'owner' }: { role?: string }) {
         )}
       </Panel>
 
-      {canManage && <DaysOff team={team} schedule={schedule} onChange={load} />}
     </div>
-  );
-}
-
-function DaysOff({ team, schedule, onChange }: { team: any[]; schedule: any; onChange: () => void }) {
-  const [memberId, setMemberId] = useState('');
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const list = (schedule?.daysOff ?? []) as any[];
-
-  const add = async () => {
-    if (!memberId || !start) return;
-    setBusy(true);
-    try {
-      await api.addDayOff({ memberId, startDate: start, endDate: end || start, reason: reason || undefined });
-      setStart(''); setEnd(''); setReason('');
-      onChange();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Panel title="🌴 Days off (this month)">
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end', marginBottom: 14 }}>
-        <label style={field}><span style={fLabel}>Member</span>
-          <select value={memberId} onChange={(e) => setMemberId(e.target.value)} style={sel}>
-            <option value="">Choose…</option>
-            {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-        </label>
-        <label style={field}><span style={fLabel}>From</span>
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={dateInput} />
-        </label>
-        <label style={field}><span style={fLabel}>To</span>
-          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} style={dateInput} />
-        </label>
-        <label style={{ ...field, flex: 2, minWidth: 140 }}><span style={fLabel}>Reason</span>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="optional" style={dateInput} />
-        </label>
-        <Button onClick={add} disabled={busy || !memberId || !start}>{busy ? 'Adding…' : 'Add day off'}</Button>
-      </div>
-
-      {list.length === 0 ? (
-        <Empty>No days off recorded this month.</Empty>
-      ) : (
-        list.map((d) => (
-          <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: `1px solid ${C.lineSoft}` }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flex: 'none' }} />
-            <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 110 }}>{d.member_name}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
-              {new Date(d.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-              {String(d.end_date).slice(0, 10) !== String(d.start_date).slice(0, 10) && ` → ${new Date(d.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}
-              {d.reason ? ` · ${d.reason}` : ''}
-            </span>
-            <Badge tone={d.status === 'approved' ? 'ok' : d.status === 'denied' ? 'error' : 'warn'}>{d.status}</Badge>
-            {d.status === 'requested' && (
-              <>
-                <button onClick={async () => { await api.setDayOffStatus(d.id, 'approved'); onChange(); }} style={miniBtn}>Approve</button>
-                <button onClick={async () => { await api.setDayOffStatus(d.id, 'denied'); onChange(); }} style={{ ...miniBtn, color: C.red }}>Deny</button>
-              </>
-            )}
-            <button onClick={async () => { await api.deleteDayOff(d.id); onChange(); }} style={{ ...miniBtn, color: C.muted }}>✕</button>
-          </div>
-        ))
-      )}
-    </Panel>
   );
 }
 
@@ -450,8 +381,6 @@ function TokenCell({ member, onChange }: { member: any; onChange: () => void }) 
 const sel: CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 9px', fontSize: 12, fontWeight: 700, background: '#fff', color: C.ink, textTransform: 'capitalize' };
 const dateInput: CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 9px', fontSize: 12, fontWeight: 600, background: '#fff', color: C.ink };
 const miniBtn: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.ink, flex: 'none' };
-const field: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 110 };
-const fLabel: CSSProperties = { fontSize: 10.5, fontWeight: 700, color: C.muted };
 
 // Manager/owner: set a member's job title + leave performance feedback (shown on
 // the member's own Profile).
