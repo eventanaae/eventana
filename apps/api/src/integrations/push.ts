@@ -188,9 +188,16 @@ export async function staffWhatsApp(headline: string, details: string, memberId?
 
 /** The actual send (no time guard) — used for immediate sends and by the night queue sweep. */
 export async function deliverStaffWhatsApp(headline: string, details: string, memberId?: string | null): Promise<void> {
+  // A member on APPROVED annual leave today must not get work messages (owner's
+  // rule). leave_requests holds annual leave; exclude anyone whose approved range
+  // covers today.
+  const notOnLeave =
+    `NOT EXISTS (SELECT 1 FROM leave_requests l
+                  WHERE l.member_id = team_members.id AND l.status = 'approved'
+                    AND l.start_date <= CURRENT_DATE AND l.end_date >= CURRENT_DATE)`;
   const { rows } = memberId
-    ? await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE id = $1 AND active`, [memberId])
-    : await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE active AND phone IS NOT NULL AND phone <> ''`);
+    ? await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE id = $1 AND active AND ${notOnLeave}`, [memberId])
+    : await pool.query<{ name: string | null; phone: string | null }>(`SELECT name, phone FROM team_members WHERE active AND phone IS NOT NULL AND phone <> '' AND ${notOnLeave}`);
   const { sendWhatsAppTemplate } = await import('./whatsapp.js');
   const seen = new Set<string>();
   for (const r of rows) {
