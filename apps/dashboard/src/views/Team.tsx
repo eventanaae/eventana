@@ -54,8 +54,6 @@ export function Team({ role = 'owner' }: { role?: string }) {
         </Panel>
       )}
 
-      {canManage && <DayOffSchedule team={team} onChange={load} />}
-
       <Panel title={`Team (${team.length})`}>
         {team.length === 0 ? (
           <Empty>No team members configured.</Empty>
@@ -150,54 +148,6 @@ export function Team({ role = 'owner' }: { role?: string }) {
       </Panel>
 
     </div>
-  );
-}
-
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-/** The whole team's weekly rest-day schedule in one place — view every day's
- *  people at a glance and reassign anyone (it changes from time to time). */
-function DayOffSchedule({ team, onChange }: { team: any[]; onChange: () => void }) {
-  const set = async (id: string, v: string) => {
-    await api.setTeamProfile(id, { weeklyDayOff: v === '' ? null : Number(v) });
-    onChange();
-  };
-  const byDay = WEEKDAY_NAMES.map((_, i) => team.filter((m) => m.weekly_day_off === i));
-  const anySet = byDay.some((g) => g.length > 0);
-  return (
-    <Panel title="🗓️ Day-off schedule">
-      {anySet ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-          {WEEKDAY_NAMES.map((d, i) => byDay[i].length > 0 ? (
-            <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ width: 96, flex: 'none', fontSize: 12.5, fontWeight: 800, color: C.pinkDeep }}>{d}</span>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {byDay[i].map((m) => (
-                  <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700, color: C.ink }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color }} />{m.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null)}
-        </div>
-      ) : (
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>No day off set yet — pick one for each person below.</div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
-        {team.map((m) => (
-          <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: C.ink }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color }} />{m.name}
-            </span>
-            <select defaultValue={m.weekly_day_off ?? ''} onChange={(e) => set(m.id, e.target.value)} style={dateInput}>
-              <option value="">— none —</option>
-              {WEEKDAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-            </select>
-          </div>
-        ))}
-      </div>
-    </Panel>
   );
 }
 

@@ -3,101 +3,58 @@ import { api } from '../api';
 import { C, Panel, Button, Spinner, Badge } from '../ui';
 
 const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'neutral'> = {
-  approved: 'ok', pending: 'warn', rejected: 'error', cancelled: 'neutral', requested: 'warn', denied: 'error',
+  approved: 'ok', pending: 'warn', rejected: 'error', cancelled: 'neutral',
 };
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const weekdayName = (n: number | null | undefined) => (n === null || n === undefined ? '—' : WEEKDAYS[Number(n)] ?? '—');
-const rangeDays = (a: string, b: string) =>
-  Math.floor((Date.parse(String(b).slice(0, 10)) - Date.parse(String(a).slice(0, 10))) / 86_400_000) + 1;
-
-/** One item in the unified queue — either an annual-leave request or a manual day off. */
-type Item = {
-  _type: 'annual' | 'other';
-  id: number;
-  member_name: string;
-  color?: string;
-  start_date: string;
-  end_date: string;
-  days?: number;
-  reason?: string | null;
-  status: string;
-  submitted_at?: string;
-  decided_by?: string | null;
-  decided_at?: string | null;
-};
-
-const TYPE_META = {
-  annual: { label: '🌴 Annual', tone: 'ok' as const, note: 'counts against the 30-day balance' },
-  other: { label: '🗓️ Day off', tone: 'neutral' as const, note: 'does not touch the annual balance' },
-};
 
 /**
- * Owner / Manager (and Marsha): the single home for ALL time off — two types in
- * one place. "Annual" leave (🌴) accrues and deducts from the 30-day balance;
- * "Day off" (🗓️, e.g. sick, unpaid, or off-scheme members) is recorded but does
- * NOT deduct. Both land in one pending queue and one history, and both mark the
- * person unavailable on the calendar and in auto-staffing once approved. The
- * recurring weekly rest-day roster is separate and lives on the Team screen.
+ * The single home for staff time off — two kinds:
+ *   • Annual leave 🌴 — the 30-day balance: employees request, owner/Marsha
+ *     approve, and it deducts from their balance.
+ *   • Day off 🗓️ — each member's fixed WEEKLY rest day (e.g. Jane = Wednesday).
+ *     Owner/manager edit it here; a member can ask to move theirs and it comes
+ *     back to owner/Marsha for approval.
  */
 export function Leave({ role = 'owner' }: { role?: string }) {
   const [rows, setRows] = useState<any[] | null>(null);   // annual leave_requests
-  const [daysOff, setDaysOff] = useState<any[]>([]);       // manual staff_days_off (this month)
-  const [dayChanges, setDayChanges] = useState<any[]>([]); // weekly day-off change requests
   const [team, setTeam] = useState<any[]>([]);
+  const [dayChanges, setDayChanges] = useState<any[]>([]); // weekly day-off change requests
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const isOwner = role === 'owner';
   const canManage = role === 'owner' || role === 'manager';
 
   const load = () => {
     api.leaveRequests().then((r) => setRows(r.requests)).catch(() => setRows([]));
-    api.teamSchedule(thisMonth()).then((s: any) => setDaysOff(s?.daysOff ?? [])).catch(() => setDaysOff([]));
-    api.dayOffChangeRequests().then((r) => setDayChanges(r.requests)).catch(() => setDayChanges([]));
     api.team().then((t: any) => setTeam(Array.isArray(t) ? t : [])).catch(() => setTeam([]));
+    api.dayOffChangeRequests().then((r) => setDayChanges(r.requests)).catch(() => setDayChanges([]));
   };
   useEffect(() => { load(); }, []);
 
+  const decideAnnual = async (id: number, decision: 'approved' | 'rejected') => {
+    setBusyKey(`leave-${id}`);
+    try { await api.decideLeave(id, decision); await load(); } catch { /* toast */ } finally { setBusyKey(null); }
+  };
   const decideDayChange = async (id: number, decision: 'approved' | 'rejected') => {
     setBusyKey(`change-${id}`);
     try { await api.decideDayOffChange(id, decision); load(); } catch { /* toast */ } finally { setBusyKey(null); }
   };
 
-  const decideAnnual = async (id: number, decision: 'approved' | 'rejected') => {
-    setBusyKey(`annual-${id}`);
-    try { await api.decideLeave(id, decision); await load(); } catch { /* toast handles it */ } finally { setBusyKey(null); }
-  };
-  const decideOther = async (id: number, status: 'approved' | 'denied') => {
-    setBusyKey(`other-${id}`);
-    try { await api.setDayOffStatus(id, status); load(); } catch { /* toast */ } finally { setBusyKey(null); }
-  };
-  const removeOther = async (id: number) => {
-    setBusyKey(`other-${id}`);
-    try { await api.deleteDayOff(id); load(); } catch { /* toast */ } finally { setBusyKey(null); }
-  };
-
   if (!rows) return <Spinner />;
-
-  const pending: Item[] = [
-    ...rows.filter((r) => r.status === 'pending').map((r) => ({ ...r, _type: 'annual' as const })),
-    ...daysOff.filter((d) => d.status === 'requested').map((d) => ({ ...d, _type: 'other' as const })),
-  ];
-  const decided: Item[] = [
-    ...rows.filter((r) => r.status !== 'pending').map((r) => ({ ...r, _type: 'annual' as const })),
-    ...daysOff.filter((d) => d.status !== 'requested').map((d) => ({ ...d, _type: 'other' as const })),
-  ];
+  const pending = rows.filter((r) => r.status === 'pending');
+  const decided = rows.filter((r) => r.status !== 'pending');
+  const pendingChanges = dayChanges.filter((c) => c.status === 'pending');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {isOwner && <LeaveSettings />}
 
-      {canManage && team.length > 0 && <AddDayOff team={team} onAdd={load} />}
+      {canManage && team.length > 0 && <WeeklyDayOff team={team} onChange={load} />}
 
-      {dayChanges.filter((c) => c.status === 'pending').length > 0 && (
-        <Panel title={`🗓️ Day-off change requests (${dayChanges.filter((c) => c.status === 'pending').length})`}>
+      {pendingChanges.length > 0 && (
+        <Panel title={`🗓️ Day-off change requests (${pendingChanges.length})`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {dayChanges.filter((c) => c.status === 'pending').map((c) => {
+            {pendingChanges.map((c) => {
               const busy = busyKey === `change-${c.id}`;
               return (
                 <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px' }}>
@@ -123,40 +80,28 @@ export function Leave({ role = 'owner' }: { role?: string }) {
         </Panel>
       )}
 
-      <Panel title={`Pending approval (${pending.length})`}>
+      <Panel title={`🌴 Annual leave — pending approval (${pending.length})`}>
         {pending.length === 0 ? (
-          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No time-off requests waiting. 🎉</div>
+          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No leave requests waiting. 🎉</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {pending.map((r) => {
-              const key = `${r._type}-${r.id}`;
-              const days = r.days ?? rangeDays(r.start_date, r.end_date);
-              const busy = busyKey === key;
+              const busy = busyKey === `leave-${r.id}`;
               return (
-                <div key={key} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px' }}>
+                <div key={r.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                    <span style={{ width: 30, height: 30, borderRadius: '50%', background: r.color || C.muted, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flex: 'none' }}>{String(r.member_name || '?')[0]}</span>
+                    <span style={{ width: 30, height: 30, borderRadius: '50%', background: r.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flex: 'none' }}>{String(r.member_name)[0]}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 800, fontSize: 14, color: C.ink }}>{r.member_name}</div>
-                      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{r.submitted_at ? `requested ${r.submitted_at}` : 'day off'}</div>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>requested {r.submitted_at}</div>
                     </div>
-                    <Badge tone={TYPE_META[r._type].tone}>{TYPE_META[r._type].label}</Badge>
-                    <span style={{ fontWeight: 800, fontSize: 15, color: C.pinkDeep }}>{days} day(s)</span>
+                    <span style={{ fontWeight: 800, fontSize: 15, color: C.pinkDeep }}>{r.days} day(s)</span>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{String(r.start_date).slice(0, 10)} → {String(r.end_date).slice(0, 10)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{r.start_date} → {r.end_date}</div>
                   {r.reason && <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>“{r.reason}”</div>}
                   <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
-                    {r._type === 'annual' ? (
-                      <>
-                        <Button onClick={() => decideAnnual(r.id, 'approved')} disabled={busy}>{busy ? '…' : 'Approve'}</Button>
-                        <Button tone="danger" onClick={() => decideAnnual(r.id, 'rejected')} disabled={busy}>Reject</Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button onClick={() => decideOther(r.id, 'approved')} disabled={busy}>{busy ? '…' : 'Approve'}</Button>
-                        <Button tone="danger" onClick={() => decideOther(r.id, 'denied')} disabled={busy}>Deny</Button>
-                      </>
-                    )}
+                    <Button onClick={() => decideAnnual(r.id, 'approved')} disabled={busy}>{busy ? '…' : 'Approve'}</Button>
+                    <Button tone="danger" onClick={() => decideAnnual(r.id, 'rejected')} disabled={busy}>Reject</Button>
                   </div>
                 </div>
               );
@@ -167,77 +112,68 @@ export function Leave({ role = 'owner' }: { role?: string }) {
 
       <Panel title="History">
         {decided.length === 0 ? (
-          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>Decided requests and recorded days off will appear here.</div>
+          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>Decided leave requests will appear here.</div>
         ) : (
-          decided.map((r) => {
-            const key = `${r._type}-${r.id}`;
-            const days = r.days ?? rangeDays(r.start_date, r.end_date);
-            return (
-              <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{r.member_name} · {days} day(s) · <span style={{ color: C.muted }}>{TYPE_META[r._type].label}</span></div>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
-                    {String(r.start_date).slice(0, 10)} → {String(r.end_date).slice(0, 10)}{r.reason ? ` · "${r.reason}"` : ''}
-                    {r.decided_by ? ` · by ${r.decided_by}${r.decided_at ? ` on ${r.decided_at}` : ''}` : ''}
-                  </div>
+          decided.map((r) => (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{r.member_name} · {r.days} day(s)</div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
+                  {r.start_date} → {r.end_date}{r.reason ? ` · "${r.reason}"` : ''}
+                  {r.decided_by ? ` · by ${r.decided_by}${r.decided_at ? ` on ${r.decided_at}` : ''}` : ''}
                 </div>
-                <Badge tone={STATUS_TONE[r.status] ?? 'neutral'}>{r.status}</Badge>
-                {r._type === 'other' && canManage && (
-                  <button onClick={() => removeOther(r.id)} disabled={busyKey === key} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '3px 8px', fontSize: 11, fontWeight: 700, color: C.muted, cursor: 'pointer' }}>✕</button>
-                )}
               </div>
-            );
-          })
+              <Badge tone={STATUS_TONE[r.status] ?? 'neutral'}>{r.status}</Badge>
+            </div>
+          ))
         )}
       </Panel>
     </div>
   );
 }
 
-/** Manager: record a day off for someone (sick / unpaid / off-scheme) — no balance deduction. */
-function AddDayOff({ team, onAdd }: { team: any[]; onAdd: () => void }) {
-  const [memberId, setMemberId] = useState('');
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const add = async () => {
-    if (!memberId || !start) return;
-    setBusy(true);
-    try {
-      await api.addDayOff({ memberId, startDate: start, endDate: end || start, reason: reason || undefined });
-      setMemberId(''); setStart(''); setEnd(''); setReason('');
-      onAdd();
-    } finally { setBusy(false); }
+/** Each member's fixed weekly rest day — the whole roster + a per-person picker. */
+function WeeklyDayOff({ team, onChange }: { team: any[]; onChange: () => void }) {
+  const set = async (id: string, v: string) => {
+    await api.setTeamProfile(id, { weeklyDayOff: v === '' ? null : Number(v) });
+    onChange();
   };
-
-  const field: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-  const fLabel: React.CSSProperties = { fontSize: 10.5, fontWeight: 800, color: C.muted };
-  const ctrl: React.CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 10, padding: '8px 10px', fontSize: 13, fontWeight: 700 };
-
+  const byDay = WEEKDAYS.map((_, i) => team.filter((m) => m.weekly_day_off === i));
+  const anySet = byDay.some((g) => g.length > 0);
+  const ctrl: React.CSSProperties = { border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 9px', fontSize: 12, fontWeight: 600, background: '#fff', color: C.ink };
   return (
-    <Panel title="🗓️ Add a day off (no balance deduction)">
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
-        <label style={field}><span style={fLabel}>MEMBER</span>
-          <select value={memberId} onChange={(e) => setMemberId(e.target.value)} style={ctrl}>
-            <option value="">Choose…</option>
-            {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-        </label>
-        <label style={field}><span style={fLabel}>FROM</span>
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={ctrl} />
-        </label>
-        <label style={field}><span style={fLabel}>TO</span>
-          <input type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} style={ctrl} />
-        </label>
-        <label style={{ ...field, flex: 2, minWidth: 140 }}><span style={fLabel}>REASON</span>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. sick / unpaid" style={ctrl} />
-        </label>
-        <Button onClick={add} disabled={busy || !memberId || !start}>{busy ? 'Adding…' : 'Add day off'}</Button>
+    <Panel title="🗓️ Weekly day off">
+      {anySet && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+          {WEEKDAYS.map((d, i) => byDay[i].length > 0 ? (
+            <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ width: 96, flex: 'none', fontSize: 12.5, fontWeight: 800, color: C.pinkDeep }}>{d}</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {byDay[i].map((m) => (
+                  <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700, color: C.ink }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color }} />{m.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null)}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: anySet ? `1px solid ${C.lineSoft}` : 'none', paddingTop: anySet ? 12 : 0 }}>
+        {team.map((m) => (
+          <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: C.ink }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color }} />{m.name}
+            </span>
+            <select defaultValue={m.weekly_day_off ?? ''} onChange={(e) => set(m.id, e.target.value)} style={ctrl}>
+              <option value="">— none —</option>
+              {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+            </select>
+          </div>
+        ))}
       </div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
-        For annual leave that accrues and deducts, the team member requests it from their own profile — it shows up above for approval.
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
+        Each person’s rest day each week — they’re never assigned to events on it. A team member can ask to move theirs from their profile; it comes here for approval.
       </div>
     </Panel>
   );
