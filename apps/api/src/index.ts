@@ -311,6 +311,9 @@ async function main() {
     // Owner-approved recon actions: backfill 12 phones + add 2 customers + email/task Marsha (RECON_APPLY=true).
     const { reconApplyFromEnv } = await import('./db/reconApply.js');
     await reconApplyFromEnv().catch((err) => console.error('[recon-apply] failed:', err));
+    // Round 2: sync phones into historical_customers (profile source) + add Sara + clean test accounts (RECON_APPLY2=true).
+    const { reconApply2FromEnv } = await import('./db/reconApply2.js');
+    await reconApply2FromEnv().catch((err) => console.error('[recon-apply2] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
