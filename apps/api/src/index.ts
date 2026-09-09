@@ -268,6 +268,9 @@ async function main() {
     // Re-submit the staff_alert WhatsApp template with a name variable (WA_RESEED_STAFF=true).
     const { reseedStaffAlertFromEnv } = await import('./db/reseedStaffAlert.js');
     await reseedStaffAlertFromEnv().catch((err) => console.error('[wa-reseed] failed:', err));
+    // Edit staff_notify to drop the "please let us know" closing (WA_EDIT_STAFF=true).
+    const { waEditStaffNotifyFromEnv } = await import('./db/waEditStaffNotify.js');
+    await waEditStaffNotifyFromEnv().catch((err) => console.error('[wa-edit-staff] failed:', err));
     // Push reworded customer templates (links removed, typo fixed, etc.) to Meta (WA_EDIT_BATCH=true).
     const { waEditBatchFromEnv } = await import('./db/waEditBatch.js');
     await waEditBatchFromEnv().catch((err) => console.error('[wa-edit-batch] failed:', err));
