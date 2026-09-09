@@ -305,6 +305,9 @@ async function main() {
     // READ-ONLY: how many customers miss a phone + how many are backfillable from QB (CUSTOMER_PHONE_AUDIT=true).
     const { customerPhoneAuditFromEnv } = await import('./db/customerPhoneAudit.js');
     await customerPhoneAuditFromEnv().catch((err) => console.error('[phone-audit] failed:', err));
+    // READ-ONLY: dump customers + historical_customers as JSON for the QB reconciliation (RECON_DUMP=customers).
+    const { reconDumpFromEnv } = await import('./db/reconDump.js');
+    await reconDumpFromEnv().catch((err) => console.error('[recon-dump] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
