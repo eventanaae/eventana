@@ -92,6 +92,11 @@ function MyTaskRow({ t, onAction }: { t: any; onAction: () => void }) {
       <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, margin: '4px 0 8px' }}>
         {partyLine(t)} · due {fmtDue(t.due)}{t.people_needed > 1 ? ` · ${t.people_needed} people` : ''}
       </div>
+      {t.photo_url && (
+        <a href={t.photo_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginBottom: 8 }}>
+          <img src={t.photo_url} alt={t.category === 'design' ? 'design' : 'proof'} style={{ maxWidth: 130, maxHeight: 130, borderRadius: 10, border: `1px solid ${C.line}`, objectFit: 'cover' }} />
+        </a>
+      )}
       {Array.isArray(t.checklist) && t.checklist.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '4px 0 8px' }}>
           {t.checklist.map((ci: any, i: number) => (
@@ -107,15 +112,19 @@ function MyTaskRow({ t, onAction }: { t: any; onAction: () => void }) {
         <div style={{ fontSize: 11.5, fontWeight: 700, color: '#c98a2b', marginBottom: 7 }}>⏳ Waiting for the design — you can still mark it done once it's ready</div>
       )}
       {t.status === 'completed' ? (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, fontWeight: 800, color: C.green }}>✓ Done</span>
           <Button tone="ghost" onClick={async () => { await api.prepSetStatus(String(t.id), 'not_started'); onAction(); }} style={{ padding: '5px 10px', fontSize: 11 }}>↺ Reopen</Button>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '5px 10px', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+            {t.category === 'design' ? '🖌️ Update design' : '📷 Update photo'}
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'setup-photos'); await api.prepComplete(String(t.id), url); onAction(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
+          </label>
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <Button onClick={async () => { await api.prepComplete(String(t.id)); onAction(); }}>✓ Done</Button>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 10, padding: '7px 11px', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}>
-            📷 Proof
+            {t.category === 'design' ? '🖌️ Design' : '📷 Proof'}
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await api.uploadImage(f, 'setup-photos'); await api.prepComplete(String(t.id), url); onAction(); } catch (err: any) { alert(err?.message ?? 'Upload failed'); } }} />
           </label>
           <Button tone="ghost" onClick={async () => { const note = prompt('What is the issue / missing item?') ?? ''; if (note.trim()) { await api.prepSetStatus(String(t.id), 'issue', note.trim()); onAction(); } }}>⚠ Issue</Button>
@@ -140,7 +149,10 @@ function MyTasks() {
   if (!tasks) return <Spinner />;
 
   const manual = tasks.filter((t) => t.category === 'manual');
-  const eventTasks = tasks.filter((t) => t.category !== 'manual');
+  // Active first, completed last (so a finished task stays reachable to reopen /
+  // re-upload its design without cluttering the top of the list).
+  const eventTasks = tasks.filter((t) => t.category !== 'manual')
+    .sort((a, b) => (a.status === 'completed' ? 1 : 0) - (b.status === 'completed' ? 1 : 0));
   const manualDone = manual.filter((t) => t.status === 'completed').length;
   const pct = manual.length > 0 ? Math.round((manualDone / manual.length) * 100) : 0;
   const openCount = tasks.filter((t) => t.status !== 'completed').length;

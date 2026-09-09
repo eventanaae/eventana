@@ -484,12 +484,12 @@ export async function getPrepTasksForMember(memberId: string) {
        LEFT JOIN customers c ON c.id = e.customer_id
       WHERE pts.member_id = $1
         -- Manual tasks (no event) always show — INCLUDING completed ones, so the
-        -- "Assigned by Sheem" card can show a real completion %. Event prep only
-        -- shows while open and for events still ahead (or date-TBD) and not
-        -- cancelled — a past event's leftover tasks are done business.
+        -- "Assigned by Sheem" card can show a real completion %. Event prep shows
+        -- for events still ahead (or date-TBD) and not cancelled — INCLUDING
+        -- completed tasks, so a member can reopen a finished task or re-upload its
+        -- design after marking it done (a past event's tasks are done business).
         AND (pt.event_id IS NULL OR (
-             pt.status <> 'completed'
-             AND e.phase IS DISTINCT FROM 'Cancelled'
+             e.phase IS DISTINCT FROM 'Cancelled'
              AND (COALESCE(e.date_tbd, false) OR e.event_date >= CURRENT_DATE)))
       ORDER BY pt.due_date NULLS LAST, pt.id`,
     [memberId],
