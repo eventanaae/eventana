@@ -314,6 +314,11 @@ async function main() {
     // Round 2: sync phones into historical_customers (profile source) + add Sara + clean test accounts (RECON_APPLY2=true).
     const { reconApply2FromEnv } = await import('./db/reconApply2.js');
     await reconApply2FromEnv().catch((err) => console.error('[recon-apply2] failed:', err));
+    // Targeted English booking-confirmation WhatsApp re-send to the "مهيره"/K-Pop
+    // customer whose receipt-created event had the wrong (placeholder) time, now
+    // corrected. RESEND_MAHIRA=find (read-only list) or =send (verify + send one).
+    const { resendMahiraFromEnv } = await import('./db/resendMahira.js');
+    await resendMahiraFromEnv().catch((err) => console.error('[resend-mahira] failed:', err));
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
