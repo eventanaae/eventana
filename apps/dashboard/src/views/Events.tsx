@@ -185,15 +185,19 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
   };
   useEffect(() => { load(); }, [eventId]);
 
-  // Upload a design reference image → append it to the booking's reference set.
-  const addReferenceImage = async (file: File) => {
+  // Upload one or more design reference images → append them to the booking's
+  // reference set. Accepts a multi-select so the whole set goes up in one go.
+  const addReferenceImage = async (files: FileList | null) => {
+    const list = files ? Array.from(files) : [];
+    if (!list.length) return;
     setUploadingRef(true); setMessage(null);
     try {
-      const url = await api.uploadImage(file, 'reference');
+      const urls: string[] = [];
+      for (const f of list) urls.push(await api.uploadImage(f, 'reference'));
       const current: string[] = data?.event?.referenceImages ?? [];
-      await api.eventUpdateDetails(eventId, { referenceImages: [...current, url] });
+      await api.eventUpdateDetails(eventId, { referenceImages: [...current, ...urls] });
       await load();
-      setMessage('Reference image added.');
+      setMessage(urls.length > 1 ? `${urls.length} reference images added.` : 'Reference image added.');
     } catch (e: any) { setMessage(e?.message ?? 'Could not upload image.'); }
     finally { setUploadingRef(false); }
   };
@@ -282,8 +286,8 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                     ))}
                     <label style={{ width: 64, height: 64, borderRadius: 8, border: `1.5px dashed ${C.pinkDeep}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.pinkDeep, fontWeight: 800, fontSize: 22, textAlign: 'center' }}>
                       {uploadingRef ? '…' : '＋'}
-                      <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingRef}
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) addReferenceImage(f); e.currentTarget.value = ''; }} />
+                      <input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={uploadingRef}
+                        onChange={(e) => { addReferenceImage(e.target.files); e.currentTarget.value = ''; }} />
                     </label>
                   </div>
                 </div>
