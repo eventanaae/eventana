@@ -572,8 +572,9 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
  * Only for a receipt dated today or later (an upcoming booking) that isn't
  * already linked to an event. Builds the customer + a booking order (tagged
  * source 'converted' so it never double-counts against CEO revenue — the money
- * already lives in the receipt) + the event + its booked-item lines. Location &
- * exact time start as placeholders the team completes on the job. Idempotent.
+ * already lives in the receipt) + the event + its booked-item lines. The party
+ * time comes from the receipt (17:00–21:00 only as a fallback when the receipt
+ * has none); location is a placeholder the team completes on the job. Idempotent.
  * Returns the new event id, or null when nothing was created.
  */
 export async function ensureEventForReceipt(
@@ -635,13 +636,21 @@ export async function ensureEventForReceipt(
     );
 
     const eventId = await nextEventId(db);
+    // Use the receipt's real party time (kept as "HH:MM" 24h text on the receipt)
+    // so the confirmation email + WhatsApp — sent immediately below — show the
+    // correct time. Only fall back to the 17:00–21:00 placeholder when the
+    // receipt has no valid time. End time = start + 4h (mirrors the placeholder
+    // span and the receipt-edit logic in updateReceipt).
+    const rawTime = String(r.event_time ?? '').trim();
+    const startTime = Number.isNaN(parseHour(rawTime)) ? '17:00' : rawTime;
+    const endTime = Number.isNaN(parseHour(rawTime)) ? '21:00' : formatHour24(parseHour(rawTime) + 4);
     await db.query(
       `INSERT INTO events
          (id, order_id, customer_id, celebration_type, package_id, theme_id, custom_theme,
           event_date, start_time, base_end_time, extra_hours, children_count, emirate,
           address, map_lat, map_lng, phase, location_note)
-       VALUES ($1,$2,$3,$9,$4,$5,false,$6,'17:00','21:00',0,0,$7,'{}'::jsonb,0,0,'Booking Confirmed',$8)`,
-      [eventId, orderId, customerId, packageId, themeId, dateStr, emirate, r.location_note ?? null, r.celebration_type ?? 'kids'],
+       VALUES ($1,$2,$3,$9,$4,$5,false,$6,$10,$11,0,0,$7,'{}'::jsonb,0,0,'Booking Confirmed',$8)`,
+      [eventId, orderId, customerId, packageId, themeId, dateStr, emirate, r.location_note ?? null, r.celebration_type ?? 'kids', startTime, endTime],
     );
 
     // Booked items → event_services so the job shows what's going out.
