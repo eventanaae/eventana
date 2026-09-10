@@ -8,6 +8,38 @@
  */
 import { pool } from './pool.js';
 
+/**
+ * One-shot: actually (re)generate prep for one event and log the resulting task
+ * keys. Gated by PREP_REGEN=<receipt number or event id>. Idempotent (keeps
+ * completed work). Proves the design_cricut-on-backdrop fix and surfaces the new
+ * task without the owner pressing Re-generate. Turn the flag off after.
+ */
+export async function prepRegenFromEnv(): Promise<void> {
+  const q = String(process.env.PREP_REGEN ?? '').trim();
+  if (!q) return;
+  const L = (s: string) => console.log(`[prep-regen] ${s}`);
+  try {
+    const evId = (await pool.query<{ id: string }>(
+      `SELECT id FROM events WHERE id = $1
+         OR id = (SELECT event_id FROM finance_receipts WHERE number = $1 LIMIT 1) LIMIT 1`,
+      [q.replace(/^EV-/i, '')],
+    )).rows[0]?.id;
+    if (!evId) { L(`no event for "${q}"`); return; }
+    const { generatePrepTasks } = await import('../domain/prep.js');
+    const r = await generatePrepTasks(evId);
+    L(`event=${evId} created=${r?.created ?? 'null'}`);
+    const tasks = (await pool.query(
+      `SELECT key, title, category, status FROM prep_tasks WHERE event_id = $1 ORDER BY category DESC, key`,
+      [evId],
+    )).rows;
+    L(`tasks now=${tasks.length}`);
+    for (const t of tasks) L(`  • ${t.key} | "${t.title}" | ${t.category} | ${t.status}`);
+    L('DONE');
+  } catch (e) {
+    console.error('[prep-regen] failed:', (e as Error).message);
+  }
+}
+
 export async function prepDebugFromEnv(): Promise<void> {
   const q = String(process.env.PREP_DEBUG ?? '').trim();
   if (!q) return;
