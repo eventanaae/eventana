@@ -302,6 +302,9 @@ async function main() {
     // One-shot: email Marsha (cc Sheem) about the prep-task/design-upload fix (EMAIL_MARSHA_TASKFIX=true).
     const { sendTaskFixEmailFromEnv } = await import('./db/sendTaskFixEmail.js');
     await sendTaskFixEmailFromEnv().catch((err) => console.error('[taskfix-email] failed:', err));
+    // One-shot: email Gloria explaining points count from 1 Sep + per-month + can see ratings (EMAIL_GLORIA_POINTS=true).
+    const { sendGloriaPointsEmailFromEnv } = await import('./db/sendGloriaPointsEmail.js');
+    await sendGloriaPointsEmailFromEnv().catch((err) => console.error('[gloria-email] failed:', err));
     // READ-ONLY: how many customers miss a phone + how many are backfillable from QB (CUSTOMER_PHONE_AUDIT=true).
     const { customerPhoneAuditFromEnv } = await import('./db/customerPhoneAudit.js');
     await customerPhoneAuditFromEnv().catch((err) => console.error('[phone-audit] failed:', err));
