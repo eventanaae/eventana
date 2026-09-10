@@ -534,7 +534,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
       <Field label="Receipt (optional)">
         <label style={{ ...input, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: receiptUrl ? C.green : C.pinkDeep, fontWeight: 700 }}>
           {uploading ? 'Uploading…' : receiptUrl ? '✓ Attached — tap to replace' : '📸 Snap or upload receipt'}
-          <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReceipt(f); }} />
+          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReceipt(f); }} />
         </label>
       </Field>
       {receiptUrl && (
