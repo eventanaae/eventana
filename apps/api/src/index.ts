@@ -305,6 +305,9 @@ async function main() {
     // One-shot: email Gloria explaining points count from 1 Sep + per-month + can see ratings (EMAIL_GLORIA_POINTS=true).
     const { sendGloriaPointsEmailFromEnv } = await import('./db/sendGloriaPointsEmail.js');
     await sendGloriaPointsEmailFromEnv().catch((err) => console.error('[gloria-email] failed:', err));
+    // READ-ONLY prep diagnostic for one event (PREP_DEBUG=<receipt number or event id>).
+    const { prepDebugFromEnv } = await import('./db/prepDebug.js');
+    await prepDebugFromEnv().catch((err) => console.error('[prep-debug] failed:', err));
     // READ-ONLY: how many customers miss a phone + how many are backfillable from QB (CUSTOMER_PHONE_AUDIT=true).
     const { customerPhoneAuditFromEnv } = await import('./db/customerPhoneAudit.js');
     await customerPhoneAuditFromEnv().catch((err) => console.error('[phone-audit] failed:', err));
