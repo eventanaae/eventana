@@ -55,7 +55,9 @@ interface Template {
 // The full template catalogue. `when` decides whether an order needs the task.
 const TEMPLATES: Template[] = [
   // ── Design (Marsha) — gate the physical prep that follows ──
-  { key: 'design_cricut', title: 'Cricut', category: 'design', skill: 'design', people: 1, when: (c) => c.isDesignPackage },
+  // A Main Backdrop (in a package OR ordered on its own) needs a Cricut cut for
+  // the guest-of-honour name + character cutouts — always a design task for Marsha.
+  { key: 'design_cricut', title: 'Cricut', category: 'design', skill: 'design', people: 1, when: (c) => c.isDesignPackage || c.cat('backdrop') || c.has('backdrop') },
   { key: 'design_plate_papers', title: 'Plate Papers (design)', category: 'design', skill: 'design', people: 1, when: (c) => c.isDesignPackage },
   { key: 'design_water_labels', title: 'Water Labels', category: 'design', skill: 'design', people: 1, when: (c) => c.isDesignPackage && c.packageKey !== 'spa' },
   { key: 'design_entrance_stand', title: 'Entrance Stand Design', category: 'design', skill: 'design', people: 1, when: (c) => (c.isDesignPackage || c.has('entrance')) && !c.noEntranceStand },
