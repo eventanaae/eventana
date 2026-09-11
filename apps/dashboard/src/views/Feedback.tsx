@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Button, C, fredoka, Panel, Spinner } from '../ui';
+import { GoogleReviews } from './GoogleReviews';
 
 /**
  * The full customer-ratings REPORT — every rating customers left, newest first,
@@ -24,6 +25,9 @@ export function Feedback({ onBack, onOpenEvent }: { onBack: () => void; onOpenEv
         <Button tone="ghost" onClick={onBack}>← Back</Button>
         <div style={fredoka(20)}>⭐ Review Report</div>
       </div>
+
+      {/* Google Reviews (connection status + auto-reply + Google reviews) on top */}
+      <GoogleReviews />
 
       {!data ? <Spinner /> : (
         <>
