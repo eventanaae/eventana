@@ -649,20 +649,20 @@ export async function adminRoutes(app: FastifyInstance) {
   // Confirm a part-timer's name for an open slot → status "Confirmed – [Name]".
   app.post('/api/admin/staffing/slot/:slotId/confirm', async (request, reply) => {
     const { slotId } = request.params as { slotId: string };
-    const { name } = (request.body ?? {}) as { name?: string };
+    const { name, eventId, role, slot } = (request.body ?? {}) as { name?: string; eventId?: string; role?: string; slot?: number };
     if (!name || !name.trim()) return reply.status(400).send({ error: 'name_required' });
     const { confirmPartTimeSlot } = await import('../domain/staffing.js');
-    const res = await confirmPartTimeSlot(slotId, name);
+    const res = await confirmPartTimeSlot(slotId, name, { eventId, role, slot });
     if (!res) return reply.status(404).send({ error: 'not_found' });
     return getStaffingPlan(res.eventId);
   });
   // Manually assign an internal staff member to a slot (owner/manager override).
   app.post('/api/admin/staffing/slot/:slotId/assign', async (request, reply) => {
     const { slotId } = request.params as { slotId: string };
-    const { assigneeId } = (request.body ?? {}) as { assigneeId?: string };
+    const { assigneeId, eventId, role, slot } = (request.body ?? {}) as { assigneeId?: string; eventId?: string; role?: string; slot?: number };
     if (!assigneeId) return reply.status(400).send({ error: 'assignee_required' });
     const { overrideSlotAssignee } = await import('../domain/staffing.js');
-    const res = await overrideSlotAssignee(slotId, assigneeId);
+    const res = await overrideSlotAssignee(slotId, assigneeId, { eventId, role, slot });
     if (!res) return reply.status(404).send({ error: 'not_found' });
     return getStaffingPlan(res.eventId);
   });

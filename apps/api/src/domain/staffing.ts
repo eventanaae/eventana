@@ -575,14 +575,31 @@ export async function recomputeEventLeader(eventId: string): Promise<void> {
   }
 }
 
-export async function confirmPartTimeSlot(slotId: string, name: string): Promise<{ eventId: string } | null> {
-  const { rows } = await pool.query<{ event_id: string }>(
+export async function confirmPartTimeSlot(
+  slotId: string,
+  name: string,
+  loc?: { eventId?: string; role?: string; slot?: number },
+): Promise<{ eventId: string } | null> {
+  // Try the exact slot id first. assignStaffForEvent rebuilds the plan with fresh
+  // BIGSERIAL ids, so a plan the browser loaded before a rebuild carries a stale
+  // id — fall back to the STABLE (event, role, slot) key so the confirm still
+  // lands instead of failing with not_found.
+  let rows = (await pool.query<{ event_id: string }>(
     `UPDATE event_staff
         SET part_time_name = $2, status = 'confirmed', assignee_id = NULL
-      WHERE id = $1 AND is_leader = false
+      WHERE id = $1::bigint AND is_leader = false
       RETURNING event_id`,
     [slotId, titleCaseName(name)],
-  );
+  ).catch(() => ({ rows: [] as { event_id: string }[] }))).rows;
+  if (!rows[0] && loc?.eventId && loc.role) {
+    rows = (await pool.query<{ event_id: string }>(
+      `UPDATE event_staff
+          SET part_time_name = $4, status = 'confirmed', assignee_id = NULL
+        WHERE event_id = $1 AND role = $2 AND slot = $3 AND is_leader = false
+        RETURNING event_id`,
+      [loc.eventId, loc.role, loc.slot ?? 1, titleCaseName(name)],
+    )).rows;
+  }
   const eventId = rows[0]?.event_id;
   if (!eventId) return null;
   await syncEventTeam(eventId); // the replaced internal member drops off the crew
@@ -598,13 +615,27 @@ export async function confirmPartTimeSlot(slotId: string, name: string): Promise
 }
 
 /** Manually assign an internal staff member to a slot (owner/manager override). */
-export async function overrideSlotAssignee(slotId: string, assigneeId: string): Promise<{ eventId: string } | null> {
-  const { rows } = await pool.query<{ event_id: string }>(
+export async function overrideSlotAssignee(
+  slotId: string,
+  assigneeId: string,
+  loc?: { eventId?: string; role?: string; slot?: number },
+): Promise<{ eventId: string } | null> {
+  // Exact id first; fall back to the stable (event, role, slot) key when the plan
+  // was rebuilt (new ids) after the browser loaded it — see confirmPartTimeSlot.
+  let rows = (await pool.query<{ event_id: string }>(
     `UPDATE event_staff
         SET assignee_id = $2, part_time_name = NULL, status = 'assigned'
-      WHERE id = $1 RETURNING event_id`,
+      WHERE id = $1::bigint RETURNING event_id`,
     [slotId, assigneeId],
-  );
+  ).catch(() => ({ rows: [] as { event_id: string }[] }))).rows;
+  if (!rows[0] && loc?.eventId && loc.role) {
+    rows = (await pool.query<{ event_id: string }>(
+      `UPDATE event_staff
+          SET assignee_id = $4, part_time_name = NULL, status = 'assigned'
+        WHERE event_id = $1 AND role = $2 AND slot = $3 AND is_leader = false RETURNING event_id`,
+      [loc.eventId, loc.role, loc.slot ?? 1, assigneeId],
+    )).rows;
+  }
   if (!rows[0]) return null;
   await syncEventTeam(rows[0].event_id); // keep the crew mirror in step
   await recomputeEventLeader(rows[0].event_id); // Jane/Dindo lead once they're on the floor

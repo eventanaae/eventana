@@ -252,10 +252,10 @@ export const api = {
   staffingRequirements: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}/requirements`),
   setStaffingRequirement: (eventId: string, role: string, count: number) =>
     request<any[]>(`/api/admin/staffing/${eventId}/requirements`, { method: 'POST', body: JSON.stringify({ role, count }) }),
-  confirmPartTime: (slotId: string, name: string) =>
-    request<any[]>(`/api/admin/staffing/slot/${slotId}/confirm`, { method: 'POST', body: JSON.stringify({ name }) }),
-  overrideSlot: (slotId: string, assigneeId: string) =>
-    request<any[]>(`/api/admin/staffing/slot/${slotId}/assign`, { method: 'POST', body: JSON.stringify({ assigneeId }) }),
+  confirmPartTime: (slotId: string, name: string, loc?: { eventId?: string; role?: string; slot?: number }) =>
+    request<any[]>(`/api/admin/staffing/slot/${slotId}/confirm`, { method: 'POST', body: JSON.stringify({ name, ...loc }) }),
+  overrideSlot: (slotId: string, assigneeId: string, loc?: { eventId?: string; role?: string; slot?: number }) =>
+    request<any[]>(`/api/admin/staffing/slot/${slotId}/assign`, { method: 'POST', body: JSON.stringify({ assigneeId, ...loc }) }),
   shopOrder: (id: string) => request<any>(`/api/admin/shop-orders/${id}`),
   shopUploadDesign: (id: string, imageUrl: string) => request<any>(`/api/admin/shop-orders/${id}/design`, { method: 'POST', body: JSON.stringify({ imageUrl }) }),
   shopSendDesign: (id: string) => request<any>(`/api/admin/shop-orders/${id}/send`, { method: 'POST' }),

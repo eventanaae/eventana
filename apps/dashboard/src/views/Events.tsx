@@ -931,7 +931,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                     />
                     <Button
                       disabled={!(names[s.id] ?? '').trim()}
-                      onClick={async () => { await api.confirmPartTime(s.id, names[s.id].trim()); await load(); }}
+                      onClick={async () => { await api.confirmPartTime(s.id, names[s.id].trim(), { eventId, role: s.role, slot: s.slot }); await load(); }}
                     >
                       Confirm
                     </Button>
@@ -948,7 +948,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                             choice, not a surprise. */}
                         {[...crew].sort((a, b) => Number(a.busy) - Number(b.busy)).map((m) => (
                           <Button key={m.id} tone="ghost"
-                            onClick={async () => { await api.overrideSlot(s.id, m.id); setOpenOverride(null); await load(); }}
+                            onClick={async () => { await api.overrideSlot(s.id, m.id, { eventId, role: s.role, slot: s.slot }); setOpenOverride(null); await load(); }}
                             style={m.busy ? { opacity: 0.55, borderStyle: 'dashed' } : undefined}>
                             {m.name}{m.busy ? ' · busy/off' : ''}
                           </Button>
@@ -968,7 +968,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                           />
                           <Button
                             disabled={!(names[s.id] ?? '').trim()}
-                            onClick={async () => { await api.confirmPartTime(s.id, names[s.id].trim()); setOpenOverride(null); await load(); }}
+                            onClick={async () => { await api.confirmPartTime(s.id, names[s.id].trim(), { eventId, role: s.role, slot: s.slot }); setOpenOverride(null); await load(); }}
                           >
                             Confirm
                           </Button>
