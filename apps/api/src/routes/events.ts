@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   computeRefund,
+  eventDateYMD,
   formatAed,
   formatHour,
   isCancelled,
@@ -308,7 +309,7 @@ export async function eventRoutes(app: FastifyInstance) {
    */
   const startMsOf = (ev: { event_date: unknown; start_time: string }): number =>
     Date.parse(
-      `${new Date(ev.event_date as string).toISOString().slice(0, 10)}T${ev.start_time}:00+04:00`,
+      `${eventDateYMD(ev.event_date)}T${ev.start_time}:00+04:00`,
     );
 
   const refundView = (ev: {
@@ -630,7 +631,7 @@ export async function eventRoutes(app: FastifyInstance) {
     // Self-service reschedule is offered only while the event is comfortably
     // ahead (more than 72h) and not cancelled.
     const startMs = Date.parse(
-      `${new Date(event.event_date).toISOString().slice(0, 10)}T${event.start_time}:00+04:00`,
+      `${eventDateYMD(event.event_date)}T${event.start_time}:00+04:00`,
     );
     const canReschedule = !cancelled && startMs - Date.now() > RESCHEDULE_MIN_HOURS * 3_600_000;
 

@@ -7,7 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { formatAed, isCancelled, celebrationLabel, computeRefund } from '@eventana/shared';
+import { formatAed, isCancelled, celebrationLabel, computeRefund, eventDateYMD } from '@eventana/shared';
 import { refundOrderMoney } from '../domain/refund.js';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
@@ -88,7 +88,7 @@ async function cancelEvent(eventId: string, reason: string) {
     // exactly like a customer-initiated cancellation.
     let refundInfo: { orderId: string; refundFils: number; refundStatus: string } | null = null;
     if (ev.ostatus === 'paid') {
-      const startMs = Date.parse(`${new Date(ev.event_date).toISOString().slice(0, 10)}T${ev.start_time}:00+04:00`);
+      const startMs = Date.parse(`${eventDateYMD(ev.event_date)}T${ev.start_time}:00+04:00`);
       const hoursToEvent = (startMs - Date.now()) / 3_600_000;
       const b = computeRefund({ lines: (ev.quote as any)?.lines ?? [], totalPaidFils: Number(ev.total_fils), hoursToEvent });
       const refundStatus = b.refundFils > 0 ? 'pending' : 'none';

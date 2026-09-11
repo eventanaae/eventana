@@ -49,7 +49,21 @@ export async function sendStaffBirthdayEmails(): Promise<{ sent: number }> {
     `SELECT id, name, email, phone FROM team_members
       WHERE active AND birthday IS NOT NULL
         AND (COALESCE(btrim(email),'') <> '' OR COALESCE(btrim(phone),'') <> '')
-        AND to_char(birthday,'MM-DD') = to_char(CURRENT_DATE,'MM-DD')
+        AND (
+          to_char(birthday,'MM-DD') = to_char(CURRENT_DATE,'MM-DD')
+          -- A 29 Feb birthday has no calendar day in a non-leap year, so greet
+          -- them on 28 Feb instead (never skip a whole year). Leap years still
+          -- match on the 29th via the clause above.
+          OR (
+            to_char(birthday,'MM-DD') = '02-29'
+            AND to_char(CURRENT_DATE,'MM-DD') = '02-28'
+            AND NOT (
+              EXTRACT(year FROM CURRENT_DATE)::int % 4 = 0
+              AND (EXTRACT(year FROM CURRENT_DATE)::int % 100 <> 0
+                   OR EXTRACT(year FROM CURRENT_DATE)::int % 400 = 0)
+            )
+          )
+        )
         AND NOT EXISTS (
           SELECT 1 FROM notifications n
            WHERE n.template = 'staff_birthday'

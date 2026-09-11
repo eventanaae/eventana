@@ -31,7 +31,10 @@ export interface LifecycleResult { scheduled: string[]; skipped: string; }
  * on a stale schedule. Uses the SAME offsets as enqueueBookingLifecycle:
  * three_day_reminder (start − 3 days), event_day (start − 4 hours),
  * feedback_request (start + 1 day). No-op for a TBD/dateless event. Already-sent
- * or cancelled rows are left untouched.
+ * or cancelled rows are left untouched. A re-aligned moment that now lands in the
+ * PAST (e.g. a receipt edit moving the event to within 3 days, so "3 days to go"
+ * would already be due) is CANCELLED rather than left to fire late — the same
+ * "future only" rule enqueueBookingLifecycle applies when first scheduling.
  */
 export async function reAlignPendingNotifications(eventId: string, db: Db = pool): Promise<void> {
   const { rows } = await db.query(
@@ -48,7 +51,9 @@ export async function reAlignPendingNotifications(eventId: string, db: Db = pool
   ];
   for (const [tpl, off] of offsets) {
     await db.query(
-      `UPDATE notifications SET scheduled_for = $2::timestamptz ${off}
+      `UPDATE notifications
+          SET scheduled_for = $2::timestamptz ${off},
+              cancelled_at = CASE WHEN ($2::timestamptz ${off}) <= now() THEN now() ELSE cancelled_at END
         WHERE event_id = $1 AND template = $3 AND sent_at IS NULL AND cancelled_at IS NULL`,
       [eventId, start, tpl],
     ).catch(() => {});

@@ -9,7 +9,7 @@
  * The reserved inventory holds move with the event, checked against every
  * OTHER booking so a reschedule can never double-book an asset.
  */
-import { eventEndHour, formatHour24, isCancelled, parseHour } from '@eventana/shared';
+import { eventDateYMD, eventEndHour, formatHour24, isCancelled, parseHour } from '@eventana/shared';
 import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from './settings.js';
 import { eventWindow, getAssets } from './inventory.js';
@@ -27,7 +27,7 @@ export class RescheduleError extends Error {
 }
 
 function eventStartMs(dateVal: unknown, startTime: string): number {
-  const dateStr = new Date(dateVal as string).toISOString().slice(0, 10);
+  const dateStr = eventDateYMD(dateVal);
   return Date.parse(`${dateStr}T${startTime}:00+04:00`);
 }
 

@@ -98,6 +98,21 @@ export function formatHour24(hour: number): string {
   return `${String(h).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
+/**
+ * A DB DATE value → 'YYYY-MM-DD', TIMEZONE-SAFE. node-postgres parses a bare
+ * DATE column into a JS Date at LOCAL midnight, so reading it back with the
+ * LOCAL getters returns the same calendar day on any server timezone. Using
+ * `.toISOString().slice(0,10)` here instead would re-express that local
+ * midnight in UTC and, on a server running AHEAD of UTC (e.g. TZ=Asia/Dubai),
+ * silently yield the PREVIOUS day — shifting refund tiers and the 72h
+ * reschedule gate by a full 24 hours. Accepts a Date or anything Date parses.
+ */
+export function eventDateYMD(value: unknown): string {
+  const d = value instanceof Date ? value : new Date(value as string);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** 21 -> "9:00 PM", 24 -> "12:00 AM". Display only. */
 export function formatHour(hour: number): string {
   const h = ((Math.floor(hour) % 24) + 24) % 24;

@@ -131,9 +131,13 @@ export async function computeDiscounts(
   if (args.input.redeemPoints && cust.loyalty_points > 0) {
     const maxByRoom = room();
     const maxByPoints = cust.loyalty_points * REDEEM_FILS_PER_POINT;
-    const amt = Math.min(maxByPoints, maxByRoom);
-    if (amt > 0) {
-      const used = Math.ceil(amt / REDEEM_FILS_PER_POINT);
+    const cap = Math.min(maxByPoints, maxByRoom);
+    // Spend only WHOLE points, and make the discount exactly equal what those
+    // points are worth. Flooring (not ceil) means an odd-fils room() cap can
+    // never charge the customer an extra point for value they didn't receive.
+    const used = Math.floor(cap / REDEEM_FILS_PER_POINT);
+    const amt = used * REDEEM_FILS_PER_POINT;
+    if (used > 0 && amt > 0) {
       out.points = { used, amountFils: amt };
       out.lines.push(line(`${used.toLocaleString('en-US')} points redeemed`, amt));
       out.totalFils += amt;
