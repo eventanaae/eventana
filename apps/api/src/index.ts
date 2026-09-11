@@ -309,6 +309,9 @@ async function main() {
     const { prepDebugFromEnv, prepRegenFromEnv } = await import('./db/prepDebug.js');
     await prepDebugFromEnv().catch((err) => console.error('[prep-debug] failed:', err));
     await prepRegenFromEnv().catch((err) => console.error('[prep-regen] failed:', err));
+    // One-shot: add the Cricut design task to upcoming backdrop events that predate the rule (PREP_CRICUT_BACKFILL=true).
+    const { prepBackfillCricutFromEnv } = await import('./db/prepBackfillCricut.js');
+    await prepBackfillCricutFromEnv().catch((err) => console.error('[cricut-backfill] failed:', err));
     // READ-ONLY: how many customers miss a phone + how many are backfillable from QB (CUSTOMER_PHONE_AUDIT=true).
     const { customerPhoneAuditFromEnv } = await import('./db/customerPhoneAudit.js');
     await customerPhoneAuditFromEnv().catch((err) => console.error('[phone-audit] failed:', err));
