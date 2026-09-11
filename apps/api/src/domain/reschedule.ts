@@ -107,31 +107,11 @@ export async function rescheduleEvent(args: {
       `UPDATE events SET event_date = $2, start_time = $3, base_end_time = $4 WHERE id = $1`,
       [args.eventId, args.newDate, args.newStartTime, endTime],
     );
-    // Move the still-unsent reminder emails to the NEW start moment, matching how
-    // they were scheduled at booking: the 3-day reminder at (start − 3 days) and
-    // the party-day email at (start − 4 hours) — NOT midnight of the new date.
-    // The new start is newDate + newStartTime in Dubai time (+04:00, no DST).
-    await db.query(
-      `UPDATE notifications
-          SET scheduled_for = ($2 || ' ' || $3 || ':00+04:00')::timestamptz - interval '3 days'
-        WHERE event_id = $1 AND template = 'three_day_reminder' AND sent_at IS NULL AND cancelled_at IS NULL`,
-      [args.eventId, args.newDate, args.newStartTime],
-    );
-    await db.query(
-      `UPDATE notifications
-          SET scheduled_for = ($2 || ' ' || $3 || ':00+04:00')::timestamptz - interval '4 hours'
-        WHERE event_id = $1 AND template = 'event_day' AND sent_at IS NULL AND cancelled_at IS NULL`,
-      [args.eventId, args.newDate, args.newStartTime],
-    );
-    // The post-event feedback request (1 day after the event) must move too —
-    // otherwise a reschedule to a LATER date leaves it firing on the old date,
-    // asking the customer to rate a party that hasn't happened yet.
-    await db.query(
-      `UPDATE notifications
-          SET scheduled_for = ($2 || ' ' || $3 || ':00+04:00')::timestamptz + interval '1 day'
-        WHERE event_id = $1 AND template = 'feedback_request' AND sent_at IS NULL AND cancelled_at IS NULL`,
-      [args.eventId, args.newDate, args.newStartTime],
-    );
+    // Move the still-unsent reminder emails to the NEW start moment (3-day at
+    // start−3d, party-day at start−4h, feedback at start+1d) — NOT midnight of
+    // the new date. Shared helper keeps this identical to the booking lifecycle
+    // and the receipt-edit path; it reads the event we just updated above.
+    await reAlignPendingNotifications(args.eventId, db);
     // Tell the assigned driver the delivery moved (new date/time → fresh row).
     await db.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)

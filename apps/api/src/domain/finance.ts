@@ -214,13 +214,23 @@ export async function customersMaster(search?: string) {
 export async function customerDetail(id: number) {
   const profile = await getCustomer(id);
   if (!profile) return null;
-  const [receipts, upcoming] = await Promise.all([
+  const [receipts, totals, upcoming] = await Promise.all([
     pool.query(
       `SELECT id, number, to_char(date,'YYYY-MM-DD') AS date, total_fils, paid_with, event_for, theme
          FROM finance_receipts
         WHERE customer_id = $1
            OR (customer_id IS NULL AND lower(customer_name) = lower($2))
         ORDER BY date DESC LIMIT 100`,
+      [id, profile.full_name],
+    ),
+    // Lifetime spend + order count over ALL receipts (the history list above is
+    // capped at 100 for display; these totals must not be, or a >100-receipt
+    // customer would under-report vs the Customers list).
+    pool.query<{ spend: string; orders: number }>(
+      `SELECT COALESCE(sum(total_fils),0)::bigint AS spend, count(*)::int AS orders
+         FROM finance_receipts
+        WHERE customer_id = $1
+           OR (customer_id IS NULL AND lower(customer_name) = lower($2))`,
       [id, profile.full_name],
     ),
     pool.query(
@@ -233,11 +243,12 @@ export async function customerDetail(id: number) {
       [profile.phone],
     ),
   ]);
-  const spend = receipts.rows.reduce((s, r) => s + Number(r.total_fils), 0);
+  const spend = Number(totals.rows[0]?.spend ?? 0);
+  const orderCount = Number(totals.rows[0]?.orders ?? receipts.rows.length);
   return {
     id: profile.id, name: profile.full_name, email: profile.email, phone: profile.phone,
     phoneAlt: profile.phone_alt, emirate: profile.emirate,
-    spendFils: spend, spendDisplay: formatAed(spend), orders: receipts.rows.length,
+    spendFils: spend, spendDisplay: formatAed(spend), orders: orderCount,
     history: receipts.rows.map((r) => ({ id: r.id, number: r.number, date: r.date, totalFils: Number(r.total_fils), totalDisplay: formatAed(Number(r.total_fils)), paidWith: r.paid_with, eventFor: r.event_for, theme: r.theme })),
     upcoming: upcoming.rows,
   };

@@ -516,7 +516,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const [kpis, events, tasks, inventory, approvals, shopOrders] = await Promise.all([
       pool.query(
         `SELECT
-           (SELECT count(*)::int FROM events WHERE event_date = CURRENT_DATE) AS events_today,
+           (SELECT count(*)::int FROM events WHERE event_date = CURRENT_DATE AND phase <> 'Cancelled') AS events_today,
            (SELECT count(*)::int FROM orders WHERE status = 'paid' AND source IS DISTINCT FROM 'converted'
               AND created_at >= date_trunc('month', now())) AS bookings_month,
            (SELECT COALESCE(sum(total_fils),0)::bigint FROM orders WHERE status = 'paid' AND source IS DISTINCT FROM 'converted'
@@ -1732,7 +1732,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // ── Points, target & bonus (owner spec 2026-09-01) ───────────────────────
     // Everything runs on POINTS: 10 per completed event, 20 per 5★ rating, 20
     // per Glam Doll. The monthly TARGET is 600 points. Below 600 there is no
-    // money — only progress. Above 600, every extra 50 points earns AED 10.
+    // money — only progress. Above 600, every extra 100 points earns AED 10.
     // Tips (100%) and referral commissions (5%) are separate money, added on
     // top. A warning wipes the month's points (the warnings system is a later
     // task, so nothing zeroes points yet).
