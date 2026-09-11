@@ -6,6 +6,33 @@
  */
 import { pool } from './pool.js';
 
+/**
+ * One-shot cleanup: delete orphaned good_feedback rewards — the "5★ moments"
+ * whose backing event no longer exists or has no 4-5★ rating (left behind when
+ * test/removed events were deleted). Keeps every reward that still has a real
+ * event + rating behind it. Logs each deletion. Gated by REWARDS_CLEANUP=true.
+ */
+export async function rewardsCleanupFromEnv(): Promise<void> {
+  if (String(process.env.REWARDS_CLEANUP ?? '').toLowerCase() !== 'true') return;
+  const L = (s: string) => console.log(`[rewards-cleanup] ${s}`);
+  try {
+    const del = await pool.query<{ member_id: string; event_id: string; note: string | null }>(
+      `DELETE FROM staff_rewards sr
+        WHERE sr.kind = 'good_feedback'
+          AND NOT EXISTS (
+            SELECT 1 FROM events e
+              JOIN event_ratings r ON r.event_id = e.id AND r.stars >= 4
+             WHERE e.id = sr.event_id
+          )
+        RETURNING sr.member_id, sr.event_id, sr.note`,
+    );
+    for (const r of del.rows) L(`deleted orphan: member=${r.member_id} event=${r.event_id}`);
+    L(`DONE — deleted ${del.rowCount ?? 0} orphaned good_feedback reward(s)`);
+  } catch (e) {
+    console.error('[rewards-cleanup] failed:', (e as Error).message);
+  }
+}
+
 export async function rewardsDebugFromEnv(): Promise<void> {
   if (String(process.env.REWARDS_DEBUG ?? '').toLowerCase() !== 'true') return;
   const L = (s: string) => console.log(`[rewards-debug] ${s}`);
