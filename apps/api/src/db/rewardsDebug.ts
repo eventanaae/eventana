@@ -7,10 +7,13 @@
 import { pool } from './pool.js';
 
 /**
- * One-shot cleanup: delete orphaned good_feedback rewards — the "5★ moments"
- * whose backing event no longer exists or has no 4-5★ rating (left behind when
- * test/removed events were deleted). Keeps every reward that still has a real
- * event + rating behind it. Logs each deletion. Gated by REWARDS_CLEANUP=true.
+ * One-shot cleanup: delete good_feedback rewards that must not count —
+ *  (a) ORPHANED: the backing event no longer exists or has no 4-5★ rating
+ *      (left behind when test/removed events were deleted), or
+ *  (b) PRE-LAUNCH: the event is dated before the counting start (1 Sep 2026) —
+ *      setup/migration events never earn points/rewards (see period.ts).
+ * Keeps every reward for a September-or-later event that still has a real rating.
+ * Logs each deletion. Gated by REWARDS_CLEANUP=true.
  */
 export async function rewardsCleanupFromEnv(): Promise<void> {
   if (String(process.env.REWARDS_CLEANUP ?? '').toLowerCase() !== 'true') return;
@@ -19,10 +22,16 @@ export async function rewardsCleanupFromEnv(): Promise<void> {
     const del = await pool.query<{ member_id: string; event_id: string; note: string | null }>(
       `DELETE FROM staff_rewards sr
         WHERE sr.kind = 'good_feedback'
-          AND NOT EXISTS (
-            SELECT 1 FROM events e
-              JOIN event_ratings r ON r.event_id = e.id AND r.stars >= 4
-             WHERE e.id = sr.event_id
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM events e
+                JOIN event_ratings r ON r.event_id = e.id AND r.stars >= 4
+               WHERE e.id = sr.event_id
+            )
+            OR EXISTS (
+              SELECT 1 FROM events e
+               WHERE e.id = sr.event_id AND e.event_date < DATE '2026-09-01'
+            )
           )
         RETURNING sr.member_id, sr.event_id, sr.note`,
     );

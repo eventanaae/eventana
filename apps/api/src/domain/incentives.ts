@@ -9,6 +9,7 @@
 import { pool } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
 import { pushToStaff, pushToOwner } from '../integrations/push.js';
+import { COUNTING_START } from './period.js';
 
 export interface IncentiveRules {
   goodStars: number;            // minimum stars that count as positive feedback
@@ -64,6 +65,16 @@ export async function recordGoodFeedbackRewards(params: {
 }): Promise<{ rewarded: Array<{ memberId: string; name: string }>; amountFils: number }> {
   const rules = await loadIncentiveRules();
   if (params.stars < rules.goodStars) return { rewarded: [], amountFils: 0 };
+
+  // The performance counters start 1 September 2026 — everything before that was
+  // setup/testing/migration and must NOT count toward points, rewards or
+  // incentives (see period.ts). An event dated before the counting start (or with
+  // no real date yet) earns no feedback reward, matching the KPIs incentive rule.
+  const { rows: ev } = await pool.query<{ ok: boolean }>(
+    `SELECT (event_date IS NOT NULL AND event_date >= $2::date) AS ok FROM events WHERE id = $1`,
+    [params.eventId, COUNTING_START],
+  );
+  if (!ev[0]?.ok) return { rewarded: [], amountFils: 0 };
 
   // The crew that actually ran it — real team members only (part-timers are just
   // names on a slot, never here), minus the excluded owner/driver names.
