@@ -29,6 +29,35 @@ export async function fetchBuildCommit(): Promise<string | null> {
 }
 
 /**
+ * Shrink a photo before upload so modern phone shots (often 10–15 MB) never hit
+ * Cloudinary's 10 MB cap. Downscales to a max edge and re-encodes as JPEG. Only
+ * touches raster images above a small threshold; anything it can't decode (or a
+ * result that isn't smaller) falls through to the original file unchanged, so a
+ * failure never blocks the upload — it just uploads the original as before.
+ */
+async function compressImage(file: File, maxEdge = 2400, quality = 0.85): Promise<File> {
+  if (!file.type.startsWith('image/') || file.size <= 1_800_000) return file;
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', quality));
+    if (!blob || blob.size >= file.size) return file; // no real gain — keep original
+    const name = file.name.replace(/\.(png|webp|heic|heif|gif|bmp|tiff?|jpe?g)$/i, '') + '.jpg';
+    return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
+  } catch {
+    return file;
+  }
+}
+
+/**
  * Staff access token. Entered by the staff member on this device (so it is
  * never baked into a distributed app binary), with a build-time fallback for
  * the web deployment. A stepping stone to real staff SSO.
@@ -444,8 +473,9 @@ export const api = {
   /** Sign + upload an image straight to Cloudinary; returns its secure URL. */
   uploadImage: async (file: File, folder: 'receipts' | 'themes' | 'designs' | 'setup-photos' | 'reference' | 'event-photos'): Promise<string> => {
     const s = await request<any>('/api/admin/uploads/sign', { method: 'POST', body: JSON.stringify({ folder }) });
+    const uploadFile = await compressImage(file); // shrink big phone photos under Cloudinary's 10 MB cap
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', uploadFile);
     form.append('api_key', s.apiKey);
     form.append('timestamp', String(s.timestamp));
     form.append('signature', s.signature);
