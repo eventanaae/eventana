@@ -11,7 +11,9 @@ import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
 export function ShopOrderDrawer({ orderId, role, onClose }: { orderId: string; role?: string; onClose: () => void }) {
   const [d, setD] = useState<any>(null);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  // Carry an ok/error flag so a FAILED refund/upload shows RED, not a green
+  // "success" banner that makes a failure look like it worked.
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const canApprove = role === 'owner' || role === 'manager';
 
   const load = () => api.shopOrder(orderId).then(setD).catch(() => setD({ error: true }));
@@ -69,8 +71,8 @@ export function ShopOrderDrawer({ orderId, role, onClose }: { orderId: string; r
                       <Button tone="danger" disabled={busy} onClick={async () => {
                         if (!window.confirm(`Refund AED ${d.totalDisplay} to ${d.customer?.name}? This returns the money via the payment provider and can't be undone.`)) return;
                         setBusy(true); setMsg(null);
-                        try { const r = await api.refund(d.id, d.totalFils, { reasonCategory: 'other', reason: 'Shop order refund' }); setMsg(`Refund recorded — order is now ${r.status}. The customer has been emailed. 💸`); await load(); }
-                        catch (err: any) { setMsg(err?.message ?? 'Refund failed'); } finally { setBusy(false); }
+                        try { const r = await api.refund(d.id, d.totalFils, { reasonCategory: 'other', reason: 'Shop order refund' }); setMsg({ text: `Refund recorded — order is now ${r.status}. The customer has been emailed. 💸`, ok: true }); await load(); }
+                        catch (err: any) { setMsg({ text: err?.message ?? 'Refund failed', ok: false }); } finally { setBusy(false); }
                       }}>↩ Refund order</Button>
                     )}
                   </div>
@@ -101,23 +103,23 @@ export function ShopOrderDrawer({ orderId, role, onClose }: { orderId: string; r
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
                       const f = e.target.files?.[0]; if (!f) return;
                       setBusy(true); setMsg(null);
-                      try { const url = await api.uploadImage(f, 'designs'); await api.shopUploadDesign(orderId, url); await load(); setMsg('Design uploaded — ready for approval.'); }
-                      catch (err: any) { setMsg(err?.message ?? 'Upload failed'); } finally { setBusy(false); }
+                      try { const url = await api.uploadImage(f, 'designs'); await api.shopUploadDesign(orderId, url); await load(); setMsg({ text: 'Design uploaded — ready for approval.', ok: true }); }
+                      catch (err: any) { setMsg({ text: err?.message ?? 'Upload failed', ok: false }); } finally { setBusy(false); }
                     }} />
                   </label>
 
                   {canApprove && design.imageUrl && design.status !== 'sent' && (
                     <Button disabled={busy} onClick={async () => {
                       setBusy(true); setMsg(null);
-                      try { await api.shopSendDesign(orderId); await load(); setMsg('Approved — the design is on its way to the customer by email. 💌'); }
-                      catch (err: any) { setMsg(err?.message ?? 'Failed'); } finally { setBusy(false); }
+                      try { await api.shopSendDesign(orderId); await load(); setMsg({ text: 'Approved — the design is on its way to the customer by email. 💌', ok: true }); }
+                      catch (err: any) { setMsg({ text: err?.message ?? 'Failed', ok: false }); } finally { setBusy(false); }
                     }}>✓ Approve &amp; send to customer</Button>
                   )}
                   {design.status === 'sent' && canApprove && (
-                    <Button tone="ghost" disabled={busy} onClick={async () => { setBusy(true); try { await api.shopSendDesign(orderId); await load(); setMsg('Re-sent to the customer.'); } finally { setBusy(false); } }}>↻ Re-send</Button>
+                    <Button tone="ghost" disabled={busy} onClick={async () => { setBusy(true); try { await api.shopSendDesign(orderId); await load(); setMsg({ text: 'Re-sent to the customer.', ok: true }); } finally { setBusy(false); } }}>↻ Re-send</Button>
                   )}
                 </div>
-                {msg && <div style={{ marginTop: 10, background: C.greenSoft, color: C.green, padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 700 }}>{msg}</div>}
+                {msg && <div style={{ marginTop: 10, background: msg.ok ? C.greenSoft : C.redSoft, color: msg.ok ? C.green : C.red, padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 700 }}>{msg.text}</div>}
                 <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
                   Marsha uploads the finished design here. Once you approve, it’s emailed to the customer automatically on the Eventana template. No delivery crew — it’s a digital/printed item.
                 </div>

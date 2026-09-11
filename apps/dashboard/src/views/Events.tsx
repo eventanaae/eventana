@@ -1060,7 +1060,10 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
     setBusy(true); setErr(null);
     const patch: any = {};
     if (startTime && startTime !== event.start_time) patch.startTime = startTime;
-    if (endTime && endTime !== event.base_end_time) patch.endTime = endTime;
+    // An end of midnight comes back from <input type=time> as "00:00"; the system
+    // stores midnight ends as the "24:00" sentinel, so normalise before sending.
+    const endToSend = endTime === '00:00' ? '24:00' : endTime;
+    if (endToSend && endToSend !== event.base_end_time) patch.endTime = endToSend;
     if (emirate && emirate !== event.emirate) patch.emirate = emirate;
     // Villa / building / place name → the free-text location note. Also written
     // when the old note held coordinates, so that legacy value is cleared out of
@@ -1212,6 +1215,10 @@ function isCoordsOrUrl(s: string): boolean {
 /** Coerce a possibly "5:00 PM"/"17:00" string to a 24h "HH:MM" for <input type=time>. */
 function to24(t: string): string {
   if (!t) return '';
+  // A midnight end is stored as the sentinel "24:00", which <input type="time">
+  // (max 23:59) rejects and renders as a BLANK box. Show it as 00:00 (12:00 AM);
+  // the save path maps an end of 00:00 back to "24:00".
+  if (t === '24:00') return '00:00';
   if (/^\d{2}:\d{2}$/.test(t)) return t;
   const m = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
   if (!m) return '';

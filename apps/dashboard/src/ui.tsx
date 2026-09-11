@@ -63,7 +63,7 @@ export const fredoka = (size: number, weight = 600): CSSProperties => ({
 });
 
 export const money = (fils: number) =>
-  (fils / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  (fils / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Count a number up from 0 when it first appears — a little life on the stats. */
 export function useCountUp(target: number, ms = 650): number {

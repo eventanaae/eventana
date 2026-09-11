@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { timeRange12h } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, C, fredoka, Panel, Spinner } from '../ui';
 import { Empty, eventTitle } from './Today';
@@ -51,7 +52,7 @@ export function MyEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void })
                     <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginTop: 1 }}>
                       {new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
                       {isToday && <span style={{ color: C.pinkDeep }}> · Today</span>}
-                      {' · '}{String(e.start_time).slice(0, 5)}–{String(e.base_end_time).slice(0, 5)}
+                      {' · '}{timeRange12h(e.start_time, e.base_end_time)}
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginTop: 2 }}>
                       {e.eventFor ? `by ${e.customer} · ` : ''}{e.emirate}{e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}

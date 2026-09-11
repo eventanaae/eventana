@@ -26,6 +26,10 @@ const NUMBER_RULES: Array<{ key: string; label: string; help: string; suffix?: s
 export function Settings() {
   const [data, setData] = useState<any>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
+  // Money rules are edited as free AED TEXT (like delivery zones), NOT round-
+  // tripped through fils on every keystroke — that round-trip ate the decimal
+  // point, making fractional prices (e.g. 12.50) impossible to type.
+  const [moneyText, setMoneyText] = useState<Record<string, string>>({});
   const [zoneDraft, setZoneDraft] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<string | null>(null);
   const [sampleEmail, setSampleEmail] = useState('');
@@ -39,6 +43,11 @@ export function Settings() {
     api.settings().then((d) => {
       setData(d);
       setDraft(Object.fromEntries(Object.entries(d.rules ?? {}).map(([k, v]) => [k, String(v)])));
+      setMoneyText(
+        Object.fromEntries(
+          MONEY_RULES.map(({ key }) => [key, d.rules?.[key] != null ? String(Number(d.rules[key]) / 100) : '']),
+        ),
+      );
       setZoneDraft(
         Object.fromEntries(
           (d.deliveryZones ?? []).map((z: any) => [z.emirate, z.feeFils === null ? '' : String(z.feeFils / 100)]),
@@ -54,8 +63,8 @@ export function Settings() {
     const patch: Record<string, number | boolean> = {};
     const blank = (v: unknown) => v === '' || v === null || v === undefined;
     for (const { key } of MONEY_RULES) {
-      if (blank(draft[key])) continue; // a cleared field must not silently save as 0
-      const value = Math.round(Number(draft[key]));
+      if (blank(moneyText[key])) continue; // a cleared field must not silently save as 0
+      const value = Math.round(Number(moneyText[key]) * 100); // AED text → fils
       if (Number.isFinite(value)) patch[key] = value;
     }
     for (const { key } of NUMBER_RULES) {
@@ -89,9 +98,10 @@ export function Settings() {
             <div key={r.key}>
               <label style={labelStyle}>{r.label} (AED)</label>
               <input
-                value={draft[r.key] ? String(Number(draft[r.key]) / 100) : ''}
+                inputMode="decimal"
+                value={moneyText[r.key] ?? ''}
                 onChange={(e) =>
-                  setDraft({ ...draft, [r.key]: String(Math.round(Number(e.target.value.replace(/[^\d.]/g, '')) * 100)) })
+                  setMoneyText({ ...moneyText, [r.key]: e.target.value.replace(/[^\d.]/g, '') })
                 }
                 style={inputStyle}
               />
