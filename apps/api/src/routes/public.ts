@@ -889,7 +889,10 @@ export async function publicRoutes(app: FastifyInstance) {
        VALUES ($1,'push','rating_received', now(), $2)`,
       [event, JSON.stringify({ eventId: event, stars })],
     ).catch(() => {});
-    void pushToStaff('New rating ⭐', `${event} was rated ${stars}/5`, { eventId: event });
+    void import('../domain/eventContext.js')
+      .then(({ staffEventBrief }) => staffEventBrief(event))
+      .then((b) => pushToStaff('New rating ⭐', `${stars}/5 · ${b.line}`, { eventId: event }))
+      .catch(() => pushToStaff('New rating ⭐', `${event} was rated ${stars}/5`, { eventId: event }));
     void recordGoodFeedbackRewards({ eventId: event, ratingId: inserted.rows[0].id, stars, feedback: feedback ?? null }).catch(() => {});
     // They gave feedback — stop any pending feedback reminder (email + WhatsApp).
     void cancelPendingFeedbackNotifications(event);

@@ -1025,7 +1025,10 @@ export async function eventRoutes(app: FastifyInstance) {
        VALUES ($1,'push','rating_received', now(), $2)`,
       [eventId, JSON.stringify({ eventId, stars: parsed.data.stars })],
     );
-    void pushToStaff('New rating ⭐', `${eventId} was rated ${parsed.data.stars}/5`, { eventId });
+    void import('../domain/eventContext.js')
+      .then(({ staffEventBrief }) => staffEventBrief(eventId))
+      .then((b) => pushToStaff('New rating ⭐', `${parsed.data.stars}/5 · ${b.line}`, { eventId }))
+      .catch(() => pushToStaff('New rating ⭐', `${eventId} was rated ${parsed.data.stars}/5`, { eventId }));
     // Positive feedback earns the crew the "good feedback" reward (amount from
     // settings), recorded to their Achievements with a double-pay guard, and
     // announced to the whole team. Best-effort — never blocks the rating.
