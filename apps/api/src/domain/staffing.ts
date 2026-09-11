@@ -276,7 +276,17 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
        FROM team_members tm JOIN staff_skills ss ON ss.member_id = tm.id
       WHERE tm.active GROUP BY tm.id, tm.name`,
   );
-  const wl = await pool.query(`SELECT assignee_id, count(*)::int c FROM event_staff WHERE assignee_id IS NOT NULL AND event_id <> $1 GROUP BY assignee_id`, [eventId]);
+  // Fairness workload = how many OTHER live events each person crews. Exclude the
+  // duplicate leader row (a leader is stored as a 2nd event_staff row, else every
+  // led party counts twice) and cancelled events (they tie up no one).
+  const wl = await pool.query(
+    `SELECT es.assignee_id, count(*)::int c
+       FROM event_staff es JOIN events e ON e.id = es.event_id
+      WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1
+        AND es.is_leader IS NOT TRUE AND e.phase <> 'Cancelled'
+      GROUP BY es.assignee_id`,
+    [eventId],
+  );
   const wlMap = new Map<string, number>(wl.rows.map((r: any) => [r.assignee_id, r.c]));
   // Staff already booked on another event whose time window OVERLAPS this one on
   // the same date → unavailable (a person can't be in two places at once). Two

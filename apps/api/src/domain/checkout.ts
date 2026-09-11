@@ -616,6 +616,7 @@ export async function startAddonCheckout(args: {
     services: cfg.services,
     startTime: event.start_time,
     hoursAlreadyPurchased: event.extra_hours,
+    baseEndTime: event.base_end_time,
   });
 
   if (!addonQuote.bookable) {

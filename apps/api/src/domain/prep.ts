@@ -263,7 +263,9 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
         SELECT pts.member_id FROM prep_task_staff pts JOIN prep_tasks pt ON pt.id = pts.task_id
           WHERE pt.status <> 'completed' AND pt.event_id <> $1
         UNION ALL
-        SELECT assignee_id AS member_id FROM event_staff WHERE assignee_id IS NOT NULL AND event_id <> $1
+        SELECT es.assignee_id AS member_id FROM event_staff es JOIN events e ON e.id = es.event_id
+          WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1
+            AND es.is_leader IS NOT TRUE AND e.phase <> 'Cancelled'
      ) w GROUP BY member_id`,
     [eventId],
   );
@@ -386,10 +388,15 @@ export async function setPrepTaskStatus(taskId: string, status: string, note: st
   await logTask(taskId, t.event_id, status === 'issue' ? 'issue' : 'status', `${t.title} → ${status}${note ? ' · ' + note : ''}`, actor);
   // An issue / missing item is surfaced to the Owner + Manager immediately.
   if (status === 'issue') {
+    // One open alert per task — re-flagging or re-saving the same issue must not
+    // stack duplicate ops-alerts (same NOT-EXISTS guard the other alerts use).
     await pool.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
-       VALUES ($1,'ops_alert','prep_issue', now(), $2)`,
-      [t.event_id, JSON.stringify({ eventId: t.event_id, taskId, title: t.title, note })],
+       SELECT $1,'ops_alert','prep_issue', now(), $2
+        WHERE NOT EXISTS (
+          SELECT 1 FROM notifications
+           WHERE template='prep_issue' AND (payload->>'taskId')=$3 AND cancelled_at IS NULL)`,
+      [t.event_id, JSON.stringify({ eventId: t.event_id, taskId, title: t.title, note }), String(taskId)],
     ).catch(() => {});
   } else {
     // Moving a task OFF 'issue' (resolved without completing) clears its alert too.

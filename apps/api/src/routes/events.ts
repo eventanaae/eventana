@@ -906,6 +906,7 @@ export async function eventRoutes(app: FastifyInstance) {
       services: cfg.services,
       startTime: rows[0].start_time,
       hoursAlreadyPurchased: rows[0].extra_hours,
+      baseEndTime: rows[0].base_end_time,
     });
     return { ...result, totalDisplay: formatAed(result.totalFils) };
   });

@@ -23,6 +23,7 @@ import {
   endsBeforeCutoff,
   eventEndHour,
   formatHour,
+  parseEndHour,
   parseHour,
   type PricingRules,
 } from './rules.js';
@@ -411,15 +412,29 @@ export function quoteAddons(
     startTime: string;
     /** Extra hours already paid for on this event. */
     hoursAlreadyPurchased: number;
+    /**
+     * The event's stored base_end_time ("HH:MM", or "24:00" for a midnight end).
+     * Used to recover the ORIGINAL base length (4h, or 6h for a decor/inflatable
+     * BYO) so the midnight check and reported end time are right. Without it the
+     * base defaults to 4h and a 6h party could be sold hours that overrun midnight.
+     */
+    baseEndTime?: string;
   },
 ): AddonQuote {
-  const { rules, services, startTime, hoursAlreadyPurchased } = opts;
+  const { rules, services, startTime, hoursAlreadyPurchased, baseEndTime } = opts;
   const lines: QuoteLine[] = [];
   const problems: QuoteProblem[] = [];
 
+  // Recover the event's real base length from its stored end time; fall back to
+  // the standard length only when base_end_time wasn't provided/parseable.
+  const derivedBase = baseEndTime
+    ? parseEndHour(baseEndTime) - parseHour(startTime) - hoursAlreadyPurchased
+    : NaN;
+  const baseHours = Number.isFinite(derivedBase) && derivedBase > 0 ? derivedBase : rules.standardEventHours;
+
   const hours = Math.max(0, Math.floor(request.additionalHours));
   if (hours > 0) {
-    const endWithNew = eventEndHour(startTime, rules, hoursAlreadyPurchased + hours);
+    const endWithNew = eventEndHour(startTime, rules, hoursAlreadyPurchased + hours, baseHours);
     if (endWithNew > rules.latestEndHour) {
       problems.push({
         code: 'end_after_midnight',
@@ -477,7 +492,7 @@ export function quoteAddons(
   const totalFils = lines.reduce((sum, l) => sum + l.amountFils, 0);
   const newEndTime =
     hours > 0 && problems.length === 0
-      ? formatHour(eventEndHour(startTime, rules, hoursAlreadyPurchased + hours))
+      ? formatHour(eventEndHour(startTime, rules, hoursAlreadyPurchased + hours, baseHours))
       : null;
 
   return {
