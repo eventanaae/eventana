@@ -288,22 +288,28 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
         AND $3 < COALESCE(e2.base_end_time,'23:59') AND COALESCE($4::text,'23:59') > e2.start_time`,
     [eventId, ev.date, ev.start_time, ev.base_end_time],
   );
-  const busy = new Set<string>(conf.rows.map((r: any) => r.assignee_id));
-  // Staff on an approved day off / annual leave covering the event date are
-  // unavailable too (approved leave drops a staff_days_off row — see leave.ts).
+  // Two DIFFERENT kinds of unavailability, kept apart on purpose:
+  //  • timeBusy = booked on ANOTHER event at an overlapping time. A driver runs
+  //    several deliveries a day, so this alone must NOT block a driver.
+  //  • unavailable = approved leave OR weekly day off — a hard no for EVERYONE,
+  //    drivers included (you can't drive on your day off / while on leave).
+  const timeBusy = new Set<string>(conf.rows.map((r: any) => r.assignee_id));
+  const unavailable = new Set<string>();
+  // Staff on an approved day off / annual leave covering the event date
+  // (approved leave drops a staff_days_off row — see leave.ts).
   const offRows = await pool.query(
     `SELECT DISTINCT member_id FROM staff_days_off
       WHERE status = 'approved' AND start_date <= $1 AND end_date >= $1`,
     [ev.date],
   );
-  for (const r of offRows.rows as any[]) busy.add(r.member_id);
+  for (const r of offRows.rows as any[]) unavailable.add(r.member_id);
   // Members whose recurring WEEKLY day off falls on the event's weekday are off.
   const evWeekday = new Date(`${ev.date}T00:00:00Z`).getUTCDay(); // 0=Sun … 6=Sat
   const weeklyOff = await pool.query(
     `SELECT id FROM team_members WHERE active AND weekly_day_off = $1`,
     [evWeekday],
   );
-  for (const r of weeklyOff.rows as any[]) busy.add(r.id);
+  for (const r of weeklyOff.rows as any[]) unavailable.add(r.id);
 
   const staff: StaffRow[] = staffRows.rows.map((r: any) => ({ id: r.id, name: r.name, skills: new Set(r.skills), workload: wlMap.get(r.id) ?? 0 }));
   const rolesByStaff = new Map<string, Set<Skill>>();
@@ -354,7 +360,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
       // person MAY cover two roles on one event (e.g. Jane as balloon artist AND
       // clown) — that's allowed; fairness just prefers spreading the work, so
       // someone already holding a role sinks down the list but isn't excluded.
-      .filter((st) => (s.role === 'driver' || !busy.has(st.id)) && canTake(st, s.role))
+      .filter((st) => (s.role === 'driver' || !timeBusy.has(st.id)) && !unavailable.has(st.id) && canTake(st, s.role))
       .sort((a, b) => (a.workload + (rolesByStaff.get(a.id)?.size ?? 0)) - (b.workload + (rolesByStaff.get(b.id)?.size ?? 0)));
     const pick = cands[0];
     if (pick) {

@@ -643,7 +643,9 @@ export async function ensureEventForReceipt(
     // span and the receipt-edit logic in updateReceipt).
     const rawTime = String(r.event_time ?? '').trim();
     const startTime = Number.isNaN(parseHour(rawTime)) ? '17:00' : rawTime;
-    const endTime = Number.isNaN(parseHour(rawTime)) ? '21:00' : formatHour24(parseHour(rawTime) + 4);
+    // Clamp the end at 24:00 (midnight) — a 21:00 start + 4h would otherwise be
+    // "25:00", which is not a valid clock time and breaks the auto-complete sweep.
+    const endTime = Number.isNaN(parseHour(rawTime)) ? '21:00' : formatHour24(Math.min(24, parseHour(rawTime) + 4));
     await db.query(
       `INSERT INTO events
          (id, order_id, customer_id, celebration_type, package_id, theme_id, custom_theme,
@@ -918,7 +920,8 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     const e = evr[0];
     if (e) {
       const dur = parseHour(e.base_end_time) - parseHour(e.start_time);
-      const newEnd = formatHour24(parseHour(d.eventTime) + (Number.isFinite(dur) && dur > 0 ? dur : 4));
+      // Clamp at 24:00 so a late start never yields an invalid "25:00" end time.
+      const newEnd = formatHour24(Math.min(24, parseHour(d.eventTime) + (Number.isFinite(dur) && dur > 0 ? dur : 4)));
       await pool.query(`UPDATE events SET start_time = $2, base_end_time = $3 WHERE id = $1`,
         [saved.event_id, d.eventTime, newEnd]).catch(() => {});
     }

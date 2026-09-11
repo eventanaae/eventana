@@ -2669,7 +2669,9 @@ export async function adminRoutes(app: FastifyInstance) {
         ...t,
         revenueDisplay: formatAed(t.revenueFils),
         expenseDisplay: formatAed(t.expenseFils),
-        profitDisplay: formatAed(t.profitFils),
+        // abs() — the client adds its own "−" sign for loss months, so returning
+        // a signed value here rendered a double minus ("−-50").
+        profitDisplay: formatAed(Math.abs(t.profitFils)),
       })),
     };
   });

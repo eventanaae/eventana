@@ -53,7 +53,8 @@ export function to12h(hhmm: string | null | undefined): string {
   if (!m) return String(hhmm);
   let h = Number(m[1]);
   const min = m[2];
-  const ampm = h >= 12 ? 'PM' : 'AM';
+  // 24:00 is midnight (a common event end time), NOT noon: only 12..23 are PM.
+  const ampm = h >= 12 && h < 24 ? 'PM' : 'AM';
   h = h % 12;
   if (h === 0) h = 12;
   return `${h}:${min} ${ampm}`;
