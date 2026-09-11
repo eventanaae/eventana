@@ -13,6 +13,7 @@ import { eventEndHour, formatHour24, isCancelled, parseHour } from '@eventana/sh
 import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from './settings.js';
 import { eventWindow, getAssets } from './inventory.js';
+import { reAlignPendingNotifications } from './lifecycle.js';
 import { syncEventToCalendar } from '../integrations/googleCalendar.js';
 
 /** Owner rule: reschedule allowed only when the event is more than this away. */
