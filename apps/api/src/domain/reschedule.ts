@@ -123,6 +123,15 @@ export async function rescheduleEvent(args: {
         WHERE event_id = $1 AND template = 'event_day' AND sent_at IS NULL AND cancelled_at IS NULL`,
       [args.eventId, args.newDate, args.newStartTime],
     );
+    // The post-event feedback request (1 day after the event) must move too —
+    // otherwise a reschedule to a LATER date leaves it firing on the old date,
+    // asking the customer to rate a party that hasn't happened yet.
+    await db.query(
+      `UPDATE notifications
+          SET scheduled_for = ($2 || ' ' || $3 || ':00+04:00')::timestamptz + interval '1 day'
+        WHERE event_id = $1 AND template = 'feedback_request' AND sent_at IS NULL AND cancelled_at IS NULL`,
+      [args.eventId, args.newDate, args.newStartTime],
+    );
     // Tell the assigned driver the delivery moved (new date/time → fresh row).
     await db.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
