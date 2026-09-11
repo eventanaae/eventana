@@ -24,6 +24,37 @@ const TEMPLATES: Array<{ template: string; offset: string }> = [
 
 export interface LifecycleResult { scheduled: string[]; skipped: string; }
 
+/**
+ * Re-align an event's still-pending customer reminder emails to its CURRENT
+ * date + start time — call after ANY change that moves the event (a reschedule,
+ * or a receipt edit that changes the event date/time), so a reminder never fires
+ * on a stale schedule. Uses the SAME offsets as enqueueBookingLifecycle:
+ * three_day_reminder (start − 3 days), event_day (start − 4 hours),
+ * feedback_request (start + 1 day). No-op for a TBD/dateless event. Already-sent
+ * or cancelled rows are left untouched.
+ */
+export async function reAlignPendingNotifications(eventId: string, db: Db = pool): Promise<void> {
+  const { rows } = await db.query(
+    `SELECT to_char(event_date,'YYYY-MM-DD') AS d, start_time, date_tbd FROM events WHERE id = $1`,
+    [eventId],
+  );
+  const ev = rows[0];
+  if (!ev || ev.date_tbd || !ev.d) return;
+  const start = `${ev.d}T${ev.start_time ?? '18:00'}:00+04:00`;
+  const offsets: Array<[string, string]> = [
+    ['three_day_reminder', "- interval '3 days'"],
+    ['event_day', "- interval '4 hours'"],
+    ['feedback_request', "+ interval '1 day'"],
+  ];
+  for (const [tpl, off] of offsets) {
+    await db.query(
+      `UPDATE notifications SET scheduled_for = $2::timestamptz ${off}
+        WHERE event_id = $1 AND template = $3 AND sent_at IS NULL AND cancelled_at IS NULL`,
+      [eventId, start, tpl],
+    ).catch(() => {});
+  }
+}
+
 export async function enqueueBookingLifecycle(eventId: string, db: Db = pool): Promise<LifecycleResult> {
   const { rows } = await db.query(`
     SELECT to_char(e.event_date,'YYYY-MM-DD') AS d, e.start_time, e.date_tbd,

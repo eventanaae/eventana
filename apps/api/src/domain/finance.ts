@@ -933,6 +933,14 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
       [saved.event_id, d.eventFor ?? ''],
     ).catch(() => {});
   }
+  // If this edit moved the event's date or time, re-align its pending reminder
+  // emails to the new schedule — otherwise event_day/3-day/feedback fire on the
+  // stale date (same fix as reschedule, via the receipt-edit path).
+  if (saved?.event_id && (d.date !== undefined || d.eventTime !== undefined || d.dateTbd !== undefined)) {
+    await import('./lifecycle.js')
+      .then(({ reAlignPendingNotifications }) => reAlignPendingNotifications(saved.event_id))
+      .catch((e) => console.error('[finance] re-align notifications failed:', (e as Error).message));
+  }
   return saved ? decorateReceipt(saved) : null;
 }
 
