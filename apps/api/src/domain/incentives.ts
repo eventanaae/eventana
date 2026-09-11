@@ -125,6 +125,31 @@ export async function recordGoodFeedbackRewards(params: {
 }
 
 /**
+ * Self-heal (runs from the reconcile sweep): remove good_feedback rewards that
+ * must not count — the backing event was deleted (orphan) or is dated before the
+ * counting start (pre-launch setup/migration). Keeps rewards for real
+ * September-or-later events that still carry a rating. Idempotent; so a deleted
+ * event or a corrected date can never leave phantom "5★ moments" / points behind.
+ */
+export async function sweepStaleFeedbackRewards(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `DELETE FROM staff_rewards sr
+      WHERE sr.kind = 'good_feedback'
+        AND (
+          NOT EXISTS (
+            SELECT 1 FROM events e JOIN event_ratings r ON r.event_id = e.id AND r.stars >= 4
+             WHERE e.id = sr.event_id
+          )
+          OR EXISTS (
+            SELECT 1 FROM events e WHERE e.id = sr.event_id AND e.event_date < $1::date
+          )
+        )`,
+    [COUNTING_START],
+  );
+  return rowCount ?? 0;
+}
+
+/**
  * Achievements list. An employee sees only their own rewards; owner/manager see
  * everyone's. Each row carries the event, date, amount and the feedback note.
  */

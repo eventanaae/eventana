@@ -107,17 +107,21 @@ export async function rescheduleEvent(args: {
       `UPDATE events SET event_date = $2, start_time = $3, base_end_time = $4 WHERE id = $1`,
       [args.eventId, args.newDate, args.newStartTime, endTime],
     );
-    // Move the still-unsent reminder emails to the new date, so they never fire
-    // against the old one.
+    // Move the still-unsent reminder emails to the NEW start moment, matching how
+    // they were scheduled at booking: the 3-day reminder at (start − 3 days) and
+    // the party-day email at (start − 4 hours) — NOT midnight of the new date.
+    // The new start is newDate + newStartTime in Dubai time (+04:00, no DST).
     await db.query(
-      `UPDATE notifications SET scheduled_for = $2::date - interval '3 days'
+      `UPDATE notifications
+          SET scheduled_for = ($2 || ' ' || $3 || ':00+04:00')::timestamptz - interval '3 days'
         WHERE event_id = $1 AND template = 'three_day_reminder' AND sent_at IS NULL AND cancelled_at IS NULL`,
-      [args.eventId, args.newDate],
+      [args.eventId, args.newDate, args.newStartTime],
     );
     await db.query(
-      `UPDATE notifications SET scheduled_for = $2::date
+      `UPDATE notifications
+          SET scheduled_for = ($2 || ' ' || $3 || ':00+04:00')::timestamptz - interval '4 hours'
         WHERE event_id = $1 AND template = 'event_day' AND sent_at IS NULL AND cancelled_at IS NULL`,
-      [args.eventId, args.newDate],
+      [args.eventId, args.newDate, args.newStartTime],
     );
     // Tell the assigned driver the delivery moved (new date/time → fresh row).
     await db.query(

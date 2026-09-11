@@ -580,7 +580,16 @@ export async function getPrepByPerson() {
            FROM events e WHERE e.id = pt.event_id
        ) e ON true
        LEFT JOIN customers c ON c.id = e.customer_id
-      WHERE tm.active AND tm.name = ANY($1)
+      WHERE tm.active AND (
+              tm.name = ANY($1)
+              -- Also anyone who has a MANUAL task assigned to them, even if they
+              -- aren't on the prep crew (e.g. the owner assigns Shan a to-do) —
+              -- otherwise their manual tasks never show on the by-person board.
+              OR EXISTS (
+                SELECT 1 FROM prep_task_staff x JOIN prep_tasks p ON p.id = x.task_id
+                 WHERE x.member_id = tm.id AND p.category = 'manual'
+              )
+            )
       GROUP BY tm.id, tm.name, tm.color
       ORDER BY open_count DESC, tm.name`,
     [Object.keys(PREP_SKILLS)],

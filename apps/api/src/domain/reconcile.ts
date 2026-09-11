@@ -181,6 +181,13 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     })
     .catch((err) => console.error('[prep] at-risk sweep failed:', err));
 
+  // Self-heal stale staff feedback rewards: drop any "5★ moment" whose event was
+  // deleted or is dated before the counting start, so phantom points never linger.
+  await import('./incentives.js')
+    .then(({ sweepStaleFeedbackRewards }) => sweepStaleFeedbackRewards())
+    .then((n) => { if (n) console.log(`[incentives] removed ${n} stale feedback reward(s)`); })
+    .catch((err) => console.error('[incentives] stale-reward sweep failed:', err));
+
   // Daily invoice balance reminders (opt-in per invoice; once per day until paid).
   await import('./notify.js')
     .then(({ sendInvoiceBalanceReminders }) => sendInvoiceBalanceReminders())
