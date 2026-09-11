@@ -275,7 +275,9 @@ export async function sendStaffPayReport(monthStr: string): Promise<{ sent: numb
   let sent = 0;
   for (const to of [OWNER_EMAIL, MARSHA_EMAIL]) {
     const res = await sendEmail({ to, subject: `Eventana — Part-timers & Drivers · ${r.monthLabel}`, html });
-    if ((res as any)?.id || res) sent++;
+    // sendEmail returns a truthy object even on failure, so `|| res` counted a
+    // FAILED send as sent — check res.ok like the other report senders do.
+    if ((res as any)?.ok) sent++;
   }
   return { sent };
 }

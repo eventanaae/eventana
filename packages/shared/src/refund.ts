@@ -70,14 +70,21 @@ export function computeRefund(args: {
     lines.filter(pred).reduce((s, l) => s + (Number(l.amountFils) || 0), 0);
 
   const deliveryFils = sum((l) => l.kind === 'delivery');
+  // A "Free delivery" reward is stored as a NEGATIVE discount line (kind
+  // 'discount', amountFils = −fee, possibly capped below the full fee). Since
+  // totalPaidFils is the NET amount, delivery the customer ACTUALLY paid is the
+  // gross line plus that negative discount — subtracting the gross fee again
+  // would double-remove it and under-refund the customer by up to the fee.
+  const freeDeliveryDiscountFils = sum((l) => l.kind === 'discount' && /free\s*delivery/i.test(String(l.label)));
+  const deliveryPaidFils = Math.max(0, deliveryFils + freeDeliveryDiscountFils);
   const themeFeeFils = sum((l) => l.kind === 'custom_theme');
   const madeToOrderFils = sum((l) => Boolean(l.refId) && MADE_TO_ORDER_SERVICE_IDS.has(l.refId as string));
   const nonRefundableExtrasFils = themeFeeFils + madeToOrderFils;
 
   const totalPaidFils = Math.max(0, Math.round(args.totalPaidFils));
-  // Party value = everything paid except delivery and the non-refundable
-  // extras. Clamped so odd carts can never produce a negative base.
-  const partyValueFils = Math.max(0, totalPaidFils - deliveryFils - nonRefundableExtrasFils);
+  // Party value = everything paid except the delivery actually paid and the
+  // non-refundable extras. Clamped so odd carts can never produce a negative base.
+  const partyValueFils = Math.max(0, totalPaidFils - deliveryPaidFils - nonRefundableExtrasFils);
 
   const tier = tierFor(args.hoursToEvent);
   const refundFils = Math.min(totalPaidFils, Math.round((partyValueFils * tier.percent) / 100));
