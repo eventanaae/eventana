@@ -9,13 +9,15 @@
 import { config } from '../config.js';
 
 export const STAFF_TEMPLATE = 'staff_notify';
-// Owner wants it short & direct — NO "You have a new update from the Eventana
-// team" / "Here's a new update" intro line at all, straight to the content.
-// Two hard Meta rules still force some fixed text: a body can't be mostly
-// variables (2388293) and can't END on a variable (2388299). The greeting
-// "Hi {{1}} 💛" and the "Thank you 🤍" close satisfy both — no update line.
-export const STAFF_BODY = `Hi {{1}} 💛\n{{2}}\n{{3}}\n\nThank you 🤍`;
-export const STAFF_EXAMPLE = ['Gloria', '🛒 Update the missing-items list before your day off', 'Tomorrow is your day off, so please update anything missing so we can buy it Wednesday.'];
+// Owner wants NO "You have a new update from the Eventana team" / "Here's a new
+// update" intro line — straight to the content. But Meta rejects a body that is
+// mostly variables (2388293 "parameter word-ratio exceeded") and one that ENDS
+// on a variable (2388299). So we DON'T re-add the update line; instead the fixed
+// text lives in the greeting + a longer warm close, and the examples are kept
+// short so the variable/word ratio passes. Net effect for staff: the update
+// line is gone.
+export const STAFF_BODY = `Hi {{1}} 💛\n{{2}}\n{{3}}\n\nThank you, and keep up the great work 🤍`;
+export const STAFF_EXAMPLE = ['Gloria', 'New rating ⭐', '5/5 · Kids Birthday · EV-1731'];
 const BODY = STAFF_BODY;
 const EXAMPLE = STAFF_EXAMPLE;
 
