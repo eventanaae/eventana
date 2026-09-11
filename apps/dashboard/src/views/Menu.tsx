@@ -22,6 +22,7 @@ const GROUPS: Array<{ label: string; items: Item[] }> = [
     { id: 'marketing', icon: '📣', label: 'Marketing' },
     { id: 'leads', icon: '💬', label: 'Leads' },
     { id: 'reviews', icon: '⭐', label: 'Google Reviews' },
+    { id: 'feedback', icon: '🌟', label: 'Ratings' },
   ] },
   { label: 'Staff', items: [
     { id: 'kpis', icon: '🏆', label: 'Achievements' },
