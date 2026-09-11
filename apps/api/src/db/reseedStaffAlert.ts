@@ -9,12 +9,12 @@
 import { config } from '../config.js';
 
 export const STAFF_TEMPLATE = 'staff_notify';
-// Owner wants it short & direct — no "Team Eventana" sign-off, no extra blank
-// lines. Two hard Meta rules force the shape: a body can't be mostly variables
-// (2388293 → needs a fixed intro line) and can't END on a variable (2388299 →
-// needs a fixed closing line). So: short intro, the two single-spaced content
-// lines, and a minimal "Thank you 🤍" close (not the old "Team Eventana").
-export const STAFF_BODY = `Hi {{1}} 💛\n\nHere's a new update for you:\n{{2}}\n{{3}}\n\nThank you 🤍`;
+// Owner wants it short & direct — NO "You have a new update from the Eventana
+// team" / "Here's a new update" intro line at all, straight to the content.
+// Two hard Meta rules still force some fixed text: a body can't be mostly
+// variables (2388293) and can't END on a variable (2388299). The greeting
+// "Hi {{1}} 💛" and the "Thank you 🤍" close satisfy both — no update line.
+export const STAFF_BODY = `Hi {{1}} 💛\n{{2}}\n{{3}}\n\nThank you 🤍`;
 export const STAFF_EXAMPLE = ['Gloria', '🛒 Update the missing-items list before your day off', 'Tomorrow is your day off, so please update anything missing so we can buy it Wednesday.'];
 const BODY = STAFF_BODY;
 const EXAMPLE = STAFF_EXAMPLE;
