@@ -318,6 +318,9 @@ async function main() {
     // READ-ONLY: ratings report — counts + full per-rating detail + Google status (RATINGS_REPORT=true).
     const { ratingsReportFromEnv } = await import('./db/ratingsReport.js');
     await ratingsReportFromEnv().catch((err) => console.error('[ratings-report] failed:', err));
+    // READ-ONLY: list the 5★ good-feedback rewards with their real event + dates (REWARDS_DEBUG=true).
+    const { rewardsDebugFromEnv } = await import('./db/rewardsDebug.js');
+    await rewardsDebugFromEnv().catch((err) => console.error('[rewards-debug] failed:', err));
     // READ-ONLY: how many customers miss a phone + how many are backfillable from QB (CUSTOMER_PHONE_AUDIT=true).
     const { customerPhoneAuditFromEnv } = await import('./db/customerPhoneAudit.js');
     await customerPhoneAuditFromEnv().catch((err) => console.error('[phone-audit] failed:', err));
