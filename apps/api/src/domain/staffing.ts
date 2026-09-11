@@ -155,11 +155,13 @@ function serviceReqs(s: ServiceInput): RoleReq[] {
 export function computeRequirements(input: { packageName?: string | null; services: ServiceInput[]; customTheme?: boolean }): RoleReq[] {
   const reqs: RoleReq[] = [];
   const pk = packageKey(input.packageName);
-  // Custom theme designed by the customer → Marsha designs/visualises the event
-  // (an internal, back-office task; never shown to the customer).
-  if (input.customTheme) {
-    reqs.push({ role: 'design', count: 1, reason: 'Design & visualise the custom theme', source: 'Custom theme', needsDesign: true });
-  }
+  // NOTE: a custom theme is pure back-office DESIGN — it's handled by the prep
+  // system (the Cricut / New-Backdrop design tasks assigned to Marsha), NOT by a
+  // day-of crew slot. We deliberately do NOT add a 'design' crew requirement for
+  // it, so the remote designer never shows up in "Team for this event" just for a
+  // custom theme (owner's rule). The designer is only added to the crew when the
+  // order has SHOP items to buy/print — that comes from the giveaways/extras
+  // 'design' requirement in requirementsFromService.
   if (pk) {
     for (const c of PACKAGE_CREW[pk]) {
       reqs.push({ role: c.role, count: c.count, reason: `${input.packageName} package crew`, source: input.packageName ?? 'Package' });

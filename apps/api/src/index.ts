@@ -312,6 +312,9 @@ async function main() {
     // One-shot: add the Cricut design task to upcoming backdrop events that predate the rule (PREP_CRICUT_BACKFILL=true).
     const { prepBackfillCricutFromEnv } = await import('./db/prepBackfillCricut.js');
     await prepBackfillCricutFromEnv().catch((err) => console.error('[cricut-backfill] failed:', err));
+    // One-shot: drop the remote designer from the day-of team on custom-theme-only events (STAFF_DESIGN_CLEANUP=true).
+    const { staffDesignCleanupFromEnv } = await import('./db/staffDesignCleanup.js');
+    await staffDesignCleanupFromEnv().catch((err) => console.error('[design-cleanup] failed:', err));
     // READ-ONLY: how many customers miss a phone + how many are backfillable from QB (CUSTOMER_PHONE_AUDIT=true).
     const { customerPhoneAuditFromEnv } = await import('./db/customerPhoneAudit.js');
     await customerPhoneAuditFromEnv().catch((err) => console.error('[phone-audit] failed:', err));
