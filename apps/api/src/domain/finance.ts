@@ -565,6 +565,11 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
     `SELECT o.id, o.kind, o.source, o.cart, o.quote, o.total_fils, o.customer_id
        FROM orders o
       WHERE o.status = 'paid' AND o.kind IN ('booking','addon','shop')
+        -- A 'converted' order is the synthetic booking minted FROM an existing
+        -- upcoming receipt; that receipt already carries the money (with a NULL
+        -- order_id), so backfilling would post the same sale a second time and
+        -- overstate Cash on Hand. Skip them.
+        AND o.source IS DISTINCT FROM 'converted'
         AND NOT EXISTS (SELECT 1 FROM finance_receipts r WHERE r.order_id = o.id)
       ORDER BY o.created_at`,
   );

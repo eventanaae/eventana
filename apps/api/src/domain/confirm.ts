@@ -17,6 +17,7 @@ import {
   eventEndHour,
   formatHour,
   formatHour24,
+  parseEndHour,
   parseHour,
   type CartInput,
   type PricingRules,
@@ -662,7 +663,13 @@ async function applyAddonOrder(db: PoolClient, order: any, rules: PricingRules):
 
   if (extraHours > 0) {
     const totalExtra = event.extra_hours + extraHours;
-    const newEnd = eventEndHour(event.start_time, rules, totalExtra);
+    // Preserve the event's ORIGINAL base length (4h, or 6h for a decor/inflatable
+    // BYO) — don't let eventEndHour fall back to the 4h default, which would
+    // silently shrink a 6h party the customer just PAID to extend. parseEndHour
+    // so a midnight "24:00" base reads as 24, not NaN.
+    const origBase = parseEndHour(event.base_end_time) - parseHour(event.start_time) - (event.extra_hours ?? 0);
+    const baseHours = Number.isFinite(origBase) && origBase > 0 ? origBase : rules.standardEventHours;
+    const newEnd = eventEndHour(event.start_time, rules, totalExtra, baseHours);
     if (newEnd > rules.latestEndHour) {
       throw new Error(
         `Add-on ${order.id} would extend event ${eventId} past ${formatHour(rules.latestEndHour)}`,

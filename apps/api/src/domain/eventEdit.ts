@@ -7,7 +7,7 @@
  * When the time changes the reserved inventory holds move with it, checked
  * against every OTHER booking so an edit can never double-book an asset.
  */
-import { parseHour } from '@eventana/shared';
+import { eventDateYMD, parseEndHour, parseHour } from '@eventana/shared';
 import { withTransaction } from '../db/pool.js';
 import { eventWindow, getAssets } from './inventory.js';
 import { titleCaseName } from './maintenance.js';
@@ -46,17 +46,30 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
     if (patch.startTime || patch.endTime) {
       const newStart = patch.startTime ?? ev.start_time;
       const newEnd = patch.endTime ?? ev.base_end_time;
-      const endHour = parseHour(newEnd);
+      // parseEndHour so a midnight-ending party (base_end_time "24:00" → 24) can
+      // still have its start time corrected — parseHour alone returns NaN for
+      // "24:00" and would reject the edit of every 8 PM party.
+      const endHour = parseEndHour(newEnd);
       if (!Number.isFinite(parseHour(newStart)) || !Number.isFinite(endHour) || endHour <= parseHour(newStart)) {
         throw new EventEditError('End time must be after the start time.', 'bad_time');
       }
-      const dateStr = new Date(ev.event_date as string).toISOString().slice(0, 10);
+      const dateStr = eventDateYMD(ev.event_date);
 
       const { rows: holds } = await db.query<{ asset_code: string }>(
         `SELECT DISTINCT asset_code FROM inventory_holds WHERE event_id = $1 AND status = 'reserved'`,
         [eventId],
       );
       const assets = await getAssets(db, holds.map((h) => h.asset_code));
+
+      // Lock these assets (same discipline as checkout's acquireHolds) BEFORE
+      // the availability count, so two edits/reschedules moving onto the same
+      // scarce asset at the same instant can't both pass and double-book it.
+      if (assets.length) {
+        await db.query(
+          `SELECT code FROM inventory_assets WHERE code = ANY($1) ORDER BY code FOR UPDATE`,
+          [assets.map((a) => a.code)],
+        );
+      }
 
       // Availability at the new time, ignoring this event's own reservations.
       for (const asset of assets) {

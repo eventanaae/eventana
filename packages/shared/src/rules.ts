@@ -99,6 +99,18 @@ export function formatHour24(hour: number): string {
 }
 
 /**
+ * Like parseHour, but also accepts the end-of-day sentinel "24:00" (→ 24) that
+ * the system itself writes as base_end_time for any party finishing at midnight
+ * (formatHour24(24) === "24:00"). parseHour deliberately rejects 24:00 (a valid
+ * START must be 0–23), so use THIS whenever reading back a stored END time —
+ * otherwise a midnight-ending party parses as NaN and its length/edits break.
+ */
+export function parseEndHour(time: string | null): number {
+  if (time === '24:00') return 24;
+  return parseHour(time);
+}
+
+/**
  * A DB DATE value → 'YYYY-MM-DD', TIMEZONE-SAFE. node-postgres parses a bare
  * DATE column into a JS Date at LOCAL midnight, so reading it back with the
  * LOCAL getters returns the same calendar day on any server timezone. Using

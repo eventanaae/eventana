@@ -9,7 +9,7 @@
  * The reserved inventory holds move with the event, checked against every
  * OTHER booking so a reschedule can never double-book an asset.
  */
-import { eventDateYMD, eventEndHour, formatHour24, isCancelled, parseHour } from '@eventana/shared';
+import { eventDateYMD, eventEndHour, formatHour24, isCancelled, parseEndHour, parseHour } from '@eventana/shared';
 import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from './settings.js';
 import { eventWindow, getAssets } from './inventory.js';
@@ -62,7 +62,7 @@ export async function rescheduleEvent(args: {
     }
 
     // Preserve the event's original base length (4h, or 6h for a decor BYO).
-    const origBase = parseHour(ev.base_end_time) - parseHour(ev.start_time) - (ev.extra_hours ?? 0);
+    const origBase = parseEndHour(ev.base_end_time) - parseHour(ev.start_time) - (ev.extra_hours ?? 0);
     const baseHours = Number.isFinite(origBase) && origBase > 0 ? origBase : cfg.rules.standardEventHours;
     const endHour = eventEndHour(args.newStartTime, cfg.rules, ev.extra_hours, baseHours);
     if (endHour > cfg.rules.latestEndHour) {
@@ -76,6 +76,16 @@ export async function rescheduleEvent(args: {
       [args.eventId],
     );
     const assets = await getAssets(db, holds.map((h) => h.asset_code));
+
+    // Lock these assets (same discipline as checkout's acquireHolds) BEFORE the
+    // availability count, so two reschedules/edits moving onto the same scarce
+    // asset at the same instant can't both pass the check and double-book it.
+    if (assets.length) {
+      await db.query(
+        `SELECT code FROM inventory_assets WHERE code = ANY($1) ORDER BY code FOR UPDATE`,
+        [assets.map((a) => a.code)],
+      );
+    }
 
     for (const asset of assets) {
       const win = eventWindow(args.newDate, args.newStartTime, endHour, asset.buffer_before_minutes, asset.buffer_after_minutes);
