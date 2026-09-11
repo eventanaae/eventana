@@ -64,8 +64,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   // Marketing
   { id: 'marketing', label: 'Marketing', icon: '📣', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'marketing' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'marketing' },
-  { id: 'reviews', label: 'Google Reviews', icon: '⭐', title: 'Google Reviews', sub: 'Auto-replies & drafts awaiting your approval', section: 'marketing' },
-  { id: 'feedback', label: 'Ratings', icon: '🌟', title: 'Ratings report', sub: 'Every customer rating — event, dates, team & comments', section: 'marketing' },
+  { id: 'feedback', label: 'Review Report', icon: '🌟', title: 'Review Report', sub: 'Every customer rating — event, dates, team & comments', section: 'marketing' },
   // Staff
   { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },

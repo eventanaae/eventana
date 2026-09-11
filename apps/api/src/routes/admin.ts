@@ -395,10 +395,15 @@ export async function adminRoutes(app: FastifyInstance) {
               (SELECT fr.number FROM finance_receipts fr
                  WHERE fr.event_id=e.id OR (e.order_id IS NOT NULL AND fr.order_id=e.order_id)
                  ORDER BY (fr.event_id=e.id) DESC, fr.id LIMIT 1) AS receipt_number,
-              (SELECT string_agg(DISTINCT COALESCE(tm.name, es.part_time_name), ', ')
-                 FROM event_staff es LEFT JOIN team_members tm ON tm.id=es.assignee_id
-                WHERE es.event_id=e.id
-                  AND (es.assignee_id IS NOT NULL OR (es.part_time_name IS NOT NULL AND es.status='confirmed'))) AS team
+              COALESCE(
+                (SELECT string_agg(DISTINCT COALESCE(tm.name, es.part_time_name), ', ')
+                   FROM event_staff es LEFT JOIN team_members tm ON tm.id=es.assignee_id
+                  WHERE es.event_id=e.id
+                    AND (es.assignee_id IS NOT NULL OR (es.part_time_name IS NOT NULL AND es.status='confirmed'))),
+                (SELECT string_agg(DISTINCT tm2.name, ', ')
+                   FROM event_team et JOIN team_members tm2 ON tm2.id=et.member_id
+                  WHERE et.event_id=e.id)
+              ) AS team
          FROM event_ratings r
          JOIN events e ON e.id=r.event_id
          JOIN customers c ON c.id=e.customer_id

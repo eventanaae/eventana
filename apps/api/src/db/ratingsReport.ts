@@ -46,6 +46,9 @@ export async function ratingsReportFromEnv(): Promise<void> {
                  FROM event_staff es LEFT JOIN team_members tm ON tm.id = es.assignee_id
                 WHERE es.event_id = e.id
                   AND (es.assignee_id IS NOT NULL OR (es.part_time_name IS NOT NULL AND es.status = 'confirmed'))) AS team,
+              (SELECT string_agg(DISTINCT tm2.name, ', ')
+                 FROM event_team et JOIN team_members tm2 ON tm2.id = et.member_id
+                WHERE et.event_id = e.id) AS mirror_team,
               btrim(coalesce(r.feedback,'')) AS feedback
          FROM event_ratings r
          JOIN events e ON e.id = r.event_id

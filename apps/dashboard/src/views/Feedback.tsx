@@ -22,7 +22,7 @@ export function Feedback({ onBack, onOpenEvent }: { onBack: () => void; onOpenEv
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Button tone="ghost" onClick={onBack}>← Back</Button>
-        <div style={fredoka(20)}>⭐ Ratings report</div>
+        <div style={fredoka(20)}>⭐ Review Report</div>
       </div>
 
       {!data ? <Spinner /> : (
