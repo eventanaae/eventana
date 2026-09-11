@@ -315,6 +315,9 @@ async function main() {
     // One-shot: drop the remote designer from the day-of team on custom-theme-only events (STAFF_DESIGN_CLEANUP=true).
     const { staffDesignCleanupFromEnv } = await import('./db/staffDesignCleanup.js');
     await staffDesignCleanupFromEnv().catch((err) => console.error('[design-cleanup] failed:', err));
+    // READ-ONLY: ratings report — counts + full per-rating detail + Google status (RATINGS_REPORT=true).
+    const { ratingsReportFromEnv } = await import('./db/ratingsReport.js');
+    await ratingsReportFromEnv().catch((err) => console.error('[ratings-report] failed:', err));
     // READ-ONLY: how many customers miss a phone + how many are backfillable from QB (CUSTOMER_PHONE_AUDIT=true).
     const { customerPhoneAuditFromEnv } = await import('./db/customerPhoneAudit.js');
     await customerPhoneAuditFromEnv().catch((err) => console.error('[phone-audit] failed:', err));

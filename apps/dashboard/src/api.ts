@@ -469,6 +469,7 @@ export const api = {
   achievements: () => request<{ rows: any[]; totalDisplay: string; totalFils: number }>('/api/admin/achievements'),
   alerts: () => request<any>('/api/admin/alerts'),
   customerFeedback: (limit?: number) => request<{ rows: any[]; count: number }>(`/api/admin/customer-feedback${limit ? `?limit=${limit}` : ''}`),
+  ratingsReport: () => request<{ stats: any; google: { reviews: number; connected: boolean }; rows: any[] }>('/api/admin/ratings-report'),
 
   /** Sign + upload an image straight to Cloudinary; returns its secure URL. */
   uploadImage: async (file: File, folder: 'receipts' | 'themes' | 'designs' | 'setup-photos' | 'reference' | 'event-photos'): Promise<string> => {

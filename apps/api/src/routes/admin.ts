@@ -370,6 +370,45 @@ export async function adminRoutes(app: FastifyInstance) {
     return { rows, count: rows.length };
   });
 
+  /** Full ratings REPORT — EVERY rating (with or without a comment), newest
+   *  first, carrying the event (celebration + guest-of-honour + theme + ref),
+   *  BOTH dates (event date and when it was rated), the crew, and the comment.
+   *  Plus summary stats. Owner/manager view. */
+  app.get('/api/admin/ratings-report', async () => {
+    const stats = (await pool.query(
+      `SELECT count(*)::int AS total, count(DISTINCT e.customer_id)::int AS customers,
+              count(*) FILTER (WHERE r.stars=5)::int AS s5, count(*) FILTER (WHERE r.stars=4)::int AS s4,
+              count(*) FILTER (WHERE r.stars=3)::int AS s3, count(*) FILTER (WHERE r.stars=2)::int AS s2,
+              count(*) FILTER (WHERE r.stars=1)::int AS s1,
+              round(avg(r.stars)::numeric,2) AS avg_stars
+         FROM event_ratings r JOIN events e ON e.id=r.event_id`,
+    )).rows[0];
+    const g = (await pool.query(`SELECT count(*)::int n FROM google_reviews`).catch(() => ({ rows: [{ n: 0 }] }))).rows[0];
+    const gconn = (await pool.query(`SELECT count(*)::int n FROM google_oauth_connection`).catch(() => ({ rows: [{ n: 0 }] }))).rows[0];
+    const { rows } = await pool.query(
+      `SELECT r.id, r.stars, btrim(coalesce(r.feedback,'')) AS feedback, r.event_id,
+              to_char(r.created_at,'YYYY-MM-DD') AS rated_on,
+              to_char(e.event_date,'YYYY-MM-DD') AS event_date,
+              c.name AS customer, e.celebration_type,
+              COALESCE(th.name, initcap(o.cart->>'customTheme')) AS theme,
+              initcap(o.cart->>'eventFor') AS baby,
+              (SELECT fr.number FROM finance_receipts fr
+                 WHERE fr.event_id=e.id OR (e.order_id IS NOT NULL AND fr.order_id=e.order_id)
+                 ORDER BY (fr.event_id=e.id) DESC, fr.id LIMIT 1) AS receipt_number,
+              (SELECT string_agg(DISTINCT COALESCE(tm.name, es.part_time_name), ', ')
+                 FROM event_staff es LEFT JOIN team_members tm ON tm.id=es.assignee_id
+                WHERE es.event_id=e.id
+                  AND (es.assignee_id IS NOT NULL OR (es.part_time_name IS NOT NULL AND es.status='confirmed'))) AS team
+         FROM event_ratings r
+         JOIN events e ON e.id=r.event_id
+         JOIN customers c ON c.id=e.customer_id
+         LEFT JOIN orders o ON o.id=e.order_id
+         LEFT JOIN themes th ON th.id=e.theme_id
+        ORDER BY r.created_at DESC`,
+    );
+    return { stats, google: { reviews: g.n, connected: gconn.n > 0 }, rows };
+  });
+
   /** Achievements: recorded staff rewards (good feedback, glam, incentives).
    *  An employee sees only their own; owner/manager see everyone's. */
   app.get('/api/admin/achievements', async (request) => {
