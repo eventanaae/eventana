@@ -374,7 +374,12 @@ export async function adminRoutes(app: FastifyInstance) {
    *  first, carrying the event (celebration + guest-of-honour + theme + ref),
    *  BOTH dates (event date and when it was rated), the crew, and the comment.
    *  Plus summary stats. Owner/manager view. */
-  app.get('/api/admin/ratings-report', async () => {
+  app.get('/api/admin/ratings-report', async (request, reply) => {
+    // Owner/manager only — this report carries every customer's name, receipt
+    // ref, and written feedback (incl. 1-star complaints), so a regular
+    // employee token must not be able to read it.
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const stats = (await pool.query(
       `SELECT count(*)::int AS total, count(DISTINCT e.customer_id)::int AS customers,
               count(*) FILTER (WHERE r.stars=5)::int AS s5, count(*) FILTER (WHERE r.stars=4)::int AS s4,
@@ -518,8 +523,10 @@ export async function adminRoutes(app: FastifyInstance) {
         `SELECT
            (SELECT count(*)::int FROM events WHERE event_date = CURRENT_DATE AND phase <> 'Cancelled') AS events_today,
            (SELECT count(*)::int FROM orders WHERE status = 'paid' AND source IS DISTINCT FROM 'converted'
+              AND kind = 'booking'
               AND created_at >= date_trunc('month', now())) AS bookings_month,
            (SELECT COALESCE(sum(total_fils),0)::bigint FROM orders WHERE status = 'paid' AND source IS DISTINCT FROM 'converted'
+              AND kind IN ('booking','addon')
               AND created_at >= date_trunc('month', now())) AS revenue_month,
            (SELECT count(*)::int FROM event_tasks WHERE status = 'open') AS open_tasks,
            (SELECT count(*)::int FROM orders WHERE status = 'needs_review') AS needs_review,
@@ -1221,9 +1228,12 @@ export async function adminRoutes(app: FastifyInstance) {
           ? `Your Eventana team is on the way!${ev.eta ? ` ETA ${ev.eta}` : ''} 🚐`
           : ev.phase === 'Arrived'
             ? 'Your Eventana team has arrived! 🎉'
-            : (ev.phase === 'Setup Ready' || ev.phase === 'Party Started')
+            : ev.phase === 'Setup Ready'
               ? 'Everything is set up and ready — enjoy your celebration! ✨'
               : null;
+      // Push only on 'Setup Ready', NOT again on 'Party Started' — both used to
+      // yield the same line, buzzing the customer twice with an identical message
+      // minutes apart. (The email side is already deduped per template below.)
       if (line) void pushToOwner('customer', ev.customer_id, 'Eventana', line, { eventId });
       // Also send an email version so a customer without push still gets the
       // live update. Delivered by the same notification sweep. Idempotent per

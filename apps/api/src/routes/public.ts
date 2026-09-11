@@ -266,8 +266,19 @@ export async function publicRoutes(app: FastifyInstance) {
 
       const temps = series.map((t) => t.data?.instant?.details?.air_temperature).filter((n) => typeof n === 'number');
       const winds = series.map((t) => t.data?.instant?.details?.wind_speed).filter((n) => typeof n === 'number');
+      // Sum NON-overlapping rainfall. next_6_hours covers the next six hours, so
+      // adding it once per hourly step counted each hour of rain ~6×. Prefer the
+      // per-hour next_1_hours figure; for the coarse tail that only has a 6-hour
+      // block, add a per-hour share (÷6) so windows don't overlap.
       let precip = 0;
-      for (const t of series) precip += t.data?.next_6_hours?.details?.precipitation_amount ?? t.data?.next_1_hours?.details?.precipitation_amount ?? 0;
+      for (const t of series) {
+        const oneHour = t.data?.next_1_hours?.details?.precipitation_amount;
+        if (typeof oneHour === 'number') precip += oneHour;
+        else {
+          const sixHour = t.data?.next_6_hours?.details?.precipitation_amount;
+          if (typeof sixHour === 'number') precip += sixHour / 6;
+        }
+      }
       // Pick the symbol from around midday for a representative condition.
       const noon = series.find((t) => t.time.slice(11, 13) === '12') ?? series[Math.floor(series.length / 2)];
       const symbol: string =
@@ -876,6 +887,12 @@ export async function publicRoutes(app: FastifyInstance) {
     const ev = rows[0];
     if (!ev) return reply.status(404).send({ error: 'not_found' });
     if (String(ev.phase).toLowerCase().includes('cancel')) return reply.status(409).send({ error: 'event_cancelled' });
+    // Only ratable once the party has actually started/finished — the feedback
+    // link is sent after the event, so this just guards against an early rating
+    // (and its early crew reward) if the link is opened ahead of time.
+    if (!['Party Started', 'Event Completed'].includes(ev.phase)) {
+      return reply.status(409).send({ error: 'event_not_started' });
+    }
     const inserted = await pool.query(
       `INSERT INTO event_ratings (event_id, customer_id, stars, feedback)
        VALUES ($1,$2,$3,$4)

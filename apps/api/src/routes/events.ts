@@ -1012,6 +1012,12 @@ export async function eventRoutes(app: FastifyInstance) {
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     if (isCancelled(rows[0].phase)) return reply.status(409).send(CANCELLED_ERROR);
+    // A party can only be rated once it has actually started/finished — mirror
+    // the display rule (canReview). Otherwise a customer could 5-star a party
+    // that hasn't happened and trigger the crew's good-feedback reward early.
+    if (!['Party Started', 'Event Completed'].includes(rows[0].phase)) {
+      return reply.status(409).send({ error: 'event_not_started', message: 'You can rate your celebration once it has taken place.' });
+    }
 
     const inserted = await pool.query(
       `INSERT INTO event_ratings (event_id, customer_id, stars, feedback)
