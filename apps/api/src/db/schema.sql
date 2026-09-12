@@ -1372,6 +1372,22 @@ CREATE TABLE IF NOT EXISTS staff_rewards (
 );
 CREATE INDEX IF NOT EXISTS staff_rewards_member_idx ON staff_rewards (member_id, created_at DESC);
 
+-- ── Personal focus tasks (the owner's / a manager's daily to-do) ────────────
+-- The owner is deliberately kept to a handful of priorities a day. This is her
+-- OWN list (scoped by member_id) — not the auto-generated event prep tasks. She
+-- adds items, orders them by priority (sort_order, lower = higher), and checks
+-- them off. The dashboard home surfaces the top undone items as "today's focus".
+CREATE TABLE IF NOT EXISTS focus_tasks (
+  id          BIGSERIAL PRIMARY KEY,
+  member_id   TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  done        BOOLEAN NOT NULL DEFAULT FALSE,
+  done_at     TIMESTAMPTZ,
+  sort_order  INT NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS focus_tasks_member_idx ON focus_tasks (member_id, done, sort_order);
+
 -- ── Staff referral codes ────────────────────────────────────────────────────
 -- A personal code a crew member gives to a client they bring in. The customer
 -- enters it at checkout (in the promo field). It gives the CUSTOMER no discount

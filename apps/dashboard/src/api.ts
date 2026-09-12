@@ -222,6 +222,14 @@ export interface PromoCode {
   createdOn: string;
 }
 
+export interface FocusTask {
+  id: number;
+  title: string;
+  done: boolean;
+  sortOrder?: number;
+  doneOn?: string | null;
+}
+
 export const api = {
   // ── Staff email/password auth (public endpoints) ──
   staffLogin: (email: string, password: string) => request<{ token: string; name: string; role: string }>('/api/staff/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
@@ -536,6 +544,16 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ active }),
     }),
+
+  focus: () => request<{ tasks: FocusTask[]; done: FocusTask[] }>('/api/admin/focus'),
+  addFocus: (title: string) =>
+    request<FocusTask>('/api/admin/focus', { method: 'POST', body: JSON.stringify({ title }) }),
+  updateFocus: (id: number, patch: { done?: boolean; title?: string }) =>
+    request<FocusTask>(`/api/admin/focus/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteFocus: (id: number) =>
+    request<{ ok: boolean }>(`/api/admin/focus/${id}`, { method: 'DELETE' }),
+  reorderFocus: (ids: number[]) =>
+    request<{ ok: boolean }>('/api/admin/focus/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
 
   kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
 

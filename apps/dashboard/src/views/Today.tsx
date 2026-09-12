@@ -3,6 +3,7 @@ import { celebrationLabel, eventDateYMD, to12h, timeRange12h } from '@eventana/s
 import type { View } from '../App';
 import { api } from '../api';
 import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner } from '../ui';
+import { FocusPanel } from './FocusPanel';
 
 /**
  * The operational home — a warm, lively landing that answers, at a glance:
@@ -106,6 +107,9 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
           </div>
         </div>
       )}
+
+      {/* 🎯 My focus today — the owner/manager's own short daily to-do */}
+      {canBrief && <FocusPanel />}
 
       {/* Quick actions — only the ones this role can actually open */}
       {(() => {

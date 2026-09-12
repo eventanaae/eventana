@@ -197,6 +197,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // own "Latest updates" feed), so it is NOT gated to managers here.
       path.startsWith('/api/admin/marketing') ||
       path.startsWith('/api/admin/promo-codes') ||
+      path.startsWith('/api/admin/focus') ||
       path.startsWith('/api/admin/google') ||
       path === '/api/admin/team' ||
       // Editing catalogue prices / availability / inventory is a money change:
@@ -5117,6 +5118,114 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found', message: 'No such code.' });
     return { ok: true, code, active: parsed.data.active };
+  });
+
+  /* ------------------------- Personal focus tasks ------------------------- */
+  // The owner's (or a manager's) own daily to-do — kept deliberately short so she
+  // works to a handful of priorities a day. Every query is scoped to the caller's
+  // member_id, so no one ever sees or edits another person's list.
+
+  /**
+   * The signed-in member's id. A session/token login already carries it; the
+   * master-token Owner does not (she resolves to { role:'owner' } with no id), so
+   * fall back to the owner's real team_members row — that keeps her focus list
+   * stable whether she logs in with the master token or email/password.
+   */
+  const focusMemberId = async (request: any): Promise<string | null> => {
+    if (request.staff?.id) return request.staff.id;
+    if (request.staff?.role === 'owner') {
+      const { rows } = await pool.query(
+        `SELECT id FROM team_members WHERE access_level = 'owner' AND active ORDER BY id LIMIT 1`,
+      );
+      return rows[0]?.id ?? null;
+    }
+    return null;
+  };
+
+  app.get('/api/admin/focus', async (request) => {
+    const memberId = await focusMemberId(request);
+    if (!memberId) return { tasks: [], done: [] };
+    const { rows } = await pool.query(
+      `SELECT id, title, done, sort_order,
+              to_char(done_at, 'YYYY-MM-DD') AS done_on
+         FROM focus_tasks
+        WHERE member_id = $1
+        ORDER BY done ASC, sort_order ASC, created_at ASC`,
+      [memberId],
+    );
+    const map = (r: any) => ({ id: Number(r.id), title: r.title, done: r.done, sortOrder: Number(r.sort_order), doneOn: r.done_on });
+    return {
+      tasks: rows.filter((r) => !r.done).map(map),
+      // Only the last few completed items, most-recent first — a little sense of progress.
+      done: rows.filter((r) => r.done).map(map).reverse().slice(0, 8),
+    };
+  });
+
+  app.post('/api/admin/focus', async (request, reply) => {
+    const memberId = await focusMemberId(request);
+    if (!memberId) return reply.status(400).send({ error: 'no_member', message: 'Your account has no team profile.' });
+    const schema = z.object({ title: z.string().trim().min(1).max(200) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    // New task goes to the bottom of the open list.
+    const { rows } = await pool.query(
+      `INSERT INTO focus_tasks (member_id, title, sort_order)
+       VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM focus_tasks WHERE member_id = $1 AND NOT done), 0))
+       RETURNING id, title, done, sort_order`,
+      [memberId, parsed.data.title],
+    );
+    return reply.status(201).send({ id: Number(rows[0].id), title: rows[0].title, done: rows[0].done, sortOrder: Number(rows[0].sort_order) });
+  });
+
+  app.patch('/api/admin/focus/:id', async (request, reply) => {
+    const memberId = await focusMemberId(request);
+    if (!memberId) return reply.status(400).send({ error: 'no_member' });
+    const id = Number((request.params as { id: string }).id);
+    const schema = z.object({ done: z.boolean().optional(), title: z.string().trim().min(1).max(200).optional() });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success || (parsed.data.done === undefined && parsed.data.title === undefined)) {
+      return reply.status(400).send({ error: 'invalid_request' });
+    }
+    const d = parsed.data;
+    const { rows } = await pool.query(
+      `UPDATE focus_tasks
+          SET title   = COALESCE($3, title),
+              done    = COALESCE($4, done),
+              done_at = CASE WHEN $4 IS NULL THEN done_at
+                             WHEN $4 THEN now() ELSE NULL END
+        WHERE id = $1 AND member_id = $2
+        RETURNING id, title, done`,
+      [id, memberId, d.title ?? null, d.done ?? null],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return { id: Number(rows[0].id), title: rows[0].title, done: rows[0].done };
+  });
+
+  app.delete('/api/admin/focus/:id', async (request, reply) => {
+    const memberId = await focusMemberId(request);
+    if (!memberId) return reply.status(400).send({ error: 'no_member' });
+    const id = Number((request.params as { id: string }).id);
+    await pool.query(`DELETE FROM focus_tasks WHERE id = $1 AND member_id = $2`, [id, memberId]);
+    return { ok: true };
+  });
+
+  /** Reorder the open list by priority — ids in the desired order (own tasks only). */
+  app.post('/api/admin/focus/reorder', async (request, reply) => {
+    const memberId = await focusMemberId(request);
+    if (!memberId) return reply.status(400).send({ error: 'no_member' });
+    const schema = z.object({ ids: z.array(z.number().int()).max(100) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    // One statement: position each id by its index in the array; the member_id
+    // guard means a foreign id in the list simply matches nothing.
+    await pool.query(
+      `UPDATE focus_tasks AS f
+          SET sort_order = v.ord
+         FROM (SELECT * FROM unnest($2::bigint[]) WITH ORDINALITY AS t(id, ord)) AS v
+        WHERE f.id = v.id AND f.member_id = $1`,
+      [memberId, parsed.data.ids],
+    );
+    return { ok: true };
   });
 
   /** Sign a direct-to-Cloudinary upload for a staff-side image. */
