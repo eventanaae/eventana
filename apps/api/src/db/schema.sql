@@ -658,6 +658,9 @@ ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS photo_url     TEXT;
 -- Where to buy it (area / emirate) — so the driver's shopping run is organised
 -- by supplier + location.
 ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS location      TEXT;
+-- When the status last changed (received/cancelled/ordered) — the auto low-stock
+-- sweep uses this so it doesn't recreate an item that was JUST handled.
+ALTER TABLE missing_items ADD COLUMN IF NOT EXISTS actioned_at   TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS missing_items_status_idx ON missing_items (status, created_at);
 
 -- ── Ratings & tips (#30) ─────────────────────────────────────────────────

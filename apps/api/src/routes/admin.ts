@@ -5225,7 +5225,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const waLink = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(msg)}` : null;
     // Move it forward to 'ordered' now that we've reached out (once), and log it
     // to the team feed for consistency with the manual "Ordered" action.
-    const moved = await pool.query(`UPDATE missing_items SET status = 'ordered' WHERE id = $1 AND status = 'requested' RETURNING id`, [id]).catch(() => ({ rowCount: 0 }));
+    const moved = await pool.query(`UPDATE missing_items SET status = 'ordered', actioned_at = now() WHERE id = $1 AND status = 'requested' RETURNING id`, [id]).catch(() => ({ rowCount: 0 }));
     if (moved.rowCount) {
       await pool.query(
         `INSERT INTO notifications (channel, template, scheduled_for, payload)
@@ -5303,7 +5303,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }
     }
     const { rows } = await pool.query(
-      `UPDATE missing_items SET status = $2 WHERE id = $1 RETURNING *`,
+      `UPDATE missing_items SET status = $2, actioned_at = now() WHERE id = $1 RETURNING *`,
       [id, p.data.status],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
