@@ -424,12 +424,14 @@ export function renderFinanceDocEmail(
   const refundLines = (doc.refundedItems ?? [])
     .filter((r) => Number(r.amountFils) > 0)
     .map((r) => ({ label: `Refunded — ${r.label && String(r.label).trim() ? String(r.label).trim() : 'item'}`, quantity: 1, amountFils: -Number(r.amountFils) }));
+  // The refund section: the refunded item(s) as green minus lines, and the
+  // table's own bold bottom row is the NET total the customer effectively paid.
+  const netTotal = Number(doc.netTotalFils ?? (Number(doc.total_fils) - refunded));
   const refundBlock = isRefund
     ? `<div style="margin:16px 0 4px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${MUTED}">Refund</div>` +
       invoiceTable(
-        (refundLines.length ? refundLines : [{ label: 'Refunded', quantity: 1, amountFils: -refunded }])
-          .concat([{ label: 'Net total', quantity: 1, amountFils: Number(doc.netTotalFils ?? (Number(doc.total_fils) - refunded)) }]),
-        Number(doc.netTotalFils ?? (Number(doc.total_fils) - refunded)),
+        refundLines.length ? refundLines : [{ label: 'Refunded', quantity: 1, amountFils: -refunded }],
+        netTotal,
       )
     : '';
 

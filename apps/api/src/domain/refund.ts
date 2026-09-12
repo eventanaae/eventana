@@ -115,13 +115,22 @@ export async function refundOrderMoney(params: {
 
       // Reflect the refund on the order's sales receipt so the (re-)emailed
       // receipt and the dashboard show the returned item + the new net total.
-      await db.query(
-        `UPDATE finance_receipts
-            SET refunded_fils = refunded_fils + $2,
-                refunded_items = refunded_items || $3::jsonb
-          WHERE order_id = $1`,
-        [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
-      ).catch(() => {});
+      // In a SAVEPOINT so a failure here can NEVER abort the money-out/bookkeeping
+      // transaction (the provider has already moved the money above). A no-match
+      // (order with no linked receipt) is a plain no-op.
+      await db.query('SAVEPOINT rcpt_refund');
+      try {
+        await db.query(
+          `UPDATE finance_receipts
+              SET refunded_fils = refunded_fils + $2,
+                  refunded_items = refunded_items || $3::jsonb
+            WHERE order_id = $1`,
+          [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
+        );
+        await db.query('RELEASE SAVEPOINT rcpt_refund');
+      } catch {
+        await db.query('ROLLBACK TO SAVEPOINT rcpt_refund').catch(() => {});
+      }
 
       // Settle any recorded customer cancellation (if this refund is one).
       const cx = await db.query(
