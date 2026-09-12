@@ -1513,8 +1513,8 @@ export async function adminRoutes(app: FastifyInstance) {
       quantity: parsed.data.quantity, note: parsed.data.note, actor: String((request as any).staff?.name ?? 'staff'),
     });
     if (!res.ok) return reply.status(404).send({ error: 'not_found', message: 'Event not found.' });
-    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'add_extra', target: eventId, detail: { label: parsed.data.label, assigned: res.assigned } });
-    return { ok: true, assigned: res.assigned };
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'add_extra', target: eventId, detail: { label: parsed.data.label, assigned: res.assigned, assignedTo: res.assignedTo } });
+    return { ok: true, assigned: res.assigned, assignedTo: res.assignedTo ?? null };
   });
 
   /** Undo an accidental cancellation, before anything was refunded. */

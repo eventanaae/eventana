@@ -396,7 +396,7 @@ function guessSkill(label: string): string | null {
  */
 export async function addExtraPrepTask(
   eventId: string, label: string, opts: { quantity?: number; note?: string; actor?: string },
-): Promise<{ ok: boolean; taskId?: string; assigned: boolean }> {
+): Promise<{ ok: boolean; taskId?: string; assigned: boolean; assignedTo?: string }> {
   const name = label.trim();
   if (!name) return { ok: false, assigned: false };
   const evRes = await pool.query<{ d: string | null }>(`SELECT to_char(event_date,'YYYY-MM-DD') d FROM events WHERE id = $1`, [eventId]);
@@ -421,8 +421,10 @@ export async function addExtraPrepTask(
     [eventId, key, title, skill, due, opts.note?.trim() || null]);
   const taskId = ins.rows[0].id;
 
-  // 3. Assign the lowest-workload qualified person if the item is recognisable.
+  // 3. Assign the lowest-workload qualified person if the item is recognisable —
+  //    e.g. tables & chairs goes to whoever sets up tables & chairs. Automatic.
   let assigned = false;
+  let assignedTo: string | undefined;
   if (skill) {
     const staff = await roster();
     const wlRes = await pool.query<{ member_id: string; c: number }>(
@@ -430,7 +432,7 @@ export async function addExtraPrepTask(
         WHERE pt.status <> 'completed' GROUP BY member_id`);
     const wl = new Map<string, number>(wlRes.rows.map((r) => [r.member_id, r.c]));
     const cand = staff.filter((s) => s.skills.has(skill)).sort((a, b) => (wl.get(a.id) ?? 0) - (wl.get(b.id) ?? 0))[0];
-    if (cand) { await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, cand.id]); assigned = true; }
+    if (cand) { await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, cand.id]); assigned = true; assignedTo = cand.name; }
   }
   await pool.query(`INSERT INTO prep_task_log (task_id, event_id, action, detail, actor) VALUES ($1,$2,'extra',$3,$4)`, [taskId, eventId, title, opts.actor ?? 'staff']).catch(() => {});
 
@@ -447,7 +449,7 @@ export async function addExtraPrepTask(
   } else {
     await alertUnassignedPrep(eventId, date ?? '', [title]);
   }
-  return { ok: true, taskId, assigned };
+  return { ok: true, taskId, assigned, assignedTo };
 }
 
 async function logTask(taskId: string, eventId: string | null, action: string, detail: string, actor: string) {

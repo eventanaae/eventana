@@ -546,8 +546,8 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                           const r = await api.addEventExtra(eventId, extraLabel.trim(), extraQty ? Number(extraQty) : undefined);
                           setExtraLabel(''); setExtraQty('');
                           setMessage(r.assigned
-                            ? 'Added — a prep task was created and assigned.'
-                            : 'Added — a prep task was created. It needs someone assigned (owner/manager alerted).');
+                            ? `Added ✓ — prep task auto-assigned to ${r.assignedTo}.`
+                            : 'Added ✓ — nobody has this skill yet, so it\'s flagged on the home page for you/Marsha to assign.');
                           load();
                         } finally { setExtraBusy(false); }
                       }}
