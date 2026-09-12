@@ -178,6 +178,22 @@ function WarningCell({ member, onChange }: { member: any; onChange: () => void }
   const [f, setF] = useState({ wtype: 'first', issuedDate: today, validUntil: addMonths(today, 6), reason: '', affectsPoints: false, salaryDeductionPct: warnDeduction('first') });
   const warned = !!member.warning_ym;
   const wipes = member.warning_affects_points === true;
+  // When EDITING an existing warning, seed the form from what's on file — otherwise
+  // "Update" (e.g. to fix a typo) would overwrite it with the blank 1st-warning
+  // defaults, dropping the salary deduction and restoring cleared points.
+  useEffect(() => {
+    if (open && warned) {
+      setF({
+        wtype: member.warning_wtype ?? 'first',
+        issuedDate: member.warning_issued_date ?? today,
+        validUntil: member.warning_valid_until ?? '',
+        reason: member.warning_reason ?? '',
+        affectsPoints: member.warning_affects_points === true,
+        salaryDeductionPct: Number(member.warning_salary_deduction_pct) || 0,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const save = async () => {
     setBusy(true);

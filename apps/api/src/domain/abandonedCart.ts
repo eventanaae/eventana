@@ -80,7 +80,9 @@ export async function findAbandonedCarts(): Promise<CartCandidate[]> {
     if (staffEmails.has(email)) continue;                    // a staff member's own try-out
     if (email && email === ownerEmail) continue;             // the owner's test account
     if (email.includes('test') || email.includes('example.')) continue;
-    if (INTERNAL_NAME_PARTS.some((w) => name.includes(w))) continue;
+    // Whole-word match, NOT substring — else real customers like Ruqayya ("qa"),
+    // Shania ("shan") or Janet ("jane") get silently excluded from reminders.
+    if (name.split(/\s+/).some((w) => INTERNAL_NAME_PARTS.includes(w))) continue;
     out.push({
       orderId: r.id,
       customerId: r.customer_id,

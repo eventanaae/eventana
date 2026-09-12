@@ -3900,11 +3900,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const openingSet = d.leaveOpeningUsed !== undefined;
     const noteSet = d.employmentNote !== undefined;
     const dayOffSet = d.weeklyDayOff !== undefined;
+    // birthday & phone are nullable: distinguish "unchanged" (undefined) from
+    // "clear it" (null). COALESCE would silently keep the old value on null, so a
+    // manager could never delete a wrongly-entered birthday (and its reminders).
+    const birthdaySet = d.birthday !== undefined;
+    const phoneSet = d.phone !== undefined;
     const { rows } = await pool.query(
       `UPDATE team_members SET
          name = COALESCE($5, name),
-         birthday = COALESCE($2, birthday),
-         phone = COALESCE($3, phone),
+         birthday = CASE WHEN $16 THEN $2::date ELSE birthday END,
+         phone = CASE WHEN $17 THEN $3::text ELSE phone END,
          color = COALESCE($4, color),
          employment_start_date = CASE WHEN $6 THEN $7::date ELSE employment_start_date END,
          employment_end_date   = CASE WHEN $8 THEN $9::date ELSE employment_end_date END,
@@ -3915,7 +3920,7 @@ export async function adminRoutes(app: FastifyInstance) {
       [id, d.birthday ?? null, d.phone ?? null, d.color ?? null, d.name ?? null,
        empStartSet, d.employmentStart ?? null, empEndSet, d.employmentEnd ?? null,
        openingSet, d.leaveOpeningUsed ?? null, noteSet, d.employmentNote ?? null,
-       dayOffSet, d.weeklyDayOff ?? null],
+       dayOffSet, d.weeklyDayOff ?? null, birthdaySet, phoneSet],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return rows[0];

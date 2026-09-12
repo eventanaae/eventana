@@ -1036,8 +1036,15 @@ export async function emailDoc(kind: 'receipt' | 'invoice', id: number): Promise
   const { rows } = await pool.query(`SELECT * FROM ${table} WHERE id = $1`, [id]);
   if (!rows[0]) return { sent: false, reason: 'not_found' };
   const doc = kind === 'receipt' ? decorateReceipt(rows[0]) : decorateInvoice(rows[0]);
+  // Prefer the LINKED customer's email; only fall back to a name match when the
+  // doc has no customer_id — otherwise a different customer who happens to share
+  // the name could win the `OR` and receive someone else's receipt. (Same
+  // two-Shaimas guard customersMaster/customerDetail already use.)
   const em = await pool.query(
-    `SELECT email FROM historical_customers WHERE (id = $1 OR lower(full_name) = lower($2)) AND email IS NOT NULL AND email <> '' LIMIT 1`,
+    `SELECT email FROM historical_customers
+      WHERE (id = $1 OR ($1 = -1 AND lower(full_name) = lower($2)))
+        AND email IS NOT NULL AND email <> ''
+      ORDER BY (id = $1) DESC LIMIT 1`,
     [doc.customer_id ?? -1, doc.customer_name ?? ''],
   );
   const to = em.rows[0]?.email;

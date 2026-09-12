@@ -999,9 +999,13 @@ export async function deliverPendingNotifications(): Promise<{ emails: number; p
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         continue;
       }
-      // Arabic templates — most of our customers are Arabic. Falls back to the
-      // English variant only if the 'ar' template isn't approved.
-      const res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'ar', params: tpl.params, fromStaff: true });
+      // Arabic templates — most of our customers are Arabic. Fall back to the
+      // English variant if the 'ar' template isn't approved, so a missing Arabic
+      // template doesn't leave the customer with NO WhatsApp (retrying forever).
+      let res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'ar', params: tpl.params, fromStaff: true });
+      if (!res.ok) {
+        res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'en', params: tpl.params, fromStaff: true });
+      }
       if (res.ok) {
         await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
         whatsapps++;
