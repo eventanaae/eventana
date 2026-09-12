@@ -3405,6 +3405,47 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>$1 AND e.event_date<$2`, [todayS, yearEndS]),
     ]);
 
+    // ── Headline "This year" from ACTUAL data (owner's requirement) ──────────
+    // The card must reflect real income & expenses, not a frozen QuickBooks
+    // snapshot. Take the clean QuickBooks P&L for the period it covers and ADD
+    // the live sales/expenses recorded SINCE (source<>'quickbooks', after the QB
+    // coverage end — auto-detected from the data), so it updates daily and never
+    // double-counts the migrated rows.
+    const [qbRevCutR, qbExpCutR] = await Promise.all([
+      pool.query<{ d: string | null }>(`SELECT MAX(date) d FROM finance_receipts WHERE source = 'quickbooks'`).catch(() => ({ rows: [{ d: null }] })),
+      pool.query<{ d: string | null }>(`SELECT MAX(spent_on) d FROM expenses WHERE source = 'quickbooks'`).catch(() => ({ rows: [{ d: null }] })),
+    ]);
+    const [liveRevR, liveExpR] = await Promise.all([
+      pool.query<{ v: string }>(
+        `SELECT COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts
+          WHERE source <> 'quickbooks' AND date >= $1 AND date < $2 AND ($3::date IS NULL OR date > $3::date)`,
+        [yearStartS, yearEndS, qbRevCutR.rows[0].d],
+      ).catch(() => ({ rows: [{ v: '0' }] })),
+      pool.query<{ v: string }>(
+        `SELECT COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
+          WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 AND ($3::date IS NULL OR spent_on > $3::date)`,
+        [yearStartS, yearEndS, qbExpCutR.rows[0].d],
+      ).catch(() => ({ rows: [{ v: '0' }] })),
+    ]);
+    const liveRevFils = Number(liveRevR.rows[0].v);
+    const liveExpFils = Number(liveExpR.rows[0].v);
+    if (business && latestYear && latestYear.year === String(nowY)) {
+      const qbExpFils = latestYear.revenueFils - latestYear.netFils; // QB expenses = revenue − net
+      const actRev = latestYear.revenueFils + liveRevFils;
+      const actExp = qbExpFils + liveExpFils;
+      const actNet = actRev - actExp;
+      latestYear.revenueFils = actRev; latestYear.revenueDisplay = formatAed(actRev);
+      latestYear.netFils = actNet; latestYear.netDisplay = formatAed(actNet);
+      latestYear.marginPct = actRev > 0 ? Math.round((actNet / actRev) * 1000) / 10 : 0;
+      latestYear.asOf = new Date();
+      // Keep the lifetime totals consistent with the adjusted current year.
+      business.lifetimeRevenueFils += liveRevFils;
+      business.lifetimeRevenueDisplay = formatAed(business.lifetimeRevenueFils);
+      business.lifetimeNetFils += (liveRevFils - liveExpFils);
+      business.lifetimeNetDisplay = formatAed(business.lifetimeNetFils);
+      business.lifetimeMarginPct = business.lifetimeRevenueFils > 0 ? Math.round((business.lifetimeNetFils / business.lifetimeRevenueFils) * 1000) / 10 : 0;
+    }
+
     const cashOnHandFils = (cashSum as any)?.cashOnHandFils ?? null;
     const arFils = (cashSum as any)?.arFils ?? null;
     // "Available after commitments" = cash on hand + expected incoming (A/R and

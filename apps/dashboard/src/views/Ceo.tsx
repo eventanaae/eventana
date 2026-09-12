@@ -103,15 +103,19 @@ export function Ceo() {
           {/* Website funnel: visitors → registered → booked */}
           {funnel && <WebFunnel f={funnel} />}
 
-          {/* This year — the real P&L (from QuickBooks), the headline numbers */}
+          {/* This year — actual P&L: QuickBooks history + live sales/expenses since */}
           {data.business?.latestYear && (() => {
             const y = data.business.latestYear;
             const expFils = Number(y.revenueFils) - Number(y.netFils);
+            const asOf = y.asOf ? new Date(y.asOf).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : null;
             return (
               <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
                 <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.mint})` }} />
                 <div style={{ padding: '16px 20px' }}>
-                  <div style={{ ...fredoka(15), marginBottom: 14 }}>📊 This year · {y.year}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 14 }}>
+                    <div style={fredoka(15)}>📊 This year · {y.year}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.green }}>● Live{asOf ? ` · ${asOf}` : ''}</div>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
                     <HeroKpi label="Revenue YTD" value={`AED ${y.revenueDisplay}`} accent={C.pink} />
                     <HeroKpi label={Number(y.netFils) < 0 ? 'Net loss YTD' : 'Net profit YTD'} value={`AED ${y.netDisplay}`} caption={`${y.marginPct}% margin`} accent={Number(y.netFils) < 0 ? C.red : C.green} />
