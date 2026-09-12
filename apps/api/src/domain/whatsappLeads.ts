@@ -300,7 +300,10 @@ export async function captureWebsiteLead(input: {
   // A welcome discount to nudge the lead into booking — only if the code is
   // actually live, so we never advertise a code that would be rejected.
   const codeCheck = await pool
-    .query(`SELECT 1 FROM promo_codes WHERE code='WELCOME10' AND active AND (max_uses IS NULL OR uses < max_uses)`)
+    .query(`SELECT 1 FROM promo_codes
+             WHERE code='WELCOME10' AND active
+               AND (max_uses IS NULL OR uses < max_uses)
+               AND (expires_at IS NULL OR expires_at > now())`)
     .catch(() => ({ rowCount: 0 }));
   const welcomeCode = codeCheck.rowCount ? 'WELCOME10' : null;
   const note = [
