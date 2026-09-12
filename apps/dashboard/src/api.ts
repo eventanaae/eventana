@@ -222,6 +222,18 @@ export interface PromoCode {
   createdOn: string;
 }
 
+export interface BudgetSuggestion {
+  category: string;
+  avgFils: number;
+  avgDisplay: string;
+  monthsOfHistory: number;
+  thisMonthFils: number;
+  thisMonthDisplay: string;
+  suggestedFils: number;
+  suggestedDisplay: string;
+  status: 'under' | 'near' | 'over';
+}
+
 export interface FocusTask {
   id: number;
   title: string;
@@ -544,6 +556,9 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ active }),
     }),
+
+  budgetSuggestions: () =>
+    request<{ currentMonth: string; categories: BudgetSuggestion[] }>('/api/admin/finance/budget-suggestions'),
 
   focus: () => request<{ tasks: FocusTask[]; doneToday: number }>('/api/admin/focus'),
   addFocus: (title: string) =>

@@ -27,7 +27,7 @@ export function FinanceHub({ role }: { role?: string }) {
         {canSeeAccounting && <TabBtn on={tab === 'accounting'} onClick={() => setTab('accounting')}>🏦 Accounting</TabBtn>}
       </div>
       {tab === 'sales' && <SalesTab isOwner={role === 'owner'} />}
-      {tab === 'expenses' && <ExpensesTab />}
+      {tab === 'expenses' && <><BudgetSuggestions /><ExpensesTab /></>}
       {tab === 'accounting' && canSeeAccounting && <AccountingTab />}
     </div>
   );
@@ -336,6 +336,61 @@ function ReceiptViewer({ url, onClose }: { url: string; onClose: () => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Suggested monthly budgets, learned from what the business actually spends on
+ * each account (petrol, consumables, printing…). No numbers are invented — each
+ * suggestion is the owner's own trailing average with a little headroom, and a
+ * bar shows how this month is tracking against it.
+ */
+function BudgetSuggestions() {
+  const [data, setData] = useState<{ categories: any[] } | null>(null);
+  const [open, setOpen] = useState(true);
+  useEffect(() => { api.budgetSuggestions().then(setData).catch(() => setData({ categories: [] })); }, []);
+  if (!data) return null;
+  const cats = data.categories ?? [];
+  if (cats.length === 0) return null;
+
+  const tone = (s: string) => (s === 'over' ? C.red : s === 'near' ? C.yellowInk : C.green);
+  const toneSoft = (s: string) => (s === 'over' ? C.redSoft : s === 'near' ? C.yellowSoft : C.greenSoft);
+  const label = (s: string) => (s === 'over' ? 'Over budget' : s === 'near' ? 'Close to budget' : 'On track');
+
+  return (
+    <Panel
+      title="💡 Suggested budgets"
+      action={<Button tone="ghost" onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Show'}</Button>}
+    >
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: open ? 14 : 0, lineHeight: 1.5 }}>
+        Based on your own spending over the last few months — a suggested monthly budget per account, and how this month is tracking.
+      </div>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {cats.map((c) => {
+            const pct = c.suggestedFils > 0 ? Math.min(100, Math.round((c.thisMonthFils / c.suggestedFils) * 100)) : 0;
+            return (
+              <div key={c.category} style={{ borderBottom: `1px solid ${C.lineSoft}`, paddingBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                  <div style={{ ...fredoka(14.5), color: C.ink, textTransform: 'capitalize' }}>{c.category}</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{c.suggestedDisplay}<span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}> / mo</span></div>
+                </div>
+                <div style={{ height: 8, borderRadius: 8, background: C.lineSoft, overflow: 'hidden', marginBottom: 5 }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: tone(c.status), transition: 'width .3s' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>
+                    This month: {c.thisMonthDisplay} · avg {c.avgDisplay}
+                    {c.monthsOfHistory < 2 ? ' · limited history' : ''}
+                  </span>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: tone(c.status), background: toneSoft(c.status), padding: '2px 9px', borderRadius: 20 }}>{label(c.status)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Panel>
   );
 }
 

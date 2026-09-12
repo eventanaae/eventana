@@ -2074,6 +2074,72 @@ export async function adminRoutes(app: FastifyInstance) {
     return { accounts };
   });
 
+  /**
+   * Suggested monthly budgets, learned from what the business actually spends.
+   * For each expense account (petrol, consumables, printing, …) we average the
+   * last few COMPLETE months of spend and suggest a budget with a little
+   * headroom, then compare this month's spend so far against it. No budgets are
+   * hard-coded — the suggestion is purely the owner's own history, so it stays
+   * right as the business grows. Owner/manager (finance gate).
+   */
+  app.get('/api/admin/finance/budget-suggestions', async () => {
+    // Per account, per calendar month (Dubai), total spent over the last 6
+    // complete months plus the current one.
+    const { rows } = await pool.query<{ category: string; ym: string; total: string }>(
+      `SELECT btrim(category) AS category,
+              to_char(date_trunc('month', spent_on), 'YYYY-MM') AS ym,
+              SUM(amount_fils)::bigint AS total
+         FROM expenses
+        WHERE category IS NOT NULL AND btrim(category) <> ''
+          AND spent_on >= (date_trunc('month', (now() AT TIME ZONE 'Asia/Dubai')::date) - interval '6 months')::date
+        GROUP BY 1, 2`,
+    );
+    // Dubai "this month" (UTC+4, no DST).
+    const dub = new Date(Date.now() + 4 * 3_600_000);
+    const currentYm = `${dub.getUTCFullYear()}-${String(dub.getUTCMonth() + 1).padStart(2, '0')}`;
+
+    const byCat = new Map<string, Map<string, number>>();
+    for (const r of rows) {
+      const cat = String(r.category);
+      if (!byCat.has(cat)) byCat.set(cat, new Map());
+      byCat.get(cat)!.set(r.ym, Number(r.total));
+    }
+
+    // Round a fils amount UP to the nearest AED 25 — a tidy budget figure.
+    const tidy = (fils: number) => Math.max(2500, Math.ceil(fils / 2500) * 2500);
+
+    const categories = [...byCat.entries()]
+      .map(([category, months]) => {
+        const thisMonthFils = months.get(currentYm) ?? 0;
+        // Complete months only (exclude the partial current month) for the average.
+        const prior = [...months.entries()].filter(([ym]) => ym !== currentYm);
+        const priorTotal = prior.reduce((s, [, v]) => s + v, 0);
+        const monthsWithSpend = prior.length;
+        // Average across the months this account was actually used — a realistic
+        // "when we spend here, it's about this much a month" figure.
+        const avgFils = monthsWithSpend > 0 ? Math.round(priorTotal / monthsWithSpend) : thisMonthFils;
+        const suggestedFils = tidy(Math.round(avgFils * 1.1)); // 10% headroom
+        const ratio = suggestedFils > 0 ? thisMonthFils / suggestedFils : 0;
+        const status = thisMonthFils > suggestedFils ? 'over' : ratio >= 0.8 ? 'near' : 'under';
+        return {
+          category,
+          avgFils,
+          avgDisplay: formatAed(avgFils),
+          monthsOfHistory: monthsWithSpend,
+          thisMonthFils,
+          thisMonthDisplay: formatAed(thisMonthFils),
+          suggestedFils,
+          suggestedDisplay: formatAed(suggestedFils),
+          status,
+        };
+      })
+      // Need at least one complete month to suggest anything; biggest budgets first.
+      .filter((c) => c.monthsOfHistory >= 1)
+      .sort((a, b) => b.suggestedFils - a.suggestedFils);
+
+    return { currentMonth: currentYm, categories };
+  });
+
   /** Record an expense. */
   app.post('/api/admin/expenses', async (request, reply) => {
     const schema = z.object({
