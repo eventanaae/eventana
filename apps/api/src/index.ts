@@ -151,6 +151,8 @@ async function main() {
     await sqlCheckFromEnv().catch((err) => console.error('[sql-check] failed:', err));
     const { diagFromEnv } = await import('./db/diag.js');
     await diagFromEnv().catch((err) => console.error('[diag] failed:', err));
+    const { diagCeoFromEnv } = await import('./db/diagCeo.js');
+    await diagCeoFromEnv().catch((err) => console.error('[diag-ceo] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
