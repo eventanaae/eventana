@@ -142,8 +142,9 @@ export function Inventory({ role }: { role?: string }) {
                         const r = await api.contactSupplier(m.id).catch(() => null);
                         if (!r) { alert('Failed — please try again.'); return; }
                         if (!r.ok) { alert('No supplier phone/email saved — add it on the Suppliers page.'); return; }
-                        if (r.waLink) window.open(r.waLink, '_blank');
+                        if (r.waLink) { window.open(r.waLink, '_blank'); if (r.emailSent) alert('Also emailed the supplier ✅'); }
                         else if (r.emailSent) alert('Order request emailed to the supplier ✅');
+                        else alert('This supplier has no WhatsApp number and email isn’t set up — add a phone on the Suppliers page.');
                         load();
                       }}>📩 Request from supplier</Button>
                     )}

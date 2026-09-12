@@ -229,6 +229,9 @@ export async function adminRoutes(app: FastifyInstance) {
             path === '/api/admin/customer-feedback' ||
             /^\/api\/admin\/events\/[^/]+$/.test(path))) ||
         (method === 'POST' && /^\/api\/admin\/events\/[^/]+\/phase$/.test(path)) ||
+        // Contact the supplier for a shopping item — the handler restricts it to
+        // the person the item is assigned to (the buyer, often the driver).
+        (method === 'POST' && /^\/api\/admin\/missing-items\/\d+\/contact-supplier$/.test(path)) ||
         // Mark a shopping item ordered/received, or attach a photo — the handlers
         // already restrict this to the person the item is assigned to.
         (method === 'PATCH' && (path === '/api/admin/missing-items' || /^\/api\/admin\/missing-items\/[^/]+\/(photo)$/.test(path) || /^\/api\/admin\/missing-items\/\d+$/.test(path)));
@@ -5146,6 +5149,13 @@ export async function adminRoutes(app: FastifyInstance) {
       const m = await pool.query(`SELECT name FROM team_members WHERE id = $1 AND active`, [d.assignTo]);
       if (m.rows[0]) { assignId = d.assignTo; assignName = m.rows[0].name; }
     }
+    // Auto-assign to the buyer when nobody was picked — an active driver (they run
+    // the shopping trips), so a missing item always has an owner to sort it out.
+    // Data-driven (access_level), not a hard-coded name; the owner can reassign.
+    if (!assignId) {
+      const drv = await pool.query(`SELECT id, name FROM team_members WHERE access_level = 'driver' AND active ORDER BY name LIMIT 1`);
+      if (drv.rows[0]) { assignId = drv.rows[0].id; assignName = drv.rows[0].name; }
+    }
     const { rows } = await pool.query(
       `INSERT INTO missing_items (item, quantity, event_id, supplier, note, reported_by, photo_url, assigned_to, assigned_name, location)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
@@ -5166,15 +5176,14 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
-  // Contact the supplier for a missing item — owner/manager. Emails the supplier
-  // the order (if we have their email) and returns a ready-to-send WhatsApp link
-  // (if we have their phone), so "order it from the supplier" is one tap.
+  // Contact the supplier for a missing item — owner/manager OR the person it's
+  // assigned to (the buyer). Emails the supplier the order (once, on first
+  // contact) and returns a ready-to-send WhatsApp link, so "order it from the
+  // supplier" is one tap.
   app.post('/api/admin/missing-items/:id/contact-supplier', async (request, reply) => {
-    const role = (request as any).staff?.role;
-    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
     const { rows } = await pool.query(
-      `SELECT m.item, m.quantity, m.supplier,
+      `SELECT m.item, m.quantity, m.supplier, m.status, m.assigned_to,
               s.name AS supplier_name, s.phone AS supplier_phone, s.email AS supplier_email
          FROM missing_items m
          LEFT JOIN LATERAL (
@@ -5186,34 +5195,45 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     const it = rows[0];
     if (!it) return reply.status(404).send({ error: 'not_found' });
+    // Owner/manager, or the buyer this item is assigned to (mirrors the status route).
+    const staff = (request as any).staff as { id?: string; role?: string };
+    const isManager = staff?.role === 'owner' || staff?.role === 'manager';
+    const isAssignee = it.assigned_to && String(it.assigned_to) === String(staff?.id ?? '');
+    if (!isManager && !isAssignee) return reply.status(403).send({ error: 'forbidden' });
+
     const supplierName = it.supplier_name ?? it.supplier ?? null;
     if (!it.supplier_phone && !it.supplier_email) {
       return { ok: false, reason: 'no_supplier_contact', supplierName };
     }
     const msg = `Hello${supplierName ? ' ' + supplierName : ''}, this is Eventana Events. We'd like to order: ${it.item} ×${it.quantity}. Could you please confirm availability, price and when it'll be ready? Thank you! 🙏`;
+    // Email the supplier only on the FIRST contact (status still 'requested'), so
+    // re-opening WhatsApp later doesn't re-email them.
     let emailSent = false;
-    if (it.supplier_email) {
-      try {
-        const { emailEnabled, sendEmail } = await import('../integrations/email.js');
-        if (emailEnabled()) {
-          const res = await sendEmail({
-            to: it.supplier_email,
-            subject: `Eventana order request — ${it.item} ×${it.quantity}`,
-            html: `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;padding:22px;color:#3A2A33">
-              <div style="font-size:20px;font-weight:800;color:#D6317F">Eventana Events</div>
-              <p style="font-size:15px;line-height:1.6;margin:12px 0">${msg}</p>
-              <p style="font-size:12.5px;color:#8b6c7a">Thank you — the Eventana team.</p>
-            </div>`,
-          });
-          emailSent = !!res.ok;
-        }
-      } catch { /* email best-effort */ }
+    if (it.supplier_email && it.status === 'requested' && emailEnabled()) {
+      const res = await sendEmail({
+        to: it.supplier_email,
+        subject: `Eventana order request — ${it.item} ×${it.quantity}`,
+        html: `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;padding:22px;color:#3A2A33">
+          <div style="font-size:20px;font-weight:800;color:#D6317F">Eventana Events</div>
+          <p style="font-size:15px;line-height:1.6;margin:12px 0">${msg}</p>
+          <p style="font-size:12.5px;color:#8b6c7a">Thank you — the Eventana team.</p>
+        </div>`,
+      }).catch(() => ({ ok: false }));
+      emailSent = !!(res as { ok?: boolean }).ok;
     }
     const digits = String(it.supplier_phone ?? '').replace(/\D+/g, '');
     const waLink = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(msg)}` : null;
-    // Move it forward to 'ordered' now that we've reached out.
-    await pool.query(`UPDATE missing_items SET status = 'ordered' WHERE id = $1 AND status = 'requested'`, [id]).catch(() => {});
-    return { ok: true, emailSent, waLink, supplierName };
+    // Move it forward to 'ordered' now that we've reached out (once), and log it
+    // to the team feed for consistency with the manual "Ordered" action.
+    const moved = await pool.query(`UPDATE missing_items SET status = 'ordered' WHERE id = $1 AND status = 'requested' RETURNING id`, [id]).catch(() => ({ rowCount: 0 }));
+    if (moved.rowCount) {
+      await pool.query(
+        `INSERT INTO notifications (channel, template, scheduled_for, payload)
+         VALUES ('push','missing_item_action', now(), $1)`,
+        [JSON.stringify({ id: Number(id), item: it.item, status: 'ordered', by: staff?.role === 'driver' ? 'buyer' : (staff?.role ?? 'staff') })],
+      ).catch(() => {});
+    }
+    return { ok: true, emailSent, waLink, supplierName, waOnly: !it.supplier_email };
   });
 
   // Assign (or unassign) a missing item to a team member — owner/manager only.
