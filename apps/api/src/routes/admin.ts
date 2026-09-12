@@ -4780,15 +4780,11 @@ export async function adminRoutes(app: FastifyInstance) {
    */
   app.get('/api/admin/alerts', async (request) => {
     const staff = (request as any).staff as { id?: string; role?: string };
-    // Who's off today — approved leave covering today. Shown to EVERYONE on Home
-    // so the whole team knows who to expect.
-    const offToday = (await pool.query(
-      `SELECT d.id, m.name AS member_name, m.color, d.reason,
-              to_char(d.end_date,'YYYY-MM-DD') AS end_date
-         FROM staff_days_off d JOIN team_members m ON m.id = d.member_id
-        WHERE d.status = 'approved' AND d.start_date <= CURRENT_DATE AND d.end_date >= CURRENT_DATE
-        ORDER BY m.name`,
-    ).catch(() => ({ rows: [] as any[] }))).rows;
+    // Who's off today — approved leave OR a recurring weekly rest day (see
+    // offTodayDetailed). Shown to EVERYONE on Home so the team knows who to expect.
+    const offToday = await import('../domain/dayOff.js')
+      .then((m) => m.offTodayDetailed())
+      .catch(() => [] as any[]);
     // Employees get a personal "Latest updates" feed: low stock (shared), their
     // OWN at-risk prep, their OWN tips, and ratings on their OWN events — no
     // business-wide counts or other people's data.

@@ -81,6 +81,47 @@ export async function offTodayNames(): Promise<string[]> {
   return rows.map((r) => r.name);
 }
 
+export interface OffTodayEntry {
+  id: string;
+  member_name: string;
+  color: string | null;
+  reason: string | null;
+  end_date: string | null;
+}
+
+/**
+ * The same "off today" set as offTodayNames(), but with the detail the Home
+ * "Off today" panel shows (avatar colour, reason, leave end date). One row per
+ * member; when someone is on both approved leave and their weekly rest day, the
+ * leave row wins (it carries the real reason and end date).
+ */
+export async function offTodayDetailed(): Promise<OffTodayEntry[]> {
+  const { rows } = await pool.query<OffTodayEntry & { member_id: string; pri: number }>(
+    `WITH today AS (SELECT (now() AT TIME ZONE 'Asia/Dubai')::date AS d)
+     SELECT * FROM (
+       SELECT 1 AS pri, ('leave-' || d.id::text) AS id, m.id AS member_id,
+              m.name AS member_name, m.color, d.reason,
+              to_char(d.end_date,'YYYY-MM-DD') AS end_date
+         FROM staff_days_off d JOIN team_members m ON m.id = d.member_id, today
+        WHERE d.status = 'approved' AND m.active AND today.d BETWEEN d.start_date AND d.end_date
+       UNION ALL
+       SELECT 2 AS pri, ('weekly-' || m.id) AS id, m.id AS member_id,
+              m.name AS member_name, m.color, 'Weekly day off' AS reason, NULL AS end_date
+         FROM team_members m, today
+        WHERE m.active AND m.weekly_day_off = EXTRACT(DOW FROM today.d)::int
+     ) x
+     ORDER BY member_name, pri`,
+  );
+  const seen = new Set<string>();
+  const out: OffTodayEntry[] = [];
+  for (const r of rows) {
+    if (seen.has(r.member_id)) continue;
+    seen.add(r.member_id);
+    out.push({ id: r.id, member_name: r.member_name, color: r.color, reason: r.reason, end_date: r.end_date });
+  }
+  return out;
+}
+
 /** Owner/manager (+ Marsha): every change request, pending first. */
 export async function listDayOffChanges(): Promise<any[]> {
   const { rows } = await pool.query(
