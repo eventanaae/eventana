@@ -1473,7 +1473,7 @@ function CancelBooking({
               <div style={{ fontWeight: 800, fontSize: 14, color: C.ink, marginBottom: 8 }}>{t('cancel.confirmTitle')}</div>
               <div style={{ background: C.cream, borderRadius: 14, padding: '12px 14px', marginBottom: 10 }}>
                 <SummaryRow label={t('cancel.event')} value={event.packageName ?? t('me.celebration')} />
-                <SummaryRow label={t('cancel.date')} value={new Date(event.date).toLocaleDateString()} />
+                <SummaryRow label={t('cancel.date')} value={new Date(event.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
                 <SummaryRow label={t('cancel.order')} value={event.orderId} />
                 <SummaryRow label={t('cancel.totalPaid')} value={`${r.totalPaidDisplay} ${aed}`} />
                 <SummaryRow label={t('cancel.refundPct')} value={`${r.percent}%`} />

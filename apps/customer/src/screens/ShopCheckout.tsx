@@ -77,7 +77,7 @@ export function ShopCheckout({
   const canPay = q.bookable && guestReady && addressReady && customizationReady && agreed && !paying;
 
   const readyBy = new Date(Date.now() + SHOP_READY_DAYS * 86_400_000);
-  const readyStr = readyBy.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+  const readyStr = readyBy.toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const addFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
