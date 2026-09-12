@@ -50,7 +50,7 @@ function AccountingTab() {
   return (
     <Panel title="Accounts">
       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 14 }}>
-        The accounts you use and how much is in each. Cash on hand grows with sales receipts &amp; collected invoices, and shrinks with expenses.
+        The accounts you use and how much is in each. Cash on hand grows with sales receipts &amp; collected invoices, and shrinks with expenses and refunds paid out.
       </div>
       {data.accounts.map((a: any) => (
         <div key={a.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 4px', borderBottom: `1px solid ${C.lineSoft}` }}>
