@@ -295,10 +295,8 @@ export async function captureWebsiteLead(input: {
   eventDate?: string | null;
   emirate?: string | null;
 }): Promise<{ isNew: boolean; phone: string }> {
-  // Normalise a UAE local number (05x…) to full country-code form so it matches
-  // any later WhatsApp thread and the wa.me link works.
-  let phone = normalizePhone(input.phone);
-  if (/^05\d{8}$/.test(phone)) phone = '971' + phone.slice(1);
+  // normalizePhone already promotes a leading 0 to the 971 country code.
+  const phone = normalizePhone(input.phone);
   const note = [
     'Website enquiry',
     input.email ? `email: ${input.email}` : '',
@@ -313,11 +311,14 @@ export async function captureWebsiteLead(input: {
         message_count, first_message_at, last_message_at)
      VALUES ($1,$2,$3,$4,'new','Website enquiry',$5,1,now(),now())
      ON CONFLICT (phone) DO UPDATE SET
-       name            = COALESCE(EXCLUDED.name, whatsapp_leads.name),
-       event_date      = COALESCE(EXCLUDED.event_date, whatsapp_leads.event_date),
-       emirate         = COALESCE(EXCLUDED.emirate, whatsapp_leads.emirate),
+       -- Never let an unauthenticated website submit overwrite what's already
+       -- known about a real (WhatsApp) lead — keep the existing name/notes and
+       -- only fill them when blank. Status/date are likewise preserved.
+       name            = COALESCE(whatsapp_leads.name, EXCLUDED.name),
+       event_date      = COALESCE(whatsapp_leads.event_date, EXCLUDED.event_date),
+       emirate         = COALESCE(whatsapp_leads.emirate, EXCLUDED.emirate),
        source_headline = COALESCE(whatsapp_leads.source_headline, EXCLUDED.source_headline),
-       notes           = COALESCE(EXCLUDED.notes, whatsapp_leads.notes),
+       notes           = COALESCE(whatsapp_leads.notes, EXCLUDED.notes),
        message_count   = whatsapp_leads.message_count + 1,
        last_message_at = now(),
        updated_at      = now()`,
@@ -366,12 +367,14 @@ export async function recordOutboundMessage(args: {
      ON CONFLICT (wa_message_id) DO NOTHING`,
     [phone, args.messageId ?? null, args.body, args.sentBy],
   );
-  // A HUMAN reply resolves any open "WhatsApp needs your reply" ops-alert for this
-  // customer, so the bell doesn't keep showing a handoff the team already handled.
+  // A HUMAN reply resolves any open "needs your reply" / "new website enquiry"
+  // ops-alert for this customer, so the bell doesn't keep showing something the
+  // team already handled.
   if (args.sentBy === 'staff') {
     await pool.query(
       `UPDATE notifications SET cancelled_at = now()
-        WHERE template = 'whatsapp_handoff' AND cancelled_at IS NULL AND (payload->>'phone') = $1`,
+        WHERE template IN ('whatsapp_handoff','website_lead') AND cancelled_at IS NULL
+          AND (payload->>'phone') = $1`,
       [phone],
     ).catch(() => {});
   }
@@ -394,6 +397,13 @@ export async function linkOrderToLead(orderId: string, phone: string): Promise<v
         AND (order_id IS NULL OR order_id = $1)`,
     [orderId, tail],
   );
+  // A booked lead is resolved — clear any lingering "reply/enquiry" bell alert.
+  await pool.query(
+    `UPDATE notifications SET cancelled_at = now()
+      WHERE template IN ('whatsapp_handoff','website_lead') AND cancelled_at IS NULL
+        AND right(payload->>'phone', 9) = $1`,
+    [tail],
+  ).catch(() => {});
 }
 
 /* ------------------------------------------------------------------ */

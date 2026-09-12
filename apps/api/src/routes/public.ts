@@ -857,7 +857,8 @@ export async function publicRoutes(app: FastifyInstance) {
   app.post('/api/lead', async (request, reply) => {
     const p = z.object({
       name: z.string().trim().min(1).max(120),
-      phone: z.string().trim().min(7).max(20),
+      phone: z.string().trim().min(7).max(20)
+        .refine((v) => v.replace(/\D/g, '').length >= 9, 'invalid phone'),
       email: z.string().email().max(160).optional(),
       message: z.string().max(1000).optional(),
       eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
