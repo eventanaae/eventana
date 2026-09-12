@@ -20,7 +20,7 @@ export function FocusPanel() {
 
   const load = () =>
     api.focus()
-      .then((r) => { setTasks(r.tasks); setDoneCount(r.done.length); })
+      .then((r) => { setTasks(r.tasks); setDoneCount(r.doneToday); })
       .catch(() => { setTasks([]); setDoneCount(0); })
       .finally(() => setLoaded(true));
   useEffect(() => { load(); }, []);

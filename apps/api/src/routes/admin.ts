@@ -5130,34 +5130,47 @@ export async function adminRoutes(app: FastifyInstance) {
    * master-token Owner does not (she resolves to { role:'owner' } with no id), so
    * fall back to the owner's real team_members row — that keeps her focus list
    * stable whether she logs in with the master token or email/password.
+   *
+   * The fallback is used ONLY when exactly one active owner row exists. With more
+   * than one owner we can't tell which is the master-token holder, so we return
+   * null rather than risk attributing (and exposing) another owner's private list
+   * — those owners simply log in with email/password to reach their own list.
    */
   const focusMemberId = async (request: any): Promise<string | null> => {
     if (request.staff?.id) return request.staff.id;
     if (request.staff?.role === 'owner') {
       const { rows } = await pool.query(
-        `SELECT id FROM team_members WHERE access_level = 'owner' AND active ORDER BY id LIMIT 1`,
+        `SELECT id FROM team_members WHERE access_level = 'owner' AND active`,
       );
-      return rows[0]?.id ?? null;
+      return rows.length === 1 ? rows[0].id : null;
     }
     return null;
   };
 
   app.get('/api/admin/focus', async (request) => {
     const memberId = await focusMemberId(request);
-    if (!memberId) return { tasks: [], done: [] };
-    const { rows } = await pool.query(
-      `SELECT id, title, done, sort_order,
-              to_char(done_at, 'YYYY-MM-DD') AS done_on
-         FROM focus_tasks
-        WHERE member_id = $1
-        ORDER BY done ASC, sort_order ASC, created_at ASC`,
-      [memberId],
-    );
-    const map = (r: any) => ({ id: Number(r.id), title: r.title, done: r.done, sortOrder: Number(r.sort_order), doneOn: r.done_on });
+    if (!memberId) return { tasks: [], doneToday: 0 };
+    // Open tasks in priority order, plus a count of what was ticked off TODAY
+    // (Dubai) — the little "3 done ✓" sense of progress the home shows.
+    const [openRes, doneRes] = await Promise.all([
+      pool.query(
+        `SELECT id, title, sort_order
+           FROM focus_tasks
+          WHERE member_id = $1 AND NOT done
+          ORDER BY sort_order ASC, created_at ASC`,
+        [memberId],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS n
+           FROM focus_tasks
+          WHERE member_id = $1 AND done
+            AND (done_at AT TIME ZONE 'Asia/Dubai')::date = (now() AT TIME ZONE 'Asia/Dubai')::date`,
+        [memberId],
+      ),
+    ]);
     return {
-      tasks: rows.filter((r) => !r.done).map(map),
-      // Only the last few completed items, most-recent first — a little sense of progress.
-      done: rows.filter((r) => r.done).map(map).reverse().slice(0, 8),
+      tasks: openRes.rows.map((r) => ({ id: Number(r.id), title: r.title, done: false, sortOrder: Number(r.sort_order) })),
+      doneToday: Number(doneRes.rows[0].n),
     };
   });
 

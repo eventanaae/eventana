@@ -545,7 +545,7 @@ export const api = {
       body: JSON.stringify({ active }),
     }),
 
-  focus: () => request<{ tasks: FocusTask[]; done: FocusTask[] }>('/api/admin/focus'),
+  focus: () => request<{ tasks: FocusTask[]; doneToday: number }>('/api/admin/focus'),
   addFocus: (title: string) =>
     request<FocusTask>('/api/admin/focus', { method: 'POST', body: JSON.stringify({ title }) }),
   updateFocus: (id: number, patch: { done?: boolean; title?: string }) =>
