@@ -47,6 +47,9 @@ export function Ceo() {
 
   const range = useMemo(() => presetRange(preset), [preset]);
   const periodLabel = PRESETS.find((p) => p.id === preset)?.label ?? 'this period';
+  // A dimension filter (emirate / event type) is active. Revenue & bookings respect
+  // it, but company-wide expenses can't be split by it — so we hide Expenses/Net then.
+  const dimFiltered = !!(emirate || eventType);
 
   useEffect(() => {
     setLoading(true);
@@ -126,10 +129,17 @@ export function Ceo() {
               <div style={{ ...fredoka(15), marginBottom: 12 }}>📊 For {periodLabel.toLowerCase()}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
                 <HeroKpi label="Income" value={`AED ${data.revenueDisplay}`} accent={C.pink} />
-                <HeroKpi label="Expenses" value={`AED ${data.expensesDisplay}`} accent={C.yellow} />
-                <HeroKpi label={data.profitNegative ? 'Net loss' : 'Net profit'} value={`AED ${data.profitDisplay}`} caption={`${data.marginPct}% margin`} accent={data.profitNegative ? C.red : C.green} />
+                {/* Expenses aren't tagged by emirate/type, so Expenses & Net only make
+                    sense against unfiltered income — hide them when a dimension filter is on. */}
+                {!dimFiltered && <HeroKpi label="Expenses" value={`AED ${data.expensesDisplay}`} accent={C.yellow} />}
+                {!dimFiltered && <HeroKpi label={data.profitNegative ? 'Net loss' : 'Net profit'} value={`AED ${data.profitDisplay}`} caption={`${data.marginPct}% margin`} accent={data.profitNegative ? C.red : C.green} />}
                 <HeroKpi label="Bookings" value={String(data.bookings)} caption={`AED ${data.aovDisplay} avg`} accent={C.mint} />
               </div>
+              {dimFiltered && (
+                <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
+                  Income &amp; bookings are for the selected emirate/type. Expenses &amp; profit are company-wide (not split by emirate/type) — clear those filters to see them.
+                </div>
+              )}
             </div>
           </div>
 
