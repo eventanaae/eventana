@@ -3564,17 +3564,28 @@ export async function adminRoutes(app: FastifyInstance) {
       .map((g) => ({ label: g.label, bookings: g.bookings, revenueFils: g.revenueFils, revenueDisplay: formatAed(g.revenueFils) }))
       .sort((a, b) => b.bookings - a.bookings);
 
-    // Top themes across the FULL year: live app events (byTheme) + the themes the
-    // team filled in for QuickBooks sales (sale_themes). Empty until they're filled.
-    const themeQbRes = await pool.query<{ theme: string; bookings: number; revenue: string }>(
-      `SELECT btrim(st.theme) AS theme, COUNT(DISTINCT ho.doc_number)::int AS bookings,
-              COALESCE(SUM(ho.total_fils),0)::bigint AS revenue
-         FROM historical_orders ho
-         JOIN sale_themes st ON st.sale_key = 'qb:' || ho.doc_number
-        WHERE ho.txn_date >= $1 AND ho.txn_date < $2 AND COALESCE(ho.txn_type,'') <> 'Payment' AND btrim(st.theme) <> ''
-        GROUP BY 1`,
-      [from, to],
-    ).catch(() => ({ rows: [] as any[] }));
+    // Top themes across the FULL year: NAMED live app-event themes (genuine
+    // bookings only — imports carry no theme) + the themes the team filled in for
+    // QuickBooks sales (sale_themes). Empty until they're filled.
+    const [liveThemeRes, themeQbRes] = await Promise.all([
+      pool.query<{ theme: string; bookings: number; revenue: string }>(
+        `SELECT th.name AS theme, COUNT(*)::int AS bookings, COALESCE(SUM(${evRevSub}),0)::bigint AS revenue
+           FROM events e JOIN themes th ON th.id = e.theme_id
+          WHERE e.phase <> 'Cancelled' AND e.source IS DISTINCT FROM 'quickbooks_import'
+            AND e.event_date >= $1 AND e.event_date < $2
+          GROUP BY th.name`,
+        [from, to],
+      ).catch(() => ({ rows: [] as any[] })),
+      pool.query<{ theme: string; bookings: number; revenue: string }>(
+        `SELECT btrim(st.theme) AS theme, COUNT(DISTINCT ho.doc_number)::int AS bookings,
+                COALESCE(SUM(ho.total_fils),0)::bigint AS revenue
+           FROM historical_orders ho
+           JOIN sale_themes st ON st.sale_key = 'qb:' || ho.doc_number
+          WHERE ho.txn_date >= $1 AND ho.txn_date < $2 AND COALESCE(ho.txn_type,'') <> 'Payment' AND btrim(st.theme) <> ''
+          GROUP BY 1`,
+        [from, to],
+      ).catch(() => ({ rows: [] as any[] })),
+    ]);
     const themeKey = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
     const themeMap = new Map<string, { label: string; bookings: number; revenueFils: number }>();
     const addTheme = (label: string, bookings: number, revenueFils: number) => {
@@ -3585,7 +3596,7 @@ export async function adminRoutes(app: FastifyInstance) {
       g.bookings += bookings; g.revenueFils += revenueFils;
       themeMap.set(k, g);
     };
-    for (const r of byTheme as any[]) addTheme(r.label, Number(r.bookings) || 0, Number(r.revenueFils) || 0);
+    for (const r of liveThemeRes.rows) addTheme(r.theme, Number(r.bookings) || 0, Number(r.revenue) || 0);
     for (const r of themeQbRes.rows) addTheme(r.theme, Number(r.bookings) || 0, Number(r.revenue) || 0);
     const byThemeFull = [...themeMap.values()]
       .map((g) => ({ label: g.label, bookings: g.bookings, revenueFils: g.revenueFils, revenueDisplay: formatAed(g.revenueFils) }))
@@ -5466,7 +5477,7 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
       pool.query(
         `SELECT 'qb:' || ho.doc_number AS sale_key, to_char(min(ho.txn_date),'YYYY-MM-DD') d,
-                ho.customer_name name, max(hc.phone) phone,
+                max(ho.customer_name) name, max(hc.phone) phone,
                 string_agg(DISTINCT NULLIF(btrim(ho.product),''), ', ') product, '' current_theme
            FROM historical_orders ho
            LEFT JOIN (
@@ -5475,7 +5486,7 @@ export async function adminRoutes(app: FastifyInstance) {
            ) hc ON hc.k = lower(btrim(ho.customer_name))
           WHERE ho.txn_date >= $1 AND ho.txn_date < $2 AND COALESCE(ho.txn_type,'') <> 'Payment'
             AND ho.doc_number IS NOT NULL
-          GROUP BY ho.doc_number, ho.customer_name`,
+          GROUP BY ho.doc_number`,
         [from, to],
       ),
       pool.query(`SELECT sale_key, theme FROM sale_themes`),
