@@ -166,6 +166,12 @@ function classifyLabel(label: string, serviceIds: Set<string>, categories: Set<s
   if (/instant|camera|photograph/.test(n)) serviceIds.add('camera');
   if (/(entertainer|clown|mascot)/.test(n) && !/glam/.test(n)) serviceIds.add('clown');
   if (/giveaway/.test(n)) categories.add('giveaways');
+  // Made-to-order shop goods (customized hat, face banner, wristband, t-shirt)
+  // → 'giveaways', which fires design_giveaways (Marsha designs) then
+  // prep_giveaways (Jane prepares, waits on the design). This is the owner's
+  // rule for anything from the Shop: Marsha designs it, then Jane prepares it.
+  // ("hat painting" is an activity, not a shop hat — the 'custom' guard skips it.)
+  if (/custom\w*\s*hat|face\s*banner|\bbanner\b|wrist\s*band|wristband|t[-\s]?shirt|tee\s*shirt|vip\s*band/.test(n)) categories.add('giveaways');
   if (/backdrop/.test(n)) serviceIds.add('backdrop');
   if (/inflatable|bouncy|bouncer|castle|jumping|jumper/.test(n)) inflatable += 1;
   if (/wave\s*slide|amwaj|blue\s*water/.test(n)) serviceIds.add('amwaj');
