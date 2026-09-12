@@ -3246,7 +3246,8 @@ export async function adminRoutes(app: FastifyInstance) {
       dayOfYear,
       Math.max(1, Math.floor((coverageEnd.getTime() - Date.UTC(nowY, 0, 1)) / 86_400_000) + 1),
     );
-    const daysRemaining = Math.max(0, 365 - coverageDays);
+    const daysInYear = (Date.UTC(nowY + 1, 0, 1) - Date.UTC(nowY, 0, 1)) / 86_400_000; // 365 or 366
+    const daysRemaining = Math.max(0, daysInYear - coverageDays);
     const runRateDaily = ytdRevenue / coverageDays;
     const runRateRemaining = Math.round(runRateDaily * daysRemaining);
     const marginRatio = (business?.latestYear?.marginPct ?? (revenue > 0 ? (profit / revenue) * 100 : 20)) / 100;

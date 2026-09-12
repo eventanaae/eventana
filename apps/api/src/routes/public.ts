@@ -266,6 +266,10 @@ export async function publicRoutes(app: FastifyInstance) {
 
       const temps = series.map((t) => t.data?.instant?.details?.air_temperature).filter((n) => typeof n === 'number');
       const winds = series.map((t) => t.data?.instant?.details?.wind_speed).filter((n) => typeof n === 'number');
+      // Guard the same way windMax already does (Math.max(...winds, 0)): with no
+      // temperature points, Math.max(...[]) is -Infinity → serialises to null and
+      // the weather card shows a blank high/low. Treat it as unavailable instead.
+      if (temps.length === 0) return { available: false, reason: 'unavailable' };
       // Sum NON-overlapping rainfall. next_6_hours covers the next six hours, so
       // adding it once per hourly step counted each hour of rain ~6×. Prefer the
       // per-hour next_1_hours figure; for the coarse tail that only has a 6-hour

@@ -308,6 +308,26 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       if (!r.rowCount) throw new CheckoutError('You’ve already used this code.', 'promo_used');
     }
 
+    // Reserve loyalty points / store credit NOW (conditional atomic decrement), so
+    // two concurrent unpaid orders by the same customer can't each spend the same
+    // balance in full. The order's total already bakes in this discount; the
+    // decrement here is the consumption (confirm no longer decrements). If the
+    // order is abandoned, the reconcile sweep refunds it (discounts_reversed_at).
+    if (applied.points && applied.points.used > 0) {
+      const r = await db.query(
+        `UPDATE customers SET loyalty_points = loyalty_points - $2 WHERE id = $1 AND loyalty_points >= $2 RETURNING id`,
+        [customerId, applied.points.used],
+      );
+      if (!r.rowCount) throw new CheckoutError('Those loyalty points are no longer available.', 'points_unavailable');
+    }
+    if (applied.creditFils > 0) {
+      const r = await db.query(
+        `UPDATE customers SET referral_credit_fils = referral_credit_fils - $2 WHERE id = $1 AND referral_credit_fils >= $2 RETURNING id`,
+        [customerId, applied.creditFils],
+      );
+      if (!r.rowCount) throw new CheckoutError('Your store credit is no longer available.', 'credit_unavailable');
+    }
+
     return { orderId: id };
   }).catch((err) => {
     if (err instanceof ConflictError) {

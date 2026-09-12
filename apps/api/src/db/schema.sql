@@ -238,6 +238,12 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS cart_reminded_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS cart_reminder_count INT NOT NULL DEFAULT 0;
 
+-- Loyalty points / store credit are RESERVED (decremented) at checkout so two
+-- concurrent unpaid orders can't spend the same balance twice. If such an order
+-- is abandoned (never paid), the reconcile sweep refunds the reserved balance and
+-- stamps this so the refund happens exactly once.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discounts_reversed_at TIMESTAMPTZ;
+
 -- Website analytics: one row per anonymous visitor per day (a random id kept in
 -- the browser, hashed server-side — no personal data). Powers the visitors →
 -- registered → booked funnel. `hits` counts repeat opens that day.

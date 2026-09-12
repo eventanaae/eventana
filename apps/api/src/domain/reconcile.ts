@@ -45,6 +45,34 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     )
     .catch(() => {});
 
+  // Refund loyalty points / store credit RESERVED (decremented) at checkout by an
+  // abandoned order, back to the customer — exactly once. The data-modifying CTE
+  // claims the orders (stamps discounts_reversed_at) and restores the balances in
+  // ONE atomic statement, so a crash can't double-refund or half-refund.
+  await pool
+    .query(
+      `WITH claimed AS (
+         UPDATE orders SET discounts_reversed_at = now()
+          WHERE status IN ('awaiting_payment','failed','cancelled','expired')
+            AND discounts_reversed_at IS NULL
+            AND created_at < now() - interval '2 hours'
+            AND cart->'appliedDiscounts' IS NOT NULL
+            AND (COALESCE((cart->'appliedDiscounts'->'points'->>'used')::int, 0) > 0
+                 OR COALESCE((cart->'appliedDiscounts'->>'creditFils')::bigint, 0) > 0)
+          RETURNING customer_id,
+                    COALESCE((cart->'appliedDiscounts'->'points'->>'used')::int, 0) AS pts,
+                    COALESCE((cart->'appliedDiscounts'->>'creditFils')::bigint, 0) AS cr
+       ), agg AS (
+         SELECT customer_id, SUM(pts)::int AS pts, SUM(cr)::bigint AS cr
+           FROM claimed GROUP BY customer_id
+       )
+       UPDATE customers c
+          SET loyalty_points = loyalty_points + agg.pts,
+              referral_credit_fils = referral_credit_fils + agg.cr
+         FROM agg WHERE c.id = agg.customer_id`,
+    )
+    .catch(() => {});
+
   // Auto-complete events whose end time (in UAE) has passed. base_end_time
   // already reflects any extra hours the customer bought, so this respects a
   // longer party. Never touches cancelled events. Non-fatal.

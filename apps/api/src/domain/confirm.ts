@@ -504,9 +504,11 @@ export async function confirmBooking(
   // later delivered by the post-event message and shown on the profile.
   await issueWinbackCode(db, order.customer_id);
 
-  // Consume any checkout discounts now that the payment is real. Each is
-  // clamped so a replay or a race can never overspend, and the referral
-  // reward is guarded by referral_rewarded so it pays out at most once.
+  // Record the checkout discounts now that the payment is real. Points & store
+  // credit were already RESERVED (decremented) at checkout so two concurrent
+  // unpaid orders can't overspend the same balance — so here we only LOG the
+  // points redemption in the ledger (no second decrement). Abandoned orders never
+  // reach confirm; the reconcile sweep refunds their reserved balance.
   const disc = cart.appliedDiscounts;
   if (disc) {
     if (disc.points && disc.points.used > 0) {
@@ -514,16 +516,6 @@ export async function confirmBooking(
         `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
          VALUES ($1,$2,$3,$4,'Points redeemed at checkout')`,
         [order.customer_id, eventId, order.id, -disc.points.used],
-      );
-      await db.query(
-        `UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`,
-        [order.customer_id, disc.points.used],
-      );
-    }
-    if (disc.creditFils > 0) {
-      await db.query(
-        `UPDATE customers SET referral_credit_fils = GREATEST(0, referral_credit_fils - $2) WHERE id = $1`,
-        [order.customer_id, disc.creditFils],
       );
     }
     if (disc.promo) {
