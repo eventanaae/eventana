@@ -32,6 +32,19 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // success sees the true availability picture.
   report.expiredHolds = await expireStaleHolds(pool);
 
+  // Free promo-code reservations left by ABANDONED checkouts (never paid), so a
+  // single-use / win-back code a customer reserved but didn't pay for becomes
+  // usable again. Paid orders keep their redemption; a 2h buffer clears any
+  // still-'awaiting_payment' order well past the minutes-long payment window.
+  await pool
+    .query(
+      `DELETE FROM promo_redemptions pr USING orders o
+        WHERE pr.order_id = o.id
+          AND o.status IN ('awaiting_payment','failed','cancelled','expired')
+          AND pr.created_at < now() - interval '2 hours'`,
+    )
+    .catch(() => {});
+
   // Auto-complete events whose end time (in UAE) has passed. base_end_time
   // already reflects any extra hours the customer bought, so this respects a
   // longer party. Never touches cancelled events. Non-fatal.

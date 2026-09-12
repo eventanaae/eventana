@@ -287,6 +287,27 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       holdMinutes: cfg.rules.inventoryHoldMinutes,
     });
 
+    // Reserve a promo/win-back code NOW (atomically, in this same transaction) so
+    // a second checkout by the same customer can't spend a single-use code twice
+    // before the first one is paid. The UNIQUE(code, customer_id) makes this the
+    // hard gate: we take over a still-UNPAID prior reservation (a legit retry
+    // after an abandoned cart), but block if the code was already redeemed on a
+    // PAID order. Abandoned reservations are freed by the reconcile sweep, so a
+    // customer who never pays isn't locked out of their own code. uses++ still
+    // happens once, at confirm, so this reservation never inflates the counter.
+    if (applied.promo) {
+      const r = await db.query(
+        `INSERT INTO promo_redemptions (code, customer_id, order_id, amount_fils)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (code, customer_id) DO UPDATE
+           SET order_id = EXCLUDED.order_id, amount_fils = EXCLUDED.amount_fils, created_at = now()
+           WHERE COALESCE((SELECT o2.status FROM orders o2 WHERE o2.id = promo_redemptions.order_id), 'gone') <> 'paid'
+         RETURNING id`,
+        [applied.promo.code, customerId, id, applied.promo.amountFils],
+      );
+      if (!r.rowCount) throw new CheckoutError('You’ve already used this code.', 'promo_used');
+    }
+
     return { orderId: id };
   }).catch((err) => {
     if (err instanceof ConflictError) {
