@@ -1,0 +1,26 @@
+/**
+ * One-time guard against the refund-WhatsApp back-fire: when the refund WhatsApp
+ * sweep was first enabled it would have picked up EVERY historical
+ * refund_processed email row (whatsapp_sent_at was never set before) and blasted
+ * a WhatsApp for each. Stamp all pre-feature rows (those with no reasonCategory
+ * in the payload — added only by the new refund flow) as WhatsApp-handled so
+ * none can send. Runs unconditionally on boot; idempotent (a cheap no-op once
+ * there are no unstamped pre-feature rows left).
+ */
+import { pool } from './pool.js';
+
+export async function refundWaGuardOnBoot(): Promise<void> {
+  try {
+    const res = await pool.query(
+      `UPDATE notifications
+          SET whatsapp_sent_at = now()
+        WHERE channel = 'email' AND template = 'refund_processed'
+          AND whatsapp_sent_at IS NULL
+          AND (payload->>'reasonCategory') IS NULL`,
+    );
+    const n = res.rowCount ?? 0;
+    if (n > 0) console.log(`[refund-wa-guard] neutralised ${n} pre-feature refund_processed row(s) — no historical WhatsApp will be sent`);
+  } catch (err) {
+    console.error('[refund-wa-guard] failed:', (err as Error).message);
+  }
+}

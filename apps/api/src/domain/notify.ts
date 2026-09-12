@@ -1090,6 +1090,11 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
          JOIN customers c ON c.id = o.customer_id
         WHERE n.channel = 'email' AND n.template = 'refund_processed'
           AND n.whatsapp_sent_at IS NULL AND n.cancelled_at IS NULL
+          -- ONLY refunds made with this feature carry reasonCategory in the
+          -- payload. This excludes every pre-feature refund_processed row (whose
+          -- whatsapp_sent_at was never set) so enabling the WhatsApp sweep can't
+          -- back-fire a blast of WhatsApps for historical refunds.
+          AND (n.payload->>'reasonCategory') IS NOT NULL
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.created_at LIMIT 100`,
     );
