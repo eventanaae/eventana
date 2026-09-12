@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { parseEndHour, parseHour } from '@eventana/shared';
 import { api } from '../api';
 import type { Screen } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Spinner, timeLabel } from '../ui';
@@ -350,7 +351,7 @@ export function MyEvent({
       )}
 
       {!cancelled && signedIn && event.canReschedule && (
-        <Reschedule eventId={event.id} t={t} onDone={async () => setEvent(await api.event(event.id))} />
+        <Reschedule eventId={event.id} hours={parseEndHour(event.endTime) - parseHour(event.startTime)} t={t} onDone={async () => setEvent(await api.event(event.id))} />
       )}
 
       {!cancelled && signedIn && event.canCancel && (
@@ -763,7 +764,7 @@ export function MyEvent({
   );
 }
 
-function Reschedule({ eventId, t, onDone }: { eventId: string; t: TFn; onDone: () => Promise<void> }) {
+function Reschedule({ eventId, hours, t, onDone }: { eventId: string; hours?: number; t: TFn; onDone: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('17:00');
@@ -773,8 +774,11 @@ function Reschedule({ eventId, t, onDone }: { eventId: string; t: TFn; onDone: (
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    api.startTimes().then((r) => setTimes(r.filter((x) => x.allowed).map((x) => x.value))).catch(() => {});
-  }, []);
+    // Pass this event's real length so a 6-hour party isn't offered late slots
+    // that overrun midnight (the move would just be rejected server-side).
+    api.startTimes(hours && hours > 0 ? hours : undefined)
+      .then((r) => setTimes(r.filter((x) => x.allowed).map((x) => x.value))).catch(() => {});
+  }, [hours]);
 
   // 72h ≈ 3 days; add a day of buffer so the picked date always clears the rule.
   const minDate = new Date(Date.now() + 4 * 86_400_000).toISOString().slice(0, 10);
