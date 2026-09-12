@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { to12h, timeRange12h } from '@eventana/shared';
+import { celebrationLabel, eventDateYMD, to12h, timeRange12h } from '@eventana/shared';
 import type { View } from '../App';
 import { api } from '../api';
 import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner } from '../ui';
@@ -24,7 +24,9 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
   const canBrief = role === 'owner' || role === 'manager';
   useEffect(() => { if (canBrief) api.morningBrief().then(setBrief).catch(() => setBrief(null)); }, [canBrief]);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // Local (Dubai) date, not UTC — toISOString() would show "yesterday" between
+  // Dubai midnight and 4 AM, hiding today's real parties.
+  const todayStr = eventDateYMD(new Date());
 
   if (!data) return <Spinner />;
 
@@ -315,11 +317,15 @@ function themeOf(e: any): string | null {
   return null;
 }
 
-/** Prettify a celebration type id ("kids") into a label ("Birthday"). */
+/** Prettify a celebration type id ("baby") into its label ("Baby Shower"). Uses
+ *  the shared CELEBRATION_TYPES so the real ids (baby, gender, bride, customc, …)
+ *  render correctly instead of garbled ("Sara's Customc"); a legacy/unknown id
+ *  falls back to title-casing. */
 export function celebrationName(type?: string): string {
-  const map: Record<string, string> = { kids: 'Birthday', adult: 'Birthday', baby_shower: 'Baby Shower', gender_reveal: 'Gender Reveal', graduation: 'Graduation', anniversary: 'Anniversary', corporate: 'Event', wedding: 'Wedding' };
   if (!type) return 'Celebration';
-  return map[type] || String(type).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const label = celebrationLabel(type);
+  if (label && label !== type) return label;
+  return String(type).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** The headline for an event card: "Dana's Birthday" — guest of honour + type. */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { timeRange12h } from '@eventana/shared';
+import { eventDateYMD, timeRange12h } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty, eventTitle } from './Today';
@@ -39,7 +39,7 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
 
   // Finished events (completed, cancelled, or already past) drop into a separate
   // "Past" section so the main list is only what's still coming up / live.
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = eventDateYMD(new Date()); // local (Dubai) date, not UTC
   const isDone = (e: any) =>
     e.phase === 'Event Completed' || e.phase === 'Cancelled' ||
     // A date-not-decided (TBD) event is never "past" — it has no real date yet.

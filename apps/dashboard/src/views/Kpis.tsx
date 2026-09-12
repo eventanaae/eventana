@@ -162,7 +162,10 @@ export function Kpis({ role }: { role?: string }) {
             <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>No active staff.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {data.staff.map((s: any, i: number) => (
+              {/* Rank by actual EARNINGS (bonus + tips + commission), not the
+                  server's tips-first order — else the 🥇 went to the top tipper
+                  and a high commission-earner (e.g. Marsha, 0 tips) sank to last. */}
+              {[...data.staff].sort((a: any, b: any) => (b.earningsFils ?? 0) - (a.earningsFils ?? 0)).map((s: any, i: number) => (
                 <div key={s.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                     <span style={{ fontSize: 17, width: 24, textAlign: 'center', flex: 'none', fontWeight: 800, color: C.muted }}>{i === 0 ? '🥇' : i + 1}</span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { timeRange12h } from '@eventana/shared';
+import { eventDateYMD, timeRange12h } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, C, fredoka, Panel, Spinner } from '../ui';
 import { Empty, eventTitle } from './Today';
@@ -12,7 +12,7 @@ export function MyEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void })
 
   if (!events) return <Spinner />;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = eventDateYMD(new Date()); // local (Dubai) date, not UTC
 
   return (
     <Panel title={`My jobs (${events.length})`}>
