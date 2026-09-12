@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { pool } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from './settings.js';
 import { titleCaseName } from './maintenance.js';
 
@@ -402,22 +402,45 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     if (marsha) leader = { id: marsha.id, name: 'Marsha', remote: true };
   }
 
-  // Persist the plan.
-  await pool.query(`DELETE FROM event_staff WHERE event_id = $1`, [eventId]);
-  for (const a of assigned) {
-    await pool.query(
-      `INSERT INTO event_staff (event_id, role, slot, assignee_id, is_leader, status, reason, source, needs_design)
-       VALUES ($1,$2,$3,$4,false,$5,$6,$7,$8)`,
-      [eventId, a.role, a.slot, a.assignee?.id ?? null, a.status, a.reason, a.source, !!a.needsDesign],
-    );
-  }
-  if (leader) {
-    await pool.query(
-      `INSERT INTO event_staff (event_id, role, slot, assignee_id, is_leader, status, reason, source)
-       VALUES ($1,'leader',1,$2,true,'assigned',$3,'Leader')`,
-      [eventId, leader.id, leader.remote ? 'Remote event leader' : 'Event leader'],
-    );
-  }
+  // Persist the plan ATOMICALLY. An advisory lock keyed by the event serialises
+  // concurrent rebuilds (this runs fire-and-forget from the webhook AND from an
+  // admin "reassign" — without the lock two interleaved DELETE/INSERT runs could
+  // duplicate the whole crew, as event_staff has no uniqueness guard). We also
+  // PRESERVE manager-confirmed part-timers across the rebuild: the planner re-emits
+  // an empty 'part_time_required' slot, so a re-run on an add-on would otherwise
+  // wipe a confirmed "Ahmed" and re-raise the resolved staffing alert.
+  let preserved: Array<{ role: string; slot: number; part_time_name: string }> = [];
+  await withTransaction(async (db) => {
+    await db.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [eventId]);
+    preserved = (await db.query<{ role: string; slot: number; part_time_name: string }>(
+      `SELECT role, slot, part_time_name FROM event_staff
+        WHERE event_id = $1 AND status = 'confirmed' AND part_time_name IS NOT NULL`,
+      [eventId],
+    )).rows;
+    await db.query(`DELETE FROM event_staff WHERE event_id = $1`, [eventId]);
+    for (const a of assigned) {
+      await db.query(
+        `INSERT INTO event_staff (event_id, role, slot, assignee_id, is_leader, status, reason, source, needs_design)
+         VALUES ($1,$2,$3,$4,false,$5,$6,$7,$8)`,
+        [eventId, a.role, a.slot, a.assignee?.id ?? null, a.status, a.reason, a.source, !!a.needsDesign],
+      );
+    }
+    if (leader) {
+      await db.query(
+        `INSERT INTO event_staff (event_id, role, slot, assignee_id, is_leader, status, reason, source)
+         VALUES ($1,'leader',1,$2,true,'assigned',$3,'Leader')`,
+        [eventId, leader.id, leader.remote ? 'Remote event leader' : 'Event leader'],
+      );
+    }
+    // Re-apply each manager-confirmed part-timer onto its matching (role, slot).
+    for (const p of preserved) {
+      await db.query(
+        `UPDATE event_staff SET status = 'confirmed', part_time_name = $3, assignee_id = NULL
+          WHERE event_id = $1 AND role = $2 AND slot = $4 AND is_leader = false`,
+        [eventId, p.role, p.part_time_name, p.slot],
+      );
+    }
+  });
 
   // Keep event_team (what employees read for "My jobs", and what feedback rewards
   // / alerts use) in sync with the REAL assigned crew from event_staff. Without
@@ -467,7 +490,12 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     }
   }
 
-  const shortages = assigned.filter((a) => a.status !== 'assigned').length;
+  // A slot the planner left open but a manager already CONFIRMED a part-timer for
+  // (preserved above) is NOT a shortage — exclude it, so re-staffing doesn't
+  // re-raise a resolved "staffing needed" alert.
+  const preservedKeys = new Set(preserved.map((p) => `${p.role}:${p.slot}`));
+  const openShortages = assigned.filter((a) => a.status !== 'assigned' && !preservedKeys.has(`${a.role}:${a.slot}`));
+  const shortages = openShortages.length;
   // Raise a single ops alert for the Owner/Manager when we can't fully staff
   // internally (part-time / prep needed). Not repeated if one already stands.
   if (shortages > 0) {
@@ -475,7 +503,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
        SELECT $1,'ops_alert','staffing_required', now(), $2
         WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template = 'staffing_required' AND event_id = $1)`,
-      [eventId, JSON.stringify({ eventId, shortages, roles: assigned.filter((a) => a.status !== 'assigned').map((a) => ({ role: a.role, reason: a.reason, source: a.source, noPartTime: a.noPartTime })) })],
+      [eventId, JSON.stringify({ eventId, shortages, roles: openShortages.map((a) => ({ role: a.role, reason: a.reason, source: a.source, noPartTime: a.noPartTime })) })],
     ).catch(() => ({ rowCount: 0 }));
     // A part-timer is needed — WhatsApp Marsha so she can confirm one. Only on
     // the first alert for this event (the INSERT above is deduped).

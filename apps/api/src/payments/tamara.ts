@@ -11,7 +11,7 @@
  */
 import { createHmac } from 'node:crypto';
 import { providerAmount, type PaymentStatus } from '@eventana/shared';
-import type { ProviderConfig } from '../config.js';
+import { config, type ProviderConfig } from '../config.js';
 import {
   headerValue,
   providerFetch,
@@ -118,7 +118,11 @@ export class TamaraProvider implements PaymentProvider {
         success: input.successUrl,
         failure: input.failureUrl,
         cancel: input.cancelUrl,
-        notification: input.successUrl.replace('/pay/return', '/webhooks/tamara'),
+        // The webhook lives on the API origin under /api/, NOT on the customer
+        // app return URL — the old .replace('/pay/return', …) was a no-op (the
+        // return URL is the app root now), so Tamara's notification silently went
+        // to the app instead of the handler. Use the canonical webhook URL.
+        notification: `${config.publicApiUrl}/api/webhooks/tamara`,
       },
     };
 
