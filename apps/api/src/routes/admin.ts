@@ -3484,11 +3484,15 @@ export async function adminRoutes(app: FastifyInstance) {
         [from, to],
       ).catch(() => ({ rows: [{ v: '0' }] })),
       // Top expenses by SUPPLIER (vendor) — so a big month can be audited line by
-      // line. Falls back to the account name when a row has no supplier.
+      // line. Falls back to the account name when a row has no supplier. Staff /
+      // part-timer / salary lines are NOT suppliers, so they're excluded here
+      // (they still count in the total, and live in the Part-timers & Drivers view).
       pool.query<{ category: string; v: string }>(
         `SELECT COALESCE(NULLIF(btrim(vendor), ''), NULLIF(btrim(category), ''), '(no supplier)') AS category,
                 COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
           WHERE spent_on >= $1 AND spent_on < $2
+            AND COALESCE(category,'') !~* '(part.?time|salar|wage|payroll|staff|employe)'
+            AND COALESCE(vendor,'')   !~* '(part.?time|payroll)'
           GROUP BY 1 ORDER BY 2 DESC LIMIT 8`,
         [from, to],
       ).catch(() => ({ rows: [] as any[] })),
