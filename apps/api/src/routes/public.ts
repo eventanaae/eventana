@@ -454,12 +454,16 @@ export async function publicRoutes(app: FastifyInstance) {
     };
   });
 
-  /** Which start times still finish before midnight for this event. */
-  app.get('/api/start-times', async () => {
+  /** Which start times still finish before midnight for this event. Accepts an
+   *  optional ?hours= so a 6-hour Build-Your-Own cart isn't shown late slots that
+   *  overrun midnight (the picker was hours-blind and defaulted to 4h). */
+  app.get('/api/start-times', async (request) => {
     const cfg = await loadConfig();
+    const raw = Number((request.query as { hours?: string })?.hours);
+    const baseHours = Number.isFinite(raw) && raw > 0 ? Math.min(24, raw) : cfg.rules.standardEventHours;
     return START_TIMES.map((t) => ({
       value: t,
-      allowed: endsBeforeCutoff(t, cfg.rules),
+      allowed: endsBeforeCutoff(t, cfg.rules, 0, baseHours),
     }));
   });
 

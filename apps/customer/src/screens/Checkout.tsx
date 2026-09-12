@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SHOP_DRAWING_IDS } from '@eventana/shared';
+import { SHOP_DRAWING_IDS, effectiveEventHours } from '@eventana/shared';
 import { api } from '../api';
 import { trackInitiateCheckout } from '../attribution';
 import { trackGoogleBeginCheckout } from '../googleTag';
@@ -182,8 +182,17 @@ export function Checkout({
   };
 
   useEffect(() => {
-    api.startTimes().then(setTimes).catch(() => setTimes([]));
-  }, []);
+    // Ask only for start times that finish before midnight for THIS cart's real
+    // length (6h for a decor/inflatable/machine build, else the standard 4h) —
+    // otherwise late slots show as available and only get blocked at Pay.
+    const cart = {
+      packageId: draft.packageId ?? null,
+      services: Object.entries(draft.services).map(([serviceId, quantity]) => ({ serviceId, quantity: Number(quantity) })),
+    };
+    const hrs = effectiveEventHours(cart, catalogue.rules as any);
+    api.startTimes(hrs).then(setTimes).catch(() => setTimes([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.packageId, JSON.stringify(draft.services)]);
 
   // Make sure a valid, enabled payment method is selected. A saved draft can
   // carry a stale provider (e.g. a disabled BNPL default) that would fail at

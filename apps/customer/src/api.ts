@@ -182,7 +182,8 @@ export const api = {
       subtotalDisplay: string;
     }>(`/api/offer/${encodeURIComponent(token)}`),
 
-  startTimes: () => request<Array<{ value: string; allowed: boolean }>>('/api/start-times'),
+  startTimes: (hours?: number) =>
+    request<Array<{ value: string; allowed: boolean }>>(`/api/start-times${hours && hours > 0 ? `?hours=${hours}` : ''}`),
 
   checkout: (
     cart: unknown,
