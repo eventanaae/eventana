@@ -3564,16 +3564,16 @@ export async function adminRoutes(app: FastifyInstance) {
       .map((g) => ({ label: g.label, bookings: g.bookings, revenueFils: g.revenueFils, revenueDisplay: formatAed(g.revenueFils) }))
       .sort((a, b) => b.bookings - a.bookings);
 
-    // Top themes across the FULL year: NAMED live app-event themes (genuine
-    // bookings only — imports carry no theme) + the themes the team filled in for
-    // QuickBooks sales (sale_themes). Empty until they're filled.
+    // Top themes across the FULL year, read from the THEME CAPTURED ON EACH SALE:
+    // every live app-sale and every manual receipt stores its theme on the receipt
+    // (finance_receipts.theme, non-QB) — so a theme typed on a receipt counts here.
+    // Plus the themes the team filled in for old QuickBooks sales (sale_themes).
     const [liveThemeRes, themeQbRes] = await Promise.all([
       pool.query<{ theme: string; bookings: number; revenue: string }>(
-        `SELECT th.name AS theme, COUNT(*)::int AS bookings, COALESCE(SUM(${evRevSub}),0)::bigint AS revenue
-           FROM events e JOIN themes th ON th.id = e.theme_id
-          WHERE e.phase <> 'Cancelled' AND e.source IS DISTINCT FROM 'quickbooks_import'
-            AND e.event_date >= $1 AND e.event_date < $2
-          GROUP BY th.name`,
+        `SELECT btrim(theme) AS theme, COUNT(*)::int AS bookings, COALESCE(SUM(total_fils),0)::bigint AS revenue
+           FROM finance_receipts
+          WHERE source <> 'quickbooks' AND date >= $1 AND date < $2 AND COALESCE(btrim(theme),'') <> ''
+          GROUP BY 1`,
         [from, to],
       ).catch(() => ({ rows: [] as any[] })),
       pool.query<{ theme: string; bookings: number; revenue: string }>(
@@ -3587,11 +3587,14 @@ export async function adminRoutes(app: FastifyInstance) {
       ).catch(() => ({ rows: [] as any[] })),
     ]);
     const themeKey = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+    // Generic, non-specific buckets that shouldn't rank as a "top theme".
+    const GENERIC_THEME = new Set(['custom theme', 'custom', 'no theme', 'no theme / custom', 'none', 'other', 'n/a']);
     const themeMap = new Map<string, { label: string; bookings: number; revenueFils: number }>();
     const addTheme = (label: string, bookings: number, revenueFils: number) => {
       const raw = (label || '').trim();
       if (!raw) return;
       const k = themeKey(raw);
+      if (GENERIC_THEME.has(k)) return;
       const g = themeMap.get(k) ?? { label: raw, bookings: 0, revenueFils: 0 };
       g.bookings += bookings; g.revenueFils += revenueFils;
       themeMap.set(k, g);
