@@ -3416,14 +3416,19 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query<{ d: string | null }>(`SELECT MAX(spent_on) d FROM expenses WHERE source = 'quickbooks'`).catch(() => ({ rows: [{ d: null }] })),
     ]);
     const [liveRevR, liveExpR] = await Promise.all([
+      // NOTE: strict `> $3` (no "IS NULL OR"). When the QB cutoff is NULL — no
+      // migrated rows, or a transient error on the cutoff query — `date > NULL`
+      // excludes every row and this sums to 0, so we add NOTHING on top of the
+      // seed. Adding a whole year of live rows to a seed that already covers that
+      // year would double-count; a zero add is the safe failure.
       pool.query<{ v: string }>(
         `SELECT COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts
-          WHERE source <> 'quickbooks' AND date >= $1 AND date < $2 AND ($3::date IS NULL OR date > $3::date)`,
+          WHERE source <> 'quickbooks' AND date >= $1 AND date < $2 AND date > $3::date`,
         [yearStartS, yearEndS, qbRevCutR.rows[0].d],
       ).catch(() => ({ rows: [{ v: '0' }] })),
       pool.query<{ v: string }>(
         `SELECT COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
-          WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 AND ($3::date IS NULL OR spent_on > $3::date)`,
+          WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 AND spent_on > $3::date`,
         [yearStartS, yearEndS, qbExpCutR.rows[0].d],
       ).catch(() => ({ rows: [{ v: '0' }] })),
     ]);
@@ -3491,11 +3496,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const ytdRevenue = histYtd > 0 ? histYtd : Number(ytdRes.rows[0].v);
     const bookedFuture = Number(bookedFutureRes.rows[0].v);
     const dayOfYear = Math.max(1, Math.floor((now.getTime() - Date.UTC(nowY, 0, 1)) / 86_400_000) + 1);
-    // The QuickBooks YTD figure is a snapshot FROZEN at its last import, so spread
-    // it over the days it ACTUALLY covers (its updated_at), not today's day-of-year
-    // — otherwise the daily run-rate (and the whole year-end projection) shrinks a
-    // little more every day the snapshot goes stale. The live app-YTD fallback is
-    // current, so it keeps using today's day-of-year.
+    // ytdRevenue now spans Jan 1 → today (the QuickBooks base PLUS live receipts
+    // recorded since), so its coverage end is today's asOf and the run-rate spreads
+    // it over today's day-of-year — current, not a stale frozen snapshot.
     const usingHist = histYtd > 0 && String(business?.latestYear?.year) === String(nowY) && !!business?.latestYear?.asOf;
     const coverageEnd = usingHist ? new Date(business!.latestYear!.asOf as string | Date) : now;
     const coverageDays = Math.min(
