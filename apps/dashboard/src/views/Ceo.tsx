@@ -149,8 +149,8 @@ export function Ceo() {
           {/* 4) Top 3 for the period — most-requested emirates & themes, biggest expenses */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
             <Top3Orders title="🏆 Top emirates" rows={data.byEmirateFull ?? data.byEmirate} />
-            <Top3Orders title="🎨 Top themes" rows={data.byTheme} note="Themes are tracked from 1 Sep — they weren't recorded before." />
-            <Top3Expenses rows={data.periodExpenseByCat} />
+            <Top3Orders title="🎨 Top themes" rows={data.byTheme} hideRevenue note="Themes are tracked from 1 Sep — they weren't recorded before." />
+            <Top3Expenses rows={data.periodExpenseBySupplier} />
           </div>
 
           {/* Customers · sales funnel */}
@@ -175,9 +175,14 @@ export function Ceo() {
   );
 }
 
-/** Top-3 dimensions by number of orders (what's most requested), with revenue as context. */
-function Top3Orders({ title, rows, note }: { title: string; rows: any[]; note?: string }) {
-  const top = [...(rows ?? [])].sort((a, b) => (Number(b.bookings) || 0) - (Number(a.bookings) || 0)).slice(0, 3);
+/** Top-3 dimensions by number of orders (what's most requested). `hideRevenue`
+ *  drops the AED; unnamed buckets ("No theme", "Other", "—") are filtered out. */
+function Top3Orders({ title, rows, note, hideRevenue }: { title: string; rows: any[]; note?: string; hideRevenue?: boolean }) {
+  const named = (rows ?? []).filter((r) => {
+    const l = String(r.label ?? '').trim().toLowerCase();
+    return l && l !== '—' && l !== 'other' && !l.startsWith('no theme') && l !== 'none';
+  });
+  const top = [...named].sort((a, b) => (Number(b.bookings) || 0) - (Number(a.bookings) || 0)).slice(0, 3);
   return (
     <Panel title={title}>
       {top.length === 0 ? (
@@ -185,7 +190,7 @@ function Top3Orders({ title, rows, note }: { title: string; rows: any[]; note?: 
       ) : top.map((r, i) => (
         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '9px 0', borderBottom: i < top.length - 1 ? `1px solid ${C.lineSoft}` : 'none' }}>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {r.label}</span>
-          <span style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, flex: 'none' }}>{r.bookings} order{Number(r.bookings) === 1 ? '' : 's'}<span style={{ color: C.muted, fontWeight: 600 }}> · AED {r.revenueDisplay}</span></span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, flex: 'none' }}>{r.bookings} order{Number(r.bookings) === 1 ? '' : 's'}{!hideRevenue && <span style={{ color: C.muted, fontWeight: 600 }}> · AED {r.revenueDisplay}</span>}</span>
         </div>
       ))}
       {note && <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.4 }}>{note}</div>}
@@ -240,7 +245,7 @@ function YearPnl({ years }: { years: any[] }) {
 function Top3Expenses({ rows }: { rows: any[] }) {
   const top = [...(rows ?? [])].slice(0, 3); // the API returns these amount-descending
   return (
-    <Panel title="🧾 Top expenses">
+    <Panel title="🧾 Top expenses · by supplier">
       {top.length === 0 ? (
         <div style={{ color: C.muted, fontWeight: 600, fontSize: 12.5 }}>No expenses in this period.</div>
       ) : top.map((r, i) => (

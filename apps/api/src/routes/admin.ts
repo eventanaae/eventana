@@ -3468,25 +3468,27 @@ export async function adminRoutes(app: FastifyInstance) {
 
     // ── Period P&L from the FULL ledgers (all years) so the filter genuinely
     // changes the numbers. Income = finance_receipts with the QB→live cutoff
-    // split (QB rows on/before the cutoff, live rows after — never double-counted).
-    // Expenses = the whole expenses table (QuickBooks history + manual), by date.
-    // These use real data going back years, unlike the live-only event tables.
-    const perCut = qbRevCutR.rows[0].d;
-    const [periodRevRow, periodExpRow, periodExpCatRows, yearsPnlRows] = await Promise.all([
+    // Income = the whole receipts ledger; expenses = the whole expenses table —
+    // both real data going back years, unlike the live-only event tables.
+    const [periodRevRow, periodExpRow, periodExpVendorRows, yearsPnlRows] = await Promise.all([
+      // Income & sales = the WHOLE receipts ledger in the period. The QuickBooks
+      // rows are our reviewed, reconciled data (no dedup split needed — a cutoff
+      // split broke on future-dated QB invoices), so we simply sum every receipt.
       pool.query<{ v: string; c: number }>(
         `SELECT COALESCE(SUM(total_fils),0)::bigint v, COUNT(*)::int c FROM finance_receipts
-          WHERE date >= $1 AND date < $2
-            AND ( (source = 'quickbooks' AND date <= $3::date)
-                  OR (source <> 'quickbooks' AND ($3::date IS NULL OR date > $3::date)) )`,
-        [from, to, perCut],
+          WHERE date >= $1 AND date < $2`,
+        [from, to],
       ).catch(() => ({ rows: [{ v: '0', c: 0 }] })),
       pool.query<{ v: string }>(
         `SELECT COALESCE(SUM(amount_fils),0)::bigint v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`,
         [from, to],
       ).catch(() => ({ rows: [{ v: '0' }] })),
+      // Top expenses by SUPPLIER (vendor) — so a big month can be audited line by
+      // line. Falls back to the account name when a row has no supplier.
       pool.query<{ category: string; v: string }>(
-        `SELECT btrim(category) category, COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
-          WHERE category IS NOT NULL AND btrim(category) <> '' AND spent_on >= $1 AND spent_on < $2
+        `SELECT COALESCE(NULLIF(btrim(vendor), ''), NULLIF(btrim(category), ''), '(no supplier)') AS category,
+                COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
+          WHERE spent_on >= $1 AND spent_on < $2
           GROUP BY 1 ORDER BY 2 DESC LIMIT 8`,
         [from, to],
       ).catch(() => ({ rows: [] as any[] })),
@@ -3503,7 +3505,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const periodSalesCount = Number(periodRevRow.rows[0].c);
     const periodExpenseFils = Number(periodExpRow.rows[0].v);
     const periodNetFils = periodIncomeFils - periodExpenseFils;
-    const periodExpenseByCat = periodExpCatRows.rows.map((r) => ({ category: r.category, amountFils: Number(r.v), amountDisplay: formatAed(Number(r.v)) }));
+    const periodExpenseBySupplier = periodExpVendorRows.rows.map((r) => ({ category: r.category, amountFils: Number(r.v), amountDisplay: formatAed(Number(r.v)) }));
     const yearsPnl = yearsPnlRows.rows.map((r) => {
       const rev = Number(r.revenue_fils), exp = Number(r.expenses_fils), net = rev - exp;
       return { year: r.year, revenueFils: rev, revenueDisplay: formatAed(rev), expensesFils: exp, expensesDisplay: formatAed(exp), netFils: net, netDisplay: formatAed(net), marginPct: rev > 0 ? Math.round((net / rev) * 1000) / 10 : 0 };
@@ -3663,7 +3665,7 @@ export async function adminRoutes(app: FastifyInstance) {
       periodNetFils, periodNetDisplay: formatAed(Math.abs(periodNetFils)), periodNetNegative: periodNetFils < 0,
       periodMarginPct: periodIncomeFils > 0 ? Math.round((periodNetFils / periodIncomeFils) * 1000) / 10 : 0,
       periodSalesCount,
-      periodExpenseByCat,
+      periodExpenseBySupplier,
       yearsPnl,
       byEmirateFull,
       expensesFils: expenses, expensesDisplay: formatAed(expenses),
