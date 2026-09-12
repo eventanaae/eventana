@@ -20,24 +20,25 @@ function presetRange(preset: string): { from: string; to: string } {
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth();
   const firstNextMonth = iso(new Date(Date.UTC(y, m + 1, 1)));
+  const firstThisYear = iso(new Date(Date.UTC(y, 0, 1)));
+  const firstNextYear = iso(new Date(Date.UTC(y + 1, 0, 1)));
   switch (preset) {
     case 'month': return { from: iso(new Date(Date.UTC(y, m, 1))), to: firstNextMonth };
-    case 'q': return { from: iso(new Date(Date.UTC(y, m - 2, 1))), to: firstNextMonth };
-    case 'year': return { from: iso(new Date(Date.UTC(y, 0, 1))), to: iso(new Date(Date.UTC(y + 1, 0, 1))) };
-    case 'all': return { from: '2020-01-01', to: iso(new Date(Date.UTC(y + 1, 0, 1))) };
-    default: return { from: iso(new Date(Date.UTC(y, m - 11, 1))), to: firstNextMonth };
+    case 'lastyear': return { from: iso(new Date(Date.UTC(y - 1, 0, 1))), to: firstThisYear };
+    case 'all': return { from: '2020-01-01', to: firstNextYear };
+    case 'year':
+    default: return { from: firstThisYear, to: firstNextYear };
   }
 }
 const PRESETS = [
   { id: 'month', label: 'This month' },
-  { id: 'q', label: 'Last 3 months' },
-  { id: '12m', label: 'Last 12 months' },
   { id: 'year', label: 'This year' },
+  { id: 'lastyear', label: 'Last year' },
   { id: 'all', label: 'All time' },
 ];
 
 export function Ceo() {
-  const [preset, setPreset] = useState('12m');
+  const [preset, setPreset] = useState('year');
   const [data, setData] = useState<any>(null);
   const [funnel, setFunnel] = useState<any>(null);
   const [loading, setLoading] = useState(true);
