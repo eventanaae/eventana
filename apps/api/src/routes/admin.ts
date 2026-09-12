@@ -1455,7 +1455,13 @@ export async function adminRoutes(app: FastifyInstance) {
    */
   app.post('/api/admin/events/:eventId/cancel', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
-    const schema = z.object({ reason: z.string().min(1).max(500) });
+    // Why is it being cancelled? A customer request is normal; a quality issue is
+    // OUR fault (money we lose on top of the work already done) — the category is
+    // carried onto the refund so the refund report can separate the two.
+    const schema = z.object({
+      reason: z.string().min(1).max(500),
+      reasonCategory: z.enum(['customer_cancellation', 'quality_issue', 'other']).default('customer_cancellation'),
+    });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'reason_required', message: 'Give a cancellation reason.' });
@@ -1463,7 +1469,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const result = await cancelEvent(eventId, parsed.data.reason);
     if (!result) return reply.status(404).send({ error: 'not_found' });
-    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'cancel_event', target: eventId, detail: { reason: parsed.data.reason } });
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'cancel_event', target: eventId, detail: { reason: parsed.data.reason, reasonCategory: parsed.data.reasonCategory } });
     void syncEventToCalendar(eventId);
 
     // Auto-refund the money through the payment provider (Stripe) and email the
@@ -1476,7 +1482,7 @@ export async function adminRoutes(app: FastifyInstance) {
         orderId: rInfo.orderId,
         amountFils: rInfo.refundFils,
         reason: `Cancelled by team — ${parsed.data.reason}`,
-        reasonCategory: 'customer_cancellation',
+        reasonCategory: parsed.data.reasonCategory,
         cancelEvent: true, // this IS the cancel-event flow; tear the event down
         createdBy: String((request as any).staff?.name ?? 'staff'),
         source: 'admin_cancel',
@@ -4736,8 +4742,22 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     const byReason: Record<string, { n: number; fils: number }> = {};
     for (const r of rows) { (byReason[r.reason_category] ??= { n: 0, fils: 0 }); byReason[r.reason_category].n++; byReason[r.reason_category].fils += Number(r.amount_fils); }
+    // Split the money two ways the owner cares about: refunds the CUSTOMER asked
+    // for (normal cost of business) vs refunds caused by OUR work quality or a
+    // missing item — money we lose on top of the work already done.
+    const OUR_FAULT = new Set(['quality_issue', 'missing_item']);
+    let ourLossFils = 0, ourLossN = 0, customerFils = 0, customerN = 0;
+    for (const r of rows) {
+      const amt = Number(r.amount_fils);
+      if (OUR_FAULT.has(r.reason_category)) { ourLossFils += amt; ourLossN++; }
+      else { customerFils += amt; customerN++; }
+    }
     return {
       byReason: Object.entries(byReason).map(([k, v]) => ({ reason: k, n: v.n, fils: v.fils, display: formatAed(v.fils) })),
+      summary: {
+        ourLoss: { n: ourLossN, fils: ourLossFils, display: formatAed(ourLossFils) },
+        customer: { n: customerN, fils: customerFils, display: formatAed(customerFils) },
+      },
       rows: money ? rows.map((r) => ({ ...r, display: formatAed(Number(r.amount_fils)) })) : rows.map((r) => ({ reason_category: r.reason_category, created: r.created, event_cancelled: r.event_cancelled })),
     };
   });

@@ -350,10 +350,10 @@ export const api = {
     }),
   deleteMessage: (eventId: string, messageId: string) =>
     request<any>(`/api/admin/events/${eventId}/messages/${messageId}`, { method: 'DELETE' }),
-  cancelEvent: (id: string, reason: string) =>
+  cancelEvent: (id: string, reason: string, reasonCategory: 'customer_cancellation' | 'quality_issue' | 'other' = 'customer_cancellation') =>
     request<any>(`/api/admin/events/${id}/cancel`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ reason, reasonCategory }),
     }),
   reinstateEvent: (id: string) =>
     request<any>(`/api/admin/events/${id}/reinstate`, { method: 'POST' }),

@@ -67,18 +67,72 @@ function Reconcile() {
   );
 }
 
+const REFUND_LABEL: Record<string, string> = {
+  customer_cancellation: 'Customer asked to cancel',
+  quality_issue: 'Our quality issue',
+  missing_item: 'Missing item / service',
+  other: 'Other',
+};
+const OUR_FAULT = new Set(['quality_issue', 'missing_item']);
+
 function Refunds() {
   const [d, setD] = useState<any>(null);
-  useEffect(() => { api.refundsReport().then(setD).catch(() => setD({ byReason: [], rows: [] })); }, []);
+  useEffect(() => { api.refundsReport().then(setD).catch(() => setD({ byReason: [], summary: null, rows: [] })); }, []);
   if (!d) return <Spinner />;
+  const rows: any[] = d.rows || [];
+  const s = d.summary;
   return (
-    <Panel title="Refunds by reason">
-      {(d.byReason || []).length === 0 ? <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No refunds recorded yet.</div> : (
-        <div>
-          {d.byReason.map((r: any) => <KV key={r.reason} k={String(r.reason).replace(/_/g, ' ')} v={`${r.n} · AED ${r.display}`} />)}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* The split the owner cares about: our loss vs the normal cost of business. */}
+      {s && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 200, background: C.redSoft, borderRadius: 16, padding: '14px 16px' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: C.red, letterSpacing: '.4px' }}>OUR LOSS — QUALITY</div>
+            <div style={{ ...fredoka(22), color: C.red, marginTop: 3 }}>AED {s.ourLoss.display}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.red, opacity: .8 }}>{s.ourLoss.n} refund{s.ourLoss.n === 1 ? '' : 's'} from our work quality / missing items</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 200, background: C.lineSoft, borderRadius: 16, padding: '14px 16px' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted2, letterSpacing: '.4px' }}>CUSTOMER REQUESTED</div>
+            <div style={{ ...fredoka(22), color: C.ink, marginTop: 3 }}>AED {s.customer.display}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2 }}>{s.customer.n} refund{s.customer.n === 1 ? '' : 's'} the customer asked for</div>
+          </div>
         </div>
       )}
-    </Panel>
+
+      <Panel title="Refunds by reason">
+        {(d.byReason || []).length === 0 ? <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No refunds recorded yet.</div> : (
+          <div>
+            {d.byReason.map((r: any) => (
+              <KV key={r.reason} k={REFUND_LABEL[r.reason] || String(r.reason).replace(/_/g, ' ')} v={`${r.n} · AED ${r.display}`} tone={OUR_FAULT.has(r.reason) ? C.red : undefined} />
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      {rows.length > 0 && (
+        <Panel title="Every refund">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {rows.map((r: any) => {
+              const ours = OUR_FAULT.has(r.reason_category);
+              return (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 4px', borderBottom: `1px solid ${C.lineSoft}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                      {r.customer || 'Customer'}{r.event_cancelled ? ' · event cancelled' : ''}
+                    </div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>
+                      <span style={{ color: ours ? C.red : C.muted2, fontWeight: 800 }}>{REFUND_LABEL[r.reason_category] || r.reason_category}</span>
+                      {r.reason_note ? ` · ${r.reason_note}` : ''} · {r.created}{r.created_by ? ` · by ${r.created_by}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: ours ? C.red : C.ink, flex: 'none' }}>AED {r.display}</div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
+    </div>
   );
 }
 
