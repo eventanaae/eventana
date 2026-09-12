@@ -155,6 +155,8 @@ async function main() {
     await diagCeoFromEnv().catch((err) => console.error('[diag-ceo] failed:', err));
     const { themeSheetFromEnv } = await import('./db/themeSheet.js');
     await themeSheetFromEnv().catch((err) => console.error('[theme-sheet] failed:', err));
+    const { receiptSyncFromEnv } = await import('./db/receiptSync.js');
+    await receiptSyncFromEnv().catch((err) => console.error('[receipt-sync] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');

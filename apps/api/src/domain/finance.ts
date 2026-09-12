@@ -593,6 +593,140 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
  * has none); location is a placeholder the team completes on the job. Idempotent.
  * Returns the new event id, or null when nothing was created.
  */
+/**
+ * Reconcile an already-converted receipt's paid line items with its event.
+ *
+ * `ensureEventForReceipt` copies line items into `event_services` ONLY on the
+ * first conversion. So when a service is later added to (or its quantity changed
+ * on) a PAID receipt, that item never reached the event page and never became a
+ * prep task — the real 2026-09-12 incident (a customer's extra tables & chairs
+ * were paid for on the receipt but nobody prepared them). This owns the
+ * `source='converted'` rows: it inserts items now on the receipt but missing
+ * from the event, updates changed quantities/prices, removes converted rows no
+ * longer on the receipt, and — when anything changed — regenerates the prep
+ * tasks (which auto-assigns e.g. tables & chairs to the tables/chairs person and
+ * escalates anything nobody can take). Add-ons booked through the app
+ * (`source='addon'`) are left untouched. Returns what changed for reporting.
+ */
+export async function syncReceiptServices(
+  receiptId: number,
+): Promise<{ eventId: string | null; added: string[]; updated: string[]; removed: string[] }> {
+  const empty = { eventId: null as string | null, added: [] as string[], updated: [] as string[], removed: [] as string[] };
+  const { rows } = await pool.query(
+    `SELECT r.event_id, r.line_items, e.order_id
+       FROM finance_receipts r
+       JOIN events e ON e.id = r.event_id
+      WHERE r.id = $1`,
+    [receiptId],
+  );
+  const r = rows[0];
+  if (!r || !r.event_id) return empty;
+  const eventId: string = r.event_id;
+  const orderId: string | null = r.order_id ?? null;
+  const items: any[] = Array.isArray(r.line_items) ? r.line_items : [];
+
+  // Desired 'converted' services, keyed by normalized label (last wins on dupes).
+  const desired = new Map<string, { label: string; qty: number; amount: number }>();
+  for (const it of items) {
+    const label = String(it.name ?? 'Item').slice(0, 200);
+    const key = label.trim().toLowerCase();
+    if (!key) continue;
+    desired.set(key, { label, qty: Number(it.qty ?? 1) || 1, amount: Number(it.priceFils ?? 0) || 0 });
+  }
+
+  const existRes = await pool.query<{ id: number; label: string; quantity: number; amount_fils: number }>(
+    `SELECT id, label, quantity, amount_fils FROM event_services
+      WHERE event_id = $1 AND source = 'converted'`,
+    [eventId],
+  );
+  const added: string[] = [];
+  const updated: string[] = [];
+  const removed: string[] = [];
+  const seen = new Set<string>();
+
+  for (const row of existRes.rows) {
+    const key = String(row.label ?? '').trim().toLowerCase();
+    const want = desired.get(key);
+    if (!want) {
+      await pool.query(`DELETE FROM event_services WHERE id = $1`, [row.id]);
+      removed.push(row.label);
+      continue;
+    }
+    seen.add(key);
+    if (Number(row.quantity) !== want.qty || Number(row.amount_fils) !== want.amount) {
+      await pool.query(`UPDATE event_services SET quantity = $2, amount_fils = $3 WHERE id = $1`,
+        [row.id, want.qty, want.amount]);
+      updated.push(want.label);
+    }
+  }
+  for (const [key, want] of desired) {
+    if (seen.has(key)) continue;
+    await pool.query(
+      `INSERT INTO event_services (event_id, service_id, label, quantity, amount_fils, source, order_id)
+       VALUES ($1,NULL,$2,$3,$4,'converted',$5)`,
+      [eventId, want.label, want.qty, want.amount, orderId],
+    );
+    added.push(want.label);
+  }
+
+  // Anything the customer paid for that we hadn't prepared → (re)build the prep
+  // tasks so the new service becomes an auto-assigned task and shows on the job.
+  if (added.length || updated.length || removed.length) {
+    await import('./prep.js')
+      .then(({ generatePrepTasks }) => generatePrepTasks(eventId))
+      .catch((e) => console.error('[finance] receipt-sync prep regen failed:', (e as Error).message));
+  }
+  return { eventId, added, updated, removed };
+}
+
+/**
+ * Comb through every upcoming, converted receipt and reconcile its paid services
+ * onto the event (via `syncReceiptServices`), then report what was missing and
+ * which prep tasks still have nobody assigned. This is the repair sweep for the
+ * gap the owner flagged: services paid on a receipt but absent from the event
+ * page / never turned into a task. Safe to run repeatedly (idempotent).
+ */
+export async function syncAllUpcomingReceipts(): Promise<{
+  scanned: number;
+  changed: Array<{ eventId: string; date: string; customer: string; added: string[]; updated: string[]; removed: string[] }>;
+  unassigned: Array<{ eventId: string; date: string; titles: string[] }>;
+}> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { rows } = await pool.query<{ id: number; event_id: string; date: string; customer_name: string }>(
+    `SELECT r.id, r.event_id, to_char(e.event_date,'YYYY-MM-DD') AS date, r.customer_name
+       FROM finance_receipts r
+       JOIN events e ON e.id = r.event_id
+      WHERE e.event_date >= $1::date AND e.phase <> 'Cancelled'
+      ORDER BY e.event_date`,
+    [today],
+  );
+  const changed: Array<{ eventId: string; date: string; customer: string; added: string[]; updated: string[]; removed: string[] }> = [];
+  for (const row of rows) {
+    const res = await syncReceiptServices(row.id).catch(() => null);
+    if (res && (res.added.length || res.updated.length || res.removed.length)) {
+      changed.push({ eventId: row.event_id, date: row.date, customer: row.customer_name, added: res.added, updated: res.updated, removed: res.removed });
+    }
+  }
+  // Any upcoming event with prep tasks nobody is on — surface them so the owner
+  // sees exactly which jobs still need a person.
+  const unassignedRes = await pool.query<{ event_id: string; date: string; titles: string[] }>(
+    `SELECT pt.event_id, to_char(e.event_date,'YYYY-MM-DD') AS date, array_agg(pt.title ORDER BY pt.title) AS titles
+       FROM prep_tasks pt
+       JOIN events e ON e.id = pt.event_id
+       LEFT JOIN prep_task_staff pts ON pts.task_id = pt.id
+      WHERE e.event_date >= $1::date AND e.phase <> 'Cancelled'
+        AND pt.status <> 'completed' AND pts.task_id IS NULL
+      GROUP BY pt.event_id, e.event_date
+      ORDER BY e.event_date`,
+    [today],
+  );
+  return {
+    scanned: rows.length,
+    changed,
+    unassigned: unassignedRes.rows.map((u) => ({ eventId: u.event_id, date: u.date, titles: u.titles })),
+  };
+}
+
 export async function ensureEventForReceipt(
   receiptId: number,
   opts: { skipLifecycle?: boolean } = {},
@@ -956,6 +1090,13 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     await import('./lifecycle.js')
       .then(({ reAlignPendingNotifications }) => reAlignPendingNotifications(saved.event_id))
       .catch((e) => console.error('[finance] re-align notifications failed:', (e as Error).message));
+  }
+  // A receipt edit may add/remove/change a paid service — mirror it onto the
+  // linked event's booked services and regenerate prep so nothing the customer
+  // paid for is missing from the job or left without a task. (No-op when the
+  // items are unchanged.)
+  if (saved?.event_id) {
+    await syncReceiptServices(saved.id).catch((e) => console.error('[finance] receipt-service sync failed:', (e as Error).message));
   }
   return saved ? decorateReceipt(saved) : null;
 }
