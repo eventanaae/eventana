@@ -3144,13 +3144,13 @@ export async function adminRoutes(app: FastifyInstance) {
     // lifetime totals, and the full customer book — so the CEO view reflects the
     // whole company (4 years, all WhatsApp sales), not just app-placed bookings.
     const [histFin, histCust] = await Promise.all([
-      pool.query(`SELECT period, income_fils, net_income_fils FROM historical_financials WHERE period_kind = 'year' ORDER BY period`),
+      pool.query(`SELECT period, income_fils, net_income_fils, updated_at FROM historical_financials WHERE period_kind = 'year' ORDER BY period`),
       pool.query(`SELECT count(*)::int n, count(email)::int with_email FROM historical_customers`),
     ]);
     const histYears = histFin.rows.map((r) => {
       const rev = Number(r.income_fils);
       const net = Number(r.net_income_fils);
-      return { year: r.period, revenueFils: rev, revenueDisplay: formatAed(rev), netFils: net, netDisplay: formatAed(net), marginPct: rev > 0 ? Math.round((net / rev) * 1000) / 10 : 0 };
+      return { year: r.period, revenueFils: rev, revenueDisplay: formatAed(rev), netFils: net, netDisplay: formatAed(net), marginPct: rev > 0 ? Math.round((net / rev) * 1000) / 10 : 0, asOf: r.updated_at as string | Date | null };
     });
     const lifetimeRevenue = histYears.reduce((s, y) => s + y.revenueFils, 0);
     const lifetimeNet = histYears.reduce((s, y) => s + y.netFils, 0);
@@ -3235,8 +3235,19 @@ export async function adminRoutes(app: FastifyInstance) {
     const ytdRevenue = histYtd > 0 ? histYtd : Number(ytdRes.rows[0].v);
     const bookedFuture = Number(bookedFutureRes.rows[0].v);
     const dayOfYear = Math.max(1, Math.floor((now.getTime() - Date.UTC(nowY, 0, 1)) / 86_400_000) + 1);
-    const daysRemaining = Math.max(0, 365 - dayOfYear);
-    const runRateDaily = ytdRevenue / dayOfYear;
+    // The QuickBooks YTD figure is a snapshot FROZEN at its last import, so spread
+    // it over the days it ACTUALLY covers (its updated_at), not today's day-of-year
+    // — otherwise the daily run-rate (and the whole year-end projection) shrinks a
+    // little more every day the snapshot goes stale. The live app-YTD fallback is
+    // current, so it keeps using today's day-of-year.
+    const usingHist = histYtd > 0 && String(business?.latestYear?.year) === String(nowY) && !!business?.latestYear?.asOf;
+    const coverageEnd = usingHist ? new Date(business!.latestYear!.asOf as string | Date) : now;
+    const coverageDays = Math.min(
+      dayOfYear,
+      Math.max(1, Math.floor((coverageEnd.getTime() - Date.UTC(nowY, 0, 1)) / 86_400_000) + 1),
+    );
+    const daysRemaining = Math.max(0, 365 - coverageDays);
+    const runRateDaily = ytdRevenue / coverageDays;
     const runRateRemaining = Math.round(runRateDaily * daysRemaining);
     const marginRatio = (business?.latestYear?.marginPct ?? (revenue > 0 ? (profit / revenue) * 100 : 20)) / 100;
     const mkScenario = (remaining: number) => {
