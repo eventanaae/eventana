@@ -3550,6 +3550,8 @@ export async function adminRoutes(app: FastifyInstance) {
 
   /** One shop order's fulfilment detail (customer, items, design status). */
   app.get('/api/admin/shop-orders/:id', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
     const cfg = await loadConfig();
     const { rows } = await pool.query(
@@ -3583,6 +3585,8 @@ export async function adminRoutes(app: FastifyInstance) {
 
   /** Marsha uploads the finished design for a shop order. */
   app.post('/api/admin/shop-orders/:id/design', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
     const { imageUrl } = (request.body ?? {}) as { imageUrl?: string };
     if (!imageUrl) return reply.status(400).send({ error: 'image_required' });
@@ -3598,6 +3602,8 @@ export async function adminRoutes(app: FastifyInstance) {
 
   /** Owner approves the design → email it to the customer (agreed template). */
   app.post('/api/admin/shop-orders/:id/send', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
     const d = (await pool.query(`SELECT image_url, status FROM shop_designs WHERE order_id = $1`, [id])).rows[0];
     if (!d || !d.image_url) return reply.status(400).send({ error: 'no_design', message: 'Upload the design first.' });

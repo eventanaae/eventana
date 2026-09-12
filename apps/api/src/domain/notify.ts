@@ -933,7 +933,26 @@ export function renderAddonEmail(row: AddonEmailRow): { subject: string; html: s
 }
 
 /** Deliver all due notifications. Returns how many of each channel were sent. */
+let deliveringNow = false;
+/**
+ * Single-runner guard. deliverPendingNotifications has no per-row claim (it
+ * SELECTs sent_at IS NULL, sends, then stamps), so two OVERLAPPING callers — the
+ * 5-minute reconcile sweep and a manual "send now" from a route (Event Complete,
+ * receipt→event conversion) — would grab the same un-sent rows and email/WhatsApp
+ * the customer twice. Serialise all callers in-process. (The API runs a single
+ * instance; a future multi-instance deployment would also need a DB advisory lock.)
+ */
 export async function deliverPendingNotifications(): Promise<{ emails: number; pushes: number; whatsapps: number }> {
+  if (deliveringNow) return { emails: 0, pushes: 0, whatsapps: 0 };
+  deliveringNow = true;
+  try {
+    return await _deliverPendingNotifications();
+  } finally {
+    deliveringNow = false;
+  }
+}
+
+async function _deliverPendingNotifications(): Promise<{ emails: number; pushes: number; whatsapps: number }> {
   let emails = 0;
   let pushes = 0;
   let whatsapps = 0;

@@ -51,6 +51,29 @@ export async function sendStaffSetupEmail(opts: { name: string; email: string; t
 }
 
 export async function staffAuthRoutes(app: FastifyInstance) {
+  // In-memory rate limit on the ADMIN auth endpoints (credential spray / reset
+  // mailbomb). The customer limiter in publicRoutes doesn't reach here — Fastify
+  // encapsulates hooks per plugin — so the higher-value staff login was unthrottled.
+  const rlBuckets = new Map<string, { count: number; reset: number }>();
+  app.addHook('onRequest', async (request, reply) => {
+    const path = request.url.split('?')[0];
+    if (!/^\/api\/staff\/(login|forgot|set-password)$/.test(path)) return;
+    const ip =
+      (request.headers['cf-connecting-ip'] as string | undefined) ||
+      ((request.headers['x-forwarded-for'] as string | undefined) ?? '').split(',')[0].trim() ||
+      request.ip;
+    const key = `${ip}:${path}`;
+    const now = Date.now();
+    let b = rlBuckets.get(key);
+    if (!b || b.reset <= now) { b = { count: 0, reset: now + 60_000 }; rlBuckets.set(key, b); }
+    b.count += 1;
+    if (b.count > 8) {
+      reply.header('retry-after', Math.ceil((b.reset - now) / 1000));
+      return reply.status(429).send({ error: 'rate_limited', message: 'Too many attempts — please wait a moment.' });
+    }
+  });
+  setInterval(() => { const now = Date.now(); for (const [k, b] of rlBuckets) if (b.reset <= now) rlBuckets.delete(k); }, 300_000).unref();
+
   /** Email + password → a signed session token. */
   app.post('/api/staff/login', async (request, reply) => {
     const p = z.object({ email: z.string().email(), password: z.string().min(1) }).safeParse(request.body);

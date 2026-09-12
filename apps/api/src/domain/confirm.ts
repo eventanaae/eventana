@@ -537,32 +537,37 @@ export async function confirmBooking(
   }
 
   // Referral reward: the first confirmed booking of a referred customer pays
-  // their referrer AED 250 in store credit, once.
-  const { rows: refRows } = await db.query(
-    `SELECT referred_by, referral_rewarded FROM customers WHERE id = $1`,
+  // their referrer AED 250 in store credit, once. CLAIM the one-time reward with
+  // an atomic conditional UPDATE (…WHERE referral_rewarded = FALSE RETURNING), so
+  // two first-booking confirms racing (each locks its own order row, not the
+  // customer) can't both read "not yet rewarded" and pay the AED 250 twice.
+  const claim = await db.query(
+    `UPDATE customers SET referral_rewarded = TRUE
+       WHERE id = $1 AND referral_rewarded = FALSE AND referred_by IS NOT NULL
+     RETURNING referred_by`,
     [order.customer_id],
   );
-  const ref = refRows[0];
-  if (ref?.referred_by && !ref.referral_rewarded) {
+  if (claim.rowCount) {
+    const referredBy = claim.rows[0].referred_by;
     const { rows: selfRows } = await db.query(
       `SELECT referral_code FROM customers WHERE id = $1`,
       [order.customer_id],
     );
-    const isSelfReferral = selfRows[0]?.referral_code === ref.referred_by;
+    const isSelfReferral = selfRows[0]?.referral_code === referredBy;
     if (!isSelfReferral) {
       // Both sides earn AED 250 store credit — but only now, on the referee's
       // FIRST real booking (not at signup), so throwaway accounts earn nothing.
       await db.query(
         `UPDATE customers SET referral_credit_fils = referral_credit_fils + 25000 WHERE referral_code = $1`,
-        [ref.referred_by],
+        [referredBy],
       );
       await db.query(
         `UPDATE customers SET referral_credit_fils = referral_credit_fils + 25000 WHERE id = $1`,
         [order.customer_id],
       );
     }
-    // Mark rewarded regardless, so a missing/self referrer isn't retried forever.
-    await db.query(`UPDATE customers SET referral_rewarded = TRUE WHERE id = $1`, [order.customer_id]);
+    // (the flag is already set TRUE by the claim above, so a missing/self
+    // referrer isn't retried forever)
   }
 
   await db.query(`UPDATE orders SET event_id = $2, updated_at = now() WHERE id = $1`, [
