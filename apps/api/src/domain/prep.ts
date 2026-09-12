@@ -11,6 +11,7 @@
  * (staff_days_off) and the day-of crew plan (event_staff) for workload — it does
  * not duplicate any of them.
  */
+import { randomUUID } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { celebrationLabel } from '@eventana/shared';
 
@@ -413,7 +414,7 @@ export async function addExtraPrepTask(
   const skill = guessSkill(name);
   const due = date ? (() => { const dd = new Date(`${date}T00:00:00Z`); dd.setUTCDate(dd.getUTCDate() - PHYSICAL_DUE_DAYS); return dd.toISOString().slice(0, 10); })() : null;
   const title = `Customer extra: ${name}${qty > 1 ? ` ×${qty}` : ''}`;
-  const key = `extra_${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
+  const key = `extra_${randomUUID()}`;
   const ins = await pool.query<{ id: string }>(
     `INSERT INTO prep_tasks (event_id, key, title, category, skill, people_needed, due_date, status, notes)
      VALUES ($1,$2,$3,'physical',$4,1,$5,'not_started',$6) RETURNING id`,
@@ -436,6 +437,10 @@ export async function addExtraPrepTask(
   // 4. Always tell the owner/managers a customer extra came in; alert hard if we
   //    couldn't assign it.
   if (assigned) {
+    await pool.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       VALUES ($1,'ops_alert','extra_added', now(), $2)`,
+      [eventId, JSON.stringify({ eventId, date, label: name })]).catch(() => {});
     const { pushToOwner } = await import('../integrations/push.js');
     const mgrs = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`);
     for (const m of mgrs.rows) void pushToOwner('staff', m.id, '➕ Customer extra', `${name} added to the ${date ?? ''} event — a prep task was created & assigned.`, { eventId });
