@@ -32,23 +32,14 @@ export async function integritySweepFromEnv(): Promise<void> {
     );
     P(`scanning ${evs.rows.length} upcoming events`);
 
-    // ── 1. Catch-all backfill + refresh live alerts ──────────────────────────
-    const { backfillUncoveredPrep, refreshPrepAssignmentAlert } = await import('../domain/prep.js');
-    let fixedEvents = 0, totalCreated = 0, totalEscalated = 0;
+    // ── 1. Authoritative prep rebuild (templates + catch-all + refresh) ───────
+    // Full regen (not just the additive backfill) so it also clears any stale
+    // catch-all tasks and re-applies the latest classification per event.
+    const { generatePrepTasks } = await import('../domain/prep.js');
     for (const e of evs.rows) {
-      const r = await backfillUncoveredPrep(e.id).catch(() => ({ created: [] as string[], escalated: [] as string[] }));
-      if (r.created.length || r.escalated.length) {
-        fixedEvents++;
-        totalCreated += r.created.length;
-        totalEscalated += r.escalated.length;
-        const bits: string[] = [];
-        if (r.created.length) bits.push(`auto-assigned: ${r.created.join('; ')}`);
-        if (r.escalated.length) bits.push(`⚠️ NEEDS OWNER/MARSHA: ${r.escalated.join('; ')}`);
-        P(`  ${e.id} · ${e.date} — ${bits.join(' | ')}`);
-      }
-      await refreshPrepAssignmentAlert(e.id, e.date).catch(() => {});
+      await generatePrepTasks(e.id).catch((err) => P(`  regen ${e.id} failed: ${(err as Error).message}`));
     }
-    P(`catch-all: ${fixedEvents} event(s) had unrecognised paid items → ${totalCreated} auto-tasked, ${totalEscalated} escalated to owner/Marsha`);
+    P(`rebuilt prep for ${evs.rows.length} upcoming events (catch-all + alerts applied)`);
 
     // ── 2. Prep assignment gaps still open (unassigned OR under-staffed) ──────
     const gaps = await pool.query<{ event_id: string; date: string; title: string; people_needed: number; assigned: number }>(

@@ -217,6 +217,7 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   const categories = new Set<string>();
   let inflatables = 0;
   let packageKey = packageKeyOf(ev.package_name);
+  let newThemeLine = false; // a "New Theme" line means a custom backdrop to design
 
   if (Array.isArray(cart.services)) {
     for (const s of cart.services) {
@@ -239,12 +240,17 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
     }
     inflatables += classifyLabel(String(row.label ?? ''), serviceIds, categories);
     if (!packageKey) packageKey = packageKeyOf(String(row.label ?? ''));
+    // A "New Theme" line = the customer wants a brand-new theme designed. Converted
+    // receipts don't set the event's custom_theme flag, so read it from the line
+    // here → fires the New-Backdrop design task for Marsha (instead of the line
+    // being escalated as an unknown item).
+    if (/new\s*theme/i.test(String(row.label ?? ''))) newThemeLine = true;
   }
 
   const ctx: Ctx = {
     packageKey,
     isDesignPackage: !!packageKey,
-    customTheme: !!ev.custom_theme,
+    customTheme: !!ev.custom_theme || newThemeLine,
     serviceIds,
     categories,
     has: (id) => serviceIds.has(id),
@@ -409,13 +415,17 @@ export async function refreshPrepAssignmentAlert(eventId: string, date: string):
 // prepared — so it can never be silently dropped.
 const PERFORMER_RE = /clown|mascot|acrobat|entertainer|\bcharacter\b|puppet|magician|\bmc\b|\bdj\b|singer|\bhost\b|glam|face\s*paint|twist|performer|dancer|stilt/;
 const CONSUMABLE_RE = /\bsocks?\b|water\s*bottle|\bplates?\b|\bcups?\b|napkin|cutlery|spoon|\bfork\b|candle|invitation|sticker|straw|tattoo|\bbadge\b|goodie\s*bag|\bsash\b/;
-const NONITEM_RE = /discount|deliver|shipping|\bfee\b|\bvat\b|\btax\b|deposit|\btip\b|additional\s*hour|extra\s*hour|\bhours?\b|service\s*charge|surcharge|\bbalance\b|down\s*payment|installment|round\s*ing/;
+const NONITEM_RE = /discount|deliver|shipping|\bfee\b|\bvat\b|\btax\b|deposit|\btip\b|additional\s*hour|extra\s*hour|\bhours?\b|\bcharge\b|surcharge|\bbalance\b|down\s*payment|installment|round\s*ing/;
 
 /** True when a booked line already has a home (a prep template via classifyLabel,
- *  a package, day-of staffing, or is a consumable / non-item charge). */
+ *  a package, day-of staffing, or is a consumable / non-item charge / theme line). */
 function recognizedPrepLabel(label: string): boolean {
   const n = (label ?? '').trim().toLowerCase();
   if (!n) return true; // blank line — nothing to prepare
+  // Theme lines are metadata, not a physical prep item: a "New Theme" drives the
+  // New-Backdrop design task (Marsha) via the custom_theme flag in
+  // generatePrepTasks; any other named theme uses its existing backdrop.
+  if (/\btheme\b/.test(n)) return true;
   const sid = new Set<string>(); const cat = new Set<string>();
   const inf = classifyLabel(label, sid, cat);
   if (inf > 0 || sid.size > 0 || cat.size > 0 || packageKeyOf(label) !== null) return true;
@@ -519,7 +529,9 @@ function guessSkill(label: string): string | null {
   if (/balloon/.test(s)) return 'balloons';
   if (/popcorn/.test(s)) return 'popcorn';
   if (/cotton\s*candy/.test(s)) return 'cotton_candy';
-  if (/food|station|chocolate|slush|corn|candy|ice\s*cream|fountain/.test(s)) return 'food_station';
+  if (/braid/.test(s)) return 'braid_corner';
+  // \bcorn\b so "corner" (e.g. "Braiding Corner") doesn't match the corn snack.
+  if (/food|station|chocolate|slush|\bcorn\b|candy|ice\s*cream|fountain/.test(s)) return 'food_station';
   if (/face\s*paint/.test(s)) return 'face_painting_prep';
   if (/entrance|welcom/.test(s)) return 'entrance_stand';
   if (/inflatable|bounc|castle|slide|foam/.test(s)) return 'inflatable';
