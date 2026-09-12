@@ -2472,14 +2472,15 @@ export async function adminRoutes(app: FastifyInstance) {
       phone: z.string().trim().max(60).optional(),
       email: z.string().trim().max(200).optional(),
       supplies: z.string().trim().max(500).optional(),
+      location: z.string().trim().max(120).optional(),
       note: z.string().trim().max(1000).optional(),
     }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const by = String((request as any).staff?.name ?? 'staff');
     const { rows } = await pool.query(
-      `INSERT INTO suppliers (name, contact, phone, email, supplies, note, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [p.data.name, p.data.contact ?? null, p.data.phone ?? null, p.data.email ?? null, p.data.supplies ?? null, p.data.note ?? null, by],
+      `INSERT INTO suppliers (name, contact, phone, email, supplies, location, note, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [p.data.name, p.data.contact ?? null, p.data.phone ?? null, p.data.email ?? null, p.data.supplies ?? null, p.data.location ?? null, p.data.note ?? null, by],
     );
     return rows[0];
   });
@@ -2491,11 +2492,12 @@ export async function adminRoutes(app: FastifyInstance) {
       phone: z.string().trim().max(60).nullable().optional(),
       email: z.string().trim().max(200).nullable().optional(),
       supplies: z.string().trim().max(500).nullable().optional(),
+      location: z.string().trim().max(120).nullable().optional(),
       note: z.string().trim().max(1000).nullable().optional(),
     }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const sets: string[] = []; const vals: any[] = [id]; let i = 2;
-    for (const k of ['name', 'contact', 'phone', 'email', 'supplies', 'note'] as const) {
+    for (const k of ['name', 'contact', 'phone', 'email', 'supplies', 'location', 'note'] as const) {
       if (p.data[k] !== undefined) { sets.push(`${k} = $${i++}`); vals.push(p.data[k]); }
     }
     if (sets.length === 0) return reply.status(400).send({ error: 'nothing_to_update' });
@@ -5100,8 +5102,21 @@ export async function adminRoutes(app: FastifyInstance) {
   /* --------------------------- missing items ----------------------------- */
 
   app.get('/api/admin/missing-items', async () => {
+    // Resolve the free-text supplier name to its directory record so the card can
+    // show WHERE to buy and WHO to call — the "know the supplier + location" bit.
     const { rows } = await pool.query(
-      `SELECT * FROM missing_items ORDER BY (status = 'requested') DESC, created_at DESC LIMIT 200`,
+      `SELECT m.*,
+              s.id       AS supplier_id,
+              s.phone    AS supplier_phone,
+              s.email    AS supplier_email,
+              s.location AS supplier_location
+         FROM missing_items m
+         LEFT JOIN LATERAL (
+           SELECT id, phone, email, location FROM suppliers
+            WHERE active AND m.supplier IS NOT NULL AND lower(name) = lower(btrim(m.supplier))
+            LIMIT 1
+         ) s ON true
+        ORDER BY (m.status = 'requested') DESC, m.created_at DESC LIMIT 200`,
     );
     return rows;
   });
@@ -5149,6 +5164,56 @@ export async function adminRoutes(app: FastifyInstance) {
       for (const o of owners.rows) void pushToOwner('staff', o.id, '📦 Missing item reported', `${d.item} ×${d.quantity} — reported by ${by}`);
     })();
     return rows[0];
+  });
+
+  // Contact the supplier for a missing item — owner/manager. Emails the supplier
+  // the order (if we have their email) and returns a ready-to-send WhatsApp link
+  // (if we have their phone), so "order it from the supplier" is one tap.
+  app.post('/api/admin/missing-items/:id/contact-supplier', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { id } = request.params as { id: string };
+    const { rows } = await pool.query(
+      `SELECT m.item, m.quantity, m.supplier,
+              s.name AS supplier_name, s.phone AS supplier_phone, s.email AS supplier_email
+         FROM missing_items m
+         LEFT JOIN LATERAL (
+           SELECT name, phone, email FROM suppliers
+            WHERE active AND m.supplier IS NOT NULL AND lower(name) = lower(btrim(m.supplier)) LIMIT 1
+         ) s ON true
+        WHERE m.id = $1`,
+      [id],
+    );
+    const it = rows[0];
+    if (!it) return reply.status(404).send({ error: 'not_found' });
+    const supplierName = it.supplier_name ?? it.supplier ?? null;
+    if (!it.supplier_phone && !it.supplier_email) {
+      return { ok: false, reason: 'no_supplier_contact', supplierName };
+    }
+    const msg = `Hello${supplierName ? ' ' + supplierName : ''}, this is Eventana Events. We'd like to order: ${it.item} ×${it.quantity}. Could you please confirm availability, price and when it'll be ready? Thank you! 🙏`;
+    let emailSent = false;
+    if (it.supplier_email) {
+      try {
+        const { emailEnabled, sendEmail } = await import('../integrations/email.js');
+        if (emailEnabled()) {
+          const res = await sendEmail({
+            to: it.supplier_email,
+            subject: `Eventana order request — ${it.item} ×${it.quantity}`,
+            html: `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;padding:22px;color:#3A2A33">
+              <div style="font-size:20px;font-weight:800;color:#D6317F">Eventana Events</div>
+              <p style="font-size:15px;line-height:1.6;margin:12px 0">${msg}</p>
+              <p style="font-size:12.5px;color:#8b6c7a">Thank you — the Eventana team.</p>
+            </div>`,
+          });
+          emailSent = !!res.ok;
+        }
+      } catch { /* email best-effort */ }
+    }
+    const digits = String(it.supplier_phone ?? '').replace(/\D+/g, '');
+    const waLink = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(msg)}` : null;
+    // Move it forward to 'ordered' now that we've reached out.
+    await pool.query(`UPDATE missing_items SET status = 'ordered' WHERE id = $1 AND status = 'requested'`, [id]).catch(() => {});
+    return { ok: true, emailSent, waLink, supplierName };
   });
 
   // Assign (or unassign) a missing item to a team member — owner/manager only.

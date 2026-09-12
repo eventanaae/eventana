@@ -115,6 +115,11 @@ export function Inventory({ role }: { role?: string }) {
                     <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
                       by {m.reported_by ?? '—'} · {m.created ?? (m.created_at ? String(m.created_at).slice(0, 10) : '')}{m.supplier ? ` · 🏬 ${m.supplier}` : ''}{m.location ? ` · 📍 ${m.location}` : ''}{m.note ? ` · "${m.note}"` : ''}
                     </div>
+                    {(m.supplier_phone || m.supplier_email || m.supplier_location) && (
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: C.pinkDeep, marginTop: 2 }}>
+                        {m.supplier_location ? `📍 ${m.supplier_location}` : ''}{m.supplier_phone ? `${m.supplier_location ? ' · ' : ''}📞 ${m.supplier_phone}` : ''}{m.supplier_email ? ` · ✉️ ${m.supplier_email}` : ''}
+                      </div>
+                    )}
                     {m.assigned_name && (
                       <div style={{ fontSize: 10.5, fontWeight: 800, color: C.pinkDeep, marginTop: 3 }}>
                         → {String(m.assigned_to) === String(myId) ? 'Assigned to you' : `Assigned to ${m.assigned_name}`}
@@ -132,6 +137,16 @@ export function Inventory({ role }: { role?: string }) {
                     the same buttons. Everyone else just sees the status. */}
                 {(canManage || String(m.assigned_to ?? '') === String(myId)) && (
                   <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {(m.supplier_phone || m.supplier_email) && (
+                      <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => {
+                        const r = await api.contactSupplier(m.id).catch(() => null);
+                        if (!r) { alert('Failed — please try again.'); return; }
+                        if (!r.ok) { alert('No supplier phone/email saved — add it on the Suppliers page.'); return; }
+                        if (r.waLink) window.open(r.waLink, '_blank');
+                        else if (r.emailSent) alert('Order request emailed to the supplier ✅');
+                        load();
+                      }}>📩 Request from supplier</Button>
+                    )}
                     {m.status !== 'ordered' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'ordered'); load(); }}>🛒 Ordered</Button>}
                     <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'received'); load(); }}>✓ Received</Button>
                     <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>

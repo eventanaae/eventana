@@ -1509,6 +1509,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
   created_by TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Where the supplier is (emirate / area), so a missing item knows where to buy.
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS location TEXT;
 
 -- Google Business Profile OAuth connection (single row: id=1). Same singleton
 -- shape as quickbooks_connection. Google only returns a refresh_token on the

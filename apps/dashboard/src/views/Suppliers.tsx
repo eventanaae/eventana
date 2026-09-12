@@ -48,7 +48,7 @@ export function Suppliers() {
 function SupplierEditor({ supplier, onClose, onSaved }: { supplier: any | null; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
     name: supplier?.name ?? '', contact: supplier?.contact ?? '', phone: supplier?.phone ?? '',
-    email: supplier?.email ?? '', supplies: supplier?.supplies ?? '', note: supplier?.note ?? '',
+    email: supplier?.email ?? '', supplies: supplier?.supplies ?? '', location: supplier?.location ?? '', note: supplier?.note ?? '',
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -56,7 +56,7 @@ function SupplierEditor({ supplier, onClose, onSaved }: { supplier: any | null; 
   const save = async () => {
     if (!f.name.trim()) { setErr('Name is required.'); return; }
     setBusy(true); setErr(null);
-    const body = { name: f.name.trim(), contact: f.contact.trim(), phone: f.phone.trim(), email: f.email.trim(), supplies: f.supplies.trim(), note: f.note.trim() };
+    const body = { name: f.name.trim(), contact: f.contact.trim(), phone: f.phone.trim(), email: f.email.trim(), supplies: f.supplies.trim(), location: f.location.trim(), note: f.note.trim() };
     try {
       if (supplier) await api.supplierUpdate(supplier.id, body);
       else await api.supplierCreate(body);
@@ -75,7 +75,10 @@ function SupplierEditor({ supplier, onClose, onSaved }: { supplier: any | null; 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <Field label="Supplier name"><input value={f.name} onChange={(e) => set('name', e.target.value)} style={input} /></Field>
           <Field label="What they supply"><input value={f.supplies} onChange={(e) => set('supplies', e.target.value)} placeholder="e.g. balloons, backdrops" style={input} /></Field>
-          <Field label="Contact person"><input value={f.contact} onChange={(e) => set('contact', e.target.value)} style={input} /></Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Contact person"><input value={f.contact} onChange={(e) => set('contact', e.target.value)} style={input} /></Field>
+            <Field label="Location (emirate/area)"><input value={f.location} onChange={(e) => set('location', e.target.value)} placeholder="e.g. Sharjah" style={input} /></Field>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field label="Phone"><input value={f.phone} onChange={(e) => set('phone', e.target.value)} style={input} /></Field>
             <Field label="Email"><input value={f.email} onChange={(e) => set('email', e.target.value)} style={input} /></Field>

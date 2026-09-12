@@ -388,6 +388,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ memberId }),
     }),
+  // Contact the supplier for a missing item (emails them + returns a wa.me link).
+  contactSupplier: (id: number) =>
+    request<{ ok: boolean; reason?: string; emailSent?: boolean; waLink?: string | null; supplierName?: string | null }>(
+      `/api/admin/missing-items/${id}/contact-supplier`,
+      { method: 'POST' },
+    ),
   // Attach / clear an optional photo on a missing item (url null = remove).
   setMissingPhoto: (id: number, photoUrl: string | null) =>
     request<any>(`/api/admin/missing-items/${id}/photo`, {
@@ -602,7 +608,7 @@ export const api = {
   productDelete: (id: number) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
   // Suppliers directory.
   suppliers: () => request<{ rows: any[] }>('/api/admin/suppliers'),
-  supplierCreate: (body: { name: string; contact?: string; phone?: string; email?: string; supplies?: string; note?: string }) => request('/api/admin/suppliers', { method: 'POST', body: JSON.stringify(body) }),
+  supplierCreate: (body: { name: string; contact?: string; phone?: string; email?: string; supplies?: string; location?: string; note?: string }) => request('/api/admin/suppliers', { method: 'POST', body: JSON.stringify(body) }),
   supplierUpdate: (id: number, patch: any) => request(`/api/admin/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   supplierDelete: (id: number) => request(`/api/admin/suppliers/${id}`, { method: 'DELETE' }),
   finItems: () => request<Array<{ name: string; priceFils: number; kind: string; description?: string | null }>>('/api/admin/finance/items'),
