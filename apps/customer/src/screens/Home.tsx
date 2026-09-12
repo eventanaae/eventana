@@ -109,8 +109,23 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t }
         </div>
       )}
 
+      {/* Guided 3-step start for anyone who'd rather be led than choose a lane */}
+      <div
+        onClick={() => go('quickbook')}
+        style={{ marginTop: 18, background: 'linear-gradient(135deg,#F06CA8,#E94F9C)', borderRadius: 22, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', boxShadow: C.shadowLg }}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: 16, background: 'rgba(255,255,255,.22)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flex: 'none' }}>
+          ⚡
+        </div>
+        <div style={{ flex: 1, minWidth: 0, color: '#fff' }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{t('qb.homeTitle')}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: 'rgba(255,255,255,.85)' }}>{t('qb.homeSub')}</div>
+        </div>
+        <span style={{ color: '#fff', fontWeight: 700, fontSize: 15, flex: 'none' }}>›</span>
+      </div>
+
       {/* Two clear, premium ways to begin */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 18 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
         <OptionCard
           icon="🎁"
           tint="linear-gradient(135deg,#FDE0EE,#F9C6DC)"
