@@ -4635,13 +4635,15 @@ export async function adminRoutes(app: FastifyInstance) {
       for (const a of alerts.rows) {
         const t = a.template as string;
         const level: 'critical' | 'high' | 'info' = t === 'prep_issue' ? 'critical' : (t === 'staffing_required' || t === 'driver_conflict' || t === 'whatsapp_handoff') ? 'high' : 'info';
-        const icon = t === 'order_cancelled' ? '❌' : t === 'staffing_required' ? '🧑‍🤝‍🧑' : t === 'driver_conflict' ? '🚚' : t === 'prep_issue' ? '⚠️' : t === 'whatsapp_handoff' ? '💬' : '🔔';
-        const title = t === 'order_cancelled' ? 'Order cancelled' : t === 'staffing_required' ? 'Staffing needed' : t === 'driver_conflict' ? 'Delivery conflict' : t === 'prep_issue' ? 'Prep issue' : t === 'whatsapp_handoff' ? 'WhatsApp — needs your reply' : t.replace(/_/g, ' ');
+        const icon = t === 'order_cancelled' ? '❌' : t === 'staffing_required' ? '🧑‍🤝‍🧑' : t === 'driver_conflict' ? '🚚' : t === 'prep_issue' ? '⚠️' : t === 'whatsapp_handoff' ? '💬' : t === 'website_lead' ? '🌐' : '🔔';
+        const title = t === 'order_cancelled' ? 'Order cancelled' : t === 'staffing_required' ? 'Staffing needed' : t === 'driver_conflict' ? 'Delivery conflict' : t === 'prep_issue' ? 'Prep issue' : t === 'whatsapp_handoff' ? 'WhatsApp — needs your reply' : t === 'website_lead' ? 'New website enquiry' : t.replace(/_/g, ' ');
         const text = t === 'driver_conflict' && a.payload?.driver
           ? `${a.payload.driver} has overlapping deliveries`
           : t === 'whatsapp_handoff'
             ? `${a.payload?.name || a.payload?.phone || 'A customer'} · ${a.payload?.reason || 'needs a human'}`
-            : a.event_id ? `Event ${a.event_id}` : '';
+            : t === 'website_lead'
+              ? `${a.payload?.name || a.payload?.phone || 'A visitor'} left their number${a.payload?.emirate ? ` · ${a.payload.emirate}` : ''}`
+              : a.event_id ? `Event ${a.event_id}` : '';
         items.push({ id: `al-${a.id}`, level, icon, title, text, eventId: a.event_id, orderId: (a.payload && a.payload.orderId) || null, at: a.created_at });
       }
       for (const b of bookings.rows) items.push({ id: `bk-${b.id}`, level: 'info', icon: '🎉', title: 'New booking', text: `${b.customer}${b.package ? ` · ${b.package}` : ''}`, eventId: b.id, at: b.created_at });

@@ -282,6 +282,76 @@ export async function recordInboundMessage(msg: InboundMessage): Promise<RecordR
   };
 }
 
+/**
+ * Capture a lead from the WEBSITE enquiry form (not WhatsApp) into the SAME
+ * whatsapp_leads table the owner's Leads screen reads, so an interested visitor
+ * who leaves their number is no longer invisible. Alerts the team immediately.
+ */
+export async function captureWebsiteLead(input: {
+  name: string;
+  phone: string;
+  email?: string | null;
+  message?: string | null;
+  eventDate?: string | null;
+  emirate?: string | null;
+}): Promise<{ isNew: boolean; phone: string }> {
+  // Normalise a UAE local number (05x…) to full country-code form so it matches
+  // any later WhatsApp thread and the wa.me link works.
+  let phone = normalizePhone(input.phone);
+  if (/^05\d{8}$/.test(phone)) phone = '971' + phone.slice(1);
+  const note = [
+    'Website enquiry',
+    input.email ? `email: ${input.email}` : '',
+    input.message ? `“${input.message.slice(0, 500)}”` : '',
+  ].filter(Boolean).join(' · ');
+
+  const existing = await pool.query(`SELECT 1 FROM whatsapp_leads WHERE phone = $1`, [phone]);
+  const isNew = existing.rowCount === 0;
+  await pool.query(
+    `INSERT INTO whatsapp_leads
+       (phone, name, event_date, emirate, status, source_headline, notes,
+        message_count, first_message_at, last_message_at)
+     VALUES ($1,$2,$3,$4,'new','Website enquiry',$5,1,now(),now())
+     ON CONFLICT (phone) DO UPDATE SET
+       name            = COALESCE(EXCLUDED.name, whatsapp_leads.name),
+       event_date      = COALESCE(EXCLUDED.event_date, whatsapp_leads.event_date),
+       emirate         = COALESCE(EXCLUDED.emirate, whatsapp_leads.emirate),
+       source_headline = COALESCE(whatsapp_leads.source_headline, EXCLUDED.source_headline),
+       notes           = COALESCE(EXCLUDED.notes, whatsapp_leads.notes),
+       message_count   = whatsapp_leads.message_count + 1,
+       last_message_at = now(),
+       updated_at      = now()`,
+    [phone, input.name.trim() || null, input.eventDate || null, input.emirate || null, note || null],
+  );
+
+  // Tell the team — a dashboard ops-alert (deduped per phone/6h) + a push to Marsha.
+  const ins = await pool
+    .query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       SELECT NULL,'ops_alert','website_lead', now(), $1
+        WHERE NOT EXISTS (
+          SELECT 1 FROM notifications
+           WHERE template='website_lead' AND cancelled_at IS NULL
+             AND (payload->>'phone')=$2 AND created_at > now() - interval '6 hours')
+       RETURNING id`,
+      [JSON.stringify({ phone, name: input.name.trim(), emirate: input.emirate ?? null }), phone],
+    )
+    .catch(() => ({ rowCount: 0 }));
+  if (ins.rowCount) {
+    try {
+      const { rows } = await pool.query<{ id: string }>(
+        `SELECT id FROM team_members WHERE lower(name)='marsha' AND active LIMIT 1`,
+      );
+      if (rows[0]) {
+        const { pushToOwner } = await import('../integrations/push.js');
+        await pushToOwner('staff', rows[0].id, '🌐 New website enquiry',
+          `${input.name.trim() || phone} left their number on the site — follow up.`).catch(() => {});
+      }
+    } catch { /* push best-effort */ }
+  }
+  return { isNew, phone };
+}
+
 /** Records a message this system sent, so the lead history stays complete. */
 export async function recordOutboundMessage(args: {
   phone: string;

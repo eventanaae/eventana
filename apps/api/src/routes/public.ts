@@ -168,6 +168,7 @@ export async function publicRoutes(app: FastifyInstance) {
   const RL_RULES: Array<{ test: RegExp; max: number; windowMs: number }> = [
     { test: /^\/api\/(checkout|shop\/checkout)$/, max: 15, windowMs: 60_000 },
     { test: /^\/api\/customers\/(register|forgot|login|reset)$/, max: 8, windowMs: 60_000 },
+    { test: /^\/api\/lead$/, max: 6, windowMs: 60_000 },
     { test: /^\/api\/promo\/check$/, max: 25, windowMs: 60_000 },
     { test: /^\/api\/customers\/uploads\/sign$/, max: 25, windowMs: 60_000 },
   ];
@@ -848,6 +849,28 @@ export async function publicRoutes(app: FastifyInstance) {
       }
     } catch { /* analytics must never break the page */ }
     return reply.status(204).send();
+  });
+
+  /* ------------------------ Website lead capture -------------------------- */
+  // A visitor who isn't ready to book can leave their number here; it becomes a
+  // lead in the owner's Leads screen (same table as WhatsApp) and alerts the team.
+  app.post('/api/lead', async (request, reply) => {
+    const p = z.object({
+      name: z.string().trim().min(1).max(120),
+      phone: z.string().trim().min(7).max(20),
+      email: z.string().email().max(160).optional(),
+      message: z.string().max(1000).optional(),
+      eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      emirate: z.string().max(40).optional(),
+    }).safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    try {
+      const { captureWebsiteLead } = await import('../domain/whatsappLeads.js');
+      await captureWebsiteLead(p.data);
+    } catch {
+      return reply.status(500).send({ error: 'lead_failed' });
+    }
+    return { ok: true };
   });
 
   /* --------------- Guest feedback (no account, signed link) --------------- */

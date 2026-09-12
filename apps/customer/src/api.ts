@@ -417,6 +417,10 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ question, celebrationType }) },
     ),
 
+  /** Website lead capture — a visitor leaves their number for a callback. */
+  lead: (input: { name: string; phone: string; message?: string; emirate?: string }) =>
+    request<{ ok: true }>('/api/lead', { method: 'POST', body: JSON.stringify(input) }),
+
   plan: (body: { celebrationType: string; childrenCount: number; budgetFils?: number | null; age?: string }) =>
     request<{
       kind: string; celebrationType: string; packageId: string | null;

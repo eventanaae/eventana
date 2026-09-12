@@ -222,6 +222,20 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t }
         <span style={{ color: C.mint, fontWeight: 700 }}>›</span>
       </div>
 
+      <div
+        onClick={() => go('lead')}
+        style={{ marginTop: 12, background: '#FCEBF3', borderRadius: 22, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: 16, background: C.pink, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flex: 'none' }}>
+          💬
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{t('lead.homeTitle')}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{t('lead.homeSub')}</div>
+        </div>
+        <span style={{ color: C.pink, fontWeight: 700 }}>›</span>
+      </div>
+
       <div style={{ marginTop: 18, textAlign: 'center', fontSize: 11, fontWeight: 600, color: C.faint }}>
         @eventana.uae · +971 56 450 0777
       </div>
