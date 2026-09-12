@@ -11,7 +11,12 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t }
   // them here — a party in progress (package/services chosen) and/or shop items —
   // instead of leaving the saved cart hidden.
   const hasParty = !!draft.packageId || Object.values(draft.services).some((q) => q > 0);
-  const shopCount = Object.values(shopCart ?? {}).reduce((s, q) => s + (q > 0 ? q : 0), 0);
+  // Count only items that still exist in the live catalogue, so a stale/removed
+  // shop id can never conjure a "continue" card for something that's gone.
+  const shopCount = Object.entries(shopCart ?? {}).reduce(
+    (s, [id, q]) => s + (q > 0 && catalogue.services.some((sv) => sv.id === id) ? q : 0),
+    0,
+  );
   const partyLabel =
     catalogue.packages.find((p) => p.id === draft.packageId)?.name ??
     catalogue.celebrationTypes.find((c) => c.id === draft.celebrationType)?.label ??

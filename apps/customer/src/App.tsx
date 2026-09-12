@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SHOP_DRAWING_IDS, type CartInput } from '@eventana/shared';
+import { SHOP_DRAWING_IDS, SHOP_SERVICE_IDS, type CartInput } from '@eventana/shared';
 import { api, type Catalogue, type QuoteResult } from './api';
 import { C, Spinner, fredoka } from './ui';
 import { Home } from './screens/Home';
@@ -140,8 +140,14 @@ function loadShopCart(): Record<string, number> {
     const raw = localStorage.getItem(SHOPCART_KEY);
     if (!raw) return {};
     const c = JSON.parse(raw) as Record<string, number>;
+    // Prune positive quantities AND drop any id that's no longer a real shop
+    // product — a removed/renamed id left in storage would otherwise show a ghost
+    // "continue" card and permanently wedge shop checkout (unknown_service).
+    const known = new Set(SHOP_SERVICE_IDS);
     return Object.fromEntries(
-      Object.entries(c).filter(([, q]) => Number(q) > 0).map(([k, q]) => [k, Math.floor(Number(q))]),
+      Object.entries(c)
+        .filter(([k, q]) => Number(q) > 0 && known.has(k))
+        .map(([k, q]) => [k, Math.floor(Number(q))]),
     );
   } catch { return {}; }
 }

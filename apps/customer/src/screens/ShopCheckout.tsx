@@ -45,7 +45,9 @@ export function ShopCheckout({
     [catalogue],
   );
   const items = Object.entries(shopCart)
-    .filter(([, q]) => q > 0)
+    // Ignore any id that isn't a live catalogue service — a stale/removed id
+    // would otherwise raise unknown_service and block an otherwise-valid checkout.
+    .filter(([serviceId, q]) => q > 0 && services.has(serviceId))
     .map(([serviceId, quantity]) => ({ serviceId, quantity }));
 
   const [emirate, setEmirate] = useState<string | null>(null);
