@@ -560,6 +560,11 @@ export const api = {
       body: JSON.stringify({ active }),
     }),
 
+  themeBackfill: (year?: number) =>
+    request<{ year: number; total: number; filled: number; rows: any[] }>(`/api/admin/theme-backfill${year ? `?year=${year}` : ''}`),
+  saveThemeBackfill: (saleKey: string, theme: string) =>
+    request<{ ok: boolean; theme: string }>('/api/admin/theme-backfill', { method: 'POST', body: JSON.stringify({ saleKey, theme }) }),
+
   budgetSuggestions: () =>
     request<{ currentMonth: string; monthsUsed: number; expectedEvents: number; bookedNext: number; categories: BudgetSuggestion[] }>(
       '/api/admin/finance/budget-suggestions',

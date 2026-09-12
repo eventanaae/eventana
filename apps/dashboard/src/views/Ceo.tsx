@@ -150,7 +150,7 @@ export function Ceo() {
           {/* 4) Top 3 for the period — most-requested emirates & themes, biggest expenses */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
             <Top3Orders title="🏆 Top emirates" rows={data.byEmirateFull ?? data.byEmirate} />
-            <Top3Orders title="🎨 Top themes" rows={data.byTheme} hideRevenue note="Themes are tracked from 1 Sep — they weren't recorded before." />
+            <Top3Orders title="🎨 Top themes" rows={data.byThemeFull ?? data.byTheme} hideRevenue note="Older parties' themes are added from the Themes sheet." />
             <Top3Expenses rows={data.periodExpenseBySupplier} />
           </div>
 

@@ -1036,6 +1036,16 @@ CREATE TABLE IF NOT EXISTS historical_orders (
 CREATE UNIQUE INDEX IF NOT EXISTS historical_orders_dedupe_idx ON historical_orders (dedupe_key);
 CREATE INDEX IF NOT EXISTS historical_orders_date_idx ON historical_orders (txn_date);
 
+-- Theme backfill: the team fills the party theme for past sales (QuickBooks
+-- history never recorded it). sale_key = 'qb:'||doc_number or 'app:'||event_id.
+-- Fed into the CEO "top themes" so the whole year is covered, not just app-era.
+CREATE TABLE IF NOT EXISTS sale_themes (
+  sale_key   TEXT PRIMARY KEY,
+  theme      TEXT NOT NULL,
+  updated_by TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ── Finance module (a simple QuickBooks-style set inside the dashboard) ──────
 -- Two documents drive Sales & Get Paid:
 --   * finance_invoices  — billed, not yet paid → Accounts Receivable.

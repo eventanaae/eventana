@@ -197,6 +197,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // own "Latest updates" feed), so it is NOT gated to managers here.
       path.startsWith('/api/admin/marketing') ||
       path.startsWith('/api/admin/promo-codes') ||
+      path.startsWith('/api/admin/theme-backfill') ||
       path.startsWith('/api/admin/focus') ||
       path.startsWith('/api/admin/google') ||
       path === '/api/admin/team' ||
@@ -3563,6 +3564,33 @@ export async function adminRoutes(app: FastifyInstance) {
       .map((g) => ({ label: g.label, bookings: g.bookings, revenueFils: g.revenueFils, revenueDisplay: formatAed(g.revenueFils) }))
       .sort((a, b) => b.bookings - a.bookings);
 
+    // Top themes across the FULL year: live app events (byTheme) + the themes the
+    // team filled in for QuickBooks sales (sale_themes). Empty until they're filled.
+    const themeQbRes = await pool.query<{ theme: string; bookings: number; revenue: string }>(
+      `SELECT btrim(st.theme) AS theme, COUNT(DISTINCT ho.doc_number)::int AS bookings,
+              COALESCE(SUM(ho.total_fils),0)::bigint AS revenue
+         FROM historical_orders ho
+         JOIN sale_themes st ON st.sale_key = 'qb:' || ho.doc_number
+        WHERE ho.txn_date >= $1 AND ho.txn_date < $2 AND COALESCE(ho.txn_type,'') <> 'Payment' AND btrim(st.theme) <> ''
+        GROUP BY 1`,
+      [from, to],
+    ).catch(() => ({ rows: [] as any[] }));
+    const themeKey = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+    const themeMap = new Map<string, { label: string; bookings: number; revenueFils: number }>();
+    const addTheme = (label: string, bookings: number, revenueFils: number) => {
+      const raw = (label || '').trim();
+      if (!raw) return;
+      const k = themeKey(raw);
+      const g = themeMap.get(k) ?? { label: raw, bookings: 0, revenueFils: 0 };
+      g.bookings += bookings; g.revenueFils += revenueFils;
+      themeMap.set(k, g);
+    };
+    for (const r of byTheme as any[]) addTheme(r.label, Number(r.bookings) || 0, Number(r.revenueFils) || 0);
+    for (const r of themeQbRes.rows) addTheme(r.theme, Number(r.bookings) || 0, Number(r.revenue) || 0);
+    const byThemeFull = [...themeMap.values()]
+      .map((g) => ({ label: g.label, bookings: g.bookings, revenueFils: g.revenueFils, revenueDisplay: formatAed(g.revenueFils) }))
+      .sort((a, b) => b.bookings - a.bookings);
+
     const cashOnHandFils = (cashSum as any)?.cashOnHandFils ?? null;
     const arFils = (cashSum as any)?.arFils ?? null;
     // "Available after commitments" = cash on hand + expected incoming (A/R and
@@ -3672,6 +3700,7 @@ export async function adminRoutes(app: FastifyInstance) {
       periodExpenseBySupplier,
       yearsPnl,
       byEmirateFull,
+      byThemeFull,
       expensesFils: expenses, expensesDisplay: formatAed(expenses),
       profitFils: profit, profitDisplay: formatAed(Math.abs(profit)), profitNegative: profit < 0,
       marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
@@ -5413,6 +5442,72 @@ export async function adminRoutes(app: FastifyInstance) {
     const html = renderCampaignHtml(parsed.data.bodyHtml, `${config.publicApiUrl}/api/unsubscribe?c=preview&t=preview`);
     const res = await sendEmail({ to: parsed.data.to, subject: `[TEST] ${parsed.data.subject}`, html });
     return res.ok ? { ok: true } : reply.status(502).send({ error: 'send_failed', message: res.error });
+  });
+
+  /* --------------------------- Theme backfill ----------------------------- */
+  // A live sheet: every sale this year (app events + QuickBooks history), so the
+  // team fills the party theme that was never recorded. Saved straight to the
+  // system (sale_themes) and fed into the CEO "top themes".
+
+  app.get('/api/admin/theme-backfill', async (request) => {
+    const q = request.query as { year?: string };
+    const y = /^\d{4}$/.test(q.year ?? '') ? Number(q.year) : new Date(Date.now() + 4 * 3_600_000).getUTCFullYear();
+    const from = `${y}-01-01`, to = `${y + 1}-01-01`;
+    const [live, qb, saved] = await Promise.all([
+      pool.query(
+        `SELECT 'app:' || e.id AS sale_key, to_char(e.event_date,'YYYY-MM-DD') d, c.name, c.phone,
+                e.celebration_type product,
+                COALESCE(th.name, CASE WHEN e.custom_theme THEN 'Custom theme' ELSE '' END) current_theme
+           FROM events e JOIN customers c ON c.id = e.customer_id
+           LEFT JOIN themes th ON th.id = e.theme_id
+          WHERE e.phase <> 'Cancelled' AND e.source IS DISTINCT FROM 'quickbooks_import'
+            AND e.event_date >= $1 AND e.event_date < $2`,
+        [from, to],
+      ),
+      pool.query(
+        `SELECT 'qb:' || ho.doc_number AS sale_key, to_char(min(ho.txn_date),'YYYY-MM-DD') d,
+                ho.customer_name name, max(hc.phone) phone,
+                string_agg(DISTINCT NULLIF(btrim(ho.product),''), ', ') product, '' current_theme
+           FROM historical_orders ho
+           LEFT JOIN (
+             SELECT DISTINCT ON (lower(btrim(full_name))) lower(btrim(full_name)) k, phone
+               FROM historical_customers ORDER BY lower(btrim(full_name)), (phone IS NOT NULL) DESC, id
+           ) hc ON hc.k = lower(btrim(ho.customer_name))
+          WHERE ho.txn_date >= $1 AND ho.txn_date < $2 AND COALESCE(ho.txn_type,'') <> 'Payment'
+            AND ho.doc_number IS NOT NULL
+          GROUP BY ho.doc_number, ho.customer_name`,
+        [from, to],
+      ),
+      pool.query(`SELECT sale_key, theme FROM sale_themes`),
+    ]);
+    const savedMap = new Map<string, string>((saved.rows as any[]).map((r) => [r.sale_key, r.theme]));
+    const rows = [...live.rows, ...qb.rows]
+      .map((r: any) => ({
+        saleKey: r.sale_key, date: r.d, customer: r.name ?? '', phone: r.phone ?? '',
+        product: r.product ?? '', currentTheme: r.current_theme ?? '', savedTheme: savedMap.get(r.sale_key) ?? '',
+        source: String(r.sale_key).startsWith('qb:') ? 'quickbooks' : 'app',
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date) || String(a.customer).localeCompare(String(b.customer)));
+    const filled = rows.filter((r) => r.savedTheme || r.currentTheme).length;
+    return { year: y, total: rows.length, filled, rows };
+  });
+
+  app.post('/api/admin/theme-backfill', async (request, reply) => {
+    const schema = z.object({ saleKey: z.string().min(1).max(200), theme: z.string().trim().max(120) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { saleKey, theme } = parsed.data;
+    const by = String((request as any).staff?.name ?? 'staff');
+    if (!theme) {
+      await pool.query(`DELETE FROM sale_themes WHERE sale_key = $1`, [saleKey]);
+      return { ok: true, theme: '' };
+    }
+    await pool.query(
+      `INSERT INTO sale_themes (sale_key, theme, updated_by) VALUES ($1,$2,$3)
+       ON CONFLICT (sale_key) DO UPDATE SET theme = EXCLUDED.theme, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+      [saleKey, theme, by],
+    );
+    return { ok: true, theme };
   });
 
   /* ---------------------------- Discount codes ---------------------------- */

@@ -31,10 +31,11 @@ import { GoogleReviews } from './views/GoogleReviews';
 import { DriverEvents } from './views/DriverEvents';
 import { DriverSchedule } from './views/DriverSchedule';
 import { Discounts } from './views/Discounts';
+import { ThemeBackfill } from './views/ThemeBackfill';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -67,6 +68,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'marketing' },
   { id: 'feedback', label: 'Review Report', icon: '🌟', title: 'Review Report', sub: 'Google reviews + every customer rating (event, dates, team)', section: 'marketing' },
   { id: 'discounts', label: 'Discount Codes', icon: '🏷️', title: 'Discount Codes', sub: 'Create & manage promo codes customers use at checkout', section: 'marketing' },
+  { id: 'themes', label: 'Themes', icon: '🎨', title: 'Themes', sub: "Fill in each party's theme for the whole year", section: 'marketing' },
   // Staff
   { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
@@ -85,7 +87,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'discounts', 'reviews', 'team', 'leave', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'discounts', 'themes', 'reviews', 'team', 'leave', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
@@ -249,6 +251,7 @@ export default function App() {
       {view === 'finance' && <FinanceHub role={role} />}
       {view === 'marketing' && <Marketing />}
       {view === 'discounts' && <Discounts />}
+      {view === 'themes' && <ThemeBackfill />}
       {view === 'neworder' && <NewOrder />}
       {view === 'leads' && <Leads />}
       {view === 'reviews' && <GoogleReviews />}
