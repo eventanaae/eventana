@@ -74,7 +74,7 @@ const en: Dict = {
   // onboarding
   'onboard.welcome': 'Welcome to Eventana',
   'onboard.title': 'Let’s get to know you ✨',
-  'onboard.sub': 'Tell us your name so your celebrations feel personal — add a birthday and we’ll wish you on your special day 🎂 Or skip and dive right in.',
+  'onboard.sub': 'Tell us your name so your celebrations feel personal — or skip and dive right in.',
   'onboard.name': 'Your name',
   'onboard.namePh': 'e.g. Sara',
   'onboard.birthday': 'Your birthday',
@@ -748,7 +748,7 @@ const ar: Dict = {
   // onboarding
   'onboard.welcome': 'أهلاً بك في Eventana',
   'onboard.title': 'خلّينا نتعرّف عليك ✨',
-  'onboard.sub': 'اكتب اسمك عشان تكون مناسباتك أقرب لك — وإذا أضفت تاريخ ميلادك نهنّيك بيومك الخاص 🎂 أو تخطّاها وابدأ على طول.',
+  'onboard.sub': 'اكتب اسمك عشان تكون مناسباتك أقرب لك — أو تخطّاها وابدأ على طول.',
   'onboard.name': 'اسمك',
   'onboard.namePh': 'مثال: سارة',
   'onboard.birthday': 'تاريخ ميلادك',
