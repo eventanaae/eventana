@@ -2075,57 +2075,134 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /**
-   * Suggested monthly budgets, learned from what the business actually spends.
-   * For each expense account (petrol, consumables, printing, …) we average the
-   * last few COMPLETE months of spend and suggest a budget with a little
-   * headroom, then compare this month's spend so far against it. No budgets are
-   * hard-coded — the suggestion is purely the owner's own history, so it stays
-   * right as the business grows. Owner/manager (finance gate).
+   * Suggested monthly budgets — rational, workload-based, not a flat average.
+   *
+   * The insight the owner pushed for: a budget must scale with how much work is
+   * coming, not just what was spent before. So for each expense account we learn
+   * a UNIT COST from the last 3 complete months and project it onto next month's
+   * expected workload:
+   *   • Petrol / fuel is driven by DELIVERIES and their DISTANCE. We weight every
+   *     event by its delivery emirate (the delivery-zone fee is our distance
+   *     proxy — farther emirate, more petrol), learn cost per weighted-delivery,
+   *     and multiply by the weighted deliveries expected next month.
+   *   • Consumables and everything else scale with the NUMBER OF BOOKINGS: cost
+   *     per booking × bookings expected next month.
+   *   • "Expected next month" = the higher of what's already booked on the
+   *     calendar and the recent run-rate (bookings keep coming in, so booked is a
+   *     floor, never the ceiling).
+   * QuickBooks-imported rows are excluded (same as the live P&L) so nothing is
+   * double-counted. Owner/manager (finance gate).
    */
   app.get('/api/admin/finance/budget-suggestions', async () => {
-    // Per account, per calendar month (Dubai), total spent over the last 6
-    // complete months plus the current one.
-    const { rows } = await pool.query<{ category: string; ym: string; total: string }>(
-      `SELECT btrim(category) AS category,
-              to_char(date_trunc('month', spent_on), 'YYYY-MM') AS ym,
-              SUM(amount_fils)::bigint AS total
-         FROM expenses
-        WHERE category IS NOT NULL AND btrim(category) <> ''
-          AND spent_on >= (date_trunc('month', (now() AT TIME ZONE 'Asia/Dubai')::date) - interval '6 months')::date
-        GROUP BY 1, 2`,
-    );
-    // Dubai "this month" (UTC+4, no DST).
+    // Month boundaries on the Dubai calendar (UTC+4, no DST). Learn from the last
+    // 3 COMPLETE months; project onto next month.
     const dub = new Date(Date.now() + 4 * 3_600_000);
-    const currentYm = `${dub.getUTCFullYear()}-${String(dub.getUTCMonth() + 1).padStart(2, '0')}`;
+    const y = dub.getUTCFullYear(), mo = dub.getUTCMonth();
+    const monthStart = (off: number) => new Date(Date.UTC(y, mo + off, 1)).toISOString().slice(0, 10);
+    const winStart = monthStart(-3);   // start of the 3-month history window
+    const curStart = monthStart(0);    // start of the current (partial) month
+    const nextStart = monthStart(1);   // start of next month
+    const nextEnd = monthStart(2);     // start of the month after next
+    const currentYm = curStart.slice(0, 7);
 
-    const byCat = new Map<string, Map<string, number>>();
-    for (const r of rows) {
-      const cat = String(r.category);
-      if (!byCat.has(cat)) byCat.set(cat, new Map());
-      byCat.get(cat)!.set(r.ym, Number(r.total));
-    }
+    // Average delivery-zone fee — the distance weight for an event whose emirate
+    // isn't in the zones table, and the unit petrol is scaled by.
+    const avgFeeRow = await pool.query<{ avg: string }>(
+      `SELECT COALESCE(ROUND(AVG(fee_fils)), 0)::bigint AS avg FROM delivery_zones WHERE fee_fils IS NOT NULL`,
+    );
+    const avgFee = Number(avgFeeRow.rows[0].avg);
 
-    // Round a fils amount UP to the nearest AED 25 — a tidy budget figure.
+    // Spend per account: history (complete months) vs this month so far. Exclude
+    // QuickBooks-imported rows so this reconciles with the live P&L and never
+    // double-counts an expense that was also entered manually.
+    const spendRes = await pool.query<{ category: string; hist: string | null; this_month: string | null; months: number }>(
+      `SELECT btrim(category) AS category,
+              SUM(amount_fils) FILTER (WHERE spent_on >= $1 AND spent_on < $2)::bigint AS hist,
+              SUM(amount_fils) FILTER (WHERE spent_on >= $2 AND spent_on < $3)::bigint AS this_month,
+              COUNT(DISTINCT date_trunc('month', spent_on)) FILTER (WHERE spent_on >= $1 AND spent_on < $2)::int AS months
+         FROM expenses
+        WHERE COALESCE(source,'manual') <> 'quickbooks'
+          AND category IS NOT NULL AND btrim(category) <> ''
+          AND spent_on >= $1 AND spent_on < $3
+        GROUP BY 1`,
+      [winStart, curStart, nextStart],
+    );
+
+    // Workload: events that happened in the history window, and what's already
+    // booked for next month — each weighted by its delivery area.
+    const [evHist, evNext] = await Promise.all([
+      pool.query<{ n: number; weight: string; months: number }>(
+        `SELECT COUNT(*)::int AS n,
+                COALESCE(SUM(COALESCE(dz.fee_fils, $3)), 0)::bigint AS weight,
+                COUNT(DISTINCT date_trunc('month', e.event_date))::int AS months
+           FROM events e LEFT JOIN delivery_zones dz ON lower(dz.emirate) = lower(e.emirate)
+          WHERE e.phase <> 'Cancelled' AND e.event_date >= $1 AND e.event_date < $2`,
+        [winStart, curStart, avgFee],
+      ),
+      pool.query<{ n: number; weight: string }>(
+        `SELECT COUNT(*)::int AS n, COALESCE(SUM(COALESCE(dz.fee_fils, $3)), 0)::bigint AS weight
+           FROM events e LEFT JOIN delivery_zones dz ON lower(dz.emirate) = lower(e.emirate)
+          WHERE e.phase <> 'Cancelled' AND e.event_date >= $1 AND e.event_date < $2`,
+        [nextStart, nextEnd, avgFee],
+      ),
+    ]);
+
+    const histEvents = evHist.rows[0].n;
+    const histWeight = Number(evHist.rows[0].weight);
+    const monthsWithEvents = Math.max(1, evHist.rows[0].months);
+    const bookedNext = evNext.rows[0].n;
+    const bookedNextWeight = Number(evNext.rows[0].weight);
+
+    // Expected next-month workload: bookings are still filling in, so take the
+    // higher of what's booked and the recent run-rate.
+    const runRateEvents = histEvents / monthsWithEvents;
+    const expectedEvents = Math.max(bookedNext, Math.round(runRateEvents));
+    const avgWeightPerEvent = histEvents > 0 ? histWeight / histEvents : avgFee;
+    const expectedWeight = bookedNext >= expectedEvents
+      ? bookedNextWeight
+      : bookedNextWeight + (expectedEvents - bookedNext) * avgWeightPerEvent;
+
+    // Round UP to the nearest AED 25 — a tidy budget figure.
     const tidy = (fils: number) => Math.max(2500, Math.ceil(fils / 2500) * 2500);
+    const FUEL_RE = /fuel|petrol|diesel|gasoline|salik|mileage|transport/i;
 
-    const categories = [...byCat.entries()]
-      .map(([category, months]) => {
-        const thisMonthFils = months.get(currentYm) ?? 0;
-        // Complete months only (exclude the partial current month) for the average.
-        const prior = [...months.entries()].filter(([ym]) => ym !== currentYm);
-        const priorTotal = prior.reduce((s, [, v]) => s + v, 0);
-        const monthsWithSpend = prior.length;
-        // Average across the months this account was actually used — a realistic
-        // "when we spend here, it's about this much a month" figure.
-        const avgFils = monthsWithSpend > 0 ? Math.round(priorTotal / monthsWithSpend) : thisMonthFils;
-        const suggestedFils = tidy(Math.round(avgFils * 1.1)); // 10% headroom
+    const categories = spendRes.rows
+      .map((r) => {
+        const hist = Number(r.hist ?? 0);
+        const thisMonthFils = Number(r.this_month ?? 0);
+        const monthsUsed = Math.max(1, r.months);
+        const category = r.category;
+
+        let suggestedFils: number;
+        let basis: 'deliveries' | 'bookings' | 'history';
+        let perEventFils = histEvents > 0 ? Math.round(hist / histEvents) : 0;
+
+        if (FUEL_RE.test(category) && histWeight > 0 && expectedWeight > 0) {
+          // Petrol scales with distance driven: cost per weighted-delivery ×
+          // the weighted deliveries expected next month.
+          suggestedFils = (hist / histWeight) * expectedWeight;
+          basis = 'deliveries';
+        } else if (histEvents > 0) {
+          // Everything else scales with the number of bookings.
+          suggestedFils = perEventFils * expectedEvents;
+          basis = 'bookings';
+        } else {
+          // No events in the window — fall back to a flat monthly average.
+          suggestedFils = hist / monthsUsed;
+          basis = 'history';
+        }
+
+        suggestedFils = tidy(Math.round(suggestedFils));
         const ratio = suggestedFils > 0 ? thisMonthFils / suggestedFils : 0;
         const status = thisMonthFils > suggestedFils ? 'over' : ratio >= 0.8 ? 'near' : 'under';
         return {
           category,
-          avgFils,
-          avgDisplay: formatAed(avgFils),
-          monthsOfHistory: monthsWithSpend,
+          basis,
+          monthsUsed,
+          expectedEvents,
+          perEventFils,
+          perEventDisplay: formatAed(perEventFils),
+          histFils: hist,
           thisMonthFils,
           thisMonthDisplay: formatAed(thisMonthFils),
           suggestedFils,
@@ -2133,11 +2210,17 @@ export async function adminRoutes(app: FastifyInstance) {
           status,
         };
       })
-      // Need at least one complete month to suggest anything; biggest budgets first.
-      .filter((c) => c.monthsOfHistory >= 1)
+      // Show an account only once it has real spend to learn from.
+      .filter((c) => c.histFils > 0 || c.thisMonthFils > 0)
       .sort((a, b) => b.suggestedFils - a.suggestedFils);
 
-    return { currentMonth: currentYm, categories };
+    return {
+      currentMonth: currentYm,
+      monthsUsed: monthsWithEvents,
+      expectedEvents,
+      bookedNext,
+      categories,
+    };
   });
 
   /** Record an expense. */

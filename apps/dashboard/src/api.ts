@@ -224,9 +224,12 @@ export interface PromoCode {
 
 export interface BudgetSuggestion {
   category: string;
-  avgFils: number;
-  avgDisplay: string;
-  monthsOfHistory: number;
+  basis: 'deliveries' | 'bookings' | 'history';
+  monthsUsed: number;
+  expectedEvents: number;
+  perEventFils: number;
+  perEventDisplay: string;
+  histFils: number;
   thisMonthFils: number;
   thisMonthDisplay: string;
   suggestedFils: number;
@@ -558,7 +561,9 @@ export const api = {
     }),
 
   budgetSuggestions: () =>
-    request<{ currentMonth: string; categories: BudgetSuggestion[] }>('/api/admin/finance/budget-suggestions'),
+    request<{ currentMonth: string; monthsUsed: number; expectedEvents: number; bookedNext: number; categories: BudgetSuggestion[] }>(
+      '/api/admin/finance/budget-suggestions',
+    ),
 
   focus: () => request<{ tasks: FocusTask[]; doneToday: number }>('/api/admin/focus'),
   addFocus: (title: string) =>
