@@ -1181,6 +1181,11 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS commission_rep TEXT;
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS celebration_type TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS finance_receipts_order_idx
   ON finance_receipts (order_id) WHERE order_id IS NOT NULL;
+-- Refund reflection: when a specific item (or amount) is refunded, the receipt
+-- carries the running refunded total + the list of refunded items, so the
+-- (re-)emailed receipt and the dashboard show what was returned and the net.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS refunded_fils BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS refunded_items JSONB NOT NULL DEFAULT '[]';
 
 -- Manual-order "offers": the team picks the products/package/add-ons only, and
 -- the customer opens a unique link, fills in ALL their own details on the normal
@@ -1362,6 +1367,9 @@ CREATE TABLE IF NOT EXISTS refunds (
 );
 CREATE INDEX IF NOT EXISTS refunds_order_idx  ON refunds (order_id);
 CREATE INDEX IF NOT EXISTS refunds_reason_idx ON refunds (reason_category, created_at);
+-- The specific event item this refund was for (when the owner refunds a single
+-- ordered item rather than a free amount). NULL for whole-amount refunds.
+ALTER TABLE refunds ADD COLUMN IF NOT EXISTS item_label TEXT;
 
 -- ── Staff rewards (Achievements) ────────────────────────────────────────────
 -- A recorded reward a staff member earned — most importantly the "good customer

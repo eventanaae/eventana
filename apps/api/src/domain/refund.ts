@@ -39,12 +39,16 @@ export async function refundOrderMoney(params: {
   /** Whether the event itself is being cancelled. A refund is NOT a cancellation
    *  by default — a completed event can be refunded for a quality issue. */
   cancelEvent?: boolean;
+  /** The specific ordered item this refund is for (owner picked it), so the
+   *  receipt can show that line as refunded. Omitted for a free-amount refund. */
+  itemLabel?: string | null;
   /** Who triggered it: a staff name, 'customer', or 'system'. */
   createdBy?: string;
   source?: string;
 }): Promise<RefundResult> {
   const { orderId, amountFils, reason } = params;
   const reasonCategory: RefundReasonCategory = params.reasonCategory ?? 'other';
+  const itemLabel = (params.itemLabel ?? '').trim() || null;
   const createdBy = params.createdBy ?? 'system';
   if (amountFils <= 0) return { ok: false, error: 'nothing_to_refund' };
 
@@ -103,11 +107,21 @@ export async function refundOrderMoney(params: {
       await db.query(
         `INSERT INTO refunds (order_id, event_id, customer_id, amount_fils,
                               reason_category, reason_note, event_cancelled,
-                              provider_reference, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+                              provider_reference, created_by, item_label)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [orderId, payment.event_id, payment.customer_id, toRefund, reasonCategory,
-         reason, !!params.cancelEvent, verified.providerStatus ?? null, createdBy],
+         reason, !!params.cancelEvent, verified.providerStatus ?? null, createdBy, itemLabel],
       );
+
+      // Reflect the refund on the order's sales receipt so the (re-)emailed
+      // receipt and the dashboard show the returned item + the new net total.
+      await db.query(
+        `UPDATE finance_receipts
+            SET refunded_fils = refunded_fils + $2,
+                refunded_items = refunded_items || $3::jsonb
+          WHERE order_id = $1`,
+        [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
+      ).catch(() => {});
 
       // Settle any recorded customer cancellation (if this refund is one).
       const cx = await db.query(
@@ -136,10 +150,12 @@ export async function refundOrderMoney(params: {
       // ALWAYS confirm the refund by email — keyed by the order, so it fires for
       // a plain refund with no cancellation, and for orders with no event (shop).
       // The amount + reference travel in the payload so the sweep needs no join.
+      // One order-keyed email row. The customer WhatsApp sweep sends off the SAME
+      // row (stamping whatsapp_sent_at), deciding apology vs plain by reason.
       await db.query(
         `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
          VALUES ($1,'email','refund_processed', now(), $2)`,
-        [payment.event_id ?? null, JSON.stringify({ orderId, amountFils: toRefund, reference: verified.providerStatus ?? null })],
+        [payment.event_id ?? null, JSON.stringify({ orderId, amountFils: toRefund, reference: verified.providerStatus ?? null, reasonCategory, itemLabel })],
       );
 
       // Reverse the loyalty points the booking earned, proportionally.

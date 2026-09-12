@@ -4932,6 +4932,9 @@ export async function adminRoutes(app: FastifyInstance) {
       // service problems). A refund is NOT a cancellation unless cancelEvent.
       reasonCategory: z.enum(['customer_cancellation', 'quality_issue', 'missing_item', 'other']).default('other'),
       cancelEvent: z.boolean().default(false),
+      // The specific ordered item the owner picked to refund (its label), so the
+      // receipt shows that line as refunded. Optional (free-amount refund).
+      itemLabel: z.string().min(1).max(200).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -4945,13 +4948,18 @@ export async function adminRoutes(app: FastifyInstance) {
       missing_item: 'Missing item or service',
       other: 'Other',
     } as Record<string, string>)[parsed.data.reasonCategory];
-    const reasonText = parsed.data.reason?.trim() ? `${label} — ${parsed.data.reason.trim()}` : label;
+    const itemLabel = parsed.data.itemLabel?.trim() || null;
+    // Fold the picked item into the human reason text too, so the ledger + audit
+    // read "…— <item>" without needing to join the item column.
+    const reasonBase = itemLabel ? `${label} — ${itemLabel}` : label;
+    const reasonText = parsed.data.reason?.trim() ? `${reasonBase} — ${parsed.data.reason.trim()}` : reasonBase;
     const r = await refundOrderMoney({
       orderId,
       amountFils: parsed.data.amountFils,
       reason: reasonText,
       reasonCategory: parsed.data.reasonCategory,
       cancelEvent: parsed.data.cancelEvent,
+      itemLabel,
       createdBy: String((request as any).staff?.name ?? 'staff'),
     });
     if (!r.ok) {

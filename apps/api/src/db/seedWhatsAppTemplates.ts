@@ -67,6 +67,13 @@ export const TEMPLATES: Tpl[] = [
     body: `💸 {{1}}, your Eventana refund has been processed.\n\n🔖 Order: {{2}}\n↩️ Amount: {{3}}\n\nPlease allow ~7 business days for it to appear. 💛`,
     example: ['Sara', 'ORD-2026-0195', 'AED 3,000'],
   },
+  {
+    // Sent when the refund is for a quality issue / missing item (our fault) —
+    // an apology plus the refunded item and amount. Needs Meta approval.
+    name: 'refund_apology',
+    body: `💛 {{1}}, we're truly sorry — "{{2}}" didn't meet the Eventana standard, so we've refunded you {{3}} for it.\n\nYour updated receipt is in your email. The refund may take ~7 business days to appear, depending on your bank. Thank you for your understanding. 🌸`,
+    example: ['Sara', 'Customized Hat', 'AED 300'],
+  },
   // --- Driver (operational, English — sent to the assigned driver) ---
   {
     name: 'driver_new_order',
@@ -161,6 +168,12 @@ export const TEMPLATES_AR: Tpl[] = [
     language: 'ar',
     body: `💸 تم تنفيذ استرجاع مبلغكم {{1}}.\n🔖 الأوردر: {{2}}   ↩️ المبلغ: {{3}}\nممكن ياخذ ٧ أيام عمل عشان يبين بحسابكم 💛`,
     example: ['سارة', 'ORD-2026-0195', 'AED 3,000'],
+  },
+  {
+    name: 'refund_apology',
+    language: 'ar',
+    body: `💛 {{1}} نعتذر منكم من قلب — "{{2}}" ما كانت بمستوى Eventana، فاسترجعنا لكم {{3}} عنها.\nالايصال المحدّث بإيميلكم، والمبلغ ممكن ياخذ ٧ أيام عمل عشان يبين بحسابكم. شكراً لتفهّمكم 🌸`,
+    example: ['سارة', 'قبعة مخصّصة', 'AED 300'],
   },
 ];
 

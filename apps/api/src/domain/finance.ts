@@ -1220,11 +1220,16 @@ export async function emailDoc(kind: 'receipt' | 'invoice', id: number): Promise
 
 function decorateReceipt(r: any) {
   const total = Number(r.total_fils);
+  const refundedFils = Number(r.refunded_fils ?? 0) || 0;
+  const netTotal = total - refundedFils;
   return {
     ...r,
     subtotal_fils: Number(r.subtotal_fils), discount_fils: Number(r.discount_fils), shipping_fils: Number(r.shipping_fils),
     total_fils: total, totalDisplay: formatAed(total),
     lineItems: itemsWithAmount(Array.isArray(r.line_items) ? r.line_items : []),
+    refundedFils, refundedDisplay: formatAed(refundedFils),
+    refundedItems: Array.isArray(r.refunded_items) ? r.refunded_items : [],
+    netTotalFils: netTotal, netTotalDisplay: formatAed(netTotal),
   };
 }
 

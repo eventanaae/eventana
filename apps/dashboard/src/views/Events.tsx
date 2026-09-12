@@ -177,6 +177,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
   const [extraQty, setExtraQty] = useState('');
   const [extraBusy, setExtraBusy] = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
+  const [refundItem, setRefundItem] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [uploadingRef, setUploadingRef] = useState(false);
 
@@ -780,6 +781,27 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   is off. The status comes from the provider’s response, and the customer is emailed automatically.
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Pick an ordered item → its price fills the amount, and the
+                      receipt shows that exact line as refunded. */}
+                  <select
+                    value={refundItem}
+                    onChange={(e) => {
+                      const label = e.target.value;
+                      setRefundItem(label);
+                      const svc = (data.services || []).find((s: any) => String(s.label) === label);
+                      if (svc) setRefundAmount(String((Number(svc.amount_fils) || 0) / 100));
+                    }}
+                    style={{ ...inputStyle, width: '100%' }}
+                  >
+                    <option value="">Refund a specific item… (optional — or type an amount)</option>
+                    {(data.services || [])
+                      .filter((s: any) => Number(s.amount_fils) > 0 && s.source !== 'package_item')
+                      .map((s: any) => (
+                        <option key={s.id} value={String(s.label)}>
+                          {s.label} — AED {(Number(s.amount_fils) / 100).toLocaleString()}
+                        </option>
+                      ))}
+                  </select>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <input
                       placeholder="Amount in AED"
@@ -817,11 +839,13 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                           const res = await api.refund(
                             data.event.order_id,
                             Math.round(Number(refundAmount) * 100),
-                            { reasonCategory: refundCategory, reason: refundReason.trim() || undefined, cancelEvent: refundCancelEvent },
+                            { reasonCategory: refundCategory, reason: refundReason.trim() || undefined, cancelEvent: refundCancelEvent, itemLabel: refundItem || undefined },
                           );
-                          setMessage(`Refund recorded — order is now ${res.status}.${res.eventCancelled ? ' Event cancelled.' : ''} The customer has been emailed.`);
+                          const apology = refundCategory === 'quality_issue' || refundCategory === 'missing_item';
+                          setMessage(`Refund recorded — order is now ${res.status}.${res.eventCancelled ? ' Event cancelled.' : ''} The customer has been ${apology ? 'sent an apology + the updated receipt' : 'emailed the updated receipt'}.`);
                           setRefundAmount('');
                           setRefundReason('');
+                          setRefundItem('');
                           setRefundCancelEvent(false);
                           load();
                         } catch (e: any) {

@@ -386,13 +386,23 @@ export function renderFinanceDocEmail(
     discount_fils?: number; shipping_fils?: number; total_fils: number; message?: string | null;
     event_for?: string | null; theme?: string | null; age?: string | null; event_time?: string | null;
     date_tbd?: boolean; paid_with?: string | null;
+    refundedFils?: number; netTotalFils?: number;
+    refundedItems?: Array<{ label?: string | null; amountFils?: number }>;
   },
   kind: 'receipt' | 'invoice',
+  // When set, the receipt is re-sent as a REFUND email: 'apology' for a quality
+  // issue / missing item (our fault), 'confirmation' for a customer's own
+  // cancellation or a plain refund. Only valid for kind='receipt'.
+  opts: { refundMode?: 'apology' | 'confirmation' } = {},
 ): { subject: string; html: string } {
   const first = cap(String(doc.customer_name ?? 'there').trim().split(/\s+/)[0] || 'there');
   const lines = (doc.lineItems ?? []).map((l) => ({ label: l.name, quantity: Number(l.qty), amountFils: Math.round(Number(l.qty) * Number(l.priceFils)) }));
   if (Number(doc.discount_fils) > 0) lines.push({ label: 'Discount', quantity: 1, amountFils: -Number(doc.discount_fils) });
   if (Number(doc.shipping_fils) > 0) lines.push({ label: 'Shipping & delivery', quantity: 1, amountFils: Number(doc.shipping_fils) });
+
+  const refunded = Number(doc.refundedFils ?? 0) || 0;
+  const isRefund = !!opts.refundMode && refunded > 0;
+  const apology = opts.refundMode === 'apology';
 
   const detailRows: Array<[string, string]> = [
     // A sales receipt IS the customer's booking reference, shown as EV-<number>
@@ -406,17 +416,37 @@ export function renderFinanceDocEmail(
   if (doc.theme) detailRows.push(['Theme', String(doc.theme)]);
   if (kind === 'receipt') {
     if (doc.paid_with) detailRows.push(['Paid with', String(doc.paid_with)]);
-    detailRows.push(['Status', 'Paid ✓']);
+    detailRows.push(['Status', isRefund ? 'Refunded ↩︎' : 'Paid ✓']);
   } else if (doc.due_date) detailRows.push(['Payment due', longDate(doc.due_date)]);
 
-  const intro = kind === 'receipt'
-    ? `Thank you so much! Here's your receipt for your celebration with Eventana. 💛`
-    : `Here's your invoice — we can't wait to celebrate with you! 🎀`;
+  // The refunded items shown as green minus lines under the receipt, plus the
+  // new net total the customer effectively paid.
+  const refundLines = (doc.refundedItems ?? [])
+    .filter((r) => Number(r.amountFils) > 0)
+    .map((r) => ({ label: `Refunded — ${r.label && String(r.label).trim() ? String(r.label).trim() : 'item'}`, quantity: 1, amountFils: -Number(r.amountFils) }));
+  const refundBlock = isRefund
+    ? `<div style="margin:16px 0 4px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${MUTED}">Refund</div>` +
+      invoiceTable(
+        (refundLines.length ? refundLines : [{ label: 'Refunded', quantity: 1, amountFils: -refunded }])
+          .concat([{ label: 'Net total', quantity: 1, amountFils: Number(doc.netTotalFils ?? (Number(doc.total_fils) - refunded)) }]),
+        Number(doc.netTotalFils ?? (Number(doc.total_fils) - refunded)),
+      )
+    : '';
+
+  const intro = isRefund
+    ? (apology
+        ? `We're truly sorry this part of your celebration didn't meet the Eventana standard. 💛 We've refunded you for it — the details are below, and your updated receipt is attached to this note.`
+        : `Your refund has been processed. 💛 Here's your updated receipt with the refunded item and your new total.`)
+    : (kind === 'receipt'
+        ? `Thank you so much! Here's your receipt for your celebration with Eventana. 💛`
+        : `Here's your invoice — we can't wait to celebrate with you! 🎀`);
   const body =
     `<p style="margin:0 0 8px;font-size:15px;line-height:1.6">${intro}</p>` +
     detailCard(detailRows) +
     `<div style="margin:20px 0 4px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${MUTED}">${kind === 'receipt' ? 'Receipt' : 'Invoice'}</div>` +
     invoiceTable(lines, Number(doc.total_fils)) +
+    refundBlock +
+    (isRefund ? `<p style="margin:16px 0 0;color:${MUTED};font-size:13px;line-height:1.6">Your refund may take approximately <b>7 business days</b> to appear, depending on your bank or payment provider.</p>` : '') +
     (doc.message ? `<p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:${INK}">${doc.message}</p>` : '') +
     termsNote();
 
@@ -424,13 +454,15 @@ export function renderFinanceDocEmail(
   const cta = appBase ? { href: appBase, label: 'Open in the App' } : undefined;
   const html = shell({
     first,
-    emoji: kind === 'receipt' ? '🧾' : '🎀',
-    eyebrow: kind === 'receipt' ? 'Sales Receipt' : 'Invoice',
-    heading: kind === 'receipt' ? 'Your receipt is ready' : 'Here’s your invoice',
+    emoji: isRefund ? (apology ? '💛' : '↩︎') : (kind === 'receipt' ? '🧾' : '🎀'),
+    eyebrow: isRefund ? 'Refund' : (kind === 'receipt' ? 'Sales Receipt' : 'Invoice'),
+    heading: isRefund ? (apology ? 'With our apologies' : 'Your refund is processed') : (kind === 'receipt' ? 'Your receipt is ready' : 'Here’s your invoice'),
     bodyHtml: body,
     cta,
   });
-  const subject = kind === 'receipt' ? `Your Eventana receipt EV-${doc.number} 🎉` : `Invoice #${doc.number} from Eventana`;
+  const subject = isRefund
+    ? (apology ? `Our apologies — your Eventana refund (EV-${doc.number})` : `Your Eventana refund — receipt EV-${doc.number}`)
+    : (kind === 'receipt' ? `Your Eventana receipt EV-${doc.number} 🎉` : `Invoice #${doc.number} from Eventana`);
   return { subject, html };
 }
 
@@ -1037,6 +1069,59 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
     }
   }
 
+  // ---- WhatsApp (refund: apology for a quality issue, plain otherwise) ----
+  // Order-keyed like the refund email, off the SAME email row (whatsapp_sent_at).
+  // Quality issue / missing item → the apology template; a customer's own
+  // cancellation or plain refund → the plain refund template. If the apology
+  // template isn't approved yet, it falls back to the plain one so the customer
+  // still gets a WhatsApp (and we don't retry forever).
+  if (whatsappCustomerNotifyEnabled()) {
+    const { rows } = await pool.query<any>(
+      `SELECT n.id, o.id AS order_id,
+              (n.payload->>'amountFils')     AS amount_fils,
+              (n.payload->>'reasonCategory') AS reason_category,
+              (n.payload->>'itemLabel')      AS item_label,
+              COALESCE(o.event_id, n.event_id) AS event_ref,
+              c.name AS customer_name, c.phone AS customer_phone
+         FROM notifications n
+         JOIN orders o    ON o.id = (n.payload->>'orderId')
+         JOIN customers c ON c.id = o.customer_id
+        WHERE n.channel = 'email' AND n.template = 'refund_processed'
+          AND n.whatsapp_sent_at IS NULL AND n.cancelled_at IS NULL
+          AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
+        ORDER BY n.created_at LIMIT 100`,
+    );
+    for (const row of rows) {
+      const e164 = toValidCustomerPhone(row.customer_phone);
+      const to = e164 ? String(e164).replace(/\D+/g, '') : '';
+      if (!to || to.length < 11 || to.length > 15) {
+        await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
+        continue;
+      }
+      const first = (row.customer_name || 'حبيبتنا').split(' ')[0];
+      const amount = aed(Number(row.amount_fils ?? 0));
+      const orderRef = row.event_ref || row.order_id;
+      const apology = row.reason_category === 'quality_issue' || row.reason_category === 'missing_item';
+      const item = (row.item_label && String(row.item_label).trim()) ? String(row.item_label).trim() : 'الخدمة';
+      // Preferred template first, then a fallback template, each ar→en.
+      const attempts: Array<{ name: string; params: string[] }> = apology
+        ? [{ name: 'refund_apology', params: [first, item, amount] }, { name: 'refund_processed', params: [first, orderRef, amount] }]
+        : [{ name: 'refund_processed', params: [first, orderRef, amount] }];
+      let ok = false;
+      for (const a of attempts) {
+        let res = await sendWhatsAppTemplate({ to, name: a.name, language: 'ar', params: a.params, fromStaff: true });
+        if (!res.ok) res = await sendWhatsAppTemplate({ to, name: a.name, language: 'en', params: a.params, fromStaff: true });
+        if (res.ok) { ok = true; break; }
+      }
+      if (ok) {
+        await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]);
+        whatsapps++;
+      } else {
+        console.error(`[notify] refund whatsapp FAILED order=${row.order_id} to=${to}`);
+      }
+    }
+  }
+
   // ---- Driver WhatsApp (operational: new order, change, cancellation) ----
   // The driver assigned to the event (event_staff role='driver') gets the
   // delivery details on WhatsApp. Only for events today or later; a row for an
@@ -1304,29 +1389,57 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
   // ---- Email (refund processed: keyed by ORDER, works with or without an
   //      event/cancellation — a plain refund and a shop refund both land here) ----
   if (emailEnabled()) {
-    const { rows } = await pool.query<{ id: number; order_id: string; amount_fils: string | null; reference: string | null; event_ref: string | null; customer_name: string | null; customer_email: string | null }>(
+    const { rows } = await pool.query<any>(
       `SELECT n.id, o.id AS order_id,
-              (n.payload->>'amountFils') AS amount_fils,
-              (n.payload->>'reference')  AS reference,
+              (n.payload->>'amountFils')      AS amount_fils,
+              (n.payload->>'reference')       AS reference,
+              (n.payload->>'reasonCategory')  AS reason_category,
               COALESCE(o.event_id, n.event_id) AS event_ref,
-              c.name AS customer_name, c.email AS customer_email
+              c.name AS customer_name, c.email AS customer_email,
+              fr.number AS r_number, fr.line_items AS r_line_items,
+              fr.discount_fils AS r_discount, fr.shipping_fils AS r_shipping, fr.total_fils AS r_total,
+              fr.paid_with AS r_paid_with, fr.event_for AS r_event_for, fr.theme AS r_theme,
+              fr.age AS r_age, fr.event_time AS r_event_time, fr.date AS r_date, fr.date_tbd AS r_date_tbd,
+              fr.refunded_fils AS r_refunded, fr.refunded_items AS r_refunded_items
          FROM notifications n
          JOIN orders o    ON o.id = (n.payload->>'orderId')
          JOIN customers c ON c.id = o.customer_id
+         LEFT JOIN finance_receipts fr ON fr.order_id = o.id
         WHERE n.channel = 'email' AND n.template = 'refund_processed'
           AND n.sent_at IS NULL AND n.cancelled_at IS NULL
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.created_at LIMIT 100`,
     );
     for (const row of rows) {
-      const msg = renderEmail({
-        template: 'refund_processed',
-        customer_name: row.customer_name,
-        order_ref: row.event_ref || row.order_id,
-        event_id: row.event_ref || row.order_id,
-        refund_amount_fils: Number(row.amount_fils ?? 0),
-        refund_reference: row.reference,
-      } as unknown as EmailRow);
+      // Our fault (quality issue / missing item) → apology; customer's own
+      // cancellation or a plain refund → confirmation, no apology wording.
+      const apology = row.reason_category === 'quality_issue' || row.reason_category === 'missing_item';
+      let msg: { subject: string; html: string } | null;
+      if (row.r_number) {
+        // Send the updated branded RECEIPT (with the refunded item + net total).
+        const total = Number(row.r_total ?? 0);
+        const refunded = Number(row.r_refunded ?? 0) || 0;
+        msg = renderFinanceDocEmail({
+          number: String(row.r_number), customer_name: row.customer_name,
+          date: row.r_date, date_tbd: row.r_date_tbd,
+          lineItems: Array.isArray(row.r_line_items) ? row.r_line_items : [],
+          discount_fils: Number(row.r_discount ?? 0), shipping_fils: Number(row.r_shipping ?? 0),
+          total_fils: total, paid_with: row.r_paid_with,
+          event_for: row.r_event_for, theme: row.r_theme, age: row.r_age, event_time: row.r_event_time,
+          refundedFils: refunded, netTotalFils: total - refunded,
+          refundedItems: Array.isArray(row.r_refunded_items) ? row.r_refunded_items : [],
+        }, 'receipt', { refundMode: apology ? 'apology' : 'confirmation' });
+      } else {
+        // No linked receipt (e.g. a shop order) → the plain refund card.
+        msg = renderEmail({
+          template: 'refund_processed',
+          customer_name: row.customer_name,
+          order_ref: row.event_ref || row.order_id,
+          event_id: row.event_ref || row.order_id,
+          refund_amount_fils: Number(row.amount_fils ?? 0),
+          refund_reference: row.reference,
+        } as unknown as EmailRow);
+      }
       if (!msg || !row.customer_email) {
         await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
         continue;
