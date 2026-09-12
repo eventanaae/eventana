@@ -3236,8 +3236,10 @@ export async function adminRoutes(app: FastifyInstance) {
         [from, to],
       ),
       pool.query(
-        `SELECT COALESCE(SUM(c.refund_amount_fils),0) v, COUNT(*) c FROM cancellations c
-           JOIN events e ON e.id = c.event_id
+        // ACTUAL money refunded (the refunds ledger), not the policy figure frozen
+        // at cancellation time — so "Total refunded" matches what really went out.
+        `SELECT COALESCE(SUM(r.amount_fils),0) v, COUNT(*) c FROM refunds r
+           JOIN events e ON e.id = r.event_id
           WHERE e.event_date >= $1 AND e.event_date < $2 ${F}`,
         params,
       ),

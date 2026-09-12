@@ -1066,7 +1066,7 @@ function decorateReceipt(r: any) {
 
 // ── Accounting (the accounts we actually use, with balances) ─────────────────
 export async function accountingSummary() {
-  const [opening, receipts, paidInv, unpaidInv, expenses] = await Promise.all([
+  const [opening, receipts, paidInv, unpaidInv, expenses, refunds] = await Promise.all([
     pool.query(`SELECT value FROM settings WHERE key = 'finance.cashOpeningFils'`),
     pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_receipts WHERE source <> 'quickbooks'`),
     // Money actually COLLECTED against invoices adds to Cash — the amount paid so
@@ -1080,9 +1080,13 @@ export async function accountingSummary() {
     // expenses are kept for their receipt images + history but are already
     // inside the Cash opening balance, so counting them again double-counts.
     pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM expenses WHERE source <> 'quickbooks'`),
+    // Money actually refunded to customers has LEFT the account. Receipts above are
+    // gross (a refund never reduces the sale row), so subtract the real refunds
+    // ledger here or Cash on hand overstates. Refunds are all live (no QB rows).
+    pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM refunds`),
   ]);
   const open = Number(opening.rows[0]?.value ?? 0);
-  const cashOnHand = open + Number(receipts.rows[0].v) + Number(paidInv.rows[0].v) - Number(expenses.rows[0].v);
+  const cashOnHand = open + Number(receipts.rows[0].v) + Number(paidInv.rows[0].v) - Number(expenses.rows[0].v) - Number(refunds.rows[0].v);
   const ar = Number(unpaidInv.rows[0].v);
   return {
     accounts: [
