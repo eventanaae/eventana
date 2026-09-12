@@ -358,6 +358,7 @@ function BudgetSuggestions() {
   const label = (s: string) => (s === 'over' ? 'Over budget' : s === 'near' ? 'Close to budget' : 'On track');
   // The "why" line — how this number was reached.
   const why = (c: any): string => {
+    if (c.basis === 'ratecard') return `Known rates · next month: ${c.perEventDisplay}`;
     if (c.basis === 'deliveries') return `Scales with deliveries & distance · ~${c.expectedEvents} bookings expected`;
     if (c.basis === 'bookings') return `${c.perEventDisplay} per booking × ~${c.expectedEvents} bookings expected`;
     return 'From recent monthly spend';

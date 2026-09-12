@@ -2129,8 +2129,10 @@ export async function adminRoutes(app: FastifyInstance) {
     );
 
     // Workload: events that happened in the history window, and what's already
-    // booked for next month — each weighted by its delivery area.
-    const [evHist, evNext] = await Promise.all([
+    // booked for next month — each weighted by its delivery area. Plus the
+    // part-timer entertainer engagements per period (we know the exact rates, so
+    // this budget is computed from the rate card, not an expense average).
+    const [evHist, evNext, ptRes] = await Promise.all([
       pool.query<{ n: number; weight: string; months: number }>(
         `SELECT COUNT(*)::int AS n,
                 COALESCE(SUM(COALESCE(dz.fee_fils, $3)), 0)::bigint AS weight,
@@ -2144,6 +2146,23 @@ export async function adminRoutes(app: FastifyInstance) {
            FROM events e LEFT JOIN delivery_zones dz ON lower(dz.emirate) = lower(e.emirate)
           WHERE e.phase <> 'Cancelled' AND e.event_date >= $1 AND e.event_date < $2`,
         [nextStart, nextEnd, avgFee],
+      ),
+      pool.query<{ clown_hist: number; face_hist: number; clown_cur: number; face_cur: number; clown_next: number; face_next: number }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE es.role IN ('clown','acrobat_clown') AND e.event_date >= $1 AND e.event_date < $2)::int AS clown_hist,
+           COUNT(*) FILTER (WHERE es.role = 'face_painting'          AND e.event_date >= $1 AND e.event_date < $2)::int AS face_hist,
+           COUNT(*) FILTER (WHERE es.role IN ('clown','acrobat_clown') AND e.event_date >= $2 AND e.event_date < $3)::int AS clown_cur,
+           COUNT(*) FILTER (WHERE es.role = 'face_painting'          AND e.event_date >= $2 AND e.event_date < $3)::int AS face_cur,
+           COUNT(*) FILTER (WHERE es.role IN ('clown','acrobat_clown') AND e.event_date >= $3 AND e.event_date < $4)::int AS clown_next,
+           COUNT(*) FILTER (WHERE es.role = 'face_painting'          AND e.event_date >= $3 AND e.event_date < $4)::int AS face_next
+           FROM event_staff es JOIN events e ON e.id = es.event_id
+          WHERE es.role IN ('clown','acrobat_clown','face_painting')
+            -- Only externally-staffed slots incur the AED 200/350 cost (matches
+            -- the part-timer pay tracker); an internal cover costs nothing extra.
+            AND es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
+            AND e.phase <> 'Cancelled'
+            AND e.event_date >= $1 AND e.event_date < $4`,
+        [winStart, curStart, nextStart, nextEnd],
       ),
     ]);
 
@@ -2213,6 +2232,39 @@ export async function adminRoutes(app: FastifyInstance) {
       // Show an account only once it has real spend to learn from.
       .filter((c) => c.histFils > 0 || c.thisMonthFils > 0)
       .sort((a, b) => b.suggestedFils - a.suggestedFils);
+
+    // ── Part-timers (clown & face paint) — from the KNOWN rate card ───────────
+    // We don't guess this from an expense average: we know each clown is AED 200
+    // and each face painter AED 350, and we can count the engagements. Project
+    // the per-booking rate onto next month's expected bookings (or use what's
+    // already booked, whichever is higher).
+    const CLOWN_FILS = 20000, FACEPAINT_FILS = 35000;
+    const pt = ptRes.rows[0];
+    const perBookClown = histEvents > 0 ? pt.clown_hist / histEvents : 0;
+    const perBookFace = histEvents > 0 ? pt.face_hist / histEvents : 0;
+    const expClown = Math.max(pt.clown_next, Math.round(perBookClown * expectedEvents));
+    const expFace = Math.max(pt.face_next, Math.round(perBookFace * expectedEvents));
+    const ptSuggested = tidy(expClown * CLOWN_FILS + expFace * FACEPAINT_FILS);
+    const ptThisMonth = pt.clown_cur * CLOWN_FILS + pt.face_cur * FACEPAINT_FILS;
+    // Only surface it once there's a track record OR something already booked.
+    if (pt.clown_hist + pt.face_hist + pt.clown_next + pt.face_next > 0) {
+      const ratio = ptSuggested > 0 ? ptThisMonth / ptSuggested : 0;
+      categories.unshift({
+        category: 'Part-timers (clown & face paint)',
+        basis: 'ratecard' as any,
+        monthsUsed: monthsWithEvents,
+        expectedEvents,
+        // Reuse perEvent fields to carry the expected head-counts for the UI note.
+        perEventFils: 0,
+        perEventDisplay: `${expClown} clown @ AED 200 · ${expFace} face @ AED 350`,
+        histFils: pt.clown_hist * CLOWN_FILS + pt.face_hist * FACEPAINT_FILS,
+        thisMonthFils: ptThisMonth,
+        thisMonthDisplay: formatAed(ptThisMonth),
+        suggestedFils: ptSuggested,
+        suggestedDisplay: formatAed(ptSuggested),
+        status: ptThisMonth > ptSuggested ? 'over' : ratio >= 0.8 ? 'near' : 'under',
+      });
+    }
 
     return {
       currentMonth: currentYm,

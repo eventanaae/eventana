@@ -224,7 +224,7 @@ export interface PromoCode {
 
 export interface BudgetSuggestion {
   category: string;
-  basis: 'deliveries' | 'bookings' | 'history';
+  basis: 'deliveries' | 'bookings' | 'history' | 'ratecard';
   monthsUsed: number;
   expectedEvents: number;
   perEventFils: number;
