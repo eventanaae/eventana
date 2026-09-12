@@ -196,6 +196,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // /api/admin/alerts is now role-scoped in the handler (employees get their
       // own "Latest updates" feed), so it is NOT gated to managers here.
       path.startsWith('/api/admin/marketing') ||
+      path.startsWith('/api/admin/promo-codes') ||
       path.startsWith('/api/admin/google') ||
       path === '/api/admin/team' ||
       // Editing catalogue prices / availability / inventory is a money change:
@@ -5017,6 +5018,98 @@ export async function adminRoutes(app: FastifyInstance) {
     const html = renderCampaignHtml(parsed.data.bodyHtml, `${config.publicApiUrl}/api/unsubscribe?c=preview&t=preview`);
     const res = await sendEmail({ to: parsed.data.to, subject: `[TEST] ${parsed.data.subject}`, html });
     return res.ok ? { ok: true } : reply.status(502).send({ error: 'send_failed', message: res.error });
+  });
+
+  /* ---------------------------- Discount codes ---------------------------- */
+  // Self-serve promo codes the owner/manager creates and manages. Only the
+  // public marketing codes live here (customer_id IS NULL); personal vouchers
+  // and staff referral codes are minted elsewhere and never hand-edited.
+
+  app.get('/api/admin/promo-codes', async () => {
+    const { rows } = await pool.query(
+      `SELECT code, kind, value, min_spend_fils, max_uses, uses, active, campaign,
+              to_char(expires_at, 'YYYY-MM-DD') AS expires_on,
+              to_char(created_at, 'YYYY-MM-DD') AS created_on
+         FROM promo_codes
+        WHERE customer_id IS NULL
+        ORDER BY active DESC, created_at DESC`,
+    );
+    return {
+      codes: rows.map((r) => ({
+        code: r.code,
+        kind: r.kind,
+        value: Number(r.value),
+        minSpendFils: Number(r.min_spend_fils),
+        maxUses: r.max_uses == null ? null : Number(r.max_uses),
+        uses: Number(r.uses),
+        active: r.active,
+        campaign: r.campaign,
+        expiresOn: r.expires_on,
+        createdOn: r.created_on,
+      })),
+    };
+  });
+
+  app.post('/api/admin/promo-codes', async (request, reply) => {
+    const schema = z
+      .object({
+        code: z
+          .string()
+          .trim()
+          .min(3)
+          .max(24)
+          .regex(/^[A-Za-z0-9]+$/, 'Letters and numbers only.'),
+        kind: z.enum(['percent', 'fixed']),
+        // percent: 1–100; fixed: whole AED (converted to fils below)
+        value: z.number().int().positive(),
+        minSpendAed: z.number().int().min(0).max(1_000_000).default(0),
+        maxUses: z.number().int().positive().max(1_000_000).nullable().optional(),
+        expiresOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .nullable()
+          .optional(),
+      })
+      .refine((d) => (d.kind === 'percent' ? d.value >= 1 && d.value <= 100 : d.value >= 1), {
+        message: 'Percent must be 1–100; a fixed amount must be at least AED 1.',
+        path: ['value'],
+      });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    }
+    const d = parsed.data;
+    const code = d.code.toUpperCase();
+    // A fixed code stores its value in fils; a percent code stores the percent.
+    const value = d.kind === 'fixed' ? d.value * 100 : d.value;
+    const minSpendFils = d.minSpendAed * 100;
+    // An expiry date means "usable through that whole day" → end of day Dubai (UTC+4).
+    const expiresAt = d.expiresOn ? `${d.expiresOn}T23:59:59+04:00` : null;
+    const { rows } = await pool.query(
+      `INSERT INTO promo_codes (code, kind, value, min_spend_fils, max_uses, expires_at, campaign, active)
+       VALUES ($1,$2,$3,$4,$5,$6,'dashboard',TRUE)
+       ON CONFLICT (code) DO NOTHING
+       RETURNING code`,
+      [code, d.kind, value, minSpendFils, d.maxUses ?? null, expiresAt],
+    );
+    if (!rows[0]) {
+      return reply.status(409).send({ error: 'code_exists', message: 'That code already exists.' });
+    }
+    return reply.status(201).send({ ok: true, code });
+  });
+
+  /** Enable or disable a code. Disabling keeps the audit trail; we never delete. */
+  app.patch('/api/admin/promo-codes/:code', async (request, reply) => {
+    const code = String((request.params as { code: string }).code).toUpperCase();
+    const schema = z.object({ active: z.boolean() });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { rows } = await pool.query(
+      `UPDATE promo_codes SET active = $2 WHERE code = $1 AND customer_id IS NULL RETURNING code`,
+      [code, parsed.data.active],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found', message: 'No such code.' });
+    return { ok: true, code, active: parsed.data.active };
   });
 
   /** Sign a direct-to-Cloudinary upload for a staff-side image. */

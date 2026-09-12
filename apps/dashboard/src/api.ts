@@ -209,6 +209,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+export interface PromoCode {
+  code: string;
+  kind: 'percent' | 'fixed';
+  value: number;          // percent (1–100) or fils for a fixed amount
+  minSpendFils: number;
+  maxUses: number | null;
+  uses: number;
+  active: boolean;
+  campaign: string | null;
+  expiresOn: string | null;   // YYYY-MM-DD or null
+  createdOn: string;
+}
+
 export const api = {
   // ── Staff email/password auth (public endpoints) ──
   staffLogin: (email: string, password: string) => request<{ token: string; name: string; role: string }>('/api/staff/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
@@ -508,6 +521,21 @@ export const api = {
     request<any>(`/api/admin/marketing/campaigns/${id}`, { method: 'DELETE' }),
   testCampaign: (body: Record<string, unknown>) =>
     request<any>('/api/admin/marketing/test', { method: 'POST', body: JSON.stringify(body) }),
+
+  promoCodes: () => request<{ codes: PromoCode[] }>('/api/admin/promo-codes'),
+  createPromoCode: (body: {
+    code: string;
+    kind: 'percent' | 'fixed';
+    value: number;
+    minSpendAed?: number;
+    maxUses?: number | null;
+    expiresOn?: string | null;
+  }) => request<{ ok: boolean; code: string }>('/api/admin/promo-codes', { method: 'POST', body: JSON.stringify(body) }),
+  setPromoCodeActive: (code: string, active: boolean) =>
+    request<{ ok: boolean }>(`/api/admin/promo-codes/${encodeURIComponent(code)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active }),
+    }),
 
   kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
 
