@@ -612,12 +612,17 @@ export async function syncReceiptServices(
   receiptId: number,
 ): Promise<{ eventId: string | null; added: string[]; updated: string[]; removed: string[] }> {
   const empty = { eventId: null as string | null, added: [] as string[], updated: [] as string[], removed: [] as string[] };
+  // Only reconcile a live, upcoming event — never a past or cancelled one, so a
+  // late edit to old/converted-history receipts can't fire prep alerts on a job
+  // that already happened. (When an edit moves a past event to a future date,
+  // updateReceipt bumps events.event_date BEFORE calling us, so this still runs.)
+  const dubaiToday = new Date(Date.now() + 4 * 3_600_000).toISOString().slice(0, 10);
   const { rows } = await pool.query(
     `SELECT r.event_id, r.line_items, e.order_id
        FROM finance_receipts r
        JOIN events e ON e.id = r.event_id
-      WHERE r.id = $1`,
-    [receiptId],
+      WHERE r.id = $1 AND e.event_date >= $2::date AND e.phase <> 'Cancelled'`,
+    [receiptId, dubaiToday],
   );
   const r = rows[0];
   if (!r || !r.event_id) return empty;
@@ -625,53 +630,71 @@ export async function syncReceiptServices(
   const orderId: string | null = r.order_id ?? null;
   const items: any[] = Array.isArray(r.line_items) ? r.line_items : [];
 
-  // Desired 'converted' services, keyed by normalized label (last wins on dupes).
+  // Desired 'converted' services, AGGREGATED by normalized label: two paid lines
+  // with the same name (e.g. two "Table" lines) sum into one row, so no line's
+  // quantity/price is lost and the reconcile is idempotent (a Map keyed by label
+  // that took "last wins" would drop the first line and never settle).
   const desired = new Map<string, { label: string; qty: number; amount: number }>();
   for (const it of items) {
     const label = String(it.name ?? 'Item').slice(0, 200);
     const key = label.trim().toLowerCase();
     if (!key) continue;
-    desired.set(key, { label, qty: Number(it.qty ?? 1) || 1, amount: Number(it.priceFils ?? 0) || 0 });
+    const qty = Number(it.qty ?? 1) || 1;
+    const amount = Number(it.priceFils ?? 0) || 0;
+    const cur = desired.get(key);
+    if (cur) { cur.qty += qty; cur.amount += amount; }
+    else desired.set(key, { label, qty, amount });
   }
 
-  const existRes = await pool.query<{ id: number; label: string; quantity: number; amount_fils: number }>(
-    `SELECT id, label, quantity, amount_fils FROM event_services
-      WHERE event_id = $1 AND source = 'converted'`,
-    [eventId],
-  );
   const added: string[] = [];
   const updated: string[] = [];
   const removed: string[] = [];
-  const seen = new Set<string>();
 
-  for (const row of existRes.rows) {
-    const key = String(row.label ?? '').trim().toLowerCase();
-    const want = desired.get(key);
-    if (!want) {
-      await pool.query(`DELETE FROM event_services WHERE id = $1`, [row.id]);
-      removed.push(row.label);
-      continue;
-    }
-    seen.add(key);
-    if (Number(row.quantity) !== want.qty || Number(row.amount_fils) !== want.amount) {
-      await pool.query(`UPDATE event_services SET quantity = $2, amount_fils = $3 WHERE id = $1`,
-        [row.id, want.qty, want.amount]);
-      updated.push(want.label);
-    }
-  }
-  for (const [key, want] of desired) {
-    if (seen.has(key)) continue;
-    await pool.query(
-      `INSERT INTO event_services (event_id, service_id, label, quantity, amount_fils, source, order_id)
-       VALUES ($1,NULL,$2,$3,$4,'converted',$5)`,
-      [eventId, want.label, want.qty, want.amount, orderId],
+  await withTransaction(async (db) => {
+    const existRes = await db.query<{ id: number; label: string; quantity: number; amount_fils: number }>(
+      `SELECT id, label, quantity, amount_fils FROM event_services
+        WHERE event_id = $1 AND source = 'converted' ORDER BY id`,
+      [eventId],
     );
-    added.push(want.label);
-  }
+    const seen = new Set<string>();
+    for (const row of existRes.rows) {
+      const key = String(row.label ?? '').trim().toLowerCase();
+      const want = desired.get(key);
+      if (!want) {
+        // No longer on the receipt → drop it.
+        await db.query(`DELETE FROM event_services WHERE id = $1`, [row.id]);
+        removed.push(row.label);
+        continue;
+      }
+      if (seen.has(key)) {
+        // A duplicate 'converted' row for a label we've already reconciled
+        // (ensureEventForReceipt made one row per line) → collapse silently; it
+        // isn't a real removal and doesn't change the prepared service set.
+        await db.query(`DELETE FROM event_services WHERE id = $1`, [row.id]);
+        continue;
+      }
+      seen.add(key);
+      if (Number(row.quantity) !== want.qty || Number(row.amount_fils) !== want.amount) {
+        await db.query(`UPDATE event_services SET quantity = $2, amount_fils = $3 WHERE id = $1`,
+          [row.id, want.qty, want.amount]);
+        updated.push(want.label);
+      }
+    }
+    for (const [key, want] of desired) {
+      if (seen.has(key)) continue;
+      await db.query(
+        `INSERT INTO event_services (event_id, service_id, label, quantity, amount_fils, source, order_id)
+         VALUES ($1,NULL,$2,$3,$4,'converted',$5)`,
+        [eventId, want.label, want.qty, want.amount, orderId],
+      );
+      added.push(want.label);
+    }
+  }).catch((e) => console.error('[finance] receipt-service reconcile failed:', (e as Error).message));
 
-  // Anything the customer paid for that we hadn't prepared → (re)build the prep
-  // tasks so the new service becomes an auto-assigned task and shows on the job.
-  if (added.length || updated.length || removed.length) {
+  // Regenerate prep only when the SET of services changed (a service appeared or
+  // disappeared) — a pure quantity/price correction never changes which tasks
+  // are needed, and regenerating would needlessly reset in-progress prep work.
+  if (added.length || removed.length) {
     await import('./prep.js')
       .then(({ generatePrepTasks }) => generatePrepTasks(eventId))
       .catch((e) => console.error('[finance] receipt-sync prep regen failed:', (e as Error).message));
@@ -691,7 +714,7 @@ export async function syncAllUpcomingReceipts(): Promise<{
   changed: Array<{ eventId: string; date: string; customer: string; added: string[]; updated: string[]; removed: string[] }>;
   unassigned: Array<{ eventId: string; date: string; titles: string[] }>;
 }> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date(Date.now() + 4 * 3_600_000).toISOString().slice(0, 10); // Dubai
   const { rows } = await pool.query<{ id: number; event_id: string; date: string; customer_name: string }>(
     `SELECT r.id, r.event_id, to_char(e.event_date,'YYYY-MM-DD') AS date, r.customer_name
        FROM finance_receipts r
