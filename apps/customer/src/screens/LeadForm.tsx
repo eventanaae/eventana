@@ -12,19 +12,28 @@ import { C, fredoka, Notice, PrimaryButton } from '../ui';
 export function LeadForm({ go, t, customerName }: ScreenProps) {
   const [name, setName] = useState(customerName || '');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const valid = name.trim().length > 0 && phone.replace(/\D/g, '').length >= 7;
+  const valid = name.trim().length > 0 && phone.replace(/\D/g, '').length >= 9;
 
   const submit = async () => {
     if (!valid || busy) return;
     setBusy(true);
     setErr(null);
     try {
-      await api.lead({ name: name.trim(), phone: phone.trim(), message: message.trim() || undefined });
+      const em = email.trim();
+      const res = await api.lead({
+        name: name.trim(),
+        phone: phone.trim(),
+        email: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) ? em : undefined,
+        message: message.trim() || undefined,
+      });
+      setCode(res.code);
       setDone(true);
     } catch {
       setErr(t('lead.error'));
@@ -44,10 +53,19 @@ export function LeadForm({ go, t, customerName }: ScreenProps) {
       <div style={{ padding: '22px 22px 40px', textAlign: 'center', animation: 'rise .35s ease' }}>
         <div style={{ fontSize: 60, marginTop: 24 }}>💛</div>
         <div style={{ ...fredoka(23), marginTop: 10 }}>{t('lead.done')}</div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: C.muted, margin: '10px auto 26px', maxWidth: 320, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.muted, margin: '10px auto 22px', maxWidth: 320, lineHeight: 1.6 }}>
           {t('lead.doneSub')}
         </div>
-        <PrimaryButton onClick={() => go('home')}>{t('lead.backHome')}</PrimaryButton>
+        {code && (
+          <div style={{ margin: '0 auto 26px', maxWidth: 340 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, marginBottom: 8 }}>{t('lead.codeIntro')}</div>
+            <div style={{ display: 'inline-block', background: '#FCEBF3', border: '1.5px dashed ' + C.pink, borderRadius: 14, padding: '14px 30px', fontSize: 22, fontWeight: 800, letterSpacing: 3, color: C.pink }}>
+              {code}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginTop: 8 }}>{t('lead.codeSub')}</div>
+          </div>
+        )}
+        <PrimaryButton onClick={() => go(code ? 'explore' : 'home')}>{code ? t('lead.codeCta') : t('lead.backHome')}</PrimaryButton>
       </div>
     );
   }
@@ -68,6 +86,10 @@ export function LeadForm({ go, t, customerName }: ScreenProps) {
         <div>
           <div style={label}>{t('lead.phone')}</div>
           <input style={inputStyle} type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05x xxx xxxx" maxLength={20} />
+        </div>
+        <div>
+          <div style={label}>{t('lead.email')}</div>
+          <input style={inputStyle} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email.com" maxLength={160} />
         </div>
         <div>
           <div style={label}>{t('lead.message')}</div>

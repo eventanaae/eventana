@@ -294,9 +294,15 @@ export async function captureWebsiteLead(input: {
   message?: string | null;
   eventDate?: string | null;
   emirate?: string | null;
-}): Promise<{ isNew: boolean; phone: string }> {
+}): Promise<{ isNew: boolean; phone: string; welcomeCode: string | null }> {
   // normalizePhone already promotes a leading 0 to the 971 country code.
   const phone = normalizePhone(input.phone);
+  // A welcome discount to nudge the lead into booking — only if the code is
+  // actually live, so we never advertise a code that would be rejected.
+  const codeCheck = await pool
+    .query(`SELECT 1 FROM promo_codes WHERE code='WELCOME10' AND active AND (max_uses IS NULL OR uses < max_uses)`)
+    .catch(() => ({ rowCount: 0 }));
+  const welcomeCode = codeCheck.rowCount ? 'WELCOME10' : null;
   const note = [
     'Website enquiry',
     input.email ? `email: ${input.email}` : '',
@@ -339,18 +345,64 @@ export async function captureWebsiteLead(input: {
     )
     .catch(() => ({ rowCount: 0 }));
   if (ins.rowCount) {
+    const summary = `${input.name.trim() || phone} left their number on the site${input.message ? ` — “${input.message.slice(0, 120)}”` : ''}.`;
+    // Push EVERY owner/manager (not just Marsha) so the owner is notified too.
     try {
       const { rows } = await pool.query<{ id: string }>(
-        `SELECT id FROM team_members WHERE lower(name)='marsha' AND active LIMIT 1`,
+        `SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`,
       );
-      if (rows[0]) {
-        const { pushToOwner } = await import('../integrations/push.js');
-        await pushToOwner('staff', rows[0].id, '🌐 New website enquiry',
-          `${input.name.trim() || phone} left their number on the site — follow up.`).catch(() => {});
+      const { pushToOwner } = await import('../integrations/push.js');
+      for (const r of rows) {
+        await pushToOwner('staff', r.id, '🌐 New website enquiry', summary).catch(() => {});
       }
     } catch { /* push best-effort */ }
+    // Email the team the lead, and email the visitor their welcome code.
+    try {
+      const { emailEnabled, sendEmail } = await import('../integrations/email.js');
+      if (emailEnabled()) {
+        const teamEmails = (await pool.query<{ email: string }>(
+          `SELECT email FROM team_members WHERE active AND access_level IN ('owner','manager') AND COALESCE(btrim(email),'') <> ''`,
+        )).rows.map((r) => r.email);
+        const teamHtml = leadTeamEmailHtml({ name: input.name.trim(), phone, email: input.email ?? null, message: input.message ?? null, emirate: input.emirate ?? null });
+        for (const to of teamEmails) {
+          await sendEmail({ to, subject: `🌐 New website lead — ${input.name.trim() || phone}`, html: teamHtml }).catch(() => {});
+        }
+        if (input.email && welcomeCode) {
+          await sendEmail({ to: input.email, subject: 'Welcome to Eventana 💛 — 10% off your first party', html: leadWelcomeEmailHtml(input.name.trim(), welcomeCode) }).catch(() => {});
+        }
+      }
+    } catch { /* email best-effort */ }
   }
-  return { isNew, phone };
+  return { isNew, phone, welcomeCode };
+}
+
+/** Internal email to the team when a website lead lands. */
+function leadTeamEmailHtml(l: { name: string; phone: string; email: string | null; message: string | null; emirate: string | null }): string {
+  const row = (k: string, v: string) => `<tr><td style="padding:4px 12px 4px 0;color:#8b6c7a;font-weight:600">${k}</td><td style="padding:4px 0;font-weight:700;color:#3A2A33">${v}</td></tr>`;
+  return `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;padding:22px;color:#3A2A33">
+    <div style="font-size:20px;font-weight:800;color:#D6317F">🌐 New website lead</div>
+    <p style="font-size:14px;color:#8b6c7a;margin:8px 0 14px">Someone left their number on the site — reach out soon.</p>
+    <table style="font-size:14px">
+      ${row('Name', l.name || '—')}
+      ${row('Phone', `<a href="https://wa.me/${l.phone}" style="color:#D6317F">${l.phone}</a>`)}
+      ${l.email ? row('Email', l.email) : ''}
+      ${l.emirate ? row('Emirate', l.emirate) : ''}
+      ${l.message ? row('Message', l.message) : ''}
+    </table>
+    <p style="font-size:12px;color:#8b6c7a;margin-top:16px">Open the Leads screen in the dashboard to follow up.</p>
+  </div>`;
+}
+
+/** Welcome email to the visitor, with the discount code. */
+function leadWelcomeEmailHtml(name: string, code: string): string {
+  const first = (name || '').trim().split(/\s+/)[0] || 'there';
+  return `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#3A2A33;text-align:center">
+    <div style="font-size:24px;font-weight:800;color:#D6317F">Eventana</div>
+    <h2 style="font-size:20px;margin:14px 0 6px">Hi ${first} 💛</h2>
+    <p style="font-size:15px;line-height:1.6;color:#5a4650;margin:0 0 18px">Thank you for reaching out! Here's <b>10% off</b> your first celebration to get you started 🎉</p>
+    <div style="display:inline-block;background:#FCEBF3;border:1.5px dashed #D6317F;border-radius:14px;padding:14px 26px;font-size:22px;font-weight:800;letter-spacing:2px;color:#D6317F">${code}</div>
+    <p style="font-size:13.5px;color:#8b6c7a;margin:18px 0 0">Enter it at checkout in the Eventana app. Our team will also reach out to help you plan 🤍</p>
+  </div>`;
 }
 
 /** Records a message this system sent, so the lead history stays complete. */

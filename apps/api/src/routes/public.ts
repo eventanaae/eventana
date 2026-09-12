@@ -867,11 +867,11 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     try {
       const { captureWebsiteLead } = await import('../domain/whatsappLeads.js');
-      await captureWebsiteLead(p.data);
+      const r = await captureWebsiteLead(p.data);
+      return { ok: true, code: r.welcomeCode };
     } catch {
       return reply.status(500).send({ error: 'lead_failed' });
     }
-    return { ok: true };
   });
 
   /* --------------- Guest feedback (no account, signed link) --------------- */

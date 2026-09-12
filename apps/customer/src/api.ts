@@ -418,8 +418,8 @@ export const api = {
     ),
 
   /** Website lead capture — a visitor leaves their number for a callback. */
-  lead: (input: { name: string; phone: string; message?: string; emirate?: string }) =>
-    request<{ ok: true }>('/api/lead', { method: 'POST', body: JSON.stringify(input) }),
+  lead: (input: { name: string; phone: string; email?: string; message?: string; emirate?: string }) =>
+    request<{ ok: true; code: string | null }>('/api/lead', { method: 'POST', body: JSON.stringify(input) }),
 
   plan: (body: { celebrationType: string; childrenCount: number; budgetFils?: number | null; age?: string }) =>
     request<{
