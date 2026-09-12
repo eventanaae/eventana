@@ -4580,9 +4580,10 @@ export async function adminRoutes(app: FastifyInstance) {
     const staff = (request as any).staff as { role?: string };
     const isMgr = staff.role === 'owner' || staff.role === 'manager';
     if (!isMgr) return { birthdays: [], offToday: [], alerts: [] };
-    const [bdays, off, evToday, atRisk, unpaid] = await Promise.all([
+    const { offTodayNames } = await import('../domain/dayOff.js');
+    const [bdays, offNames, evToday, atRisk, unpaid] = await Promise.all([
       pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD') ORDER BY name`),
-      pool.query(`SELECT DISTINCT tm.name FROM staff_days_off d JOIN team_members tm ON tm.id=d.member_id WHERE d.status='approved' AND tm.active AND CURRENT_DATE BETWEEN d.start_date AND d.end_date ORDER BY tm.name`),
+      offTodayNames(),
       pool.query(`SELECT COUNT(*)::int n FROM events WHERE phase<>'Cancelled' AND event_date=CURRENT_DATE`),
       pool.query(`SELECT COUNT(DISTINCT e.id)::int n FROM events e
                    WHERE e.phase<>'Cancelled' AND e.event_date BETWEEN CURRENT_DATE AND CURRENT_DATE+3
@@ -4599,7 +4600,7 @@ export async function adminRoutes(app: FastifyInstance) {
     if (upN > 0) alerts.push({ level: 'high', icon: '💰', text: `AED ${formatAed(Number(unpaid.rows[0].v))} across ${upN} pay-link${upN > 1 ? 's' : ''} still awaiting payment.` });
     return {
       birthdays: bdays.rows.map((r) => r.name),
-      offToday: off.rows.map((r) => r.name),
+      offToday: offNames,
       alerts,
     };
   });
@@ -4711,22 +4712,22 @@ export async function adminRoutes(app: FastifyInstance) {
       items.push({ id: `gf-${b.id}`, level: 'info', icon: '🌟', title: 'Great customer feedback!', text: `${p.names || 'The crew'} earned a reward${p.feedback ? ` · "${String(p.feedback).slice(0, 60)}"` : ''}`, eventId: b.event_id, at: b.created_at });
     }
 
-    // Everyone sees today's team birthdays and who is off today.
-    const [birthdays, offToday] = await Promise.all([
+    // Everyone sees today's team birthdays and who is off today (recurring weekly
+    // rest day OR approved leave — see offTodayNames).
+    const { offTodayNames } = await import('../domain/dayOff.js');
+    const [birthdays, offNames] = await Promise.all([
       pool.query(`SELECT name FROM team_members
                    WHERE active AND birthday IS NOT NULL
                      AND to_char(birthday,'MM-DD') = to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD') ORDER BY name`),
-      pool.query(`SELECT DISTINCT tm.name FROM staff_days_off d JOIN team_members tm ON tm.id = d.member_id
-                   WHERE d.status='approved' AND tm.active
-                     AND CURRENT_DATE BETWEEN d.start_date AND d.end_date ORDER BY tm.name`),
+      offTodayNames(),
     ]);
     const todayIso = new Date().toISOString();
     for (const b of birthdays.rows) {
       items.push({ id: `bd-${b.name}-${todayIso.slice(0, 10)}`, level: 'info', icon: '🎂', title: `It's ${b.name}'s birthday today!`, text: 'Wish them a happy birthday from the Eventana family 💕', at: todayIso });
     }
-    if (offToday.rows.length) {
-      const names = offToday.rows.map((r) => r.name).join(', ');
-      items.push({ id: `off-${todayIso.slice(0, 10)}`, level: 'info', icon: '🌴', title: 'Off today', text: `${names} ${offToday.rows.length === 1 ? 'is' : 'are'} on a day off today`, at: todayIso });
+    if (offNames.length) {
+      const names = offNames.join(', ');
+      items.push({ id: `off-${todayIso.slice(0, 10)}`, level: 'info', icon: '🌴', title: 'Off today', text: `${names} ${offNames.length === 1 ? 'is' : 'are'} off today`, at: todayIso });
     }
 
     // Owner/manager: a team member activated their login (set their password).

@@ -56,6 +56,31 @@ export async function cancelDayOffChange(id: number, memberId: string): Promise<
   return { ok: true };
 }
 
+/**
+ * Names of everyone who is off TODAY — whether on their recurring weekly rest
+ * day (team_members.weekly_day_off, matched against today's Dubai weekday) or on
+ * an approved annual-leave / day-off range covering today (staff_days_off). One
+ * de-duplicated, alphabetical list, used by the morning brief and the team-wide
+ * "Latest updates" feed so "who's off today" is complete, not just leave.
+ */
+export async function offTodayNames(): Promise<string[]> {
+  const { rows } = await pool.query<{ name: string }>(
+    `SELECT DISTINCT tm.name
+       FROM team_members tm
+      WHERE tm.active
+        AND (
+          tm.weekly_day_off = EXTRACT(DOW FROM (now() AT TIME ZONE 'Asia/Dubai')::date)::int
+          OR EXISTS (
+            SELECT 1 FROM staff_days_off d
+             WHERE d.member_id = tm.id AND d.status = 'approved'
+               AND (now() AT TIME ZONE 'Asia/Dubai')::date BETWEEN d.start_date AND d.end_date
+          )
+        )
+      ORDER BY tm.name`,
+  );
+  return rows.map((r) => r.name);
+}
+
 /** Owner/manager (+ Marsha): every change request, pending first. */
 export async function listDayOffChanges(): Promise<any[]> {
   const { rows } = await pool.query(
