@@ -104,6 +104,23 @@ async function aiAnswer(question: string, ar: boolean): Promise<string | null> {
 }
 
 /**
+ * Cap Claude replies per phone per hour so a chatty or malicious sender can't run
+ * up the Anthropic bill — over budget, the deterministic rule-based reply is used
+ * instead (the customer still gets an answer, just not an AI-written one).
+ */
+async function aiWithinBudget(phone: string): Promise<boolean> {
+  const res = await pool
+    .query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM whatsapp_messages
+        WHERE phone = $1 AND direction = 'out' AND sent_by = 'agent'
+          AND created_at > now() - interval '1 hour'`,
+      [phone],
+    )
+    .catch(() => ({ rows: [{ n: 0 }] }));
+  return (res.rows[0]?.n ?? 0) < 15;
+}
+
+/**
  * Wire the WhatsApp hand-off to the OWNER — previously the customer got a polite
  * "our team will reply" but nobody was told. Now a dashboard ops-alert is raised
  * and Marsha gets a push, so a real person actually picks it up.
@@ -192,8 +209,9 @@ export async function respondToLead(
   }
 
   // Not sensitive: answer with Claude off the live catalogue when the key is
-  // configured, otherwise the deterministic rule-based reply.
-  const ai = await aiAnswer(msg.text, ar);
+  // configured AND this phone is within its hourly AI budget; otherwise the
+  // deterministic rule-based reply.
+  const ai = (await aiWithinBudget(msg.phone)) ? await aiAnswer(msg.text, ar) : null;
   return send(msg.phone, ai ?? answer.reply);
 }
 

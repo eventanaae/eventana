@@ -289,12 +289,22 @@ export async function recordOutboundMessage(args: {
   messageId?: string | null;
   sentBy: 'agent' | 'staff';
 }): Promise<void> {
+  const phone = normalizePhone(args.phone);
   await pool.query(
     `INSERT INTO whatsapp_messages (phone, wa_message_id, direction, body, sent_by)
      VALUES ($1,$2,'out',$3,$4)
      ON CONFLICT (wa_message_id) DO NOTHING`,
-    [normalizePhone(args.phone), args.messageId ?? null, args.body, args.sentBy],
+    [phone, args.messageId ?? null, args.body, args.sentBy],
   );
+  // A HUMAN reply resolves any open "WhatsApp needs your reply" ops-alert for this
+  // customer, so the bell doesn't keep showing a handoff the team already handled.
+  if (args.sentBy === 'staff') {
+    await pool.query(
+      `UPDATE notifications SET cancelled_at = now()
+        WHERE template = 'whatsapp_handoff' AND cancelled_at IS NULL AND (payload->>'phone') = $1`,
+      [phone],
+    ).catch(() => {});
+  }
 }
 
 /**
