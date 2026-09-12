@@ -4733,6 +4733,23 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/refunds', async (request) => {
     const staff = (request as any).staff as { role?: string };
     const money = staff?.role === 'owner' || staff?.role === 'manager';
+    // Totals are a TRUE aggregate over ALL refunds (not the 200-row display list
+    // below) — the owner acts on the loss figure, so it must never silently cap.
+    const agg = await pool.query<{ reason_category: string; n: string; fils: string }>(
+      `SELECT reason_category, COUNT(*)::int AS n, COALESCE(SUM(amount_fils),0)::bigint AS fils
+         FROM refunds GROUP BY reason_category`,
+    );
+    // Split the money two ways the owner cares about: refunds the CUSTOMER asked
+    // for (normal cost of business) vs refunds caused by OUR work quality or a
+    // missing item — money we lose on top of the work already done.
+    const OUR_FAULT = new Set(['quality_issue', 'missing_item']);
+    let ourLossFils = 0, ourLossN = 0, customerFils = 0, customerN = 0;
+    for (const a of agg.rows) {
+      const fils = Number(a.fils), n = Number(a.n);
+      if (OUR_FAULT.has(a.reason_category)) { ourLossFils += fils; ourLossN += n; }
+      else { customerFils += fils; customerN += n; }
+    }
+    // Recent refunds for the detail list (capped for display only).
     const { rows } = await pool.query(
       `SELECT r.id, r.order_id, r.event_id, r.amount_fils, r.reason_category, r.reason_note,
               r.event_cancelled, r.created_by, to_char(r.created_at,'YYYY-MM-DD') AS created,
@@ -4740,20 +4757,10 @@ export async function adminRoutes(app: FastifyInstance) {
          FROM refunds r LEFT JOIN customers c ON c.id = r.customer_id
         ORDER BY r.created_at DESC LIMIT 200`,
     );
-    const byReason: Record<string, { n: number; fils: number }> = {};
-    for (const r of rows) { (byReason[r.reason_category] ??= { n: 0, fils: 0 }); byReason[r.reason_category].n++; byReason[r.reason_category].fils += Number(r.amount_fils); }
-    // Split the money two ways the owner cares about: refunds the CUSTOMER asked
-    // for (normal cost of business) vs refunds caused by OUR work quality or a
-    // missing item — money we lose on top of the work already done.
-    const OUR_FAULT = new Set(['quality_issue', 'missing_item']);
-    let ourLossFils = 0, ourLossN = 0, customerFils = 0, customerN = 0;
-    for (const r of rows) {
-      const amt = Number(r.amount_fils);
-      if (OUR_FAULT.has(r.reason_category)) { ourLossFils += amt; ourLossN++; }
-      else { customerFils += amt; customerN++; }
-    }
     return {
-      byReason: Object.entries(byReason).map(([k, v]) => ({ reason: k, n: v.n, fils: v.fils, display: formatAed(v.fils) })),
+      byReason: agg.rows
+        .map((a) => ({ reason: a.reason_category, n: Number(a.n), fils: Number(a.fils), display: formatAed(Number(a.fils)) }))
+        .sort((x, y) => y.fils - x.fils),
       summary: {
         ourLoss: { n: ourLossN, fils: ourLossFils, display: formatAed(ourLossFils) },
         customer: { n: customerN, fils: customerFils, display: formatAed(customerFils) },

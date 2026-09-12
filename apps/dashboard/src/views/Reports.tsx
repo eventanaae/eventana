@@ -92,9 +92,9 @@ function Refunds() {
             <div style={{ fontSize: 11.5, fontWeight: 700, color: C.red, opacity: .8 }}>{s.ourLoss.n} refund{s.ourLoss.n === 1 ? '' : 's'} from our work quality / missing items</div>
           </div>
           <div style={{ flex: 1, minWidth: 200, background: C.lineSoft, borderRadius: 16, padding: '14px 16px' }}>
-            <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted2, letterSpacing: '.4px' }}>CUSTOMER REQUESTED</div>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted2, letterSpacing: '.4px' }}>CUSTOMER &amp; OTHER</div>
             <div style={{ ...fredoka(22), color: C.ink, marginTop: 3 }}>AED {s.customer.display}</div>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2 }}>{s.customer.n} refund{s.customer.n === 1 ? '' : 's'} the customer asked for</div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2 }}>{s.customer.n} refund{s.customer.n === 1 ? '' : 's'} — customer requests &amp; other reasons</div>
           </div>
         </div>
       )}
