@@ -46,6 +46,7 @@ export function Ceo() {
   const [error, setError] = useState<string | null>(null);
 
   const range = useMemo(() => presetRange(preset), [preset]);
+  const periodLabel = PRESETS.find((p) => p.id === preset)?.label ?? 'this period';
 
   useEffect(() => {
     setLoading(true);
@@ -103,54 +104,74 @@ export function Ceo() {
           {/* Website funnel: visitors → registered → booked */}
           {funnel && <WebFunnel f={funnel} />}
 
-          {/* This year — actual P&L: QuickBooks history + live sales/expenses since */}
-          {data.business?.latestYear && (() => {
-            const y = data.business.latestYear;
-            const expFils = Number(y.revenueFils) - Number(y.netFils);
-            const asOf = y.asOf ? new Date(y.asOf).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : null;
-            return (
-              <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
-                <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.mint})` }} />
-                <div style={{ padding: '16px 20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 14 }}>
-                    <div style={fredoka(15)}>📊 This year · {y.year}</div>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.green }}>● Live{asOf ? ` · ${asOf}` : ''}</div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
-                    <HeroKpi label="Revenue YTD" value={`AED ${y.revenueDisplay}`} accent={C.pink} />
-                    <HeroKpi label={Number(y.netFils) < 0 ? 'Net loss YTD' : 'Net profit YTD'} value={`AED ${y.netDisplay}`} caption={`${y.marginPct}% margin`} accent={Number(y.netFils) < 0 ? C.red : C.green} />
-                    <HeroKpi label="Expenses YTD" value={`AED ${money(expFils)}`} accent={C.yellow} />
-                    <HeroKpi label="Upcoming events" value={String(data.pipeline?.events ?? 0)} caption={`${data.business.customers} customers`} accent={C.mint} />
-                  </div>
-                  {(data.business.years ?? []).length > 1 && <YearBars years={data.business.years} />}
-                </div>
+          {/* 1) Money in your account NOW — a fixed "right now" figure, not filtered */}
+          {data.cash?.cashOnHandDisplay != null && (
+            <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+              <div style={{ height: 5, background: `linear-gradient(90deg,${C.mint},${C.green})` }} />
+              <div style={{ padding: '16px 20px' }}>
+                <div style={{ ...fredoka(15), marginBottom: 6 }}>💰 Your money now</div>
+                <div style={{ ...fredoka(30), color: C.green }}>AED {data.cash.cashOnHandDisplay}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 12 }}>total in your account right now</div>
+                <MiniRow label="Available after commitments" value={`AED ${data.cash.availableDisplay}`} sub="cash + money owed to you − refunds still to pay" tone={C.ink} />
+                <MiniRow label="Money still owed to you" value={`AED ${data.cash.expectedInDisplay}`} sub="unpaid invoices + orders not yet paid" tone={C.green} />
+                <MiniRow label="Refunds still to pay" value={`AED ${data.cash.upcomingRefundsDisplay}`} tone={C.muted2} last />
               </div>
-            );
-          })()}
+            </div>
+          )}
 
-          {/* Cash · pipeline · funnel */}
+          {/* 2) FOR THE SELECTED PERIOD — these change when you change the filter above */}
+          <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+            <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.mint})` }} />
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ ...fredoka(15), marginBottom: 12 }}>📊 For {periodLabel.toLowerCase()}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
+                <HeroKpi label="Income" value={`AED ${data.revenueDisplay}`} accent={C.pink} />
+                <HeroKpi label="Expenses" value={`AED ${data.expensesDisplay}`} accent={C.yellow} />
+                <HeroKpi label={data.profitNegative ? 'Net loss' : 'Net profit'} value={`AED ${data.profitDisplay}`} caption={`${data.marginPct}% margin`} accent={data.profitNegative ? C.red : C.green} />
+                <HeroKpi label="Bookings" value={String(data.bookings)} caption={`AED ${data.aovDisplay} avg`} accent={C.mint} />
+              </div>
+            </div>
+          </div>
+
+          {/* 3) Refunds for the period — customer request vs OUR quality (a real loss) */}
+          <Panel title={`💸 Refunds · ${periodLabel.toLowerCase()}`}>
+            <MiniRow label="Total refunded" value={`AED ${data.refundDisplay}`} sub={`${data.cancelled} cancelled · ${data.cancelRatePct}% cancel rate`} tone={C.ink} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <div style={{ flex: 1, background: C.redSoft, borderRadius: 12, padding: '10px 13px' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: C.red, letterSpacing: '.3px' }}>OUR QUALITY — LOSS</div>
+                <div style={{ ...fredoka(17), color: C.red }}>AED {data.refundQualityDisplay ?? '0'}</div>
+              </div>
+              <div style={{ flex: 1, background: C.lineSoft, borderRadius: 12, padding: '10px 13px' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: C.muted2, letterSpacing: '.3px' }}>CUSTOMER ASKED</div>
+                <div style={{ ...fredoka(17), color: C.ink }}>AED {data.refundCustomerDisplay ?? '0'}</div>
+              </div>
+            </div>
+            {(data.cancelReasons ?? []).length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.4px', color: C.muted, marginBottom: 5 }}>TOP CANCEL REASONS</div>
+                {data.cancelReasons.map((r: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: C.muted2, padding: '3px 0' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason}</span>
+                    <span style={{ fontWeight: 800 }}>{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+
+          {/* 4) Top 3 for the period — most-requested emirates & themes, biggest expenses */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+            <Top3Orders title="🏆 Top emirates" rows={data.byEmirate} />
+            <Top3Orders title="🎨 Top themes" rows={data.byTheme} />
+            <Top3Expenses rows={data.byCategory} />
+          </div>
+
+          {/* Pipeline · sales funnel */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
-            <Panel title="Cash position">
-              {data.cash?.cashOnHandDisplay != null ? (
-                <>
-                  <div style={{ ...fredoka(24), color: C.green }}>AED {data.cash.availableDisplay}</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 8 }}>available after upcoming commitments</div>
-                  <MiniRow label="Cash on hand" value={`AED ${data.cash.cashOnHandDisplay}`} tone={C.ink} />
-                  <MiniRow label="Expected incoming" value={`AED ${data.cash.expectedInDisplay}`} sub="A/R + unsettled orders" tone={C.green} />
-                  <MiniRow label="Upcoming refunds" value={`AED ${data.cash.upcomingRefundsDisplay}`} tone={C.muted2} last />
-                </>
-              ) : (
-                <>
-                  <MiniRow label="Collected (paid)" value={`AED ${data.collectedDisplay}`} tone={C.green} />
-                  <MiniRow label="Outstanding" value={`AED ${data.outstandingDisplay}`} sub={`${data.outstandingCount} order(s)`} tone={data.outstandingCount > 0 ? C.yellowInk : C.muted} />
-                  <MiniRow label="Expenses" value={`AED ${data.expensesDisplay}`} tone={C.muted2} last />
-                </>
-              )}
-            </Panel>
             <Panel title="Pipeline (upcoming)">
               <div style={{ ...fredoka(28), color: C.pinkDeep }}>AED {data.pipeline?.revenueDisplay ?? '0'}</div>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, marginTop: 2 }}>{data.pipeline?.events ?? 0} confirmed event(s) ahead</div>
-              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ marginTop: 14 }}>
                 <MiniRow label="Repeat customers" value={`${data.repeatRatePct}%`} sub={`${data.repeatCustomers} of ${data.totalCustomers}`} tone={C.pinkDeep} last />
               </div>
             </Panel>
@@ -159,31 +180,72 @@ export function Ceo() {
             </Panel>
           </div>
 
-          {/* Cancellations & refunds (kept — owner will review later) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
-            <Panel title="Cancellations & refunds">
-              <MiniRow label="Cancellation rate" value={`${data.cancelRatePct}%`} sub={`${data.cancelled} cancelled`} tone={data.cancelRatePct > 15 ? C.red : C.ink} />
-              <MiniRow label="Total refunded" value={`AED ${data.refundDisplay}`} tone={C.muted2} last={(data.cancelReasons ?? []).length === 0} />
-              {(data.cancelReasons ?? []).length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.4px', color: C.muted, marginBottom: 5 }}>TOP REASONS</div>
-                  {data.cancelReasons.map((r: any, i: number) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: C.muted2, padding: '3px 0' }}>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reason}</span>
-                      <span style={{ fontWeight: 800 }}>{r.count}</span>
-                    </div>
-                  ))}
+          {/* Whole-year snapshot (QuickBooks history + live) — NOT affected by the filter */}
+          {data.business?.latestYear && (() => {
+            const y = data.business.latestYear;
+            const expFils = Number(y.revenueFils) - Number(y.netFils);
+            const asOf = y.asOf ? new Date(y.asOf).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : null;
+            return (
+              <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+                <div style={{ height: 5, background: `linear-gradient(90deg,${C.lavender},${C.sky})` }} />
+                <div style={{ padding: '16px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                    <div style={fredoka(15)}>📅 Full year {y.year} · incl. QuickBooks history</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.green }}>● Live{asOf ? ` · ${asOf}` : ''}</div>
+                  </div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>Whole-year total — does not change with the filter above.</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
+                    <HeroKpi label="Revenue" value={`AED ${y.revenueDisplay}`} accent={C.pink} />
+                    <HeroKpi label={Number(y.netFils) < 0 ? 'Net loss' : 'Net profit'} value={`AED ${y.netDisplay}`} caption={`${y.marginPct}% margin`} accent={Number(y.netFils) < 0 ? C.red : C.green} />
+                    <HeroKpi label="Expenses" value={`AED ${money(expFils)}`} accent={C.yellow} />
+                    <HeroKpi label="Customers" value={String(data.business.customers)} accent={C.mint} />
+                  </div>
+                  {(data.business.years ?? []).length > 1 && <YearBars years={data.business.years} />}
                 </div>
-              )}
-            </Panel>
-          </div>
+              </div>
+            );
+          })()}
 
           <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textAlign: 'center', lineHeight: 1.6, padding: '4px 8px' }}>
-            Per-package profit &amp; margin, ad spend / ROAS, and year-over-year comparison need cost &amp; ad-spend data that isn't captured yet — shown as “Not enough data yet” rather than estimated.
+            Per-package profit &amp; margin, ad spend / ROAS, and year-over-year need cost &amp; ad-spend data that isn't captured yet.
           </div>
         </>
       )}
     </div>
+  );
+}
+
+/** Top-3 dimensions by number of orders (what's most requested), with revenue as context. */
+function Top3Orders({ title, rows }: { title: string; rows: any[] }) {
+  const top = [...(rows ?? [])].sort((a, b) => (Number(b.bookings) || 0) - (Number(a.bookings) || 0)).slice(0, 3);
+  return (
+    <Panel title={title}>
+      {top.length === 0 ? (
+        <div style={{ color: C.muted, fontWeight: 600, fontSize: 12.5 }}>No orders in this period.</div>
+      ) : top.map((r, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '9px 0', borderBottom: i < top.length - 1 ? `1px solid ${C.lineSoft}` : 'none' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {r.label}</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, flex: 'none' }}>{r.bookings} order{Number(r.bookings) === 1 ? '' : 's'}<span style={{ color: C.muted, fontWeight: 600 }}> · AED {r.revenueDisplay}</span></span>
+        </div>
+      ))}
+    </Panel>
+  );
+}
+
+/** Top-3 expense accounts by amount spent this period. */
+function Top3Expenses({ rows }: { rows: any[] }) {
+  const top = [...(rows ?? [])].slice(0, 3); // the API returns these amount-descending
+  return (
+    <Panel title="🧾 Top expenses">
+      {top.length === 0 ? (
+        <div style={{ color: C.muted, fontWeight: 600, fontSize: 12.5 }}>No expenses in this period.</div>
+      ) : top.map((r, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '9px 0', borderBottom: i < top.length - 1 ? `1px solid ${C.lineSoft}` : 'none' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {r.category}</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: C.yellowInk, flex: 'none' }}>AED {r.amountDisplay}</span>
+        </div>
+      ))}
+    </Panel>
   );
 }
 

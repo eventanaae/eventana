@@ -3329,6 +3329,19 @@ export async function adminRoutes(app: FastifyInstance) {
     const expenses = Number(expRow.rows[0].v);
     const profit = revenue - expenses;
     const refundFils = Number(refundRow.rows[0].v);
+    // Split the period's refunds the way the owner reviews them: money we lost to
+    // OUR quality (quality issue / missing item) vs refunds the customer asked for.
+    // The refunds ledger only exists from the 1 Sep 2026 launch, so this is
+    // naturally "since the system started".
+    const refundSplitRow = await pool.query(
+      `SELECT COALESCE(SUM(r.amount_fils) FILTER (WHERE r.reason_category IN ('quality_issue','missing_item')),0)::bigint quality,
+              COALESCE(SUM(r.amount_fils) FILTER (WHERE r.reason_category NOT IN ('quality_issue','missing_item')),0)::bigint customer
+         FROM refunds r JOIN events e ON e.id = r.event_id
+        WHERE e.event_date >= $1 AND e.event_date < $2 ${F}`,
+      params,
+    ).catch(() => ({ rows: [{ quality: '0', customer: '0' }] }));
+    const refundQualityFils = Number(refundSplitRow.rows[0].quality);
+    const refundCustomerFils = Number(refundSplitRow.rows[0].customer);
     const prevRevenue = Number(prevRow.rows[0].revenue);
     const prevBookings = Number(prevRow.rows[0].bookings);
     const pct = (curr: number, prev: number) => (prev > 0 ? Math.round(((curr - prev) / prev) * 1000) / 10 : null);
@@ -3550,6 +3563,8 @@ export async function adminRoutes(app: FastifyInstance) {
       bookings, aovFils: aov, aovDisplay: formatAed(aov),
       confirmed: bookings, cancelled: cancelledCount, cancelRatePct,
       refundFils, refundDisplay: formatAed(refundFils),
+      refundQualityFils, refundQualityDisplay: formatAed(refundQualityFils),
+      refundCustomerFils, refundCustomerDisplay: formatAed(refundCustomerFils),
       expensesFils: expenses, expensesDisplay: formatAed(expenses),
       profitFils: profit, profitDisplay: formatAed(Math.abs(profit)), profitNegative: profit < 0,
       marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
