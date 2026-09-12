@@ -357,6 +357,11 @@ export const api = {
     }),
   reinstateEvent: (id: string) =>
     request<any>(`/api/admin/events/${id}/reinstate`, { method: 'POST' }),
+  addEventExtra: (id: string, label: string, quantity?: number, note?: string) =>
+    request<{ ok: boolean; assigned: boolean }>(`/api/admin/events/${id}/extra`, {
+      method: 'POST',
+      body: JSON.stringify({ label, quantity, note }),
+    }),
   setChat: (id: string, open: boolean) =>
     request<any>(`/api/admin/events/${id}/chat`, { method: 'POST', body: JSON.stringify({ open }) }),
 

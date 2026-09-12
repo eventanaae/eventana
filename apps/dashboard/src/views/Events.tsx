@@ -173,6 +173,9 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
   const [refundCancelEvent, setRefundCancelEvent] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelCategory, setCancelCategory] = useState<'customer_cancellation' | 'quality_issue' | 'other'>('customer_cancellation');
+  const [extraLabel, setExtraLabel] = useState('');
+  const [extraQty, setExtraQty] = useState('');
+  const [extraBusy, setExtraBusy] = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [uploadingRef, setUploadingRef] = useState(false);
@@ -514,6 +517,46 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   </>
                 )}
               </Panel>
+
+              {!isDriver && (
+                <Panel title="➕ Customer extra / request">
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.55 }}>
+                    Anything the customer asks for after booking (extra tables &amp; chairs, an add-on, a change). It's added to the
+                    event, becomes a preparation task, and is assigned — or flagged for you to assign if we can't tell who.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <input
+                      placeholder="e.g. 5 extra tables & chairs"
+                      value={extraLabel}
+                      onChange={(e) => setExtraLabel(e.target.value)}
+                      style={{ ...inputStyle, flex: 1, minWidth: 180 }}
+                    />
+                    <input
+                      placeholder="Qty"
+                      value={extraQty}
+                      onChange={(e) => setExtraQty(e.target.value.replace(/[^0-9]/g, ''))}
+                      inputMode="numeric"
+                      style={{ ...inputStyle, width: 70, flex: 'none' }}
+                    />
+                    <Button
+                      disabled={extraBusy || extraLabel.trim().length < 2}
+                      onClick={async () => {
+                        setExtraBusy(true);
+                        try {
+                          const r = await api.addEventExtra(eventId, extraLabel.trim(), extraQty ? Number(extraQty) : undefined);
+                          setExtraLabel(''); setExtraQty('');
+                          setMessage(r.assigned
+                            ? 'Added — a prep task was created and assigned.'
+                            : 'Added — a prep task was created. It needs someone assigned (owner/manager alerted).');
+                          load();
+                        } finally { setExtraBusy(false); }
+                      }}
+                    >
+                      {extraBusy ? 'Adding…' : 'Add'}
+                    </Button>
+                  </div>
+                </Panel>
+              )}
 
               {!isDriver && <Panel title="Reserved inventory">
                 {data.reservations.length === 0 ? (

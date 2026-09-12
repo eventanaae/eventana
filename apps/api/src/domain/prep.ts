@@ -301,6 +301,7 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   await pool.query(`DELETE FROM prep_tasks WHERE event_id = $1 AND status <> 'completed'`, [eventId]);
 
   let created = 0;
+  const unassigned: string[] = []; // tasks nobody qualified could take → escalate
   for (const t of needed) {
     if (completedKeys.has(t.key)) continue; // already done — leave it
     // A physical task that waits on a design task starts as 'waiting_design'
@@ -330,13 +331,118 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
       await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, pick.id]);
       workload.set(pick.id, (workload.get(pick.id) ?? 0) + 1); // keep it fair within this event too
     }
+    // Nobody qualified & available could take this task — don't let it sit silent.
+    if (Math.min(t.people, cands.length) === 0) unassigned.push(t.title);
   }
 
   await pool.query(
     `INSERT INTO prep_task_log (event_id, action, detail, actor) VALUES ($1,'generated',$2,'system')`,
     [eventId, `Generated ${created} prep task(s)`],
   );
+  // The owner's rule: if the system can't assign it, ASK — a home-page alert +
+  // a push to the owner/managers so they pick who does it, never a silent drop.
+  if (unassigned.length) await alertUnassignedPrep(eventId, ev.date, unassigned);
   return { eventId, created };
+}
+
+/**
+ * Escalate prep the system couldn't put anyone on: raise a standing ops-alert
+ * (shown on the dashboard bell + home) and push the owner/managers to assign it.
+ * Deduped per event so a regenerate doesn't spam.
+ */
+async function alertUnassignedPrep(eventId: string, date: string, titles: string[]): Promise<void> {
+  try {
+    await pool.query(
+      `DELETE FROM notifications WHERE channel='ops_alert' AND template='prep_unassigned'
+        AND (payload->>'eventId') = $1 AND cancelled_at IS NULL`, [eventId]).catch(() => {});
+    await pool.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       VALUES ($1,'ops_alert','prep_unassigned', now(), $2)`,
+      [eventId, JSON.stringify({ eventId, date, titles: titles.slice(0, 8), count: titles.length })]).catch(() => {});
+    const { pushToOwner } = await import('../integrations/push.js');
+    const mgrs = await pool.query<{ id: string }>(
+      `SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`);
+    const body = `${titles.length} prep task(s) for the ${date} event have no one assigned — open the event and pick who does them.`;
+    for (const m of mgrs.rows) void pushToOwner('staff', m.id, '⚠️ Prep needs assigning', body, { eventId });
+  } catch (err) {
+    console.error('[prep] unassigned alert failed:', (err as Error).message);
+  }
+}
+
+/** Skill best-guess for a free-typed customer extra. null → leave unassigned. */
+function guessSkill(label: string): string | null {
+  const s = label.toLowerCase();
+  if (/table|chair|seat/.test(s)) return 'tables_chairs';
+  if (/backdrop/.test(s)) return 'backdrop';
+  if (/balloon/.test(s)) return 'balloons';
+  if (/popcorn/.test(s)) return 'popcorn';
+  if (/cotton\s*candy/.test(s)) return 'cotton_candy';
+  if (/food|station|chocolate|slush|corn|candy|ice\s*cream|fountain/.test(s)) return 'food_station';
+  if (/face\s*paint/.test(s)) return 'face_painting_prep';
+  if (/entrance|welcom/.test(s)) return 'entrance_stand';
+  if (/inflatable|bounc|castle|slide|foam/.test(s)) return 'inflatable';
+  if (/spa|pedicure|manicure|robe/.test(s)) return 'spa_tables';
+  if (/giveaway/.test(s)) return 'giveaways';
+  if (/cake\s*stand/.test(s)) return 'cake_stand';
+  return null;
+}
+
+/**
+ * Log ANY customer request / extra on an event: record it as a line so it shows
+ * on the event page, create a prep task so it can't be forgotten, assign the
+ * lowest-workload qualified person if we can tell who — otherwise leave it for
+ * the owner/managers and alert them (the owner's rule: ask, never guess/drop).
+ */
+export async function addExtraPrepTask(
+  eventId: string, label: string, opts: { quantity?: number; note?: string; actor?: string },
+): Promise<{ ok: boolean; taskId?: string; assigned: boolean }> {
+  const name = label.trim();
+  if (!name) return { ok: false, assigned: false };
+  const evRes = await pool.query<{ d: string | null }>(`SELECT to_char(event_date,'YYYY-MM-DD') d FROM events WHERE id = $1`, [eventId]);
+  if (!evRes.rows[0]) return { ok: false, assigned: false };
+  const date = evRes.rows[0].d;
+  const qty = Math.max(1, Math.round(opts.quantity ?? 1));
+
+  // 1. Record it as an event line — so it shows in the event's items & is counted.
+  await pool.query(
+    `INSERT INTO event_services (event_id, service_id, label, quantity, amount_fils, source)
+     VALUES ($1, NULL, $2, $3, 0, 'request')`,
+    [eventId, name, qty]);
+
+  // 2. A prep task — so it can never be forgotten.
+  const skill = guessSkill(name);
+  const due = date ? (() => { const dd = new Date(`${date}T00:00:00Z`); dd.setUTCDate(dd.getUTCDate() - PHYSICAL_DUE_DAYS); return dd.toISOString().slice(0, 10); })() : null;
+  const title = `Customer extra: ${name}${qty > 1 ? ` ×${qty}` : ''}`;
+  const key = `extra_${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
+  const ins = await pool.query<{ id: string }>(
+    `INSERT INTO prep_tasks (event_id, key, title, category, skill, people_needed, due_date, status, notes)
+     VALUES ($1,$2,$3,'physical',$4,1,$5,'not_started',$6) RETURNING id`,
+    [eventId, key, title, skill, due, opts.note?.trim() || null]);
+  const taskId = ins.rows[0].id;
+
+  // 3. Assign the lowest-workload qualified person if the item is recognisable.
+  let assigned = false;
+  if (skill) {
+    const staff = await roster();
+    const wlRes = await pool.query<{ member_id: string; c: number }>(
+      `SELECT member_id, count(*)::int c FROM prep_task_staff pts JOIN prep_tasks pt ON pt.id = pts.task_id
+        WHERE pt.status <> 'completed' GROUP BY member_id`);
+    const wl = new Map<string, number>(wlRes.rows.map((r) => [r.member_id, r.c]));
+    const cand = staff.filter((s) => s.skills.has(skill)).sort((a, b) => (wl.get(a.id) ?? 0) - (wl.get(b.id) ?? 0))[0];
+    if (cand) { await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, cand.id]); assigned = true; }
+  }
+  await pool.query(`INSERT INTO prep_task_log (task_id, event_id, action, detail, actor) VALUES ($1,$2,'extra',$3,$4)`, [taskId, eventId, title, opts.actor ?? 'staff']).catch(() => {});
+
+  // 4. Always tell the owner/managers a customer extra came in; alert hard if we
+  //    couldn't assign it.
+  if (assigned) {
+    const { pushToOwner } = await import('../integrations/push.js');
+    const mgrs = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`);
+    for (const m of mgrs.rows) void pushToOwner('staff', m.id, '➕ Customer extra', `${name} added to the ${date ?? ''} event — a prep task was created & assigned.`, { eventId });
+  } else {
+    await alertUnassignedPrep(eventId, date ?? '', [title]);
+  }
+  return { ok: true, taskId, assigned };
 }
 
 async function logTask(taskId: string, eventId: string | null, action: string, detail: string, actor: string) {

@@ -1492,6 +1492,31 @@ export async function adminRoutes(app: FastifyInstance) {
     return result;
   });
 
+  /**
+   * Log a customer request / extra on an event — anything the customer asks for
+   * (e.g. extra tables & chairs). It's recorded as an event line (shows in the
+   * items), a prep task is created so it can't be forgotten, and it's assigned —
+   * or, if the system can't tell who should do it, left for the owner/managers
+   * with an alert. Nothing a customer orders is ever silently dropped.
+   */
+  app.post('/api/admin/events/:eventId/extra', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const schema = z.object({
+      label: z.string().trim().min(2).max(160),
+      quantity: z.number().int().min(1).max(999).optional(),
+      note: z.string().trim().max(500).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', message: 'Describe the extra (2+ chars).' });
+    const { addExtraPrepTask } = await import('../domain/prep.js');
+    const res = await addExtraPrepTask(eventId, parsed.data.label, {
+      quantity: parsed.data.quantity, note: parsed.data.note, actor: String((request as any).staff?.name ?? 'staff'),
+    });
+    if (!res.ok) return reply.status(404).send({ error: 'not_found', message: 'Event not found.' });
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'add_extra', target: eventId, detail: { label: parsed.data.label, assigned: res.assigned } });
+    return { ok: true, assigned: res.assigned };
+  });
+
   /** Undo an accidental cancellation, before anything was refunded. */
   app.post('/api/admin/events/:eventId/reinstate', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
@@ -5021,7 +5046,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const isMgr = staff.role === 'owner' || staff.role === 'manager';
     if (!isMgr) return { birthdays: [], offToday: [], alerts: [] };
     const { offTodayNames } = await import('../domain/dayOff.js');
-    const [bdays, offNames, evToday, atRisk, unpaid] = await Promise.all([
+    const [bdays, offNames, evToday, atRisk, unpaid, unassignedPrep] = await Promise.all([
       pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD') ORDER BY name`),
       offTodayNames(),
       pool.query(`SELECT COUNT(*)::int n FROM events WHERE phase<>'Cancelled' AND event_date=CURRENT_DATE`),
@@ -5030,10 +5055,16 @@ export async function adminRoutes(app: FastifyInstance) {
                      AND EXISTS (SELECT 1 FROM prep_tasks pt WHERE pt.event_id=e.id AND pt.status<>'completed')`),
       pool.query(`SELECT COUNT(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM orders
                    WHERE status IN ('awaiting_payment','processing','needs_review') AND source='manual' AND created_at > now() - interval '10 days'`),
+      // Prep the system couldn't assign — needs a human to pick who does it.
+      pool.query(`SELECT COUNT(*)::int n FROM prep_tasks pt JOIN events e ON e.id=pt.event_id
+                   WHERE pt.status<>'completed' AND e.phase<>'Cancelled' AND e.event_date>=CURRENT_DATE
+                     AND NOT EXISTS (SELECT 1 FROM prep_task_staff pts WHERE pts.task_id=pt.id)`),
     ]);
     const alerts: Array<{ level: string; icon: string; text: string }> = [];
     const evN = Number(evToday.rows[0].n);
     if (evN > 0) alerts.push({ level: 'info', icon: '🎉', text: `${evN} event${evN > 1 ? 's' : ''} today — let's make ${evN > 1 ? 'them' : 'it'} magical!` });
+    const unN = Number(unassignedPrep.rows[0].n);
+    if (unN > 0) alerts.push({ level: 'high', icon: '🙋', text: `${unN} prep task${unN > 1 ? 's' : ''} need someone assigned — open the event and pick who does ${unN > 1 ? 'them' : 'it'}.` });
     const arN = Number(atRisk.rows[0].n);
     if (arN > 0) alerts.push({ level: 'high', icon: '🧰', text: `${arN} upcoming event${arN > 1 ? 's' : ''} within 3 days aren't fully prepared yet.` });
     const upN = Number(unpaid.rows[0].n);
@@ -5082,16 +5113,20 @@ export async function adminRoutes(app: FastifyInstance) {
       ]);
       for (const a of alerts.rows) {
         const t = a.template as string;
-        const level: 'critical' | 'high' | 'info' = t === 'prep_issue' ? 'critical' : (t === 'staffing_required' || t === 'driver_conflict' || t === 'whatsapp_handoff') ? 'high' : 'info';
-        const icon = t === 'order_cancelled' ? '❌' : t === 'staffing_required' ? '🧑‍🤝‍🧑' : t === 'driver_conflict' ? '🚚' : t === 'prep_issue' ? '⚠️' : t === 'whatsapp_handoff' ? '💬' : t === 'website_lead' ? '🌐' : '🔔';
-        const title = t === 'order_cancelled' ? 'Order cancelled' : t === 'staffing_required' ? 'Staffing needed' : t === 'driver_conflict' ? 'Delivery conflict' : t === 'prep_issue' ? 'Prep issue' : t === 'whatsapp_handoff' ? 'WhatsApp — needs your reply' : t === 'website_lead' ? 'New website enquiry' : t.replace(/_/g, ' ');
+        const level: 'critical' | 'high' | 'info' = (t === 'prep_issue' || t === 'prep_unassigned') ? 'critical' : (t === 'staffing_required' || t === 'driver_conflict' || t === 'whatsapp_handoff') ? 'high' : 'info';
+        const icon = t === 'order_cancelled' ? '❌' : t === 'staffing_required' ? '🧑‍🤝‍🧑' : t === 'driver_conflict' ? '🚚' : t === 'prep_issue' ? '⚠️' : t === 'prep_unassigned' ? '🙋' : t === 'extra_added' ? '➕' : t === 'whatsapp_handoff' ? '💬' : t === 'website_lead' ? '🌐' : '🔔';
+        const title = t === 'order_cancelled' ? 'Order cancelled' : t === 'staffing_required' ? 'Staffing needed' : t === 'driver_conflict' ? 'Delivery conflict' : t === 'prep_issue' ? 'Prep issue' : t === 'prep_unassigned' ? 'Prep needs assigning' : t === 'extra_added' ? 'Customer extra added' : t === 'whatsapp_handoff' ? 'WhatsApp — needs your reply' : t === 'website_lead' ? 'New website enquiry' : t.replace(/_/g, ' ');
         const text = t === 'driver_conflict' && a.payload?.driver
           ? `${a.payload.driver} has overlapping deliveries`
-          : t === 'whatsapp_handoff'
-            ? `${a.payload?.name || a.payload?.phone || 'A customer'} · ${a.payload?.reason || 'needs a human'}`
-            : t === 'website_lead'
-              ? `${a.payload?.name || a.payload?.phone || 'A visitor'} left their number${a.payload?.emirate ? ` · ${a.payload.emirate}` : ''}`
-              : a.event_id ? `Event ${a.event_id}` : '';
+          : t === 'prep_unassigned'
+            ? `${a.payload?.count ?? 1} task(s) for ${a.payload?.date || 'an event'} have no one — open the event and assign someone`
+            : t === 'extra_added'
+              ? `${a.payload?.label || 'A customer extra'}${a.payload?.date ? ` · ${a.payload.date}` : ''}`
+              : t === 'whatsapp_handoff'
+                ? `${a.payload?.name || a.payload?.phone || 'A customer'} · ${a.payload?.reason || 'needs a human'}`
+                : t === 'website_lead'
+                  ? `${a.payload?.name || a.payload?.phone || 'A visitor'} left their number${a.payload?.emirate ? ` · ${a.payload.emirate}` : ''}`
+                  : a.event_id ? `Event ${a.event_id}` : '';
         items.push({ id: `al-${a.id}`, level, icon, title, text, eventId: a.event_id, orderId: (a.payload && a.payload.orderId) || null, at: a.created_at });
       }
       for (const b of bookings.rows) items.push({ id: `bk-${b.id}`, level: 'info', icon: '🎉', title: 'New booking', text: `${b.customer}${b.package ? ` · ${b.package}` : ''}`, eventId: b.id, at: b.created_at });
