@@ -78,8 +78,20 @@ export function computeRefund(args: {
   const freeDeliveryDiscountFils = sum((l) => l.kind === 'discount' && /free\s*delivery/i.test(String(l.label)));
   const deliveryPaidFils = Math.max(0, deliveryFils + freeDeliveryDiscountFils);
   const themeFeeFils = sum((l) => l.kind === 'custom_theme');
-  const madeToOrderFils = sum((l) => Boolean(l.refId) && MADE_TO_ORDER_SERVICE_IDS.has(l.refId as string));
-  const nonRefundableExtrasFils = themeFeeFils + madeToOrderFils;
+  // Made-to-order items (custom t-shirts, wristbands, hats, banners) are non-
+  // refundable — but in a Build-Your-Own cart they ARE discount-eligible, so the
+  // customer paid ~85% after the 15% BYO discount. Exclude their NET (paid) value,
+  // not the gross sticker price, or the refundable base is understated. Allocate
+  // the BYO discount to the made-to-order lines by their share of the eligible
+  // subtotal (owner decision 2026-09-12). No BYO discount → net == gross.
+  const madeToOrderGrossFils = sum((l) => Boolean(l.refId) && MADE_TO_ORDER_SERVICE_IDS.has(l.refId as string));
+  const byoDiscountFils = -sum((l) => l.kind === 'discount' && /build your own/i.test(String(l.label)));
+  const eligibleGrossFils = sum((l) => l.discountEligible === true);
+  const madeToOrderPaidFils =
+    eligibleGrossFils > 0 && byoDiscountFils > 0
+      ? Math.max(0, madeToOrderGrossFils - Math.round(byoDiscountFils * (madeToOrderGrossFils / eligibleGrossFils)))
+      : madeToOrderGrossFils;
+  const nonRefundableExtrasFils = themeFeeFils + madeToOrderPaidFils;
 
   const totalPaidFils = Math.max(0, Math.round(args.totalPaidFils));
   // Party value = everything paid except the delivery actually paid and the

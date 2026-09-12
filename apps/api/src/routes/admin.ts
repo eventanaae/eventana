@@ -1750,15 +1750,21 @@ export async function adminRoutes(app: FastifyInstance) {
     const POINTS_PER_STEP = 100;     // above target, every 100 points…
     const STEP_FILS = 1000;          // …earns AED 10 (10 fils per point)
     const EVENT_POINTS = 10, FIVE_STAR_POINTS = 20, GLAM_POINTS = 20;
-    // Glam Doll: +20 points each time an internal staff member performs one
-    // (part-timers excluded — they have no assignee_id).
+    // Glam Doll: +20 points for each completed event that INCLUDED a Glam Doll,
+    // awarded to the internal crew who worked that event (owner decision
+    // 2026-09-12). The Glam Doll itself is performed by external part-timers who
+    // have no staff account, so the credit goes to the crew present. COUNT(DISTINCT
+    // event) → one award per member per glam event (the duplicate leader row and
+    // multiple glam slots can't inflate it).
     const glamRes = await pool.query(
-      `SELECT es.assignee_id AS member_id, COUNT(*)::int n
-         FROM event_staff es JOIN events e ON e.id = es.event_id
-        WHERE es.assignee_id IS NOT NULL AND e.phase='Event Completed'
+      `SELECT crew.assignee_id AS member_id, COUNT(DISTINCT e.id)::int n
+         FROM events e
+         JOIN event_staff gs ON gs.event_id = e.id
+              AND (gs.source ILIKE '%glam%' OR gs.role ILIKE '%glam%')
+         JOIN event_staff crew ON crew.event_id = e.id AND crew.assignee_id IS NOT NULL
+        WHERE e.phase='Event Completed'
           AND e.event_date >= $1 AND e.event_date < $2
-          AND (es.source ILIKE '%glam%' OR es.role ILIKE '%glam%')
-        GROUP BY es.assignee_id`,
+        GROUP BY crew.assignee_id`,
       [start, endStr],
     );
     const glamCount = new Map<string, number>((glamRes.rows as any[]).map((r) => [r.member_id, Number(r.n)]));
