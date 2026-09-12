@@ -73,6 +73,34 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     )
     .catch(() => {});
 
+  // Auto-detect low stock → create a missing item so it's bought BEFORE it runs
+  // out, instead of waiting for someone to notice. One row per low consumable,
+  // deduped against any open (requested/ordered) item, auto-assigned to the buyer
+  // (an active driver). Silent — it just appears in the Inventory list.
+  await pool
+    .query(
+      `INSERT INTO missing_items (item, quantity, supplier, note, reported_by, assigned_to, assigned_name, status)
+       SELECT c.name,
+              GREATEST(1, (c.reorder_level * 2) - c.on_hand),
+              c.supplier,
+              'Auto: stock ' || c.on_hand || ' at/below reorder ' || c.reorder_level,
+              'system (low stock)',
+              b.id, b.name, 'requested'
+         FROM consumables c
+         LEFT JOIN LATERAL (
+           SELECT id, name FROM team_members WHERE access_level = 'driver' AND active ORDER BY name LIMIT 1
+         ) b ON true
+        WHERE c.active AND c.reorder_level > 0 AND c.on_hand <= c.reorder_level
+          AND NOT EXISTS (
+            SELECT 1 FROM missing_items mi
+             WHERE lower(mi.item) = lower(c.name)
+               AND (mi.status IN ('requested','ordered')
+                    -- and don't immediately recreate after a recent buy (gives
+                    -- time to restock on_hand before flagging it low again).
+                    OR (mi.status = 'received' AND mi.created_at > now() - interval '3 days')))`,
+    )
+    .catch(() => {});
+
   // Auto-complete events whose end time (in UAE) has passed. base_end_time
   // already reflects any extra hours the customer bought, so this respects a
   // longer party. Never touches cancelled events. Non-fatal.
