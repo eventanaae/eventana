@@ -255,7 +255,10 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   };
 
   const needed = TEMPLATES.filter((t) => t.when(ctx));
-  if (needed.length === 0) return { eventId, created: 0 };
+  // NOTE: we deliberately do NOT bail when no template matches. A booking can be
+  // entirely items the templates don't recognise (e.g. a bespoke "Customized
+  // Hat"); those still have to reach backfillUncoveredPrep below so every paid
+  // line becomes a task or an escalation — never a silent drop.
 
   const staff = await roster();
   // Current workload = open prep tasks already assigned + day-of crew slots.
@@ -302,7 +305,6 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   await pool.query(`DELETE FROM prep_tasks WHERE event_id = $1 AND status <> 'completed'`, [eventId]);
 
   let created = 0;
-  const unassigned: string[] = []; // tasks nobody qualified could take → escalate
   for (const t of needed) {
     if (completedKeys.has(t.key)) continue; // already done — leave it
     // A physical task that waits on a design task starts as 'waiting_design'
@@ -332,30 +334,54 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
       await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, pick.id]);
       workload.set(pick.id, (workload.get(pick.id) ?? 0) + 1); // keep it fair within this event too
     }
-    // Nobody qualified & available could take this task — don't let it sit silent.
-    if (Math.min(t.people, cands.length) === 0) unassigned.push(t.title);
   }
+
+  // Catch-all: any booked line the templates/staffing don't recognise still
+  // becomes a task (or an escalation) — this is what closes the systemic
+  // silent-drop for bespoke/novel items. Additive; never wipes other tasks.
+  const extra = await backfillUncoveredPrep(eventId).catch((e) => {
+    console.error('[prep] uncovered backfill failed:', (e as Error).message);
+    return { created: [] as string[], escalated: [] as string[] };
+  });
+  created += extra.created.length + extra.escalated.length;
 
   await pool.query(
     `INSERT INTO prep_task_log (event_id, action, detail, actor) VALUES ($1,'generated',$2,'system')`,
     [eventId, `Generated ${created} prep task(s)`],
   );
-  // The owner's rule: if the system can't assign it, ASK — a home-page alert +
-  // a push to the owner/managers so they pick who does it, never a silent drop.
-  if (unassigned.length) await alertUnassignedPrep(eventId, ev.date, unassigned);
+  // The owner's rule: nothing sits silent. Recompute the standing alert from the
+  // actual task state — anything with nobody assigned OR fewer people than it
+  // needs is surfaced to the owner/Marsha; it self-clears once filled.
+  await refreshPrepAssignmentAlert(eventId, ev.date);
   return { eventId, created };
 }
 
 /**
- * Escalate prep the system couldn't put anyone on: raise a standing ops-alert
- * (shown on the dashboard bell + home) and push the owner/managers to assign it.
- * Deduped per event so a regenerate doesn't spam.
+ * Recompute the standing "prep needs assigning" alert for an event from the
+ * ACTUAL task state: any non-completed task with nobody assigned, OR fewer
+ * people than it needs (a 2-person task with 1 person used to go out silently).
+ * Deletes the alert when nothing is outstanding, so it self-clears once the
+ * owner/Marsha fill the gaps. Safe to call after any task change; recomputing
+ * from the DB means two callers in one pass can't clobber each other's list.
  */
-async function alertUnassignedPrep(eventId: string, date: string, titles: string[]): Promise<void> {
+export async function refreshPrepAssignmentAlert(eventId: string, date: string): Promise<void> {
   try {
+    const gaps = await pool.query<{ title: string; people_needed: number; assigned: number }>(
+      `SELECT pt.title, pt.people_needed, count(pts.member_id)::int assigned
+         FROM prep_tasks pt LEFT JOIN prep_task_staff pts ON pts.task_id = pt.id
+        WHERE pt.event_id = $1 AND pt.status <> 'completed'
+        GROUP BY pt.id, pt.title, pt.people_needed
+       HAVING count(pts.member_id) < pt.people_needed
+        ORDER BY count(pts.member_id), pt.title`,
+      [eventId]);
+    // Always clear the prior open alert first — if nothing's outstanding now, the
+    // event drops off the bell/home brief automatically.
     await pool.query(
       `DELETE FROM notifications WHERE channel='ops_alert' AND template='prep_unassigned'
         AND (payload->>'eventId') = $1 AND cancelled_at IS NULL`, [eventId]).catch(() => {});
+    if (gaps.rows.length === 0) return;
+    const titles = gaps.rows.map((r) =>
+      r.assigned === 0 ? r.title : `${r.title} (needs ${r.people_needed}, has ${r.assigned})`);
     await pool.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
        VALUES ($1,'ops_alert','prep_unassigned', now(), $2)`,
@@ -363,11 +389,111 @@ async function alertUnassignedPrep(eventId: string, date: string, titles: string
     const { pushToOwner } = await import('../integrations/push.js');
     const mgrs = await pool.query<{ id: string }>(
       `SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`);
-    const body = `${titles.length} prep task(s) for the ${date} event have no one assigned — open the event and pick who does them.`;
+    const body = `${titles.length} prep task(s) for the ${date} event need someone assigned — open the event and pick who does them.`;
     for (const m of mgrs.rows) void pushToOwner('staff', m.id, '⚠️ Prep needs assigning', body, { eventId });
   } catch (err) {
-    console.error('[prep] unassigned alert failed:', (err as Error).message);
+    console.error('[prep] assignment alert refresh failed:', (err as Error).message);
   }
+}
+
+// Booked lines that legitimately need NO prep task: day-of performers (staffed
+// via staffing.ts) and pure consumables / non-item charge lines. Everything else
+// that the templates don't recognise is treated as a bespoke item that must be
+// prepared — so it can never be silently dropped.
+const PERFORMER_RE = /clown|mascot|acrobat|entertainer|\bcharacter\b|puppet|magician|\bmc\b|\bdj\b|singer|\bhost\b|glam|face\s*paint|twist|performer|dancer|stilt/;
+const CONSUMABLE_RE = /\bsocks?\b|water\s*bottle|\bplates?\b|\bcups?\b|napkin|cutlery|spoon|\bfork\b|candle|invitation|sticker|straw|tattoo|\bbadge\b|goodie\s*bag|\bsash\b/;
+const NONITEM_RE = /discount|deliver|shipping|\bfee\b|\bvat\b|\btax\b|deposit|\btip\b|additional\s*hour|extra\s*hour|\bhours?\b|service\s*charge|surcharge|\bbalance\b|down\s*payment|installment|round\s*ing/;
+
+/** True when a booked line already has a home (a prep template via classifyLabel,
+ *  a package, day-of staffing, or is a consumable / non-item charge). */
+function recognizedPrepLabel(label: string): boolean {
+  const n = (label ?? '').trim().toLowerCase();
+  if (!n) return true; // blank line — nothing to prepare
+  const sid = new Set<string>(); const cat = new Set<string>();
+  const inf = classifyLabel(label, sid, cat);
+  if (inf > 0 || sid.size > 0 || cat.size > 0 || packageKeyOf(label) !== null) return true;
+  return PERFORMER_RE.test(n) || CONSUMABLE_RE.test(n) || NONITEM_RE.test(n);
+}
+
+/** Stable per-label key for a catch-all prep task (so re-runs never duplicate). */
+function xtraKey(label: string): string {
+  const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
+  return `xtra_${slug || 'item'}`;
+}
+
+/**
+ * Catch-all guard — the heart of "nothing a customer ordered is ever silently
+ * dropped". For every booked line the templates/staffing don't recognise, make
+ * sure a prep task exists: assign the lowest-workload person whose skill we can
+ * guess (e.g. a "Chocolate fountain" → the food-station person), otherwise leave
+ * it unassigned for the owner/Marsha (the refresh alert then surfaces it).
+ *
+ * ADDITIVE and idempotent (keyed by label) — it never deletes or resets other
+ * tasks, so it's safe to run on an event whose prep is already in progress, and
+ * safe to call standalone (the repair sweep) or from generatePrepTasks.
+ */
+export async function backfillUncoveredPrep(
+  eventId: string,
+): Promise<{ created: string[]; escalated: string[] }> {
+  const created: string[] = [];
+  const escalated: string[] = [];
+  const evRes = await pool.query<{ d: string | null }>(
+    `SELECT to_char(event_date,'YYYY-MM-DD') d FROM events WHERE id = $1`, [eventId]);
+  if (!evRes.rows[0]) return { created, escalated };
+  const date = evRes.rows[0].d;
+  const due = date
+    ? (() => { const dd = new Date(`${date}T00:00:00Z`); dd.setUTCDate(dd.getUTCDate() - PHYSICAL_DUE_DAYS); return dd.toISOString().slice(0, 10); })()
+    : null;
+
+  // Paid/booked lines only. 'request' rows are the manually-logged customer
+  // extras that addExtraPrepTask already tasks & tracks — leave those to it, so
+  // the two paths never create a second task for the same item.
+  const es = await pool.query<{ label: string }>(
+    `SELECT label FROM event_services WHERE event_id = $1 AND COALESCE(source,'') <> 'request'`, [eventId]);
+  // Distinct uncovered labels, keeping original casing for the task title.
+  const labels = new Map<string, string>();
+  for (const r of es.rows) {
+    const label = String(r.label ?? '').trim();
+    if (!label || recognizedPrepLabel(label)) continue;
+    const k = label.toLowerCase();
+    if (!labels.has(k)) labels.set(k, label);
+  }
+  if (labels.size === 0) return { created, escalated };
+
+  const existing = await pool.query<{ key: string }>(
+    `SELECT key FROM prep_tasks WHERE event_id = $1`, [eventId]);
+  const haveKeys = new Set(existing.rows.map((r) => r.key));
+
+  const staff = await roster();
+  const wlRes = await pool.query<{ member_id: string; c: number }>(
+    `SELECT member_id, count(*)::int c FROM prep_task_staff pts JOIN prep_tasks pt ON pt.id = pts.task_id
+      WHERE pt.status <> 'completed' GROUP BY member_id`);
+  const wl = new Map<string, number>(wlRes.rows.map((r) => [r.member_id, r.c]));
+
+  for (const [, label] of labels) {
+    const key = xtraKey(label);
+    if (haveKeys.has(key)) continue; // already has its task (or it's completed) — leave it
+    const skill = guessSkill(label);
+    const ins = await pool.query<{ id: string }>(
+      `INSERT INTO prep_tasks (event_id, key, title, category, skill, people_needed, due_date, status)
+       VALUES ($1,$2,$3,'physical',$4,1,$5,'not_started') RETURNING id`,
+      [eventId, key, `Prepare: ${label}`, skill, due]);
+    const taskId = ins.rows[0].id;
+    let assignedTo: string | null = null;
+    if (skill) {
+      const cand = staff.filter((s) => s.skills.has(skill))
+        .sort((a, b) => (wl.get(a.id) ?? 0) - (wl.get(b.id) ?? 0))[0];
+      if (cand) {
+        await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, cand.id]);
+        wl.set(cand.id, (wl.get(cand.id) ?? 0) + 1);
+        assignedTo = cand.name;
+      }
+    }
+    await logTask(taskId, eventId, 'extra', `Auto prep task for booked item: ${label}`, 'system');
+    if (assignedTo) created.push(`${label} → ${assignedTo}`);
+    else escalated.push(`Prepare: ${label}`);
+  }
+  return { created, escalated };
 }
 
 /** Skill best-guess for a free-typed customer extra. null → leave unassigned. */
@@ -447,7 +573,7 @@ export async function addExtraPrepTask(
     const mgrs = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`);
     for (const m of mgrs.rows) void pushToOwner('staff', m.id, '➕ Customer extra', `${name} added to the ${date ?? ''} event — a prep task was created & assigned.`, { eventId });
   } else {
-    await alertUnassignedPrep(eventId, date ?? '', [title]);
+    await refreshPrepAssignmentAlert(eventId, date ?? '');
   }
   return { ok: true, taskId, assigned, assignedTo };
 }
