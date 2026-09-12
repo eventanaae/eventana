@@ -370,7 +370,7 @@ function BudgetSuggestions() {
       action={<Button tone="ghost" onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Show'}</Button>}
     >
       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: open ? 14 : 0, lineHeight: 1.5 }}>
-        Built from {data.monthsUsed || 0} month{(data.monthsUsed || 0) === 1 ? '' : 's'} of your own spend, sized to next month's
+        Built from {data.monthsUsed || 0} month{(data.monthsUsed || 0) === 1 ? '' : 's'} of history, sized to next month's
         workload — about <b>{data.expectedEvents ?? 0} bookings</b> expected ({data.bookedNext ?? 0} already booked). Petrol is
         weighted by delivery area; the rest by number of bookings.
       </div>

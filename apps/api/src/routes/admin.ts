@@ -2201,13 +2201,14 @@ export async function adminRoutes(app: FastifyInstance) {
           // the weighted deliveries expected next month.
           suggestedFils = (hist / histWeight) * expectedWeight;
           basis = 'deliveries';
-        } else if (histEvents > 0) {
+        } else if (histEvents > 0 && perEventFils > 0) {
           // Everything else scales with the number of bookings.
           suggestedFils = perEventFils * expectedEvents;
           basis = 'bookings';
         } else {
-          // No events in the window — fall back to a flat monthly average.
-          suggestedFils = hist / monthsUsed;
+          // No usable per-booking history (e.g. a brand-new account with only
+          // this month's spend) — fall back to the monthly figure we do have.
+          suggestedFils = Math.max(hist / monthsUsed, thisMonthFils);
           basis = 'history';
         }
 
