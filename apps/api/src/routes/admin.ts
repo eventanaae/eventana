@@ -3466,6 +3466,49 @@ export async function adminRoutes(app: FastifyInstance) {
       business.lifetimeMarginPct = business.lifetimeRevenueFils > 0 ? Math.round((business.lifetimeNetFils / business.lifetimeRevenueFils) * 1000) / 10 : 0;
     }
 
+    // ── Period P&L from the FULL ledgers (all years) so the filter genuinely
+    // changes the numbers. Income = finance_receipts with the QB→live cutoff
+    // split (QB rows on/before the cutoff, live rows after — never double-counted).
+    // Expenses = the whole expenses table (QuickBooks history + manual), by date.
+    // These use real data going back years, unlike the live-only event tables.
+    const perCut = qbRevCutR.rows[0].d;
+    const [periodRevRow, periodExpRow, periodExpCatRows, yearsPnlRows] = await Promise.all([
+      pool.query<{ v: string; c: number }>(
+        `SELECT COALESCE(SUM(total_fils),0)::bigint v, COUNT(*)::int c FROM finance_receipts
+          WHERE date >= $1 AND date < $2
+            AND ( (source = 'quickbooks' AND date <= $3::date)
+                  OR (source <> 'quickbooks' AND ($3::date IS NULL OR date > $3::date)) )`,
+        [from, to, perCut],
+      ).catch(() => ({ rows: [{ v: '0', c: 0 }] })),
+      pool.query<{ v: string }>(
+        `SELECT COALESCE(SUM(amount_fils),0)::bigint v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`,
+        [from, to],
+      ).catch(() => ({ rows: [{ v: '0' }] })),
+      pool.query<{ category: string; v: string }>(
+        `SELECT btrim(category) category, COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
+          WHERE category IS NOT NULL AND btrim(category) <> '' AND spent_on >= $1 AND spent_on < $2
+          GROUP BY 1 ORDER BY 2 DESC LIMIT 8`,
+        [from, to],
+      ).catch(() => ({ rows: [] as any[] })),
+      pool.query<{ year: number; revenue_fils: string; expenses_fils: string }>(
+        `SELECT y.year, COALESCE(r.revenue_fils,0)::bigint revenue_fils, COALESCE(e.expenses_fils,0)::bigint expenses_fils
+           FROM ( SELECT DISTINCT extract(year FROM txn_date)::int year FROM historical_orders WHERE txn_date IS NOT NULL
+                  UNION SELECT year FROM expense_years ) y
+           LEFT JOIN ( SELECT extract(year FROM txn_date)::int year, SUM(total_fils) revenue_fils FROM historical_orders WHERE txn_date IS NOT NULL GROUP BY 1 ) r ON r.year = y.year
+           LEFT JOIN expense_years e ON e.year = y.year
+          ORDER BY y.year`,
+      ).catch(() => ({ rows: [] as any[] })),
+    ]);
+    const periodIncomeFils = Number(periodRevRow.rows[0].v);
+    const periodSalesCount = Number(periodRevRow.rows[0].c);
+    const periodExpenseFils = Number(periodExpRow.rows[0].v);
+    const periodNetFils = periodIncomeFils - periodExpenseFils;
+    const periodExpenseByCat = periodExpCatRows.rows.map((r) => ({ category: r.category, amountFils: Number(r.v), amountDisplay: formatAed(Number(r.v)) }));
+    const yearsPnl = yearsPnlRows.rows.map((r) => {
+      const rev = Number(r.revenue_fils), exp = Number(r.expenses_fils), net = rev - exp;
+      return { year: r.year, revenueFils: rev, revenueDisplay: formatAed(rev), expensesFils: exp, expensesDisplay: formatAed(exp), netFils: net, netDisplay: formatAed(net), marginPct: rev > 0 ? Math.round((net / rev) * 1000) / 10 : 0 };
+    });
+
     const cashOnHandFils = (cashSum as any)?.cashOnHandFils ?? null;
     const arFils = (cashSum as any)?.arFils ?? null;
     // "Available after commitments" = cash on hand + expected incoming (A/R and
@@ -3565,6 +3608,15 @@ export async function adminRoutes(app: FastifyInstance) {
       refundFils, refundDisplay: formatAed(refundFils),
       refundQualityFils, refundQualityDisplay: formatAed(refundQualityFils),
       refundCustomerFils, refundCustomerDisplay: formatAed(refundCustomerFils),
+      // Period P&L from the full ledgers (all years) — the numbers that must move
+      // with the period filter. Plus the multi-year P&L for the by-year chart.
+      periodIncomeFils, periodIncomeDisplay: formatAed(periodIncomeFils),
+      periodExpenseFils, periodExpenseDisplay: formatAed(periodExpenseFils),
+      periodNetFils, periodNetDisplay: formatAed(Math.abs(periodNetFils)), periodNetNegative: periodNetFils < 0,
+      periodMarginPct: periodIncomeFils > 0 ? Math.round((periodNetFils / periodIncomeFils) * 1000) / 10 : 0,
+      periodSalesCount,
+      periodExpenseByCat,
+      yearsPnl,
       expensesFils: expenses, expensesDisplay: formatAed(expenses),
       profitFils: profit, profitDisplay: formatAed(Math.abs(profit)), profitNegative: profit < 0,
       marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,

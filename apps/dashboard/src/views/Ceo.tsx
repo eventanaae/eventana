@@ -38,8 +38,6 @@ const PRESETS = [
 
 export function Ceo() {
   const [preset, setPreset] = useState('12m');
-  const [emirate, setEmirate] = useState('');
-  const [eventType, setEventType] = useState('');
   const [data, setData] = useState<any>(null);
   const [funnel, setFunnel] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -47,19 +45,16 @@ export function Ceo() {
 
   const range = useMemo(() => presetRange(preset), [preset]);
   const periodLabel = PRESETS.find((p) => p.id === preset)?.label ?? 'this period';
-  // A dimension filter (emirate / event type) is active. Revenue & bookings respect
-  // it, but company-wide expenses can't be split by it — so we hide Expenses/Net then.
-  const dimFiltered = !!(emirate || eventType);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     api
-      .ceo({ from: range.from, to: range.to, emirate: emirate || undefined, eventType: eventType || undefined })
+      .ceo({ from: range.from, to: range.to })
       .then(setData)
       .catch((e) => setError(e?.message || 'Could not load analytics.'))
       .finally(() => setLoading(false));
-  }, [range.from, range.to, emirate, eventType]);
+  }, [range.from, range.to]);
 
   // Website funnel is global (not range-filtered) — load it once.
   useEffect(() => { api.webFunnel().then(setFunnel).catch(() => setFunnel(null)); }, []);
@@ -83,16 +78,6 @@ export function Ceo() {
               {p.label}
             </button>
           ))}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <select value={emirate} onChange={(e) => setEmirate(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
-            <option value="">All emirates</option>
-            {EMIRATES.map((e) => <option key={e} value={e}>{e}</option>)}
-          </select>
-          <select value={eventType} onChange={(e) => setEventType(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
-            <option value="">All event types</option>
-            {CELEBRATION_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
         </div>
       </div>
 
@@ -124,20 +109,14 @@ export function Ceo() {
           <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
             <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.mint})` }} />
             <div style={{ padding: '16px 20px' }}>
-              <div style={{ ...fredoka(15), marginBottom: 12 }}>📊 For {periodLabel.toLowerCase()}</div>
+              <div style={{ ...fredoka(15), marginBottom: 4 }}>📊 For {periodLabel.toLowerCase()}</div>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>Real income &amp; expenses for the period — includes your QuickBooks history, not just app sales.</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
-                <HeroKpi label="Income" value={`AED ${data.revenueDisplay}`} accent={C.pink} />
-                {/* Expenses aren't tagged by emirate/type, so Expenses & Net only make
-                    sense against unfiltered income — hide them when a dimension filter is on. */}
-                {!dimFiltered && <HeroKpi label="Expenses" value={`AED ${data.expensesDisplay}`} accent={C.yellow} />}
-                {!dimFiltered && <HeroKpi label={data.profitNegative ? 'Net loss' : 'Net profit'} value={`AED ${data.profitDisplay}`} caption={`${data.marginPct}% margin`} accent={data.profitNegative ? C.red : C.green} />}
-                <HeroKpi label="Bookings" value={String(data.bookings)} caption={`AED ${data.aovDisplay} avg`} accent={C.mint} />
+                <HeroKpi label="Income" value={`AED ${data.periodIncomeDisplay}`} accent={C.pink} />
+                <HeroKpi label="Expenses" value={`AED ${data.periodExpenseDisplay}`} accent={C.yellow} />
+                <HeroKpi label={data.periodNetNegative ? 'Net loss' : 'Net profit'} value={`AED ${data.periodNetDisplay}`} caption={`${data.periodMarginPct}% margin`} accent={data.periodNetNegative ? C.red : C.green} />
+                <HeroKpi label="Sales" value={String(data.periodSalesCount ?? 0)} caption="receipts in period" accent={C.mint} />
               </div>
-              {dimFiltered && (
-                <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
-                  Income &amp; bookings are for the selected emirate/type. Expenses &amp; profit are company-wide (not split by emirate/type) — clear those filters to see them.
-                </div>
-              )}
             </div>
           </div>
 
@@ -169,9 +148,9 @@ export function Ceo() {
 
           {/* 4) Top 3 for the period — most-requested emirates & themes, biggest expenses */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
-            <Top3Orders title="🏆 Top emirates" rows={data.byEmirate} />
-            <Top3Orders title="🎨 Top themes" rows={data.byTheme} />
-            <Top3Expenses rows={data.byCategory} />
+            <Top3Orders title="🏆 Top emirates" rows={data.byEmirate} note="From app bookings — the old QuickBooks sales didn't record the emirate." />
+            <Top3Orders title="🎨 Top themes" rows={data.byTheme} note="Themes are tracked for app bookings only." />
+            <Top3Expenses rows={data.periodExpenseByCat} />
           </div>
 
           {/* Customers · sales funnel */}
@@ -188,35 +167,8 @@ export function Ceo() {
             </Panel>
           </div>
 
-          {/* Whole-year snapshot (QuickBooks history + live) — NOT affected by the filter */}
-          {data.business?.latestYear && (() => {
-            const y = data.business.latestYear;
-            const expFils = Number(y.revenueFils) - Number(y.netFils);
-            const asOf = y.asOf ? new Date(y.asOf).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : null;
-            return (
-              <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
-                <div style={{ height: 5, background: `linear-gradient(90deg,${C.lavender},${C.sky})` }} />
-                <div style={{ padding: '16px 20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                    <div style={fredoka(15)}>📅 Full year {y.year} · incl. QuickBooks history</div>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.green }}>● Live{asOf ? ` · ${asOf}` : ''}</div>
-                  </div>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>Whole-year total — does not change with the filter above.</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
-                    <HeroKpi label="Revenue" value={`AED ${y.revenueDisplay}`} accent={C.pink} />
-                    <HeroKpi label={Number(y.netFils) < 0 ? 'Net loss' : 'Net profit'} value={`AED ${y.netDisplay}`} caption={`${y.marginPct}% margin`} accent={Number(y.netFils) < 0 ? C.red : C.green} />
-                    <HeroKpi label="Expenses" value={`AED ${money(expFils)}`} accent={C.yellow} />
-                    <HeroKpi label="Customers" value={String(data.business.customers)} accent={C.mint} />
-                  </div>
-                  {(data.business.years ?? []).length > 1 && <YearBars years={data.business.years} />}
-                </div>
-              </div>
-            );
-          })()}
-
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textAlign: 'center', lineHeight: 1.6, padding: '4px 8px' }}>
-            Per-package profit &amp; margin, ad spend / ROAS, and year-over-year need cost &amp; ad-spend data that isn't captured yet.
-          </div>
+          {/* Revenue vs expenses vs net profit, per year (QuickBooks history) */}
+          <YearPnl years={data.yearsPnl} />
         </>
       )}
     </div>
@@ -224,7 +176,7 @@ export function Ceo() {
 }
 
 /** Top-3 dimensions by number of orders (what's most requested), with revenue as context. */
-function Top3Orders({ title, rows }: { title: string; rows: any[] }) {
+function Top3Orders({ title, rows, note }: { title: string; rows: any[]; note?: string }) {
   const top = [...(rows ?? [])].sort((a, b) => (Number(b.bookings) || 0) - (Number(a.bookings) || 0)).slice(0, 3);
   return (
     <Panel title={title}>
@@ -236,6 +188,50 @@ function Top3Orders({ title, rows }: { title: string; rows: any[] }) {
           <span style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, flex: 'none' }}>{r.bookings} order{Number(r.bookings) === 1 ? '' : 's'}<span style={{ color: C.muted, fontWeight: 600 }}> · AED {r.revenueDisplay}</span></span>
         </div>
       ))}
+      {note && <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 8, lineHeight: 1.4 }}>{note}</div>}
+    </Panel>
+  );
+}
+
+/** Revenue vs Expenses vs Net profit, per year (from the QuickBooks history). */
+function YearPnl({ years }: { years: any[] }) {
+  if (!years || years.length === 0) return null;
+  const max = Math.max(1, ...years.map((y) => Math.max(Number(y.revenueFils) || 0, Number(y.expensesFils) || 0)));
+  return (
+    <Panel title="📅 By year — revenue vs expenses vs profit">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {years.map((y) => {
+          const rev = Number(y.revenueFils) || 0, exp = Number(y.expensesFils) || 0;
+          const bar = (v: number, color: string) => (
+            <div style={{ height: 9, borderRadius: 6, background: C.lineSoft, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round((v / max) * 100)}%`, height: '100%', background: color }} />
+            </div>
+          );
+          return (
+            <div key={y.year}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                <span style={{ ...fredoka(14), color: C.ink }}>{y.year}</span>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: Number(y.netFils) < 0 ? C.red : C.green }}>Net AED {y.netDisplay} · {y.marginPct}%</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: C.muted2, width: 62, flex: 'none' }}>Revenue</span>
+                  <div style={{ flex: 1 }}>{bar(rev, C.pink)}</div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: C.ink, width: 78, textAlign: 'right', flex: 'none' }}>{y.revenueDisplay}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: C.muted2, width: 62, flex: 'none' }}>Expenses</span>
+                  <div style={{ flex: 1 }}>{bar(exp, C.yellow)}</div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: C.ink, width: 78, textAlign: 'right', flex: 'none' }}>{y.expensesDisplay}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.4 }}>
+        Revenue from your QuickBooks invoice history; expenses from the yearly totals you uploaded (0 where a year hasn't been uploaded yet).
+      </div>
     </Panel>
   );
 }
