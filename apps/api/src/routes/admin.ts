@@ -5060,8 +5060,10 @@ export async function adminRoutes(app: FastifyInstance) {
           .max(24)
           .regex(/^[A-Za-z0-9]+$/, 'Letters and numbers only.'),
         kind: z.enum(['percent', 'fixed']),
-        // percent: 1–100; fixed: whole AED (converted to fils below)
-        value: z.number().int().positive(),
+        // percent: 1–100; fixed: whole AED (converted to fils below). The 100k
+        // AED ceiling keeps value*100 well inside INT4 so a stray big number is a
+        // clean 400, not a Postgres overflow 500.
+        value: z.number().int().positive().max(100_000),
         minSpendAed: z.number().int().min(0).max(1_000_000).default(0),
         maxUses: z.number().int().positive().max(1_000_000).nullable().optional(),
         expiresOn: z
@@ -5085,6 +5087,11 @@ export async function adminRoutes(app: FastifyInstance) {
     const minSpendFils = d.minSpendAed * 100;
     // An expiry date means "usable through that whole day" → end of day Dubai (UTC+4).
     const expiresAt = d.expiresOn ? `${d.expiresOn}T23:59:59+04:00` : null;
+    // A past expiry would create a dead code that can never be redeemed — reject it
+    // with a clear message instead of silently storing a useless code.
+    if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+      return reply.status(400).send({ error: 'invalid_request', message: 'The expiry date is in the past.' });
+    }
     const { rows } = await pool.query(
       `INSERT INTO promo_codes (code, kind, value, min_spend_fils, max_uses, expires_at, campaign, active)
        VALUES ($1,$2,$3,$4,$5,$6,'dashboard',TRUE)
