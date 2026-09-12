@@ -32,8 +32,12 @@ async function sentToday(template: string): Promise<boolean> {
 }
 
 async function markSent(template: string, payload: Record<string, unknown> = {}): Promise<void> {
+  // Channel 'ops_marker' (NOT 'ops_alert') — these are "did I already send today?"
+  // dedup flags, not owner-facing alerts. The notification bell reads 'ops_alert',
+  // so keeping markers off that channel stops them polluting the bell and burying
+  // real alerts. sentToday matches on template+date, so the channel change is safe.
   await pool.query(
-    `INSERT INTO notifications (channel, template, scheduled_for, payload) VALUES ('ops_alert',$1, now(), $2)`,
+    `INSERT INTO notifications (channel, template, scheduled_for, payload) VALUES ('ops_marker',$1, now(), $2)`,
     [template, JSON.stringify(payload)],
   ).catch(() => {});
 }

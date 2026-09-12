@@ -1828,9 +1828,10 @@ export async function adminRoutes(app: FastifyInstance) {
       const pointsWiped = !!warn && warn.affectsPoints;
       const points = pointsWiped ? 0 : activityPoints + referralPoints;
       const targetPct = Math.min(100, Math.round((points / TARGET_POINTS) * 100));
-      const bonusFils = Math.max(0, points - TARGET_POINTS) * (STEP_FILS / POINTS_PER_STEP);
-      // Marsha earns a 2% corporate commission instead of the field-crew points.
+      // Marsha earns a 2% corporate commission INSTEAD of the field-crew points
+      // bonus — so her points bonus is zeroed, not added on top of the commission.
       const isMarsha = String(r.name).toLowerCase() === 'marsha';
+      const bonusFils = isMarsha ? 0 : Math.max(0, points - TARGET_POINTS) * (STEP_FILS / POINTS_PER_STEP);
       const commissionFils = isMarsha ? marshaCommissionFils : 0;
       const earningsFils = bonusFils + tipsFils + commissionFils;
       return {
@@ -4594,6 +4595,8 @@ export async function adminRoutes(app: FastifyInstance) {
       const [alerts, bookings, refundRows, ratings, tips, cancels] = await Promise.all([
         pool.query(`SELECT id, template, event_id, payload, created_at FROM notifications
                      WHERE channel='ops_alert' AND cancelled_at IS NULL AND created_at > now() - interval '30 days'
+                       -- exclude internal dedup markers mis-filed on this channel before the fix
+                       AND template NOT IN ('shop_reminder_mon','shop_reminder_tue','driver_shopping_list','team_dayoff_wellbeing')
                      ORDER BY created_at DESC LIMIT 40`),
         pool.query(`SELECT e.id, e.created_at, e.event_date, c.name AS customer, p.name AS package
                       FROM events e JOIN customers c ON c.id=e.customer_id
