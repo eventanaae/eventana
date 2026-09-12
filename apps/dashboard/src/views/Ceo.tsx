@@ -115,9 +115,7 @@ export function Ceo() {
                 <div style={{ ...fredoka(15), marginBottom: 6 }}>💰 Your money now</div>
                 <div style={{ ...fredoka(30), color: C.green }}>AED {data.cash.cashOnHandDisplay}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 12 }}>total in your account right now</div>
-                <MiniRow label="Available after commitments" value={`AED ${data.cash.availableDisplay}`} sub="cash + money owed to you − refunds still to pay" tone={C.ink} />
-                <MiniRow label="Money still owed to you" value={`AED ${data.cash.expectedInDisplay}`} sub="unpaid invoices + orders not yet paid" tone={C.green} />
-                <MiniRow label="Refunds still to pay" value={`AED ${data.cash.upcomingRefundsDisplay}`} tone={C.muted2} last />
+                <MiniRow label="Money still owed to you" value={`AED ${data.cash.expectedInDisplay}`} sub="unpaid invoices + orders not yet paid" tone={C.green} last />
               </div>
             </div>
           )}
@@ -176,13 +174,13 @@ export function Ceo() {
             <Top3Expenses rows={data.byCategory} />
           </div>
 
-          {/* Pipeline · sales funnel */}
+          {/* Customers · sales funnel */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
-            <Panel title="Pipeline (upcoming)">
-              <div style={{ ...fredoka(28), color: C.pinkDeep }}>AED {data.pipeline?.revenueDisplay ?? '0'}</div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, marginTop: 2 }}>{data.pipeline?.events ?? 0} confirmed event(s) ahead</div>
+            <Panel title="Customers">
+              <div style={{ ...fredoka(28), color: C.pinkDeep }}>{data.totalCustomers ?? 0}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, marginTop: 2 }}>total customers</div>
               <div style={{ marginTop: 14 }}>
-                <MiniRow label="Repeat customers" value={`${data.repeatRatePct}%`} sub={`${data.repeatCustomers} of ${data.totalCustomers}`} tone={C.pinkDeep} last />
+                <MiniRow label="Booked more than once" value={`${data.repeatRatePct}%`} sub={`${data.repeatCustomers} of ${data.totalCustomers}`} tone={C.pinkDeep} last />
               </div>
             </Panel>
             <Panel title="Sales funnel (WhatsApp)">
