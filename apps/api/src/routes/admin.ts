@@ -3509,6 +3509,33 @@ export async function adminRoutes(app: FastifyInstance) {
       return { year: r.year, revenueFils: rev, revenueDisplay: formatAed(rev), expensesFils: exp, expensesDisplay: formatAed(exp), netFils: net, netDisplay: formatAed(net), marginPct: rev > 0 ? Math.round((net / rev) * 1000) / 10 : 0 };
     });
 
+    // Top emirates across the FULL history: the QuickBooks sales (emirate from the
+    // reviewed customer book, matched by name) + live app events, merged & ranked.
+    // (Themes have no such history — never recorded in QuickBooks — so byTheme
+    // stays live-only.)
+    const histEmiRes = await pool.query<{ emirate: string; bookings: number; revenue: string }>(
+      `SELECT COALESCE(NULLIF(btrim(hc.emirate), ''), 'Other') AS emirate,
+              COUNT(DISTINCT ho.doc_number)::int AS bookings,
+              COALESCE(SUM(ho.total_fils), 0)::bigint AS revenue
+         FROM historical_orders ho
+         LEFT JOIN historical_customers hc ON lower(btrim(hc.full_name)) = lower(btrim(ho.customer_name))
+        WHERE ho.txn_date >= $1 AND ho.txn_date < $2 AND COALESCE(ho.txn_type, '') <> 'Payment'
+        GROUP BY 1`,
+      [from, to],
+    ).catch(() => ({ rows: [] as any[] }));
+    const emiMap = new Map<string, { label: string; bookings: number; revenueFils: number }>();
+    const addEmi = (label: string, bookings: number, revenueFils: number) => {
+      const key = (label || 'Other').toString();
+      const g = emiMap.get(key) ?? { label: key, bookings: 0, revenueFils: 0 };
+      g.bookings += bookings; g.revenueFils += revenueFils;
+      emiMap.set(key, g);
+    };
+    for (const r of byEmirate as any[]) addEmi(r.label, Number(r.bookings) || 0, Number(r.revenueFils) || 0);
+    for (const r of histEmiRes.rows) addEmi(r.emirate, Number(r.bookings) || 0, Number(r.revenue) || 0);
+    const byEmirateFull = [...emiMap.values()]
+      .map((g) => ({ label: g.label, bookings: g.bookings, revenueFils: g.revenueFils, revenueDisplay: formatAed(g.revenueFils) }))
+      .sort((a, b) => b.bookings - a.bookings);
+
     const cashOnHandFils = (cashSum as any)?.cashOnHandFils ?? null;
     const arFils = (cashSum as any)?.arFils ?? null;
     // "Available after commitments" = cash on hand + expected incoming (A/R and
@@ -3617,6 +3644,7 @@ export async function adminRoutes(app: FastifyInstance) {
       periodSalesCount,
       periodExpenseByCat,
       yearsPnl,
+      byEmirateFull,
       expensesFils: expenses, expensesDisplay: formatAed(expenses),
       profitFils: profit, profitDisplay: formatAed(Math.abs(profit)), profitNegative: profit < 0,
       marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,

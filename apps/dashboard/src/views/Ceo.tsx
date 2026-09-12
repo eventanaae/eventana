@@ -110,7 +110,7 @@ export function Ceo() {
             <div style={{ height: 5, background: `linear-gradient(90deg,${C.pink},${C.mint})` }} />
             <div style={{ padding: '16px 20px' }}>
               <div style={{ ...fredoka(15), marginBottom: 4 }}>📊 For {periodLabel.toLowerCase()}</div>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>Real income &amp; expenses for the period — includes your QuickBooks history, not just app sales.</div>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 12 }}>Real income &amp; expenses for the period — from your full sales &amp; expense history.</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
                 <HeroKpi label="Income" value={`AED ${data.periodIncomeDisplay}`} accent={C.pink} />
                 <HeroKpi label="Expenses" value={`AED ${data.periodExpenseDisplay}`} accent={C.yellow} />
@@ -148,8 +148,8 @@ export function Ceo() {
 
           {/* 4) Top 3 for the period — most-requested emirates & themes, biggest expenses */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
-            <Top3Orders title="🏆 Top emirates" rows={data.byEmirate} note="From app bookings — the old QuickBooks sales didn't record the emirate." />
-            <Top3Orders title="🎨 Top themes" rows={data.byTheme} note="Themes are tracked for app bookings only." />
+            <Top3Orders title="🏆 Top emirates" rows={data.byEmirateFull ?? data.byEmirate} />
+            <Top3Orders title="🎨 Top themes" rows={data.byTheme} note="Themes are tracked from 1 Sep — they weren't recorded before." />
             <Top3Expenses rows={data.periodExpenseByCat} />
           </div>
 
@@ -230,7 +230,7 @@ function YearPnl({ years }: { years: any[] }) {
         })}
       </div>
       <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.4 }}>
-        Revenue from your QuickBooks invoice history; expenses from the yearly totals you uploaded (0 where a year hasn't been uploaded yet).
+        Revenue from your full sales history; expenses from your yearly totals (0 where a year's expenses haven't been entered yet).
       </div>
     </Panel>
   );
