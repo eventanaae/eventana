@@ -293,16 +293,23 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
 
   // Rebuild: drop the event's non-completed tasks (keep completed work), then
   // recreate what's needed. Preserve status/notes/photo for tasks that survive.
+  // Manually-logged customer extras (key 'extra_…', from addExtraPrepTask) are
+  // ALSO preserved — they have no template to recreate them, so deleting them on
+  // a regenerate would silently drop a customer request that was already tasked.
   const existing = await pool.query<{ key: string; status: string }>(
     `SELECT key, status FROM prep_tasks WHERE event_id = $1`,
     [eventId],
   );
   const completedKeys = new Set(existing.rows.filter((r) => r.status === 'completed').map((r) => r.key));
   await pool.query(
-    `DELETE FROM prep_task_staff WHERE task_id IN (SELECT id FROM prep_tasks WHERE event_id = $1 AND status <> 'completed')`,
+    `DELETE FROM prep_task_staff WHERE task_id IN (
+       SELECT id FROM prep_tasks WHERE event_id = $1 AND status <> 'completed' AND left(key,6) <> 'extra_')`,
     [eventId],
   );
-  await pool.query(`DELETE FROM prep_tasks WHERE event_id = $1 AND status <> 'completed'`, [eventId]);
+  await pool.query(
+    `DELETE FROM prep_tasks WHERE event_id = $1 AND status <> 'completed' AND left(key,6) <> 'extra_'`,
+    [eventId],
+  );
 
   let created = 0;
   for (const t of needed) {
@@ -445,11 +452,14 @@ export async function backfillUncoveredPrep(
     ? (() => { const dd = new Date(`${date}T00:00:00Z`); dd.setUTCDate(dd.getUTCDate() - PHYSICAL_DUE_DAYS); return dd.toISOString().slice(0, 10); })()
     : null;
 
-  // Paid/booked lines only. 'request' rows are the manually-logged customer
-  // extras that addExtraPrepTask already tasks & tracks — leave those to it, so
-  // the two paths never create a second task for the same item.
+  // FREE-TEXT paid/booked lines only (service_id IS NULL). A row with a real
+  // catalogue service_id is already classified by generatePrepTasks via the
+  // catalogue (category / isInflatable) — tasking it here too would double it up.
+  // 'request' rows are the manually-logged customer extras that addExtraPrepTask
+  // already owns, so we skip those as well (never two tasks for one item).
   const es = await pool.query<{ label: string }>(
-    `SELECT label FROM event_services WHERE event_id = $1 AND COALESCE(source,'') <> 'request'`, [eventId]);
+    `SELECT label FROM event_services
+      WHERE event_id = $1 AND service_id IS NULL AND COALESCE(source,'') <> 'request'`, [eventId]);
   // Distinct uncovered labels, keeping original casing for the task title.
   const labels = new Map<string, string>();
   for (const r of es.rows) {
@@ -473,11 +483,16 @@ export async function backfillUncoveredPrep(
   for (const [, label] of labels) {
     const key = xtraKey(label);
     if (haveKeys.has(key)) continue; // already has its task (or it's completed) — leave it
+    haveKeys.add(key); // guard distinct labels that slug to the same key within this pass
     const skill = guessSkill(label);
+    // ON CONFLICT guards the UNIQUE(event_id,key) so a slug collision can't throw
+    // and abandon the rest of the loop — the item is simply left to its existing task.
     const ins = await pool.query<{ id: string }>(
       `INSERT INTO prep_tasks (event_id, key, title, category, skill, people_needed, due_date, status)
-       VALUES ($1,$2,$3,'physical',$4,1,$5,'not_started') RETURNING id`,
+       VALUES ($1,$2,$3,'physical',$4,1,$5,'not_started')
+       ON CONFLICT (event_id, key) DO NOTHING RETURNING id`,
       [eventId, key, `Prepare: ${label}`, skill, due]);
+    if (!ins.rows[0]) continue; // a task with this key already existed
     const taskId = ins.rows[0].id;
     let assignedTo: string | null = null;
     if (skill) {
