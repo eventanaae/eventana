@@ -1,11 +1,21 @@
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, SectionTitle, wasPriceFils } from '../ui';
 
-export function Home({ catalogue, draft, update, go, customerName, t }: ScreenProps) {
+export function Home({ catalogue, draft, shopCart, update, go, customerName, t }: ScreenProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
   const firstName = (customerName || '').trim().split(' ')[0] || 'there';
   const initial = firstName.charAt(0).toUpperCase() || '☺';
+
+  // "Pick up where you left off": both carts persist across a refresh, so surface
+  // them here — a party in progress (package/services chosen) and/or shop items —
+  // instead of leaving the saved cart hidden.
+  const hasParty = !!draft.packageId || Object.values(draft.services).some((q) => q > 0);
+  const shopCount = Object.values(shopCart ?? {}).reduce((s, q) => s + (q > 0 ? q : 0), 0);
+  const partyLabel =
+    catalogue.packages.find((p) => p.id === draft.packageId)?.name ??
+    catalogue.celebrationTypes.find((c) => c.id === draft.celebrationType)?.label ??
+    t('home.resumeParty');
   const popular = catalogue.packages.slice(0, 3);
   const popularThemes = catalogue.themes.filter((t) => t.popular);
   const trending = (popularThemes.length >= 4 ? popularThemes : catalogue.themes).slice(0, 12);
@@ -66,6 +76,33 @@ export function Home({ catalogue, draft, update, go, customerName, t }: ScreenPr
           {t('home.heroSub')}
         </div>
       </div>
+
+      {/* Pick up where you left off — the saved party draft and/or shop basket */}
+      {(hasParty || shopCount > 0) && (
+        <div style={{ marginTop: 16, background: '#fff', borderRadius: 22, padding: '14px 16px', boxShadow: C.shadowLg, border: `1.5px solid ${C.pink}` }}>
+          <div style={{ ...fredoka(15), marginBottom: 6 }}>🧺 {t('home.resumeTitle')}</div>
+          {hasParty && (
+            <div onClick={() => go('checkout')} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '8px 0' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg,#FDE0EE,#F9C6DC)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flex: 'none' }}>🎉</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{partyLabel}</div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{t('home.resumeParty')}</div>
+              </div>
+              <span style={{ color: C.pink, fontWeight: 700, fontSize: 13, flex: 'none' }}>{t('home.resumeContinue')} ›</span>
+            </div>
+          )}
+          {shopCount > 0 && (
+            <div onClick={() => go('shop')} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '8px 0', borderTop: hasParty ? '1px solid #f0e2ea' : 'none' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg,#F3E9FB,#D9B8E8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flex: 'none' }}>🛍️</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5 }}>{t('home.resumeShop')}</div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{shopCount} {t('home.resumeItems')}</div>
+              </div>
+              <span style={{ color: C.pink, fontWeight: 700, fontSize: 13, flex: 'none' }}>{t('home.resumeContinue')} ›</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Two clear, premium ways to begin */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 18 }}>

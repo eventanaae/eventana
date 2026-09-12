@@ -129,6 +129,26 @@ function saveDraft(d: Draft): void {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* storage full/unavailable */ }
 }
 
+/**
+ * The shop basket (custom printed & digital goods) also survives a refresh now,
+ * so a customer never loses the items they collected before checking out.
+ * Cleared on a completed shop order.
+ */
+const SHOPCART_KEY = 'eventana.shopCart';
+function loadShopCart(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(SHOPCART_KEY);
+    if (!raw) return {};
+    const c = JSON.parse(raw) as Record<string, number>;
+    return Object.fromEntries(
+      Object.entries(c).filter(([, q]) => Number(q) > 0).map(([k, q]) => [k, Math.floor(Number(q))]),
+    );
+  } catch { return {}; }
+}
+function saveShopCart(c: Record<string, number>): void {
+  try { localStorage.setItem(SHOPCART_KEY, JSON.stringify(c)); } catch { /* storage full/unavailable */ }
+}
+
 /** Next Saturday — the app opens on a plausible party date. */
 function defaultDate(): string {
   const d = new Date();
@@ -184,7 +204,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   // Standalone shop cart (custom printed & digital goods) — kept apart from the
   // party draft: service id → quantity.
-  const [shopCart, setShopCart] = useState<Record<string, number>>({});
+  const [shopCart, setShopCart] = useState<Record<string, number>>(() => loadShopCart());
   const [draft, setDraft] = useState<Draft>(() => loadDraft() ?? emptyDraft);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   // True when the live price couldn't be fetched (e.g. a mobile network blip),
@@ -392,6 +412,8 @@ export default function App() {
 
   // Keep the in-progress party saved so nothing is lost on refresh/close.
   useEffect(() => { saveDraft(draft); }, [draft]);
+  // Same for the shop basket — it used to live in memory only and vanish on refresh.
+  useEffect(() => { saveShopCart(shopCart); }, [shopCart]);
 
   /**
    * Live total. Debounced, and every response is checked against the
