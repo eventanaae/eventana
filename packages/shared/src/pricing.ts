@@ -189,7 +189,12 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
     }
 
     for (const asset of service.requiresAssets) {
-      if (ctx.unavailableAssets?.has(asset)) {
+      // The castle service always lists the default colour in requiresAssets, but
+      // availability is computed for the CHOSEN variant — check that one, or a
+      // sold-out colour slips past the pre-payment "unavailable" block (it would
+      // only fail late, at acquireHolds).
+      const effective = asset.startsWith('castle-') && cart.castleVariant ? cart.castleVariant : asset;
+      if (ctx.unavailableAssets?.has(effective)) {
         problems.push({
           code: 'unavailable',
           message: `${service.name} is no longer available for your date and time.`,

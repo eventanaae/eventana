@@ -207,9 +207,9 @@ export function MyEvent({
     setAddonError(null);
     try {
       const result = await api.addonCheckout(eventId!, {
-        // Use a live payment method (Tabby stays disabled until its live
-        // credentials are in).
-        provider: 'ziina',
+        // Stripe is Eventana's only live card rail (Ziina was retired). The old
+        // 'ziina' value was rejected by the API enum, so add-on payments 400'd.
+        provider: 'stripe',
         additionalHours: pending.hours,
         socksPairs: pending.socks,
         extraServings: pending.servings,

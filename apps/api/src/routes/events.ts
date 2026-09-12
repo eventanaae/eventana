@@ -915,7 +915,7 @@ export async function eventRoutes(app: FastifyInstance) {
   app.post('/api/events/:eventId/addons/checkout', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const schema = z.object({
-      provider: z.enum(['tabby', 'tamara', 'stripe']),
+      provider: z.enum(['tabby', 'tamara', 'stripe']).default('stripe'),
       additionalHours: z.number().int().min(0).max(6).default(0),
       socksPairs: z.number().int().min(0).max(500).default(0),
       extraServings: z.record(z.string(), z.number().int().min(0).max(50)).default({}),

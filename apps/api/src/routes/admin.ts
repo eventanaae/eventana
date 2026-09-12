@@ -3074,9 +3074,17 @@ export async function adminRoutes(app: FastifyInstance) {
 
     // Forward-looking pipeline (upcoming confirmed events + booked revenue) and
     // the WhatsApp sales funnel — global business health, not range-filtered.
+    // Pipeline revenue must include 'converted' bookings (WhatsApp/QB sales turned
+    // into upcoming events) — they ARE counted as pipeline events, so dropping
+    // their money made the widget contradict itself ("many events, ~AED 0"). No
+    // double-count risk here: this sums orders only, one booking order per event,
+    // and never touches finance_receipts (the reason evRevSub excludes converted).
+    const evRevSubPipeline = `(SELECT COALESCE(SUM(o.total_fils),0) FROM orders o
+        WHERE o.status='paid' AND o.kind IN ('booking','addon')
+          AND (o.id = e.order_id OR o.event_id = e.id))`;
     const [pipelineRow, funnelRow] = await Promise.all([
       pool.query(
-        `SELECT COUNT(*)::int c, COALESCE(SUM(${evRevSub}),0) v
+        `SELECT COUNT(*)::int c, COALESCE(SUM(${evRevSubPipeline}),0) v
            FROM events e WHERE e.phase <> 'Cancelled' AND e.event_date >= current_date`,
       ),
       pool.query(
@@ -3172,7 +3180,7 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT COUNT(*)::int n FROM prep_tasks pt JOIN events e ON e.id=pt.event_id
                    WHERE pt.status NOT IN ('completed') AND pt.due_date < current_date AND e.phase<>'Cancelled' AND e.event_date>=current_date`),
       pool.query(`SELECT COUNT(*)::int n FROM events WHERE phase<>'Cancelled' AND event_date>=current_date AND event_date<=current_date + interval '7 days'`),
-      pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char(now(),'MM-DD')`),
+      pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD')`),
       pool.query(`SELECT c.name, SUM(o.total_fils)::bigint v, COUNT(*)::int n
                     FROM orders o JOIN customers c ON c.id=o.customer_id
                    WHERE o.status='paid' AND o.kind IN ('booking','addon')
@@ -3359,10 +3367,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const [visitAll, visit30, reg, booked, trend] = await Promise.all([
       pool.query(`SELECT COUNT(DISTINCT visitor_hash)::int n, COALESCE(SUM(hits),0)::int hits FROM site_visits`),
       pool.query(`SELECT COUNT(DISTINCT visitor_hash)::int n FROM site_visits WHERE day >= current_date - 29`),
-      pool.query(`SELECT COUNT(*)::int n FROM customers WHERE password_hash IS NOT NULL`),
+      // Align 'registered'/'booked' to the SAME window as 'visitors' (since
+      // tracking went live). Counting all-time accounts against since-tracking
+      // visitors let the conversion % exceed 100%.
+      pool.query(`SELECT COUNT(*)::int n FROM customers
+                   WHERE password_hash IS NOT NULL
+                     AND created_at >= (SELECT MIN(day) FROM site_visits)`),
       pool.query(
         `SELECT COUNT(*)::int n FROM customers c
           WHERE c.password_hash IS NOT NULL
+            AND c.created_at >= (SELECT MIN(day) FROM site_visits)
             AND (EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status = 'paid')
                  OR EXISTS (SELECT 1 FROM events e WHERE e.customer_id = c.id AND e.phase <> 'Cancelled'))`,
       ),
@@ -4541,7 +4555,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const isMgr = staff.role === 'owner' || staff.role === 'manager';
     if (!isMgr) return { birthdays: [], offToday: [], alerts: [] };
     const [bdays, off, evToday, atRisk, unpaid] = await Promise.all([
-      pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char(CURRENT_DATE,'MM-DD') ORDER BY name`),
+      pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD') ORDER BY name`),
       pool.query(`SELECT DISTINCT tm.name FROM staff_days_off d JOIN team_members tm ON tm.id=d.member_id WHERE d.status='approved' AND tm.active AND CURRENT_DATE BETWEEN d.start_date AND d.end_date ORDER BY tm.name`),
       pool.query(`SELECT COUNT(*)::int n FROM events WHERE phase<>'Cancelled' AND event_date=CURRENT_DATE`),
       pool.query(`SELECT COUNT(DISTINCT e.id)::int n FROM events e
@@ -4669,7 +4683,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const [birthdays, offToday] = await Promise.all([
       pool.query(`SELECT name FROM team_members
                    WHERE active AND birthday IS NOT NULL
-                     AND to_char(birthday,'MM-DD') = to_char(CURRENT_DATE,'MM-DD') ORDER BY name`),
+                     AND to_char(birthday,'MM-DD') = to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD') ORDER BY name`),
       pool.query(`SELECT DISTINCT tm.name FROM staff_days_off d JOIN team_members tm ON tm.id = d.member_id
                    WHERE d.status='approved' AND tm.active
                      AND CURRENT_DATE BETWEEN d.start_date AND d.end_date ORDER BY tm.name`),

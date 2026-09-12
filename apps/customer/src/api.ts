@@ -407,7 +407,7 @@ export const api = {
     request<{ orderId: string; checkoutUrl: string | null }>(
       `/api/events/${eventId}/tip/checkout`,
       // Pass the signed feedback token so an account-less customer can still tip.
-      { method: 'POST', body: JSON.stringify({ amountFils, memberId, provider: 'ziina', t: fb ?? currentFb() ?? undefined }) },
+      { method: 'POST', body: JSON.stringify({ amountFils, memberId, provider: 'stripe', t: fb ?? currentFb() ?? undefined }) },
     ),
 
   assistant: (question: string, celebrationType: string) =>

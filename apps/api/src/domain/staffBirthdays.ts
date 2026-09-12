@@ -50,17 +50,17 @@ export async function sendStaffBirthdayEmails(): Promise<{ sent: number }> {
       WHERE active AND birthday IS NOT NULL
         AND (COALESCE(btrim(email),'') <> '' OR COALESCE(btrim(phone),'') <> '')
         AND (
-          to_char(birthday,'MM-DD') = to_char(CURRENT_DATE,'MM-DD')
+          to_char(birthday,'MM-DD') = to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD')
           -- A 29 Feb birthday has no calendar day in a non-leap year, so greet
           -- them on 28 Feb instead (never skip a whole year). Leap years still
           -- match on the 29th via the clause above.
           OR (
             to_char(birthday,'MM-DD') = '02-29'
-            AND to_char(CURRENT_DATE,'MM-DD') = '02-28'
+            AND to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD') = '02-28'
             AND NOT (
-              EXTRACT(year FROM CURRENT_DATE)::int % 4 = 0
-              AND (EXTRACT(year FROM CURRENT_DATE)::int % 100 <> 0
-                   OR EXTRACT(year FROM CURRENT_DATE)::int % 400 = 0)
+              EXTRACT(year FROM (now() AT TIME ZONE 'Asia/Dubai')::date)::int % 4 = 0
+              AND (EXTRACT(year FROM (now() AT TIME ZONE 'Asia/Dubai')::date)::int % 100 <> 0
+                   OR EXTRACT(year FROM (now() AT TIME ZONE 'Asia/Dubai')::date)::int % 400 = 0)
             )
           )
         )
