@@ -778,15 +778,51 @@ function Frame({ children, lang = 'en' }: { children: React.ReactNode; lang?: La
   return (
     <div
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
+      className="ev-shell"
       style={{
         minHeight: '100dvh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 56,
         padding: 'env(safe-area-inset-top) 0 0',
       }}
     >
+      {/* Desktop: a branded backdrop + a welcome panel beside the app, so a
+          laptop shows a designed page instead of a small phone on empty space.
+          Everything here is hidden on phones (the app fills the screen there). */}
+      <style>{`
+        .ev-shell{background:
+          radial-gradient(900px 520px at 12% 8%, #FDE7F1 0%, rgba(253,231,241,0) 60%),
+          radial-gradient(900px 520px at 100% 100%, #FCEFE1 0%, rgba(252,239,225,0) 55%),
+          linear-gradient(155deg,#FBEAF2 0%,#FBF3EA 100%);}
+        .ev-brand{display:none;}
+        @media (min-width:980px){.ev-brand{display:flex;}}
+        @media (min-width:760px){.ev-frame{border-radius:36px !important;
+          box-shadow:0 24px 70px rgba(214,49,127,.20),0 4px 14px rgba(59,54,65,.10) !important;}}
+      `}</style>
+      <div className="ev-brand" style={{ flexDirection: 'column', maxWidth: 360, padding: 24 }}>
+        <div style={{ fontFamily: "'Sacramento', cursive", fontSize: 46, color: C.pinkDeep, lineHeight: 1 }}>Eventana</div>
+        <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 4, textTransform: 'uppercase', color: C.pink, marginTop: 2 }}>Events</div>
+        <div style={{ fontSize: 27, fontWeight: 800, color: C.ink, lineHeight: 1.25, marginTop: 22 }}>
+          {lang === 'ar' ? 'حفلات لا تُنسى، جاهزة عند بابك 🎈' : 'Unforgettable parties, delivered to your door 🎈'}
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: C.muted, lineHeight: 1.7, marginTop: 12 }}>
+          {lang === 'ar'
+            ? 'اختاري باقتك والثيم، وشوفي السعر كامل قبل ما تدفعين — والباقي علينا.'
+            : 'Pick your package and theme, see the full price before you pay — and leave the rest to us.'}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
+          {(lang === 'ar'
+            ? ['🎨 ديكور وبالونات', '🎪 ألعاب وتسلية', '🍿 أكشاك طعام', '📍 كل الإمارات']
+            : ['🎨 Decor & balloons', '🎪 Games & fun', '🍿 Food stations', '📍 All Emirates']
+          ).map((chip) => (
+            <span key={chip} style={{ background: '#fff', border: `1px solid ${C.pinkSoft}`, borderRadius: 999, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: C.ink, boxShadow: '0 2px 8px rgba(214,49,127,.06)' }}>{chip}</span>
+          ))}
+        </div>
+      </div>
       <div
+        className="ev-frame"
         style={{
           width: 390,
           maxWidth: '100vw',
