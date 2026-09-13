@@ -146,6 +146,15 @@ export function MapPicker({
           markerRef.current = marker;
           geocoderRef.current = geocoder;
 
+          // Watchdog: the SDK can load and the map object build with NO
+          // gm_authFailure, yet the TILES never render (billing disabled on the
+          // Cloud project, or a tile/API restriction on the key) — a blank grey
+          // map. Don't strand the customer on it: if no tile has loaded within
+          // 6s, drop to the manual-pin fallback so they can still set the spot.
+          let tilesLoaded = false;
+          google.maps.event.addListenerOnce(map, 'tilesloaded', () => { tilesLoaded = true; });
+          window.setTimeout(() => { if (!cancelled && !tilesLoaded) setStatus('error'); }, 6000);
+
           const commit = (pin: Pin) => {
             marker.setPosition(pin);
             map.panTo(pin);
