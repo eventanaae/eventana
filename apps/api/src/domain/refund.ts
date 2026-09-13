@@ -113,13 +113,16 @@ export async function refundOrderMoney(params: {
          reason, !!params.cancelEvent, verified.providerStatus ?? null, createdBy, itemLabel],
       );
 
-      // Reflect the refund on the order's sales receipt so the (re-)emailed
-      // receipt and the dashboard show the returned item + the new net total.
-      // In a SAVEPOINT so a failure here can NEVER abort the money-out/bookkeeping
-      // transaction (the provider has already moved the money above). A no-match
-      // (order with no linked receipt) is a plain no-op.
-      await db.query('SAVEPOINT rcpt_refund');
+      // Everything below is a best-effort SIDE-EFFECT: the receipt reflection,
+      // cancellation settle, finance task, notifications, loyalty reversal, and —
+      // only if asked — the event teardown. The money already moved and is
+      // recorded in `payments` + `refunds` above. Wrap it ALL in one SAVEPOINT so
+      // any failure here rolls back only these extras and can NEVER revert the
+      // refund itself — otherwise a rollback would let a dashboard retry refund
+      // the customer a SECOND time.
+      await db.query('SAVEPOINT refund_side_effects');
       try {
+        // Reflect the refund on the order's sales receipt (returned item + new net).
         await db.query(
           `UPDATE finance_receipts
               SET refunded_fils = refunded_fils + $2,
@@ -127,13 +130,9 @@ export async function refundOrderMoney(params: {
             WHERE order_id = $1`,
           [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
         );
-        await db.query('RELEASE SAVEPOINT rcpt_refund');
-      } catch {
-        await db.query('ROLLBACK TO SAVEPOINT rcpt_refund').catch(() => {});
-      }
 
       // Settle any recorded customer cancellation (if this refund is one).
-      const cx = await db.query(
+      await db.query(
         `UPDATE cancellations
             SET refund_status = 'processed', processed_at = now(),
                 refund_reference = COALESCE($2, refund_reference)
@@ -200,6 +199,13 @@ export async function refundOrderMoney(params: {
           );
           await db.query(`UPDATE event_tasks SET status = 'done' WHERE event_id = $1 AND status <> 'done'`, [payment.event_id]);
         }
+      }
+        await db.query('RELEASE SAVEPOINT refund_side_effects');
+      } catch (sideErr) {
+        // The refund + its ledger record are already committed above; only these
+        // extras rolled back. Never rethrow — that would revert the refund.
+        await db.query('ROLLBACK TO SAVEPOINT refund_side_effects').catch(() => {});
+        console.error('[refund] side-effects failed (the refund itself is recorded & safe):', (sideErr as Error).message);
       }
 
       return { ok: true, status: nextStatus, refundedFils: refundedTotal };

@@ -150,10 +150,17 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
 
   const stuckSince = new Date(Date.now() - config.reconcileStuckAfterMs);
   const { rows } = await pool.query(
+    // Chase orders that are stuck 'processing' OR 'awaiting_payment' but ALREADY
+    // have a provider payment id — the latter catches a card payment whose
+    // success webhook was lost (Stripe cards jump awaiting_payment→paid with no
+    // 'processing' step, so without this a captured payment sits forever, the
+    // customer gets nagged to "pay again", and their points get reclaimed).
+    // processDelivery re-verifies with the provider (same path as the webhook):
+    // if it's really paid it confirms the booking; if not, nothing changes.
     `SELECT p.id, p.provider, p.provider_payment_id, p.order_id, o.updated_at
        FROM payments p
        JOIN orders o ON o.id = p.order_id
-      WHERE o.status = 'processing'
+      WHERE o.status IN ('processing','awaiting_payment')
         AND p.provider_payment_id IS NOT NULL
         AND o.updated_at < $1
       ORDER BY o.updated_at ASC

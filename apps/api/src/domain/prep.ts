@@ -296,6 +296,17 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
     [ev.date],
   );
   const off = new Set<string>(offRes.rows.map((r: any) => r.member_id));
+  // Design tasks are due DESIGN_DUE_DAYS (5) before the event, so a designer on
+  // leave 5–3 days out would be free of the physical window (event−2) yet unable
+  // to do the design due during their leave. Use a wider window for design work
+  // so it isn't silently assigned to someone who's off when it's due.
+  const offDesignRes = await pool.query(
+    `SELECT DISTINCT member_id FROM staff_days_off
+      WHERE status = 'approved'
+        AND start_date <= $1::date AND end_date >= ($1::date - interval '${DESIGN_DUE_DAYS} days')`,
+    [ev.date],
+  );
+  const offDesign = new Set<string>(offDesignRes.rows.map((r: any) => r.member_id));
 
   const dueOf = (cat: 'design' | 'physical') => {
     const d = new Date(`${ev.date}T00:00:00Z`);
@@ -303,29 +314,37 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
     return d.toISOString().slice(0, 10);
   };
 
-  // Rebuild: drop the event's non-completed tasks (keep completed work), then
-  // recreate what's needed. Preserve status/notes/photo for tasks that survive.
-  // Manually-logged customer extras (key 'extra_…', from addExtraPrepTask) are
-  // ALSO preserved — they have no template to recreate them, so deleting them on
-  // a regenerate would silently drop a customer request that was already tasked.
+  // Rebuild: recreate the tasks the order needs, but NEVER destroy work that's
+  // already happening. We PRESERVE any task that is completed, in progress, or
+  // flagged as an issue — keeping its status, notes, ticked checklist, photo and
+  // assignees — because a customer add-on / reschedule / receipt edit / integrity
+  // sweep all re-run this, and wiping a half-done task (or silently clearing a
+  // reported "missing item" issue) is a real loss. Only the tasks with NO
+  // progress ('not_started'/'ready'/'waiting_design') are dropped and rebuilt.
+  // Manually-logged customer extras (key 'extra_…') are always kept.
+  const KEEP = "status IN ('completed','in_progress','issue')";
   const existing = await pool.query<{ key: string; status: string }>(
     `SELECT key, status FROM prep_tasks WHERE event_id = $1`,
     [eventId],
   );
   const completedKeys = new Set(existing.rows.filter((r) => r.status === 'completed').map((r) => r.key));
+  // Keys whose task we're preserving → don't recreate them (avoids a duplicate).
+  const keptKeys = new Set(
+    existing.rows.filter((r) => ['completed', 'in_progress', 'issue'].includes(r.status)).map((r) => r.key),
+  );
   await pool.query(
     `DELETE FROM prep_task_staff WHERE task_id IN (
-       SELECT id FROM prep_tasks WHERE event_id = $1 AND status <> 'completed' AND left(key,6) <> 'extra_')`,
+       SELECT id FROM prep_tasks WHERE event_id = $1 AND NOT (${KEEP}) AND left(key,6) <> 'extra_')`,
     [eventId],
   );
   await pool.query(
-    `DELETE FROM prep_tasks WHERE event_id = $1 AND status <> 'completed' AND left(key,6) <> 'extra_'`,
+    `DELETE FROM prep_tasks WHERE event_id = $1 AND NOT (${KEEP}) AND left(key,6) <> 'extra_'`,
     [eventId],
   );
 
   let created = 0;
   for (const t of needed) {
-    if (completedKeys.has(t.key)) continue; // already done — leave it
+    if (keptKeys.has(t.key)) continue; // completed / in progress / issue — leave it exactly as-is
     // A physical task that waits on a design task starts as 'waiting_design'
     // only if that design task is actually part of this order AND isn't already
     // finished. If the design was completed on an earlier pass (regenerate /
@@ -337,16 +356,19 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
 
     const ins = await pool.query<{ id: string }>(
       `INSERT INTO prep_tasks (event_id, key, title, category, skill, people_needed, depends_on_key, due_date, status, checklist)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (event_id, key) DO NOTHING RETURNING id`,
       [eventId, t.key, t.title, t.category, t.skill, t.people, dep, dueOf(t.category), status, checklist],
     );
+    if (!ins.rows[0]) continue; // a preserved task already holds this key — leave it
     const taskId = ins.rows[0].id;
     created++;
 
     // Fair assignment: qualified, not on day-off, lowest workload first. Assign
     // as many distinct people as the task needs (two-person tasks get two).
+    const offSet = t.category === 'design' ? offDesign : off;
     const cands = staff
-      .filter((s) => s.skills.has(t.skill) && !off.has(s.id))
+      .filter((s) => s.skills.has(t.skill) && !offSet.has(s.id))
       .sort((a, b) => (workload.get(a.id) ?? 0) - (workload.get(b.id) ?? 0));
     for (let i = 0; i < t.people && i < cands.length; i++) {
       const pick = cands[i];

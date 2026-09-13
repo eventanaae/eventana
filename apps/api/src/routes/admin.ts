@@ -2915,7 +2915,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const [rev, exp, byCat, tipsRow, revTrend, expTrend] = await Promise.all([
       pool.query(
         `SELECT COALESCE(SUM(total_fils),0) AS v FROM orders
-          WHERE status='paid' AND kind IN ('booking','addon') AND source IS DISTINCT FROM 'converted'
+          WHERE status IN ('paid','partially_refunded') AND kind IN ('booking','addon') AND source IS DISTINCT FROM 'converted'
             AND created_at >= $1 AND created_at < $2`,
         [start, end],
       ),
@@ -2932,7 +2932,7 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
       pool.query(
         `SELECT to_char(date_trunc('month', created_at),'YYYY-MM') AS m, SUM(total_fils) AS v
-           FROM orders WHERE status='paid' AND kind IN ('booking','addon') AND source IS DISTINCT FROM 'converted' AND created_at >= $1
+           FROM orders WHERE status IN ('paid','partially_refunded') AND kind IN ('booking','addon') AND source IS DISTINCT FROM 'converted' AND created_at >= $1
           GROUP BY 1`,
         [sixStart],
       ),
@@ -3229,7 +3229,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     // Per-event revenue (booking order + its addons), with dimensions.
     const evRevSub = `(SELECT COALESCE(SUM(o.total_fils),0) FROM orders o
-        WHERE o.status='paid' AND o.kind IN ('booking','addon') AND o.source IS DISTINCT FROM 'converted'
+        WHERE o.status IN ('paid','partially_refunded') AND o.kind IN ('booking','addon') AND o.source IS DISTINCT FROM 'converted'
           AND (o.id = e.order_id OR o.event_id = e.id))`;
 
     // Previous equal-length window for period comparison.
@@ -3333,7 +3333,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // double-count risk here: this sums orders only, one booking order per event,
     // and never touches finance_receipts (the reason evRevSub excludes converted).
     const evRevSubPipeline = `(SELECT COALESCE(SUM(o.total_fils),0) FROM orders o
-        WHERE o.status='paid' AND o.kind IN ('booking','addon')
+        WHERE o.status IN ('paid','partially_refunded') AND o.kind IN ('booking','addon')
           AND (o.id = e.order_id OR o.event_id = e.id))`;
     const [pipelineRow, funnelRow] = await Promise.all([
       pool.query(
@@ -3449,7 +3449,7 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD')`),
       pool.query(`SELECT c.name, SUM(o.total_fils)::bigint v, COUNT(*)::int n
                     FROM orders o JOIN customers c ON c.id=o.customer_id
-                   WHERE o.status='paid' AND o.kind IN ('booking','addon')
+                   WHERE o.status IN ('paid','partially_refunded') AND o.kind IN ('booking','addon')
                    GROUP BY c.id,c.name ORDER BY v DESC LIMIT 5`),
       pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>=$1 AND e.event_date<=$2`, [yearStartS, todayS]),
       pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>$1 AND e.event_date<$2`, [todayS, yearEndS]),

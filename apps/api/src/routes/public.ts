@@ -646,13 +646,16 @@ export async function publicRoutes(app: FastifyInstance) {
     // returning even when the provider webhook was missed or rejected, instead
     // of waiting for the 10-minute reconcile sweep. Failures are swallowed: the
     // order stays 'processing' and reconcile will still chase it.
-    if (order.status === 'processing' && order.provider && order.provider_payment_id) {
+    // 'awaiting_payment' with a provider payment id is included so a card whose
+    // success webhook was lost (Stripe jumps awaiting_payment→paid, no
+    // 'processing' step) is still confirmed the moment the customer lands here.
+    if ((order.status === 'processing' || order.status === 'awaiting_payment') && order.provider && order.provider_payment_id) {
       try {
         await processDelivery(null, order.provider, order.provider_payment_id);
         const refreshed = await pool.query(selectOrder, [orderId]);
         if (refreshed.rows[0]) order = refreshed.rows[0];
       } catch {
-        /* leave as processing; the reconcile sweep is the backstop */
+        /* leave as-is; the reconcile sweep is the backstop */
       }
     }
 
