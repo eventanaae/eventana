@@ -157,7 +157,7 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     // customer gets nagged to "pay again", and their points get reclaimed).
     // processDelivery re-verifies with the provider (same path as the webhook):
     // if it's really paid it confirms the booking; if not, nothing changes.
-    `SELECT p.id, p.provider, p.provider_payment_id, p.order_id, o.updated_at
+    `SELECT p.id, p.provider, p.provider_payment_id, p.order_id, o.updated_at, o.status
        FROM payments p
        JOIN orders o ON o.id = p.order_id
       WHERE o.status IN ('processing','awaiting_payment')
@@ -175,7 +175,14 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
       if (outcome === 'accepted') report.resolved += 1;
 
       const age = Date.now() - new Date(row.updated_at).getTime();
-      if (outcome !== 'accepted' && age > config.reconcileAlertAfterMs) {
+      // A plain 'ignored' on an 'awaiting_payment' order is just a normal
+      // abandoned cart (customer opened checkout, never paid — already handled by
+      // the abandoned-cart recovery flow). Don't raise a payment_unresolved alert
+      // for those, or every abandoned checkout would bury the genuine
+      // lost-webhook cases. Still alert for stuck 'processing' orders (original
+      // behaviour) and for any real anomaly (amount_mismatch / late_success / error).
+      const abandonedCart = row.status === 'awaiting_payment' && outcome === 'ignored';
+      if (outcome !== 'accepted' && !abandonedCart && age > config.reconcileAlertAfterMs) {
         report.alerted += 1;
         await pool.query(
           `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
