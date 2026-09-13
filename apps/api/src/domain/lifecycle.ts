@@ -63,13 +63,20 @@ export async function reAlignPendingNotifications(eventId: string, db: Db = pool
 export async function enqueueBookingLifecycle(eventId: string, db: Db = pool): Promise<LifecycleResult> {
   const { rows } = await db.query(`
     SELECT to_char(e.event_date,'YYYY-MM-DD') AS d, e.start_time, e.date_tbd,
-           c.email
+           c.email, c.phone
       FROM events e JOIN customers c ON c.id = e.customer_id
      WHERE e.id = $1 AND e.phase <> 'Cancelled'`, [eventId]);
   const ev = rows[0];
   if (!ev) return { scheduled: [], skipped: 'event not found/cancelled' };
   if (ev.date_tbd || !ev.d) return { scheduled: [], skipped: 'date is TBD' };
-  if (!ev.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ev.email)) return { scheduled: [], skipped: 'no valid email' };
+  // Enqueue if the customer is reachable by EITHER a valid email OR a WhatsApp
+  // phone. The rows are channel='email', but the WhatsApp sweep sends off the
+  // same rows and the email sweep skips gracefully when there's no email — so a
+  // phone-only customer (common on the receipt→event / manual path) still gets
+  // their confirmation, reminders and feedback ask over WhatsApp.
+  const hasEmail = ev.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ev.email);
+  const hasPhone = ev.phone && ev.phone !== '00000000' && String(ev.phone).replace(/\D/g, '').length >= 9;
+  if (!hasEmail && !hasPhone) return { scheduled: [], skipped: 'no valid email or phone' };
 
   const eventStart = `${ev.d}T${ev.start_time ?? '18:00'}:00+04:00`;
   const payload = JSON.stringify({ eventId });

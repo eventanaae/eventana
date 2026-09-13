@@ -509,6 +509,7 @@ export default function App() {
       </div>
 
       {eventDrawer}
+      {shopDrawer}
       </div>
     </div>
   );

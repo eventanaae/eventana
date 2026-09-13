@@ -98,6 +98,12 @@ export function MapPicker({
   // The free-text resolver is built inside the map effect (it needs the live
   // map + geocoder + commit in scope); the search box calls it through this ref.
   const resolveRef = useRef<(raw: string) => void>();
+  // The map effect runs once (deps [mapsKey]); without this its `commit` closure
+  // would capture the MOUNT-time onChange, so every drag/click/search would fire
+  // an onChange built from stale form state and wipe the address the customer
+  // just typed. Keep a live ref so callbacks always use the current onChange.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const [status, setStatus] = useState<'loading' | 'ready' | 'nokey' | 'error'>('loading');
   const [address, setAddress] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
@@ -161,7 +167,7 @@ export function MapPicker({
             geocoder.geocode({ location: pin }, (results: any[], gStatus: string) => {
               const label = gStatus === 'OK' && results?.[0] ? results[0].formatted_address : undefined;
               if (!cancelled) setAddress(label ?? null);
-              onChange(pin, label);
+              onChangeRef.current(pin, label);
             });
           };
 
@@ -273,7 +279,7 @@ export function MapPicker({
         geocoderRef.current?.geocode({ location: pin }, (results: any[], gStatus: string) => {
           const label = gStatus === 'OK' && results?.[0] ? results[0].formatted_address : undefined;
           setAddress(label ?? null);
-          onChange(pin, label);
+          onChangeRef.current(pin, label);
         });
       },
       () => setLocating(false),
@@ -288,7 +294,7 @@ export function MapPicker({
     return (
       <button
         type="button"
-        onClick={() => onChange(set)}
+        onClick={() => onChangeRef.current(set)}
         style={{
           width: '100%',
           border: `1.5px dashed ${value ? C.pink : C.pinkDash}`,

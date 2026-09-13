@@ -427,7 +427,7 @@ export function MyEvent({
           {t('me.addMoreSub')}
         </div>
 
-        {event.addOns.maxExtraHours > 0 ? (
+        {event.addOns?.maxExtraHours > 0 ? (
           <Stepper
             title={t('me.additionalHour', { aed: `${t('common.aed')} ${money(event.addOns.additionalHourFils)}` })}
             sub={
@@ -445,7 +445,7 @@ export function MyEvent({
           </div>
         )}
 
-        {event.addOns.socks && (
+        {event.addOns?.socks && (
           <>
             <div style={{ marginBottom: 10 }}>
               <Notice tone="warn">{t('me.socksNotice')}</Notice>
@@ -470,7 +470,7 @@ export function MyEvent({
           </>
         )}
 
-        {event.addOns.extraServings.map((row: any) => (
+        {(event.addOns?.extraServings ?? []).map((row: any) => (
           <Stepper
             key={row.serviceId}
             title={t('me.extraServings', { name: row.name })}
@@ -633,7 +633,7 @@ export function MyEvent({
           {t('me.chatConnected', { id: event.reference ?? event.id })}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-          {event.messages.map((m: any) => (
+          {(event.messages ?? []).map((m: any) => (
             <div
               key={m.id}
               style={{
@@ -647,7 +647,7 @@ export function MyEvent({
               {m.body}
             </div>
           ))}
-          {event.messages.length === 0 && (
+          {(event.messages ?? []).length === 0 && (
             <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>
               {t('me.chatEmpty')}
             </div>

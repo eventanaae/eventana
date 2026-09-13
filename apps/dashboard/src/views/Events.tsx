@@ -24,7 +24,9 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [showPast, setShowPast] = useState(false);
 
   useEffect(() => {
-    api.events().then(setEvents);
+    // Fall back to an empty list on failure (a toast already shows the error) so
+    // a transient load failure doesn't leave the whole Events tab spinning forever.
+    api.events().then(setEvents).catch(() => setEvents([]));
     api.needsReview().then(setNeedsReview).catch(() => setNeedsReview([]));
   }, []);
 
@@ -615,8 +617,8 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                 ) : undefined}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
-                  {data.messages.length === 0 && <Empty>No messages yet.</Empty>}
-                  {data.messages.map((m: any) => (
+                  {(data.messages ?? []).length === 0 && <Empty>No messages yet.</Empty>}
+                  {(data.messages ?? []).map((m: any) => (
                     <div
                       key={m.id}
                       style={{

@@ -187,7 +187,16 @@ export async function adminRoutes(app: FastifyInstance) {
       /^\/api\/admin\/prep\/[^/]+\/generate$/.test(path) ||
       path.startsWith('/api/admin/import') ||
       path.startsWith('/api/admin/orders') ||
-      path.startsWith('/api/admin/expenses') ||
+      // 'expense' (not 'expenses') so /api/admin/expense-accounts — the company
+      // spend-by-account/supplier breakdown — is gated too (it slipped the
+      // 'expenses' prefix and leaked full financials to any employee).
+      path.startsWith('/api/admin/expense') ||
+      // Whole-team tips / earnings / points: Manager + Owner (an employee sees
+      // only their own, in Profile — never every colleague's tip income).
+      path === '/api/admin/kpis' ||
+      // Customer-facing messaging on any event (send/delete a message, open the
+      // chat) is Manager + Owner — an employee must not message customers.
+      (request.method !== 'GET' && /^\/api\/admin\/events\/[^/]+\/(messages|chat)(\/|$)/.test(path)) ||
       path.startsWith('/api/admin/settings') ||
       path.startsWith('/api/admin/delivery-zones') ||
       path.startsWith('/api/admin/needs-review') ||

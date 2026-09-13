@@ -161,6 +161,8 @@ async function main() {
     await integritySweepFromEnv().catch((err) => console.error('[integrity] failed:', err));
     const { refundWaGuardOnBoot } = await import('./db/refundWaGuard.js');
     await refundWaGuardOnBoot().catch((err) => console.error('[refund-wa-guard] failed:', err));
+    const { sendUserManualFromEnv } = await import('./db/sendUserManual.js');
+    await sendUserManualFromEnv().catch((err) => console.error('[user-manual] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');

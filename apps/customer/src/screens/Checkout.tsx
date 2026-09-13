@@ -200,7 +200,12 @@ export function Checkout({
   useEffect(() => {
     const pms = catalogue.paymentMethods;
     if (pms.length && !pms.some((p) => p.name === draft.provider)) {
-      update({ provider: pms[0].name });
+      // Snap to the SAME method the card/Apple-Pay rail shows selected (Stripe
+      // preferred), not just pms[0] — otherwise, if a non-Stripe method is listed
+      // first, accepting the pre-selected wallet without tapping sends the wrong
+      // provider. Mirrors `walletName` below.
+      const preferred = pms.find((p) => p.name === 'stripe')?.name ?? pms[0].name;
+      update({ provider: preferred });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogue.paymentMethods, draft.provider]);

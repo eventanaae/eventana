@@ -21,7 +21,9 @@ function PayButton({ kind, name, suggestedFils, month, paid, paidDisplay, onPaid
       const v = prompt(`Amount paid to ${name} (AED):`, cur);
       if (v == null) return;
       const fils = Math.round(Number(v) * 100);
-      if (!Number.isFinite(fils) || fils < 0) { alert('Enter a valid amount.'); return; }
+      // Number('') is 0 — reject blank/zero so a cleared prompt can't mark
+      // someone "Paid AED 0" (and send them a zero summary).
+      if (!Number.isFinite(fils) || fils <= 0) { alert('Enter a valid amount.'); return; }
       setBusy(true);
       try {
         const r = await api.markStaffPaid({ kind, name, amountFils: fils, month });

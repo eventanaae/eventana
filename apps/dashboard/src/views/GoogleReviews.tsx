@@ -44,7 +44,11 @@ export function GoogleReviews() {
     try {
       if (edited !== undefined) await api.googleReviewEdit(id, edited);
       const res = await api.googleReviewPost(id);
+      // The endpoint returns HTTP 200 with { ok:false } on a soft failure
+      // (e.g. the Google token expired) — surface it instead of silently
+      // leaving the reply unposted with no feedback.
       if (res.ok) load();
+      else alert(`Couldn't post the reply: ${res.error || 'please reconnect Google and try again.'}`);
     } finally { setBusy(null); }
   };
   const skip = async (id: string) => {

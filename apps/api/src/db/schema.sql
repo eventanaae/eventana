@@ -304,6 +304,14 @@ CREATE TABLE IF NOT EXISTS payment_events (
 );
 
 CREATE INDEX IF NOT EXISTS payment_events_order_idx ON payment_events (order_id, created_at);
+-- Hot-path lookups that were doing sequential scans (found in the 2026-09-13
+-- review): every payment-confirmation webhook + refund + finance read hits
+-- payments by order_id; event views read event_services/messages by event_id;
+-- the loyalty view reads by customer_id. Add the missing indexes.
+CREATE INDEX IF NOT EXISTS payments_order_idx ON payments (order_id);
+CREATE INDEX IF NOT EXISTS event_services_event_idx ON event_services (event_id);
+CREATE INDEX IF NOT EXISTS messages_event_idx ON messages (event_id);
+CREATE INDEX IF NOT EXISTS loyalty_tx_customer_idx ON loyalty_transactions (customer_id);
 
 -- Webhook receipts. The unique key makes replayed deliveries idempotent
 -- even before the payment row is looked at.

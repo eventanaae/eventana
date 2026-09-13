@@ -31,7 +31,9 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
 
   if (!data) return <Spinner />;
 
-  const k = data.kpis;
+  // Guard kpis (a scoped/partial payload for some role could omit it) so Home
+  // never white-screens — App.tsx reads the same field defensively.
+  const k = data.kpis ?? {};
   const events: any[] = [...(data.events ?? [])].sort((a, b) =>
     `${String(a.event_date).slice(0, 10)} ${a.start_time}`.localeCompare(`${String(b.event_date).slice(0, 10)} ${b.start_time}`),
   );
@@ -46,8 +48,8 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
 
   const lowStock = (data.criticalInventory ?? []).filter((a: any) => a.status !== 'available' || a.committed > 0);
   const attention: Array<{ label: string; n: number; onClick: () => void }> = [
-    { label: 'Open tasks', n: k.openTasks, onClick: () => onGoto('tasks') },
-    { label: 'Needs review', n: k.needsReview, onClick: () => onGoto('schedule') },
+    { label: 'Open tasks', n: k.openTasks ?? 0, onClick: () => onGoto('tasks') },
+    { label: 'Needs review', n: k.needsReview ?? 0, onClick: () => onGoto('schedule') },
     { label: 'Design approvals', n: (data.pendingDesignApprovals ?? []).length, onClick: () => onGoto('schedule') },
     { label: 'Assets in demand', n: lowStock.length, onClick: () => onGoto('inventory') },
   ].filter((a) => a.n > 0);
