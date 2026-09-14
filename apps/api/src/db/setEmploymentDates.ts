@@ -27,9 +27,11 @@ export async function setEmploymentDatesFromEnv(): Promise<void> {
     if (!e?.name) continue;
     const openingUsed = Number.isFinite(e.openingUsed as number) ? Number(e.openingUsed) : null;
     const note = typeof e.note === 'string' ? e.note : null;
-    // dayOff: 0–6 sets the weekly day off; null explicitly clears it; undefined leaves it.
-    const dayOffProvided = e.dayOff !== undefined;
-    const dayOff = typeof e.dayOff === 'number' ? e.dayOff : null;
+    // Weekly day off is OWNED by the Team/Leave screen + setTeamDayOff.ts — the
+    // employment seeder must never touch it (its baked-in dayOff values were stale
+    // and reverted the real schedule on every boot). Kept out of this write.
+    const dayOffProvided = false;
+    const dayOff = null;
     const dob = typeof e.dob === 'string' ? e.dob : null;
     const salaryIncrement = typeof e.salaryIncrement === 'string' ? e.salaryIncrement : null;
     const passportName = typeof e.passportName === 'string' ? e.passportName : null;
