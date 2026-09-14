@@ -197,6 +197,8 @@ async function main() {
     await diagThemeNamesFromEnv().catch((err) => console.error('[theme-names] failed:', err));
     const { cleanThemeNamesFromEnv } = await import('./db/cleanThemeNames.js');
     await cleanThemeNamesFromEnv().catch((err) => console.error('[clean-themes] failed:', err));
+    const { addSuppliersFromEnv } = await import('./db/addSuppliers.js');
+    await addSuppliersFromEnv().catch((err) => console.error('[add-suppliers] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
