@@ -163,6 +163,8 @@ async function main() {
     await refundWaGuardOnBoot().catch((err) => console.error('[refund-wa-guard] failed:', err));
     const { sendUserManualFromEnv } = await import('./db/sendUserManual.js');
     await sendUserManualFromEnv().catch((err) => console.error('[user-manual] failed:', err));
+    const { sendBnplRequestFromEnv } = await import('./db/sendBnplRequest.js');
+    await sendBnplRequestFromEnv().catch((err) => console.error('[bnpl-request] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
