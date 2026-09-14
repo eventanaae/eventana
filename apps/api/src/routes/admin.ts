@@ -5349,8 +5349,14 @@ export async function adminRoutes(app: FastifyInstance) {
             WHERE t.status='paid' AND t.member_id=$1
             ORDER BY COALESCE(t.paid_at,t.created_at) DESC LIMIT 8`, [staff.id]),
         pool.query(
-          `SELECT r.id, r.stars, r.feedback, r.created_at, r.event_id FROM event_ratings r
+          `SELECT r.id, r.stars, r.feedback, r.created_at, r.event_id,
+                  to_char(e.event_date,'YYYY-MM-DD') AS event_date,
+                  COALESCE(th.name, CASE WHEN e.custom_theme THEN 'Custom theme' ELSE NULL END) AS theme_name,
+                  (SELECT fr.number FROM finance_receipts fr WHERE fr.event_id = e.id ORDER BY fr.id LIMIT 1) AS receipt_number
+             FROM event_ratings r
              JOIN event_team et ON et.event_id = r.event_id
+             LEFT JOIN events e ON e.id = r.event_id
+             LEFT JOIN themes th ON th.id = e.theme_id
             WHERE et.member_id=$1 ORDER BY r.created_at DESC LIMIT 8`, [staff.id]),
       ]);
       const myEventIds = new Set(
@@ -5362,7 +5368,10 @@ export async function adminRoutes(app: FastifyInstance) {
         scoped: true,
         lowStock: lowStock.rows,
         recentTips: myTips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
-        recentRatings: myRatings.rows,
+        recentRatings: myRatings.rows.map((r: any) => ({
+          ...r,
+          reference: r.receipt_number ? `EV-${r.receipt_number}` : r.event_id,
+        })),
         prepAtRisk,
         offToday,
       };
@@ -5387,8 +5396,14 @@ export async function adminRoutes(app: FastifyInstance) {
           ORDER BY COALESCE(t.paid_at, t.created_at) DESC LIMIT 8`,
       ),
       pool.query(
-        `SELECT r.id, r.stars, r.feedback, r.created_at, r.event_id
-           FROM event_ratings r ORDER BY r.created_at DESC LIMIT 8`,
+        `SELECT r.id, r.stars, r.feedback, r.created_at, r.event_id,
+                to_char(e.event_date,'YYYY-MM-DD') AS event_date,
+                COALESCE(th.name, CASE WHEN e.custom_theme THEN 'Custom theme' ELSE NULL END) AS theme_name,
+                (SELECT fr.number FROM finance_receipts fr WHERE fr.event_id = e.id ORDER BY fr.id LIMIT 1) AS receipt_number
+           FROM event_ratings r
+           LEFT JOIN events e ON e.id = r.event_id
+           LEFT JOIN themes th ON th.id = e.theme_id
+          ORDER BY r.created_at DESC LIMIT 8`,
       ),
       // Events the smart-staffing engine couldn't fully staff internally — a
       // part-timer (or internal prep) still needs confirming. Upcoming only.
@@ -5414,7 +5429,10 @@ export async function adminRoutes(app: FastifyInstance) {
       pendingLeave: pendingLeave.rows,
       needsReview: needsReview.rows[0].n,
       recentTips: tips.rows.map((t) => ({ ...t, amountDisplay: formatAed(Number(t.amount_fils)) })),
-      recentRatings: ratings.rows,
+      recentRatings: ratings.rows.map((r: any) => ({
+        ...r,
+        reference: r.receipt_number ? `EV-${r.receipt_number}` : r.event_id,
+      })),
       staffingGaps: staffingGaps.rows,
       offToday,
       prepAtRisk,

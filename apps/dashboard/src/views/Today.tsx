@@ -253,7 +253,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
       <CompetitionBoard />
 
       {/* What customers say about our events — the latest feedback wall. */}
-      <CustomerVoices onGoto={onGoto} onOpenEvent={onOpenEvent} />
+      <CustomerVoices onGoto={onGoto} onOpenEvent={onOpenEvent} role={role} />
     </div>
   );
 }
@@ -263,21 +263,25 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
  * with a "Show more" that opens the full feedback page. Motivating for the whole
  * team; visible to everyone, no money.
  */
-function CustomerVoices({ onGoto, onOpenEvent }: { onGoto: (v: View) => void; onOpenEvent: (id: string) => void }) {
+function CustomerVoices({ onGoto, onOpenEvent, role }: { onGoto: (v: View) => void; onOpenEvent: (id: string) => void; role?: string }) {
   const [rows, setRows] = useState<any[] | null>(null);
   useEffect(() => { api.customerFeedback(5).then((r) => setRows(r.rows)).catch(() => setRows([])); }, []);
   if (!rows || rows.length === 0) return null;
+  // The full Review Report page is owner/manager only — hide the link for the team.
+  const canOpenReport = role === 'owner' || role === 'manager';
   return (
     <Panel title="💬 What customers say about our events">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {rows.map((r) => <FeedbackCard key={r.id} r={r} onOpen={() => onOpenEvent(r.event_id)} />)}
       </div>
-      <button
-        onClick={() => onGoto('feedback')}
-        style={{ marginTop: 12, width: '100%', cursor: 'pointer', border: `1px solid ${C.line}`, background: '#fff', borderRadius: 12, padding: '10px', fontSize: 12.5, fontWeight: 800, color: C.pinkDeep }}
-      >
-        Show more feedback →
-      </button>
+      {canOpenReport && (
+        <button
+          onClick={() => onGoto('feedback')}
+          style={{ marginTop: 12, width: '100%', cursor: 'pointer', border: `1px solid ${C.line}`, background: '#fff', borderRadius: 12, padding: '10px', fontSize: 12.5, fontWeight: 800, color: C.pinkDeep }}
+        >
+          Show more feedback →
+        </button>
+      )}
     </Panel>
   );
 }
@@ -365,6 +369,14 @@ export function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** "2026-09-14" → "14 Sep 2026". Falls back gracefully. */
+const fmtDate = (d?: string | null) => {
+  if (!d) return '';
+  const dt = new Date(`${d}T00:00:00`);
+  if (isNaN(dt.getTime())) return String(d);
+  return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 const ago2 = (ts: string) => {
   const s = Math.max(1, Math.floor((Date.now() - new Date(ts).getTime()) / 1000));
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
@@ -422,10 +434,15 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
       {ratings.length > 0 && (
       <Panel title="⭐ Ratings on your events">
         {ratings.map((r: any) => (
-          <div key={r.id} style={{ ...rowS, alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => onOpenEvent(r.event_id)}>
-            <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1, minWidth: 72 }}>{'★'.repeat(r.stars)}<span style={{ color: C.line }}>{'★'.repeat(5 - r.stars)}</span></span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, flex: 1, lineHeight: 1.4 }}>{r.feedback ? `“${r.feedback}”` : <span style={{ color: C.muted }}>{r.event_id}</span>}</span>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{ago2(r.created_at)}</span>
+          <div key={r.id} style={{ padding: '11px 0', borderTop: `1px solid ${C.lineSoft}`, cursor: 'pointer' }} onClick={() => onOpenEvent(r.event_id)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1 }}>{'★'.repeat(r.stars)}<span style={{ color: C.line }}>{'★'.repeat(5 - r.stars)}</span></span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: C.ink }}>{r.reference || r.event_id}</span>
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>{fmtDate(r.event_date) || ago2(r.created_at)}</span>
+            </div>
+            {r.theme_name && <div style={{ fontSize: 11.5, fontWeight: 700, color: C.pinkDeep, marginTop: 3 }}>🎨 {r.theme_name}</div>}
+            {r.feedback && <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.4, marginTop: 3 }}>“{r.feedback}”</div>}
           </div>
         ))}
       </Panel>
