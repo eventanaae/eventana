@@ -31,11 +31,12 @@ import { GoogleReviews } from './views/GoogleReviews';
 import { DriverEvents } from './views/DriverEvents';
 import { DriverSchedule } from './views/DriverSchedule';
 import { Discounts } from './views/Discounts';
+import { TheWeek } from './views/TheWeek';
 import { ThemeBackfill } from './views/ThemeBackfill';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -73,6 +74,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
   { id: 'leave', label: 'Leave', icon: '🌴', title: 'Annual Leave', sub: 'Leave requests, balances & approvals', section: 'staff' },
+  { id: 'theweek', label: 'The Week', icon: '🗓️', title: 'The Eventana Week', sub: 'Our weekly rhythm — pickups, office hours, days off & shopping day', section: 'staff' },
   { id: 'staffpay', label: 'Part-timers & Drivers', icon: '🤡', title: 'Part-timers & Drivers', sub: 'This month’s clown/face-paint engagements & deliveries', section: 'staff' },
   // Business (owner)
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
@@ -87,13 +89,13 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'discounts', 'themes', 'reviews', 'team', 'leave', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'discounts', 'themes', 'reviews', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
-  employee: ['today', 'schedule', 'inventory', 'profile', 'feedback'],
+  employee: ['today', 'schedule', 'inventory', 'theweek', 'profile', 'feedback'],
   // Driver: a focused two-tab app — Events (his jobs + shopping) and his weekly
   // Schedule. No Home / Profile / By-event (owner's request).
-  driver: ['schedule', 'driverschedule'],
+  driver: ['schedule', 'driverschedule', 'theweek'],
 };
 
 export default function App() {
@@ -246,6 +248,7 @@ export default function App() {
       {view === 'alerts' && <Alerts onOpenEvent={openEvent} />}
       {view === 'team' && <Team role={role} />}
       {view === 'leave' && <Leave role={role} />}
+      {view === 'theweek' && <TheWeek />}
       {view === 'kpis' && <Kpis role={role} />}
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}
