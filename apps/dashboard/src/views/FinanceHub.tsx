@@ -27,7 +27,7 @@ export function FinanceHub({ role }: { role?: string }) {
         {canSeeAccounting && <TabBtn on={tab === 'accounting'} onClick={() => setTab('accounting')}>🏦 Accounting</TabBtn>}
       </div>
       {tab === 'sales' && <SalesTab isOwner={role === 'owner'} />}
-      {tab === 'expenses' && <><BudgetSuggestions /><ExpensesTab /></>}
+      {tab === 'expenses' && <ExpensesTab />}
       {tab === 'accounting' && canSeeAccounting && <AccountingTab />}
     </div>
   );
@@ -336,68 +336,6 @@ function ReceiptViewer({ url, onClose }: { url: string; onClose: () => void }) {
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * Suggested monthly budgets — workload-based, not a flat average. Each account's
- * unit cost (per booking, or for petrol per delivery-distance) is learned from
- * the last 3 months and projected onto next month's expected bookings, so the
- * budget rises and falls with how busy the month actually looks.
- */
-function BudgetSuggestions() {
-  const [data, setData] = useState<any>(null);
-  const [open, setOpen] = useState(true);
-  useEffect(() => { api.budgetSuggestions().then(setData).catch(() => setData({ categories: [] })); }, []);
-  if (!data) return null;
-  const cats = data.categories ?? [];
-  if (cats.length === 0) return null;
-
-  const tone = (s: string) => (s === 'over' ? C.red : s === 'near' ? C.yellowInk : C.green);
-  const toneSoft = (s: string) => (s === 'over' ? C.redSoft : s === 'near' ? C.yellowSoft : C.greenSoft);
-  const label = (s: string) => (s === 'over' ? 'Over budget' : s === 'near' ? 'Close to budget' : 'On track');
-  // The "why" line — how this number was reached.
-  const why = (c: any): string => {
-    if (c.basis === 'ratecard') return `Known rates · next month: ${c.perEventDisplay}`;
-    if (c.basis === 'deliveries') return `Scales with deliveries & distance · ~${c.expectedEvents} bookings expected`;
-    if (c.basis === 'bookings') return `${c.perEventDisplay} per booking × ~${c.expectedEvents} bookings expected`;
-    return 'From recent monthly spend';
-  };
-
-  return (
-    <Panel
-      title="💡 Suggested budgets"
-      action={<Button tone="ghost" onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Show'}</Button>}
-    >
-      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: open ? 14 : 0, lineHeight: 1.5 }}>
-        Built from {data.monthsUsed || 0} month{(data.monthsUsed || 0) === 1 ? '' : 's'} of history, sized to next month's
-        workload — about <b>{data.expectedEvents ?? 0} bookings</b> expected ({data.bookedNext ?? 0} already booked). Petrol is
-        weighted by delivery area; the rest by number of bookings.
-      </div>
-      {open && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {cats.map((c: any) => {
-            const pct = c.suggestedFils > 0 ? Math.min(100, Math.round((c.thisMonthFils / c.suggestedFils) * 100)) : 0;
-            return (
-              <div key={c.category} style={{ borderBottom: `1px solid ${C.lineSoft}`, paddingBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-                  <div style={{ ...fredoka(14.5), color: C.ink, textTransform: 'capitalize' }}>{c.category}</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{c.suggestedDisplay}<span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}> / mo</span></div>
-                </div>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginBottom: 6 }}>{why(c)}</div>
-                <div style={{ height: 8, borderRadius: 8, background: C.lineSoft, overflow: 'hidden', marginBottom: 5 }}>
-                  <div style={{ width: `${pct}%`, height: '100%', background: tone(c.status), transition: 'width .3s' }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>This month so far: {c.thisMonthDisplay}</span>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: tone(c.status), background: toneSoft(c.status), padding: '2px 9px', borderRadius: 20 }}>{label(c.status)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </Panel>
   );
 }
 
