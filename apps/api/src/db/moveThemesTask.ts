@@ -43,19 +43,20 @@ function html(names: string, due: string): string {
 export async function moveThemesTaskFromEnv(): Promise<void> {
   if (String(process.env.MOVE_THEMES_TASK ?? '').toLowerCase() !== 'true') return;
 
-  // 1) Remove the themes task from Marsha (log + staff + task rows).
+  // 1) Remove the themes task from Marsha, and any prior copy of the new task
+  //    (so a re-run rebuilds it with the correct assignees).
   const old = await pool.query<{ id: number }>(
-    `SELECT id FROM prep_tasks WHERE category = 'manual' AND title = $1`,
-    [MARSHA_TITLE],
+    `SELECT id FROM prep_tasks WHERE category = 'manual' AND title = ANY($1)`,
+    [[MARSHA_TITLE, NEW_TITLE]],
   );
   const oldIds = old.rows.map((r) => r.id);
   if (oldIds.length) {
     await pool.query(`DELETE FROM prep_task_log WHERE task_id = ANY($1)`, [oldIds]).catch(() => {});
     await pool.query(`DELETE FROM prep_task_staff WHERE task_id = ANY($1)`, [oldIds]);
     await pool.query(`DELETE FROM prep_tasks WHERE id = ANY($1)`, [oldIds]);
-    console.log(`[themes-move] removed Marsha's themes task(s) ${oldIds.join(', ')}`);
+    console.log(`[themes-move] removed old themes task(s) ${oldIds.join(', ')}`);
   } else {
-    console.log("[themes-move] no Marsha themes task found");
+    console.log("[themes-move] no old themes task found");
   }
 
   // 2) Work out tomorrow (Dubai) and who the second assignee is.
@@ -72,14 +73,9 @@ export async function moveThemesTaskFromEnv(): Promise<void> {
   const jane = byName('jane'), gloria = byName('gloria'), diana = byName('diana');
   if (!jane) { console.log('[themes-move] Jane not found — aborted'); return; }
 
-  let gloriaOff = gloria ? gloria.weekly_day_off === dow : true;
-  if (gloria && !gloriaOff) {
-    const leave = await pool.query(
-      `SELECT 1 FROM staff_days_off WHERE member_id = $1 AND status = 'approved' AND start_date <= $2 AND end_date >= $2 LIMIT 1`,
-      [gloria.id, tomorrow],
-    );
-    if (leave.rows[0]) gloriaOff = true;
-  }
+  // Owner confirmed Gloria is off tomorrow → Diana takes her place. (DB
+  // weekly_day_off is unreliable, so honour the owner's instruction directly.)
+  const gloriaOff = true;
   const second = gloriaOff ? diana : gloria;
   const assignees = [jane, second].filter(Boolean) as typeof team;
   const first = assignees.map((a) => (a.name || '').split(' ')[0]);
