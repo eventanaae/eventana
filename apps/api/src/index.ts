@@ -167,6 +167,8 @@ async function main() {
     await sendBnplRequestFromEnv().catch((err) => console.error('[bnpl-request] failed:', err));
     const { addMarshaTaskFromEnv } = await import('./db/addMarshaTask.js');
     await addMarshaTaskFromEnv().catch((err) => console.error('[add-marsha-task] failed:', err));
+    const { addMarshaThemesTaskFromEnv } = await import('./db/addMarshaThemesTask.js');
+    await addMarshaThemesTaskFromEnv().catch((err) => console.error('[marsha-themes] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
