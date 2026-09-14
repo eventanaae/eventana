@@ -28,8 +28,10 @@ export async function diagThemesFromEnv(): Promise<void> {
   const rows = live.rows as any[];
   const missing = rows.filter((r) => !(savedMap.get(r.sale_key) || r.current_theme));
   console.log(`[diag-themes] ${year}: live events=${rows.length} · withTheme=${rows.length - missing.length} · MISSING=${missing.length}`);
+  const full = String(process.env.DIAG_THEMES_FULLPHONE ?? '').toLowerCase() === 'true';
   for (const r of missing) {
-    const tail = String(r.phone ?? '').replace(/\D/g, '').slice(-4) || '----';
-    console.log(`[diag-themes] MISSING ${r.d} · ${String(r.name ?? '').slice(0, 24)} · …${tail} · ${String(r.product ?? '').slice(0, 20)} · ${r.sale_key}`);
+    const digits = String(r.phone ?? '').replace(/\D/g, '');
+    const ph = full ? (digits || '----') : ('…' + (digits.slice(-4) || '----'));
+    console.log(`[diag-themes] MISSING ${r.d} · ${String(r.name ?? '').slice(0, 24)} · ${ph} · ${String(r.product ?? '').slice(0, 20)} · ${r.sale_key}`);
   }
 }
