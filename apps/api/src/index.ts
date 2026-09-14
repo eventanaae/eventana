@@ -187,6 +187,8 @@ async function main() {
     await diagTamaraFromEnv().catch((err) => console.error('[diag-tamara] failed:', err));
     const { applyTrelloThemesFromEnv } = await import('./db/applyTrelloThemes.js');
     await applyTrelloThemesFromEnv().catch((err) => console.error('[trello-themes] failed:', err));
+    const { diagThemesFromEnv } = await import('./db/diagThemes.js');
+    await diagThemesFromEnv().catch((err) => console.error('[diag-themes] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
