@@ -181,6 +181,8 @@ async function main() {
     await diagStaffWaFromEnv().catch((err) => console.error('[diag-wa] failed:', err));
     const { notifyGloriaFixFromEnv } = await import('./db/notifyGloriaFix.js');
     await notifyGloriaFixFromEnv().catch((err) => console.error('[gloria-fix] failed:', err));
+    const { diagDayOffFromEnv } = await import('./db/diagDayOff.js');
+    await diagDayOffFromEnv().catch((err) => console.error('[diag-dayoff] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
