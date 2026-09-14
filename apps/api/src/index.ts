@@ -171,6 +171,8 @@ async function main() {
     await addMarshaThemesTaskFromEnv().catch((err) => console.error('[marsha-themes] failed:', err));
     const { addWhereWeBuyTaskFromEnv } = await import('./db/addWhereWeBuyTask.js');
     await addWhereWeBuyTaskFromEnv().catch((err) => console.error('[wwb-task] failed:', err));
+    const { cancelWhereWeBuyTaskFromEnv } = await import('./db/cancelWhereWeBuyTask.js');
+    await cancelWhereWeBuyTaskFromEnv().catch((err) => console.error('[wwb-cancel] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
