@@ -179,6 +179,8 @@ async function main() {
     await moveThemesTaskFromEnv().catch((err) => console.error('[themes-move] failed:', err));
     const { diagStaffWaFromEnv } = await import('./db/diagStaffWa.js');
     await diagStaffWaFromEnv().catch((err) => console.error('[diag-wa] failed:', err));
+    const { notifyGloriaFixFromEnv } = await import('./db/notifyGloriaFix.js');
+    await notifyGloriaFixFromEnv().catch((err) => console.error('[gloria-fix] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
