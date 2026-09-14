@@ -193,6 +193,8 @@ async function main() {
     await setThemesManualFromEnv().catch((err) => console.error('[manual-themes] failed:', err));
     const { copyThemeTwinsFromEnv } = await import('./db/copyThemeTwins.js');
     await copyThemeTwinsFromEnv().catch((err) => console.error('[theme-twins] failed:', err));
+    const { diagThemeNamesFromEnv } = await import('./db/diagThemeNames.js');
+    await diagThemeNamesFromEnv().catch((err) => console.error('[theme-names] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
