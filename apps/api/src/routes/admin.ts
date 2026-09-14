@@ -209,7 +209,8 @@ export async function adminRoutes(app: FastifyInstance) {
       // own "Latest updates" feed), so it is NOT gated to managers here.
       path.startsWith('/api/admin/marketing') ||
       path.startsWith('/api/admin/promo-codes') ||
-      path.startsWith('/api/admin/theme-backfill') ||
+      // (theme-backfill is open to employees too — the owner assigns the
+      //  "fill in the themes" task to employees, so they must read + save it.)
       path.startsWith('/api/admin/focus') ||
       path.startsWith('/api/admin/google') ||
       path === '/api/admin/team' ||

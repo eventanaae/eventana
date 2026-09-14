@@ -94,7 +94,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'bank', 'kpis', 'marketing', 'discounts', 'themes', 'reviews', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
-  employee: ['today', 'schedule', 'inventory', 'theweek', 'profile', 'feedback'],
+  employee: ['today', 'schedule', 'inventory', 'themes', 'theweek', 'profile', 'feedback'],
   // Driver: a focused two-tab app — Events (his jobs + shopping) and his weekly
   // Schedule. No Home / Profile / By-event (owner's request).
   driver: ['schedule', 'driverschedule', 'theweek'],
