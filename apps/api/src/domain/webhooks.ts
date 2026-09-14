@@ -191,6 +191,7 @@ export async function processDelivery(
   let newBooking = false;
   let addonBooking = false;
   let paidNow = false;
+  let needsCapture = false;
   const outcome = await withTransaction(async (db) => {
     const { applied } = await applyPaymentStatus(db, {
       paymentId: payment.id,
@@ -217,6 +218,14 @@ export async function processDelivery(
       newBooking = confirmed.created;
       addonBooking = confirmed.addon === true;
       paidNow = true;
+      // BNPL (Tabby/Tamara) only AUTHORISE at 'paid'; the funds aren't collected
+      // until an explicit CAPTURE. An uncaptured authorisation expires and the
+      // money is never received. Flag it to capture after commit (network call).
+      // 'captured' means it's already collected, so only 'paid' needs capturing.
+      if (verified.status === 'paid' && typeof (provider as any).capture === 'function'
+          && (provider.name === 'tabby' || provider.name === 'tamara')) {
+        needsCapture = true;
+      }
     }
 
     if (verified.status === 'failed' || verified.status === 'cancelled') {
@@ -285,6 +294,25 @@ export async function processDelivery(
   // so this fires once — and Meta de-duplicates on the order id regardless.
   if (outcome === 'accepted' && paidNow) {
     void reportPurchaseToMeta(payment.order_id);
+  }
+
+  // Collect the BNPL funds: capture the authorisation now that the booking is
+  // confirmed. Outside the transaction so a slow/failed capture can never roll
+  // back the paid booking; idempotent at the provider (keyed by payment id +
+  // amount). If it fails, the money is authorised but NOT collected — alert so
+  // finance can capture before the authorisation expires.
+  if (outcome === 'accepted' && needsCapture && provider.capture) {
+    try {
+      await provider.capture(payment.provider_payment_id, Number(payment.amount_fils));
+    } catch (err) {
+      console.error(`[webhook] ${provider.name} capture failed for order ${payment.order_id}:`, (err as Error).message);
+      await pool.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         SELECT NULL, 'ops_alert', 'capture_failed', now(), $1
+          WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template = 'capture_failed' AND payload->>'orderId' = $2)`,
+        [JSON.stringify({ orderId: payment.order_id, provider: provider.name }), payment.order_id],
+      ).catch(() => {});
+    }
   }
 
   await finish(deliveryId, outcome);
