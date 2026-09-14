@@ -175,6 +175,8 @@ async function main() {
     await cancelWhereWeBuyTaskFromEnv().catch((err) => console.error('[wwb-cancel] failed:', err));
     const { addOwnerWwbTaskFromEnv } = await import('./db/addOwnerWwbTask.js');
     await addOwnerWwbTaskFromEnv().catch((err) => console.error('[owner-wwb] failed:', err));
+    const { moveThemesTaskFromEnv } = await import('./db/moveThemesTask.js');
+    await moveThemesTaskFromEnv().catch((err) => console.error('[themes-move] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
