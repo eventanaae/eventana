@@ -66,7 +66,7 @@ export async function moveThemesTaskFromEnv(): Promise<void> {
 
   const { rows: team } = await pool.query<{ id: string; name: string; email: string | null; weekly_day_off: number | null }>(
     `SELECT id, name, email, weekly_day_off FROM team_members WHERE lower(name) = ANY($1)`,
-    ['jane', 'gloria', 'diana'],
+    [['jane', 'gloria', 'diana']],
   );
   const byName = (n: string) => team.find((t) => (t.name || '').toLowerCase() === n);
   const jane = byName('jane'), gloria = byName('gloria'), diana = byName('diana');
