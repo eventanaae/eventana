@@ -107,6 +107,31 @@ export async function webhookRoutes(app: FastifyInstance) {
     return reply;
   });
 
+  /* ---------------- bank alerts (RAKBANK) ------------------------- */
+
+  /**
+   * Bank Inbox ingestion (#16). A forwarded RAKBANK transaction alert is POSTed
+   * here (by the owner's mail auto-forward script) as JSON { subject, text }.
+   * Protected by a shared secret in the `x-bank-secret` header. Registered as a
+   * static segment so it beats the generic `:provider` route below.
+   */
+  app.post('/api/webhooks/bank-alert', async (request, reply) => {
+    const secret = process.env.BANK_ALERT_SECRET ?? '';
+    if (!secret) return reply.status(503).send({ error: 'bank_alerts_not_configured' });
+    const given = String(request.headers['x-bank-secret'] ?? '');
+    if (given !== secret) return reply.status(401).send({ error: 'unauthorized' });
+    let payload: { subject?: string; text?: string; body?: string } = {};
+    try { payload = typeof request.body === 'string' ? JSON.parse(request.body || '{}') : (request.body as any) ?? {}; }
+    catch { return reply.status(400).send({ error: 'invalid_json' }); }
+    const subject = String(payload.subject ?? '');
+    const text = String(payload.text ?? payload.body ?? '');
+    if (!subject && !text) return reply.status(400).send({ error: 'empty' });
+    const { ingestBankAlert } = await import('../domain/bankInbox.js');
+    const res = await ingestBankAlert(subject, text).catch((err) => { request.log.error({ err }, 'bank-alert ingest failed'); return null; });
+    if (!res) return reply.status(422).send({ error: 'not_ingested' });
+    return reply.status(res.duplicate ? 200 : 201).send({ id: res.id, duplicate: !!res.duplicate });
+  });
+
   /* ---------------- payment providers ----------------------------- */
 
   app.post('/api/webhooks/:provider', async (request, reply) => {

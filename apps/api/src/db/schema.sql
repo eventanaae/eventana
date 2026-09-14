@@ -732,6 +732,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS expenses_qb_id_idx ON expenses (qb_id) WHERE q
 CREATE INDEX IF NOT EXISTS expenses_spent_idx ON expenses (spent_on);
 CREATE INDEX IF NOT EXISTS expenses_category_idx ON expenses (category, spent_on);
 
+-- ── Bank Inbox (#16) ─────────────────────────────────────────────────────────
+-- Every bank movement (purchase / withdrawal / transfer) parsed from a RAKBANK
+-- alert lands here as a PENDING row. Marsha attaches the receipt and approves →
+-- it posts to `expenses` (source='bank'). Ignoring a row is OWNER-ONLY. raw_text
+-- is always kept (nothing dropped) even if parsing is partial. dedupe_key stops
+-- a re-forwarded alert from creating a duplicate.
+CREATE TABLE IF NOT EXISTS bank_transactions (
+  id           BIGSERIAL PRIMARY KEY,
+  posted_on    DATE,                              -- transaction date (from the alert)
+  amount_fils  BIGINT NOT NULL DEFAULT 0,
+  direction    TEXT NOT NULL DEFAULT 'debit',     -- debit | credit
+  kind         TEXT NOT NULL DEFAULT 'purchase',  -- purchase | withdrawal | transfer | other
+  merchant     TEXT,                              -- merchant / description
+  card_mask    TEXT,                              -- e.g. 546750******4008
+  raw_text     TEXT,                              -- full alert body, for review
+  source       TEXT NOT NULL DEFAULT 'rakbank_email',
+  dedupe_key   TEXT UNIQUE,                       -- hash of the alert, blocks re-forward dupes
+  status       TEXT NOT NULL DEFAULT 'pending',   -- pending | approved | ignored
+  expense_id   BIGINT REFERENCES expenses(id) ON DELETE SET NULL,
+  receipt_url  TEXT,
+  decided_by   TEXT,
+  decided_at   TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS bank_tx_status_idx ON bank_transactions (status, created_at DESC);
+
 -- ── Staff scheduling: days off & birthdays (#28) ─────────────────────────
 -- Birthdays live on the member; the team sees whose is coming up. Days off
 -- are date ranges the calendar layers on top of events so nobody is rostered

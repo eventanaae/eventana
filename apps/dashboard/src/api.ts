@@ -646,6 +646,15 @@ export const api = {
     request<any>(`/api/admin/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteExpense: (id: number) =>
     request<any>(`/api/admin/expenses/${id}`, { method: 'DELETE' }),
+  // Bank Inbox (#16)
+  bankTransactions: (status: 'pending' | 'approved' | 'ignored' | 'all' = 'pending') =>
+    request<any[]>(`/api/admin/bank-transactions?status=${status}`),
+  bankTxReceipt: (id: string, receiptUrl: string | null) =>
+    request<any>(`/api/admin/bank-transactions/${id}/receipt`, { method: 'POST', body: JSON.stringify({ receiptUrl }) }),
+  bankTxApprove: (id: string, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/bank-transactions/${id}/approve`, { method: 'POST', body: JSON.stringify(body) }),
+  bankTxIgnore: (id: string) =>
+    request<any>(`/api/admin/bank-transactions/${id}/ignore`, { method: 'POST' }),
   expenseAccounts: () =>
     request<{ accounts: Array<{ account: string; count: number; totalFils: number; totalDisplay: string; suppliers: Array<{ vendor: string; count: number; totalFils: number; totalDisplay: string }> }> }>(
       '/api/admin/expense-accounts',

@@ -32,11 +32,12 @@ import { DriverEvents } from './views/DriverEvents';
 import { DriverSchedule } from './views/DriverSchedule';
 import { Discounts } from './views/Discounts';
 import { TheWeek } from './views/TheWeek';
+import { BankInbox } from './views/BankInbox';
 import { ThemeBackfill } from './views/ThemeBackfill';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek' | 'bank';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -60,6 +61,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets, stock & issue reports', section: 'ops' },
   { id: 'alerts', label: 'Updates', icon: '📣', title: 'Latest updates', sub: "What's new — prep, stock, tips and ratings", section: 'ops', mobile: true },
   { id: 'finance', label: 'Sales', icon: '💸', title: 'Sales & Get Paid', sub: 'Receipts, invoices, expenses & accounts', section: 'sales' },
+  { id: 'bank', label: 'Bank Inbox', icon: '🏦', title: 'Bank Inbox', sub: 'Bank transactions → attach receipt → expense', section: 'sales' },
   { id: 'customers', label: 'Customers', icon: '👥', title: 'Customers', sub: 'Your customer book — spend, history & contacts', section: 'sales' },
   { id: 'products', label: 'Products', icon: '🎁', title: 'Products & services', sub: 'Custom products, prices & descriptions', section: 'sales' },
   { id: 'suppliers', label: 'Suppliers', icon: '🚚', title: 'Suppliers', sub: 'Who we buy from & what they supply', section: 'sales' },
@@ -89,7 +91,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'discounts', 'themes', 'reviews', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'bank', 'kpis', 'marketing', 'discounts', 'themes', 'reviews', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'theweek', 'profile', 'feedback'],
@@ -249,6 +251,7 @@ export default function App() {
       {view === 'team' && <Team role={role} />}
       {view === 'leave' && <Leave role={role} />}
       {view === 'theweek' && <TheWeek />}
+      {view === 'bank' && <BankInbox role={role} />}
       {view === 'kpis' && <Kpis role={role} />}
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}

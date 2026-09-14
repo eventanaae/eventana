@@ -191,6 +191,9 @@ export async function adminRoutes(app: FastifyInstance) {
       // spend-by-account/supplier breakdown — is gated too (it slipped the
       // 'expenses' prefix and leaked full financials to any employee).
       path.startsWith('/api/admin/expense') ||
+      // Bank Inbox (#16): pending bank transactions → expenses. Manager + Owner
+      // (ignore is further restricted to the owner inside the route).
+      path.startsWith('/api/admin/bank-transactions') ||
       // Whole-team tips / earnings / points: Manager + Owner (an employee sees
       // only their own, in Profile — never every colleague's tip income).
       path === '/api/admin/kpis' ||
@@ -2386,6 +2389,61 @@ export async function adminRoutes(app: FastifyInstance) {
     const id = Number((request.params as { id: string }).id);
     await pool.query(`DELETE FROM expenses WHERE id = $1`, [id]);
     return { deleted: true };
+  });
+
+  /* ---------------- Bank Inbox (#16) ------------------------------- */
+
+  /** List bank transactions (default: pending first). Manager + Owner. */
+  app.get('/api/admin/bank-transactions', async (request) => {
+    const status = String((request.query as any)?.status ?? 'all');
+    const { listBankTransactions } = await import('../domain/bankInbox.js');
+    const rows = await listBankTransactions(status);
+    return rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) }));
+  });
+
+  /** Attach/replace a receipt on a pending bank transaction (before approval). */
+  app.post('/api/admin/bank-transactions/:id/receipt', async (request, reply) => {
+    const id = String((request.params as { id: string }).id);
+    const schema = z.object({ receiptUrl: z.string().url().nullable() });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { setBankTransactionReceipt } = await import('../domain/bankInbox.js');
+    const ok = await setBankTransactionReceipt(id, parsed.data.receiptUrl);
+    if (!ok) return reply.status(404).send({ error: 'not_found_or_decided' });
+    return { ok: true };
+  });
+
+  /** Approve → post to expenses. Marsha + Owner/Manager. */
+  app.post('/api/admin/bank-transactions/:id/approve', async (request, reply) => {
+    const id = String((request.params as { id: string }).id);
+    const schema = z.object({
+      category: z.string().min(1).max(80).optional(),
+      vendor: z.string().max(200).nullable().optional(),
+      description: z.string().max(300).nullable().optional(),
+      receiptUrl: z.string().url().nullable().optional(),
+      spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+    });
+    const parsed = schema.safeParse(request.body ?? {});
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+    const actor = String((request as any).staff?.name ?? 'Staff');
+    const { approveBankTransaction } = await import('../domain/bankInbox.js');
+    const res = await approveBankTransaction(id, parsed.data, actor);
+    if (!res.ok) return reply.status(res.reason === 'not_found' ? 404 : 409).send({ error: res.reason });
+    return { ok: true, expenseId: res.expenseId };
+  });
+
+  /** Ignore a pending transaction. OWNER ONLY. */
+  app.post('/api/admin/bank-transactions/:id/ignore', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') {
+      return reply.status(403).send({ error: 'forbidden', message: 'Only the owner can ignore a transaction.' });
+    }
+    const id = String((request.params as { id: string }).id);
+    const actor = String((request as any).staff?.name ?? 'Owner');
+    const { ignoreBankTransaction } = await import('../domain/bankInbox.js');
+    const res = await ignoreBankTransaction(id, actor);
+    if (!res.ok) return reply.status(res.reason === 'not_found' ? 404 : 409).send({ error: res.reason });
+    return { ok: true };
   });
 
   // ── Data migration from QuickBooks ─────────────────────────────────────────
