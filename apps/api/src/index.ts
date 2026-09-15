@@ -201,6 +201,8 @@ async function main() {
     await addSuppliersFromEnv().catch((err) => console.error('[add-suppliers] failed:', err));
     const { diagExpenseCategoriesFromEnv } = await import('./db/diagExpenseCategories.js');
     await diagExpenseCategoriesFromEnv().catch((err) => console.error('[exp-cats] failed:', err));
+    const { diagReceiptUrlsFromEnv } = await import('./db/diagReceiptUrls.js');
+    await diagReceiptUrlsFromEnv().catch((err) => console.error('[receipts] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
