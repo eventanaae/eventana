@@ -209,6 +209,8 @@ async function main() {
     await buildSupplierMemoryFromEnv().catch((err) => console.error('[sup-memory] failed:', err));
     const { diagSupplierProfilesFromEnv } = await import('./db/diagSupplierProfiles.js');
     await diagSupplierProfilesFromEnv().catch((err) => console.error('[sup-profiles] failed:', err));
+    const { diagRawOcrFromEnv } = await import('./db/diagRawOcr.js');
+    await diagRawOcrFromEnv().catch((err) => console.error('[raw-ocr] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
