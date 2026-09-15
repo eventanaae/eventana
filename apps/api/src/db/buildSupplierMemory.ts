@@ -19,8 +19,8 @@ export async function buildSupplierMemoryFromEnv(): Promise<void> {
             round(s.avg_price*100)::bigint, round(s.last_price*100)::bigint,
             round(s.min_price*100)::bigint, round(s.max_price*100)::bigint
        FROM (
-         SELECT ro.supplier_name,
-                btrim(it->>'name') AS item_name,
+         SELECT max(ro.supplier_name) AS supplier_name,
+                max(btrim(it->>'name')) AS item_name,
                 count(*)::int AS n,
                 avg((it->>'unit_price')::numeric) AS avg_price,
                 min((it->>'unit_price')::numeric) AS min_price,
@@ -32,7 +32,7 @@ export async function buildSupplierMemoryFromEnv(): Promise<void> {
             AND COALESCE(btrim(ro.supplier_name),'') <> ''
             AND COALESCE(btrim(it->>'name'),'') <> ''
             AND (it->>'unit_price') ~ '^[0-9]+(\\.[0-9]+)?$'
-          GROUP BY ro.supplier_name, btrim(it->>'name')
+          GROUP BY lower(btrim(ro.supplier_name)), lower(btrim(it->>'name'))
        ) s
      ON CONFLICT (lower(supplier_name), lower(item_name)) DO UPDATE SET
        times_bought=EXCLUDED.times_bought, avg_price_fils=EXCLUDED.avg_price_fils,
