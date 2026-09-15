@@ -19,8 +19,38 @@ const CAT = {
   KIOSKS: 'Kiosks Project', RENT: 'Rentals', PRINT: 'Printing', PURCH: 'Purchases',
   DECOR: 'Decor', BALLOON: 'Balloons', FLOWER: 'Flowers', FOOD: 'Food',
   CONSUM: 'Consumables', GOV: 'Government & Licence', UTIL: 'Utilities',
-  MAINT: 'Maintenance', MARKETING: 'Marketing', SALARY: 'Salaries', UNK: 'Uncategorised',
+  MAINT: 'Maintenance', MARKETING: 'Marketing', SALARY: 'Salaries',
+  OFFICE: 'Rent & Office', FEES: 'Bank & Fees', UNK: 'Uncategorised',
 };
+
+// Fallback: map an expense's EXISTING (owner/QB-assigned) category into the new
+// chart. These labels already carry real meaning, so use them when the receipt
+// gives no signal. Substring match, first hit wins; 'other'/'uncategorised' stay
+// Uncategorised (genuinely unknown).
+const EXISTING: [string, string][] = [
+  ['part time', CAT.PART], ['part-time', CAT.PART], ['performer', CAT.PART], ['clown', CAT.PART], ['face paint', CAT.PART],
+  ['petrol', CAT.TRANSPORT], ['fuel', CAT.TRANSPORT], ['transport', CAT.TRANSPORT], ['taxi', CAT.TRANSPORT],
+  ['delivery', CAT.TRANSPORT], ['driver', CAT.TRANSPORT], ['salik', CAT.TRANSPORT], ['van', CAT.TRANSPORT],
+  ['equipment rental', CAT.RENT], ['rental', CAT.RENT],
+  ['rent', CAT.OFFICE], ['office', CAT.OFFICE],
+  ['salar', CAT.SALARY], ['wage', CAT.SALARY], ['payroll', CAT.SALARY],
+  ['market', CAT.MARKETING], ['advertis', CAT.MARKETING], ['ads', CAT.MARKETING], ['promo', CAT.MARKETING],
+  ['print', CAT.PRINT], ['signage', CAT.PRINT],
+  ['balloon', CAT.BALLOON], ['flower', CAT.FLOWER], ['decor', CAT.DECOR],
+  ['food', CAT.FOOD], ['cater', CAT.FOOD], ['consumable', CAT.CONSUM],
+  ['maintenance', CAT.MAINT], ['repair', CAT.MAINT],
+  ['utilit', CAT.UTIL], ['electric', CAT.UTIL], ['water', CAT.UTIL], ['internet', CAT.UTIL],
+  ['licen', CAT.GOV], ['government', CAT.GOV], ['legal', CAT.GOV], ['visa', CAT.GOV], ['fee', CAT.GOV], ['insurance', CAT.GOV],
+  ['bank', CAT.FEES], ['charge', CAT.FEES], ['commission', CAT.FEES],
+  ['purchase', CAT.PURCH], ['supplie', CAT.PURCH], ['supply', CAT.PURCH], ['plush', CAT.PURCH],
+  ['inventor', CAT.PURCH], ['material', CAT.PURCH], ['stock', CAT.PURCH], ['gift', CAT.PURCH], ['cost of sale', CAT.PURCH],
+];
+function mapExisting(cat: string): string | null {
+  const c = (cat ?? '').toLowerCase();
+  if (!c || /uncategor|other expense|^other$|miscellan/.test(c)) return null;
+  for (const [k, v] of EXISTING) if (c.includes(k)) return v;
+  return null;
+}
 
 // OCR category_guess → chart (used for normal shop purchases).
 const OCR2CAT: Record<string, string> = {
@@ -63,10 +93,23 @@ const KW: [string, string][] = [
   // fabrication
   ['alaa', CAT.FAB], ['almouie', CAT.FAB], ['almouje', CAT.FAB],
   // marketing
-  ['facebook', CAT.MARKETING], ['meta platforms', CAT.MARKETING], ['google ads', CAT.MARKETING], ['tiktok', CAT.MARKETING], ['snapchat', CAT.MARKETING],
+  ['facebook', CAT.MARKETING], ['meta platforms', CAT.MARKETING], ['google ads', CAT.MARKETING], ['tiktok', CAT.MARKETING],
+  ['snapchat', CAT.MARKETING], ['instagram', CAT.MARKETING], ['advertis', CAT.MARKETING], [' ads', CAT.MARKETING], ['boosting', CAT.MARKETING],
+  // transport (delivery)
+  ['external delivery', CAT.TRANSPORT],
+  // part-timers (vendor tag)
+  ['part timer', CAT.PART], ['part-timer', CAT.PART],
+  // payment providers / fees
+  ['tabby', CAT.FEES], ['ziina', CAT.FEES], ['stripe', CAT.FEES], ['bank charge', CAT.FEES],
   // consumables / food hints
   ['balloon', CAT.BALLOON], ['flower', CAT.FLOWER], ['cake', CAT.FOOD], ['bakery', CAT.FOOD], ['dairy', CAT.FOOD], ['restaurant', CAT.FOOD],
 ];
+
+// A vendor that looks like a registered company is almost certainly a shop we
+// bought from → Purchases (when nothing more specific matched).
+function looksLikeCompany(s: string): boolean {
+  return /\b(trading|l\.?l\.?c|fzco|fze|fzc|co\.? ?ltd|industry|industries|general trading|est\b|enterprise|dmcc|hypermarket|supermarket|store|mart|shop|textile|stationery)\b/.test(s);
+}
 
 function has(hay: string, needles: string[]): boolean { return needles.some((n) => hay.includes(n)); }
 
@@ -101,8 +144,11 @@ function classify(r: Row): { cat: string; why: string } {
     if (/eventana|sheem|shaima/.test(who)) {
       // owner is the beneficiary → classify by the vendor (real shop) via keywords, else Uncategorised
       for (const [k, c] of KW) if (vend.includes(k)) return { cat: c, why: `owner-beneficiary→${k}` };
-      return { cat: CAT.UNK, why: 'owner-beneficiary, vendor unclear' };
     }
+    // A company-looking counterparty paid by transfer → a supplier Purchase.
+    if (looksLikeCompany(who)) return { cat: CAT.PURCH, why: 'transfer→company' };
+    const exT = mapExisting(r.category);
+    if (exT) return { cat: exT, why: `transfer→existing:${r.category}` };
     return { cat: CAT.UNK, why: 'transfer, recipient unknown' };
   }
 
@@ -114,12 +160,17 @@ function classify(r: Row): { cat: string; why: string } {
   // Then the OCR category guess.
   const g = (r.category_guess ?? '').toLowerCase();
   if (g && OCR2CAT[g]) return { cat: OCR2CAT[g], why: `ocr:${g}` };
-  if (g === 'other' || g === 'bank' || g === '') { /* fall through */ }
 
-  // Then generic: if we have a real merchant name and items, call it a Purchase.
-  if ((sup && !/network|eventana|adib|islamic bank/.test(sup)) || vend) {
-    if (itemTxt) return { cat: CAT.PURCH, why: 'has merchant+items' };
-  }
+  // Then the expense's EXISTING category (owner/QB-assigned) — real signal.
+  const ex = mapExisting(r.category);
+  if (ex) return { cat: ex, why: `existing:${r.category}` };
+
+  // A real merchant + items → a Purchase.
+  if (((sup && !/network|eventana|adib|islamic bank/.test(sup)) || vend) && itemTxt)
+    return { cat: CAT.PURCH, why: 'merchant+items' };
+  // A company-looking vendor/supplier → a Purchase.
+  if (looksLikeCompany(`${vend} ${sup}`)) return { cat: CAT.PURCH, why: 'company-name' };
+
   return { cat: CAT.UNK, why: 'no signal' };
 }
 
