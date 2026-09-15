@@ -169,6 +169,8 @@ async function main() {
     await addMarshaTaskFromEnv().catch((err) => console.error('[add-marsha-task] failed:', err));
     const { addMarshaThemesTaskFromEnv } = await import('./db/addMarshaThemesTask.js');
     await addMarshaThemesTaskFromEnv().catch((err) => console.error('[marsha-themes] failed:', err));
+    const { addMarshaTransfersTaskFromEnv } = await import('./db/addMarshaTransfersTask.js');
+    await addMarshaTransfersTaskFromEnv().catch((err) => console.error('[marsha-transfers] failed:', err));
     const { addWhereWeBuyTaskFromEnv } = await import('./db/addWhereWeBuyTask.js');
     await addWhereWeBuyTaskFromEnv().catch((err) => console.error('[wwb-task] failed:', err));
     const { cancelWhereWeBuyTaskFromEnv } = await import('./db/cancelWhereWeBuyTask.js');
