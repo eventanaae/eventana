@@ -13,13 +13,16 @@
 import { pool } from './pool.js';
 import { config } from '../config.js';
 
-const PROMPT = `You are reading a purchase receipt or invoice image for a kids-events company in the UAE.
+const PROMPT = `You are reading a receipt/invoice image for a kids-events company in the UAE.
 Return STRICT JSON only, no prose, with this exact shape:
-{"supplier_name": string|null, "supplier_phone": string|null, "supplier_location": string|null,
+{"payment_type": "purchase"|"transfer"|"other",
+ "supplier_name": string|null, "recipient": string|null,
+ "supplier_phone": string|null, "supplier_location": string|null,
  "invoice_number": string|null, "currency": string|null, "tax": number|null, "total": number|null,
  "items": [{"name": string, "qty": number|null, "unit_price": number|null}],
- "category": one of ["decor","balloons","flowers","food","consumables","giveaways","stationery","packaging","transport","furniture","electronics","printing","toys","other"]}
-Rules: read the shop/supplier name, any phone number, and the address/area if printed. Capture the invoice/receipt number and the VAT/tax amount if shown. List every line item with its unit price if shown. Amounts are numbers only (no currency text). If a field is not on the receipt use null. Respond with JSON only.`;
+ "category": one of ["decor","balloons","flowers","food","consumables","giveaways","stationery","packaging","transport","fuel","furniture","electronics","printing","toys","salary","bank","other"]}
+IMPORTANT: Some images are BANK TRANSFER confirmations (e.g. an ADIB or other bank app screenshot) — money we SENT to a person, NOT a shop purchase. For those set "payment_type":"transfer", put the BENEFICIARY / recipient person's name in "recipient" (this is who we paid — often a part-timer or a driver), leave items empty, and supplier_name = the bank. For a normal shop purchase set "payment_type":"purchase" and recipient=null.
+Rules: read the shop/supplier name, any phone number, address/area, the invoice/receipt number and VAT/tax amount if shown. List every line item with its unit price if shown. Amounts are numbers only. If a field is missing use null. Respond with JSON only.`;
 
 function extractJson(text: string): any | null {
   const a = text.indexOf('{'); const b = text.lastIndexOf('}');
@@ -31,8 +34,13 @@ export async function receiptOcrFromEnv(): Promise<void> {
   if (String(process.env.RECEIPT_OCR ?? '').toLowerCase() !== 'run') return;
   const apiKey = config.anthropic.apiKey;
   if (!apiKey) { console.log('[receipt-ocr] ANTHROPIC_API_KEY not set — cannot run'); return; }
-  const limit = Math.max(1, Math.min(200, Number(process.env.RECEIPT_OCR_LIMIT ?? 8)));
+  const limit = Math.max(1, Math.min(2000, Number(process.env.RECEIPT_OCR_LIMIT ?? 8)));
   const model = process.env.RECEIPT_OCR_MODEL || 'claude-haiku-4-5-20251001';
+  // One-time re-read of everything with the improved prompt (cheap).
+  if (String(process.env.RECEIPT_OCR_RESET ?? '').toLowerCase() === 'true') {
+    await pool.query(`TRUNCATE receipt_ocr`);
+    console.log('[receipt-ocr] RESET — cleared previous OCR, re-reading all');
+  }
 
   const { rows } = await pool.query<{ id: string; receipt_url: string; vendor: string }>(
     `SELECT e.id, e.receipt_url, e.vendor
@@ -74,15 +82,17 @@ export async function receiptOcrFromEnv(): Promise<void> {
       const totalFils = typeof data.total === 'number' ? Math.round(data.total * 100) : null;
       const taxFils = typeof data.tax === 'number' ? Math.round(data.tax * 100) : null;
       await pool.query(
-        `INSERT INTO receipt_ocr (expense_id, supplier_name, supplier_phone, supplier_location, invoice_number, currency, tax_fils, total_fils, category_guess, items, raw, status, model)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'ok',$12) ON CONFLICT (expense_id) DO NOTHING`,
-        [e.id, data.supplier_name ?? null, data.supplier_phone ?? null, data.supplier_location ?? null,
+        `INSERT INTO receipt_ocr (expense_id, payment_type, supplier_name, recipient, supplier_phone, supplier_location, invoice_number, currency, tax_fils, total_fils, category_guess, items, raw, status, model)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'ok',$14) ON CONFLICT (expense_id) DO NOTHING`,
+        [e.id, data.payment_type ?? 'purchase', data.supplier_name ?? null, data.recipient ?? null,
+         data.supplier_phone ?? null, data.supplier_location ?? null,
          data.invoice_number ?? null, data.currency ?? null, taxFils, totalFils, data.category ?? null,
          JSON.stringify(data.items ?? []), text.slice(0, 1000), model],
       );
       ok++;
       const items = Array.isArray(data.items) ? data.items.length : 0;
-      console.log(`[receipt-ocr] #${e.id} ✓ ${data.supplier_name ?? e.vendor ?? '?'} · ${items} items · cat=${data.category ?? '-'} · ph=${data.supplier_phone ?? '-'} · loc=${data.supplier_location ?? '-'}`);
+      const who = data.payment_type === 'transfer' ? `TRANSFER→${data.recipient ?? '?'}` : `${data.supplier_name ?? e.vendor ?? '?'} · ${items} items`;
+      console.log(`[receipt-ocr] #${e.id} ✓ ${who} · cat=${data.category ?? '-'} · ph=${data.supplier_phone ?? '-'} · loc=${data.supplier_location ?? '-'}`);
     } catch (err) {
       failed++; console.error(`[receipt-ocr] #${e.id} error`, (err as Error).message);
     }

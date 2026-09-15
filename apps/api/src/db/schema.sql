@@ -1604,6 +1604,11 @@ CREATE TABLE IF NOT EXISTS receipt_ocr (
 CREATE INDEX IF NOT EXISTS receipt_ocr_supplier_idx ON receipt_ocr (lower(supplier_name));
 ALTER TABLE receipt_ocr ADD COLUMN IF NOT EXISTS tax_fils BIGINT;
 ALTER TABLE receipt_ocr ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+-- Bank-transfer receipts (money we SENT, e.g. ADIB app) are not purchases:
+-- payment_type='transfer' and recipient = the beneficiary (part-timer/driver),
+-- which decides the real category.
+ALTER TABLE receipt_ocr ADD COLUMN IF NOT EXISTS payment_type TEXT;
+ALTER TABLE receipt_ocr ADD COLUMN IF NOT EXISTS recipient TEXT;
 
 -- Supplier "memory": what we buy from each supplier and the average unit price,
 -- learned from the receipts. Powers the future Supplier Dashboard (type an item
