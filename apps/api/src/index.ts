@@ -213,6 +213,8 @@ async function main() {
     await diagRawOcrFromEnv().catch((err) => console.error('[raw-ocr] failed:', err));
     const { applySupplierCleanupFromEnv } = await import('./db/applySupplierCleanup.js');
     await applySupplierCleanupFromEnv().catch((err) => console.error('[sup-clean] failed:', err));
+    const { diagTransferRecipientsFromEnv } = await import('./db/diagTransferRecipients.js');
+    await diagTransferRecipientsFromEnv().catch((err) => console.error('[transfers] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
