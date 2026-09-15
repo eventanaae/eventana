@@ -68,6 +68,31 @@ export async function buildSupplierMemoryFromEnv(): Promise<void> {
   );
   console.log(`[sup-memory] new suppliers added from receipts: ${ins.rowCount}`);
 
+  // 4) Auto-describe each supplier from its most-common receipt category + its
+  //    top items (by how often bought). Fills suppliers.supplies where empty.
+  const desc = await pool.query(
+    `WITH cat AS (
+       SELECT lower(btrim(supplier_name)) k, mode() WITHIN GROUP (ORDER BY category_guess) AS c
+         FROM receipt_ocr
+        WHERE COALESCE(btrim(supplier_name),'') <> '' AND COALESCE(payment_type,'purchase') <> 'transfer'
+          AND COALESCE(btrim(category_guess),'') <> ''
+        GROUP BY 1
+     ),
+     top AS (
+       SELECT k, string_agg(item_name, ', ') items FROM (
+         SELECT lower(btrim(supplier_name)) k, item_name,
+                row_number() OVER (PARTITION BY lower(btrim(supplier_name)) ORDER BY times_bought DESC, item_name) rn
+           FROM supplier_items
+       ) x WHERE rn <= 6 GROUP BY k
+     )
+     UPDATE suppliers su SET supplies = COALESCE(NULLIF(btrim(su.supplies),''),
+        NULLIF(btrim(concat_ws(' — ', initcap(cat.c), top.items)), ''))
+       FROM cat LEFT JOIN top ON top.k = cat.k
+      WHERE lower(btrim(su.name)) = cat.k
+        AND COALESCE(NULLIF(btrim(su.supplies),''), '') = ''`,
+  );
+  console.log(`[sup-memory] supplier descriptions written: ${desc.rowCount}`);
+
   const tot = await pool.query<{ items: number; sups: number }>(
     `SELECT (SELECT count(*) FROM supplier_items)::int items, (SELECT count(DISTINCT lower(supplier_name)) FROM supplier_items)::int sups`,
   );
