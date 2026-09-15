@@ -215,6 +215,8 @@ async function main() {
     await applySupplierCleanupFromEnv().catch((err) => console.error('[sup-clean] failed:', err));
     const { diagTransferRecipientsFromEnv } = await import('./db/diagTransferRecipients.js');
     await diagTransferRecipientsFromEnv().catch((err) => console.error('[transfers] failed:', err));
+    const { diagResolveNamesFromEnv } = await import('./db/diagResolveNames.js');
+    await diagResolveNamesFromEnv().catch((err) => console.error('[resolve] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
