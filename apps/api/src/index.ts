@@ -219,6 +219,8 @@ async function main() {
     await diagTransferRecipientsFromEnv().catch((err) => console.error('[transfers] failed:', err));
     const { diagResolveNamesFromEnv } = await import('./db/diagResolveNames.js');
     await diagResolveNamesFromEnv().catch((err) => console.error('[resolve] failed:', err));
+    const { recategorizeExpensesFromEnv } = await import('./db/recategorizeExpenses.js');
+    await recategorizeExpensesFromEnv().catch((err) => console.error('[recat] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
