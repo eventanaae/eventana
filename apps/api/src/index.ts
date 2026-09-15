@@ -203,6 +203,8 @@ async function main() {
     await diagExpenseCategoriesFromEnv().catch((err) => console.error('[exp-cats] failed:', err));
     const { diagReceiptUrlsFromEnv } = await import('./db/diagReceiptUrls.js');
     await diagReceiptUrlsFromEnv().catch((err) => console.error('[receipts] failed:', err));
+    const { receiptOcrFromEnv } = await import('./db/receiptOcr.js');
+    await receiptOcrFromEnv().catch((err) => console.error('[receipt-ocr] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');

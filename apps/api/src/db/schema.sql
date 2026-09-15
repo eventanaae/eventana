@@ -1583,6 +1583,26 @@ CREATE TABLE IF NOT EXISTS suppliers (
 -- Where the supplier is (emirate / area), so a missing item knows where to buy.
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS location TEXT;
 
+-- Receipt OCR results (one row per expense whose receipt image was read by AI
+-- vision). Powers: correct categorisation, the supplier catalogue (item →
+-- supplier → phone → location), the item list under each expense, and average
+-- unit prices. Keyed by expense_id so the reader is resumable (skip done ones).
+CREATE TABLE IF NOT EXISTS receipt_ocr (
+  expense_id        BIGINT PRIMARY KEY REFERENCES expenses(id) ON DELETE CASCADE,
+  supplier_name     TEXT,
+  supplier_phone    TEXT,
+  supplier_location TEXT,
+  currency          TEXT,
+  total_fils        BIGINT,
+  category_guess    TEXT,
+  items             JSONB,       -- [{name, qty, unit_price}]
+  raw               TEXT,        -- the model's raw reply (for debugging)
+  status            TEXT NOT NULL DEFAULT 'ok',   -- ok | no_json | failed
+  model             TEXT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS receipt_ocr_supplier_idx ON receipt_ocr (lower(supplier_name));
+
 -- Google Business Profile OAuth connection (single row: id=1). Same singleton
 -- shape as quickbooks_connection. Google only returns a refresh_token on the
 -- first consent, so it is preserved across refreshes. location_name pins which
