@@ -16,7 +16,7 @@ import { pool } from './pool.js';
 // ── Target chart of accounts ────────────────────────────────────────────────
 const CAT = {
   TRANSPORT: 'Transportation', PART: 'Part-Timers', FAB: 'Fabrication',
-  KIOSKS: 'Kiosks Project', RENT: 'Rentals', PRINT: 'Printing', PURCH: 'Purchases',
+  KIOSKS: 'Fabrication', RENT: 'Rentals', PRINT: 'Printing', PURCH: 'Purchases', // Zaki + Alaa share one category (owner)
   DECOR: 'Decor', BALLOON: 'Balloons', FLOWER: 'Flowers', FOOD: 'Food',
   CONSUM: 'Consumables', GOV: 'Government & Licence', UTIL: 'Utilities',
   MAINT: 'Maintenance', MARKETING: 'Marketing', SALARY: 'Salaries',
