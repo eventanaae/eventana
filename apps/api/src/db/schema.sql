@@ -1617,9 +1617,9 @@ CREATE TABLE IF NOT EXISTS supplier_items (
   last_price_fils BIGINT,
   min_price_fils BIGINT,
   max_price_fils BIGINT,
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (lower(supplier_name), lower(item_name))
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS supplier_items_uq ON supplier_items (lower(supplier_name), lower(item_name));
 
 -- Google Business Profile OAuth connection (single row: id=1). Same singleton
 -- shape as quickbooks_connection. Google only returns a refresh_token on the
