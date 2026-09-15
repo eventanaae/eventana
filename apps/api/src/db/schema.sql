@@ -1602,6 +1602,24 @@ CREATE TABLE IF NOT EXISTS receipt_ocr (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS receipt_ocr_supplier_idx ON receipt_ocr (lower(supplier_name));
+ALTER TABLE receipt_ocr ADD COLUMN IF NOT EXISTS tax_fils BIGINT;
+ALTER TABLE receipt_ocr ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+
+-- Supplier "memory": what we buy from each supplier and the average unit price,
+-- learned from the receipts. Powers the future Supplier Dashboard (type an item
+-- → it knows the supplier and the average cost). Rebuilt from receipt_ocr.
+CREATE TABLE IF NOT EXISTS supplier_items (
+  id            BIGSERIAL PRIMARY KEY,
+  supplier_name TEXT NOT NULL,
+  item_name     TEXT NOT NULL,
+  times_bought  INT NOT NULL DEFAULT 0,
+  avg_price_fils BIGINT,
+  last_price_fils BIGINT,
+  min_price_fils BIGINT,
+  max_price_fils BIGINT,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (lower(supplier_name), lower(item_name))
+);
 
 -- Google Business Profile OAuth connection (single row: id=1). Same singleton
 -- shape as quickbooks_connection. Google only returns a refresh_token on the

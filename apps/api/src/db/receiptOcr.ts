@@ -16,10 +16,10 @@ import { config } from '../config.js';
 const PROMPT = `You are reading a purchase receipt or invoice image for a kids-events company in the UAE.
 Return STRICT JSON only, no prose, with this exact shape:
 {"supplier_name": string|null, "supplier_phone": string|null, "supplier_location": string|null,
- "currency": string|null, "total": number|null,
+ "invoice_number": string|null, "currency": string|null, "tax": number|null, "total": number|null,
  "items": [{"name": string, "qty": number|null, "unit_price": number|null}],
  "category": one of ["decor","balloons","flowers","food","consumables","giveaways","stationery","packaging","transport","furniture","electronics","printing","toys","other"]}
-Rules: read the shop/supplier name, any phone number, and the address/area if printed. List every line item with its unit price if shown. Amounts are numbers only (no currency text). If a field is not on the receipt use null. Respond with JSON only.`;
+Rules: read the shop/supplier name, any phone number, and the address/area if printed. Capture the invoice/receipt number and the VAT/tax amount if shown. List every line item with its unit price if shown. Amounts are numbers only (no currency text). If a field is not on the receipt use null. Respond with JSON only.`;
 
 function extractJson(text: string): any | null {
   const a = text.indexOf('{'); const b = text.lastIndexOf('}');
@@ -72,11 +72,13 @@ export async function receiptOcrFromEnv(): Promise<void> {
         nojson++; continue;
       }
       const totalFils = typeof data.total === 'number' ? Math.round(data.total * 100) : null;
+      const taxFils = typeof data.tax === 'number' ? Math.round(data.tax * 100) : null;
       await pool.query(
-        `INSERT INTO receipt_ocr (expense_id, supplier_name, supplier_phone, supplier_location, currency, total_fils, category_guess, items, raw, status, model)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ok',$10) ON CONFLICT (expense_id) DO NOTHING`,
+        `INSERT INTO receipt_ocr (expense_id, supplier_name, supplier_phone, supplier_location, invoice_number, currency, tax_fils, total_fils, category_guess, items, raw, status, model)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'ok',$12) ON CONFLICT (expense_id) DO NOTHING`,
         [e.id, data.supplier_name ?? null, data.supplier_phone ?? null, data.supplier_location ?? null,
-         data.currency ?? null, totalFils, data.category ?? null, JSON.stringify(data.items ?? []), text.slice(0, 1000), model],
+         data.invoice_number ?? null, data.currency ?? null, taxFils, totalFils, data.category ?? null,
+         JSON.stringify(data.items ?? []), text.slice(0, 1000), model],
       );
       ok++;
       const items = Array.isArray(data.items) ? data.items.length : 0;
