@@ -165,6 +165,11 @@ services:
       - key: VITE_GOOGLE_ADS_PURCHASE_LABEL
         sync: false
     routes:
+      # Clean URL for the hosted Hatta proposal — serve the static file without
+      # the .html extension (must come BEFORE the SPA catch-all below).
+      - type: rewrite
+        source: /hatta-festival
+        destination: /hatta-festival.html
       # The payment return lands on /pay/return?order=… — serve the app
       # for any path so a refresh there does not 404.
       - type: rewrite
