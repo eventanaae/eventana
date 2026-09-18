@@ -186,7 +186,11 @@ class ImapConn {
     if (cont.length && /(?:^|\r\n)A\d+ (NO|BAD)\b/i.test(cont.toString('latin1'))) return cont;
     const NUL = Buffer.from([0]);
     const b64 = Buffer.concat([NUL, Buffer.from(user, 'utf8'), NUL, Buffer.from(pass, 'utf8')]).toString('base64');
-    this.sock.write(`${b64}\r\n`);
+    // Safe diagnostic: never logs the password itself, only its length, so a
+    // trailing space or truncation shows up without exposing the secret.
+    if (verboseRx) console.log(`[bank-imap] sending SASL response: user=${user} userLen=${user.length} passLen=${pass.length} b64Len=${b64.length}`);
+    const ok = this.sock.write(`${b64}\r\n`);
+    if (verboseRx) console.log(`[bank-imap] SASL response flushed=${ok}`);
     return this.wait(tag, false, 'AUTH-final');
   }
 
