@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { pushToOwner } from '../integrations/push.js';
+import { uploadBytes } from '../integrations/cloudinary.js';
 
 export interface ParsedAlert {
   amountFils: number;
@@ -108,6 +109,98 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
   const where = p?.merchant ? ` at ${p.merchant}` : '';
   const title = '🏦 New bank transaction — needs a receipt';
   const bodyMsg = `AED ${aed}${where}. Open Bank Inbox, attach the receipt and approve.`;
+  const targets = await pool.query<{ id: string }>(
+    `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
+  );
+  for (const t of targets.rows) {
+    await pushToOwner('staff', t.id, title, bodyMsg, { bankTxId: id }).catch(() => {});
+  }
+  return { id };
+}
+
+/** A payment provider we can recognise from the sender/subject. */
+export type EmailProvider = 'rakbank' | 'tabby' | 'tamara' | 'other';
+
+function classifyProvider(from: string, subject: string, text: string): EmailProvider {
+  const head = `${from} ${subject}`.toLowerCase();
+  if (/tabby/.test(head)) return 'tabby';
+  if (/tamara/.test(head)) return 'tamara';
+  if (/rakbank|rak bank|debit card|credit card|your card|is charged/.test(`${head} ${text.toLowerCase()}`)) return 'rakbank';
+  return 'other';
+}
+
+function providerLabel(provider: EmailProvider, from: string): string {
+  if (provider === 'tabby') return 'Tabby';
+  if (provider === 'tamara') return 'Tamara';
+  if (provider === 'rakbank') return 'RAKBANK';
+  // Fall back to the sender's display name or email address.
+  const name = (from.match(/^\s*"?([^"<]+?)"?\s*</)?.[1] ?? from.match(/<([^>]+)>/)?.[1] ?? from).trim();
+  return (name || 'Email').slice(0, 120);
+}
+
+export interface InboxAttachment { filename: string; contentType: string; bytes: Buffer; }
+export interface InboxEmail { subject: string; from: string; text: string; attachments: InboxAttachment[]; }
+
+/** Pick the best receipt attachment: prefer a PDF, then any, under Cloudinary's limit. */
+function pickReceiptAttachment(atts: InboxAttachment[]): InboxAttachment | null {
+  const ok = atts.filter((a) => a.bytes.length > 0 && a.bytes.length <= 10 * 1024 * 1024);
+  if (ok.length === 0) return null;
+  return ok.find((a) => /pdf/i.test(a.contentType) || /\.pdf$/i.test(a.filename)) ?? ok[0];
+}
+
+/**
+ * Ingest ANY inbox email (not just RAKBANK): classify the provider, parse an
+ * amount where one is present, upload the first receipt-like attachment to
+ * Cloudinary, and create a PENDING bank_transactions row. Nothing is dropped —
+ * an email with no amount is still captured (amount 0) for the owner to review.
+ * Nothing posts to expenses until approved.
+ */
+export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail'): Promise<{ id: string; duplicate?: boolean } | null> {
+  const subject = msg.subject ?? '';
+  const from = msg.from ?? '';
+  const text = msg.text ?? '';
+  const raw = clean(`${subject}\n${from}\n${text}`).slice(0, 4000);
+  const dedupeKey = createHash('sha256').update(`${source}|${raw}`).digest('hex');
+
+  const dup = await pool.query<{ id: string }>(`SELECT id FROM bank_transactions WHERE dedupe_key = $1 LIMIT 1`, [dedupeKey]);
+  if (dup.rows[0]) return { id: String(dup.rows[0].id), duplicate: true };
+
+  const provider = classifyProvider(from, subject, text);
+  // parseRakbankAlert only needs an "AED <n>" anywhere, so it doubles as a
+  // generic amount finder for other providers. Tabby/Tamara fee-specific
+  // parsing is refined once real samples land (they're captured raw here).
+  const p = parseRakbankAlert(subject, text);
+  const merchant = (p?.merchant ?? providerLabel(provider, from)).slice(0, 120);
+
+  // Upload the first receipt-like attachment (PDF/CSV/…) to Cloudinary.
+  let receiptUrl: string | null = null;
+  const att = pickReceiptAttachment(msg.attachments ?? []);
+  if (att) {
+    receiptUrl = await uploadBytes(new Uint8Array(att.bytes), 'eventana/receipts', att.filename).catch(() => null);
+  }
+
+  const ins = await pool.query<{ id: string }>(
+    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING id`,
+    [
+      p?.postedOn ?? dubaiToday(),
+      p?.amountFils ?? 0,
+      p?.direction ?? 'debit',
+      p?.kind ?? 'other',
+      merchant,
+      raw,
+      provider === 'other' ? source : provider,
+      dedupeKey,
+      receiptUrl,
+    ],
+  );
+  const id = String(ins.rows[0].id);
+
+  const aed = ((p?.amountFils ?? 0) / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const tag = provider === 'other' ? '' : `${providerLabel(provider, from)} · `;
+  const clip = att ? ' 📎 receipt attached' : '';
+  const title = '🏦 New bank transaction — needs review';
+  const bodyMsg = `${tag}AED ${aed} — ${merchant}.${clip} Open Bank Inbox to review and approve.`;
   const targets = await pool.query<{ id: string }>(
     `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
   );

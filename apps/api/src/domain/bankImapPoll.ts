@@ -21,7 +21,7 @@
  *   BANK_IMAP_INTERVAL_MIN=5                 (default)
  */
 import * as tls from 'node:tls';
-import { ingestBankAlert } from './bankInbox.js';
+import { ingestInboxEmail } from './bankInbox.js';
 
 interface ImapCfg {
   host: string;
@@ -217,12 +217,6 @@ function decodeMimeWords(s: string): string {
   });
 }
 
-function decodeQuotedPrintable(s: string): string {
-  const noSoft = s.replace(/=\r?\n/g, '');
-  const bytes = noSoft.replace(/=([0-9A-Fa-f]{2})/g, (_m, h) => String.fromCharCode(parseInt(h, 16)));
-  try { return Buffer.from(bytes, 'latin1').toString('utf8'); } catch { return bytes; }
-}
-
 function stripHtml(s: string): string {
   return s
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -237,51 +231,96 @@ function stripHtml(s: string): string {
     .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(Number(n)));
 }
 
-/**
- * Pull a readable subject + text body out of a raw RFC822 message. Deliberately
- * forgiving: bank alerts are simple, and the raw text is stored regardless, so
- * a rough decode is enough for the amount/merchant regex to work.
- */
-export function extractEmail(raw: string): { subject: string; text: string } {
-  const sep = raw.indexOf('\r\n\r\n');
-  const headerBlock = sep >= 0 ? raw.slice(0, sep) : raw;
-  let body = sep >= 0 ? raw.slice(sep + 4) : '';
-  const headers = headerBlock.replace(/\r\n[ \t]+/g, ' '); // unfold
+export interface EmailAttachment { filename: string; contentType: string; bytes: Buffer; }
+export interface ParsedEmail { subject: string; from: string; text: string; attachments: EmailAttachment[]; }
 
-  const subj = headers.match(/^subject:\s*(.*)$/im);
-  const subject = decodeMimeWords((subj?.[1] ?? '').trim());
+function headerValue(headers: string, name: string): string {
+  const m = headers.match(new RegExp(`^${name}:\\s*([^\\r\\n]*)`, 'im'));
+  return m ? m[1].trim() : '';
+}
 
-  const cte = (headers.match(/^content-transfer-encoding:\s*([^\r\n;]*)/im)?.[1] ?? '').toLowerCase().trim();
-  const ctype = (headers.match(/^content-type:\s*([^\r\n]*)/im)?.[1] ?? '').toLowerCase();
+function paramOf(headerLine: string, key: string): string {
+  const q = headerLine.match(new RegExp(`${key}\\s*=\\s*"([^"]*)"`, 'i'));
+  if (q) return q[1].trim();
+  const u = headerLine.match(new RegExp(`${key}\\s*=\\s*([^;\\r\\n]+)`, 'i'));
+  return u ? u[1].trim() : '';
+}
 
-  // For multipart, grab the first text/plain (or text/html) part crudely.
-  const bnd = ctype.match(/boundary="?([^";\r\n]+)"?/);
-  if (ctype.includes('multipart/') && bnd) {
-    const parts = body.split(`--${bnd[1]}`);
-    let chosen = '';
-    let chosenIsHtml = false;
-    for (const part of parts) {
-      const pl = part.toLowerCase();
-      if (pl.includes('content-type: text/plain')) { chosen = part; chosenIsHtml = false; break; }
-      if (!chosen && pl.includes('content-type: text/html')) { chosen = part; chosenIsHtml = true; }
-    }
-    if (chosen) {
-      const psep = chosen.indexOf('\r\n\r\n');
-      const phead = psep >= 0 ? chosen.slice(0, psep).toLowerCase() : '';
-      let pbody = psep >= 0 ? chosen.slice(psep + 4) : chosen;
-      const pcte = (phead.match(/content-transfer-encoding:\s*([^\r\n;]*)/)?.[1] ?? '').trim();
-      if (pcte === 'base64') { try { pbody = Buffer.from(pbody.replace(/\s+/g, ''), 'base64').toString('utf8'); } catch { /* keep */ } }
-      else if (pcte === 'quoted-printable') pbody = decodeQuotedPrintable(pbody);
-      const text = chosenIsHtml ? stripHtml(pbody) : pbody;
-      return { subject, text: text.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim() };
+function decodePartBytes(body: string, cte: string): Buffer {
+  const enc = cte.toLowerCase().trim();
+  if (enc === 'base64') { try { return Buffer.from(body.replace(/\s+/g, ''), 'base64'); } catch { return Buffer.from(body, 'latin1'); } }
+  if (enc === 'quoted-printable') {
+    const noSoft = body.replace(/=\r?\n/g, '');
+    const bytes = noSoft.replace(/=([0-9A-Fa-f]{2})/g, (_m, h) => String.fromCharCode(parseInt(h, 16)));
+    return Buffer.from(bytes, 'latin1');
+  }
+  return Buffer.from(body, 'utf8');
+}
+
+/** True for parts we'd keep as a receipt (PDF/CSV/spreadsheet/zip or an explicit attachment) — not inline logos. */
+function isReceiptPart(ctype: string, disp: string, filename: string): boolean {
+  const t = ctype.toLowerCase();
+  if (/(application\/pdf|text\/csv|application\/vnd\.|application\/octet-stream|application\/zip|application\/x-zip)/.test(t)) return true;
+  if (disp.includes('attachment')) return !t.startsWith('text/');
+  if (filename && /\.(pdf|csv|xlsx?|zip)$/i.test(filename)) return true;
+  return false;
+}
+
+/** Recursively walk a MIME section, collecting body text and receipt attachments. */
+function walkSection(section: string, acc: { text: string; html: string; attachments: EmailAttachment[] }): void {
+  const sep = section.indexOf('\r\n\r\n');
+  const headerBlock = (sep >= 0 ? section.slice(0, sep) : '').replace(/\r\n[ \t]+/g, ' ');
+  const body = sep >= 0 ? section.slice(sep + 4) : section;
+  const ctypeLine = headerValue(headerBlock, 'content-type') || 'text/plain';
+  const ctype = ctypeLine.toLowerCase();
+  const cte = headerValue(headerBlock, 'content-transfer-encoding');
+  const dispLine = headerValue(headerBlock, 'content-disposition');
+  const disp = dispLine.toLowerCase();
+  const filename = decodeMimeWords(paramOf(dispLine, 'filename') || paramOf(ctypeLine, 'name'));
+
+  if (ctype.startsWith('multipart/')) {
+    const bnd = ctype.match(/boundary="?([^";\r\n]+)"?/);
+    if (bnd) {
+      const chunks = body.split(`--${bnd[1]}`);
+      for (let i = 1; i < chunks.length; i++) {
+        let chunk = chunks[i];
+        if (chunk.startsWith('--')) break; // closing delimiter "--boundary--"
+        chunk = chunk.replace(/^\r?\n/, '');
+        if (chunk.trim()) walkSection(chunk, acc);
+      }
+      return;
     }
   }
 
-  // Single-part body.
-  if (cte === 'base64') { try { body = Buffer.from(body.replace(/\s+/g, ''), 'base64').toString('utf8'); } catch { /* keep */ } }
-  else if (cte === 'quoted-printable') body = decodeQuotedPrintable(body);
-  if (ctype.includes('text/html')) body = stripHtml(body);
-  return { subject, text: body.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim() };
+  if (isReceiptPart(ctype, disp, filename)) {
+    const bytes = decodePartBytes(body, cte);
+    if (bytes.length > 0 && bytes.length <= 15 * 1024 * 1024) {
+      acc.attachments.push({ filename: filename || 'attachment', contentType: ctypeLine.split(';')[0].trim() || 'application/octet-stream', bytes });
+    }
+    return;
+  }
+
+  const decoded = decodePartBytes(body, cte).toString('utf8');
+  if (ctype.startsWith('text/html')) acc.html += (acc.html ? '\n' : '') + decoded;
+  else if (ctype.startsWith('text/') || !ctype) acc.text += (acc.text ? '\n' : '') + decoded;
+}
+
+/**
+ * Parse a raw RFC822 message into subject/from/text plus any receipt-like
+ * attachments (PDF/CSV/etc.). Forgiving by design: the raw text is stored
+ * regardless, so a rough decode is enough for the amount regex to work.
+ */
+export function extractEmail(raw: string): ParsedEmail {
+  const sep = raw.indexOf('\r\n\r\n');
+  const topHeaders = (sep >= 0 ? raw.slice(0, sep) : raw).replace(/\r\n[ \t]+/g, ' ');
+  const subject = decodeMimeWords(headerValue(topHeaders, 'subject'));
+  const from = decodeMimeWords(headerValue(topHeaders, 'from'));
+  const acc = { text: '', html: '', attachments: [] as EmailAttachment[] };
+  walkSection(raw, acc);
+  let text = acc.text.trim();
+  if (!text && acc.html) text = stripHtml(acc.html);
+  text = text.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim();
+  return { subject, from, text, attachments: acc.attachments };
 }
 
 /** Parse UIDs from a `* SEARCH 1 2 3` response. */
@@ -336,8 +375,8 @@ async function pollOnce(): Promise<{ read: number; ingested: number }> {
         const fetch = await conn.cmd(`UID FETCH ${uid} BODY.PEEK[]`);
         const rawMsg = extractLiteral(fetch);
         if (!rawMsg) { console.warn(`[bank-imap] uid ${uid}: no body literal`); continue; }
-        const { subject, text } = extractEmail(rawMsg);
-        const res = await ingestBankAlert(subject, `${subject}\n${text}`, 'privateemail');
+        const email = extractEmail(rawMsg);
+        const res = await ingestInboxEmail(email, 'privateemail');
         if (res && !res.duplicate) ingested++;
         // Mark seen so we don't re-ingest it next cycle.
         await conn.cmd(`UID STORE ${uid} +FLAGS (\\Seen)`);
