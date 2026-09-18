@@ -40,8 +40,10 @@ function cfg(): ImapCfg | null {
   return {
     host: process.env.BANK_IMAP_HOST ?? 'mail.privateemail.com',
     port: Number(process.env.BANK_IMAP_PORT ?? 993),
-    user: process.env.BANK_IMAP_USER ?? 'bank@eventanauae.com',
-    pass,
+    // Strip stray CR/LF that a copy-pasted env value can carry — they are never
+    // part of a real credential and would corrupt the IMAP command line.
+    user: (process.env.BANK_IMAP_USER ?? 'bank@eventanauae.com').replace(/[\r\n]/g, ''),
+    pass: pass.replace(/[\r\n]/g, ''),
   };
 }
 
@@ -268,7 +270,11 @@ async function pollOnce(): Promise<{ read: number; ingested: number }> {
   try {
     await conn.greeting();
     if (verboseRx) { try { await conn.cmd('CAPABILITY'); } catch (e) { console.warn('[bank-imap] CAPABILITY:', e instanceof Error ? e.message : e); } }
-    await conn.cmd(`LOGIN "${c.user.replace(/(["\\])/g, '\\$1')}" "${c.pass.replace(/(["\\])/g, '\\$1')}"`);
+    // SASL PLAIN with an inline initial response (server advertises SASL-IR):
+    // base64 of NUL + user + NUL + pass. Avoids all IMAP quoted-string pitfalls.
+    const NUL = Buffer.from([0]);
+    const sasl = Buffer.concat([NUL, Buffer.from(c.user, 'utf8'), NUL, Buffer.from(c.pass, 'utf8')]).toString('base64');
+    await conn.cmd(`AUTHENTICATE PLAIN ${sasl}`);
     verboseRx = false; // login worked — stop logging raw wire data (which includes email bodies)
     await conn.cmd('SELECT INBOX');
     const search = await conn.cmd('UID SEARCH UNSEEN');
