@@ -464,6 +464,12 @@ async function main() {
 
   startReconciliation();
 
+  // Read bank@eventanauae.com over IMAP and turn each new bank-alert email into
+  // a PENDING bank_transactions row for the owner to approve. No-op unless
+  // BANK_IMAP_POLL=true with a mailbox password set in the environment.
+  const { startBankImapPolling } = await import('./domain/bankImapPoll.js');
+  startBankImapPolling();
+
   app.log.info(
     { integrations: integrationStatus().map((i) => `${i.name}:${i.mode}`) },
     'Eventana engine ready',
@@ -472,6 +478,7 @@ async function main() {
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down');
     stopReconciliation();
+    (await import('./domain/bankImapPoll.js')).stopBankImapPolling();
     await app.close();
     await closePool();
     process.exit(0);
