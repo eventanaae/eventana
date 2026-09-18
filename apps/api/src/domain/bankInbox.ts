@@ -138,6 +138,68 @@ function providerLabel(provider: EmailProvider, from: string): string {
   return (name || 'Email').slice(0, 120);
 }
 
+const MONTHS: Record<string, number> = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+};
+
+function fils(s: string | undefined | null): number | null {
+  if (!s) return null;
+  const n = parseFloat(s.replace(/,/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+
+const fmtAed = (f: number | null): string =>
+  f == null ? '—' : (f / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export interface Settlement {
+  feeFils: number; salesFils: number | null; netFils: number | null;
+  postedOn: string | null; description: string;
+}
+
+/**
+ * Parse a Tabby/Tamara "payout" / settlement email. The expense we record is
+ * what THEY deducted from us — the "Total deductions" line (commission + payout
+ * fee + VAT). Real Tabby format:
+ *   Sales AED 3053.00 · Total deductions − AED 219.39 · Commission − AED 202.94
+ *   · Payout fee − AED 6.30 · VAT − AED 10.15 · Payout amount AED 2833.61
+ * Returns null if no deduction total can be found (then we fall back to generic).
+ */
+export function parseSettlement(subject: string, text: string): Settlement | null {
+  // Normalise the Unicode minus (−, U+2212) and collapse whitespace.
+  const flat = `${subject}\n${text}`.replace(/−/g, '-').replace(/\s+/g, ' ');
+  const after = (label: string): number | null => {
+    const m = flat.match(new RegExp(`${label}\\D{0,25}?AED\\s*([\\d,]+(?:\\.\\d{1,2})?)`, 'i'));
+    return m ? fils(m[1]) : null;
+  };
+  const sales = after('\\bsales\\b');
+  let deductions = after('total deductions');
+  const commission = after('commission');
+  const payoutFee = after('payout fee');
+  const vat = after('\\bvat\\b');
+  const net = after('payout amount') ?? after('you.{0,3}ll receive') ?? after('you will receive');
+  if (deductions == null) {
+    const parts = [commission, payoutFee, vat].filter((x): x is number => x != null);
+    if (parts.length) deductions = parts.reduce((a, b) => a + b, 0);
+  }
+  if (deductions == null || deductions <= 0) return null;
+
+  let postedOn: string | null = null;
+  const md = flat.match(/(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})/i);
+  if (md) postedOn = `${md[3]}-${String(MONTHS[md[2].toLowerCase()]).padStart(2, '0')}-${md[1].padStart(2, '0')}`;
+  else { const iso = flat.match(/\b(\d{4})-(\d{2})-(\d{2})\b/); if (iso) postedOn = iso[0]; }
+
+  const bits: string[] = [];
+  if (commission != null) bits.push(`commission ${fmtAed(commission)}`);
+  if (payoutFee != null) bits.push(`payout fee ${fmtAed(payoutFee)}`);
+  if (vat != null) bits.push(`VAT ${fmtAed(vat)}`);
+  const breakdown = bits.length ? ` (${bits.join(' + ')})` : '';
+  const ctx = [sales != null ? `sales ${fmtAed(sales)}` : '', net != null ? `net payout ${fmtAed(net)}` : '']
+    .filter(Boolean).join(', ');
+  const description = `Settlement fees ${fmtAed(deductions)}${breakdown}${ctx ? ` — ${ctx}` : ''}`.slice(0, 300);
+  return { feeFils: deductions, salesFils: sales, netFils: net, postedOn, description };
+}
+
 export interface InboxAttachment { filename: string; contentType: string; bytes: Buffer; }
 export interface InboxEmail { subject: string; from: string; text: string; attachments: InboxAttachment[]; }
 
@@ -166,11 +228,38 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   if (dup.rows[0]) return { id: String(dup.rows[0].id), duplicate: true };
 
   const provider = classifyProvider(from, subject, text);
-  // parseRakbankAlert only needs an "AED <n>" anywhere, so it doubles as a
-  // generic amount finder for other providers. Tabby/Tamara fee-specific
-  // parsing is refined once real samples land (they're captured raw here).
-  const p = parseRakbankAlert(subject, text);
-  const merchant = (p?.merchant ?? providerLabel(provider, from)).slice(0, 120);
+
+  // For Tabby/Tamara payout emails, record what THEY deducted (the fee), not the
+  // gross sales. Otherwise parseRakbankAlert doubles as a generic "AED <n>"
+  // finder; an email with no amount is still captured (amount 0) for review.
+  let amountFils = 0;
+  let direction: 'debit' | 'credit' = 'debit';
+  let kind: ParsedAlert['kind'] = 'other';
+  let postedOn: string = dubaiToday();
+  let merchant = providerLabel(provider, from);
+  let settlementNote: string | null = null;
+
+  const settle = provider === 'tabby' || provider === 'tamara' ? parseSettlement(subject, text) : null;
+  if (settle) {
+    amountFils = settle.feeFils;
+    direction = 'debit'; // a fee = money out
+    kind = 'other';
+    postedOn = settle.postedOn ?? dubaiToday();
+    settlementNote = settle.description;
+  } else {
+    const p = parseRakbankAlert(subject, text);
+    if (p) {
+      amountFils = p.amountFils;
+      direction = p.direction;
+      kind = p.kind;
+      postedOn = p.postedOn ?? dubaiToday();
+      merchant = p.merchant ?? merchant;
+    }
+  }
+  merchant = merchant.slice(0, 120);
+  // Keep the human-readable fee breakdown at the top of raw_text so it shows in
+  // the Bank Inbox and carries into the expense on approval.
+  const rawText = settlementNote ? `${settlementNote}\n\n${raw}`.slice(0, 4000) : raw;
 
   // Upload the first receipt-like attachment (PDF/CSV/…) to Cloudinary.
   let receiptUrl: string | null = null;
@@ -183,12 +272,12 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING id`,
     [
-      p?.postedOn ?? dubaiToday(),
-      p?.amountFils ?? 0,
-      p?.direction ?? 'debit',
-      p?.kind ?? 'other',
+      postedOn,
+      amountFils,
+      direction,
+      kind,
       merchant,
-      raw,
+      rawText,
       provider === 'other' ? source : provider,
       dedupeKey,
       receiptUrl,
@@ -196,7 +285,7 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   );
   const id = String(ins.rows[0].id);
 
-  const aed = ((p?.amountFils ?? 0) / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const aed = (amountFils / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const tag = provider === 'other' ? '' : `${providerLabel(provider, from)} · `;
   const clip = att ? ' 📎 receipt attached' : '';
   const title = '🏦 New bank transaction — needs review';
@@ -245,10 +334,16 @@ export async function approveBankTransaction(
   if (!tx) return { ok: false, reason: 'not_found' };
   if (tx.status !== 'pending') return { ok: false, reason: `already_${tx.status}` };
 
-  const description = (opts.description ?? tx.merchant ?? 'Bank transaction').toString().slice(0, 300);
+  const isSettlement = tx.source === 'tabby' || tx.source === 'tamara';
+  // For settlement fees, the raw_text starts with the readable fee breakdown.
+  const settlementDesc = isSettlement
+    ? String(tx.raw_text ?? '').split('\n')[0].slice(0, 300)
+    : null;
+  const description = (opts.description ?? settlementDesc ?? tx.merchant ?? 'Bank transaction').toString().slice(0, 300);
   const vendor = (opts.vendor ?? tx.merchant ?? null);
-  const category = (opts.category ?? (tx.kind === 'transfer' ? 'transfer' : 'general')).toString().slice(0, 80);
-  const paymentMethod = opts.paymentMethod ?? (tx.kind === 'transfer' ? 'bank_transfer' : 'card');
+  const defaultCategory = isSettlement ? 'Payment Fees' : tx.kind === 'transfer' ? 'transfer' : 'general';
+  const category = (opts.category ?? defaultCategory).toString().slice(0, 80);
+  const paymentMethod = opts.paymentMethod ?? (isSettlement ? 'settlement' : tx.kind === 'transfer' ? 'bank_transfer' : 'card');
   const spentOn = opts.spentOn ?? tx.posted_on ?? null;
   const receiptUrl = opts.receiptUrl ?? tx.receipt_url ?? null;
 
