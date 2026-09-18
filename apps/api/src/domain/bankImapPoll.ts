@@ -70,6 +70,10 @@ function completeOffset(buf: Buffer, tag: string): number {
   }
 }
 
+/** Temporary wire logging until the first successful LOGIN (then goes quiet). */
+let verboseRx = true;
+const esc = (b: Buffer): string => b.toString('latin1').replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+
 /** Minimal IMAP command/response pump over one TLS socket. */
 class ImapConn {
   private sock: tls.TLSSocket;
@@ -80,6 +84,7 @@ class ImapConn {
   constructor(sock: tls.TLSSocket) {
     this.sock = sock;
     sock.on('data', (chunk: Buffer) => {
+      if (verboseRx) console.log(`[bank-imap] rx(${this.waiter?.tag ?? '-'}): ${esc(chunk.slice(0, 200))}`);
       this.buf = Buffer.concat([this.buf, chunk]);
       this.tryResolve();
     });
@@ -137,6 +142,7 @@ class ImapConn {
       setTimeout(() => {
         if (this.waiter && this.waiter.tag === tag) {
           this.waiter = null;
+          if (verboseRx) console.log(`[bank-imap] ${tag} timeout; buf(${this.buf.length}): ${esc(this.buf.slice(-240))}`);
           reject(new Error(`IMAP ${tag} timeout: ${command.split(' ')[0]}`));
         }
       }, 30000);
@@ -261,7 +267,9 @@ async function pollOnce(): Promise<{ read: number; ingested: number }> {
   let ingested = 0;
   try {
     await conn.greeting();
+    if (verboseRx) { try { await conn.cmd('CAPABILITY'); } catch (e) { console.warn('[bank-imap] CAPABILITY:', e instanceof Error ? e.message : e); } }
     await conn.cmd(`LOGIN "${c.user.replace(/(["\\])/g, '\\$1')}" "${c.pass.replace(/(["\\])/g, '\\$1')}"`);
+    verboseRx = false; // login worked — stop logging raw wire data (which includes email bodies)
     await conn.cmd('SELECT INBOX');
     const search = await conn.cmd('UID SEARCH UNSEEN');
     const uids = parseSearchUids(search.toString('latin1')).slice(0, 25); // cap per cycle
