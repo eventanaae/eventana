@@ -72,8 +72,13 @@ function completeOffset(buf: Buffer, tag: string): number {
   }
 }
 
-/** Temporary wire logging until the first successful LOGIN (then goes quiet). */
-let verboseRx = true;
+/**
+ * Wire-level debug logging. Off by default; set BANK_IMAP_DEBUG=true to trace
+ * the IMAP handshake (never logs email bodies — it self-silences the moment a
+ * login succeeds, before any message is fetched). Left in place so a future
+ * connection problem can be diagnosed by flipping one env flag.
+ */
+let verboseRx = String(process.env.BANK_IMAP_DEBUG ?? '').toLowerCase() === 'true';
 const esc = (b: Buffer): string => b.toString('latin1').replace(/\r/g, '\\r').replace(/\n/g, '\\n');
 
 /** Minimal IMAP command/response pump over one TLS socket. */
