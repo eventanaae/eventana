@@ -81,7 +81,7 @@ class ImapConn {
   private sock: tls.TLSSocket;
   private buf: Buffer = Buffer.alloc(0);
   private seq = 0;
-  private waiter: { tag: string; resolve: (b: Buffer) => void; reject: (e: Error) => void } | null = null;
+  private waiter: { tag: string; resolve: (b: Buffer) => void; reject: (e: Error) => void; cont?: boolean } | null = null;
 
   constructor(sock: tls.TLSSocket) {
     this.sock = sock;
@@ -99,6 +99,18 @@ class ImapConn {
 
   private tryResolve(): void {
     if (!this.waiter) return;
+    // SASL continuation: server answers a bare "+ ..." line asking for the next
+    // token. Resolve on it (before tag-completion scanning).
+    if (this.waiter.cont) {
+      const cm = this.buf.toString('latin1').match(/^\+[^\n]*\n/);
+      if (cm) {
+        this.buf = this.buf.slice(cm[0].length);
+        const w = this.waiter;
+        this.waiter = null;
+        w.resolve(Buffer.alloc(0));
+        return;
+      }
+    }
     const end = completeOffset(this.buf, this.waiter.tag);
     if (end < 0) return;
     const resp = this.buf.slice(0, end);
@@ -149,6 +161,33 @@ class ImapConn {
         }
       }, 30000);
     });
+  }
+
+  private wait(tag: string, cont: boolean, label: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      this.waiter = { tag, resolve, reject, cont };
+      this.tryResolve();
+      setTimeout(() => {
+        if (this.waiter && this.waiter.tag === tag) {
+          this.waiter = null;
+          if (verboseRx) console.log(`[bank-imap] ${tag} ${label} timeout; buf(${this.buf.length}): ${esc(this.buf.slice(-240))}`);
+          reject(new Error(`IMAP ${tag} timeout: ${label}`));
+        }
+      }, 45000);
+    });
+  }
+
+  /** Multi-line SASL PLAIN: send AUTHENTICATE, await "+", send base64 creds. */
+  async authPlain(user: string, pass: string): Promise<Buffer> {
+    const tag = `A${++this.seq}`;
+    this.sock.write(`${tag} AUTHENTICATE PLAIN\r\n`);
+    const cont = await this.wait(tag, true, 'AUTH-cont');
+    // If the server already answered tagged (rejected), stop here.
+    if (cont.length && /(?:^|\r\n)A\d+ (NO|BAD)\b/i.test(cont.toString('latin1'))) return cont;
+    const NUL = Buffer.from([0]);
+    const b64 = Buffer.concat([NUL, Buffer.from(user, 'utf8'), NUL, Buffer.from(pass, 'utf8')]).toString('base64');
+    this.sock.write(`${b64}\r\n`);
+    return this.wait(tag, false, 'AUTH-final');
   }
 
   logout(): void {
@@ -269,12 +308,15 @@ async function pollOnce(): Promise<{ read: number; ingested: number }> {
   let ingested = 0;
   try {
     await conn.greeting();
-    if (verboseRx) { try { await conn.cmd('CAPABILITY'); } catch (e) { console.warn('[bank-imap] CAPABILITY:', e instanceof Error ? e.message : e); } }
-    // SASL PLAIN with an inline initial response (server advertises SASL-IR):
-    // base64 of NUL + user + NUL + pass. Avoids all IMAP quoted-string pitfalls.
-    const NUL = Buffer.from([0]);
-    const sasl = Buffer.concat([NUL, Buffer.from(c.user, 'utf8'), NUL, Buffer.from(c.pass, 'utf8')]).toString('base64');
-    await conn.cmd(`AUTHENTICATE PLAIN ${sasl}`);
+    if (verboseRx) {
+      // CAPABILITY answers instantly; NOOP proves a *second* command round-trips
+      // (isolates a pump bug from a server-side auth hang).
+      try { await conn.cmd('CAPABILITY'); } catch (e) { console.warn('[bank-imap] CAPABILITY:', e instanceof Error ? e.message : e); }
+      try { await conn.cmd('NOOP'); console.log('[bank-imap] NOOP ok — 2nd command round-trips'); } catch (e) { console.warn('[bank-imap] NOOP:', e instanceof Error ? e.message : e); }
+    }
+    // Multi-line SASL PLAIN (await "+" then send creds). Sidesteps quoted-string
+    // pitfalls and the inline-IR path that hung on this server.
+    await conn.authPlain(c.user, c.pass);
     verboseRx = false; // login worked — stop logging raw wire data (which includes email bodies)
     await conn.cmd('SELECT INBOX');
     const search = await conn.cmd('UID SEARCH UNSEEN');
