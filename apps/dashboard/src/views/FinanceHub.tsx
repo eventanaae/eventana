@@ -1197,10 +1197,10 @@ function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFil
 // ── Shared bits ──────────────────────────────────────────────────────────────
 function Modal({ title, children, onClose, onSave, busy, err, saveLabel }: { title: string; children: ReactNode; onClose: () => void; onSave?: () => void; busy?: boolean; err?: string | null; saveLabel?: string }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '3vh 12px' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '16px 12px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }} onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: C.shadowLg }}
+        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, maxHeight: '90dvh', display: 'flex', flexDirection: 'column', boxShadow: C.shadowLg }}
       >
         {/* Header stays put; only the body scrolls, so Save is always reachable
             even when the form is taller than the screen (mobile). */}
