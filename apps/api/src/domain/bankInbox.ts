@@ -358,6 +358,19 @@ export async function approveBankTransaction(
     [category, description, tx.amount_fils, vendor, spentOn, receiptUrl, paymentMethod, actor],
   );
   const expenseId = String(exp.rows[0].id);
+
+  // If the supplier chosen at approval isn't in our list yet, add it — so it's
+  // reusable and shows in the supplier autocomplete next time. Idempotent.
+  if (vendor && String(vendor).trim()) {
+    const name = String(vendor).trim().slice(0, 200);
+    await pool.query(
+      `INSERT INTO suppliers (name, created_by)
+       SELECT $1, $2
+       WHERE NOT EXISTS (SELECT 1 FROM suppliers WHERE lower(btrim(name)) = lower(btrim($1)))`,
+      [name, actor],
+    ).catch(() => {});
+  }
+
   await pool.query(
     `UPDATE bank_transactions SET status='approved', expense_id=$2, receipt_url=COALESCE($3, receipt_url), decided_by=$4, decided_at=now() WHERE id=$1`,
     [id, expenseId, receiptUrl, actor],
