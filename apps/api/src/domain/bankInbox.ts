@@ -304,6 +304,32 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   return { id };
 }
 
+/**
+ * Insert a transaction from an external feed (e.g. the Wio bank feed via Wafeq)
+ * as a PENDING bank_transactions row. De-duped by the caller-supplied key so a
+ * re-poll never double-records. Insert-only (the caller handles notifications).
+ */
+export async function ingestExternalTxn(t: {
+  amountFils: number;
+  direction: 'debit' | 'credit';
+  kind: ParsedAlert['kind'];
+  merchant: string | null;
+  postedOn: string;
+  raw: string;
+  source: string;
+  dedupeKey: string;
+  receiptUrl?: string | null;
+}): Promise<{ id: string; duplicate?: boolean }> {
+  const dup = await pool.query<{ id: string }>(`SELECT id FROM bank_transactions WHERE dedupe_key = $1 LIMIT 1`, [t.dedupeKey]);
+  if (dup.rows[0]) return { id: String(dup.rows[0].id), duplicate: true };
+  const ins = await pool.query<{ id: string }>(
+    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING id`,
+    [t.postedOn, t.amountFils, t.direction, t.kind, (t.merchant ?? '').slice(0, 120) || null, t.raw.slice(0, 4000), t.source, t.dedupeKey, t.receiptUrl ?? null],
+  );
+  return { id: String(ins.rows[0].id) };
+}
+
 export interface BankTxRow {
   id: string; posted_on: string | null; amount_fils: number; direction: string;
   kind: string; merchant: string | null; raw_text: string | null; status: string;

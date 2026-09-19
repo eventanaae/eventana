@@ -470,6 +470,11 @@ async function main() {
   const { startBankImapPolling } = await import('./domain/bankImapPoll.js');
   startBankImapPolling();
 
+  // Pull the Wio bank feed from Wafeq into the pending-expenses queue. No-op
+  // unless WAFEQ_API_KEY is set.
+  const { startWafeqPolling } = await import('./domain/wafeqPoll.js');
+  startWafeqPolling();
+
   app.log.info(
     { integrations: integrationStatus().map((i) => `${i.name}:${i.mode}`) },
     'Eventana engine ready',
@@ -479,6 +484,7 @@ async function main() {
     app.log.info({ signal }, 'shutting down');
     stopReconciliation();
     (await import('./domain/bankImapPoll.js')).stopBankImapPolling();
+    (await import('./domain/wafeqPoll.js')).stopWafeqPolling();
     await app.close();
     await closePool();
     process.exit(0);

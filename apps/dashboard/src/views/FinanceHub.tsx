@@ -485,7 +485,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
 
   if (!rows || rows.length === 0) return null; // nothing pending → stay out of the way
 
-  const tag = (s?: string) => s === 'tabby' ? 'Tabby' : s === 'tamara' ? 'Tamara' : s === 'rakbank' ? 'RAKBANK' : null;
+  const tag = (s?: string) => s === 'tabby' ? 'Tabby' : s === 'tamara' ? 'Tamara' : s === 'rakbank' ? 'RAKBANK' : s === 'wio' ? 'Wio' : null;
 
   async function approve(r: any) {
     const category = cat[r.id] ?? '';
