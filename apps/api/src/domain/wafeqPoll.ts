@@ -56,7 +56,7 @@ async function wafeqGet(path: string, key: string): Promise<any> {
 }
 
 interface BankAccount { id: string; name: string; sub_classification?: string; currency?: string; }
-interface LedgerTxn { id: string; amount: number | string; date: string; description?: string; contact?: string | null; reference?: string; }
+interface StatementTxn { id: string; amount: number | string; date: string; description?: string; bank_reference?: string; reference?: string; }
 
 // Log the account list + a sample transaction shape on the first cycle after
 // boot (or whenever WAFEQ_DEBUG=true), so the field mapping can be verified.
@@ -78,10 +78,10 @@ async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
   let ingested = 0;
 
   for (const acc of accounts) {
-    // 2) Page through this account's ledger transactions (bounded).
+    // 2) Page through this account's statement transactions (the bank feed).
     for (let page = 1; page <= 20; page++) {
-      const data = await wafeqGet(`/bank-accounts/${encodeURIComponent(acc.id)}/ledger-transactions/?page=${page}&page_size=100`, c.key);
-      const rows: LedgerTxn[] = data?.results ?? [];
+      const data = await wafeqGet(`/bank-accounts/${encodeURIComponent(acc.id)}/statement-transactions/?page=${page}&page_size=100`, c.key);
+      const rows: StatementTxn[] = data?.results ?? [];
       if (verbose && page === 1) console.log(`[wafeq] ${acc.name} sample: ${JSON.stringify(rows[0] ?? null)}`);
       if (rows.length === 0) break;
 
@@ -95,7 +95,7 @@ async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
         if (!Number.isFinite(amt) || amt === 0) continue;
         const amountFils = Math.round(Math.abs(amt) * 100);
         const direction: 'debit' | 'credit' = amt < 0 ? 'debit' : 'credit';
-        const merchant = (t.contact || t.description || acc.name || 'Wio transaction').toString();
+        const merchant = (t.description || acc.name || 'Wio transaction').toString();
         const raw = [t.description, t.reference].filter(Boolean).join(' · ');
         const res = await ingestExternalTxn({
           amountFils,
