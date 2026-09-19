@@ -369,7 +369,7 @@ function ExpensesTab({ role }: { role?: string }) {
   };
   return (
     <>
-    <BankReview role={role} onApproved={load} />
+    <BankReview role={role} categories={data.categories ?? []} onApproved={load} />
     <Panel title="Expenses" action={
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <Button tone="ghost" onClick={() => setReviewing(true)}>📋 Accounts review</Button>
@@ -428,38 +428,43 @@ function ExpensesTab({ role }: { role?: string }) {
   );
 }
 
-/** Categories offered when approving a bank transaction into an expense. */
-const BANK_CATS = ['general', 'Payment Fees', 'supplies', 'inventory', 'fuel', 'marketing', 'maintenance', 'rent', 'utilities', 'salaries', 'transfer', 'other'];
-
 /**
- * Pending bank transactions (from bank/Tabby/Tamara emails) shown at the top of
- * the Expenses page. Owner + Marsha can approve → it posts as an expense. Only
- * the OWNER can reject. Renders nothing when there's nothing to review.
+ * Expenses awaiting approval — pending transactions from bank / Tabby / Tamara
+ * emails, shown at the top of the Expenses page. Owner + Marsha can approve →
+ * it posts as an expense under the chosen account and supplier. Only the OWNER
+ * can reject. Renders nothing when there's nothing to review.
  */
-function BankReview({ role, onApproved }: { role?: string; onApproved: () => void }) {
+function BankReview({ role, categories, onApproved }: { role?: string; categories: string[]; onApproved: () => void }) {
   const isOwner = role === 'owner';
   const [rows, setRows] = useState<any[] | null>(null);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [cat, setCat] = useState<Record<string, string>>({});
+  const [vendor, setVendor] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
 
   useEffect(() => {
     api.bankTransactions('pending').then((r) => setRows(Array.isArray(r) ? r : [])).catch(() => setRows([]));
+    api.suppliers().then((d: any) => {
+      const names = (d?.rows ?? []).map((s: any) => s.name ?? s.vendor ?? s.supplier).filter(Boolean);
+      setSuppliers(Array.from(new Set(names)).sort() as string[]);
+    }).catch(() => setSuppliers([]));
   }, []);
 
   if (!rows || rows.length === 0) return null; // nothing pending → stay out of the way
 
-  const defCat = (r: any) => (r.source === 'tabby' || r.source === 'tamara') ? 'Payment Fees' : (r.kind === 'transfer' ? 'transfer' : 'general');
   const tag = (s?: string) => s === 'tabby' ? 'Tabby' : s === 'tamara' ? 'Tamara' : s === 'rakbank' ? 'RAKBANK' : null;
 
   async function approve(r: any) {
+    const category = cat[r.id] ?? '';
+    if (!category) { setErr('Please choose an account for each transaction before approving.'); return; }
     setBusy(r.id); setErr(null);
     try {
-      await api.bankTxApprove(r.id, { category: cat[r.id] || defCat(r) });
+      await api.bankTxApprove(r.id, { category, vendor: (vendor[r.id] ?? r.merchant ?? '') || null });
       setRows((rs) => rs?.filter((x) => x.id !== r.id) ?? rs);
       onApproved();
-    } catch (e: any) { setErr(e?.message || 'تعذّر الاعتماد'); } finally { setBusy(null); }
+    } catch (e: any) { setErr(e?.message || 'Could not approve — please try again.'); } finally { setBusy(null); }
   }
   async function reject(r: any) {
     if (!isOwner) return;
@@ -467,7 +472,7 @@ function BankReview({ role, onApproved }: { role?: string; onApproved: () => voi
     try {
       await api.bankTxIgnore(r.id);
       setRows((rs) => rs?.filter((x) => x.id !== r.id) ?? rs);
-    } catch (e: any) { setErr(e?.message || 'تعذّر الرفض'); } finally { setBusy(null); }
+    } catch (e: any) { setErr(e?.message || 'Could not reject.'); } finally { setBusy(null); }
   }
   async function upload(r: any, file: File) {
     setBusy(r.id); setErr(null);
@@ -475,15 +480,18 @@ function BankReview({ role, onApproved }: { role?: string; onApproved: () => voi
       const url = await api.uploadImage(file, 'receipts');
       await api.bankTxReceipt(r.id, url);
       setRows((rs) => rs?.map((x) => x.id === r.id ? { ...x, receipt_url: url } : x) ?? rs);
-    } catch { setErr('تعذّر رفع الإيصال — حاولي مرة ثانية'); } finally { setBusy(null); }
+    } catch { setErr('Could not upload the receipt — please try again.'); } finally { setBusy(null); }
   }
 
+  const fieldStyle = { fontFamily: 'inherit', fontSize: 12.5, padding: '7px 9px', borderRadius: 9, border: `1px solid ${C.line}`, background: '#fff', color: C.ink } as const;
+
   return (
-    <Panel title={`🏦 عمليات بنك تنتظر المراجعة (${rows.length})`} style={{ marginBottom: 14, border: `1px solid ${C.pink}` }}>
+    <Panel title={`🧾 Expenses needing approval (${rows.length})`} style={{ marginBottom: 14, border: `1px solid ${C.pink}` }}>
       <div style={{ fontSize: 12.5, color: C.muted2, fontWeight: 600, marginBottom: 10 }}>
-        كل عملية من إيميلات البنك / تابي / تمارا تطلع هنا. راجعيها واضغطي <b>اعتماد</b> عشان تتحفظ كمصروف{isOwner ? '، أو رفض.' : '.'}
+        Transactions read from your bank / Tabby / Tamara emails. Set the account and supplier, then <b>Approve</b> to save as an expense{isOwner ? ', or Reject.' : '.'}
       </div>
       {err && <div style={{ color: C.red, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
+      <datalist id="bankSuppliers">{suppliers.map((s) => <option key={s} value={s} />)}</datalist>
       <div style={{ display: 'grid', gap: 10 }}>
         {rows.map((r) => (
           <div key={r.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: 12 }}>
@@ -493,25 +501,37 @@ function BankReview({ role, onApproved }: { role?: string; onApproved: () => voi
               </div>
               {tag(r.source) && <span style={{ fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 8, padding: '2px 8px' }}>{tag(r.source)}</span>}
               <div style={{ flex: 1 }} />
-              <div style={{ fontSize: 12, color: C.muted2, fontWeight: 600 }}>{r.posted_on ?? ''}</div>
+              <div style={{ fontSize: 12.5, color: C.muted2, fontWeight: 700 }}>📅 {fmtDate(r.posted_on)}</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, marginTop: 4 }}>{r.merchant || '—'}</div>
+
+            <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+              <label style={{ display: 'grid', gap: 3 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Supplier (from bank — edit or pick from your list)</span>
+                <input list="bankSuppliers" value={vendor[r.id] ?? r.merchant ?? ''}
+                  onChange={(e) => setVendor((v) => ({ ...v, [r.id]: e.target.value }))}
+                  placeholder="Supplier name" style={{ ...fieldStyle, width: '100%', boxSizing: 'border-box' }} />
+              </label>
+              <label style={{ display: 'grid', gap: 3 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Account</span>
+                <select value={cat[r.id] ?? ''} onChange={(e) => setCat((c) => ({ ...c, [r.id]: e.target.value }))} style={{ ...fieldStyle, width: '100%' }}>
+                  <option value="">— Select account —</option>
+                  {categories.map((c) => <option key={c} value={c}>{prettyCat(c)}</option>)}
+                </select>
+              </label>
+            </div>
+
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 10 }}>
-              <select value={cat[r.id] ?? defCat(r)} onChange={(e) => setCat((c) => ({ ...c, [r.id]: e.target.value }))}
-                style={{ fontFamily: 'inherit', fontSize: 12.5, padding: '7px 9px', borderRadius: 9, border: `1px solid ${C.line}`, background: '#fff', color: C.ink }}>
-                {BANK_CATS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
               <label style={{ fontSize: 12.5, fontWeight: 700, color: C.pinkDeep, cursor: 'pointer', border: `1px dashed ${C.pink}`, borderRadius: 9, padding: '7px 10px', background: C.pinkSoft }}>
-                {r.receipt_url ? '✓ إيصال — تغيير' : '📎 إيصال'}
+                {r.receipt_url ? '✓ Receipt — change' : '📎 Receipt'}
                 <input type="file" accept="image/*,application/pdf" hidden disabled={busy === r.id}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(r, f); }} />
               </label>
-              {r.receipt_url && <button type="button" style={linkBtn} onClick={() => setViewing(r.receipt_url)}>🧾 عرض</button>}
+              {r.receipt_url && <button type="button" style={linkBtn} onClick={() => setViewing(r.receipt_url)}>🧾 View</button>}
               <div style={{ flex: 1 }} />
-              <Button onClick={() => approve(r)} disabled={busy === r.id}>{busy === r.id ? '...' : '✅ اعتماد'}</Button>
+              <Button onClick={() => approve(r)} disabled={busy === r.id}>{busy === r.id ? '…' : '✅ Approve'}</Button>
               {isOwner && (
                 <button type="button" onClick={() => reject(r)} disabled={busy === r.id}
-                  style={{ fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', borderRadius: 9, padding: '8px 12px', border: `1px solid ${C.line}`, background: '#fff', color: C.muted2 }}>🚫 رفض</button>
+                  style={{ fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', borderRadius: 9, padding: '8px 12px', border: `1px solid ${C.line}`, background: '#fff', color: C.muted2 }}>🚫 Reject</button>
               )}
             </div>
           </div>
