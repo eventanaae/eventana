@@ -443,19 +443,6 @@ export function Checkout({
       {/* ============================ STEP 1 ============================ */}
       {step === 1 && (
         <>
-      {/* Manual-order (offer) links drop the customer straight here with the
-          team's pre-selected items. Give them a clear way into the full
-          catalogue to add anything else — the server re-prices and keeps the
-          team's manual pieces via the offer token. */}
-      {draft.offerToken && (
-        <button
-          onClick={() => go('build')}
-          style={{ width: '100%', boxSizing: 'border-box', border: `1.5px dashed ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, fontWeight: 800, fontSize: 14, padding: '13px', borderRadius: 14, cursor: 'pointer', margin: '0 0 16px' }}
-        >
-          ＋ {lang === 'ar' ? 'أضف أشياء أخرى من القائمة' : 'Add more items from the catalogue'}
-        </button>
-      )}
-
       {/* --------- who the celebration is for (not the account holder) --------- */}
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('checkout.forWho')}</div>
@@ -554,17 +541,6 @@ export function Checkout({
         </div>
       </div>
 
-      {/* Placement photos are captured for real in My Event (with upload) once
-          the booking exists — not here, where there is no event to attach them
-          to yet. A short heads-up sets the expectation. */}
-      {photoRows.length > 0 && (
-        <div style={{ ...cardStyle, background: C.mintSoft }}>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>{t('checkout.setupSpotTitle')}</div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: '#5f8f86', margin: '4px 0 0', lineHeight: 1.5 }}>
-            {t('checkout.setupSpotBody')}
-          </div>
-        </div>
-      )}
         </>
       )}
 
@@ -626,7 +602,7 @@ export function Checkout({
         )}
         {draft.startTime && quote?.endTime && (
           <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
-            {timeLabel(draft.startTime)} – {timeLabel(quote.endTime)}
+            {timeLabel(draft.startTime)} – {quote.endTime}
           </div>
         )}
         {/* Number of children only matters for Build-Your-Own (per-child
@@ -673,6 +649,17 @@ export function Checkout({
       {/* ===================== STEP 6 — Review & pay (part 1) ===================== */}
       {step === 6 && (
         <>
+      {/* Manual-order (offer) links: let the customer add anything else from the
+          full catalogue while reviewing — the server re-prices and keeps the
+          team's manual pieces via the offer token. */}
+      {draft.offerToken && (
+        <button
+          onClick={() => go('build')}
+          style={{ width: '100%', boxSizing: 'border-box', border: `1.5px dashed ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, fontWeight: 800, fontSize: 14, padding: '13px', borderRadius: 14, cursor: 'pointer', margin: '0 0 14px' }}
+        >
+          ＋ {lang === 'ar' ? 'أضف أشياء أخرى من القائمة' : 'Add more items from the catalogue'}
+        </button>
+      )}
       {/* ---------------- cross-sell: popular add-ons ---------------- */}
       {(() => {
         // A ready-made package already includes the party — so its add-ons are a
