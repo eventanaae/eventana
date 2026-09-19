@@ -285,16 +285,21 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   );
   const id = String(ins.rows[0].id);
 
-  const aed = (amountFils / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const tag = provider === 'other' ? '' : `${providerLabel(provider, from)} · `;
-  const clip = att ? ' 📎 receipt attached' : '';
-  const title = '🏦 New bank transaction — needs review';
-  const bodyMsg = `${tag}AED ${aed} — ${merchant}.${clip} Open Bank Inbox to review and approve.`;
-  const targets = await pool.query<{ id: string }>(
-    `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
-  );
-  for (const t of targets.rows) {
-    await pushToOwner('staff', t.id, title, bodyMsg, { bankTxId: id }).catch(() => {});
+  // Only ping Marsha + owner when there's real money to review. Zero-amount
+  // emails (statements, OTPs, marketing, or a charge our parser couldn't read)
+  // are still captured silently in the Bank Inbox — no notification noise.
+  if (amountFils > 0) {
+    const aed = (amountFils / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const tag = provider === 'other' ? '' : `${providerLabel(provider, from)} · `;
+    const clip = att ? ' 📎 receipt attached' : '';
+    const title = '🏦 New bank transaction — needs review';
+    const bodyMsg = `${tag}AED ${aed} — ${merchant}.${clip} Open Bank Inbox to review and approve.`;
+    const targets = await pool.query<{ id: string }>(
+      `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
+    );
+    for (const t of targets.rows) {
+      await pushToOwner('staff', t.id, title, bodyMsg, { bankTxId: id }).catch(() => {});
+    }
   }
   return { id };
 }
