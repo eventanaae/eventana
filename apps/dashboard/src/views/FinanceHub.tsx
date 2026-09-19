@@ -487,11 +487,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
 
   return (
     <Panel title={`🧾 Expenses needing approval (${rows.length})`} style={{ marginBottom: 14, border: `1px solid ${C.pink}` }}>
-      <div style={{ fontSize: 12.5, color: C.muted2, fontWeight: 600, marginBottom: 10 }}>
-        Transactions read from your bank / Tabby / Tamara emails. Set the account and supplier, then <b>Approve</b> to save as an expense{isOwner ? ', or Reject.' : '.'}
-      </div>
       {err && <div style={{ color: C.red, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
-      <datalist id="bankSuppliers">{suppliers.map((s) => <option key={s} value={s} />)}</datalist>
       <div style={{ display: 'grid', gap: 10 }}>
         {rows.map((r) => (
           <div key={r.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: 12 }}>
@@ -506,10 +502,17 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
 
             <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
               <label style={{ display: 'grid', gap: 3 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Supplier (from bank — edit or pick from your list)</span>
-                <input list="bankSuppliers" value={vendor[r.id] ?? r.merchant ?? ''}
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Supplier</span>
+                <input value={vendor[r.id] ?? r.merchant ?? ''}
                   onChange={(e) => setVendor((v) => ({ ...v, [r.id]: e.target.value }))}
                   placeholder="Supplier name" style={{ ...fieldStyle, width: '100%', boxSizing: 'border-box' }} />
+                {suppliers.length > 0 && (
+                  <select value="" onChange={(e) => { if (e.target.value) setVendor((v) => ({ ...v, [r.id]: e.target.value })); }}
+                    style={{ ...fieldStyle, width: '100%' }}>
+                    <option value="">— or pick from your suppliers —</option>
+                    {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
               </label>
               <label style={{ display: 'grid', gap: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Account</span>
