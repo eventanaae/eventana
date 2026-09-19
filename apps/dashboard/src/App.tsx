@@ -61,7 +61,6 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets, stock & issue reports', section: 'ops' },
   { id: 'alerts', label: 'Updates', icon: '📣', title: 'Latest updates', sub: "What's new — prep, stock, tips and ratings", section: 'ops', mobile: true },
   { id: 'finance', label: 'Sales', icon: '💸', title: 'Sales & Get Paid', sub: 'Receipts, invoices, expenses & accounts', section: 'sales' },
-  { id: 'bank', label: 'Bank Inbox', icon: '🏦', title: 'Bank Inbox', sub: 'Bank transactions → attach receipt → expense', section: 'sales' },
   { id: 'customers', label: 'Customers', icon: '👥', title: 'Customers', sub: 'Your customer book — spend, history & contacts', section: 'sales' },
   { id: 'products', label: 'Products', icon: '🎁', title: 'Products & services', sub: 'Custom products, prices & descriptions', section: 'sales' },
   { id: 'suppliers', label: 'Suppliers', icon: '🚚', title: 'Suppliers', sub: 'Who we buy from & what they supply', section: 'sales' },
