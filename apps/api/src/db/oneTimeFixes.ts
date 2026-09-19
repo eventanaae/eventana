@@ -11,6 +11,31 @@ export async function runOneTimeFixes(): Promise<void> {
   await alignGoodStars();
   await reclassifyQuickBooksInvoices();
   await alignFinanceSequences();
+  await syncEventCelebrationFromReceipt();
+}
+
+/**
+ * Correct events whose celebration type is still the default "kids" while their
+ * receipt says something specific (e.g. Baby Shower) — so the schedule/board
+ * shows the right celebration. Only "upgrades" a defaulted/blank event type to
+ * the receipt's real value; never overrides an event that already has a specific
+ * type. Idempotent. (The receipt is the surface where the owner edits the type.)
+ */
+async function syncEventCelebrationFromReceipt(): Promise<void> {
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE events e
+          SET celebration_type = fr.celebration_type
+         FROM finance_receipts fr
+        WHERE fr.event_id = e.id
+          AND fr.celebration_type IS NOT NULL AND fr.celebration_type <> ''
+          AND (e.celebration_type = 'kids' OR e.celebration_type IS NULL)
+          AND e.celebration_type IS DISTINCT FROM fr.celebration_type`,
+    );
+    if (rowCount) console.log(`[fix] synced celebration type from receipt onto ${rowCount} event(s)`);
+  } catch (err) {
+    console.error('[fix] syncEventCelebrationFromReceipt failed:', err);
+  }
 }
 
 /**

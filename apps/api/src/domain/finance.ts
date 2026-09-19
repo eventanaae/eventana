@@ -1106,6 +1106,13 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
       [saved.event_id, d.eventFor ?? ''],
     ).catch(() => {});
   }
+  // Keep the linked event's celebration type in step with the receipt, so the
+  // schedule/board shows the right celebration (e.g. "Baby Shower", not the
+  // default "Kids Birthday"). Previously this wasn't propagated, so editing the
+  // type on the receipt left the event — and every schedule line — stale.
+  if (saved?.event_id && d.celebrationType !== undefined && d.celebrationType) {
+    await pool.query(`UPDATE events SET celebration_type = $2 WHERE id = $1`, [saved.event_id, d.celebrationType]).catch(() => {});
+  }
   // If this edit moved the event's date or time, re-align its pending reminder
   // emails to the new schedule — otherwise event_day/3-day/feedback fire on the
   // stale date (same fix as reschedule, via the receipt-edit path).
