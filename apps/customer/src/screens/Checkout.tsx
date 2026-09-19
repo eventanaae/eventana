@@ -127,7 +127,7 @@ export function Checkout({
   const [wantAccount, setWantAccount] = useState(false);
   // Visual payment choice. Both Card and Apple Pay settle through the same live
   // wallet rail (Ziina), which presents the chosen method on its secure page.
-  const [payChoice, setPayChoice] = useState<'card' | 'applepay'>('applepay');
+  const [payChoice, setPayChoice] = useState<'card' | 'applepay' | 'tabby' | 'tamara'>('applepay');
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [forgotMsg, setForgotMsg] = useState<string | null>(null);
@@ -916,17 +916,24 @@ export function Checkout({
       {/* ---------------- payment (radio list) ---------------- */}
       <div style={{ fontWeight: 700, fontSize: 14, margin: '18px 0 10px' }}>{t('checkout.payWith')}</div>
       <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${C.pinkLine}`, overflow: 'hidden' }}>
-        {[
-          { key: 'card', label: t('checkout.pmCard'), logos: <CardLogos />, disabled: false },
-          { key: 'applepay', label: 'Apple Pay', logos: <ApplePayMark />, disabled: false },
-          { key: 'tabby', label: 'Tabby', logos: <TabbyMark />, disabled: true },
-          { key: 'tamara', label: 'Tamara', logos: <TamaraMark />, disabled: true },
-        ].map((row, i) => {
+        {(() => {
+          // A BNPL method is offered only when the server has it live (real keys).
+          const live = (name: string) => catalogue.paymentMethods.some((p) => p.name === name && p.mode !== 'disabled');
+          return [
+            { key: 'card', label: t('checkout.pmCard'), logos: <CardLogos />, disabled: false },
+            { key: 'applepay', label: 'Apple Pay', logos: <ApplePayMark />, disabled: false },
+            { key: 'tabby', label: 'Tabby', logos: <TabbyMark />, disabled: !live('tabby') },
+            { key: 'tamara', label: 'Tamara', logos: <TamaraMark />, disabled: !live('tamara') },
+          ];
+        })().map((row, i) => {
           const selected = !row.disabled && payChoice === row.key;
+          // card/Apple Pay run through Stripe (walletName); Tabby/Tamara are their
+          // own providers (hosted redirect, handled generically in pay()).
+          const providerFor = (k: string) => (k === 'tabby' || k === 'tamara') ? k : walletName;
           return (
             <div
               key={row.key}
-              onClick={row.disabled ? undefined : () => { setPayChoice(row.key as 'card' | 'applepay'); update({ provider: walletName }); }}
+              onClick={row.disabled ? undefined : () => { setPayChoice(row.key as 'card' | 'applepay' | 'tabby' | 'tamara'); update({ provider: providerFor(row.key) }); }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px',
                 cursor: row.disabled ? 'default' : 'pointer', opacity: row.disabled ? 0.55 : 1,
