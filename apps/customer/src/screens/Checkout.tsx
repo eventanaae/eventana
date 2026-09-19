@@ -91,6 +91,9 @@ export function Checkout({
   const [agreed, setAgreed] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Wizard: one topic per step (1..6). Switching the index keeps all draft +
+  // local state mounted, so going Back never loses what the customer typed.
+  const [step, setStep] = useState(1);
 
   const [account, setAccount] = useState<Account | null>(() => loadAccount());
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
@@ -378,23 +381,68 @@ export function Checkout({
     catalogue.paymentMethods[0]?.name ??
     'stripe';
 
+  // ---- Wizard chrome: per-step titles, validation gates, navigation --------
+  // Blocking date/time problems that must be cleared before leaving step 4.
+  // (A rush surcharge is only a warning, so it does NOT block advancing.)
+  const dateTimeBlocked =
+    Boolean(quote?.problems.some((p) => p.code === 'too_soon' || p.code === 'item_needs_lead' || p.code === 'end_after_midnight')) ||
+    Boolean(quote?.unavailable && quote.unavailable.length > 0);
+  // Whether the current step is complete enough to reveal Next. Pay itself on
+  // step 6 stays gated by the unchanged `canPay` below — never weakened here.
+  const canAdvance =
+    step === 1 ? true
+      : step === 2 ? Boolean(zone) && !blocked
+      : step === 3 ? Boolean(draft.mapPin)
+      : step === 4 ? Boolean(draft.eventDate) && Boolean(draft.startTime) && !dateTimeBlocked
+      : step === 5 ? (Boolean(account) || (authMode === 'register' && guestReady))
+      : true;
+  const goNext = () => { if (step < 6 && canAdvance) { setStep(step + 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
+  const goStepBack = () => { if (step > 1) { setStep(step - 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
+  const stepTitles = lang === 'ar'
+    ? ['شو اسم بطل الحفلة؟ 🎈', 'في أي إمارة بتكون الحفلة؟', 'وين بالضبط نجهّز الحفلة؟ 📍', 'متى موعد الحفلة؟ 🗓️', 'معلومات التواصل 💬', 'باقي تفاصيل بسيطة عشان نجهّز كل شي على ذوقك 💛']
+    : ["Who's the star of the party? 🎈", 'Which emirate is the party in?', 'Where exactly should we set up? 📍', 'When is the party? 🗓️', 'Your contact details 💬', "A few last details, then you're set 💛"];
+  const stepSubs = lang === 'ar'
+    ? ['خلّنا نكمل تفاصيل حفلتك ✨', '', '', '', '', '']
+    : ["Let's set up your celebration ✨", '', '', '', '', ''];
+
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
-      <button
-        onClick={() => {
-          // Go back to where the customer actually came from, not always the
-          // Themes screen (spa/movie/food-only flows never opened it).
-          const usedTheme =
-            Boolean(draft.themeId) || draft.customTheme ||
-            Object.keys(draft.services).some((id) => catalogue.services.find((s) => s.id === id)?.categoryId === 'backdrop');
-          go(usedTheme ? 'theme' : draft.packageId ? 'package' : 'build');
-        }}
-        style={backStyle}
-      >
-        {t('common.back')}
-      </button>
-      <div style={{ ...fredoka(24), margin: '8px 0 16px' }}>{t('checkout.title')}</div>
+      {/* On step 1 only: the original "back to the previous screen" control. */}
+      {step === 1 && (
+        <button
+          onClick={() => {
+            // Go back to where the customer actually came from, not always the
+            // Themes screen (spa/movie/food-only flows never opened it).
+            const usedTheme =
+              Boolean(draft.themeId) || draft.customTheme ||
+              Object.keys(draft.services).some((id) => catalogue.services.find((s) => s.id === id)?.categoryId === 'backdrop');
+            go(usedTheme ? 'theme' : draft.packageId ? 'package' : 'build');
+          }}
+          style={backStyle}
+        >
+          {t('common.back')}
+        </button>
+      )}
 
+      {/* Per-step header: a thin progress bar + a warm title that changes per
+          step, styled with the same fredoka/pink language as the other steps. */}
+      <div style={{ display: 'flex', gap: 6, margin: '10px 0 12px' }}>
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <span key={n} style={{ flex: 1, height: 5, borderRadius: 3, background: n <= step ? C.pink : C.pinkLine, transition: 'background .2s ease' }} />
+        ))}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>
+        {lang === 'ar' ? `الخطوة ${step} من 6` : `Step ${step} of 6`}
+      </div>
+      <div style={{ ...fredoka(22), margin: '2px 0 2px' }}>{stepTitles[step - 1]}</div>
+      {stepSubs[step - 1] && (
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 4 }}>{stepSubs[step - 1]}</div>
+      )}
+      <div style={{ height: 12 }} />
+
+      {/* ============================ STEP 1 ============================ */}
+      {step === 1 && (
+        <>
       {/* Manual-order (offer) links drop the customer straight here with the
           team's pre-selected items. Give them a clear way into the full
           catalogue to add anything else — the server re-prices and keeps the
@@ -417,8 +465,12 @@ export function Checkout({
           onChange={(v) => update({ eventFor: v })}
         />
       </div>
+        </>
+      )}
 
-      {/* ---------------- location ---------------- */}
+      {/* ============================ STEP 2 ============================ */}
+      {/* ---------------- location: emirate ---------------- */}
+      {step === 2 && (
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.location')}</div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 9 }}>
@@ -446,8 +498,15 @@ export function Checkout({
             </div>
           )
         )}
+      </div>
+      )}
 
-        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
+      {/* ============================ STEP 3 ============================ */}
+      {/* ---------------- location: exact spot + map pin ---------------- */}
+      {step === 3 && (
+        <>
+      <div style={cardStyle}>
+        <div style={{ marginTop: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
           <Field
             placeholder={t('checkout.phArea')}
             value={draft.address.area}
@@ -506,7 +565,12 @@ export function Checkout({
           </div>
         </div>
       )}
+        </>
+      )}
 
+      {/* ============================ STEP 4 ============================ */}
+      {step === 4 && (
+        <>
       {/* ---------------- date & time ---------------- */}
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.eventTime')}</div>
@@ -603,7 +667,12 @@ export function Checkout({
 
       {/* Weather forecast for the chosen day + location (free, keyless). */}
       <WeatherCard pin={draft.mapPin} date={draft.eventDate} t={t} />
+        </>
+      )}
 
+      {/* ===================== STEP 6 — Review & pay (part 1) ===================== */}
+      {step === 6 && (
+        <>
       {/* ---------------- cross-sell: popular add-ons ---------------- */}
       {(() => {
         // A ready-made package already includes the party — so its add-ons are a
@@ -713,8 +782,12 @@ export function Checkout({
           </div>
         )}
       </div>
+        </>
+      )}
 
+      {/* ============================ STEP 5 ============================ */}
       {/* ---------------- your details / account (guest checkout allowed) ---------------- */}
+      {step === 5 && (
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>
           {account || authMode === 'login' ? t('checkout.yourAccount') : t('checkout.yourDetails')}
@@ -803,7 +876,11 @@ export function Checkout({
           </>
         )}
       </div>
+      )}
 
+      {/* ===================== STEP 6 — Review & pay (part 2) ===================== */}
+      {step === 6 && (
+        <>
       {/* ---------------- customization (printed drawing items) ---------------- */}
       {needsCustomization && (
         <div style={cardStyle}>
@@ -844,7 +921,11 @@ export function Checkout({
         <div style={cardStyle}>
           <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.rewardsTitle')}</div>
 
-          {/* promo code */}
+          {/* promo / discount code — kept prominent (owner request) with its own
+              clear bilingual label, right above the payment methods below. */}
+          <div style={{ fontWeight: 800, fontSize: 12.5, color: C.pinkDeep, marginBottom: 8 }}>
+            {lang === 'ar' ? 'كود الخصم' : 'Discount code'}
+          </div>
           {promo ? (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: C.green }}>
@@ -1022,6 +1103,29 @@ export function Checkout({
         <PrimaryButton disabled={!canPay} onClick={pay}>
           {paying ? t('checkout.opening') : t('checkout.pay', { aed: `${t('common.aed')} ${quote ? money(estTotalFils) : '—'}` })}
         </PrimaryButton>
+      </div>
+        </>
+      )}
+
+      {/* --------------------- wizard footer: Back / Next --------------------- */}
+      {/* Back is hidden on step 1 (the top go(...) control covers that);
+          Next is hidden on step 6, where the Pay button is the primary action. */}
+      <div style={{ display: 'flex', gap: 10, marginTop: 18, alignItems: 'stretch' }}>
+        {step > 1 && (
+          <button
+            onClick={goStepBack}
+            style={{ border: `1.5px solid ${C.pinkLine}`, background: '#fff', color: C.muted, fontWeight: 800, fontSize: 14, padding: '13px 20px', borderRadius: 16, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            {lang === 'ar' ? '‹ رجوع' : '‹ Back'}
+          </button>
+        )}
+        {step < 6 && (
+          <div style={{ flex: 1 }}>
+            <PrimaryButton disabled={!canAdvance} onClick={goNext}>
+              {lang === 'ar' ? 'التالي ›' : 'Next ›'}
+            </PrimaryButton>
+          </div>
+        )}
       </div>
 
       {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
