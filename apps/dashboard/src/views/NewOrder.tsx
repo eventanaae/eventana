@@ -24,6 +24,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
   const [services, setServices] = useState<Record<string, number>>({});
   const [themeId, setThemeId] = useState<string>('');
   const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false); // show the WHOLE catalogue, not just items tagged for this celebration type
 
   const [customItems, setCustomItems] = useState<Array<{ name: string; priceFils: number; qty: number }>>([]);
   const [cpName, setCpName] = useState('');
@@ -43,9 +44,9 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
 
   useEffect(() => { api.catalogue().then(setCat).catch(() => setCat(null)); }, []);
 
-  const eligiblePackages = useMemo(() => (celebrationType === 'kids' ? (cat?.packages ?? []) : []), [cat, celebrationType]);
-  const eligibleThemes = useMemo(() => (cat?.themes ?? []).filter((t: any) => !t.celebrationType || t.celebrationType === celebrationType), [cat, celebrationType]);
-  const eligibleServices = useMemo(() => (cat?.services ?? []).filter((s: any) => (s.celebrationTypes ?? []).includes(celebrationType)), [cat, celebrationType]);
+  const eligiblePackages = useMemo(() => (showAll || celebrationType === 'kids' ? (cat?.packages ?? []) : []), [cat, celebrationType, showAll]);
+  const eligibleThemes = useMemo(() => (cat?.themes ?? []).filter((t: any) => showAll || !t.celebrationType || t.celebrationType === celebrationType), [cat, celebrationType, showAll]);
+  const eligibleServices = useMemo(() => (showAll ? (cat?.services ?? []) : (cat?.services ?? []).filter((s: any) => (s.celebrationTypes ?? []).includes(celebrationType))), [cat, celebrationType, showAll]);
   const shownServices = useMemo(() => {
     const q = search.trim().toLowerCase();
     return q ? eligibleServices.filter((s: any) => String(s.name).toLowerCase().includes(q)) : eligibleServices;
@@ -154,9 +155,12 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
         </div>
 
         {/* Add-ons — searchable */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 0 6px', gap: 10 }}>
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Add-on services</span>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Search add-ons…" style={{ ...input, width: 200, marginBottom: 0 }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 0 6px', gap: 10, flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: showAll ? C.pinkDeep : C.muted, cursor: 'pointer' }}>
+            <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
+            Show all items (any celebration type)
+          </label>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Search items…" style={{ ...input, width: 200, marginBottom: 0 }} />
         </div>
         <div style={{ maxHeight: 240, overflowY: 'auto', border: `1px solid ${C.line}`, borderRadius: 12 }}>
           {shownServices.map((s: any) => {
