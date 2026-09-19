@@ -82,7 +82,7 @@ async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
     for (let page = 1; page <= 20; page++) {
       const data = await wafeqGet(`/bank-accounts/${encodeURIComponent(acc.id)}/statement-transactions/?page=${page}&page_size=100`, c.key);
       const rows: StatementTxn[] = data?.results ?? [];
-      if (verbose && page === 1) console.log(`[wafeq] ${acc.name} sample: ${JSON.stringify(rows[0] ?? null)}`);
+      if (verbose) console.log(`[wafeq] ${acc.name} p${page}: count=${data?.count ?? '?'} got=${rows.length} :: ${JSON.stringify(rows.slice(0, 25).map((x) => `${x.date}|${x.amount}|${String(x.description ?? '').slice(0, 45)}`))}`);
       if (rows.length === 0) break;
 
       let allOld = true;
