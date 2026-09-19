@@ -92,9 +92,11 @@ async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
         if (!date || date < cutoff) continue; // outside our window
         allOld = false;
         const amt = Number(t.amount);
-        if (!Number.isFinite(amt) || amt === 0) continue;
+        // Only money OUT is an expense. Skip credits (incoming money / transfers)
+        // — they aren't expenses and shouldn't sit in the approval queue.
+        if (!Number.isFinite(amt) || amt >= 0) continue;
         const amountFils = Math.round(Math.abs(amt) * 100);
-        const direction: 'debit' | 'credit' = amt < 0 ? 'debit' : 'credit';
+        const direction: 'debit' | 'credit' = 'debit';
         const merchant = (t.description || acc.name || 'Wio transaction').toString();
         const raw = [t.description, t.reference].filter(Boolean).join(' · ');
         const res = await ingestExternalTxn({
