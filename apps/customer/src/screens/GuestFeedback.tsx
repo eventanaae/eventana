@@ -193,7 +193,7 @@ export function GuestFeedback({
                 >{tipping ? t('me.rateSaving') : t('me.tipGive', { aed: `${t('common.aed')} ${money(effectiveTip)}` })}</button>
                 <button
                   onClick={() => setStep(3)}
-                  style={{ width: '100%', background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 13, padding: '12px 0 0', cursor: 'pointer' }}
+                  style={{ width: '100%', background: '#fff', border: `1.5px solid ${C.pinkLine}`, color: C.pinkDeep, fontWeight: 800, fontSize: 14, padding: '13px 0', borderRadius: 16, cursor: 'pointer', marginTop: 10 }}
                 >{t('me.tipSkip')} ›</button>
               </div>
             )}
@@ -204,8 +204,12 @@ export function GuestFeedback({
                 {isHappy ? (
                   <>
                     <div style={{ fontSize: 30, marginBottom: 6 }}>🌸</div>
-                    <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 4 }}>{t('me.gfDone')}</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>{t('me.gfGoogleAsk')}</div>
+                    <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 8 }}>{t('me.gfDone')}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, marginBottom: 16, lineHeight: 1.7 }}>
+                      {lang === 'ar'
+                        ? 'تقييمكم لنا على قوقل يهمّنا وااايد 💛 — يساعدنا نكبر ونوصل لعوائل أكثر'
+                        : 'Your Google review means a lot to us 💛 — it truly helps us grow and reach more families'}
+                    </div>
                     <a
                       href={GOOGLE_REVIEW_URL}
                       target="_blank"
