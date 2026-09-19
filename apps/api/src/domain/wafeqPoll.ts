@@ -32,7 +32,7 @@ function cfg(): WafeqCfg | null {
   if (String(process.env.WAFEQ_POLL ?? '').toLowerCase() === 'false') return null;
   return {
     key: key.trim(),
-    hours: Math.max(1, Number(process.env.WAFEQ_POLL_HOURS ?? 3)),
+    hours: Math.max(1, Number(process.env.WAFEQ_POLL_HOURS ?? 1)),
     since: process.env.WAFEQ_SINCE ? String(process.env.WAFEQ_SINCE).slice(0, 10) : null,
     debug: String(process.env.WAFEQ_DEBUG ?? '').toLowerCase() === 'true',
   };
@@ -58,15 +58,11 @@ async function wafeqGet(path: string, key: string): Promise<any> {
 interface BankAccount { id: string; name: string; sub_classification?: string; currency?: string; }
 interface StatementTxn { id: string; amount: number | string; date: string; description?: string; bank_reference?: string; reference?: string; }
 
-// Log the account list + a sample transaction shape on the first cycle after
-// boot (or whenever WAFEQ_DEBUG=true), so the field mapping can be verified.
-let firstCycle = true;
-
 /** One poll cycle: pull recent Wio (Wafeq) transactions into the pending queue. */
 async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
   const c = cfg();
   if (!c) return { scanned: 0, ingested: 0 };
-  const verbose = c.debug || firstCycle;
+  const verbose = c.debug; // set WAFEQ_DEBUG=true to trace shapes again
   const cutoff = c.since ?? dubaiDaysAgo(7); // only recent txns, unless backfilling
 
   // 1) List connected bank accounts.
@@ -116,8 +112,6 @@ async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
       if (!data?.next) break;
     }
   }
-
-  firstCycle = false;
 
   if (ingested > 0) {
     const targets = await pool.query<{ id: string }>(
