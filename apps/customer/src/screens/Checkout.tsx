@@ -395,6 +395,19 @@ export function Checkout({
       </button>
       <div style={{ ...fredoka(24), margin: '8px 0 16px' }}>{t('checkout.title')}</div>
 
+      {/* Manual-order (offer) links drop the customer straight here with the
+          team's pre-selected items. Give them a clear way into the full
+          catalogue to add anything else — the server re-prices and keeps the
+          team's manual pieces via the offer token. */}
+      {draft.offerToken && (
+        <button
+          onClick={() => go('build')}
+          style={{ width: '100%', boxSizing: 'border-box', border: `1.5px dashed ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, fontWeight: 800, fontSize: 14, padding: '13px', borderRadius: 14, cursor: 'pointer', margin: '0 0 16px' }}
+        >
+          ＋ {lang === 'ar' ? 'أضف أشياء أخرى من القائمة' : 'Add more items from the catalogue'}
+        </button>
+      )}
+
       {/* --------- who the celebration is for (not the account holder) --------- */}
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('checkout.forWho')}</div>
