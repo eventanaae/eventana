@@ -429,6 +429,37 @@ function ExpensesTab({ role }: { role?: string }) {
 }
 
 /**
+ * Supplier autocomplete: type a name and matching suppliers from our list drop
+ * down live; tap one to fill it, or keep typing to enter a brand-new supplier.
+ * Built by hand (not <datalist>, which iOS Safari ignores).
+ */
+function SupplierField({ value, suppliers, onChange }: { value: string; suppliers: string[]; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const q = value.trim().toLowerCase();
+  const matches = (q ? suppliers.filter((s) => s.toLowerCase().includes(q) && s.toLowerCase() !== q) : suppliers).slice(0, 8);
+  const show = open && matches.length > 0;
+  const fs = { fontFamily: 'inherit', fontSize: 12.5, padding: '7px 9px', borderRadius: 9, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, width: '100%', boxSizing: 'border-box' as const };
+  return (
+    <div style={{ position: 'relative' }}>
+      <input value={value} placeholder="Supplier name" style={fs}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {show && (
+        <div style={{ position: 'absolute', top: '100%', insetInlineStart: 0, insetInlineEnd: 0, zIndex: 30, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 9, marginTop: 2, boxShadow: '0 8px 22px rgba(0,0,0,.14)', maxHeight: 210, overflowY: 'auto' }}>
+          {matches.map((s) => (
+            <div key={s} onMouseDown={(e) => { e.preventDefault(); onChange(s); setOpen(false); }}
+              style={{ padding: '9px 11px', fontSize: 12.5, fontWeight: 600, color: C.ink, cursor: 'pointer', borderBottom: `1px solid ${C.line}` }}>
+              {s}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Expenses awaiting approval — pending transactions from bank / Tabby / Tamara
  * emails, shown at the top of the Expenses page. Owner + Marsha can approve →
  * it posts as an expense under the chosen account and supplier. Only the OWNER
@@ -503,16 +534,8 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
             <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
               <label style={{ display: 'grid', gap: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Supplier</span>
-                <input value={vendor[r.id] ?? r.merchant ?? ''}
-                  onChange={(e) => setVendor((v) => ({ ...v, [r.id]: e.target.value }))}
-                  placeholder="Supplier name" style={{ ...fieldStyle, width: '100%', boxSizing: 'border-box' }} />
-                {suppliers.length > 0 && (
-                  <select value="" onChange={(e) => { if (e.target.value) setVendor((v) => ({ ...v, [r.id]: e.target.value })); }}
-                    style={{ ...fieldStyle, width: '100%' }}>
-                    <option value="">— or pick from your suppliers —</option>
-                    {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                )}
+                <SupplierField value={vendor[r.id] ?? r.merchant ?? ''} suppliers={suppliers}
+                  onChange={(val) => setVendor((v) => ({ ...v, [r.id]: val }))} />
               </label>
               <label style={{ display: 'grid', gap: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Account</span>
