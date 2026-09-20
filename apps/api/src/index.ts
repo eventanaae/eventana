@@ -263,6 +263,8 @@ async function main() {
     await supplierRemoveStaff2FromEnv().catch((err) => console.error('[sup-rm2] failed:', err));
     const { mergeDupVendorsFromEnv } = await import('./db/mergeDupVendors.js');
     await mergeDupVendorsFromEnv().catch((err) => console.error('[merge-vend] failed:', err));
+    const { ownerSpotFixesFromEnv } = await import('./db/ownerSpotFixes.js');
+    await ownerSpotFixesFromEnv().catch((err) => console.error('[spot-fix] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
