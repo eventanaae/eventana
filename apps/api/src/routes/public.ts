@@ -312,7 +312,7 @@ export async function publicRoutes(app: FastifyInstance) {
 
   /** One-click email unsubscribe (token-verified). Returns a small page. */
   app.get('/api/unsubscribe', async (request, reply) => {
-    const { c, t } = request.query as { c?: string; t?: string };
+    const { c, t, k } = request.query as { c?: string; t?: string; k?: string };
     const page = (msg: string) =>
       reply.type('text/html').send(
         `<!doctype html><html><body style="font-family:sans-serif;background:#faf6f2;color:#3B3641;text-align:center;padding:60px 20px">
@@ -321,7 +321,8 @@ export async function publicRoutes(app: FastifyInstance) {
         </body></html>`,
       );
     if (!c || !t || !verifyUnsub(c, t)) return page('This unsubscribe link is invalid or expired.');
-    await pool.query(`UPDATE customers SET email_opt_out = TRUE WHERE id = $1`, [c]);
+    if (k === 'corp') await pool.query(`UPDATE corporate_leads SET email_opt_out = TRUE WHERE id = $1`, [c]);
+    else await pool.query(`UPDATE customers SET email_opt_out = TRUE WHERE id = $1`, [c]);
     return page('You’ve been unsubscribed from Eventana emails. We’re sorry to see you go! 🎈');
   });
 

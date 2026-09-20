@@ -910,6 +910,32 @@ ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS source TEXT;         -- man
 ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS dedupe_key TEXT;     -- unique-ish suggestion key
 CREATE UNIQUE INDEX IF NOT EXISTS email_campaigns_dedupe_idx ON email_campaigns (dedupe_key) WHERE dedupe_key IS NOT NULL;
 
+-- ── Corporate / B2B leads (schools, universities, hospitals, clinics, banks,
+-- government, companies, new shops) — a directory the team can email for event
+-- bookings. Auto-grown weekly from Google Places + team imports; auto-categorised.
+CREATE TABLE IF NOT EXISTS corporate_leads (
+  id            BIGSERIAL PRIMARY KEY,
+  name          TEXT NOT NULL,
+  category      TEXT NOT NULL DEFAULT 'other', -- school|nursery|university|hospital|clinic|bank|government|company|new_shop|other
+  email         TEXT,
+  contact_name  TEXT,
+  phone         TEXT,
+  emirate       TEXT,
+  website       TEXT,
+  notes         TEXT,
+  status        TEXT NOT NULL DEFAULT 'new',   -- new|contacted|interested|booked|not_interested
+  email_opt_out BOOLEAN NOT NULL DEFAULT FALSE,
+  source        TEXT,                          -- places|import|manual|curated
+  external_id   TEXT,                          -- Google Place id (dedupe key for auto-collect)
+  enriched_at   TIMESTAMPTZ,                   -- when we last tried to pull an email from the website
+  added_by      TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_ext_idx ON corporate_leads (external_id) WHERE external_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_email_idx ON corporate_leads (lower(email)) WHERE email IS NOT NULL AND email <> '';
+CREATE INDEX IF NOT EXISTS corporate_leads_cat_idx ON corporate_leads (category, status);
+
 -- ── Push notifications (#20) ─────────────────────────────────────────────
 -- Device tokens for FCM. owner_type is 'staff' or 'customer'; a token is
 -- unique (re-registration upserts). Sends go through Firebase HTTP v1.

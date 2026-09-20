@@ -36,6 +36,7 @@ import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { marketingCalendar, prepareOccasionNow } from '../domain/marketingCalendar.js';
+import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
@@ -5459,14 +5460,22 @@ export async function adminRoutes(app: FastifyInstance) {
            FROM email_campaigns ORDER BY created_at DESC LIMIT 50`,
       ),
     ]);
-    return { emailConfigured: emailEnabled(), audiences: counts, campaigns: campaigns.rows };
+    const corp = await corporateCounts().catch(() => ({ byCategory: {}, total: 0, emailable: 0, optedOut: 0 }));
+    return {
+      emailConfigured: emailEnabled(), audiences: counts, campaigns: campaigns.rows,
+      corporate: corp, corporateLabels: CORP_CATEGORY_LABELS,
+    };
   });
 
   app.post('/api/admin/marketing/campaigns', async (request, reply) => {
     const schema = z.object({
       subject: z.string().min(1).max(200),
       bodyHtml: z.string().min(1).max(50_000),
-      audience: z.enum(['all', 'past_customers', 'no_recent_booking']).default('all'),
+      // Consumer segments or a corporate segment ('corp:all' / 'corp:<category>').
+      audience: z.string().max(40).refine(
+        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^corp:[a-z_]+$/.test(a),
+        'invalid audience',
+      ).default('all'),
       scheduledFor: z.string().datetime().optional(),
     });
     const parsed = schema.safeParse(request.body);
@@ -5557,7 +5566,10 @@ export async function adminRoutes(app: FastifyInstance) {
       status: z.enum(['draft', 'scheduled']).optional(),
       subject: z.string().min(1).max(300).optional(),
       bodyHtml: z.string().min(1).optional(),
-      audience: z.enum(['all', 'past_customers', 'no_recent_booking', 'anniversary']).optional(),
+      audience: z.string().max(40).refine(
+        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^corp:[a-z_]+$/.test(a),
+        'invalid audience',
+      ).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -5622,6 +5634,126 @@ export async function adminRoutes(app: FastifyInstance) {
     const personalised = rows[0].body_html.replace(/\{\{\s*name\s*\}\}/gi, 'there');
     const html = renderCampaignHtml(personalised, `${config.publicApiUrl}/api/unsubscribe?c=preview&t=preview`);
     return reply.type('text/html').send(html);
+  });
+
+  /* ----------------------- Corporate / B2B leads ------------------------- */
+
+  /** List corporate leads with optional category/status/search filters. */
+  app.get('/api/admin/corporate/leads', async (request) => {
+    const q = request.query as { category?: string; status?: string; search?: string; limit?: string };
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (q.category && q.category in CORP_CATEGORY_LABELS) { params.push(q.category); where.push(`category = $${params.length}`); }
+    if (q.status) { params.push(q.status); where.push(`status = $${params.length}`); }
+    if (q.search) { params.push(`%${q.search.toLowerCase()}%`); where.push(`(lower(name) LIKE $${params.length} OR lower(email) LIKE $${params.length})`); }
+    const limit = Math.min(500, Math.max(1, Number(q.limit) || 200));
+    const { rows } = await pool.query(
+      `SELECT id, name, category, email, contact_name, phone, emirate, website, status, email_opt_out, source, created_at
+         FROM corporate_leads ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+        ORDER BY (email IS NOT NULL AND email <> '') DESC, created_at DESC LIMIT ${limit}`,
+      params,
+    );
+    return { leads: rows, counts: await corporateCounts() };
+  });
+
+  /** Add one corporate lead by hand (auto-categorised if no category given). */
+  app.post('/api/admin/corporate/leads', async (request, reply) => {
+    const schema = z.object({
+      name: z.string().min(1).max(200),
+      category: z.string().max(30).optional(),
+      email: z.string().email().optional().or(z.literal('')),
+      contactName: z.string().max(120).optional(),
+      phone: z.string().max(40).optional(),
+      emirate: z.string().max(40).optional(),
+      website: z.string().max(300).optional(),
+      notes: z.string().max(1000).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const d = parsed.data;
+    const category = (d.category && d.category in CORP_CATEGORY_LABELS)
+      ? d.category
+      : categorizeFromTypes([], d.name);
+    const { rows } = await pool.query(
+      `INSERT INTO corporate_leads (name, category, email, contact_name, phone, emirate, website, notes, source, added_by)
+       VALUES ($1,$2,NULLIF($3,''),$4,$5,$6,$7,$8,'manual',$9)
+       ON CONFLICT (lower(email)) WHERE email IS NOT NULL AND email <> '' DO NOTHING
+       RETURNING *`,
+      [d.name, category, d.email ?? '', d.contactName ?? null, d.phone ?? null, d.emirate ?? null, d.website ?? null, d.notes ?? null, (request as any).staff?.name ?? 'Staff'],
+    );
+    return reply.status(201).send(rows[0] ?? { duplicate: true });
+  });
+
+  /** Edit a lead (status, contact, opt-out, category…). */
+  app.patch('/api/admin/corporate/leads/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const schema = z.object({
+      name: z.string().min(1).max(200).optional(),
+      category: z.string().max(30).optional(),
+      email: z.string().email().optional().or(z.literal('')),
+      contactName: z.string().max(120).optional(),
+      phone: z.string().max(40).optional(),
+      emirate: z.string().max(40).optional(),
+      status: z.enum(['new', 'contacted', 'interested', 'booked', 'not_interested']).optional(),
+      emailOptOut: z.boolean().optional(),
+      notes: z.string().max(1000).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const d = parsed.data;
+    const { rows } = await pool.query(
+      `UPDATE corporate_leads SET
+         name = COALESCE($2,name), category = COALESCE($3,category), email = COALESCE(NULLIF($4,''),email),
+         contact_name = COALESCE($5,contact_name), phone = COALESCE($6,phone), emirate = COALESCE($7,emirate),
+         status = COALESCE($8,status), email_opt_out = COALESCE($9,email_opt_out), notes = COALESCE($10,notes),
+         updated_at = now()
+       WHERE id = $1 RETURNING *`,
+      [id, d.name ?? null, d.category ?? null, d.email ?? null, d.contactName ?? null, d.phone ?? null, d.emirate ?? null, d.status ?? null, d.emailOptOut ?? null, d.notes ?? null],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return rows[0];
+  });
+
+  app.delete('/api/admin/corporate/leads/:id', async (request) => {
+    const id = Number((request.params as { id: string }).id);
+    await pool.query(`DELETE FROM corporate_leads WHERE id = $1`, [id]);
+    return { deleted: true };
+  });
+
+  /** Bulk import: paste "name, email, phone, emirate" rows (auto-categorised). */
+  app.post('/api/admin/corporate/import', async (request, reply) => {
+    const schema = z.object({ text: z.string().min(1).max(200_000) });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    const lines = parsed.data.text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    let added = 0;
+    for (const line of lines) {
+      const cols = line.split(/[,\t;]/).map((c) => c.trim());
+      const name = cols[0];
+      if (!name) continue;
+      const email = cols.find((c) => /@/.test(c)) ?? '';
+      const phone = cols.find((c) => /^\+?\d[\d ]{6,}$/.test(c)) ?? '';
+      const emirate = cols.find((c) => /dubai|abu dhabi|sharjah|ajman|ras al|fujairah|umm al|quwain/i.test(c)) ?? '';
+      const category = categorizeFromTypes([], name);
+      const ins = await pool.query(
+        `INSERT INTO corporate_leads (name, category, email, phone, emirate, source, added_by)
+         VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),NULLIF($5,''),'import',$6)
+         ON CONFLICT (lower(email)) WHERE email IS NOT NULL AND email <> '' DO NOTHING`,
+        [name.slice(0, 200), category, email, phone, emirate, (request as any).staff?.name ?? 'Staff'],
+      );
+      if (ins.rowCount) added++;
+    }
+    return { added, seen: lines.length };
+  });
+
+  /** Trigger a Google Places collection run now (owner "Collect now"). */
+  app.post('/api/admin/corporate/collect', async (request, reply) => {
+    if (!config.googleMapsApiKey) {
+      return reply.status(409).send({ error: 'no_google_key', message: 'Add a Google API key with Places API enabled to auto-collect.' });
+    }
+    // Deeper pagination on a manual run to pull as much as Google returns.
+    const res = await collectCorporateLeads({ maxPagesPerQuery: 3, maxEnrich: 80 });
+    return res;
   });
 
   /* --------------------------- Theme backfill ----------------------------- */

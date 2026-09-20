@@ -7,6 +7,7 @@ import { createHmac } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
+import { corporateAudienceWhere } from './corporateOutreach.js';
 
 export type Audience = 'all' | 'past_customers' | 'no_recent_booking' | 'anniversary';
 
@@ -76,9 +77,17 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
     throw new Error('not_approved');
   }
 
-  const { rows: recips } = await pool.query<{ id: string; email: string; name: string }>(
-    `SELECT c.id, c.email, c.name FROM customers c WHERE ${audienceWhere(camp.audience as Audience)}`,
-  );
+  // Corporate (B2B) campaigns draw from the corporate_leads directory; consumer
+  // campaigns draw from customers. The audience string picks the source.
+  const isCorp = String(camp.audience || '').startsWith('corp:') || camp.audience === 'corporate';
+  const { rows: recips } = isCorp
+    ? await pool.query<{ id: string; email: string; name: string }>(
+        `SELECT id, email, COALESCE(NULLIF(contact_name,''), name) AS name
+           FROM corporate_leads WHERE ${corporateAudienceWhere(String(camp.audience))}`,
+      )
+    : await pool.query<{ id: string; email: string; name: string }>(
+        `SELECT c.id, c.email, c.name FROM customers c WHERE ${audienceWhere(camp.audience as Audience)}`,
+      );
   await pool.query(`UPDATE email_campaigns SET status = 'sending', recipient_count = $2 WHERE id = $1`, [
     campaignId,
     recips.length,
@@ -86,7 +95,9 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
 
   let sent = 0;
   for (const r of recips) {
-    const unsub = `${config.email.publicBaseUrl}/api/unsubscribe?c=${encodeURIComponent(r.id)}&t=${unsubToken(r.id)}`;
+    const unsub = isCorp
+      ? `${config.email.publicBaseUrl}/api/unsubscribe?k=corp&c=${encodeURIComponent(r.id)}&t=${unsubToken(r.id)}`
+      : `${config.email.publicBaseUrl}/api/unsubscribe?c=${encodeURIComponent(r.id)}&t=${unsubToken(r.id)}`;
     // Light personalisation: {{name}} → the customer's first name.
     const personalised = camp.body_html.replace(/\{\{\s*name\s*\}\}/gi, (r.name || 'there').split(' ')[0]);
     const html = renderCampaignHtml(personalised, unsub);

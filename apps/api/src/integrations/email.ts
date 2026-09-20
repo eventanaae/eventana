@@ -85,23 +85,43 @@ export async function sendEmail(args: {
 }
 
 /**
- * Wraps campaign body HTML in a simple, mobile-friendly Eventana shell with a
- * required unsubscribe footer (CAN-SPAM/PECR basics).
+ * Wraps campaign body HTML in the approved, mobile-friendly Eventana brand shell:
+ * hosted logo, rounded white card with a candy top-bar, a WhatsApp/phone contact
+ * line, and the required unsubscribe footer (CAN-SPAM/PECR basics).
  */
 export function renderCampaignHtml(bodyHtml: string, unsubscribeUrl: string): string {
-  return `<!doctype html><html><body style="margin:0;background:#faf6f2;font-family:'Segoe UI',Arial,sans-serif;color:#3B3641">
-    <div style="max-width:560px;margin:0 auto;padding:24px">
-      <div style="text-align:center;padding:14px 0 18px">
-        <span style="font-size:22px;font-weight:800;color:#E94F9C;letter-spacing:.5px">Eventana</span>
-      </div>
-      <div style="background:#fff;border-radius:18px;padding:26px 24px;line-height:1.6;font-size:15px">
-        ${bodyHtml}
-      </div>
-      <div style="text-align:center;color:#b3a8a0;font-size:11px;padding:16px 0;line-height:1.6">
-        Eventana Events · Abu Dhabi &amp; Dubai, UAE<br/>
-        You’re receiving this because you booked or registered with Eventana.<br/>
-        <a href="${unsubscribeUrl}" style="color:#b3a8a0">Unsubscribe</a>
-      </div>
+  const BRAND = '#E94F9C';
+  const RAINBOW = 'linear-gradient(90deg,#F58FB8,#F7C948,#5BCFC5,#B79CE6)';
+  const GROUND = '#FBF6F3';
+  const logo = config.emailLogoUrl
+    ? `<img src="${config.emailLogoUrl}" alt="Eventana Events" width="220" style="display:inline-block;width:220px;max-width:70%;height:auto">`
+    : `<span style="font-family:'Segoe UI',Arial,sans-serif;font-size:26px;font-weight:800;color:${BRAND};letter-spacing:.5px">Eventana</span>`;
+  const wa = config.contact.whatsapp;
+  const phone = config.contact.phoneDisplay;
+  const contact = `
+    <div style="text-align:center;margin:22px 0 4px">
+      <a href="https://wa.me/${wa}" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;font-weight:800;font-size:15px;padding:13px 26px;border-radius:999px">💬 Chat with us on WhatsApp</a>
     </div>
+    <p style="text-align:center;font-size:13px;color:#8a7f88;margin:8px 0 0">Or call / WhatsApp <b style="color:${BRAND}">${phone}</b> — we’ll help you plan it.</p>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body style="margin:0;padding:0;background:${GROUND};font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;color:#3B3641;-webkit-font-smoothing:antialiased">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${GROUND}">
+      <tr><td align="center" style="padding:28px 16px 40px">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
+          <tr><td style="text-align:center;padding:2px 0 20px">${logo}</td></tr>
+          <tr><td style="background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #F6E4EF;box-shadow:0 10px 32px rgba(214,49,127,.10)">
+            <div style="height:7px;background:${RAINBOW}"></div>
+            <div style="padding:30px 28px 32px;line-height:1.65;font-size:15px">
+              ${bodyHtml}
+              ${contact}
+            </div>
+          </td></tr>
+          <tr><td style="text-align:center;color:#b8a6b0;font-size:11.5px;padding:22px 12px 0;line-height:1.8">
+            Eventana Events · Abu Dhabi &amp; Dubai, UAE<br/>
+            <a href="${unsubscribeUrl}" style="color:#b8a6b0">Unsubscribe</a>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
   </body></html>`;
 }

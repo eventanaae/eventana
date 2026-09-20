@@ -17,6 +17,7 @@ import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
 import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepWinbackCampaignAuto, sweepCustomerBirthdays } from './marketing.js';
 import { sweepMarketingCalendar } from './marketingCalendar.js';
+import { sweepCorporateCollect } from './corporateOutreach.js';
 import { deliverPendingNotifications } from './notify.js';
 
 export interface ReconcileReport {
@@ -258,6 +259,12 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   await sweepMarketingCalendar()
     .then((n) => { if (n) console.log(`[marketing] calendar prepared ${n} draft(s)`); })
     .catch((err) => console.error('[marketing] calendar sweep failed:', err));
+
+  // Weekly B2B lead collection from Google Places (schools, hospitals, banks…),
+  // auto-categorised. Gated by CORP_COLLECT + a Google key; ~once per 6 days.
+  await sweepCorporateCollect()
+    .then((n) => { if (n) console.log(`[corp] collected/updated ${n} lead(s)`); })
+    .catch((err) => console.error('[corp] collect sweep failed:', err));
 
   // The monthly report is sent by sweepReconReport (below) as ONE email on the
   // last day of each month — the standalone finance-report sweep is retired.

@@ -139,6 +139,12 @@ export const config = {
     'http://localhost:5174',
   ),
 
+  /** Public contact number shown to customers/businesses in marketing emails. */
+  contact: {
+    whatsapp: env.CONTACT_WHATSAPP ?? '971564500777', // E.164 digits for wa.me
+    phoneDisplay: env.CONTACT_PHONE_DISPLAY ?? '056 450 0777',
+  },
+
   /**
    * Allowed browser origins. The two app URLs are always allowed (a
    * deployment where the API rejects its own front ends is never what is

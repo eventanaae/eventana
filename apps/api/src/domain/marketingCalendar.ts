@@ -17,7 +17,6 @@
  * the calendar as "confirm the date" and no draft is auto-created for it.
  */
 import { pool } from '../db/pool.js';
-import { config } from '../config.js';
 import type { Audience } from './marketing.js';
 
 export type OccasionType = 'commercial' | 'national' | 'islamic' | 'seasonal' | 'greeting';
@@ -452,22 +451,70 @@ function sendTime(dateISO: string, daysBefore: number): Date {
   return d;
 }
 
-/** Inner campaign HTML (wrapped in the Eventana shell at send time). */
+/** Services we can bring, chosen to fit the occasion's kind of event. */
+function servicesFor(o: Occasion): string[] {
+  const s = o.slug;
+  if (['halloween', 'uae-childrens-day', 'hag-al-laila', 'back-to-school'].includes(s))
+    return ['🎈 Themed setups & balloon décor', '🎭 Characters, mascots & face painting', '🎪 Games host & fun activities', '🍭 Candy & treat stations', '🎂 Custom cakes & dessert tables'];
+  if (s === 'graduation-season')
+    return ['🎓 Graduation stage & backdrop', '📸 Photo booth & props', '🍰 Dessert tables & catering', '🎈 Décor in the school/college colours'];
+  if (['uae-mothers-day', 'intl-womens-day', 'intl-day-families'].includes(s))
+    return ['💐 Elegant tea or brunch styling', '🌸 Floral & table décor', '🍰 Dessert tables', '📸 A beautiful photo corner'];
+  if (['uae-national-day', 'uae-flag-day'].includes(s))
+    return ['🇦🇪 Décor in the nation’s colours', '🍽️ Food & sweets stations', '🎈 Balloon & stage setups', '📸 Family photo corner'];
+  if (['ramadan', 'eid-al-fitr', 'eid-al-adha'].includes(s))
+    return ['🌙 Ramadan majlis & Eid décor', '🍽️ Iftar / gathering catering stations', '🍰 Sweets & dessert tables', '✨ Lighting & ambience'];
+  if (['new-year', 'christmas'].includes(s))
+    return ['✨ Festive décor & lighting', '🍰 Dessert tables & catering', '🎉 Entertainment & photo corner', '🎈 Themed setups'];
+  if (s === 'intl-day-happiness')
+    return ['🎈 Joyful themed setups', '🍰 Dessert & treat tables', '📸 Fun photo corner'];
+  if (s === 'world-teachers-day')
+    return ['🍎 Teacher-appreciation setups', '🍰 Dessert & catering', '🎈 Hall / classroom décor', '🎁 Thank-you touches'];
+  return ['🎈 Themed décor & setups', '🍰 Cakes & dessert tables', '📸 Photo corner', '🎉 Entertainment & activities'];
+}
+
+/** Inner campaign HTML (wrapped in the Eventana shell — which adds the WhatsApp
+ *  contact CTA — at send time). Greeting-only occasions carry no services/pitch. */
 export function buildOccasionBody(o: Occasion): string {
-  const brandPink = '#E94F9C';
-  const cta =
-    o.greetingOnly || !o.copy.ctaLabel
-      ? ''
-      : `<div style="text-align:center;margin:22px 0 6px">
-           <a href="${config.publicAppUrl}" style="display:inline-block;background:${brandPink};color:#fff;text-decoration:none;font-weight:800;font-size:15px;padding:13px 26px;border-radius:999px">${o.copy.ctaLabel} →</a>
-         </div>
-         <p style="text-align:center;font-size:12px;color:#b3a8a0;margin:6px 0 0">Or reply to this email and we’ll help you plan it.</p>`;
+  const heading = `<p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>`;
+  const greet = `<p style="margin:0 0 14px">Hi {{name}},</p>`;
+  const intro = `<p style="margin:0 0 14px">${o.copy.intro}</p>`;
+  if (o.greetingOnly) {
+    return `${heading}${greet}${intro}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
+  }
+  const services = servicesFor(o);
+  const list = `
+    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">What we can bring for you:</p>
+    <ul style="margin:0;padding-left:20px">
+      ${services.map((x) => `<li style="margin:0 0 6px">${x}</li>`).join('')}
+    </ul>`;
+  return `${heading}${greet}${intro}${list}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
+}
+
+/** Corporate (B2B) version of an occasion email — for schools, companies, banks,
+ *  clinics, etc. Positions Eventana as their events partner, with the same
+ *  tailored services and the shell's WhatsApp contact. No website link. */
+export function buildCorporateBody(o: Occasion): string {
+  const services = servicesFor(o);
+  const hook = o.greetingOnly
+    ? `As ${o.name} approaches, Eventana would like to send your team our warmest wishes.`
+    : `With ${o.name} coming up, it’s the perfect time to plan a memorable event for your team, students or guests — and Eventana can handle every detail.`;
+  const list = o.greetingOnly
+    ? ''
+    : `
+    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">How we can help your organisation:</p>
+    <ul style="margin:0;padding-left:20px">
+      ${services.map((x) => `<li style="margin:0 0 6px">${x}</li>`).join('')}
+      <li style="margin:0 0 6px">🏢 Corporate & staff celebrations, openings and ceremonies</li>
+      <li style="margin:0 0 6px">🎓 School & university events, festivals and prize days</li>
+    </ul>
+    <p style="margin:14px 0 0">We work to your budget and timeline, and manage setup and teardown end-to-end.</p>`;
   return `
     <p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>
-    <p style="margin:0 0 14px;font-size:15px;line-height:1.65">Hi {{name}},</p>
-    <p style="margin:0 0 14px;font-size:15px;line-height:1.65">${o.copy.intro}</p>
-    ${cta}
-    <p style="margin:18px 0 0;font-size:15px">With love,<br/>The Eventana Team 💕</p>`;
+    <p style="margin:0 0 14px">Dear {{name}},</p>
+    <p style="margin:0 0 4px">${hook}</p>
+    ${list}
+    <p style="margin:16px 0 0">Warm regards,<br/>The Eventana Team</p>`;
 }
 
 const GATE = () => String(process.env.MARKETING_CALENDAR ?? 'on').toLowerCase() !== 'off';
@@ -481,46 +528,54 @@ const GATE = () => String(process.env.MARKETING_CALENDAR ?? 'on').toLowerCase() 
 export async function sweepMarketingCalendar(): Promise<number> {
   if (!GATE()) return 0;
   const now = new Date();
-  let prepared = 0;
-  for (const o of OCCASIONS) {
-    const next = nextOccasionDate(o, now);
-    if (!next) continue; // variable date not confirmed for an upcoming year
-    const away = daysUntil(next.dateISO, now);
-    // Only within the lead window and still far enough out to actually send.
-    if (away > o.leadDays || away < o.sendDaysBefore) continue;
-    const dedupeKey = `occasion|${o.slug}|${next.year}`;
-    const exists = await pool.query(`SELECT 1 FROM email_campaigns WHERE dedupe_key = $1`, [dedupeKey]);
-    if (exists.rowCount) continue;
+  const { pushToOwner } = await import('../integrations/push.js');
+  const targets = (await pool.query<{ id: string }>(
+    `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
+  )).rows;
+  // Do we have any businesses we can email? (drives the corporate draft).
+  const haveCorp = (await pool.query(
+    `SELECT 1 FROM corporate_leads WHERE email IS NOT NULL AND email <> '' AND email_opt_out = FALSE AND status <> 'not_interested' LIMIT 1`,
+  ).catch(() => ({ rowCount: 0 }))).rowCount;
 
-    const scheduledFor = sendTime(next.dateISO, o.sendDaysBefore);
-    const body = buildOccasionBody(o);
+  let prepared = 0;
+  const createDraft = async (
+    dedupeKey: string, audience: string, subject: string, body: string, source: string, label: string, dateISO: string, scheduledFor: Date,
+  ): Promise<void> => {
+    const exists = await pool.query(`SELECT 1 FROM email_campaigns WHERE dedupe_key = $1`, [dedupeKey]);
+    if (exists.rowCount) return;
     let ins;
     try {
       ins = await pool.query<{ id: string }>(
         `INSERT INTO email_campaigns (subject, body_html, audience, status, scheduled_for, created_by, source, dedupe_key)
-         VALUES ($1,$2,$3,'pending_approval',$4,'Eventana AI','occasion',$5)
-         RETURNING id`,
-        [o.copy.subject, body, o.audience, scheduledFor.toISOString(), dedupeKey],
+         VALUES ($1,$2,$3,'pending_approval',$4,'Eventana AI',$5,$6) RETURNING id`,
+        [subject, body, audience, scheduledFor.toISOString(), source, dedupeKey],
       );
     } catch {
-      continue; // race on the unique dedupe index — someone else prepared it
+      return; // race on the unique dedupe index
     }
     prepared++;
-
-    // Alert the owner + Marsha to review it.
-    const { pushToOwner } = await import('../integrations/push.js');
-    const dateLabel = new Date(`${next.dateISO}T00:00:00Z`).toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'long', timeZone: 'UTC',
-    });
-    const title = '📣 A marketing campaign is ready to review';
-    const bodyMsg = `${o.name} (${dateLabel}) — a draft email is waiting in Marketing. Review, edit and approve to schedule it.`;
-    const targets = await pool.query<{ id: string }>(
-      `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
-    );
-    for (const t of targets.rows) {
-      await pushToOwner('staff', t.id, title, bodyMsg, { campaignId: String(ins.rows[0].id) }).catch(() => {});
+    const dateLabel = new Date(`${dateISO}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+    for (const t of targets) {
+      await pushToOwner('staff', t.id, '📣 A marketing campaign is ready to review',
+        `${label} (${dateLabel}) — a draft email is waiting in Marketing. Review, edit and approve.`,
+        { campaignId: String(ins.rows[0].id) }).catch(() => {});
     }
-    console.log(`[marketing-calendar] prepared "${o.name}" for ${next.dateISO} (send ${scheduledFor.toISOString().slice(0, 10)})`);
+    console.log(`[marketing-calendar] prepared "${label}" for ${dateISO} (send ${scheduledFor.toISOString().slice(0, 10)})`);
+  };
+
+  for (const o of OCCASIONS) {
+    const next = nextOccasionDate(o, now);
+    if (!next) continue; // variable date not confirmed for an upcoming year
+    const away = daysUntil(next.dateISO, now);
+    if (away > o.leadDays || away < o.sendDaysBefore) continue;
+    const scheduledFor = sendTime(next.dateISO, o.sendDaysBefore);
+    // Consumer draft (to our customers).
+    await createDraft(`occasion|${o.slug}|${next.year}`, o.audience, o.copy.subject, buildOccasionBody(o), 'occasion', o.name, next.dateISO, scheduledFor);
+    // Corporate draft (to businesses) — only when it's a selling occasion and we
+    // actually have companies to email.
+    if (!o.greetingOnly && haveCorp) {
+      await createDraft(`occasion|${o.slug}|${next.year}|corp`, 'corp:all', `${o.copy.subject} — for your organisation`, buildCorporateBody(o), 'occasion_corp', `${o.name} (companies)`, next.dateISO, scheduledFor);
+    }
   }
   return prepared;
 }
