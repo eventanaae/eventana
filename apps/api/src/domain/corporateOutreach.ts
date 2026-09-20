@@ -488,6 +488,11 @@ export async function sweepCorporateFirstTouch(): Promise<number> {
     [perDay],
   ).catch(() => ({ rows: [] as { id: string; email: string; name: string; category: string }[] }));
 
+  // Owner asked to CC herself + Marsha on the VERY FIRST batch only, to watch it
+  // go out — then it stops.
+  const ccDone = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'corp_firsttouch_cc_done'`).catch(() => ({ rowCount: 0 }));
+  const firstBatchCc = ccDone.rowCount ? undefined : ['sheem@eventanauae.com', 'marsha@eventanauae.com'];
+
   let sent = 0;
   const { unsubToken } = await import('./marketing.js');
   for (const r of rows) {
@@ -497,6 +502,7 @@ export async function sweepCorporateFirstTouch(): Promise<number> {
     const html = renderCampaignHtml(buildFirstTouchBody(cat).replace(/\{\{\s*name\s*\}\}/gi, r.name || 'there'), unsub);
     const res = await sendEmail({
       to: r.email, subject: p.subject, html, skipMonitorBcc: true, replyTo: config.email.replyTo,
+      cc: firstBatchCc,
       tags: [{ name: 'corp', value: 'firsttouch' }],
     });
     if (res.ok) {
@@ -510,7 +516,9 @@ export async function sweepCorporateFirstTouch(): Promise<number> {
     await new Promise((res) => setTimeout(res, 150));
   }
   await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_firsttouch_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
-  if (sent) console.log(`[corp-firsttouch] sent ${sent} first emails`);
+  // Mark the first-batch CC as done so only that first batch was copied to owner+Marsha.
+  if (sent && firstBatchCc) await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_firsttouch_cc_done', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+  if (sent) console.log(`[corp-firsttouch] sent ${sent} first emails${firstBatchCc ? ' (CC owner+Marsha, first batch)' : ''}`);
   return sent;
 }
 
