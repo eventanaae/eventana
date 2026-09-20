@@ -35,6 +35,7 @@ import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
+import { marketingCalendar, prepareOccasionNow } from '../domain/marketingCalendar.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
@@ -5452,7 +5453,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const [counts, campaigns] = await Promise.all([
       audienceCounts(),
       pool.query(
-        `SELECT id, subject, audience, status, scheduled_for, sent_at,
+        `SELECT id, subject, body_html, audience, status, scheduled_for, sent_at,
                 recipient_count, sent_count, created_at, created_by,
                 approved_by, approved_at, rejection_reason, source
            FROM email_campaigns ORDER BY created_at DESC LIMIT 50`,
@@ -5554,17 +5555,25 @@ export async function adminRoutes(app: FastifyInstance) {
     const schema = z.object({
       scheduledFor: z.string().datetime().nullable().optional(),
       status: z.enum(['draft', 'scheduled']).optional(),
+      subject: z.string().min(1).max(300).optional(),
+      bodyHtml: z.string().min(1).optional(),
+      audience: z.enum(['all', 'past_customers', 'no_recent_booking', 'anniversary']).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     const d = parsed.data;
     const status = d.status ?? (d.scheduledFor ? 'scheduled' : undefined);
+    // Copy edits are allowed while a campaign is still a draft or awaiting
+    // approval; schedule/status changes stay limited to draft/scheduled.
     const { rows } = await pool.query(
       `UPDATE email_campaigns
           SET scheduled_for = COALESCE($2, scheduled_for),
-              status = COALESCE($3, status)
-        WHERE id = $1 AND status IN ('draft','scheduled') RETURNING *`,
-      [id, d.scheduledFor ?? null, status ?? null],
+              status = COALESCE($3, status),
+              subject = COALESCE($4, subject),
+              body_html = COALESCE($5, body_html),
+              audience = COALESCE($6, audience)
+        WHERE id = $1 AND status IN ('draft','scheduled','pending_approval') RETURNING *`,
+      [id, d.scheduledFor ?? null, status ?? null, d.subject ?? null, d.bodyHtml ?? null, d.audience ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return rows[0];
@@ -5585,6 +5594,34 @@ export async function adminRoutes(app: FastifyInstance) {
     const html = renderCampaignHtml(parsed.data.bodyHtml, `${config.publicApiUrl}/api/unsubscribe?c=preview&t=preview`);
     const res = await sendEmail({ to: parsed.data.to, subject: `[TEST] ${parsed.data.subject}`, html });
     return res.ok ? { ok: true } : reply.status(502).send({ error: 'send_failed', message: res.error });
+  });
+
+  /* ---------------------- Marketing calendar (auto) ----------------------- */
+
+  /** The year-round occasion calendar with each occasion's auto-campaign status. */
+  app.get('/api/admin/marketing/calendar', async () => {
+    return { occasions: await marketingCalendar() };
+  });
+
+  /** Prepare an occasion's draft campaign on demand (outside the auto window). */
+  app.post('/api/admin/marketing/calendar/:slug/prepare', async (request, reply) => {
+    const slug = String((request.params as { slug: string }).slug);
+    const res = await prepareOccasionNow(slug);
+    if (!res) return reply.status(404).send({ error: 'unknown_occasion' });
+    return res;
+  });
+
+  /** Rendered HTML preview of a campaign (as the customer will see it). */
+  app.get('/api/admin/marketing/campaigns/:id/preview', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const { rows } = await pool.query<{ subject: string; body_html: string }>(
+      `SELECT subject, body_html FROM email_campaigns WHERE id = $1`, [id],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    // Show it with a sample first name so {{name}} isn't left raw in the preview.
+    const personalised = rows[0].body_html.replace(/\{\{\s*name\s*\}\}/gi, 'there');
+    const html = renderCampaignHtml(personalised, `${config.publicApiUrl}/api/unsubscribe?c=preview&t=preview`);
+    return reply.type('text/html').send(html);
   });
 
   /* --------------------------- Theme backfill ----------------------------- */

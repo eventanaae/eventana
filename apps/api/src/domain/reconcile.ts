@@ -16,6 +16,7 @@ import { expireStaleHolds } from './inventory.js';
 import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
 import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepWinbackCampaignAuto, sweepCustomerBirthdays } from './marketing.js';
+import { sweepMarketingCalendar } from './marketingCalendar.js';
 import { deliverPendingNotifications } from './notify.js';
 
 export interface ReconcileReport {
@@ -250,6 +251,13 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // the old event-anniversary campaign, at the owner's request). Dormant until
   // customer birthdays are collected; auto-sent, once per customer per year.
   await sweepCustomerBirthdays().catch((err) => console.error('[birthday] sweep failed:', err));
+
+  // Marketing calendar: auto-prepare a DRAFT campaign for each upcoming occasion
+  // (National Day, Eid, Ramadan, Mother's Day, …) ~weeks ahead and alert the
+  // owner/Marsha to review. Never sends — it lands in the approval queue.
+  await sweepMarketingCalendar()
+    .then((n) => { if (n) console.log(`[marketing] calendar prepared ${n} draft(s)`); })
+    .catch((err) => console.error('[marketing] calendar sweep failed:', err));
 
   // The monthly report is sent by sweepReconReport (below) as ONE email on the
   // last day of each month — the standalone finance-report sweep is retired.

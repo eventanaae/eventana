@@ -549,6 +549,20 @@ export const api = {
     request<any>(`/api/admin/marketing/campaigns/${id}`, { method: 'DELETE' }),
   testCampaign: (body: Record<string, unknown>) =>
     request<any>('/api/admin/marketing/test', { method: 'POST', body: JSON.stringify(body) }),
+  updateCampaign: (id: number, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  marketingCalendar: () => request<any>('/api/admin/marketing/calendar'),
+  prepareOccasion: (slug: string) =>
+    request<any>(`/api/admin/marketing/calendar/${slug}/prepare`, { method: 'POST' }),
+  // Fetch the rendered email HTML (with auth) so the UI can open a live preview.
+  campaignPreviewHtml: async (id: number): Promise<string> => {
+    const res = await fetch(`${BASE}/api/admin/marketing/campaigns/${id}/preview`, {
+      cache: 'no-store',
+      headers: { 'x-staff-token': getStaffToken(), 'x-staff-name': 'Maryam' },
+    });
+    if (!res.ok) throw new Error('preview_failed');
+    return res.text();
+  },
 
   promoCodes: () => request<{ codes: PromoCode[] }>('/api/admin/promo-codes'),
   createPromoCode: (body: {

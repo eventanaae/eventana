@@ -139,6 +139,9 @@ export const config = {
     'http://localhost:5174',
   ),
 
+  /** Public base URL of the customer app (used for email CTA links). */
+  publicAppUrl: toUrl(env.PUBLIC_APP_URL ?? env.PUBLIC_APP_HOST, 'http://localhost:5173'),
+
   /**
    * Allowed browser origins. The two app URLs are always allowed (a
    * deployment where the API rejects its own front ends is never what is

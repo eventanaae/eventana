@@ -20,8 +20,17 @@ const TEMPLATES: Record<string, string> = {
   comeback: 'Hi {name},\n\nWe miss planning parties with you! 💐 Here’s a little nudge to celebrate your next occasion with Eventana. Tap into the app and we’ll make it unforgettable.\n\nSee you soon,\nThe Eventana Team',
 };
 
+const OCCASION_TONE: Record<string, { bg: string; fg: string; label: string }> = {
+  commercial: { bg: '#fdeef6', fg: '#c02f80', label: 'Offer' },
+  national: { bg: '#eef4ff', fg: '#2f5fc0', label: 'National' },
+  islamic: { bg: '#eef9f1', fg: '#2f8f57', label: 'Islamic' },
+  seasonal: { bg: '#fff4e8', fg: '#c07a2f', label: 'Seasonal' },
+  greeting: { bg: '#f4eefb', fg: '#7a2fc0', label: 'Greeting' },
+};
+
 export function Marketing() {
   const [data, setData] = useState<any>(null);
+  const [cal, setCal] = useState<any[] | null>(null);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [audience, setAudience] = useState<string>('all');
@@ -29,8 +38,20 @@ export function Marketing() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = () => api.marketing().then(setData).catch(() => setData(null));
+  const load = () => {
+    api.marketing().then(setData).catch(() => setData(null));
+    api.marketingCalendar().then((r) => setCal(r.occasions ?? [])).catch(() => setCal([]));
+  };
   useEffect(() => { load(); }, []);
+
+  const openPreview = async (id: number) => {
+    try {
+      const html = await api.campaignPreviewHtml(id);
+      const w = window.open('', '_blank');
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+      else setMsg('Allow pop-ups to see the preview.');
+    } catch { setMsg('Could not load the preview.'); }
+  };
 
   if (!data) return <Spinner />;
 
@@ -88,6 +109,46 @@ export function Marketing() {
         <Tile label="Unsubscribed" value={data.audiences.optedOut} />
       </div>
 
+      <Panel title="Marketing calendar">
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 12 }}>
+          A branded draft email is prepared for you automatically a few weeks before each occasion — you just
+          <b> review, edit and approve</b>. Nothing is ever sent without your approval. Islamic dates are estimates — please confirm the Hijri date before approving.
+        </div>
+        {!cal ? <Spinner /> : cal.length === 0 ? <Empty>No occasions.</Empty> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {cal.map((o: any) => {
+              const tone = OCCASION_TONE[o.type] ?? OCCASION_TONE.seasonal;
+              const dateLabel = o.dateISO
+                ? new Date(o.dateISO + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+                : '—';
+              const away = o.daysAway;
+              return (
+                <div key={o.slug} style={{ display: 'flex', alignItems: 'center', gap: 10, border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', flexWrap: 'wrap' }}>
+                  <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
+                  <div style={{ flex: 1, minWidth: 130 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{o.name} <span style={{ color: C.muted, fontWeight: 600 }}>· {o.nameAr}</span></div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>
+                      {dateLabel}{away != null && away >= 0 ? ` · in ${away} day${away === 1 ? '' : 's'}` : ''}
+                      {o.greetingOnly ? ' · greeting only' : ''}
+                    </div>
+                  </div>
+                  {o.needsDateConfirm ? (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.red }}>Confirm this year’s date</span>
+                  ) : o.campaign ? (
+                    <>
+                      <Badge tone={STATUS_TONE[o.campaign.status] ?? 'neutral'}>{String(o.campaign.status).replace(/_/g, ' ')}</Badge>
+                      <button onClick={() => openPreview(Number(o.campaign.id))} style={miniBtn}>Preview</button>
+                    </>
+                  ) : (
+                    <button onClick={() => act(() => api.prepareOccasion(o.slug), 'Draft prepared — review it below.')} disabled={busy} style={{ ...miniBtn, borderColor: C.pink, color: C.pinkDeep }}>Prepare now</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Panel>
+
       <Panel title="Compose campaign">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -135,7 +196,7 @@ export function Marketing() {
               <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
-                  {c.source === 'anniversary' && <Badge tone="info">auto</Badge>}
+                  {(c.source === 'anniversary' || c.source === 'occasion') && <Badge tone="info">auto</Badge>}
                   <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
                 </div>
                 <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 0' }}>
@@ -152,6 +213,7 @@ export function Marketing() {
                   <div style={{ fontSize: 11.5, fontWeight: 600, color: C.red, marginTop: 4 }}>Rejected: {c.rejection_reason}</div>
                 )}
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  <button onClick={() => openPreview(Number(c.id))} style={miniBtn}>Preview</button>
                   {(c.status === 'draft' || c.status === 'rejected') && (
                     <button onClick={() => act(() => api.submitCampaign(c.id), 'Submitted for approval.')} disabled={busy} style={miniBtn}>Submit for approval</button>
                   )}
