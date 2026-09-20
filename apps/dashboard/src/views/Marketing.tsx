@@ -25,10 +25,11 @@ export function Marketing() {
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
-  const [occ, setOcc] = useState<any | null>(null);      // occasion pop-up
-  const [wizard, setWizard] = useState(false);            // new-campaign wizard
-  const [month, setMonth] = useState<string>('all');
-  const [showList, setShowList] = useState(false);
+  const [occ, setOcc] = useState<any | null>(null);        // occasion pop-up
+  const [wizard, setWizard] = useState(false);             // new-campaign wizard
+  const [occPicker, setOccPicker] = useState(false);       // pick an occasion pop-up
+  const [companiesOpen, setCompaniesOpen] = useState(false);
+  const [campaignsOpen, setCampaignsOpen] = useState(false);
 
   const load = () => {
     api.marketing().then(setData).catch(() => setData(null));
@@ -82,10 +83,6 @@ export function Marketing() {
   const findFull = (id: string) => data.campaigns.find((x: any) => String(x.id) === String(id));
   const refreshOcc = (slug: string, updated: any[]) => setOcc((updated ?? []).find((o) => o.slug === slug) ?? null);
 
-  const months = (cal ?? []).filter((o) => o.dateISO).map((o) => o.dateISO.slice(0, 7));
-  const uniqueMonths = Array.from(new Set(months)).sort();
-  const monthLabel = (m: string) => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {!data.emailConfigured && (
@@ -100,95 +97,34 @@ export function Marketing() {
         <Tile label="Company emails" value={data.corporate?.emailable ?? 0} />
       </div>
 
-      <Panel title="Send a campaign">
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 12 }}>
-          Start a brand-new campaign, or tap an occasion below to review the draft that’s already prepared.
+      <Panel title="Marketing">
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
+          Everything opens step by step. Pick what you want to do 🌸
         </div>
-        <Button onClick={() => { setMsg(null); setWizard(true); }}>➕ New campaign</Button>
-        {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginTop: 10 }}>{msg}</div>}
-      </Panel>
-
-      <Panel title="Marketing calendar">
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 12 }}>
-          A draft is auto-prepared a few weeks before each occasion — tap one to review & approve. Islamic dates are estimates; confirm the Hijri date before approving.
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <HubButton emoji="➕" label="New campaign" sub="Write & send" onClick={() => { setMsg(null); setWizard(true); }} primary />
+          <HubButton emoji="📅" label="Occasions" sub="Review ready drafts" onClick={() => setOccPicker(true)} />
+          <HubButton emoji="🏢" label="Companies" sub={`${data.corporate?.total ?? 0} businesses`} onClick={() => setCompaniesOpen(true)} />
+          <HubButton emoji="📋" label="All campaigns" sub={`${data.campaigns.length} total`} onClick={() => setCampaignsOpen(true)} />
         </div>
-        {uniqueMonths.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            <button onClick={() => setMonth('all')} style={{ ...chip, ...(month === 'all' ? chipActive : {}) }}>All</button>
-            {uniqueMonths.map((m) => (
-              <button key={m} onClick={() => setMonth(m)} style={{ ...chip, ...(month === m ? chipActive : {}) }}>{monthLabel(m)}</button>
-            ))}
-          </div>
-        )}
-        {!cal ? <Spinner /> : cal.length === 0 ? <Empty>No occasions.</Empty> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {cal.filter((o) => month === 'all' || (o.dateISO && o.dateISO.slice(0, 7) === month)).map((o) => {
-              const tone = OCCASION_TONE[o.type] ?? OCCASION_TONE.seasonal;
-              const dateLabel = o.dateISO ? new Date(o.dateISO + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—';
-              const away = o.daysAway;
-              const drafts = [o.consumer, o.corporate].filter(Boolean).length;
-              return (
-                <button key={o.slug} onClick={() => setOcc(o)} style={{ textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
-                  <div style={{ flex: 1, minWidth: 120 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{o.name}</div>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>
-                      {dateLabel}
-                      {o.needsDateConfirm ? ' · confirm date' : drafts ? ` · ${drafts} draft${drafts > 1 ? 's' : ''} ready` : ' · tap to prepare'}
-                    </div>
-                  </div>
-                  {away != null && away >= 0 && <span style={countdownStyle(away)}>{away === 0 ? '🎉 Today' : `⏳ ${away}d`}</span>}
-                  <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginTop: 12 }}>{msg}</div>}
       </Panel>
 
-      <CorporatePanel labels={corpLabels} counts={data.corporate} onChanged={load} setMsg={setMsg} />
+      {occPicker && (
+        <OccasionPicker cal={cal} onClose={() => setOccPicker(false)} onPick={(o) => { setOccPicker(false); setOcc(o); }} />
+      )}
 
-      <Panel title="All campaigns">
-        <button onClick={() => setShowList((v) => !v)} style={miniBtn}>{showList ? 'Hide' : `Show (${data.campaigns.length})`}</button>
-        {showList && (
-          data.campaigns.length === 0 ? <div style={{ marginTop: 10 }}><Empty>No campaigns yet.</Empty></div> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-              {data.campaigns.map((c: any) => (
-                <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
-                    {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
-                    <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
-                  </div>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 0' }}>
-                    {audienceLabel(c.audience)}
-                    {c.status === 'sent' && ` · ${c.sent_count}/${c.recipient_count} sent`}
-                    {c.scheduled_for && c.status !== 'sent' ? ` · ⏰ ${new Date(c.scheduled_for).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                    <button onClick={() => openPreview(Number(c.id))} style={miniBtn}>👁 Preview</button>
-                    {(c.status === 'draft' || c.status === 'rejected' || c.status === 'pending_approval' || c.status === 'scheduled') && (
-                      <button onClick={() => setEditing(c)} style={miniBtn}>✏️ Edit</button>
-                    )}
-                    {(c.status === 'draft' || c.status === 'rejected') && (
-                      <button onClick={() => act(() => api.submitCampaign(c.id), 'Submitted for approval.')} disabled={busy} style={miniBtn}>Submit</button>
-                    )}
-                    {c.status === 'pending_approval' && (
-                      <>
-                        <button onClick={() => act(() => api.approveCampaign(c.id), 'Approved.')} disabled={busy || !data.emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve</button>
-                        <button onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) act(() => api.rejectCampaign(c.id, r), 'Rejected.'); }} disabled={busy} style={{ ...miniBtn, color: C.red }}>Reject</button>
-                      </>
-                    )}
-                    {(c.status === 'draft' || c.status === 'rejected' || c.status === 'scheduled' || c.status === 'failed') && (
-                      <button onClick={() => act(() => api.deleteCampaign(c.id), 'Deleted.')} disabled={busy} style={{ ...miniBtn, color: C.red }}>Delete</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        )}
-      </Panel>
+      {companiesOpen && (
+        <Modal title="Companies (B2B)" onClose={() => setCompaniesOpen(false)}>
+          <CorporatePanel labels={corpLabels} counts={data.corporate} onChanged={load} setMsg={setMsg} bare />
+        </Modal>
+      )}
+
+      {campaignsOpen && (
+        <Modal title="All campaigns" onClose={() => setCampaignsOpen(false)}>
+          <CampaignList data={data} busy={busy} audienceLabel={audienceLabel} onPreview={openPreview} onEdit={setEditing} onAct={act} />
+        </Modal>
+      )}
 
       {preview !== null && (
         <Modal title="Email preview" onClose={() => setPreview(null)}>
@@ -216,6 +152,110 @@ export function Marketing() {
         <NewCampaignWizard groups={audienceGroups} busy={busy} emailConfigured={data.emailConfigured}
           onClose={() => setWizard(false)} onPreview={openPreview} onReload={load} setMsg={setMsg} />
       )}
+    </div>
+  );
+}
+
+// ── Home hub button ─────────────────────────────────────────────────────────
+function HubButton({ emoji, label, sub, onClick, primary }: { emoji: string; label: string; sub: string; onClick: () => void; primary?: boolean }) {
+  return (
+    <button onClick={onClick} style={{
+      cursor: 'pointer', textAlign: 'left', borderRadius: 16, padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 4,
+      border: primary ? 'none' : `1px solid ${C.line}`,
+      background: primary ? C.pink : '#fff', color: primary ? '#fff' : C.ink,
+    }}>
+      <span style={{ fontSize: 24 }}>{emoji}</span>
+      <span style={{ fontWeight: 800, fontSize: 14 }}>{label}</span>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: primary ? 'rgba(255,255,255,.9)' : C.muted }}>{sub}</span>
+    </button>
+  );
+}
+
+// ── Pick an occasion (pop-up, month-filtered) ────────────────────────────────
+function OccasionPicker({ cal, onClose, onPick }: { cal: any[] | null; onClose: () => void; onPick: (o: any) => void }) {
+  const [month, setMonth] = useState('all');
+  const uniqueMonths = Array.from(new Set((cal ?? []).filter((o) => o.dateISO).map((o) => o.dateISO.slice(0, 7)))).sort();
+  const monthLabel = (m: string) => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return (
+    <Modal title="Pick an occasion" onClose={onClose}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 12 }}>
+        Tap one to review & approve its ready drafts. Islamic dates are estimates — confirm before approving.
+      </div>
+      {uniqueMonths.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          <button onClick={() => setMonth('all')} style={{ ...chip, ...(month === 'all' ? chipActive : {}) }}>All</button>
+          {uniqueMonths.map((m) => (
+            <button key={m} onClick={() => setMonth(m)} style={{ ...chip, ...(month === m ? chipActive : {}) }}>{monthLabel(m)}</button>
+          ))}
+        </div>
+      )}
+      {!cal ? <Spinner /> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {cal.filter((o) => month === 'all' || (o.dateISO && o.dateISO.slice(0, 7) === month)).map((o) => {
+            const tone = OCCASION_TONE[o.type] ?? OCCASION_TONE.seasonal;
+            const dateLabel = o.dateISO ? new Date(o.dateISO + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—';
+            const away = o.daysAway;
+            const drafts = [o.consumer, o.corporate].filter(Boolean).length;
+            return (
+              <button key={o.slug} onClick={() => onPick(o)} style={{ textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{o.name}</div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>
+                    {dateLabel}{o.needsDateConfirm ? ' · confirm date' : drafts ? ` · ${drafts} draft${drafts > 1 ? 's' : ''} ready` : ' · tap to prepare'}
+                  </div>
+                </div>
+                {away != null && away >= 0 && <span style={countdownStyle(away)}>{away === 0 ? '🎉' : `⏳ ${away}d`}</span>}
+                <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ── Campaigns list (inside a pop-up) ─────────────────────────────────────────
+function CampaignList({ data, busy, audienceLabel, onPreview, onEdit, onAct }: {
+  data: any; busy?: boolean; audienceLabel: (a: string) => string;
+  onPreview: (id: number) => void; onEdit: (c: any) => void; onAct: (fn: () => Promise<any>, ok: string) => Promise<void>;
+}) {
+  if (!data.campaigns.length) return <Empty>No campaigns yet.</Empty>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {data.campaigns.map((c: any) => (
+        <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+            {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
+            <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
+          </div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 0' }}>
+            {audienceLabel(c.audience)}
+            {c.status === 'sent' && ` · ${c.sent_count}/${c.recipient_count} sent`}
+            {c.scheduled_for && c.status !== 'sent' ? ` · ⏰ ${new Date(c.scheduled_for).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button onClick={() => onPreview(Number(c.id))} style={miniBtn}>👁 Preview</button>
+            {(c.status === 'draft' || c.status === 'rejected' || c.status === 'pending_approval' || c.status === 'scheduled') && (
+              <button onClick={() => onEdit(c)} style={miniBtn}>✏️ Edit</button>
+            )}
+            {(c.status === 'draft' || c.status === 'rejected') && (
+              <button onClick={() => onAct(() => api.submitCampaign(c.id), 'Submitted for approval.')} disabled={busy} style={miniBtn}>Submit</button>
+            )}
+            {c.status === 'pending_approval' && (
+              <>
+                <button onClick={() => onAct(() => api.approveCampaign(c.id), 'Approved.')} disabled={busy || !data.emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve</button>
+                <button onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) onAct(() => api.rejectCampaign(c.id, r), 'Rejected.'); }} disabled={busy} style={{ ...miniBtn, color: C.red }}>Reject</button>
+              </>
+            )}
+            {(c.status === 'draft' || c.status === 'rejected' || c.status === 'scheduled' || c.status === 'failed') && (
+              <button onClick={() => onAct(() => api.deleteCampaign(c.id), 'Deleted.')} disabled={busy} style={{ ...miniBtn, color: C.red }}>Delete</button>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -492,8 +532,8 @@ function ServicesModal({ occasion, onClose, onSave, busy }: {
 }
 
 // ── Corporate leads directory ───────────────────────────────────────────────
-function CorporatePanel({ labels, counts, onChanged, setMsg }: {
-  labels: Record<string, string>; counts: any; onChanged: () => void; setMsg: (m: string) => void;
+function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
+  labels: Record<string, string>; counts: any; onChanged: () => void; setMsg: (m: string) => void; bare?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [leads, setLeads] = useState<any[] | null>(null);
@@ -515,8 +555,8 @@ function CorporatePanel({ labels, counts, onChanged, setMsg }: {
   };
 
   const cats = Object.keys(labels);
-  return (
-    <Panel title="Companies (B2B directory)">
+  const inner = (
+    <>
       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 10 }}>
         Businesses we can email — grown automatically each week from Google. Total <b>{counts?.total ?? 0}</b> · emailable <b>{counts?.emailable ?? 0}</b>.
       </div>
@@ -564,8 +604,9 @@ function CorporatePanel({ labels, counts, onChanged, setMsg }: {
           <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={10} placeholder={'GEMS Dubai American Academy, info@example.ae, 04 123 4567, Dubai'} style={{ ...input, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }} />
         </Modal>
       )}
-    </Panel>
+    </>
   );
+  return bare ? inner : <Panel title="Companies (B2B directory)">{inner}</Panel>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
