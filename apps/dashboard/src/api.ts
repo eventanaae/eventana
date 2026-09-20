@@ -563,6 +563,25 @@ export const api = {
     if (!res.ok) throw new Error('preview_failed');
     return res.text();
   },
+  // ── Corporate / B2B leads ──
+  corporateLeads: (q?: { category?: string; status?: string; search?: string }) => {
+    const p = new URLSearchParams();
+    if (q?.category) p.set('category', q.category);
+    if (q?.status) p.set('status', q.status);
+    if (q?.search) p.set('search', q.search);
+    const qs = p.toString();
+    return request<any>(`/api/admin/corporate/leads${qs ? `?${qs}` : ''}`);
+  },
+  addCorporateLead: (body: Record<string, unknown>) =>
+    request<any>('/api/admin/corporate/leads', { method: 'POST', body: JSON.stringify(body) }),
+  updateCorporateLead: (id: number, body: Record<string, unknown>) =>
+    request<any>(`/api/admin/corporate/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteCorporateLead: (id: number) =>
+    request<any>(`/api/admin/corporate/leads/${id}`, { method: 'DELETE' }),
+  importCorporate: (text: string) =>
+    request<any>('/api/admin/corporate/import', { method: 'POST', body: JSON.stringify({ text }) }),
+  collectCorporate: () =>
+    request<any>('/api/admin/corporate/collect', { method: 'POST' }),
 
   promoCodes: () => request<{ codes: PromoCode[] }>('/api/admin/promo-codes'),
   createPromoCode: (body: {
