@@ -591,6 +591,8 @@ async function main() {
   // One-time re-read of recent mail (env BANK_IMAP_REREAD=true) so receipts the
   // poller dropped before the parser learned their format get a second chance.
   rereadRecentInboxFromEnv().catch((err) => console.error('[bank-imap] reread failed:', err));
+  const { dumpBankTxFromEnv } = await import('./db/dumpBankTx.js');
+  dumpBankTxFromEnv().catch((err) => console.error('[dump-banktx] failed:', err));
 
   // Pull the Wio bank feed from Wafeq into the pending-expenses queue. No-op
   // unless WAFEQ_API_KEY is set.
