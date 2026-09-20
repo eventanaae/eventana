@@ -253,6 +253,10 @@ async function main() {
     await dumpBlankReceiptsFromEnv().catch((err) => console.error('[blankr] failed:', err));
     const { blankFix2FromEnv } = await import('./db/blankFix2.js');
     await blankFix2FromEnv().catch((err) => console.error('[blankfix2] failed:', err));
+    const { blankFix3FromEnv } = await import('./db/blankFix3.js');
+    await blankFix3FromEnv().catch((err) => console.error('[blankfix3] failed:', err));
+    const { sendMarshaMissingSupplierOnce } = await import('./db/sendMarshaMissingSupplier.js');
+    await sendMarshaMissingSupplierOnce().catch((err) => console.error('[marsha-missing] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
