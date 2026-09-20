@@ -349,6 +349,12 @@ async function main() {
         const { importQbProductsOnce } = await import('./db/importQbProducts.js');
         await importQbProductsOnce();
       } catch (e) { console.error('[qb-import] failed:', (e as Error).message); }
+      // One-time: send a preview of every sector's B2B first email to the owner
+      // + Marsha for review (before any live sending). Guarded, runs once.
+      try {
+        const { sendCorpPreviewsOnce } = await import('./db/sendCorpPreviews.js');
+        await sendCorpPreviewsOnce();
+      } catch (e) { console.error('[corp-previews] failed:', (e as Error).message); }
       // Zero-price imported items must NOT be bookable at AED 0 on the customer
       // site — hide them (they still show in the internal New-Order builder as
       // "OFF", where the owner types the price on selection). Idempotent.

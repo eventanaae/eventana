@@ -441,6 +441,15 @@ export function buildSuggestedReply(companyName: string): string {
     + `You can also reach us any time on 056 450 0777 (WhatsApp or call).\n\nWarm regards,\nThe Eventana Team`;
 }
 
+/** Render one sector's first email for preview/review (subject + full branded
+ *  HTML with a sample company name). Used to send test copies to the owner. */
+export function firstTouchPreview(category: CorpCategory, sampleName: string): { subject: string; html: string } {
+  const p = CORP_PITCH[category] ?? CORP_PITCH.other;
+  const body = buildFirstTouchBody(category).replace(/\{\{\s*name\s*\}\}/gi, sampleName);
+  const html = renderCampaignHtml(body, `${config.email.publicBaseUrl}/api/unsubscribe?k=corp&c=preview&t=preview`);
+  return { subject: p.subject, html };
+}
+
 /**
  * DAILY auto follow-up: any company we contacted 14+ days ago that never replied
  * and hasn't been reminded yet gets ONE gentle reminder. Guarded to run at most
