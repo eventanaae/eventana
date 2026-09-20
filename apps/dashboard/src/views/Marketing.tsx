@@ -91,45 +91,39 @@ export function Marketing() {
         </Modal>
       )}
 
-      {perf && (
+      {perf && (() => {
+        const sent = data.campaigns.filter((c: any) => c.status === 'sent');
+        return (
         <Modal title="Campaigns & performance" onClose={() => setPerf(false)}>
-          {data.campaigns.length === 0 ? <Empty>No campaigns yet.</Empty> : (
+          {sent.length === 0 ? <Empty>No sent campaigns yet — performance shows here once a campaign goes out.</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {data.campaigns.map((c: any) => (
+              {sent.map((c: any) => (
                 <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                     {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
                     <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
                   </div>
-                  {c.status === 'sent' ? (
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, fontWeight: 700 }}>
-                      <Stat label="Sent" v={c.sent_count} />
-                      <Stat label="Delivered" v={c.delivered_count} />
-                      <Stat label="Opened" v={c.opened_count} tone={C.green} />
-                      <Stat label="Clicked" v={c.clicked_count} tone={C.pinkDeep} />
-                      <Stat label="Bounced" v={c.bounced_count} tone={C.red} />
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 4 }}>
-                      {c.scheduled_for ? `⏰ ${new Date(c.scheduled_for).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'not sent yet'}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>
+                    {c.sent_at ? new Date(c.sent_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, fontWeight: 700 }}>
+                    <Stat label="Sent" v={c.sent_count} />
+                    <Stat label="Delivered" v={c.delivered_count} />
+                    <Stat label="Opened" v={c.opened_count} tone={C.green} />
+                    <Stat label="Clicked" v={c.clicked_count} tone={C.pinkDeep} />
+                    <Stat label="Bounced" v={c.bounced_count} tone={C.red} />
+                  </div>
+                  <div style={{ marginTop: 10 }}>
                     <button onClick={() => openPreview(Number(c.id))} style={miniBtn}>👁 Preview</button>
-                    {(c.status === 'pending_approval' || c.status === 'draft') && (
-                      <button onClick={() => act(() => api.approveCampaign(c.id), 'Approved.')} disabled={busy || !data.emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve</button>
-                    )}
-                    {(c.status === 'draft' || c.status === 'rejected' || c.status === 'scheduled' || c.status === 'failed') && (
-                      <button onClick={() => act(() => api.deleteCampaign(c.id), 'Deleted.')} disabled={busy} style={{ ...miniBtn, color: C.red }}>Delete</button>
-                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </Modal>
-      )}
+        );
+      })()}
 
       {preview !== null && (
         <Modal title="Email preview" onClose={() => setPreview(null)}>
