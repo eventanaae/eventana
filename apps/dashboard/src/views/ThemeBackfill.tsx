@@ -56,8 +56,8 @@ export function ThemeBackfill() {
         }
       >
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 12, lineHeight: 1.5 }}>
-          Every sale this year. Type the theme in the last column — it saves on its own. App bookings already show their theme; the
-          QuickBooks history is blank for you to fill. Saved themes feed the CEO “top themes”.
+          Every sale this year. Type the theme in the last column — it saves on its own. Newer bookings already show their theme;
+          older events are blank for you to fill. Saved themes feed the CEO “top themes”.
         </div>
         {!data ? <Spinner /> : (
           <>

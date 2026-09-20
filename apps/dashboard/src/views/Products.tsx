@@ -142,6 +142,7 @@ function CustomEditor({ item, onClose, onSaved }: { item: any | null; onClose: (
   };
   const del = async () => {
     if (!item) return;
+    if (!window.confirm(`Delete "${item.name ?? 'this item'}"? This can't be undone.`)) return;
     setBusy(true);
     try { await api.productDelete(item.id); onSaved(); } catch (e: any) { setErr(e?.message ?? 'Could not delete.'); setBusy(false); }
   };

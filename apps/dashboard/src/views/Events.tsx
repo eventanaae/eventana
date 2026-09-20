@@ -35,7 +35,7 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const filtered = events
     .filter((e) => {
       const s = q.trim().toLowerCase();
-      return !s || `${e.id} ${e.customer} ${e.emirate} ${e.phase}`.toLowerCase().includes(s);
+      return !s || `${e.id} ${e.reference ?? ''} ${e.customer} ${e.eventFor ?? ''} ${e.theme_name ?? ''} ${e.emirate} ${e.phase}`.toLowerCase().includes(s);
     })
     .sort((a, b) => String(a.event_date).slice(0, 10).localeCompare(String(b.event_date).slice(0, 10)));
 

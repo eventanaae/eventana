@@ -13,17 +13,23 @@ export function Suppliers() {
   const [rows, setRows] = useState<any[] | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
   const [adding, setAdding] = useState(false);
+  const [q, setQ] = useState('');
   const load = () => api.suppliers().then((r) => setRows(r.rows)).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
   if (!rows) return <Spinner />;
+  const s0 = q.trim().toLowerCase();
+  const shown = s0 ? rows.filter((s) => `${s.name ?? ''} ${s.supplies ?? ''} ${s.contact ?? ''} ${s.phone ?? ''} ${s.email ?? ''} ${s.location ?? ''}`.toLowerCase().includes(s0)) : rows;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Panel title={`🚚 Suppliers (${rows.length})`} action={<Button onClick={() => setAdding(true)}>+ New</Button>}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search suppliers…" style={{ ...input, marginBottom: 12 }} />
         {rows.length === 0 ? (
           <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No suppliers yet — add the vendors you buy from.</div>
+        ) : shown.length === 0 ? (
+          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No suppliers match “{q}”.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {rows.map((s) => (
+            {shown.map((s) => (
               <div key={s.id} onClick={() => setEditing(s)} className="tap" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 4px', borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{s.name}</div>
@@ -52,26 +58,31 @@ function SupplierEditor({ supplier, onClose, onSaved }: { supplier: any | null; 
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Rows with a "v:<name>" id are vendors auto-detected from expenses (not real
+  // supplier records). Editing them = creating a real supplier; they can't be deleted.
+  const isVendor = String(supplier?.id ?? '').startsWith('v:');
   const set = (k: string, v: string) => setF((s) => ({ ...s, [k]: v }));
   const save = async () => {
     if (!f.name.trim()) { setErr('Name is required.'); return; }
     setBusy(true); setErr(null);
     const body = { name: f.name.trim(), contact: f.contact.trim(), phone: f.phone.trim(), email: f.email.trim(), supplies: f.supplies.trim(), location: f.location.trim(), note: f.note.trim() };
     try {
-      if (supplier) await api.supplierUpdate(supplier.id, body);
-      else await api.supplierCreate(body);
+      if (supplier && !isVendor) await api.supplierUpdate(supplier.id, body);
+      else await api.supplierCreate(body); // new, or promoting an expense-vendor to a real supplier
       onSaved();
     } catch (e: any) { setErr(e?.message ?? 'Could not save.'); } finally { setBusy(false); }
   };
   const del = async () => {
-    if (!supplier) return;
+    if (!supplier || isVendor) return;
+    if (!window.confirm(`Delete supplier "${supplier.name ?? ''}"? This can't be undone.`)) return;
     setBusy(true);
     try { await api.supplierDelete(supplier.id); onSaved(); } catch (e: any) { setErr(e?.message ?? 'Could not delete.'); setBusy(false); }
   };
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 12px', overflowY: 'auto' }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: 20, width: '100%', maxWidth: 460, boxShadow: C.shadowLg }}>
-        <div style={{ ...fredoka(17), marginBottom: 14 }}>{supplier ? 'Edit supplier' : 'New supplier'}</div>
+        <div style={{ ...fredoka(17), marginBottom: 14 }}>{isVendor ? 'Save as supplier' : supplier ? 'Edit supplier' : 'New supplier'}</div>
+        {isVendor && <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>This vendor was detected from your expenses. Fill in the details and save it as a proper supplier.</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <Field label="Supplier name"><input value={f.name} onChange={(e) => set('name', e.target.value)} style={input} /></Field>
           <Field label="What they supply"><input value={f.supplies} onChange={(e) => set('supplies', e.target.value)} placeholder="e.g. balloons, backdrops" style={input} /></Field>
@@ -89,7 +100,7 @@ function SupplierEditor({ supplier, onClose, onSaved }: { supplier: any | null; 
             <Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
             <Button tone="ghost" onClick={onClose}>Cancel</Button>
             <div style={{ flex: 1 }} />
-            {supplier && <button onClick={del} disabled={busy} style={{ border: 'none', background: 'none', color: C.red, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Delete</button>}
+            {supplier && !isVendor && <button onClick={del} disabled={busy} style={{ border: 'none', background: 'none', color: C.red, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Delete</button>}
           </div>
         </div>
       </div>

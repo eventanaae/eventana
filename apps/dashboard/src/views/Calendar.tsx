@@ -8,15 +8,19 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 // Colour each event block by its stage so several events on the same day are
 // distinguishable at a glance (they were all the same pink before).
+// The live 4-phase model (see Events.tsx). Legacy phase names kept as aliases so
+// old records still colour correctly.
 const PHASE_COLORS: Record<string, string> = {
   'Booking Confirmed': '#6C8CFF', // blue
-  'Preparing': '#E8912B',         // amber
-  'Setting Up': '#B06CE0',        // purple
-  'On The Way': '#1FA7A0',        // teal
-  'On Site': '#2E9E6B',           // green
-  'Arrived': '#2E9E6B',
-  'In Progress': '#2E9E6B',
-  'Event Completed': '#9A8FA0',   // grey
+  'On The Way': '#E8912B',        // amber
+  'Party Started': '#B06CE0',     // purple
+  'Event Completed': '#2E9E6B',   // green
+  // legacy aliases
+  'Preparing': '#6C8CFF',
+  'Setting Up': '#B06CE0',
+  'On Site': '#2E9E6B',
+  'Arrived': '#B06CE0',
+  'In Progress': '#B06CE0',
 };
 const phaseColor = (phase: string): string =>
   phase === 'Cancelled' ? C.red : (PHASE_COLORS[phase] ?? C.pink);
