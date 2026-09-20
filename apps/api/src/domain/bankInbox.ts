@@ -119,19 +119,24 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
 }
 
 /** A payment provider we can recognise from the sender/subject. */
-export type EmailProvider = 'rakbank' | 'tabby' | 'tamara' | 'other';
+export type EmailProvider = 'rakbank' | 'tabby' | 'tamara' | 'anthropic' | 'other';
 
 function classifyProvider(from: string, subject: string, text: string): EmailProvider {
   const head = `${from} ${subject}`.toLowerCase();
+  const all = `${head} ${text.toLowerCase()}`;
+  // Anthropic (Claude) receipts — matched anywhere, because a forwarded email
+  // carries the original sender inside the body, not in the From header.
+  if (/anthropic|invoice\+statements@mail\.anthropic\.com|receipt from anthropic|claude\.ai/.test(all)) return 'anthropic';
   if (/tabby/.test(head)) return 'tabby';
   if (/tamara/.test(head)) return 'tamara';
-  if (/rakbank|rak bank|debit card|credit card|your card|is charged/.test(`${head} ${text.toLowerCase()}`)) return 'rakbank';
+  if (/rakbank|rak bank|debit card|credit card|your card|is charged/.test(all)) return 'rakbank';
   return 'other';
 }
 
 function providerLabel(provider: EmailProvider, from: string): string {
   if (provider === 'tabby') return 'Tabby';
   if (provider === 'tamara') return 'Tamara';
+  if (provider === 'anthropic') return 'Anthropic';
   if (provider === 'rakbank') return 'RAKBANK';
   // Fall back to the sender's display name or email address.
   const name = (from.match(/^\s*"?([^"<]+?)"?\s*</)?.[1] ?? from.match(/<([^>]+)>/)?.[1] ?? from).trim();
@@ -200,6 +205,48 @@ export function parseSettlement(subject: string, text: string): Settlement | nul
   return { feeFils: deductions, salesFils: sales, netFils: net, postedOn, description };
 }
 
+/** AED is pegged to the US dollar at 3.6725; Anthropic bills in USD. */
+const AED_PER_USD = 3.6725;
+
+export interface AnthropicReceipt { amountFils: number; usd: number | null; postedOn: string | null; note: string; }
+
+/**
+ * Parse an Anthropic (Claude) receipt. These are Stripe-style receipts in USD,
+ * e.g. "Receipt from Anthropic, PBC … Amount paid $21.00 … Date paid September
+ * 20, 2026". We read the USD total, convert to AED at the fixed peg, and keep
+ * the original dollar figure in the note so the conversion is transparent.
+ * Returns amountFils 0 (not null) when no amount is found — the owner asked for
+ * ANYTHING from Anthropic to be captured, so we never drop it.
+ */
+export function parseAnthropicReceipt(subject: string, text: string): AnthropicReceipt {
+  const flat = `${subject}\n${text}`.replace(/ /g, ' ').replace(/\s+/g, ' ');
+  // Prefer a labelled total, then any dollar amount. Accepts "$21.00", "US$21.00", "USD 21.00".
+  const dollar = (label?: string): number | null => {
+    const money = `(?:US\\$|USD|\\$)\\s*([\\d,]+(?:\\.\\d{2})?)`;
+    const re = label ? new RegExp(`${label}\\D{0,20}?${money}`, 'i') : new RegExp(money, 'i');
+    const m = flat.match(re);
+    if (!m) return null;
+    const n = parseFloat(m[1].replace(/,/g, ''));
+    return Number.isFinite(n) ? n : null;
+  };
+  const usd = dollar('amount paid') ?? dollar('total paid') ?? dollar('\\btotal\\b') ?? dollar('amount') ?? dollar();
+  const amountFils = usd != null ? Math.round(usd * AED_PER_USD * 100) : 0;
+
+  // Date: "September 20, 2026" / "Sep 20, 2026" / "20 September 2026" / ISO.
+  let postedOn: string | null = null;
+  const mdY = flat.match(/(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\w*\s+(\d{1,2}),?\s+(\d{4})/i);
+  const dMy = flat.match(/\b(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})/i);
+  const monNum = (s: string): number => MONTHS[s.toLowerCase()] ?? MONTHS[Object.keys(MONTHS).find((k) => k.startsWith(s.toLowerCase())) ?? ''] ?? 0;
+  if (mdY) { const mo = monNum(mdY[1]); if (mo) postedOn = `${mdY[3]}-${String(mo).padStart(2, '0')}-${mdY[2].padStart(2, '0')}`; }
+  else if (dMy) { const mo = monNum(dMy[2]); if (mo) postedOn = `${dMy[3]}-${String(mo).padStart(2, '0')}-${dMy[1].padStart(2, '0')}`; }
+  else { const iso = flat.match(/\b(\d{4})-(\d{2})-(\d{2})\b/); if (iso) postedOn = iso[0]; }
+
+  const note = usd != null
+    ? `Anthropic (Claude) — $${usd.toFixed(2)} → AED ${fmtAed(amountFils)} (converted at ${AED_PER_USD})`
+    : `Anthropic (Claude) receipt — amount not detected, please set it`;
+  return { amountFils, usd, postedOn, note };
+}
+
 export interface InboxAttachment { filename: string; contentType: string; bytes: Buffer; }
 export interface InboxEmail { subject: string; from: string; text: string; attachments: InboxAttachment[]; }
 
@@ -246,6 +293,16 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     kind = 'other';
     postedOn = settle.postedOn ?? dubaiToday();
     settlementNote = settle.description;
+  } else if (provider === 'anthropic') {
+    // Anthropic receipts are in USD → convert to AED. The owner asked for
+    // ANYTHING from Anthropic to be captured, so this never returns null.
+    const a = parseAnthropicReceipt(subject, text);
+    amountFils = a.amountFils;
+    direction = 'debit';
+    kind = 'other';
+    postedOn = a.postedOn ?? dubaiToday();
+    merchant = 'Anthropic';
+    settlementNote = a.note;
   } else {
     const p = parseRakbankAlert(subject, text);
     if (p) {
@@ -260,8 +317,11 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
 
   // Not a real money transaction (statement, OTP, marketing, or an amount our
   // parser couldn't read) → don't create a zero-amount pending row that clutters
-  // the review list. Real charges always have a positive amount.
-  if (!Number.isFinite(amountFils) || amountFils <= 0) return null;
+  // the review list. Real charges always have a positive amount. EXCEPTION:
+  // Anthropic — the owner wants every Anthropic email captured for review even
+  // if we couldn't read the amount, so she can set it and approve.
+  if ((!Number.isFinite(amountFils) || amountFils <= 0) && provider !== 'anthropic') return null;
+  if (!Number.isFinite(amountFils) || amountFils < 0) amountFils = 0;
 
   // Keep the human-readable fee breakdown at the top of raw_text so it shows in
   // the Bank Inbox and carries into the expense on approval.
@@ -294,12 +354,13 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   // Only ping Marsha + owner when there's real money to review. Zero-amount
   // emails (statements, OTPs, marketing, or a charge our parser couldn't read)
   // are still captured silently in the Bank Inbox — no notification noise.
-  if (amountFils > 0) {
+  if (amountFils > 0 || provider === 'anthropic') {
     const aed = (amountFils / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const tag = provider === 'other' ? '' : `${providerLabel(provider, from)} · `;
     const clip = att ? ' 📎 receipt attached' : '';
     const title = '🏦 New bank transaction — needs review';
-    const bodyMsg = `${tag}AED ${aed} — ${merchant}.${clip} Open Bank Inbox to review and approve.`;
+    const amtPart = amountFils > 0 ? `AED ${aed} — ` : 'amount not read — ';
+    const bodyMsg = `${tag}${amtPart}${merchant}.${clip} Open Bank Inbox to review and approve.`;
     const targets = await pool.query<{ id: string }>(
       `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
     );
@@ -372,13 +433,14 @@ export async function approveBankTransaction(
   if (tx.status !== 'pending') return { ok: false, reason: `already_${tx.status}` };
 
   const isSettlement = tx.source === 'tabby' || tx.source === 'tamara';
+  const isAnthropic = tx.source === 'anthropic' || String(tx.merchant ?? '').toLowerCase() === 'anthropic';
   // For settlement fees, the raw_text starts with the readable fee breakdown.
-  const settlementDesc = isSettlement
+  const settlementDesc = (isSettlement || isAnthropic)
     ? String(tx.raw_text ?? '').split('\n')[0].slice(0, 300)
     : null;
   const description = (opts.description ?? settlementDesc ?? tx.merchant ?? 'Bank transaction').toString().slice(0, 300);
   const vendor = (opts.vendor ?? tx.merchant ?? null);
-  const defaultCategory = isSettlement ? 'Payment Fees' : tx.kind === 'transfer' ? 'transfer' : 'general';
+  const defaultCategory = isSettlement ? 'Payment Fees' : isAnthropic ? 'Dues and Subscriptions' : tx.kind === 'transfer' ? 'transfer' : 'general';
   const category = (opts.category ?? defaultCategory).toString().slice(0, 80);
   const paymentMethod = opts.paymentMethod ?? (isSettlement ? 'settlement' : tx.kind === 'transfer' ? 'bank_transfer' : 'card');
   const spentOn = opts.spentOn ?? tx.posted_on ?? null;
