@@ -14,28 +14,32 @@ function PayButton({ kind, name, suggestedFils, month, paid, paidDisplay, onPaid
   kind: 'part_timer' | 'driver'; name: string; suggestedFils: number; month?: string; paid: boolean; paidDisplay: string | null; onPaid: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [amt, setAmt] = useState(suggestedFils ? String(suggestedFils / 100) : '');
+  const [err, setErr] = useState<string | null>(null);
   if (paid) return <span style={{ fontSize: 11.5, fontWeight: 800, color: C.green }}>✓ Paid {paidDisplay}</span>;
+  if (!open) return <Button onClick={() => { setErr(null); setOpen(true); }} style={{ padding: '5px 12px', fontSize: 11.5 }}>💵 Pay</Button>;
+  const submit = async () => {
+    const fils = Math.round(Number(String(amt).replace(/,/g, '')) * 100);
+    if (!Number.isFinite(fils) || fils <= 0) { setErr('Enter a valid amount'); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await api.markStaffPaid({ kind, name, amountFils: fils, month });
+      // WhatsApp not live → quietly copy their summary so it can be pasted.
+      if (r?.summary && !r.whatsappSent) { try { await navigator.clipboard.writeText(r.summary); } catch { /* ignore */ } }
+      setOpen(false); onPaid();
+    } catch (e: any) { setErr(e?.message ?? 'Could not record the payment.'); }
+    finally { setBusy(false); }
+  };
   return (
-    <Button disabled={busy} onClick={async () => {
-      const cur = suggestedFils ? String(suggestedFils / 100) : '';
-      const v = prompt(`Amount paid to ${name} (AED):`, cur);
-      if (v == null) return;
-      const fils = Math.round(Number(v) * 100);
-      // Number('') is 0 — reject blank/zero so a cleared prompt can't mark
-      // someone "Paid AED 0" (and send them a zero summary).
-      if (!Number.isFinite(fils) || fils <= 0) { alert('Enter a valid amount.'); return; }
-      setBusy(true);
-      try {
-        const r = await api.markStaffPaid({ kind, name, amountFils: fils, month });
-        onPaid();
-        if (r?.summary) {
-          const msg = r.whatsappSent ? 'Paid ✓ — WhatsApp sent to them.' : 'Paid ✓\n\nWhatsApp isn’t live yet — copy their summary to send manually?';
-          if (r.whatsappSent) { alert(msg); }
-          else if (confirm(msg)) { try { await navigator.clipboard.writeText(r.summary); } catch (_) { alert(r.summary); } }
-        }
-      } catch (e: any) { alert(e?.message ?? 'Could not record the payment.'); }
-      finally { setBusy(false); }
-    }} style={{ padding: '5px 12px', fontSize: 11.5 }}>💵 Pay</Button>
+    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <input value={amt} autoFocus inputMode="decimal" placeholder="AED"
+        onChange={(e) => setAmt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+        style={{ width: 76, border: `1px solid ${C.line}`, borderRadius: 8, padding: '5px 8px', fontSize: 12, fontWeight: 700, outline: 'none', background: '#fff', color: C.ink }} />
+      <Button disabled={busy} onClick={submit} style={{ padding: '5px 12px', fontSize: 11.5 }}>{busy ? '…' : 'Save'}</Button>
+      <button onClick={() => setOpen(false)} style={{ border: 'none', background: 'none', color: C.muted, fontWeight: 800, cursor: 'pointer' }}>✕</button>
+      {err && <span style={{ fontSize: 10.5, fontWeight: 700, color: C.red }}>{err}</span>}
+    </span>
   );
 }
 
@@ -124,18 +128,18 @@ const DRIVERS = [
 function DeliveryRow({ d, onChange }: { d: any; onChange: () => void }) {
   const isEvent = String(d.id).startsWith('event:');
   const realId = String(d.id).split(':')[1];
+  const [pOpen, setPOpen] = useState(false);
+  const [p, setP] = useState(d.priceFils != null ? String(d.priceFils / 100) : '');
   const setTruck = async (truck: 'small' | 'big') => {
     if (isEvent) await api.setEventDelivery(realId, { truck }); else await api.updateDelivery(realId, { truck });
     onChange();
   };
-  const editPrice = async () => {
-    const cur = d.priceFils != null ? String(d.priceFils / 100) : '';
-    const v = prompt('Delivery price (AED):', cur);
-    if (v == null) return;
-    const fils = v.trim() === '' ? null : Math.round(Number(v) * 100);
-    if (v.trim() !== '' && !Number.isFinite(fils as number)) return;
+  const savePrice = async () => {
+    const t = String(p).replace(/,/g, '').trim();
+    const fils = t === '' ? null : Math.round(Number(t) * 100);
+    if (t !== '' && !Number.isFinite(fils as number)) return;
     if (isEvent) await api.setEventDelivery(realId, { priceFils: fils }); else await api.updateDelivery(realId, { priceFils: fils });
-    onChange();
+    setPOpen(false); onChange();
   };
   return (
     <div style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px' }}>
@@ -152,9 +156,18 @@ function DeliveryRow({ d, onChange }: { d: any; onChange: () => void }) {
             borderRadius: 9, padding: '5px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
           }}>{t === 'small' ? '🚐 Small' : '🚛 Big'} truck</button>
         ))}
-        <button onClick={editPrice} style={{ marginLeft: 'auto', border: `1px solid ${C.line}`, background: '#fff', borderRadius: 9, padding: '5px 12px', fontSize: 12.5, fontWeight: 800, color: d.priceFils != null ? C.pinkDeep : C.muted2, cursor: 'pointer' }}>
-          {d.priceDisplay}{d.priceManual ? ' ✎' : ''}
-        </button>
+        {pOpen ? (
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            <input value={p} autoFocus inputMode="decimal" placeholder="AED" onChange={(e) => setP(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') savePrice(); }}
+              style={{ width: 74, border: `1px solid ${C.line}`, borderRadius: 8, padding: '4px 8px', fontSize: 12, fontWeight: 700, outline: 'none', background: '#fff', color: C.ink }} />
+            <button onClick={savePrice} style={{ border: `1px solid ${C.pink}`, background: C.pink, color: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>Save</button>
+            <button onClick={() => setPOpen(false)} style={{ border: 'none', background: 'none', color: C.muted, fontWeight: 800, cursor: 'pointer' }}>✕</button>
+          </span>
+        ) : (
+          <button onClick={() => setPOpen(true)} style={{ marginLeft: 'auto', border: `1px solid ${C.line}`, background: '#fff', borderRadius: 9, padding: '5px 12px', fontSize: 12.5, fontWeight: 800, color: d.priceFils != null ? C.pinkDeep : C.muted2, cursor: 'pointer' }}>
+            {d.priceDisplay}{d.priceManual ? ' ✎' : ''}
+          </button>
+        )}
       </div>
     </div>
   );
