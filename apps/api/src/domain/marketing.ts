@@ -82,8 +82,8 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
   const isCorp = String(camp.audience || '').startsWith('corp:') || camp.audience === 'corporate';
   const { rows: recips } = isCorp
     ? await pool.query<{ id: string; email: string; name: string }>(
-        `SELECT id, email, COALESCE(NULLIF(contact_name,''), name) AS name
-           FROM corporate_leads WHERE ${corporateAudienceWhere(String(camp.audience))}`,
+        // {{name}} = the company name (so the email greets the organisation).
+        `SELECT id, email, name FROM corporate_leads WHERE ${corporateAudienceWhere(String(camp.audience))}`,
       )
     : await pool.query<{ id: string; email: string; name: string }>(
         `SELECT c.id, c.email, c.name FROM customers c WHERE ${audienceWhere(camp.audience as Audience)}`,

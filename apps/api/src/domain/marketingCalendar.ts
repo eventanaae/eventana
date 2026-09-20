@@ -567,34 +567,36 @@ function sendTime(dateISO: string, daysBefore: number): Date {
   return d;
 }
 
-/** Services we can bring, chosen to fit the occasion's kind of event. */
+/** The real things people actually request for this kind of event — photo booth,
+ *  a main backdrop/stand, giveaways, décor, and a hands-on activity (flower
+ *  arranging, pottery painting…). Chosen to fit each occasion, never generic. */
 function servicesFor(o: Occasion): string[] {
   const s = o.slug;
   if (['halloween', 'uae-childrens-day', 'hag-al-laila', 'back-to-school'].includes(s))
-    return ['🎈 Themed setups & balloon décor', '🎭 Characters, mascots & face painting', '🎪 Games host & fun activities', '🍭 Candy & treat stations', '🎂 Custom cakes & dessert tables'];
+    return ['📸 Photo booth with fun props', '🖼️ Themed backdrop & main stand', '🎈 Balloon & themed décor', '🎨 Kids activity station (crafts, pottery painting)', '🎁 Party favours & giveaways', '🎭 Characters, mascots & face painting'];
   if (s === 'graduation-season')
-    return ['🎓 Graduation stage & backdrop', '📸 Photo booth & props', '🍰 Dessert tables & catering', '🎈 Décor in the school/college colours'];
+    return ['🖼️ Graduation backdrop & stage', '📸 Photo booth with props', '🎓 Décor in the school/college colours', '🎁 Graduation favours & giveaways', '🍰 Dessert tables & catering'];
   if (['uae-mothers-day', 'intl-womens-day', 'intl-day-families'].includes(s))
-    return ['💐 Elegant tea or brunch styling', '🌸 Floral & table décor', '🍰 Dessert tables', '📸 A beautiful photo corner'];
+    return ['🌸 Elegant floral & themed décor', '🖼️ Feature backdrop & photo corner', '📸 Photo booth', '🎨 Flower-arranging or pottery-painting activity', '🎁 Thoughtful giveaways', '🍰 Tea / brunch dessert tables'];
   if (['uae-national-day', 'uae-flag-day'].includes(s))
-    return ['🇦🇪 Décor in the nation’s colours', '🍽️ Food & sweets stations', '🎈 Balloon & stage setups', '📸 Family photo corner'];
+    return ['🇦🇪 Décor & backdrop in the nation’s colours', '📸 Photo booth with national props', '🎁 National Day giveaways for staff & guests', '🎨 Cultural activity corner', '🍽️ Food & sweets stations'];
   if (['ramadan', 'eid-al-fitr', 'eid-al-adha'].includes(s))
-    return ['🌙 Ramadan majlis & Eid décor', '🍽️ Iftar / gathering catering stations', '🍰 Sweets & dessert tables', '✨ Lighting & ambience'];
+    return ['🌙 Majlis & Eid-themed décor', '🖼️ Feature backdrop & photo corner', '🍽️ Iftar / gathering catering stations', '🎁 Eid giveaways', '🍰 Sweets & dessert tables'];
   if (['new-year', 'christmas'].includes(s))
-    return ['✨ Festive décor & lighting', '🍰 Dessert tables & catering', '🎉 Entertainment & photo corner', '🎈 Themed setups'];
+    return ['✨ Festive décor & lighting', '🖼️ Feature backdrop & photo booth', '🎁 Festive giveaways', '🍰 Dessert tables & catering', '🎉 Entertainment'];
   if (s === 'intl-day-happiness')
-    return ['🎈 Joyful themed setups', '🍰 Dessert & treat tables', '📸 Fun photo corner'];
+    return ['🎈 Joyful themed setup & backdrop', '📸 Photo booth', '🎨 Feel-good activity (flower arranging / pottery)', '🎁 Small giveaways', '🍰 Treat tables'];
   if (s === 'world-teachers-day')
-    return ['🍎 Teacher-appreciation setups', '🍰 Dessert & catering', '🎈 Hall / classroom décor', '🎁 Thank-you touches'];
+    return ['🍎 Teacher-appreciation backdrop & décor', '📸 Photo booth', '🎁 Thank-you gifts & giveaways', '🎨 Appreciation activity corner', '🍰 Dessert & catering'];
   if (['world-cancer-day', 'breast-cancer-awareness'].includes(s))
-    return ['🎗️ Awareness booth & ribbon décor', '🧺 Refreshment & wellness corner', '🖼️ Pledge / message wall', '🎁 Branded giveaways & ribbons'];
+    return ['🖼️ Awareness backdrop & branded stand', '📸 Photo booth with awareness props', '🎗️ Ribbons, giveaways & tote bags', '🌸 Themed décor in the awareness colour', '🎨 Activity corner (flower arranging / pledge wall)', '🧺 Refreshments corner'];
   if (['world-health-day', 'world-environment-day', 'earth-day'].includes(s))
-    return ['🌿 Themed awareness booth & décor', '🧺 Healthy refreshment corner', '🖼️ Activity / pledge wall', '🎁 Branded giveaways'];
+    return ['🖼️ Awareness backdrop & branded stand', '📸 Photo booth', '🌱 Themed eco / wellness décor', '🎨 Activity corner (planting, pottery, flowers)', '🎁 Branded giveaways', '🧺 Healthy refreshments corner'];
   if (s === 'intl-youth-day')
-    return ['🎈 Stage & décor for the event', '🎪 Activities & games', '🍰 Refreshments & catering', '📸 Photo corner'];
+    return ['🖼️ Event backdrop & stage', '📸 Photo booth', '🎨 Interactive activity stations', '🎮 Games & entertainment', '🎁 Giveaways', '🍰 Refreshments'];
   if (s === 'older-persons-day')
-    return ['🤍 Warm gathering setup & décor', '🍰 Catering & refreshments', '🎶 Entertainment', '📸 Keepsake photo corner'];
-  return ['🎈 Themed décor & setups', '🍰 Cakes & dessert tables', '📸 Photo corner', '🎉 Entertainment & activities'];
+    return ['🤍 Warm gathering setup & backdrop', '📸 Keepsake photo corner', '🎨 Gentle activity (flower arranging)', '🎶 Entertainment', '🍰 Catering & refreshments', '🎁 Thoughtful giveaways'];
+  return ['📸 Photo booth', '🖼️ Feature backdrop & main stand', '🌸 Beautiful themed décor', '🎨 Interactive activity (flowers / pottery)', '🎁 Giveaways & favours', '🍰 Catering & dessert tables'];
 }
 
 /** Inner campaign HTML (wrapped in the Eventana shell — which adds the WhatsApp
@@ -620,25 +622,28 @@ export function buildOccasionBody(o: Occasion): string {
  *  tailored services and the shell's WhatsApp contact. No website link. */
 export function buildCorporateBody(o: Occasion): string {
   const services = servicesFor(o);
-  const hook = o.greetingOnly
-    ? `As ${o.name} approaches, Eventana would like to send your team our warmest wishes.`
-    : `With ${o.name} coming up, it’s the perfect time to plan a memorable event for your team, students or guests — and Eventana can handle every detail.`;
-  const list = o.greetingOnly
-    ? ''
-    : `
-    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">How we can help your organisation:</p>
+  const servicesList = `
+    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">What we can arrange for ${o.name}:</p>
     <ul style="margin:0;padding-left:20px">
       ${services.map((x) => `<li style="margin:0 0 6px">${x}</li>`).join('')}
-      <li style="margin:0 0 6px">🏢 Corporate & staff celebrations, openings and ceremonies</li>
-      <li style="margin:0 0 6px">🎓 School & university events, festivals and prize days</li>
-    </ul>
-    <p style="margin:14px 0 0">We work to your budget and timeline, and manage setup and teardown end-to-end.</p>`;
+    </ul>`;
+  // A strong, specific "why us" — local cultural expertise is our real edge.
+  const whyUs = `
+    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">Why organisations choose Eventana:</p>
+    <ul style="margin:0;padding-left:20px">
+      <li style="margin:0 0 6px">🇦🇪 We know the UAE’s occasions and local culture better than anyone — every detail done right and appropriate.</li>
+      <li style="margin:0 0 6px">🎨 Concepts tailored to your brand, theme and budget — not off-the-shelf.</li>
+      <li style="margin:0 0 6px">✅ Fully managed — design, setup and teardown handled end-to-end.</li>
+      <li style="margin:0 0 6px">💛 Trusted across Abu Dhabi &amp; Dubai by families and organisations alike.</li>
+    </ul>`;
   return `
     <p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>
-    <p style="margin:0 0 14px">Dear {{name}},</p>
-    <p style="margin:0 0 4px">${hook}</p>
-    ${list}
-    <p style="margin:16px 0 0">Warm regards,<br/>The Eventana Team</p>`;
+    <p style="margin:0 0 14px">Hello <b>{{name}}</b>,</p>
+    <p style="margin:0 0 4px">With ${o.name} coming up, many organisations across the UAE mark it with a special activity for their people and guests — and Eventana can create it beautifully, tailored to you.</p>
+    ${servicesList}
+    ${whyUs}
+    <p style="margin:16px 0 6px">Share your date and a rough budget, and we’ll send you a tailored proposal.</p>
+    <p style="margin:12px 0 0">Warm regards,<br/>The Eventana Team</p>`;
 }
 
 const GATE = () => String(process.env.MARKETING_CALENDAR ?? 'on').toLowerCase() !== 'off';
@@ -774,7 +779,7 @@ export async function regenerateOccasionDrafts(opts?: { all?: boolean }): Promis
   // website button (`<a `), which the new template never produces. This makes it
   // safe to run every sweep: new drafts and manual plain-text edits never match,
   // so a person's edits are never clobbered. `all:true` rewrites every draft.
-  const staleOnly = opts?.all ? '' : `AND (body_html LIKE '%<a %' OR body_html LIKE '%Or reply to this email%')`;
+  const staleOnly = opts?.all ? '' : `AND (body_html LIKE '%<a %' OR body_html LIKE '%Or reply to this email%' OR body_html LIKE '%students or guests%' OR body_html LIKE '%How we can help your organisation%')`;
   const { rows } = await pool.query<{ id: string; dedupe_key: string }>(
     `SELECT id, dedupe_key FROM email_campaigns
       WHERE source IN ('occasion','occasion_corp')
