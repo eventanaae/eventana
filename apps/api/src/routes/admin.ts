@@ -4913,6 +4913,35 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
+  /** Create a NEW product/service (was missing — the app could only edit/toggle
+   *  existing ones, so items never migrated from QuickBooks couldn't be added). */
+  app.post('/api/admin/services', async (request, reply) => {
+    const schema = z.object({
+      name: z.string().min(1).max(120),
+      priceFils: z.number().int().min(0),
+      categoryId: z.string().min(1).max(80),
+      celebrationTypes: z.array(z.string().max(40)).optional(),
+      pricingKind: z.enum(['flat', 'per_piece', 'per_child']).optional(),
+      active: z.boolean().optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request', details: p.error.flatten() });
+    const catOk = await pool.query(`SELECT 1 FROM service_categories WHERE id = $1`, [p.data.categoryId]);
+    if (!catOk.rowCount) return reply.status(400).send({ error: 'bad_category', message: 'Choose an existing category.' });
+    const base = p.data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'item';
+    const id = `${base}-${Math.random().toString(36).slice(2, 7)}`;
+    const pricing = { kind: p.data.pricingKind ?? 'flat' };
+    const cts = p.data.celebrationTypes ?? [];
+    await pool.query(
+      `INSERT INTO services (id, name, category_id, price_fils, pricing, celebration_types, active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [id, p.data.name, p.data.categoryId, p.data.priceFils, JSON.stringify(pricing), cts, p.data.active ?? true],
+    );
+    invalidateConfigCache();
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'service_create', target: id, detail: { name: p.data.name, priceFils: p.data.priceFils } });
+    return { id, name: p.data.name, priceFils: p.data.priceFils, active: p.data.active ?? true };
+  });
+
   app.patch('/api/admin/services/:serviceId', async (request, reply) => {
     const { serviceId } = request.params as { serviceId: string };
     const schema = z.object({

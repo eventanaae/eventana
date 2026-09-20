@@ -17,13 +17,16 @@ const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing:
 export function Products() {
   const [cat, setCat] = useState<{ packages: any[]; services: any[] } | null>(null);
   const [custom, setCustom] = useState<any[] | null>(null);
+  const [meta, setMeta] = useState<{ categories: any[]; celebrationTypes: any[] }>({ categories: [], celebrationTypes: [] });
   const [edit, setEdit] = useState<{ kind: 'package' | 'service'; item: any } | null>(null);
   const [editCustom, setEditCustom] = useState<any | null>(null);
   const [addCustom, setAddCustom] = useState(false);
+  const [addService, setAddService] = useState(false);
 
   const load = () => {
     api.catalog().then(setCat).catch(() => setCat({ packages: [], services: [] }));
     api.products().then((r) => setCustom(r.rows)).catch(() => setCustom([]));
+    api.catalogue().then((c: any) => setMeta({ categories: c.categories ?? [], celebrationTypes: c.celebrationTypes ?? [] })).catch(() => {});
   };
   useEffect(() => { load(); }, []);
   if (!cat || !custom) return <Spinner />;
@@ -38,7 +41,7 @@ export function Products() {
         <CatalogList items={cat.packages} onEdit={(item) => setEdit({ kind: 'package', item })} />
       </Panel>
 
-      <Panel title={`✨ Services & add-ons (${cat.services.length})`}>
+      <Panel title={`✨ Services & add-ons (${cat.services.length})`} action={<Button onClick={() => setAddService(true)}>+ Add</Button>}>
         <CatalogList items={cat.services} onEdit={(item) => setEdit({ kind: 'service', item })} />
       </Panel>
 
@@ -60,6 +63,7 @@ export function Products() {
         ))}
       </Panel>
 
+      {addService && <NewServiceEditor categories={meta.categories} celebrationTypes={meta.celebrationTypes} onClose={() => setAddService(false)} onSaved={() => { setAddService(false); load(); }} />}
       {edit && <CatalogEditor kind={edit.kind} item={edit.item} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
       {(editCustom || addCustom) && (
         <CustomEditor item={editCustom} onClose={() => { setEditCustom(null); setAddCustom(false); }} onSaved={() => { setEditCustom(null); setAddCustom(false); load(); }} />
@@ -119,6 +123,56 @@ function CatalogEditor({ kind, item, onClose, onSaved }: { kind: 'package' | 'se
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
         <Button tone="ghost" onClick={onClose}>Cancel</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function NewServiceEditor({ categories, celebrationTypes, onClose, onSaved }: { categories: any[]; celebrationTypes: any[]; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? '');
+  const [types, setTypes] = useState<string[]>(celebrationTypes.map((t: any) => t.id)); // default: all
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const toggle = (id: string) => setTypes((t) => t.includes(id) ? t.filter((x) => x !== id) : [...t, id]);
+  const save = async () => {
+    if (!name.trim()) { setErr('Name is required.'); return; }
+    if (!categoryId) { setErr('Choose a category.'); return; }
+    const priceFils = Math.round((Number(String(price).replace(/,/g, '')) || 0) * 100);
+    setBusy(true); setErr(null);
+    try {
+      await api.serviceCreate({ name: name.trim(), priceFils, categoryId, celebrationTypes: types });
+      onSaved();
+    } catch (e: any) { setErr(e?.message ?? 'Could not add.'); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title="New product / service" onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={lbl}>Name</span><input value={name} onChange={(e) => setName(e.target.value)} style={input} placeholder="e.g. Balloon Decoration" autoFocus /></label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={lbl}>Price (AED)</span><input value={price} inputMode="decimal" onChange={(e) => setPrice(e.target.value)} style={input} /></label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <span style={lbl}>Category</span>
+          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} style={input}>
+            {categories.length === 0 && <option value="">—</option>}
+            {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={lbl}>Shows for which celebrations</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {celebrationTypes.map((t: any) => (
+              <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: C.ink, cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 8, padding: '5px 9px' }}>
+                <input type="checkbox" checked={types.includes(t.id)} onChange={() => toggle(t.id)} />{t.label ?? t.id}
+              </label>
+            ))}
+          </div>
+        </div>
+        {err && <div style={{ color: C.red, fontSize: 12.5, fontWeight: 700 }}>{err}</div>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button onClick={save} disabled={busy}>{busy ? 'Adding…' : 'Add product'}</Button>
+          <Button tone="ghost" onClick={onClose}>Cancel</Button>
+        </div>
       </div>
     </Modal>
   );

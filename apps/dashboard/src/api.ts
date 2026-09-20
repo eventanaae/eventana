@@ -731,6 +731,7 @@ export const api = {
   catalog: () => request<{ packages: any[]; services: any[] }>('/api/admin/catalog'),
   packageUpdate: (id: string, patch: { priceFils?: number; name?: string; active?: boolean }) => request(`/api/admin/packages/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   serviceUpdate: (id: string, patch: { priceFils?: number; active?: boolean }) => request(`/api/admin/services/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  serviceCreate: (body: { name: string; priceFils: number; categoryId: string; celebrationTypes?: string[]; pricingKind?: 'flat' | 'per_piece' | 'per_child'; active?: boolean }) => request(`/api/admin/services`, { method: 'POST', body: JSON.stringify(body) }),
   // Products (custom finance items) — manage price + description.
   products: () => request<{ rows: Array<{ id: number; name: string; priceFils: number; priceDisplay: string; description: string | null }> }>('/api/admin/products'),
   productUpdate: (id: number, patch: { name?: string; priceFils?: number; description?: string | null }) => request(`/api/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
