@@ -103,27 +103,53 @@ async function placesSearchPage(
   }
 }
 
-/** Pull the official published email from a business website (homepage). */
-async function emailFromWebsite(url: string): Promise<string | null> {
+/** An email that belongs to procurement / purchasing / tenders / suppliers. */
+const PROC_RE = /(procure|purchas|tender|supply|vendor|contract)/i;
+
+/** Fetch one page's HTML (short timeout, best-effort). */
+async function fetchHtml(url: string): Promise<string | null> {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, { signal: ctrl.signal, redirect: 'follow', headers: { 'user-agent': 'Mozilla/5.0 EventanaBot' } }).catch(() => null);
     clearTimeout(timer);
     if (!res || !res.ok) return null;
-    const html = (await res.text()).slice(0, 400_000);
-    // Prefer an explicit mailto:, else any address in the page.
-    const mailto = html.match(/mailto:([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})/i);
-    const found = mailto?.[1] ?? html.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i)?.[0] ?? null;
-    if (!found) return null;
-    const e = found.toLowerCase();
-    // Drop obvious non-contact/junk addresses.
-    if (/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(e)) return null;
-    if (/(example|sentry|wixpress|\.wix|godaddy|domain|yourdomain|email@|test@|no-?reply)/i.test(e)) return null;
-    return e;
+    return (await res.text()).slice(0, 400_000);
   } catch {
     return null;
   }
+}
+
+/** All plausible contact emails in a page (mailto first), junk filtered. */
+function pickEmails(html: string): string[] {
+  const set = new Set<string>();
+  for (const m of html.matchAll(/mailto:([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})/gi)) set.add(m[1].toLowerCase());
+  for (const m of html.matchAll(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi)) set.add(m[0].toLowerCase());
+  return [...set].filter(
+    (e) => !/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(e) &&
+      !/(example|sentry|wixpress|\.wix|godaddy|domain|yourdomain|email@|test@|no-?reply|\.io$)/i.test(e),
+  );
+}
+
+/**
+ * Find a business's published emails from its website — homepage plus a few
+ * likely pages (contact, procurement, suppliers, tenders). Returns the best
+ * PROCUREMENT email (preferred — they book with a budget) and a general one.
+ */
+async function findEmails(site: string): Promise<{ general: string | null; procurement: string | null }> {
+  const base = site.replace(/\/$/, '');
+  const pages = [site, `${base}/contact`, `${base}/contact-us`, `${base}/procurement`, `${base}/suppliers`, `${base}/tenders`];
+  const all = new Set<string>();
+  for (const p of pages) {
+    const html = await fetchHtml(p);
+    if (html) pickEmails(html).forEach((e) => all.add(e));
+    // Stop early once we already have a procurement address.
+    if ([...all].some((e) => PROC_RE.test(e))) break;
+  }
+  const arr = [...all];
+  const procurement = arr.find((e) => PROC_RE.test(e)) ?? null;
+  const general = arr.find((e) => /^(info|contact|hello|admin|reception|enquir|marketing)/i.test(e)) ?? arr[0] ?? null;
+  return { general, procurement };
 }
 
 /** True if a place looks like a UAE business worth keeping (has a phone or site). */
@@ -137,16 +163,17 @@ function keepable(p: PlaceLite): boolean {
  * bounded batch of leads that still lack an email from their website.
  * `maxPagesPerQuery` caps cost/time (1 page = 20 results, 3 = up to 60).
  */
-export async function collectCorporateLeads(opts?: { maxPagesPerQuery?: number; maxEnrich?: number }): Promise<{
+export async function collectCorporateLeads(opts?: { maxPagesPerQuery?: number; maxEnrich?: number; discover?: Array<{ category: CorpCategory; term: string }> }): Promise<{
   discovered: number; added: number; enriched: number;
 }> {
   if (!config.googleMapsApiKey) return { discovered: 0, added: 0, enriched: 0 };
   const maxPages = Math.max(0, Math.min(3, opts?.maxPagesPerQuery ?? 2));
-  const maxEnrich = Math.max(0, Math.min(120, opts?.maxEnrich ?? 50));
+  const maxEnrich = Math.max(0, Math.min(150, opts?.maxEnrich ?? 60));
+  const targets = opts?.discover ?? SEARCH_TARGETS;
   let discovered = 0;
   let added = 0;
 
-  for (const target of SEARCH_TARGETS) {
+  for (const target of targets) {
     for (const emirate of EMIRATES) {
       let pageToken: string | undefined;
       for (let page = 0; page < maxPages; page++) {
@@ -172,28 +199,33 @@ export async function collectCorporateLeads(opts?: { maxPagesPerQuery?: number; 
     }
   }
 
-  // Enrichment: pull emails for leads that have a website but no email yet.
-  const { rows: toEnrich } = await pool.query<{ id: string; website: string }>(
-    `SELECT id, website FROM corporate_leads
+  // Email + procurement pass: for leads with a website not yet checked, read their
+  // site and prefer a PROCUREMENT email (they book with a budget), else a general
+  // one. Progressive — a bounded batch per run — so it steadily upgrades the list.
+  const { rows: toEnrich } = await pool.query<{ id: string; website: string; email: string | null }>(
+    `SELECT id, website, email FROM corporate_leads
       WHERE website IS NOT NULL AND website <> ''
-        AND (email IS NULL OR email = '')
-        AND enriched_at IS NULL
-      ORDER BY created_at DESC LIMIT ${maxEnrich}`,
+        AND (procurement_checked = FALSE OR procurement_checked IS NULL)
+      ORDER BY (email IS NULL OR email = '') DESC, created_at DESC LIMIT ${maxEnrich}`,
   );
   let enriched = 0;
   for (const l of toEnrich) {
-    const email = await emailFromWebsite(l.website);
-    // Stamp enriched_at either way so we don't retry a site that has no email.
-    if (email) {
-      // Skip if another lead already owns this email (unique index).
+    const { general, procurement } = await findEmails(l.website);
+    // Procurement wins (even over an existing general email); else fill if empty.
+    const chosen = procurement ?? (!l.email ? general : null);
+    if (chosen) {
       await pool.query(
-        `UPDATE corporate_leads SET email = $2, enriched_at = now(), updated_at = now()
-          WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM corporate_leads x WHERE lower(x.email) = lower($2))`,
-        [l.id, email],
+        `UPDATE corporate_leads
+            SET email = $2,
+                contact_name = CASE WHEN $3 THEN 'Procurement' ELSE contact_name END,
+                enriched_at = now(), updated_at = now()
+          WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM corporate_leads x WHERE x.id <> $1 AND lower(x.email) = lower($2))`,
+        [l.id, chosen, Boolean(procurement)],
       ).catch(() => {});
       enriched++;
     }
-    await pool.query(`UPDATE corporate_leads SET enriched_at = now() WHERE id = $1 AND enriched_at IS NULL`, [l.id]).catch(() => {});
+    // Mark checked so we don't refetch this site every day.
+    await pool.query(`UPDATE corporate_leads SET procurement_checked = TRUE, enriched_at = COALESCE(enriched_at, now()) WHERE id = $1`, [l.id]).catch(() => {});
     await new Promise((r) => setTimeout(r, 150));
   }
 
@@ -202,25 +234,34 @@ export async function collectCorporateLeads(opts?: { maxPagesPerQuery?: number; 
 }
 
 /**
- * Weekly auto-collection from the periodic sweep. Runs at most once per ~6.5
- * days (guarded by the newest places-sourced lead). Gated by CORP_COLLECT and a
- * Google key. Discovery-only cost is small; enrichment is free (website reads).
+ * DAILY auto-collection from the periodic sweep (runs at most once per ~20h,
+ * guarded by app_kv). To keep the paid Places cost low it rotates: the FIRST ever
+ * run does a full discovery, then each day discovers a small rotating slice of
+ * categories (full coverage every few days) while the free email/procurement
+ * enrichment runs every day. Gated by CORP_COLLECT + a Google key.
  */
 export async function sweepCorporateCollect(): Promise<number> {
   if (String(process.env.CORP_COLLECT ?? 'on').toLowerCase() === 'off') return 0;
   if (!config.googleMapsApiKey) return 0;
-  const recent = await pool.query(
-    `SELECT 1 FROM corporate_leads WHERE source = 'places' AND created_at > now() - interval '6 days' LIMIT 1`,
-  );
-  // If we collected within the last 6 days, only run the (free) enrichment pass,
-  // never a fresh paid discovery. A brand-new table (no places rows) runs full.
-  const anyPlaces = await pool.query(`SELECT 1 FROM corporate_leads WHERE source = 'places' LIMIT 1`);
-  if (recent.rowCount && anyPlaces.rowCount) {
-    const { enriched } = await collectCorporateLeads({ maxPagesPerQuery: 0, maxEnrich: 50 }).catch(() => ({ enriched: 0 }));
-    return enriched;
+  // Once-per-day guard.
+  const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_collect_at'`).catch(() => ({ rows: [] as { v: string }[] }));
+  const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;
+  if (Date.now() - lastAt < 20 * 3600 * 1000) return 0;
+
+  const anyPlaces = await pool.query(`SELECT 1 FROM corporate_leads WHERE source = 'places' LIMIT 1`).catch(() => ({ rowCount: 0 }));
+  let discover: Array<{ category: CorpCategory; term: string }>;
+  if (!anyPlaces.rowCount) {
+    discover = SEARCH_TARGETS; // first run ever — pull everything
+  } else {
+    // Rotate ~2 categories per day so the whole set is refreshed every few days.
+    const day = Math.floor(Date.now() / 86_400_000);
+    const n = SEARCH_TARGETS.length;
+    const i = (day * 2) % n;
+    discover = [SEARCH_TARGETS[i], SEARCH_TARGETS[(i + 1) % n]];
   }
-  const { added } = await collectCorporateLeads({ maxPagesPerQuery: 2, maxEnrich: 60 });
-  return added;
+  const res = await collectCorporateLeads({ maxPagesPerQuery: anyPlaces.rowCount ? 1 : 2, maxEnrich: 60, discover }).catch(() => ({ added: 0, enriched: 0 }));
+  await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_collect_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+  return (res.added ?? 0) + (res.enriched ?? 0);
 }
 
 /** WHERE clause for an emailable corporate segment ('all' or a category). */

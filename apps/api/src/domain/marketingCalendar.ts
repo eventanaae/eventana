@@ -599,13 +599,16 @@ function servicesFor(o: Occasion): string[] {
   return ['📸 Photo booth', '🖼️ Feature backdrop & main stand', '🌸 Beautiful themed décor', '🎨 Interactive activity (flowers / pottery)', '🎁 Giveaways & favours', '🍰 Catering & dessert tables'];
 }
 
-/** Owner-authored overrides for an occasion's email (from occasion_settings). */
-export interface OccasionOverride { services?: string[]; intro?: string; offer?: string }
+/** Owner-authored overrides for an occasion's email (from occasion_settings).
+ *  `customConsumer`/`customCorp` are FULL bodies learned from the owner's edits —
+ *  when present they replace the generated body entirely for that audience. */
+export interface OccasionOverride { services?: string[]; intro?: string; offer?: string; customConsumer?: string; customCorp?: string }
 
 /** Inner campaign HTML (wrapped in the Eventana shell — which adds the WhatsApp
  *  contact CTA — at send time). Greeting-only occasions carry no services/pitch.
  *  `ov` lets the owner override the services list, intro, and add a CUSTOMER offer. */
 export function buildOccasionBody(o: Occasion, ov?: OccasionOverride): string {
+  if (ov?.customConsumer) return ov.customConsumer; // learned from the owner's edit
   const heading = `<p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>`;
   const greet = `<p style="margin:0 0 14px">Hi {{name}},</p>`;
   const intro = `<p style="margin:0 0 14px">${ov?.intro || o.copy.intro}</p>`;
@@ -632,6 +635,7 @@ export function buildOccasionBody(o: Occasion, ov?: OccasionOverride): string {
  *  clinics, etc. Positions Eventana as their events partner, with the same
  *  tailored services and the shell's WhatsApp contact. No website link. */
 export function buildCorporateBody(o: Occasion, ov?: OccasionOverride): string {
+  if (ov?.customCorp) return ov.customCorp; // learned from the owner's edit
   const services = (ov?.services && ov.services.length ? ov.services : servicesFor(o));
   const servicesList = `
     <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">What we can arrange for ${o.name}:</p>
@@ -659,13 +663,35 @@ export function buildCorporateBody(o: Occasion, ov?: OccasionOverride): string {
 
 /** The owner's saved overrides for an occasion (services / intro / offer). */
 export async function getOccasionOverrides(slug: string): Promise<OccasionOverride> {
-  const { rows } = await pool.query<{ services: string | null; intro: string | null; offer: string | null }>(
-    `SELECT services, intro, offer FROM occasion_settings WHERE slug = $1`, [slug],
-  ).catch(() => ({ rows: [] as { services: string | null; intro: string | null; offer: string | null }[] }));
+  type Row = { services: string | null; intro: string | null; offer: string | null; custom_body_consumer: string | null; custom_body_corp: string | null };
+  const { rows } = await pool.query<Row>(
+    `SELECT services, intro, offer, custom_body_consumer, custom_body_corp FROM occasion_settings WHERE slug = $1`, [slug],
+  ).catch(() => ({ rows: [] as Row[] }));
   const r = rows[0];
   if (!r) return {};
   const services = r.services ? r.services.split(/\r?\n/).map((s: string) => s.trim()).filter(Boolean) : undefined;
-  return { services: services && services.length ? services : undefined, intro: r.intro || undefined, offer: r.offer || undefined };
+  return {
+    services: services && services.length ? services : undefined,
+    intro: r.intro || undefined, offer: r.offer || undefined,
+    customConsumer: r.custom_body_consumer || undefined, customCorp: r.custom_body_corp || undefined,
+  };
+}
+
+/** Persist the owner's manual edit of an occasion campaign as the reusable body
+ *  for that audience — the system "learns" so next time it's ready. */
+export async function learnFromCampaign(id: number): Promise<void> {
+  const { rows } = await pool.query<{ dedupe_key: string | null; source: string; body_html: string }>(
+    `SELECT dedupe_key, source, body_html FROM email_campaigns WHERE id = $1`, [id],
+  );
+  const c = rows[0];
+  if (!c?.dedupe_key || !['occasion', 'occasion_corp'].includes(c.source)) return;
+  const slug = c.dedupe_key.split('|')[1];
+  const col = c.dedupe_key.endsWith('|corp') ? 'custom_body_corp' : 'custom_body_consumer';
+  await pool.query(
+    `INSERT INTO occasion_settings (slug, ${col}, updated_at) VALUES ($1,$2,now())
+     ON CONFLICT (slug) DO UPDATE SET ${col} = EXCLUDED.${col}, updated_at = now()`,
+    [slug, c.body_html],
+  ).catch(() => {});
 }
 
 /** Save (upsert) the owner's overrides for an occasion; reused every year. */
@@ -697,10 +723,14 @@ export async function regenerateCampaign(id: number): Promise<boolean> {
   const isCorp = c.dedupe_key.endsWith('|corp');
   const o = OCCASIONS.find((x) => x.slug === slug);
   if (!o) return false;
+  // Regenerate = throw away any learned custom body and rebuild fresh from the
+  // template (that's the whole point — the owner didn't like the current copy).
   const ov = await getOccasionOverrides(slug);
+  const fresh: OccasionOverride = { ...ov, customConsumer: undefined, customCorp: undefined };
   const subject = isCorp ? `${o.copy.subject} — for your organisation` : o.copy.subject;
-  const body = isCorp ? buildCorporateBody(o, ov) : buildOccasionBody(o, ov);
+  const body = isCorp ? buildCorporateBody(o, fresh) : buildOccasionBody(o, fresh);
   await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1`, [id, subject, body]);
+  await pool.query(`UPDATE occasion_settings SET ${isCorp ? 'custom_body_corp' : 'custom_body_consumer'} = NULL WHERE slug = $1`, [slug]).catch(() => {});
   return true;
 }
 

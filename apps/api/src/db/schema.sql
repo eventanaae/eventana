@@ -932,7 +932,11 @@ CREATE TABLE IF NOT EXISTS corporate_leads (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS procurement_checked BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_ext_idx ON corporate_leads (external_id) WHERE external_id IS NOT NULL;
+
+-- Tiny key→timestamp store for periodic-job guards (e.g. daily corp collect).
+CREATE TABLE IF NOT EXISTS app_kv (k TEXT PRIMARY KEY, v TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_email_idx ON corporate_leads (lower(email)) WHERE email IS NOT NULL AND email <> '';
 CREATE INDEX IF NOT EXISTS corporate_leads_cat_idx ON corporate_leads (category, status);
 
@@ -944,9 +948,13 @@ CREATE TABLE IF NOT EXISTS occasion_settings (
   services    TEXT,   -- one service per line; overrides the built-in list
   intro       TEXT,   -- optional custom intro paragraph
   offer       TEXT,   -- optional offer/discount line shown to CUSTOMERS only
+  custom_body_consumer TEXT, -- learned from owner edits: full customer email body
+  custom_body_corp     TEXT, -- learned from owner edits: full company email body
   updated_by  TEXT,
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE occasion_settings ADD COLUMN IF NOT EXISTS custom_body_consumer TEXT;
+ALTER TABLE occasion_settings ADD COLUMN IF NOT EXISTS custom_body_corp TEXT;
 
 -- ── Push notifications (#20) ─────────────────────────────────────────────
 -- Device tokens for FCM. owner_type is 'staff' or 'customer'; a token is

@@ -35,7 +35,7 @@ import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
-import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign } from '../domain/marketingCalendar.js';
+import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign, learnFromCampaign } from '../domain/marketingCalendar.js';
 import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -5588,6 +5588,9 @@ export async function adminRoutes(app: FastifyInstance) {
       [id, d.scheduledFor ?? null, status ?? null, d.subject ?? null, d.bodyHtml ?? null, d.audience ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    // Learn from the edit: if this is an auto occasion draft and the body was
+    // changed, remember the new copy so future years reuse it automatically.
+    if (d.bodyHtml) await learnFromCampaign(id).catch(() => {});
     return rows[0];
   });
 
