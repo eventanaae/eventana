@@ -321,7 +321,7 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; oc
       '✨ Pop-up activations — live experiences or light bites',
       '📸 Photo booth',
     ],
-    occasions: 'graduation ceremonies, Teachers’ Day, National Day & Flag Day, summer & freshers’ welcomes, and career fairs',
+    occasions: 'graduation ceremonies, Teachers’ Day, National Day & Flag Day, and summer & orientation events',
   },
   hospital: {
     subject: 'Moments your team & patients will treasure 💛',
@@ -351,7 +351,7 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; oc
       '🎨 Standout décor & styling',
       '🏆 Full milestone-event management',
     ],
-    occasions: 'Family Day, engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & Christmas',
+    occasions: 'Family Day, employee engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & Christmas',
   },
   government: {
     subject: 'Celebrations done to the right standard 🇦🇪',
@@ -361,7 +361,7 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; oc
       '🎨 Standout décor & styling',
       '🏆 Full milestone-event management',
     ],
-    occasions: 'Family Day, engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & the International Day of Happiness',
+    occasions: 'Family Day, employee engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & the International Day of Happiness',
   },
   company: {
     subject: 'Bring your team together — beautifully 🎉',
@@ -371,7 +371,7 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; oc
       '🎨 Standout décor & styling',
       '🏆 Full milestone-event management',
     ],
-    occasions: 'Family Day, engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & the International Day of Happiness',
+    occasions: 'Family Day, employee engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & the International Day of Happiness',
   },
   new_shop: {
     subject: 'Make your grand opening unforgettable 🎊',
@@ -381,7 +381,7 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; oc
       '✨ Pop-up activations or light bites',
       '🌸 Interactive workshops — flower arranging & pottery painting',
     ],
-    occasions: 'Family Day, engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & the International Day of Happiness',
+    occasions: '',
   },
   other: {
     subject: 'Celebrations, beautifully done ✨',
@@ -413,7 +413,7 @@ export function buildFirstTouchBody(category: CorpCategory): string {
     <p style="margin:0 0 10px">At Eventana Events, we don’t just decorate — we create experiences that bring your people together. Every concept is designed with real creativity, and <b>no one knows the UAE’s occasions and local culture like we do</b>. 💛</p>
     <p style="margin:12px 0 4px"><b>Who’s the right person</b> for events or procurement? Reply with their name and email.</p>
     ${servicesList}
-    <p style="margin:12px 0 4px">Perfect for ${p.occasions} — every occasion <b>fully branded to your logo</b>. ✨</p>
+    ${p.occasions ? `<p style="margin:12px 0 4px">Perfect for ${p.occasions} — every occasion <b>fully branded to your logo</b>. ✨</p>` : `<p style="margin:12px 0 4px">Every detail <b>fully branded to your logo</b>. ✨</p>`}
     <p style="margin:12px 0 6px">Share a date and rough budget and we’ll craft a proposal made just for you.</p>
     <p style="margin:12px 0 0">Warmly,<br/>The Eventana Team 🎈</p>`;
 }
