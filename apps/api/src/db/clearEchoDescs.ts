@@ -20,7 +20,7 @@ export async function clearEchoDescsFromEnv(): Promise<void> {
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'clear_echo_descs_v1'`).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const res = await pool.query(
-    `UPDATE expenses SET description = NULL WHERE lower(btrim(description)) = ANY($1::text[])`,
+    `UPDATE expenses SET description = '' WHERE lower(btrim(description)) = ANY($1::text[])`,
     [ECHO],
   );
   console.log(`[echo-desc] cleared ${res.rowCount} category-echo descriptions`);
