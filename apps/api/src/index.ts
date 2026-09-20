@@ -223,6 +223,8 @@ async function main() {
     await recategorizeExpensesFromEnv().catch((err) => console.error('[recat] failed:', err));
     const { dumpSuppliersFromEnv } = await import('./db/dumpSuppliers.js');
     await dumpSuppliersFromEnv().catch((err) => console.error('[sup-dump] failed:', err));
+    const { dumpSupplierSheetFromEnv } = await import('./db/dumpSupplierSheet.js');
+    await dumpSupplierSheetFromEnv().catch((err) => console.error('[sheet-dump] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
