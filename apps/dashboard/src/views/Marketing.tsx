@@ -34,6 +34,7 @@ export function Marketing() {
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
+  const [month, setMonth] = useState<string>('all');
 
   const load = () => {
     api.marketing().then(setData).catch(() => setData(null));
@@ -131,9 +132,21 @@ export function Marketing() {
           A branded draft email is prepared for you automatically a few weeks before each occasion — you just
           <b> review, edit and approve</b>. Nothing is ever sent without your approval. Islamic dates are estimates — please confirm the Hijri date before approving.
         </div>
+        {cal && cal.length > 0 && (() => {
+          const months = Array.from(new Set(cal.filter((o: any) => o.dateISO).map((o: any) => o.dateISO.slice(0, 7)))).sort();
+          const monthLabel = (m: string) => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+          return (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              <button onClick={() => setMonth('all')} style={{ ...chip, ...(month === 'all' ? chipActive : {}) }}>All</button>
+              {months.map((m) => (
+                <button key={m} onClick={() => setMonth(m)} style={{ ...chip, ...(month === m ? chipActive : {}) }}>{monthLabel(m)}</button>
+              ))}
+            </div>
+          );
+        })()}
         {!cal ? <Spinner /> : cal.length === 0 ? <Empty>No occasions.</Empty> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {cal.map((o: any) => {
+            {cal.filter((o: any) => month === 'all' || (o.dateISO && o.dateISO.slice(0, 7) === month)).map((o: any) => {
               const tone = OCCASION_TONE[o.type] ?? OCCASION_TONE.seasonal;
               const dateLabel = o.dateISO
                 ? new Date(o.dateISO + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
@@ -310,7 +323,7 @@ function EditModal({ campaign, groups, onClose, onSave, onPreview, busy }: {
 }) {
   const [subject, setSubject] = useState(campaign.subject ?? '');
   const [audience, setAudience] = useState(campaign.audience ?? 'all');
-  const [bodyHtml, setBodyHtml] = useState(campaign.body_html ?? '');
+  const [bodyText, setBodyText] = useState(htmlToText(campaign.body_html ?? ''));
   const toLocal = (iso: string | null) => {
     if (!iso) return '';
     const d = new Date(iso); const p = (n: number) => String(n).padStart(2, '0');
@@ -319,15 +332,16 @@ function EditModal({ campaign, groups, onClose, onSave, onPreview, busy }: {
   const [schedule, setSchedule] = useState(toLocal(campaign.scheduled_for));
   return (
     <Modal title="Edit campaign" onClose={onClose} onSave={() => onSave({
-      subject: subject.trim(), audience, bodyHtml,
+      subject: subject.trim(), audience, bodyHtml: textToHtml(bodyText),
       scheduledFor: schedule ? new Date(schedule).toISOString() : undefined,
     })} busy={busy} saveLabel="Save">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Field label="Subject"><input value={subject} onChange={(e) => setSubject(e.target.value)} style={input} /></Field>
         <Field label="Who receives it"><AudienceSelect groups={groups} value={audience} onChange={setAudience} /></Field>
         <Field label="Send time"><input type="datetime-local" value={schedule} onChange={(e) => setSchedule(e.target.value)} style={input} /></Field>
-        <Field label="Email content (HTML)">
-          <textarea value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} rows={9} style={{ ...input, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }} />
+        <Field label="Message">
+          <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} rows={10} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }} />
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginTop: 4 }}>Just plain text. The logo, buttons and WhatsApp contact are added automatically — no code needed. Leave a blank line between paragraphs.</div>
         </Field>
         <button onClick={onPreview} style={miniBtn}>👁 Preview current version</button>
       </div>

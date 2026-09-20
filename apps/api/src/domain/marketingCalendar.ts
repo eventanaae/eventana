@@ -687,6 +687,23 @@ export async function sweepMarketingCalendar(): Promise<number> {
     console.log(`[marketing-calendar] prepared "${label}" for ${dateISO} (send ${scheduledFor.toISOString().slice(0, 10)})`);
   };
 
+  // A shared to-do for owner + Marsha ~a month before a SELLING occasion (never
+  // for greeting-only days). Whoever ticks it off clears it for both (link_key).
+  const ensureOccasionTask = async (o: Occasion, dateISO: string, year: number): Promise<void> => {
+    const linkKey = `mktg|${o.slug}|${year}`;
+    const exists = await pool.query(`SELECT 1 FROM focus_tasks WHERE link_key = $1 LIMIT 1`, [linkKey]);
+    if (exists.rowCount) return;
+    const dateLabel = new Date(`${dateISO}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+    const title = `📣 ${o.name} (${dateLabel}) — review & approve the marketing campaign`;
+    for (const t of targets) {
+      await pool.query(
+        `INSERT INTO focus_tasks (member_id, title, sort_order, link_key)
+         VALUES ($1,$2,COALESCE((SELECT MIN(sort_order) - 1 FROM focus_tasks WHERE member_id = $1 AND NOT done),0),$3)`,
+        [t.id, title, linkKey],
+      ).catch(() => {});
+    }
+  };
+
   for (const o of OCCASIONS) {
     const next = nextOccasionDate(o, now);
     if (!next) continue; // variable date not confirmed for an upcoming year
@@ -701,6 +718,15 @@ export async function sweepMarketingCalendar(): Promise<number> {
     // we actually have companies to email.
     if (!o.greetingOnly && haveCorp) {
       await createDraft(`occasion|${o.slug}|${next.year}|corp`, 'corp:all', `${o.copy.subject} — for your organisation`, buildCorporateBody(o), 'occasion_corp', `${o.name} (companies)`, next.dateISO, scheduledFor);
+    }
+    // Owner + Marsha to-do for selling occasions that actually have a draft to act
+    // on (greeting-only days like Commemoration Day never create a task).
+    if (!o.greetingOnly) {
+      const hasDraft = await pool.query(
+        `SELECT 1 FROM email_campaigns WHERE dedupe_key IN ($1,$2) LIMIT 1`,
+        [`occasion|${o.slug}|${next.year}`, `occasion|${o.slug}|${next.year}|corp`],
+      );
+      if (hasDraft.rowCount) await ensureOccasionTask(o, next.dateISO, next.year);
     }
   }
   return prepared;
@@ -733,6 +759,34 @@ export async function prepareOccasionNow(slug: string): Promise<{ id: string; cr
       : [o.copy.subject, buildOccasionBody(o), o.audience, scheduledFor.toISOString(), 'occasion', dedupeKey],
   );
   return { id: String(ins.rows[0].id), created: true };
+}
+
+/**
+ * Rebuild the subject + body of every still-editable auto occasion draft from the
+ * CURRENT templates — used after a template change so drafts prepared earlier pick
+ * up the new design (services list, no website link, etc.). Skips sent campaigns.
+ */
+export async function regenerateOccasionDrafts(): Promise<number> {
+  const { rows } = await pool.query<{ id: string; dedupe_key: string }>(
+    `SELECT id, dedupe_key FROM email_campaigns
+      WHERE source IN ('occasion','occasion_corp')
+        AND status IN ('draft','pending_approval','scheduled')
+        AND dedupe_key IS NOT NULL`,
+  );
+  let n = 0;
+  for (const r of rows) {
+    const parts = r.dedupe_key.split('|'); // occasion | slug | year | [corp]
+    const slug = parts[1];
+    const isCorp = parts[3] === 'corp';
+    const o = OCCASIONS.find((x) => x.slug === slug);
+    if (!o) continue;
+    const subject = isCorp ? `${o.copy.subject} — for your organisation` : o.copy.subject;
+    const body = isCorp ? buildCorporateBody(o) : buildOccasionBody(o);
+    await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1`, [r.id, subject, body]);
+    n++;
+  }
+  console.log(`[marketing] regenerated ${n} occasion draft(s)`);
+  return n;
 }
 
 /**

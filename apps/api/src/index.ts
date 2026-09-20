@@ -327,6 +327,13 @@ async function main() {
       const { startExpenseSync } = await import('./domain/quickbooks.js');
       console.log('[qb-sync] boot trigger:', startExpenseSync());
     }
+    // Regenerate existing auto occasion drafts from the current email templates
+    // after a template change (REGEN_OCCASION_DRAFTS=on). One-shot; safe to leave
+    // off afterwards. Skips sent campaigns; only rewrites editable drafts.
+    if (String(process.env.REGEN_OCCASION_DRAFTS ?? '').toLowerCase() === 'on') {
+      const { regenerateOccasionDrafts } = await import('./domain/marketingCalendar.js');
+      await regenerateOccasionDrafts().catch((err) => console.error('[marketing] regen failed:', err));
+    }
     // Read the REAL payment method for QuickBooks receipts from QuickBooks itself
     // (QB_METHODS=preview logs what it finds; =apply writes finance_receipts.paid_with).
     const { qbMethodsFromEnv } = await import('./domain/quickbooks.js');

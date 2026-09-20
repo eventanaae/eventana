@@ -6008,10 +6008,20 @@ export async function adminRoutes(app: FastifyInstance) {
               done_at = CASE WHEN $4 IS NULL THEN done_at
                              WHEN $4 THEN now() ELSE NULL END
         WHERE id = $1 AND member_id = $2
-        RETURNING id, title, done`,
+        RETURNING id, title, done, link_key`,
       [id, memberId, d.title ?? null, d.done ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    // A paired task (same link_key, e.g. a marketing job for owner + Marsha):
+    // completing/uncompleting one mirrors to the others so it clears for both.
+    if (d.done !== undefined && rows[0].link_key) {
+      await pool.query(
+        `UPDATE focus_tasks
+            SET done = $2, done_at = CASE WHEN $2 THEN now() ELSE NULL END
+          WHERE link_key = $1 AND id <> $3`,
+        [rows[0].link_key, d.done, id],
+      ).catch(() => {});
+    }
     return { id: Number(rows[0].id), title: rows[0].title, done: rows[0].done };
   });
 

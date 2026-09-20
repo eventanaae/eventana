@@ -1465,6 +1465,10 @@ CREATE TABLE IF NOT EXISTS focus_tasks (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS focus_tasks_member_idx ON focus_tasks (member_id, done, sort_order);
+-- Paired tasks (same job assigned to several people): completing one closes the
+-- others with the same link_key. Also dedupes auto-created tasks.
+ALTER TABLE focus_tasks ADD COLUMN IF NOT EXISTS link_key TEXT;
+CREATE INDEX IF NOT EXISTS focus_tasks_link_idx ON focus_tasks (link_key) WHERE link_key IS NOT NULL;
 
 -- ── Staff referral codes ────────────────────────────────────────────────────
 -- A personal code a crew member gives to a client they bring in. The customer
