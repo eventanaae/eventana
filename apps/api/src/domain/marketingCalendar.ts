@@ -89,6 +89,74 @@ export const OCCASIONS: Occasion[] = [
     },
   },
   {
+    slug: 'intl-womens-day',
+    name: 'International Women’s Day',
+    nameAr: 'يوم المرأة العالمي',
+    type: 'commercial',
+    audience: 'all',
+    leadDays: 20,
+    sendDaysBefore: 5,
+    fixed: { month: 3, day: 8 },
+    copy: {
+      subject: 'Celebrating the women who make life beautiful 💐',
+      heading: 'Happy International Women’s Day 💐',
+      intro:
+        'Today we honour the incredible women in our lives. Planning to bring the ladies together? We’ll style a beautiful gathering — an elegant tea, a brunch, or a full celebration.',
+      ctaLabel: 'Plan a celebration for her',
+    },
+  },
+  {
+    slug: 'uae-childrens-day',
+    name: 'UAE Children’s Day',
+    nameAr: 'يوم الطفل الإماراتي',
+    type: 'commercial',
+    audience: 'all',
+    leadDays: 20,
+    sendDaysBefore: 5,
+    fixed: { month: 3, day: 15 },
+    copy: {
+      subject: 'Make Children’s Day magical 🎈',
+      heading: 'It’s all about the little ones today 🎈',
+      intro:
+        'UAE Children’s Day is here! Celebrate the joy they bring with a fun, themed party — games, treats and happy faces all around. We’ll handle every detail.',
+      ctaLabel: 'Plan a Children’s Day party',
+    },
+  },
+  {
+    slug: 'intl-day-happiness',
+    name: 'International Day of Happiness',
+    nameAr: 'اليوم العالمي للسعادة',
+    type: 'seasonal',
+    audience: 'all',
+    leadDays: 16,
+    sendDaysBefore: 3,
+    fixed: { month: 3, day: 20 },
+    copy: {
+      subject: 'A little happiness goes a long way 🌸',
+      heading: 'Happy International Day of Happiness 🌸',
+      intro:
+        'Nothing spreads joy like celebrating together. On the Day of Happiness, gather the people you love — we’ll help you create a moment full of smiles.',
+      ctaLabel: 'Plan something joyful',
+    },
+  },
+  {
+    slug: 'intl-day-families',
+    name: 'International Day of Families',
+    nameAr: 'اليوم العالمي للأسرة',
+    type: 'commercial',
+    audience: 'all',
+    leadDays: 18,
+    sendDaysBefore: 4,
+    fixed: { month: 5, day: 15 },
+    copy: {
+      subject: 'Bring the whole family together 🤍',
+      heading: 'Happy International Day of Families 🤍',
+      intro:
+        'Family is everything. Celebrate yours with a gathering to remember — good food, warm décor, and time together while we take care of the rest.',
+      ctaLabel: 'Plan a family gathering',
+    },
+  },
+  {
     slug: 'graduation-season',
     name: 'Graduation season',
     nameAr: 'موسم التخرّج',
@@ -155,6 +223,23 @@ export const OCCASIONS: Occasion[] = [
       intro:
         'Halloween is almost here! Think themed décor, a candy station and costumes galore. We’ll build the whole spooky scene — you just bring the little monsters.',
       ctaLabel: 'Plan a Halloween party',
+    },
+  },
+  {
+    slug: 'world-teachers-day',
+    name: 'World Teachers’ Day',
+    nameAr: 'يوم المعلم',
+    type: 'commercial',
+    audience: 'all',
+    leadDays: 20,
+    sendDaysBefore: 5,
+    fixed: { month: 10, day: 5 },
+    copy: {
+      subject: 'Celebrate the teachers who shape our children 🍎',
+      heading: 'Happy Teachers’ Day 🍎',
+      intro:
+        'Behind every child’s success is a wonderful teacher. Planning a school or class appreciation? We’ll set up a warm, memorable celebration to thank them.',
+      ctaLabel: 'Plan a teacher appreciation',
     },
   },
   {
@@ -226,6 +311,24 @@ export const OCCASIONS: Occasion[] = [
     },
   },
   // ── Islamic / variable-date occasions — CONFIRM the Hijri date every year ──
+  {
+    slug: 'hag-al-laila',
+    name: 'Hag Al Laila',
+    nameAr: 'حق الليلة',
+    type: 'islamic',
+    audience: 'all',
+    leadDays: 20,
+    sendDaysBefore: 4,
+    // 15th of Sha'ban — ESTIMATE, confirm the Hijri date each year.
+    variable: { 2026: '2026-02-02', 2027: '2027-01-23' },
+    copy: {
+      subject: 'Hag Al Laila is coming — let’s celebrate 🌙🍬',
+      heading: 'Hag Al Laila Mubarak 🌙🍬',
+      intro:
+        'One of our most loved traditions! Bring the children together for a joyful Hag Al Laila — sweets, songs and a beautifully themed setup. We’ll make it special.',
+      ctaLabel: 'Plan a Hag Al Laila celebration',
+    },
+  },
   {
     slug: 'ramadan',
     name: 'Ramadan',
