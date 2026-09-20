@@ -32,12 +32,12 @@ import { DriverEvents } from './views/DriverEvents';
 import { DriverSchedule } from './views/DriverSchedule';
 import { Discounts } from './views/Discounts';
 import { TheWeek } from './views/TheWeek';
-import { BankInbox } from './views/BankInbox';
+import { Reports } from './views/Reports';
 import { ThemeBackfill } from './views/ThemeBackfill';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'overview' | 'finance' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek' | 'bank';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'reports' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -79,6 +79,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'staffpay', label: 'Part-timers & Drivers', icon: '🤡', title: 'Part-timers & Drivers', sub: 'This month’s clown/face-paint engagements & deliveries', section: 'staff' },
   // Business (owner)
   { id: 'ceo', label: 'CEO Dashboard', icon: '◆', title: 'CEO Dashboard', sub: 'Revenue, growth, insights & risks', section: 'business' },
+  { id: 'reports', label: 'Reports', icon: '📑', title: 'Reports & Audit', sub: 'Reconciliation, refund reasons, audit log & clean-up tools', section: 'business' },
   // Setup
   { id: 'settings', label: 'Settings', icon: '⚙', title: 'Settings', sub: 'Pricing, zones and integrations', section: 'admin' },
   { id: 'profile', label: 'Profile', icon: '👤', title: 'My Profile', sub: 'Your details, achievements & feedback', section: 'admin' },
@@ -90,7 +91,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'bank', 'kpis', 'marketing', 'discounts', 'themes', 'reviews', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'discounts', 'themes', 'reviews', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'themes', 'theweek', 'profile'],
@@ -250,7 +251,7 @@ export default function App() {
       {view === 'team' && <Team role={role} />}
       {view === 'leave' && <Leave role={role} />}
       {view === 'theweek' && <TheWeek />}
-      {view === 'bank' && <BankInbox role={role} />}
+      {view === 'reports' && <Reports />}
       {view === 'kpis' && <Kpis role={role} />}
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}
