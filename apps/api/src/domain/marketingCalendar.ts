@@ -536,12 +536,6 @@ export const OCCASIONS: Occasion[] = [
       intro: 'Plan a romantic surprise or a sweet celebration — styled décor, a dessert corner and every detail handled.', ctaLabel: 'Plan a Valentine’s surprise' },
   },
   {
-    slug: 'haq-al-laila', name: 'Haq Al Laila', nameAr: 'حق الليلة', type: 'commercial',
-    audience: 'all', leadDays: 20, sendDaysBefore: 7, variable: { 2026: '2026-02-02', 2027: '2027-01-23' },
-    copy: { subject: 'Celebrate Haq Al Laila the Emirati way 🌙', heading: 'Haq Al Laila is coming 🌙',
-      intro: 'Mark this beloved Emirati tradition with a joyful setup — sweets, giveaways and heritage décor for the little ones.', ctaLabel: 'Plan your Haq Al Laila' },
-  },
-  {
     slug: 'chinese-new-year', name: 'Chinese New Year', nameAr: 'رأس السنة الصينية', type: 'seasonal',
     audience: 'all', leadDays: 25, sendDaysBefore: 10, variable: { 2026: '2026-02-17', 2027: '2027-02-06' },
     copy: { subject: 'Ring in the Lunar New Year 🧧', heading: 'Happy Chinese New Year 🧧',
