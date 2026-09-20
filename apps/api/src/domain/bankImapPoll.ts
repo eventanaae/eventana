@@ -451,7 +451,7 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   // Runs once per tag (guarded in app_kv). Bump BANK_IMAP_REREAD_TAG to force a
   // fresh run later; no env flag needed for the first run.
-  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v7'}`;
+  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v8'}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const c = cfg();

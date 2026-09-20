@@ -24,6 +24,28 @@ export interface ParsedAlert {
 
 const clean = (s: string) => s.replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim();
 
+/** Strip zero-width / invisible padding (e.g. Stripe email preheaders) so two
+ *  forwards of the same receipt normalise to the same text. */
+const stripInvisible = (s: string) => s.replace(/[­​‌‍‎‏⁠͏﻿]/g, '');
+
+/**
+ * A STABLE reference for de-duplication: a receipt / transaction number that stays
+ * the same no matter how many times the email is forwarded, or which client added
+ * which "Fwd:"/"Re:" wrapper. This both prevents duplicates (the same receipt
+ * re-forwarded) and prevents collisions (two different receipts). Returns null
+ * when no reliable id is present — the caller then falls back to a content hash.
+ */
+function stableReference(provider: EmailProvider, subject: string, text: string): string | null {
+  const hay = stripInvisible(`${subject}\n${text}`);
+  if (provider === 'anthropic') {
+    const r = hay.match(/#\s*(\d{4}-\d{4}-\d{4})/); // Stripe receipt no. "#2500-9350-0530"
+    if (r) return `anthropic:receipt:${r[1]}`;
+    const inv = hay.match(/Invoice-([A-Z0-9]{5,}-\d{3,})/i); // "Invoice-9MJWOD7D-0003"
+    if (inv) return `anthropic:invoice:${inv[1].toUpperCase()}`;
+  }
+  return null;
+}
+
 /** Dubai "today" as YYYY-MM-DD, used when an alert has no year. */
 function dubaiToday(): string {
   return new Date(Date.now() + 4 * 3_600_000).toISOString().slice(0, 10);
@@ -281,13 +303,19 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   const subject = msg.subject ?? '';
   const from = msg.from ?? '';
   const text = msg.text ?? '';
+  const provider = classifyProvider(from, subject, text);
   const raw = clean(`${subject}\n${from}\n${text}`).slice(0, 4000);
-  const dedupeKey = createHash('sha256').update(`${source}|${raw}`).digest('hex');
+  // De-dupe by a STABLE reference (receipt/transaction number) when we can find
+  // one — so re-forwarding the same receipt never double-records it, and two
+  // different receipts never collide. Fall back to a content hash (with the
+  // invisible forward-padding stripped so two forwards still match).
+  const ref = stableReference(provider, subject, text);
+  const dedupeKey = createHash('sha256')
+    .update(ref ? `ref|${ref}` : `${source}|${stripInvisible(raw)}`)
+    .digest('hex');
 
   const dup = await pool.query<{ id: string }>(`SELECT id FROM bank_transactions WHERE dedupe_key = $1 LIMIT 1`, [dedupeKey]);
   if (dup.rows[0]) return { id: String(dup.rows[0].id), duplicate: true };
-
-  const provider = classifyProvider(from, subject, text);
 
   // For Tabby/Tamara payout emails, record what THEY deducted (the fee), not the
   // gross sales. Otherwise parseRakbankAlert doubles as a generic "AED <n>"
