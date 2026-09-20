@@ -269,6 +269,8 @@ async function main() {
     await vanInstallmentsFromEnv().catch((err) => console.error('[van] failed:', err));
     const { resyncCartTimesFromEnv } = await import('./db/resyncCartTimes.js');
     await resyncCartTimesFromEnv().catch((err) => console.error('[cart-resync] failed:', err));
+    const { clearEchoDescsFromEnv } = await import('./db/clearEchoDescs.js');
+    await clearEchoDescsFromEnv().catch((err) => console.error('[echo-desc] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
