@@ -387,8 +387,9 @@ export function Checkout({
   const dateTimeBlocked =
     Boolean(quote?.problems.some((p) => p.code === 'too_soon' || p.code === 'item_needs_lead' || p.code === 'end_after_midnight')) ||
     Boolean(quote?.unavailable && quote.unavailable.length > 0);
-  // Whether the current step is complete enough to reveal Next. Pay itself on
-  // step 6 stays gated by the unchanged `canPay` below — never weakened here.
+  // Whether the current step is complete enough to reveal Next. Step 6 (add-ons)
+  // is optional and step 7 has no Next — Pay there stays gated by the unchanged
+  // `canPay` below, never weakened here.
   const canAdvance =
     step === 1 ? true
       : step === 2 ? Boolean(zone) && !blocked
@@ -396,14 +397,14 @@ export function Checkout({
       : step === 4 ? Boolean(draft.eventDate) && Boolean(draft.startTime) && !dateTimeBlocked
       : step === 5 ? (Boolean(account) || (authMode === 'register' && guestReady))
       : true;
-  const goNext = () => { if (step < 6 && canAdvance) { setStep(step + 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
+  const goNext = () => { if (step < 7 && canAdvance) { setStep(step + 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
   const goStepBack = () => { if (step > 1) { setStep(step - 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
   const stepTitles = lang === 'ar'
-    ? ['شو اسم بطل الحفلة؟ 🎈', 'في أي إمارة بتكون الحفلة؟', 'وين بالضبط نجهّز الحفلة؟ 📍', 'متى موعد الحفلة؟ 🗓️', 'معلومات التواصل 💬', 'باقي تفاصيل بسيطة عشان نجهّز كل شي على ذوقك 💛']
-    : ["Who's the star of the party? 🎈", 'Which emirate is the party in?', 'Where exactly should we set up? 📍', 'When is the party? 🗓️', 'Your contact details 💬', "A few last details, then you're set 💛"];
+    ? ['شو اسم بطل الحفلة؟ 🎈', 'في أي إمارة بتكون الحفلة؟', 'وين بالضبط نجهّز الحفلة؟ 📍', 'متى موعد الحفلة؟ 🗓️', 'معلومات التواصل 💬', 'تبين تضيفين شي لحفلتك؟ ✨', 'باقي تفاصيل بسيطة عشان نجهّز كل شي على ذوقك 💛']
+    : ["Who's the star of the party? 🎈", 'Which emirate is the party in?', 'Where exactly should we set up? 📍', 'When is the party? 🗓️', 'Your contact details 💬', 'Want to add anything to your party? ✨', "A few last details, then you're set 💛"];
   const stepSubs = lang === 'ar'
-    ? ['خلّنا نكمل تفاصيل حفلتك ✨', '', '', '', '', '']
-    : ["Let's set up your celebration ✨", '', '', '', '', ''];
+    ? ['خلّنا نكمل تفاصيل حفلتك ✨', '', '', '', '', '', '']
+    : ["Let's set up your celebration ✨", '', '', '', '', '', ''];
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
@@ -427,12 +428,12 @@ export function Checkout({
       {/* Per-step header: a thin progress bar + a warm title that changes per
           step, styled with the same fredoka/pink language as the other steps. */}
       <div style={{ display: 'flex', gap: 6, margin: '10px 0 12px' }}>
-        {[1, 2, 3, 4, 5, 6].map((n) => (
+        {[1, 2, 3, 4, 5, 6, 7].map((n) => (
           <span key={n} style={{ flex: 1, height: 5, borderRadius: 3, background: n <= step ? C.pink : C.pinkLine, transition: 'background .2s ease' }} />
         ))}
       </div>
       <div style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>
-        {lang === 'ar' ? `الخطوة ${step} من 6` : `Step ${step} of 6`}
+        {lang === 'ar' ? `الخطوة ${step} من 7` : `Step ${step} of 7`}
       </div>
       <div style={{ ...fredoka(22), margin: '2px 0 2px' }}>{stepTitles[step - 1]}</div>
       {stepSubs[step - 1] && (
@@ -646,7 +647,7 @@ export function Checkout({
         </>
       )}
 
-      {/* ===================== STEP 6 — Review & pay (part 1) ===================== */}
+      {/* ============================ STEP 6 — Add-ons ============================ */}
       {step === 6 && (
         <>
       {/* Manual-order (offer) links: let the customer add anything else from the
@@ -728,7 +729,12 @@ export function Checkout({
           </div>
         );
       })()}
+        </>
+      )}
 
+      {/* ===================== STEP 7 — Review & pay (part 1) ===================== */}
+      {step === 7 && (
+        <>
       {/* ---------------- summary ---------------- */}
       <div style={cardStyle}>
         {quote?.lines.map((line, i) => (
@@ -865,8 +871,8 @@ export function Checkout({
       </div>
       )}
 
-      {/* ===================== STEP 6 — Review & pay (part 2) ===================== */}
-      {step === 6 && (
+      {/* ===================== STEP 7 — Review & pay (part 2) ===================== */}
+      {step === 7 && (
         <>
       {/* ---------------- customization (printed drawing items) ---------------- */}
       {needsCustomization && (
@@ -1096,7 +1102,7 @@ export function Checkout({
 
       {/* --------------------- wizard footer: Back / Next --------------------- */}
       {/* Back is hidden on step 1 (the top go(...) control covers that);
-          Next is hidden on step 6, where the Pay button is the primary action. */}
+          Next is hidden on step 7, where the Pay button is the primary action. */}
       <div style={{ display: 'flex', gap: 10, marginTop: 18, alignItems: 'stretch' }}>
         {step > 1 && (
           <button
@@ -1106,7 +1112,7 @@ export function Checkout({
             {lang === 'ar' ? '‹ رجوع' : '‹ Back'}
           </button>
         )}
-        {step < 6 && (
+        {step < 7 && (
           <div style={{ flex: 1 }}>
             <PrimaryButton disabled={!canAdvance} onClick={goNext}>
               {lang === 'ar' ? 'التالي ›' : 'Next ›'}

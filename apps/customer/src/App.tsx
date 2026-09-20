@@ -638,7 +638,7 @@ export default function App() {
   const showTabs = screen !== 'confirming' && screen !== 'paylink' && screen !== 'feedback';
 
   return (
-    <Frame lang={lang}>
+    <Frame lang={lang} setLang={setLang}>
       <div
         id="screen-scroll"
         className="scroll"
@@ -774,7 +774,7 @@ export default function App() {
 }
 
 /** The phone frame. Full-bleed on a real phone, a device card on desktop. */
-function Frame({ children, lang = 'en' }: { children: React.ReactNode; lang?: Lang }) {
+function Frame({ children, lang = 'en', setLang }: { children: React.ReactNode; lang?: Lang; setLang?: (l: Lang) => void }) {
   return (
     <div
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
@@ -848,7 +848,17 @@ function Frame({ children, lang = 'en' }: { children: React.ReactNode; lang?: La
           }}
         >
           <span>{new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-          <span style={{ fontSize: 11, letterSpacing: '.5px', color: C.muted }}>●●● ▲ ▮</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {setLang && (
+              <button
+                onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+                style={{ border: `1px solid ${C.pinkSoft}`, background: '#fff', color: C.pinkDeep, fontWeight: 800, fontSize: 11, borderRadius: 999, padding: '3px 11px', cursor: 'pointer' }}
+              >
+                {lang === 'ar' ? 'English' : 'عربي'}
+              </button>
+            )}
+            <span style={{ fontSize: 11, letterSpacing: '.5px', color: C.muted }}>●●● ▲ ▮</span>
+          </span>
         </div>
         {children}
       </div>
