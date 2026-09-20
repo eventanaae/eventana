@@ -139,6 +139,7 @@ export function Inventory({ role }: { role?: string }) {
                   <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     {(m.supplier_phone || m.supplier_email) && (
                       <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => {
+                        if (!window.confirm(`Send an order request to the supplier for "${m.name ?? 'this item'}"?`)) return;
                         const r = await api.contactSupplier(m.id).catch(() => null);
                         if (!r) { alert('Failed — please try again.'); return; }
                         if (!r.ok) { alert('No supplier phone/email saved — add it on the Suppliers page.'); return; }
@@ -150,7 +151,7 @@ export function Inventory({ role }: { role?: string }) {
                     )}
                     {m.status !== 'ordered' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'ordered'); load(); }}>🛒 Ordered</Button>}
                     <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'received'); load(); }}>✓ Received</Button>
-                    <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>
+                    <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { if (!window.confirm(`Cancel the request for "${m.name ?? 'this item'}"?`)) return; await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>
                     {/* Optional photo — a reference of what's needed, or proof it was bought. */}
                     <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, borderRadius: 10, padding: '6px 11px', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
                       📷 {m.photo_url ? 'Change photo' : 'Add photo'}
