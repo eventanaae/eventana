@@ -1,64 +1,64 @@
 /**
  * One-time: email Marsha (CC the owner) a clear guide to the B2B corporate
  * campaign system — what it is, timings, what was set up, how/where/why, and
- * her role handling replies. Guarded by app_kv so it sends once.
+ * her role handling replies. In ENGLISH (Marsha). Guarded by app_kv.
  */
 import { pool } from './pool.js';
 import { config } from '../config.js';
 
 export async function sendCampaignGuideOnce(): Promise<void> {
-  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'campaign_guide_sent_v1'`).catch(() => ({ rowCount: 0 }));
+  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'campaign_guide_sent_v2'`).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
 
   const { sendEmail } = await import('../integrations/email.js');
   const logo = config.emailLogoUrl;
-  const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-  <body style="margin:0;background:#FFF8FB;font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#3B3641;line-height:1.8">
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body style="margin:0;background:#FFF8FB;font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#3B3641;line-height:1.7">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:26px 14px 40px">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
         <tr><td style="text-align:center;padding:0 0 16px">${logo ? `<img src="${logo}" alt="Eventana" width="200" style="width:200px;max-width:66%">` : `<b style="font-size:24px;color:#E94F9C">Eventana</b>`}</td></tr>
         <tr><td style="background:#fff;border:1px solid #F3DEEA;border-radius:20px;padding:24px 22px">
           <div style="height:6px;border-radius:4px;background:linear-gradient(90deg,#7FD8C4,#F7D06B,#F7A98C,#F080A8,#B79BE0);margin-bottom:18px"></div>
-          <h1 style="font-size:22px;margin:0 0 6px;color:#3B3641">دليل حملة الشركات (B2B) 📣</h1>
-          <p style="margin:0 0 16px;color:#6E6470;font-size:14px">مرحبا مارشا 💛 — هذا شرح كامل لحملة إيميلات الشركات: شو هي، متى تطرش، شو جهّزنا، وشو دورك.</p>
+          <h1 style="font-size:22px;margin:0 0 6px;color:#3B3641">Corporate Campaign Guide (B2B) 📣</h1>
+          <p style="margin:0 0 16px;color:#6E6470;font-size:14px">Hi Marsha 💛 — here's a full guide to our company email campaign: what it is, when it sends, what we set up, and your role.</p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🎯 شو الفكرة؟</h2>
-          <p style="margin:0;font-size:14px">نطرش إيميلات تسويقية <b>تلقائياً</b> للشركات (مدارس، جامعات، مستشفيات، عيادات، بنوك، حكومة، شركات، حضانات، محلات جديدة) عشان نجذب حجوزات فعاليات من ميزانياتهم — بدون شغل يدوي.</p>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🎯 What it is</h2>
+          <p style="margin:0;font-size:14px">The system <b>automatically</b> emails companies (schools, universities, hospitals, clinics, banks, government, companies, nurseries, new shops) to win event bookings from their budgets — no manual work.</p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🏢 من وين الشركات؟</h2>
-          <p style="margin:0;font-size:14px">النظام يجمع شركات جديدة من Google كل يوم (اللي عندها إيميل)، ويصنّفها حسب النوع تلقائياً.</p>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🏢 Where the companies come from</h2>
+          <p style="margin:0;font-size:14px">The system collects new companies from Google every day (those with a published email) and auto-categorises them by type.</p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">✉️ شو ينطرش؟</h2>
-          <p style="margin:0;font-size:14px">أول إيميل مخصّص لكل قطاع: تعريف بإيفنتانا + خدماتنا + المناسبات + <b>رابط الملف التعريفي</b> + سؤال عن الشخص المسؤول (المشتريات/الفعاليات). كله بشعارنا وستايلنا.</p>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">✉️ What we send</h2>
+          <p style="margin:0;font-size:14px">A tailored first email per sector: an intro to Eventana + our services + the occasions + a <b>link to our company profile</b> + a question asking who the right contact is (procurement / events). All branded, in our style.</p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🕐 التوقيت</h2>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🕐 Timing</h2>
           <p style="margin:0;font-size:14px">
-            • إيميلات <b>الشركات</b>: الإثنين–الجمعة، <b>١٠ص – ٢م</b>.<br>
-            • إيميلات <b>العملاء</b>: <b>٤ع – ١٠:٣٠م</b>.<br>
-            • نبدأ ١٠٠ شركة/يوم (أول دفعة ٢٠ للمراقبة) ونرفع تدريجياً حتى ٢٠٠ — لحماية سمعة hello@.
+            • <b>Company</b> emails: Mon–Fri, <b>10:00 AM – 2:00 PM</b>.<br>
+            • <b>Customer</b> emails: <b>4:00 PM – 10:30 PM</b>.<br>
+            • We start at 100 companies/day (first batch of 20 to watch it) and ramp up to 200 — to protect hello@'s sending reputation.
           </p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🔁 المتابعة</h2>
-          <p style="margin:0;font-size:14px">لو الشركة ما ردّت خلال <b>أسبوعين</b> → يطرش لها تذكير واحد تلقائي (يسأل مرة ثانية عن الشخص المسؤول). تذكير واحد فقط.</p>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🔁 Follow-up</h2>
+          <p style="margin:0;font-size:14px">If a company doesn't reply within <b>2 weeks</b> → one automatic reminder is sent (asking again for the right contact). One reminder only.</p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">💬 الردود — دورك يا مارشا</h2>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">💬 Replies — your role, Marsha</h2>
           <p style="margin:0;font-size:14px">
-            • لو شركة ردّت وهي <b>مهتمة</b> (أو عطتنا إيميل القسم المعني) → يوصلكم <b>إشعار</b> "شركة كذا مهتمة" + <b>رد مقترح جاهز</b>.<br>
-            • راجعي الرد المقترح، عدّليه لو تبين، واطرشيه من hello@.<br>
-            • الردود التلقائية (out of office) والردود الترحيبية <b>ما تُحتسب</b> — النظام ينبّهكم بس على الاهتمام الحقيقي.
+            • When a company replies and is <b>interested</b> (or gives us the right department email) → you both get a <b>notification</b> "Company X is interested" + a <b>ready suggested reply</b>.<br>
+            • Review the suggested reply, edit if needed, and send it from hello@.<br>
+            • Auto-replies (out of office) and simple greetings <b>don't count</b> — the system only alerts you to genuine interest.
           </p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">📍 وين تشوفين كل شي؟</h2>
-          <p style="margin:0;font-size:14px">الداشبورد → <b>Marketing → Companies</b>: كل شركة لها حالة (جديدة / تواصلنا / مهتمة / حجزت) + فلتر + تواريخ الإرسال والرد.</p>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">📍 Where to see everything</h2>
+          <p style="margin:0;font-size:14px">Dashboard → <b>Marketing → Companies</b>: each company has a status (New / Contacted / Interested / Booked) + a filter + the emailed/replied dates.</p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">📄 الملف التعريفي</h2>
-          <p style="margin:0;font-size:14px">صفحة كاملة عن إيفنتانا (من نحن، خدماتنا، عملاؤنا، +٥٠٠ ايفينت):<br>
-          <a href="https://eventanauae.com/company-profile.html" style="color:#E94F9C;font-weight:700">eventanauae.com/company-profile.html</a> — تقدرين ترسلينها لأي شركة.</p>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">📄 Company profile</h2>
+          <p style="margin:0;font-size:14px">A full page about Eventana (who we are, services, clients, 500+ events):<br>
+          <a href="https://eventanauae.com/company-profile.html" style="color:#E94F9C;font-weight:700">eventanauae.com/company-profile.html</a> — you can send it to any company.</p>
 
-          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">⭐ ليش؟</h2>
-          <p style="margin:0 0 4px;font-size:14px">نكبّر قاعدة عملاء الشركات (B2B) — عملاء يدفعون من ميزانية ويكرّرون — بشكل تلقائي ومنظّم، وكل شي review قبل أي رد يطرش لعميل.</p>
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">⭐ Why</h2>
+          <p style="margin:0 0 4px;font-size:14px">To grow our B2B client base — clients who pay from a budget and reorder — automatically and consistently, with every reply reviewed before it goes out.</p>
 
-          <p style="margin:20px 0 0;font-size:13px;color:#8a7f88">أي استفسار، احكيني 💕<br>— فريق إيفنتانا</p>
+          <p style="margin:20px 0 0;font-size:13px;color:#8a7f88">Any questions, just ask 💕<br>— The Eventana Team</p>
         </td></tr>
       </table>
     </td></tr></table>
@@ -67,13 +67,13 @@ export async function sendCampaignGuideOnce(): Promise<void> {
   const res = await sendEmail({
     to: 'marsha@eventanauae.com',
     cc: ['sheem@eventanauae.com', 'shaima-ak@hotmail.com'],
-    subject: 'دليل حملة الشركات (B2B) — كيف تشتغل ودورك',
+    subject: 'Corporate Campaign Guide (B2B) — how it works & your role',
     html,
     skipMonitorBcc: true,
   });
   if (res.ok) {
-    await pool.query(`INSERT INTO app_kv (k, v) VALUES ('campaign_guide_sent_v1', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
-    console.log('[campaign-guide] sent to Marsha (CC owner)');
+    await pool.query(`INSERT INTO app_kv (k, v) VALUES ('campaign_guide_sent_v2', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+    console.log('[campaign-guide] sent to Marsha in English (CC owner)');
   } else {
     console.error('[campaign-guide] send failed:', res.error);
   }
