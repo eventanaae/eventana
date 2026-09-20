@@ -20,7 +20,7 @@ const SAMPLES: Record<CorpCategory, string> = {
 };
 
 export async function sendCorpPreviewsOnce(): Promise<void> {
-  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'corp_previews_sent_v4'`).catch(() => ({ rowCount: 0 }));
+  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'corp_previews_sent_v5'`).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
 
   const { sendEmail } = await import('../integrations/email.js');
@@ -37,6 +37,6 @@ export async function sendCorpPreviewsOnce(): Promise<void> {
     if (res.ok) sent++;
     await new Promise((r) => setTimeout(r, 400));
   }
-  await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_previews_sent_v4', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+  await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_previews_sent_v5', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
   console.log(`[corp-previews] sent ${sent} sector preview email(s) to owner + Marsha`);
 }
