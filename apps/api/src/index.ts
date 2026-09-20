@@ -259,6 +259,8 @@ async function main() {
     await sendMarshaMissingSupplierOnce().catch((err) => console.error('[marsha-missing] failed:', err));
     const { supplierRemoveEmployeesFromEnv } = await import('./db/supplierRemoveEmployees.js');
     await supplierRemoveEmployeesFromEnv().catch((err) => console.error('[sup-rm] failed:', err));
+    const { supplierRemoveStaff2FromEnv } = await import('./db/supplierRemoveStaff2.js');
+    await supplierRemoveStaff2FromEnv().catch((err) => console.error('[sup-rm2] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');

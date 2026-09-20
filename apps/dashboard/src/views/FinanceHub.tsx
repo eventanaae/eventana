@@ -95,13 +95,13 @@ function AccountingTab() {
       {/* Chart of accounts */}
       <Panel title="Chart of accounts">
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 10 }}>
-          Every account is built from your real receipts. Tap an account to see its suppliers, then a supplier to see its transactions.
+          Every account is built from your real receipts. Tap an account to see its vendors, then a vendor to see its transactions.
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fbeff5', borderRadius: 10, marginBottom: 10 }}>
           <span style={{ ...fredoka(13.5), color: C.ink }}>Total expenses</span>
           <span style={{ ...fredoka(16), color: C.pinkDeep, fontVariantNumeric: 'tabular-nums' }}>AED {money(grand)}</span>
         </div>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔎 Filter by account or supplier…"
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔎 Filter by account or vendor…"
           style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.line}`, borderRadius: 10, padding: '9px 12px', fontWeight: 600, fontSize: 12.5, color: C.ink, marginBottom: 12 }} />
         {accounts.length === 0 && <Empty>No matching accounts.</Empty>}
         {accounts.map((a: any) => {
@@ -129,7 +129,7 @@ function AccountingTab() {
                           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 5px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                             <span style={{ color: C.muted2, fontSize: 10, fontWeight: 700 }}>{sOpen ? '▾' : '▸'}</span>
-                            <span style={{ fontSize: 12.5, fontWeight: 700, color: s.vendor === '(no supplier)' ? C.muted2 : C.ink, fontStyle: s.vendor === '(no supplier)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: s.vendor === '(no vendor)' ? C.muted2 : C.ink, fontStyle: s.vendor === '(no vendor)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
                           </span>
                           <span style={{ fontSize: 11.5, color: C.muted2, fontWeight: 700, whiteSpace: 'nowrap' }}>{s.count}× · AED {money(s.totalFils)}</span>
                         </button>
@@ -476,7 +476,7 @@ function ExpensesTab({ role }: { role?: string }) {
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="🔎 Search by account, supplier, or amount…"
+        placeholder="🔎 Search by account, vendor, or amount…"
         style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e7dfe3', borderRadius: 10, padding: '9px 12px', fontWeight: 600, fontSize: 12.5, color: C.ink, marginBottom: 10 }}
       />
       {/* Month navigator — imported QuickBooks expenses sit on their original
@@ -537,7 +537,7 @@ function SupplierField({ value, suppliers, onChange }: { value: string; supplier
   const fs = { fontFamily: 'inherit', fontSize: 12.5, padding: '7px 9px', borderRadius: 9, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, width: '100%', boxSizing: 'border-box' as const };
   return (
     <div style={{ position: 'relative' }}>
-      <input value={value} placeholder="Supplier name" style={fs}
+      <input value={value} placeholder="Vendor name" style={fs}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)} />
@@ -657,7 +657,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
 
             <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
               <label style={{ display: 'grid', gap: 3 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Supplier</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Vendor</span>
                 <SupplierField value={vendor[r.id] ?? r.merchant ?? ''} suppliers={suppliers}
                   onChange={(val) => setVendor((v) => ({ ...v, [r.id]: val }))} />
               </label>
@@ -692,7 +692,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   );
 }
 
-/** Review report: each expense account with the suppliers filed under it, so
+/** Review report: each expense account with the vendors filed under it, so
  *  the owner can check every supplier sits under the right account. Read-only. */
 function AccountsReview({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<any>(null);
@@ -709,18 +709,18 @@ function AccountsReview({ onClose }: { onClose: () => void }) {
         a.suppliers.some((s: any) => (s.vendor || '').toLowerCase().includes(needle)))
     : accounts;
   return (
-    <Modal title="Accounts review — suppliers under each account" onClose={onClose}>
+    <Modal title="Accounts review — vendors under each account" onClose={onClose}>
       {err && <div style={{ color: C.red, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
       {!data && !err && <Spinner />}
       {data && (
         <>
           <div style={{ fontSize: 12, color: C.muted2, fontWeight: 600, marginBottom: 10 }}>
-            Every account is built from your real receipts. Tap an account to see the suppliers filed under it.
+            Every account is built from your real receipts. Tap an account to see the vendors filed under it.
           </div>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="🔎 Filter by account or supplier…"
+            placeholder="🔎 Filter by account or vendor…"
             style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e7dfe3', borderRadius: 10, padding: '9px 12px', fontWeight: 600, fontSize: 12.5, color: C.ink, marginBottom: 12 }}
           />
           {shown.length === 0 && <Empty>No matching accounts.</Empty>}
@@ -736,7 +736,7 @@ function AccountsReview({ onClose }: { onClose: () => void }) {
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     <span style={{ color: C.muted2, fontSize: 11, fontWeight: 700 }}>{isOpen ? '▾' : '▸'}</span>
                     <span style={{ fontWeight: 800, fontSize: 13, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prettyCat(a.account)}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>· {a.suppliers.length} supplier(s)</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>· {a.suppliers.length} vendor(s)</span>
                   </span>
                   <span style={{ fontWeight: 800, fontSize: 12.5, color: C.pinkDeep, whiteSpace: 'nowrap' }}>AED {money(a.totalFils)}</span>
                 </button>
@@ -744,7 +744,7 @@ function AccountsReview({ onClose }: { onClose: () => void }) {
                   <div style={{ padding: '4px 13px 10px' }}>
                     {a.suppliers.map((s: any, i: number) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderTop: i === 0 ? 'none' : `1px solid ${C.line}` }}>
-                        <span style={{ fontSize: 12.5, color: s.vendor === '(no supplier)' ? C.muted2 : C.ink, fontWeight: 600, fontStyle: s.vendor === '(no supplier)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
+                        <span style={{ fontSize: 12.5, color: s.vendor === '(no vendor)' ? C.muted2 : C.ink, fontWeight: 600, fontStyle: s.vendor === '(no vendor)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
                         <span style={{ fontSize: 11.5, color: C.muted2, fontWeight: 700, whiteSpace: 'nowrap' }}>{s.count}× · AED {money(s.totalFils)}</span>
                       </div>
                     ))}

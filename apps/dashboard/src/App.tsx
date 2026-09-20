@@ -63,7 +63,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'finance', label: 'Finance', icon: '💸', title: 'Finance', sub: 'Sales, expenses & accounts — all your money in one place', section: 'sales' },
   { id: 'customers', label: 'Customers', icon: '👥', title: 'Customers', sub: 'Your customer book — spend, history & contacts', section: 'sales' },
   { id: 'products', label: 'Products', icon: '🎁', title: 'Products & services', sub: 'Custom products, prices & descriptions', section: 'sales' },
-  { id: 'suppliers', label: 'Suppliers', icon: '🚚', title: 'Suppliers', sub: 'Who we buy from & what they supply', section: 'sales' },
+  { id: 'suppliers', label: 'Vendors', icon: '🚚', title: 'Vendors', sub: 'Who we buy from & what they supply', section: 'sales' },
   { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
   // Marketing
   { id: 'marketing', label: 'Marketing', icon: '📣', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'marketing' },

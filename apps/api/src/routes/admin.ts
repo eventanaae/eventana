@@ -2106,7 +2106,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!a) { a = { account: acc, count: 0, totalFils: 0, suppliers: [] }; byAccount.set(acc, a); }
       a.count += r.n;
       a.totalFils += total;
-      a.suppliers.push({ vendor: String(r.vendor) || '(no supplier)', count: r.n, totalFils: total });
+      a.suppliers.push({ vendor: String(r.vendor) || '(no vendor)', count: r.n, totalFils: total });
     }
     const accounts = [...byAccount.values()]
       .map((a) => ({

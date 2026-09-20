@@ -21,7 +21,7 @@ export function Suppliers() {
   const shown = s0 ? rows.filter((s) => `${s.name ?? ''} ${s.supplies ?? ''} ${s.contact ?? ''} ${s.phone ?? ''} ${s.email ?? ''} ${s.location ?? ''}`.toLowerCase().includes(s0)) : rows;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Panel title={`🚚 Suppliers (${rows.length})`} action={<Button onClick={() => setAdding(true)}>+ New</Button>}>
+      <Panel title={`🚚 Vendors (${rows.length})`} action={<Button onClick={() => setAdding(true)}>+ New</Button>}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search suppliers…" style={{ ...input, marginBottom: 12 }} />
         {rows.length === 0 ? (
           <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>No suppliers yet — add the vendors you buy from.</div>
@@ -84,7 +84,7 @@ function SupplierEditor({ supplier, onClose, onSaved }: { supplier: any | null; 
         <div style={{ ...fredoka(17), marginBottom: 14 }}>{isVendor ? 'Save as supplier' : supplier ? 'Edit supplier' : 'New supplier'}</div>
         {isVendor && <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>This vendor was detected from your expenses. Fill in the details and save it as a proper supplier.</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Field label="Supplier name"><input value={f.name} onChange={(e) => set('name', e.target.value)} style={input} /></Field>
+          <Field label="Vendor name"><input value={f.name} onChange={(e) => set('name', e.target.value)} style={input} /></Field>
           <Field label="What they supply"><input value={f.supplies} onChange={(e) => set('supplies', e.target.value)} placeholder="e.g. balloons, backdrops" style={input} /></Field>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field label="Contact person"><input value={f.contact} onChange={(e) => set('contact', e.target.value)} style={input} /></Field>
