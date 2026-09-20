@@ -661,10 +661,10 @@ export function buildCorporateBody(o: Occasion, ov?: OccasionOverride): string {
 export async function getOccasionOverrides(slug: string): Promise<OccasionOverride> {
   const { rows } = await pool.query<{ services: string | null; intro: string | null; offer: string | null }>(
     `SELECT services, intro, offer FROM occasion_settings WHERE slug = $1`, [slug],
-  ).catch(() => ({ rows: [] as any[] }));
+  ).catch(() => ({ rows: [] as { services: string | null; intro: string | null; offer: string | null }[] }));
   const r = rows[0];
   if (!r) return {};
-  const services = r.services ? r.services.split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : undefined;
+  const services = r.services ? r.services.split(/\r?\n/).map((s: string) => s.trim()).filter(Boolean) : undefined;
   return { services: services && services.length ? services : undefined, intro: r.intro || undefined, offer: r.offer || undefined };
 }
 

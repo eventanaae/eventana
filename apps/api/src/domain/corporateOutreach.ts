@@ -159,7 +159,7 @@ export async function collectCorporateLeads(opts?: { maxPagesPerQuery?: number; 
           const ins = await pool.query(
             `INSERT INTO corporate_leads (name, category, phone, website, emirate, source, external_id)
              VALUES ($1,$2,$3,$4,$5,'places',$6)
-             ON CONFLICT (external_id) DO NOTHING`,
+             ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO NOTHING`,
             [p.name.slice(0, 200), category, p.phone, p.website, emirate, p.id],
           );
           if (ins.rowCount) added++;
