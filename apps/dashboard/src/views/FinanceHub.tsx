@@ -1336,7 +1336,7 @@ function Modal({ title, children, onClose, onSave, busy, err, saveLabel }: { tit
 
 function DocRow({ title, sub, amount, badge, action, onClick }: { title: string; sub: string; amount: string; badge?: ReactNode; action?: ReactNode; onClick?: () => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 4px', borderBottom: `1px solid ${C.lineSoft}` }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', border: `1px solid ${C.line}`, borderRadius: 12, marginBottom: 8, background: '#fff' }}>
       <div onClick={onClick} style={{ flex: 1, minWidth: 0, cursor: onClick ? 'pointer' : 'default' }}>
         <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink }}>{title}</div>
         <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600 }}>{sub}</div>
