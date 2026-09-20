@@ -4,129 +4,162 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eventana Events — Company Profile</title>
-<meta name="description" content="Eventana Events — the UAE's creative events partner for schools, universities, hospitals, banks, government and companies. Who we are, why organisations choose us, and everything we create.">
+<meta name="description" content="Eventana Events — a UAE creative events house for organisations. Bespoke décor, signature experiences, live stations and full event management, tailored to your brand.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Cairo:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Jost:wght@300;400;500;600&display=swap">
 <style>
   :root{
-    --pink:#E94F9C; --pink-deep:#D43B87; --pink-soft:#FDEFF6;
-    --ink:#2C2830; --muted:#6E6470; --ground:#FBF6F3; --card:#fff; --line:#F0DCE7;
-    --mint:#37B3A6; --lav:#7C5BB8; --peach:#E4703F; --yellow-soft:#FFF3D6; --lav-soft:#F0E9FB; --mint-soft:#E1F7F3;
-    --rainbow:linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0);
+    --ink:#2A2430;         /* deep plum-charcoal */
+    --ink-soft:#6B6270;
+    --ground:#FAF6F2;      /* warm ivory */
+    --card:#FFFFFF;
+    --line:#EAE1D8;
+    --gold:#B8925A;        /* refined gold accent */
+    --gold-soft:#F3EADB;
+    --rose:#C77DA0;        /* muted brand rose, used sparingly */
+    --rose-soft:#F6EAF0;
   }
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-    --ground:#1B1A1E; --card:#25232A; --line:#38333C; --ink:#F2ECF0; --muted:#B8AEB6; --pink-soft:#3A2331; --lav-soft:#2A2440; --mint-soft:#123028; --yellow-soft:#332b12;
+    --ink:#F0E9F0; --ink-soft:#B4A9B6; --ground:#1A171C; --card:#221E26; --line:#332C38; --gold:#CBAA72; --gold-soft:#2C2519; --rose:#D79CBC; --rose-soft:#2E2230;
   }}
-  :root[data-theme="dark"]{--ground:#1B1A1E; --card:#25232A; --line:#38333C; --ink:#F2ECF0; --muted:#B8AEB6; --pink-soft:#3A2331; --lav-soft:#2A2440; --mint-soft:#123028; --yellow-soft:#332b12;}
+  :root[data-theme="dark"]{--ink:#F0E9F0; --ink-soft:#B4A9B6; --ground:#1A171C; --card:#221E26; --line:#332C38; --gold:#CBAA72; --gold-soft:#2C2519; --rose:#D79CBC; --rose-soft:#2E2230;}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--ground);color:var(--ink);font-family:'Cairo',system-ui,sans-serif;line-height:1.6}
-  .wrap{max-width:860px;margin:0 auto;padding:0 18px}
-  .bar{height:6px;background:var(--rainbow)}
-  header{text-align:center;padding:34px 18px 26px}
-  header img{width:230px;max-width:66%;height:auto}
-  h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:30px;margin:18px 0 6px;letter-spacing:-.3px}
-  .tag{color:var(--muted);font-size:15px;max-width:560px;margin:0 auto}
-  .hero{background:var(--pink);background:linear-gradient(135deg,#F97CB4,#E94F9C);color:#fff;border-radius:22px;padding:26px 24px;margin:8px auto 30px;text-align:center}
-  .hero .t{font-family:'Fredoka',sans-serif;font-size:22px;font-weight:700}
-  .hero .s{font-size:14.5px;opacity:.95;margin-top:6px}
-  section{margin:30px 0}
-  h2{font-family:'Fredoka',sans-serif;font-size:22px;font-weight:700;margin:0 0 6px;display:flex;align-items:center;gap:9px}
-  h2 .em{font-size:22px}
-  .lead{color:var(--muted);font-size:15px;margin:0 0 16px;max-width:640px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  @media(max-width:620px){.grid{grid-template-columns:1fr}}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:0 2px 10px rgba(233,79,156,.05)}
-  .card h3{margin:0 0 6px;font-size:15.5px;font-weight:800}
-  .card p{margin:0;font-size:13.5px;color:var(--muted)}
-  .accent-pink{border-top:4px solid var(--pink)} .accent-mint{border-top:4px solid var(--mint)}
-  .accent-lav{border-top:4px solid var(--lav)} .accent-peach{border-top:4px solid var(--peach)}
-  .svc{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  @media(max-width:620px){.svc{grid-template-columns:1fr}}
-  .svc .box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
-  .svc .box .h{font-weight:800;font-size:14.5px;margin:0 0 6px;color:var(--pink-deep)}
-  .svc .box ul{margin:0;padding-inline-start:18px}
-  .svc .box li{font-size:13px;margin:0 0 4px;color:var(--ink)}
-  .occ{background:var(--yellow-soft);border-radius:16px;padding:18px 20px;font-size:14.5px}
-  .occ b{color:var(--ink)}
-  .stats{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;text-align:center}
-  .stat{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
-  .stat .n{font-family:'Fredoka',sans-serif;font-size:26px;font-weight:700;color:var(--pink)}
-  .stat .l{font-size:12.5px;font-weight:700;color:var(--muted)}
-  .trusted{background:var(--lav-soft);border-radius:16px;padding:20px;text-align:center}
-  .cta{background:var(--mint);background:linear-gradient(135deg,#6FDccb,#37B3A6);color:#fff;border-radius:22px;padding:26px 22px;text-align:center;margin:34px 0}
-  .cta .t{font-family:'Fredoka',sans-serif;font-size:22px;font-weight:700}
-  .btn{display:inline-block;background:#fff;color:var(--pink-deep);text-decoration:none;font-weight:800;font-size:15px;padding:13px 26px;border-radius:999px;margin-top:14px}
-  footer{text-align:center;color:var(--muted);font-size:12.5px;padding:24px 18px 40px;border-top:1px solid var(--line);margin-top:20px}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:'Jost',system-ui,sans-serif;font-weight:400;line-height:1.7;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:0 26px}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--gold)}
+  h1,h2,h3{font-family:'Playfair Display',Georgia,serif;font-weight:600;letter-spacing:.2px}
+  /* Cover */
+  .cover{text-align:center;padding:56px 26px 40px}
+  .cover img{width:250px;max-width:64%;height:auto}
+  .cover h1{font-size:40px;margin:24px 0 10px;line-height:1.1}
+  .cover .sub{color:var(--ink-soft);font-size:16px;max-width:560px;margin:0 auto;font-weight:300}
+  .rule{width:60px;height:2px;background:var(--gold);margin:22px auto 0;border:0}
+  /* Section */
+  section{padding:34px 0;border-top:1px solid var(--line)}
+  section:first-of-type{border-top:0}
+  h2{font-size:27px;margin:6px 0 14px}
+  .lead{color:var(--ink-soft);font-size:16px;max-width:660px;font-weight:300;margin:0 0 20px}
+  /* Why-us */
+  .why{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  @media(max-width:600px){.why{grid-template-columns:1fr}}
+  .why > div{background:var(--card);padding:22px 24px}
+  .why h3{font-size:18px;margin:0 0 6px}
+  .why p{margin:0;color:var(--ink-soft);font-size:14.5px;font-weight:300}
+  /* Signature */
+  .sig{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:600px){.sig{grid-template-columns:1fr}}
+  .sig .item{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:20px 22px;position:relative}
+  .sig .item::before{content:"";position:absolute;top:0;left:0;width:3px;height:100%;background:var(--gold)}
+  .sig .item h3{font-size:17px;margin:0 0 5px}
+  .sig .item p{margin:0;color:var(--ink-soft);font-size:14px;font-weight:300}
+  /* Services list */
+  .cats{display:grid;grid-template-columns:1fr 1fr;gap:24px 34px}
+  @media(max-width:600px){.cats{grid-template-columns:1fr}}
+  .cat h3{font-size:16px;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .cat h3 .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex:none}
+  .cat ul{margin:0;padding:0;list-style:none}
+  .cat li{font-size:14.5px;color:var(--ink);padding:3px 0;font-weight:300}
+  .more{color:var(--gold);font-weight:500;font-style:italic}
+  /* Occasions */
+  .occ{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:22px 24px;font-size:15px;font-weight:300;color:var(--ink)}
+  .occ b{font-weight:600}
+  /* Clients */
+  .clients{text-align:center;background:var(--gold-soft);border-radius:6px;padding:28px 24px}
+  .clients p{margin:0;color:var(--ink);font-size:15px;font-weight:300}
+  /* Contact */
+  .contact{text-align:center;padding:44px 26px}
+  .contact h2{font-size:26px;margin:0 0 8px}
+  .contact .sub{color:var(--ink-soft);font-weight:300;margin:0 0 20px}
+  .btn{display:inline-block;background:var(--ink);color:var(--ground);text-decoration:none;font-weight:500;font-size:15px;letter-spacing:.5px;padding:14px 30px;border-radius:2px}
+  .lines{margin-top:18px;color:var(--ink-soft);font-size:14px;font-weight:300;line-height:2}
+  footer{text-align:center;color:var(--ink-soft);font-size:12px;font-weight:300;padding:22px;border-top:1px solid var(--line)}
 </style>
 </head>
 <body>
-<div class="bar"></div>
-<header>
-  <img src="/email-logo.png" alt="Eventana Events">
-  <h1>Company Profile</h1>
-  <p class="tag">The UAE's creative events partner — turning your occasions into experiences your people remember.</p>
-</header>
-
-<div class="wrap">
-  <div class="hero">
-    <div class="t">We don't just decorate — we create experiences ✨</div>
-    <div class="s">Based in Abu Dhabi &amp; Dubai · Fully-managed events, tailored to your brand and your calendar</div>
+  <div class="cover">
+    <img src="/email-logo.png" alt="Eventana Events">
+    <div class="eyebrow" style="margin-top:22px">Company Profile</div>
+    <h1>Experiences, beautifully made.</h1>
+    <p class="sub">A UAE creative events house — designing, producing and managing bespoke celebrations for organisations across Abu Dhabi &amp; Dubai.</p>
+    <hr class="rule">
   </div>
 
-  <section>
-    <h2><span class="em">💛</span> Who we are</h2>
-    <p class="lead">Eventana Events is a UAE-based events and experiences company. We design, produce and fully manage celebrations for organisations of every kind — from schools and universities to hospitals, banks, government entities and companies. Every concept is built from scratch around your brand, your people and the occasion, with a deep understanding of the UAE's culture that few can match.</p>
-  </section>
+  <div class="wrap">
+    <section>
+      <div class="eyebrow">Who we are</div>
+      <h2>A partner, not a supplier</h2>
+      <p class="lead">Eventana Events creates experiences that engage, inspire and bring people together. From concept to teardown, every element is designed around your brand, your people and the occasion — with a depth of understanding of the UAE's culture and calendar that few can match. Schools, universities, hospitals, banks, government entities and companies trust us to make their moments unforgettable.</p>
+    </section>
 
-  <section>
-    <h2><span class="em">⭐</span> Why organisations choose us</h2>
-    <div class="grid">
-      <div class="card accent-pink"><h3>🇦🇪 We know the local culture</h3><p>No one understands the UAE's occasions, etiquette and expectations like we do — every detail done right and appropriate.</p></div>
-      <div class="card accent-mint"><h3>🎨 Truly creative &amp; bespoke</h3><p>Concepts designed around your logo, theme and budget — never off-the-shelf.</p></div>
-      <div class="card accent-lav"><h3>✅ Fully managed, end to end</h3><p>Design, setup and teardown handled entirely by our team — you just enjoy the day.</p></div>
-      <div class="card accent-peach"><h3>💛 Trusted across the UAE</h3><p>Relied on by hundreds of families and organisations across Abu Dhabi &amp; Dubai.</p></div>
-    </div>
-  </section>
+    <section>
+      <div class="eyebrow">Why organisations choose us</div>
+      <h2>The Eventana difference</h2>
+      <div class="why">
+        <div><h3>Rooted in the culture</h3><p>Unmatched understanding of the UAE's occasions, etiquette and expectations — every detail appropriate and considered.</p></div>
+        <div><h3>Bespoke &amp; branded</h3><p>Concepts built from scratch around your logo, colours and identity — never off-the-shelf.</p></div>
+        <div><h3>Fully managed</h3><p>Design, production, setup and teardown handled end-to-end by our own team.</p></div>
+        <div><h3>Signature experiences</h3><p>Interactive moments guests remember — and share — long after the day.</p></div>
+      </div>
+    </section>
 
-  <section>
-    <h2><span class="em">🎁</span> Everything we create</h2>
-    <p class="lead">A full in-house range — mix and match anything for your event.</p>
-    <div class="svc">
-      <div class="box"><div class="h">🎨 Décor &amp; Styling</div><ul><li>Themed backdrops &amp; stages</li><li>Balloon garlands &amp; installations</li><li>Table &amp; majlis setups, entrances</li><li>Full themed décor</li></ul></div>
-      <div class="box"><div class="h">🍔 Food &amp; Live Stations</div><ul><li>Live food corners &amp; kiosks</li><li>Dessert, candy &amp; coffee carts</li><li>Popcorn, candy floss, BBQ, sambosa</li><li>Healthy refreshment corners</li></ul></div>
-      <div class="box"><div class="h">🎪 Entertainment</div><ul><li>Clowns, mascots &amp; face painting</li><li>Traditional bands &amp; dukan</li><li>Comedians &amp; dance performances</li><li>Henna &amp; calligraphy artists</li></ul></div>
-      <div class="box"><div class="h">🌸 Activities &amp; Workshops</div><ul><li>Flower arranging &amp; pottery painting</li><li>Slime, canvas &amp; tote-bag art</li><li>Cookie &amp; cupcake decorating</li><li>Kids' games &amp; activity stations</li></ul></div>
-      <div class="box"><div class="h">✨ Pop-up Activations</div><ul><li>Product showcases &amp; launches</li><li>Giveaways &amp; distributions</li><li>Special staff perks &amp; surprises</li></ul></div>
-      <div class="box"><div class="h">📸 Photo &amp; Giveaways</div><ul><li>Photo booths &amp; instant prints</li><li>Photo corners with props</li><li>Custom-designed branded giveaways</li></ul></div>
-    </div>
-  </section>
+    <section>
+      <div class="eyebrow">What sets us apart</div>
+      <h2>Signature experiences</h2>
+      <div class="sig">
+        <div class="item"><h3>Branded Perfume Bar</h3><p>Guests blend their own signature scent, bottled in your brand's colours and logo — a keepsake they take home.</p></div>
+        <div class="item"><h3>Make-Your-Own Lipstick Bar</h3><p>A live beauty station where guests craft their own lipstick shade on the spot.</p></div>
+        <div class="item"><h3>Live Experiences &amp; Activations</h3><p>Interactive, on-brand moments — live art, workshops and pop-up activations designed to draw a crowd.</p></div>
+        <div class="item"><h3>Gourmet Live Stations</h3><p>Chocolate fountain, dessert bars, coffee carts and live culinary corners — elegantly styled to your theme.</p></div>
+      </div>
+    </section>
 
-  <section>
-    <h2><span class="em">🎊</span> Occasions we cover</h2>
-    <div class="occ"><b>Every occasion, all year:</b> UAE National Day &amp; Flag Day · Ramadan gatherings, iftars &amp; suhoors · Eid al-Fitr &amp; al-Adha · International &amp; Emirati Women's Day · graduations &amp; Teachers' Day · Family Days &amp; staff appreciation · employee engagement &amp; recognition · milestone &amp; launch events · awareness days · grand openings — and anything you can imagine.</div>
-  </section>
+    <section>
+      <div class="eyebrow">Our services</div>
+      <h2>Everything, in-house</h2>
+      <p class="lead">A complete range — mix and match anything for your event.</p>
+      <div class="cats">
+        <div class="cat"><h3><span class="dot"></span>Décor &amp; Styling</h3><ul>
+          <li>Themed backdrops &amp; stage design</li><li>Balloon garlands &amp; installations</li><li>Entrances, table &amp; majlis setups</li><li>Full themed décor &amp; styling</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Signature Stations</h3><ul>
+          <li>Branded perfume bar</li><li>Make-your-own lipstick bar</li><li>Chocolate fountain &amp; dessert bars</li><li>Coffee &amp; beverage carts</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Live Catering &amp; Corners</h3><ul>
+          <li>Gourmet live food stations</li><li>Grazing &amp; refreshment tables</li><li>Healthy corners &amp; hospitality</li><li>Themed culinary experiences</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Entertainment</h3><ul>
+          <li>Performers, mascots &amp; characters</li><li>Traditional bands &amp; dukan</li><li>Dance, comedy &amp; live acts</li><li>Henna &amp; calligraphy artists</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Workshops &amp; Activities</h3><ul>
+          <li>Flower arranging &amp; pottery painting</li><li>Art, canvas &amp; craft sessions</li><li>Team &amp; guest interactive workshops</li><li>Kids' activity stations</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Pop-up Activations</h3><ul>
+          <li>Product showcases &amp; launches</li><li>Live brand experiences</li><li>Special staff perks &amp; surprises</li><li>Interactive booths</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Custom Giveaways &amp; Distributions</h3><ul>
+          <li>Bespoke branded giveaways (توزيعات)</li><li>Corporate gifting &amp; hampers</li><li>Personalised keepsakes</li><li>Themed distribution setups</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Photo &amp; Content</h3><ul>
+          <li>Photo booths &amp; instant prints</li><li>Styled photo corners with props</li><li>Content &amp; social moments</li><li>Full milestone-event management</li></ul></div>
+      </div>
+      <p class="lead more" style="margin-top:20px">…and much more — whatever the occasion, we design it from scratch.</p>
+    </section>
 
-  <section>
-    <h2><span class="em">🤝</span> Trusted across the UAE</h2>
-    <div class="stats">
-      <div class="stat"><div class="n">Abu Dhabi &amp; Dubai</div><div class="l">Where we operate</div></div>
-      <div class="stat"><div class="n">100s</div><div class="l">of events delivered</div></div>
-      <div class="stat"><div class="n">End-to-end</div><div class="l">fully managed</div></div>
-    </div>
-    <div class="trusted" style="margin-top:14px">Proud to work with families, schools, clinics and companies across the Emirates. <b>Client references available on request.</b></div>
-  </section>
+    <section>
+      <div class="eyebrow">Occasions</div>
+      <h2>Every occasion, all year</h2>
+      <div class="occ"><b>We celebrate it all:</b> UAE National Day &amp; Flag Day · Ramadan gatherings, iftars &amp; suhoors · Eid al-Fitr &amp; al-Adha · International &amp; Emirati Women's Day · graduations &amp; Teachers' Day · Family Days · employee engagement &amp; recognition · milestone &amp; launch events · awareness days · grand openings — and every occasion in between.</div>
+    </section>
 
-  <div class="cta">
-    <div class="t">Let's create something unforgettable 🎈</div>
-    <div class="s" style="opacity:.95;font-size:14.5px;margin-top:6px">Share your occasion, date and a rough budget — we'll craft a tailored proposal.</div>
-    <a class="btn" href="https://wa.me/971564500777">💬 WhatsApp us: 056 450 0777</a>
+    <section>
+      <div class="eyebrow">Trusted across the UAE</div>
+      <h2>Our clients</h2>
+      <div class="clients"><p>Proud to work with families, schools, clinics, banks and companies across Abu Dhabi &amp; Dubai.<br><b>A full client list &amp; references are available on request.</b></p></div>
+    </section>
   </div>
-</div>
 
-<footer>
-  Eventana Events · Abu Dhabi &amp; Dubai, UAE<br>
-  WhatsApp / Call 056 450 0777 · hello@eventanauae.com · eventanauae.com
-</footer>
+  <div class="contact">
+    <div class="eyebrow">Let's talk</div>
+    <h2>Create something unforgettable</h2>
+    <p class="sub">Share your occasion, date and a rough budget — we'll craft a tailored proposal.</p>
+    <a class="btn" href="https://wa.me/971564500777">Contact us on WhatsApp</a>
+    <div class="lines">056 450 0777 · hello@eventanauae.com · eventanauae.com</div>
+  </div>
+
+  <footer>Eventana Events · Abu Dhabi &amp; Dubai, UAE</footer>
 </body>
 </html>
