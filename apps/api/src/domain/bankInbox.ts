@@ -257,6 +257,12 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     }
   }
   merchant = merchant.slice(0, 120);
+
+  // Not a real money transaction (statement, OTP, marketing, or an amount our
+  // parser couldn't read) → don't create a zero-amount pending row that clutters
+  // the review list. Real charges always have a positive amount.
+  if (!Number.isFinite(amountFils) || amountFils <= 0) return null;
+
   // Keep the human-readable fee breakdown at the top of raw_text so it shows in
   // the Bank Inbox and carries into the expense on approval.
   const rawText = settlementNote ? `${settlementNote}\n\n${raw}`.slice(0, 4000) : raw;

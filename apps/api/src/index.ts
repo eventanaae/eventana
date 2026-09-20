@@ -1,7 +1,7 @@
 import { assertProductionReady, config } from './config.js';
 import { buildServer } from './server.js';
 import { startReconciliation, stopReconciliation } from './domain/reconcile.js';
-import { closePool } from './db/pool.js';
+import { closePool, pool } from './db/pool.js';
 import { integrationStatus } from './payments/index.js';
 
 async function main() {
@@ -335,6 +335,8 @@ async function main() {
       // immediately (stale-only ⇒ never clobbers a manual edit).
       const { regenerateOccasionDrafts } = await import('./domain/marketingCalendar.js');
       await regenerateOccasionDrafts().catch((err) => console.error('[marketing] boot regen failed:', err));
+      // Remove zero-amount pending bank rows (non-transaction emails mis-captured).
+      await pool.query(`DELETE FROM bank_transactions WHERE status = 'pending' AND (amount_fils IS NULL OR amount_fils <= 0)`).catch(() => {});
       if (String(process.env.REGEN_OCCASION_DRAFTS ?? '').toLowerCase() === 'on') {
         await regenerateOccasionDrafts({ all: true }).catch((err) => console.error('[marketing] regen failed:', err));
       }
