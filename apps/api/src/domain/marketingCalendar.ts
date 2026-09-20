@@ -529,6 +529,90 @@ export const OCCASIONS: Occasion[] = [
         'On this blessed occasion, we send you our warmest wishes for peace and light — from all of us at Eventana.',
     },
   },
+  {
+    slug: 'valentines-day', name: 'Valentine’s Day', nameAr: 'يوم الحب', type: 'commercial',
+    audience: 'all', leadDays: 20, sendDaysBefore: 7, fixed: { month: 2, day: 14 },
+    copy: { subject: 'Make this Valentine’s unforgettable 💕', heading: 'A little love, beautifully done 💕',
+      intro: 'Plan a romantic surprise or a sweet celebration — styled décor, a dessert corner and every detail handled.', ctaLabel: 'Plan a Valentine’s surprise' },
+  },
+  {
+    slug: 'haq-al-laila', name: 'Haq Al Laila', nameAr: 'حق الليلة', type: 'commercial',
+    audience: 'all', leadDays: 20, sendDaysBefore: 7, variable: { 2026: '2026-02-02', 2027: '2027-01-23' },
+    copy: { subject: 'Celebrate Haq Al Laila the Emirati way 🌙', heading: 'Haq Al Laila is coming 🌙',
+      intro: 'Mark this beloved Emirati tradition with a joyful setup — sweets, giveaways and heritage décor for the little ones.', ctaLabel: 'Plan your Haq Al Laila' },
+  },
+  {
+    slug: 'chinese-new-year', name: 'Chinese New Year', nameAr: 'رأس السنة الصينية', type: 'seasonal',
+    audience: 'all', leadDays: 25, sendDaysBefore: 10, variable: { 2026: '2026-02-17', 2027: '2027-02-06' },
+    copy: { subject: 'Ring in the Lunar New Year 🧧', heading: 'Happy Chinese New Year 🧧',
+      intro: 'Celebrate with a vibrant, on-theme setup — décor, live stations and interactive moments your guests will love.', ctaLabel: 'Plan a Lunar New Year event' },
+  },
+  {
+    slug: 'easter', name: 'Easter', nameAr: 'عيد الفصح', type: 'seasonal',
+    audience: 'all', leadDays: 20, sendDaysBefore: 7, variable: { 2026: '2026-04-05', 2027: '2027-03-28' },
+    copy: { subject: 'Hop into a beautiful Easter celebration 🐰', heading: 'An Easter to remember 🐰',
+      intro: 'From egg hunts to pastel décor and dessert corners — we’ll style a joyful Easter for families or teams.', ctaLabel: 'Plan an Easter celebration' },
+  },
+  {
+    slug: 'workers-day', name: 'International Workers’ Day', nameAr: 'يوم العمال العالمي', type: 'commercial',
+    audience: 'all', leadDays: 20, sendDaysBefore: 7, fixed: { month: 5, day: 1 },
+    copy: { subject: 'Celebrate your team this Workers’ Day 💪', heading: 'Honour your people 💪',
+      intro: 'Show your staff appreciation with a thoughtful gathering — food stations, giveaways and a feel-good setup.', ctaLabel: 'Plan a staff celebration' },
+  },
+  {
+    slug: 'fathers-day', name: 'Father’s Day', nameAr: 'يوم الأب', type: 'commercial',
+    audience: 'all', leadDays: 20, sendDaysBefore: 7, variable: { 2026: '2026-06-21', 2027: '2027-06-20' },
+    copy: { subject: 'Make Dad’s day special 💙', heading: 'Celebrate the dads 💙',
+      intro: 'Plan a warm family gathering or a surprise for the special dads — beautifully styled, fully handled.', ctaLabel: 'Plan a Father’s Day surprise' },
+  },
+  {
+    slug: 'intl-friendship-day', name: 'International Friendship Day', nameAr: 'يوم الصداقة العالمي', type: 'commercial',
+    audience: 'all', leadDays: 18, sendDaysBefore: 5, fixed: { month: 7, day: 30 },
+    copy: { subject: 'Gather your favourite people 💛', heading: 'Happy Friendship Day 💛',
+      intro: 'Bring friends or colleagues together with a fun, interactive setup — activities, treats and photo moments.', ctaLabel: 'Plan a get-together' },
+  },
+  {
+    slug: 'onam', name: 'Onam', nameAr: 'أونام', type: 'seasonal',
+    audience: 'all', leadDays: 20, sendDaysBefore: 7, variable: { 2026: '2026-08-26', 2027: '2027-09-14' },
+    copy: { subject: 'Celebrate Onam in full colour 🌸', heading: 'Happy Onam 🌸',
+      intro: 'Mark the harvest festival with vibrant décor, a pookalam setup and live food stations — for families or teams.', ctaLabel: 'Plan an Onam celebration' },
+  },
+  {
+    slug: 'intl-charity-day', name: 'International Day of Charity', nameAr: 'يوم العمل الخيري العالمي', type: 'awareness',
+    audience: 'all', corporateOnly: true, leadDays: 18, sendDaysBefore: 5, fixed: { month: 9, day: 5 },
+    copy: { subject: 'Mark the Day of Charity with your team 🤍', heading: 'A day to give back 🤍',
+      intro: 'Rally your people around a meaningful CSR activation or fundraising event — thoughtfully organised end to end.', ctaLabel: 'Plan a charity activation' },
+  },
+  {
+    slug: 'world-mental-health-day', name: 'World Mental Health Day', nameAr: 'يوم الصحة النفسية العالمي', type: 'awareness',
+    audience: 'all', corporateOnly: true, leadDays: 18, sendDaysBefore: 5, fixed: { month: 10, day: 10 },
+    copy: { subject: 'Support your team’s wellbeing 🌿', heading: 'World Mental Health Day 🌿',
+      intro: 'Host a calming wellbeing activation for your staff — relaxing workshops, refreshment corners and feel-good moments.', ctaLabel: 'Plan a wellbeing day' },
+  },
+  {
+    slug: 'diwali', name: 'Diwali', nameAr: 'ديوالي', type: 'seasonal',
+    audience: 'all', leadDays: 22, sendDaysBefore: 8, variable: { 2026: '2026-11-08', 2027: '2027-10-29' },
+    copy: { subject: 'Light up Diwali in style ✨', heading: 'Happy Diwali ✨',
+      intro: 'Celebrate the festival of lights with radiant décor, live sweets stations and interactive moments.', ctaLabel: 'Plan a Diwali celebration' },
+  },
+  {
+    slug: 'intl-mens-day', name: 'International Men’s Day', nameAr: 'يوم الرجل العالمي', type: 'commercial',
+    audience: 'all', leadDays: 16, sendDaysBefore: 5, fixed: { month: 11, day: 19 },
+    copy: { subject: 'Celebrate the men who make a difference 💙', heading: 'International Men’s Day 💙',
+      intro: 'Recognise the men in your team or family with a thoughtful gathering — great food and a relaxed, feel-good setup.', ctaLabel: 'Plan a celebration' },
+  },
+  {
+    slug: 'world-childrens-day', name: 'World Children’s Day', nameAr: 'يوم الطفل العالمي', type: 'commercial',
+    audience: 'all', leadDays: 18, sendDaysBefore: 5, fixed: { month: 11, day: 20 },
+    copy: { subject: 'A day all about the kids 🎈', heading: 'Happy World Children’s Day 🎈',
+      intro: 'Delight the little ones with games, activity stations, entertainers and playful décor — for families or schools.', ctaLabel: 'Plan a kids’ celebration' },
+  },
+  {
+    slug: 'day-of-determination', name: 'Int’l Day of Persons of Determination', nameAr: 'اليوم العالمي لأصحاب الهمم', type: 'awareness',
+    audience: 'all', corporateOnly: true, leadDays: 18, sendDaysBefore: 5, fixed: { month: 12, day: 3 },
+    copy: { subject: 'An inclusive celebration for People of Determination 🤍', heading: 'Day of Persons of Determination 🤍',
+      intro: 'Host a warm, inclusive activation that brings everyone together — thoughtfully designed and accessible to all.', ctaLabel: 'Plan an inclusive event' },
+  },
 ];
 
 /** Resolve the next upcoming date for an occasion, from `from` (inclusive). */
