@@ -107,6 +107,7 @@ export function Checkout({
   const [useCredit, setUseCredit] = useState(false);
   const [redeemPoints, setRedeemPoints] = useState(false);
   const [custBusy, setCustBusy] = useState(false);
+  const [refBusy, setRefBusy] = useState(false);
 
   const addCustFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -122,6 +123,25 @@ export function Checkout({
       /* surfaced by the disabled Pay hint */
     } finally {
       setCustBusy(false);
+    }
+  };
+
+  // Optional customer inspiration photos → the team sees them on the booking.
+  // Modelled on addCustFiles but writes to draft.referenceImages (cap 6).
+  const addRefFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setRefBusy(true);
+    try {
+      let urls = [...(draft.referenceImages ?? [])];
+      for (const f of Array.from(files).slice(0, 6 - urls.length)) {
+        const url = await api.uploadThemeRef(f);
+        urls = [...urls, url].slice(0, 6);
+        update({ referenceImages: urls });
+      }
+    } catch {
+      /* optional — a failed upload just leaves the list unchanged */
+    } finally {
+      setRefBusy(false);
     }
   };
   const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', backupPhone: '', password: '', referralCode: '' });
@@ -463,6 +483,34 @@ export function Checkout({
             🎨 {themeName}
           </div>
         )}
+      </div>
+
+      {/* --------- optional inspiration photos → shown to the team --------- */}
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, fontSize: 13.5 }}>
+          {lang === 'ar' ? 'صور إلهام لحفلتك (اختياري)' : 'Inspiration photos (optional)'}
+        </div>
+        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 12px', lineHeight: 1.5 }}>
+          {lang === 'ar'
+            ? 'عندك صورة للي تتخيلينه؟ ارفعيها ونجهّز على ذوقك 💛'
+            : "Have a look in mind? Upload it and we'll match it 💛"}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {(draft.referenceImages ?? []).map((url, i) => (
+            <div key={i} style={{ width: 62, height: 62, borderRadius: 12, background: `#f2e7ee url(${url}) center/cover`, position: 'relative' }}>
+              <button
+                onClick={() => update({ referenceImages: (draft.referenceImages ?? []).filter((_, j) => j !== i) })}
+                style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: C.ink, color: '#fff', fontSize: 12, cursor: 'pointer' }}
+              >×</button>
+            </div>
+          ))}
+          {(draft.referenceImages ?? []).length < 6 && (
+            <label style={{ width: 62, height: 62, borderRadius: 12, border: `1.5px dashed ${C.pinkLine}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 22, color: C.pinkDeep }}>
+              {refBusy ? '…' : '＋'}
+              <input type="file" accept="image/*" multiple hidden onChange={(e) => addRefFiles(e.target.files)} />
+            </label>
+          )}
+        </div>
       </div>
         </>
       )}

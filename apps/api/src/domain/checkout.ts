@@ -201,7 +201,13 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     const adj = await getOfferAdjustments(req.offerToken);
     if (adj) {
       applyOfferToQuote(serverQuote, adj);
-      if (adj.refImages?.length) (cart as unknown as Record<string, unknown>).referenceImages = adj.refImages;
+      // Merge the team's manual-order reference images WITH any the customer
+      // uploaded themselves (carried on the cart), so neither set is lost.
+      if (adj.refImages?.length) {
+        const c = cart as unknown as Record<string, unknown>;
+        const existing = Array.isArray(c.referenceImages) ? (c.referenceImages as string[]) : [];
+        c.referenceImages = [...existing, ...adj.refImages].filter(Boolean).slice(0, 12);
+      }
     }
   }
 

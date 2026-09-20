@@ -82,6 +82,9 @@ export interface Draft {
   /** The customer will pin the exact delivery location later — lets them book
    *  now without a map pin (the team follows up before the event). */
   locationTbd?: boolean;
+  /** Inspiration / reference photos the customer uploaded, shown to the team on
+   *  the booking. */
+  referenceImages: string[];
 }
 
 const emptyDraft: Draft = {
@@ -110,6 +113,7 @@ const emptyDraft: Draft = {
   eventFor: '',
   offerToken: null,
   locationTbd: false,
+  referenceImages: [],
 };
 
 /**
@@ -189,6 +193,7 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     address: draft.address,
     mapPin: draft.mapPin,
     locationTbd: draft.locationTbd ?? false,
+    referenceImages: draft.referenceImages ?? [],
     eventFor: draft.eventFor.trim() || undefined,
     // Previously frontend-only and silently dropped at checkout — now sent so
     // the team gets the exact age, the chosen film, and the custom-theme brief.
