@@ -14,8 +14,40 @@ import { receiveWebhook } from '../domain/webhooks.js';
 import { pool } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
 import { parseInbound, parseStatuses, verifyWebhookSignature } from '../integrations/whatsapp.js';
-import { recordInboundMessage } from '../domain/whatsappLeads.js';
+import { recordInboundMessage, normalizePhone } from '../domain/whatsappLeads.js';
 import { respondToLead } from '../domain/whatsappAgent.js';
+import { pushToOwner } from '../integrations/push.js';
+
+/**
+ * A booking customer replied to our automated WhatsApp (a confirmation/reminder
+ * they got from the notification number). Those replies aren't otherwise seen,
+ * so forward them to Marsha + the owner (bell + their WhatsApp) so nothing is
+ * lost. Only fires for a KNOWN customer who has an order — fresh ad enquiries are
+ * handled by the leads flow, not forwarded here (avoids noise).
+ */
+async function forwardKnownCustomerReply(msg: { phone: string; text?: string; name?: string | null }): Promise<void> {
+  try {
+    const phone = normalizePhone(msg.phone);
+    const last9 = phone.slice(-9);
+    if (last9.length < 9) return;
+    const { rows } = await pool.query<{ name: string | null }>(
+      `SELECT c.name FROM customers c
+        WHERE right(regexp_replace(COALESCE(c.phone,''), '\\D', '', 'g'), 9) = $1
+          AND EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id)
+        LIMIT 1`,
+      [last9],
+    );
+    if (!rows[0]) return; // not a known booking customer
+    const who = (rows[0].name || msg.name || `+${phone}`).trim();
+    const text = (msg.text || '').trim().slice(0, 300) || '(no text — media/attachment)';
+    const targets = await pool.query<{ id: string }>(
+      `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
+    );
+    for (const t of targets.rows) {
+      await pushToOwner('staff', t.id, `💬 ${who} replied on WhatsApp`, text, { phone, kind: 'customer_reply' }).catch(() => {});
+    }
+  } catch { /* non-fatal */ }
+}
 
 export async function webhookRoutes(app: FastifyInstance) {
   /* ---------------- WhatsApp Cloud API ---------------------------- */
@@ -98,6 +130,8 @@ export async function webhookRoutes(app: FastifyInstance) {
               'whatsapp lead updated',
             );
             await respondToLead(msg, result);
+            // Make sure a booking customer's reply reaches Marsha/owner.
+            await forwardKnownCustomerReply(msg);
           } catch (err) {
             request.log.error({ err }, 'whatsapp webhook processing failed');
           }
