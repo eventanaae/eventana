@@ -8,15 +8,6 @@ const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> 
   sent: 'ok', approved: 'ok', scheduled: 'info', sending: 'info',
   pending_approval: 'warn', rejected: 'error', failed: 'error', draft: 'neutral',
 };
-const OCCASION_TONE: Record<string, { bg: string; fg: string; label: string }> = {
-  commercial: { bg: '#fdeef6', fg: '#c02f80', label: 'Offer' },
-  national: { bg: '#eef4ff', fg: '#2f5fc0', label: 'National' },
-  islamic: { bg: '#eef9f1', fg: '#2f8f57', label: 'Islamic' },
-  seasonal: { bg: '#fff4e8', fg: '#c07a2f', label: 'Seasonal' },
-  greeting: { bg: '#f4eefb', fg: '#7a2fc0', label: 'Greeting' },
-  awareness: { bg: '#eef7f9', fg: '#2f7f9c', label: 'Awareness' },
-};
-
 export function Marketing() {
   const [data, setData] = useState<any>(null);
   const [cal, setCal] = useState<any[] | null>(null);
@@ -275,7 +266,6 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {existingList.map((o, i) => {
                     const c = aud === 'company' ? o.corporate : o.consumer;
-                    const tone = OCCASION_TONE[o.type] ?? OCCASION_TONE.seasonal;
                     const m = o.dateISO ? o.dateISO.slice(0, 7) : '';
                     const prevM = i > 0 && existingList[i - 1].dateISO ? existingList[i - 1].dateISO.slice(0, 7) : '';
                     const monthHdr = m && m !== prevM
@@ -284,9 +274,8 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                     return (
                       <div key={o.slug}>
                         {monthHdr && <div style={{ fontSize: 11.5, fontWeight: 800, color: C.pinkDeep, margin: i === 0 ? '0 0 6px' : '12px 0 6px', letterSpacing: 0.3 }}>{monthHdr}</div>}
-                        <button onClick={() => { setOcc(o); setStep(3); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
-                          <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{o.name}</span>
+                        <button onClick={() => { setOcc(o); setStep(3); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, color: C.ink }}>
+                          <span style={{ flex: 1, fontWeight: 700, fontSize: 13.5, color: C.ink }}>{o.name}</span>
                           {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
                           <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
                         </button>
