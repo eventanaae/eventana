@@ -524,6 +524,28 @@ function countdownStyle(days: number): CSSProperties {
   return { ...base, background: '#f3eef1', color: C.muted };
 }
 
+// Convert stored email HTML to plain text for friendly editing (no code shown).
+function htmlToText(html: string): string {
+  return String(html || '')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<\/(p|li|div|h[1-6]|ul|ol)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&#39;|&rsquo;/g, '’').replace(/&quot;/g, '"')
+    .replace(/\{\{\s*name\s*\}\}/g, '{name}')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+// Convert the plain text back to simple email HTML on save.
+function textToHtml(text: string): string {
+  return String(text || '').trim()
+    .replace(/\{name\}/g, '{{name}}')
+    .split(/\n{2,}/)
+    .map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+    .join('');
+}
+
 const input: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, borderRadius: 10, padding: '10px 12px', fontSize: 13, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink };
 const chip: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 20, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
 const chipActive: CSSProperties = { border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep };
