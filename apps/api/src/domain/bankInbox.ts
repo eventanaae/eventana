@@ -263,7 +263,11 @@ export interface InboxEmail { subject: string; from: string; text: string; attac
 function pickReceiptAttachment(atts: InboxAttachment[]): InboxAttachment | null {
   const ok = atts.filter((a) => a.bytes.length > 0 && a.bytes.length <= 10 * 1024 * 1024);
   if (ok.length === 0) return null;
-  return ok.find((a) => /pdf/i.test(a.contentType) || /\.pdf$/i.test(a.filename)) ?? ok[0];
+  const isPdf = (a: InboxAttachment) => /pdf/i.test(a.contentType) || /\.pdf$/i.test(a.filename);
+  // Prefer a file that looks like the receipt, then any PDF, then anything.
+  return ok.find((a) => /receipt/i.test(a.filename) && isPdf(a))
+    ?? ok.find(isPdf)
+    ?? ok[0];
 }
 
 /**
