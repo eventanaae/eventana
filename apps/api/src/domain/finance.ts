@@ -1037,7 +1037,8 @@ export async function listReceipts(role?: string) {
   );
   const list = rows.map(decorateReceipt);
   if (!ownerView) return { receipts: list, totalFils: null, totalDisplay: null };
-  const total = list.reduce((s, r) => s + r.total_fils, 0);
+  // Net of refunds — a refunded sale must not inflate "sales collected".
+  const total = list.reduce((s, r) => s + (r.netTotalFils ?? r.total_fils), 0);
   return { receipts: list, totalFils: total, totalDisplay: formatAed(total) };
 }
 

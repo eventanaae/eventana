@@ -80,11 +80,14 @@ export function Settings() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {saved && (
-        <div style={{ background: C.greenSoft, color: C.green, padding: '11px 16px', borderRadius: 12, fontSize: 12.5, fontWeight: 700 }}>
-          {saved}
-        </div>
-      )}
+      {saved && (() => {
+        const isErr = /could ?n['’]?t|could not|issue|fail|error|problem/i.test(saved);
+        return (
+          <div style={{ background: isErr ? C.redSoft : C.greenSoft, color: isErr ? C.red : C.green, padding: '11px 16px', borderRadius: 12, fontSize: 12.5, fontWeight: 700 }}>
+            {isErr ? '⚠️ ' : ''}{saved}
+          </div>
+        );
+      })()}
 
       <QuickBooksPanel />
 

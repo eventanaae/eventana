@@ -217,7 +217,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
         <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>
           All-time sales collected: <b style={{ color: C.green }}>AED {data.totalDisplay}</b>
           <span style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-            Total of every receipt (incl. QuickBooks history). Current <b>Cash on hand</b> — after expenses — is on the Accounting tab.
+            Total of every receipt (including imported past sales). Current <b>Cash on hand</b> — after expenses — is on the Accounting tab.
           </span>
         </div>
       )}
@@ -242,7 +242,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
       {(data.receipts ?? []).length === 0 && (
         <div style={{ textAlign: 'center', padding: '14px 4px' }}>
           <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, marginBottom: 10 }}>No receipts yet.</div>
-          <Button tone="ghost" onClick={async () => { const r = await api.finImportHistory(); alert(`Loaded ${r.receipts} sales from your QuickBooks history.`); load(); }}>Load sales history from QuickBooks</Button>
+          <Button tone="ghost" onClick={async () => { const r = await api.finImportHistory(); alert(`Loaded ${r.receipts} past sales.`); load(); }}>Load past sales history</Button>
         </div>
       )}
       {(() => {
