@@ -62,8 +62,9 @@
   .cat li{font-size:14.5px;color:var(--ink);padding:3px 0;font-weight:300}
   .more{color:var(--gold);font-weight:500;font-style:italic}
   /* Occasions */
-  .occ{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:22px 24px;font-size:15px;font-weight:300;color:var(--ink)}
-  .occ b{font-weight:600}
+  .occgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:600px){.occgrid{grid-template-columns:1fr}}
+  .occ-item{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:4px;padding:12px 16px;font-size:14.5px;font-weight:400;color:var(--ink)}
   /* Clients */
   .clients{text-align:center;background:var(--gold-soft);border-radius:6px;padding:28px 24px}
   .clients p{margin:0;color:var(--ink);font-size:15px;font-weight:300}
@@ -124,22 +125,22 @@
       <h2>Everything, in-house</h2>
       <p class="lead">A complete range — mix and match anything for your event.</p>
       <div class="cats">
-        <div class="cat"><h3><span class="dot"></span>Décor &amp; Styling</h3><ul>
-          <li>Themed backdrops &amp; stage design</li><li>Balloon garlands, banding &amp; installations</li><li>Entrances &amp; welcoming stands</li><li>Table, majlis &amp; centerpiece styling</li><li>Ramadan &amp; seasonal setups</li><li>Full themed décor</li></ul></div>
-        <div class="cat"><h3><span class="dot"></span>Signature Stations</h3><ul>
-          <li>Branded perfume bar</li><li>Make-your-own lipstick bar</li><li>Photo coffee corner (logo on the coffee)</li><li>Chocolate fountain &amp; dessert bars</li><li>Glam Dolls &amp; spa corner</li></ul></div>
-        <div class="cat"><h3><span class="dot"></span>Live Food &amp; Corners</h3><ul>
+        <div class="cat"><h3><span class="dot"></span>Backdrops &amp; Décor</h3><ul>
+          <li>Themed backdrops &amp; stage design</li><li>Balloon garlands, banding &amp; installations</li><li>Entrances &amp; welcoming stands</li><li>Table, majlis &amp; centerpiece styling</li><li>Ramadan &amp; seasonal setups</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Food Stations</h3><ul>
           <li>Live rqaq bread, sambosa &amp; halwa cooking</li><li>BBQ, grills &amp; hot corners</li><li>Ice cream, dessert &amp; grazing tables</li><li>Coffee &amp; beverage carts</li><li>Hospitality &amp; refreshments</li></ul></div>
-        <div class="cat"><h3><span class="dot"></span>Entertainment &amp; Artists</h3><ul>
+        <div class="cat"><h3><span class="dot"></span>Entertainment</h3><ul>
           <li>Sketch &amp; live artists</li><li>Musicians &amp; live performers</li><li>Dancers &amp; traditional bands (dukan)</li><li>Mascots &amp; characters</li><li>Henna artists &amp; calligraphers</li><li>Clowns, comedians &amp; face painters</li></ul></div>
-        <div class="cat"><h3><span class="dot"></span>Workshops &amp; Activities</h3><ul>
-          <li>Flower arranging &amp; pottery painting</li><li>Canvas, tote-bag &amp; t-shirt art</li><li>Cookie &amp; cupcake decorating</li><li>Slime, handcraft &amp; craft sessions</li><li>Guest &amp; team interactive workshops</li></ul></div>
-        <div class="cat"><h3><span class="dot"></span>Pop-up Activations</h3><ul>
-          <li>Product showcases &amp; launches</li><li>Live brand experiences</li><li>Special staff perks &amp; surprises</li><li>Interactive booths</li></ul></div>
-        <div class="cat"><h3><span class="dot"></span>Custom Giveaways &amp; Distributions (توزيعات)</h3><ul>
+        <div class="cat"><h3><span class="dot"></span>Activity Sessions</h3><ul>
+          <li>Flower arranging &amp; pottery painting</li><li>Canvas, tote-bag &amp; t-shirt art</li><li>Cookie &amp; cupcake decorating</li><li>Slime, handcraft &amp; craft sessions</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Inflatables &amp; Play</h3><ul>
+          <li>Slides &amp; bouncy castles</li><li>Ball pool &amp; bubbles house</li><li>Soft playground</li><li>Inflatable movie screen</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Machines &amp; Games</h3><ul>
+          <li>Bubble, foam &amp; snow machines</li><li>Projector &amp; sound</li><li>Interactive games &amp; game kiosks</li><li>Prizes &amp; challenges</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Giveaways &amp; Distributions (توزيعات)</h3><ul>
           <li>Bespoke branded giveaways</li><li>Corporate gifting &amp; hampers</li><li>Personalised keepsakes</li><li>Themed distribution setups</li></ul></div>
-        <div class="cat"><h3><span class="dot"></span>Photo, Content &amp; Management</h3><ul>
-          <li>Photo booths &amp; instant prints</li><li>Styled photo corners with props</li><li>Red-carpet &amp; content moments</li><li>Full milestone-event management</li></ul></div>
+        <div class="cat"><h3><span class="dot"></span>Photo, Content &amp; Extras</h3><ul>
+          <li>Photo booths &amp; instant prints</li><li>Styled photo corners &amp; red carpet</li><li>Digital invitations &amp; content</li><li>Full milestone-event management</li></ul></div>
       </div>
       <p class="lead more" style="margin-top:20px">…and much more — our full catalogue holds hundreds of items. Whatever the occasion, we design it from scratch.</p>
     </section>
@@ -147,10 +148,19 @@
     <section>
       <div class="eyebrow">Occasions</div>
       <h2>Every occasion, all year</h2>
-      <div class="occ">
-        UAE National Day &amp; Flag Day &nbsp;·&nbsp; Ramadan iftars &amp; suhoors &nbsp;·&nbsp; Eid al-Fitr &amp; Eid al-Adha &nbsp;·&nbsp; International &amp; Emirati Women's Day &nbsp;·&nbsp; graduations &amp; Teachers' Day &nbsp;·&nbsp; Family Days &amp; staff appreciation &nbsp;·&nbsp; employee engagement &amp; recognition &nbsp;·&nbsp; product launches &amp; milestones &nbsp;·&nbsp; awareness days &nbsp;·&nbsp; grand openings
-        <div style="margin-top:10px;font-weight:600">…and every occasion in between.</div>
+      <div class="occgrid">
+        <div class="occ-item">UAE National Day &amp; Flag Day</div>
+        <div class="occ-item">Ramadan iftars &amp; suhoors</div>
+        <div class="occ-item">Eid al-Fitr &amp; Eid al-Adha</div>
+        <div class="occ-item">International &amp; Emirati Women's Day</div>
+        <div class="occ-item">Graduations &amp; Teachers' Day</div>
+        <div class="occ-item">Family Days &amp; staff appreciation</div>
+        <div class="occ-item">Employee engagement &amp; recognition</div>
+        <div class="occ-item">Product launches &amp; milestones</div>
+        <div class="occ-item">Awareness days</div>
+        <div class="occ-item">Grand openings</div>
       </div>
+      <p class="lead more" style="margin-top:16px;text-align:center">…and every occasion in between.</p>
     </section>
 
     <section>
