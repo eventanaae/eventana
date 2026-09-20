@@ -17,7 +17,7 @@ import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
 import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepWinbackCampaignAuto, sweepCustomerBirthdays } from './marketing.js';
 import { sweepMarketingCalendar } from './marketingCalendar.js';
-import { sweepCorporateCollect, sweepCorporateFollowups } from './corporateOutreach.js';
+import { sweepCorporateCollect, sweepCorporateFirstTouch, sweepCorporateFollowups } from './corporateOutreach.js';
 import { deliverPendingNotifications } from './notify.js';
 
 export interface ReconcileReport {
@@ -265,6 +265,12 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   await sweepCorporateCollect()
     .then((n) => { if (n) console.log(`[corp] collected/updated ${n} lead(s)`); })
     .catch((err) => console.error('[corp] collect sweep failed:', err));
+
+  // Auto first-touch: newly-collected companies get their tailored first email
+  // automatically (paced to protect sending reputation), then move to 'contacted'.
+  await sweepCorporateFirstTouch()
+    .then((n) => { if (n) console.log(`[corp] sent ${n} first email(s)`); })
+    .catch((err) => console.error('[corp] first-touch sweep failed:', err));
 
   // Auto follow-up: chase companies we contacted 14+ days ago that never replied
   // with ONE gentle reminder (asks again for the right department contact).

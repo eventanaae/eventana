@@ -285,7 +285,145 @@ export async function sweepCorporateCollect(): Promise<number> {
   return (res.added ?? 0) + (res.enriched ?? 0);
 }
 
-// ── B2B outreach sequence: auto follow-up + reply detection ────────────────
+// ── B2B outreach sequence: auto first-touch + follow-up + reply detection ──
+
+/** A tailored pitch per business type — a category-specific intro, the events
+ *  that sector actually runs, and a subject line. Keeps every first email
+ *  relevant instead of generic. */
+const CORP_PITCH: Record<CorpCategory, { subject: string; intro: string; services: string[] }> = {
+  school: {
+    subject: 'Memorable events & celebrations for your school',
+    intro: 'Schools across the UAE trust Eventana to bring their moments to life — graduations, National Day assemblies, sports days, teacher appreciation and end-of-year celebrations, all done beautifully and age-appropriately.',
+    services: ['🎓 Graduation & prize-day stage, backdrop and décor', '🇦🇪 National Day & cultural-day setups', '🎉 End-of-year & themed party décor', '📸 Photo booth and fun activities for students', '🎁 Branded giveaways for staff and pupils'],
+  },
+  nursery: {
+    subject: 'Joyful celebrations for your nursery',
+    intro: 'We help nurseries create magical little moments — KG graduations, themed activity days, National Day and seasonal parties — safe, colourful and perfect for young children.',
+    services: ['🎓 KG graduation stage & décor', '🎨 Themed craft & activity stations', '🇦🇪 National Day & cultural celebrations', '📸 Photo corner for parents', '🎁 Sweet giveaways for the little ones'],
+  },
+  university: {
+    subject: 'Standout events for your university or college',
+    intro: 'From graduations to orientation, clubs, cultural festivals and career fairs, Eventana delivers polished, on-brand events that students and faculty remember.',
+    services: ['🎓 Graduation & convocation staging and décor', '🎪 Orientation, club and festival setups', '🇦🇪 National Day & cultural events', '📸 Photo & content moments', '🎁 Branded merchandise and giveaways'],
+  },
+  hospital: {
+    subject: 'Thoughtful events for your hospital’s people & patients',
+    intro: 'Eventana supports hospitals with warm, well-run occasions — staff and nurses’ appreciation days, wellness and awareness activations, children’s-ward celebrations and National Day — handled with care and the right tone.',
+    services: ['💛 Staff & nurses’ appreciation events', '🎀 Awareness-day activations (e.g. Pink October)', '🧸 Children’s-ward celebrations', '🇦🇪 National Day & happiness initiatives', '📸 Photo moments & giveaways'],
+  },
+  clinic: {
+    subject: 'Warm events & activations for your clinic',
+    intro: 'We help clinics mark their moments — patient appreciation days, clinic openings, awareness activations and staff celebrations — professional and welcoming.',
+    services: ['🎗️ Awareness-day activations', '✂️ Clinic opening & launch décor', '💛 Patient & staff appreciation', '📸 Photo corner', '🎁 Branded giveaways'],
+  },
+  bank: {
+    subject: 'Engaging events for your bank’s teams & customers',
+    intro: 'Eventana runs polished corporate occasions for banks — staff engagement and family days, customer appreciation, branch openings, Ramadan iftars and National Day — always on-brand.',
+    services: ['👨‍👩‍👧 Staff & family day setups', '🏦 Branch opening & launch décor', '🌙 Ramadan iftar & majlis setups', '🇦🇪 National Day celebrations', '🎁 Branded gifts & giveaways'],
+  },
+  government: {
+    subject: 'Dignified events for your organisation',
+    intro: 'We support government entities with occasions handled to the right standard — National Day, Flag Day and Commemoration Day, employee-happiness initiatives, cultural events and majlis hospitality.',
+    services: ['🇦🇪 National Day, Flag Day & cultural events', '😊 Employee happiness & appreciation', '🕌 Majlis & hospitality setups', '🎪 Public activations & décor', '🎁 Branded giveaways'],
+  },
+  company: {
+    subject: 'Events your team will love',
+    intro: 'From staff parties and family days to product launches, Ramadan iftars, National Day and milestone celebrations, Eventana delivers memorable, fully-managed corporate events.',
+    services: ['🎉 Staff parties & family days', '🚀 Product launches & milestone events', '🌙 Ramadan iftar setups', '🇦🇪 National Day celebrations', '🎁 Branded gifts & giveaways'],
+  },
+  new_shop: {
+    subject: 'Make your grand opening unforgettable',
+    intro: 'Congratulations on your new opening! Eventana creates buzzing launch events — eye-catching décor, ribbon-cutting moments and activations that pull in footfall from day one.',
+    services: ['✂️ Grand-opening décor & ribbon cutting', '🎈 Launch-day activations & balloons', '📸 Photo moment for social media', '🎁 Giveaways to draw footfall', '🎪 Themed setups on brand'],
+  },
+  other: {
+    subject: 'Celebrations & events, done beautifully',
+    intro: 'Eventana creates and fully manages memorable events across the UAE — tailored to your people, your brand and your budget.',
+    services: ['🎉 Themed décor & staging', '📸 Photo booth & activities', '🇦🇪 National Day & seasonal events', '🎁 Branded giveaways', '✅ Fully managed, end to end'],
+  },
+};
+
+/** The shared "why Eventana" block (local cultural expertise is our real edge). */
+const WHY_US_HTML = `
+    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">Why organisations choose Eventana:</p>
+    <ul style="margin:0;padding-left:20px">
+      <li style="margin:0 0 6px">🇦🇪 We know the UAE’s occasions and local culture better than anyone — every detail done right and appropriate.</li>
+      <li style="margin:0 0 6px">🎨 Concepts tailored to your brand, theme and budget — not off-the-shelf.</li>
+      <li style="margin:0 0 6px">✅ Fully managed — design, setup and teardown handled end-to-end.</li>
+      <li style="margin:0 0 6px">💛 Trusted across Abu Dhabi &amp; Dubai by families and organisations alike.</li>
+    </ul>`;
+
+/** The tailored FIRST email to a newly-collected company: intro + ask for the
+ *  right department + relevant services + why-us (the "2-in-1" the owner chose). */
+export function buildFirstTouchBody(category: CorpCategory): string {
+  const p = CORP_PITCH[category] ?? CORP_PITCH.other;
+  const sector = (CORP_CATEGORY_LABELS[category] ?? 'organisation').toLowerCase().replace(/s$/, '');
+  const servicesList = `
+    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">How Eventana can help your ${sector}:</p>
+    <ul style="margin:0;padding-left:20px">
+      ${p.services.map((x) => `<li style="margin:0 0 6px">${x}</li>`).join('')}
+    </ul>`;
+  return `
+    <p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${p.subject}</p>
+    <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
+    <p style="margin:0 0 14px">Hello <b>{{name}}</b>,</p>
+    <p style="margin:0 0 4px">${p.intro}</p>
+    <p style="margin:14px 0 4px"><b>Could you kindly point us to the right person</b> in your procurement or events team? Just reply with their name and email and we’ll send the details straight to them.</p>
+    ${servicesList}
+    ${WHY_US_HTML}
+    <p style="margin:16px 0 6px">Share a rough date and budget whenever it suits, and we’ll prepare a tailored proposal — no obligation.</p>
+    <p style="margin:12px 0 0">Warm regards,<br/>The Eventana Team</p>`;
+}
+
+/**
+ * AUTO first-touch: newly-collected companies (status 'new', with an email) are
+ * emailed their tailored first email automatically — PACED to protect hello@'s
+ * sending reputation (CORP_FIRST_TOUCH_PER_DAY, default 60/day). Marks each
+ * 'contacted' so the follow-up + reply chain takes over. Runs at most once per
+ * ~20h. Gated by CORP_AUTOSEND (default 'on').
+ */
+export async function sweepCorporateFirstTouch(): Promise<number> {
+  if (String(process.env.CORP_AUTOSEND ?? 'on').toLowerCase() === 'off') return 0;
+  const perDay = Math.max(1, Math.min(400, Number(process.env.CORP_FIRST_TOUCH_PER_DAY ?? 60) || 60));
+  const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_firsttouch_at'`).catch(() => ({ rows: [] as { v: string }[] }));
+  const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;
+  if (Date.now() - lastAt < 20 * 3600 * 1000) return 0;
+
+  const { rows } = await pool.query<{ id: string; email: string; name: string; category: string }>(
+    `SELECT id, email, name, category FROM corporate_leads
+      WHERE email IS NOT NULL AND email <> '' AND email_opt_out = FALSE
+        AND status = 'new' AND first_contacted_at IS NULL
+        AND lower(email) NOT IN (SELECT lower(email) FROM email_suppression)
+      ORDER BY created_at ASC
+      LIMIT $1`,
+    [perDay],
+  ).catch(() => ({ rows: [] as { id: string; email: string; name: string; category: string }[] }));
+
+  let sent = 0;
+  const { unsubToken } = await import('./marketing.js');
+  for (const r of rows) {
+    const cat = (r.category as CorpCategory) in CORP_PITCH ? (r.category as CorpCategory) : 'other';
+    const p = CORP_PITCH[cat];
+    const unsub = `${config.email.publicBaseUrl}/api/unsubscribe?k=corp&c=${encodeURIComponent(r.id)}&t=${unsubToken(r.id)}`;
+    const html = renderCampaignHtml(buildFirstTouchBody(cat).replace(/\{\{\s*name\s*\}\}/gi, r.name || 'there'), unsub);
+    const res = await sendEmail({
+      to: r.email, subject: p.subject, html, skipMonitorBcc: true, replyTo: config.email.replyTo,
+      tags: [{ name: 'corp', value: 'firsttouch' }],
+    });
+    if (res.ok) {
+      sent++;
+      await pool.query(
+        `UPDATE corporate_leads SET status = 'contacted', first_contacted_at = now(), updated_at = now() WHERE id = $1`,
+        [r.id],
+      ).catch(() => {});
+      await pool.query(`INSERT INTO email_send_log (campaign_id, email, kind) VALUES (NULL,$1,$2)`, [r.email.toLowerCase(), 'corporate']).catch(() => {});
+    }
+    await new Promise((res) => setTimeout(res, 150));
+  }
+  await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_firsttouch_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+  if (sent) console.log(`[corp-firsttouch] sent ${sent} first emails`);
+  return sent;
+}
 
 /** The gentle 2-week reminder body for a company that never replied. */
 function buildReminderBody(): string {
