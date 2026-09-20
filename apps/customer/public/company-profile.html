@@ -7,34 +7,36 @@
 <meta name="description" content="Eventana Events — the UAE's creative events partner. Bespoke concepts, signature branded experiences and flawless execution for the region's leading organisations.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Jost:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Jost:wght@300;400;500;600&display=swap">
 <style>
   :root{
-    --ink:#271F2E; --ink-soft:#6B6072; --ground:#FBF7F3; --card:#FFFFFF; --line:#ECE2D8;
-    --gold:#B8925A; --plum:#3B2247; --pink:#E94F9C; --pink-deep:#D0357F;
-    --mint:#2FB4A8; --lav:#7C5BB8; --peach:#F08A5B;
+    --ink:#3B3641; --ink-soft:#6E6470; --ground:#FFF8FB; --card:#FFFFFF; --line:#F3DEEA;
+    --pink:#F06CA8; --pink-deep:#E94F9C; --mint:#2FB4A8; --lav:#8E6FD0; --peach:#F0854F; --sky:#3E9FC9; --yellow:#D9A017;
+    --grad-pink:linear-gradient(135deg,#F97CB4 0%,#E94F9C 100%);
+    --grad-hero:linear-gradient(135deg,#FFE3F0 0%,#F9C6DC 45%,#FBD9C6 100%);
+    --grad-mint:linear-gradient(135deg,#6FDCCB 0%,#37B3A6 100%);
+    --rainbow:linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0);
   }
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-    --ink:#F2ECF2; --ink-soft:#B4A9B8; --ground:#171319; --card:#211C26; --line:#332A38; --gold:#CBAA72;
+    --ink:#F4ECF1; --ink-soft:#BBAEB8; --ground:#1A151A; --card:#241D25; --line:#392E39;
   }}
-  :root[data-theme="dark"]{--ink:#F2ECF2; --ink-soft:#B4A9B8; --ground:#171319; --card:#211C26; --line:#332A38; --gold:#CBAA72;}
+  :root[data-theme="dark"]{--ink:#F4ECF1; --ink-soft:#BBAEB8; --ground:#1A151A; --card:#241D25; --line:#392E39;}
   *{box-sizing:border-box}
   body{margin:0;background:var(--ground);color:var(--ink);font-family:'Jost',system-ui,sans-serif;line-height:1.65;font-size:16px;-webkit-font-smoothing:antialiased}
   .wrap{max-width:940px;margin:0 auto;padding:0 26px}
-  h1,h2,h3{font-family:'Playfair Display',Georgia,serif;letter-spacing:.2px;font-weight:700}
-  .eyebrow{font-size:11px;font-weight:600;letter-spacing:3.5px;text-transform:uppercase}
+  h1,h2,h3{font-family:'Fredoka',sans-serif;letter-spacing:-.3px;font-weight:600}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--pink-deep)}
 
   /* HERO */
-  .hero{background:var(--plum);background:linear-gradient(140deg,#3B2247 0%,#7C2F63 48%,#E94F9C 120%);color:#fff;text-align:center;padding:54px 26px 60px;position:relative;overflow:hidden}
-  .hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:linear-gradient(90deg,#7FD8C4,#F7D06B,#F7A98C,#F080A8,#B79BE0)}
-  .hero img{width:230px;max-width:62%;height:auto;filter:drop-shadow(0 6px 18px rgba(0,0,0,.25))}
-  .hero .eyebrow{color:#ffd9ec;margin:22px 0 0}
-  .hero h1{font-size:42px;line-height:1.08;margin:14px auto 12px;max-width:640px;color:#fff;font-weight:800}
-  .hero p{font-size:16.5px;max-width:560px;margin:0 auto;color:#f5e6ef;font-weight:300}
+  .hero{background:var(--grad-pink);color:#fff;text-align:center;padding:52px 26px 58px;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:var(--rainbow)}
+  .hero img{width:230px;max-width:62%;height:auto;filter:drop-shadow(0 6px 18px rgba(180,30,100,.28))}
+  .hero .eyebrow{color:#ffe1ee;margin:22px 0 0}
+  .hero h1{font-size:40px;line-height:1.1;margin:14px auto 12px;max-width:660px;color:#fff;font-weight:700}
+  .hero p{font-size:16.5px;max-width:560px;margin:0 auto;color:#fff;opacity:.96;font-weight:300}
 
   section{padding:44px 0}
-  .tint{background:linear-gradient(180deg,rgba(233,79,156,.05),rgba(184,146,90,.05))}
-  .eyebrow.g{color:var(--gold)}
+  .tint{background:linear-gradient(180deg,rgba(240,108,168,.06),rgba(111,199,234,.05))}
   h2{font-size:30px;margin:8px 0 8px}
   .lead{color:var(--ink-soft);font-size:16.5px;max-width:680px;font-weight:300;margin:0 0 24px}
   .lead b{color:var(--ink);font-weight:500}
@@ -42,51 +44,52 @@
   /* WHY */
   .why{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:620px){.why{grid-template-columns:1fr}}
-  .why .c{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;border-top:3px solid var(--pink)}
-  .why .c:nth-child(2){border-top-color:var(--mint)} .why .c:nth-child(3){border-top-color:var(--gold)} .why .c:nth-child(4){border-top-color:var(--lav)}
-  .why h3{font-size:20px;margin:0 0 6px}
+  .why .c{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 24px;border-top:4px solid var(--pink)}
+  .why .c:nth-child(2){border-top-color:var(--mint)} .why .c:nth-child(3){border-top-color:var(--yellow)} .why .c:nth-child(4){border-top-color:var(--lav)}
+  .why h3{font-size:19px;margin:0 0 6px}
   .why p{margin:0;color:var(--ink-soft);font-size:14.5px;font-weight:300}
 
-  /* STATS band */
-  .stats{background:var(--plum);background:linear-gradient(135deg,#3B2247,#5E2A55);color:#fff;border-radius:18px;padding:26px 22px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;text-align:center;margin:6px 0}
+  /* STATS band — pastel hero gradient, ink text */
+  .stats{background:var(--grad-hero);border-radius:20px;padding:26px 22px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;text-align:center;margin:6px 0}
   @media(max-width:600px){.stats{grid-template-columns:1fr;gap:18px}}
-  .stats .n{font-family:'Playfair Display',serif;font-size:30px;font-weight:700;color:#fff}
-  .stats .l{font-size:12.5px;letter-spacing:1px;text-transform:uppercase;color:#e7cfe0;margin-top:2px}
+  .stats .n{font-family:'Fredoka',sans-serif;font-size:28px;font-weight:700;color:#B7276F}
+  .stats .l{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8a5a72;margin-top:2px;font-weight:600}
 
   /* SERVICES */
   .offers{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:620px){.offers{grid-template-columns:1fr}}
-  .offer{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;position:relative;overflow:hidden;transition:transform .15s ease}
+  .offer{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;position:relative;overflow:hidden;transition:transform .15s ease}
   .offer::before{content:"";position:absolute;top:0;left:0;width:4px;height:100%}
   .offer:nth-child(6n+1)::before{background:var(--pink)} .offer:nth-child(6n+2)::before{background:var(--mint)}
-  .offer:nth-child(6n+3)::before{background:var(--gold)} .offer:nth-child(6n+4)::before{background:var(--lav)}
-  .offer:nth-child(6n+5)::before{background:var(--peach)} .offer:nth-child(6n+6)::before{background:var(--pink-deep)}
+  .offer:nth-child(6n+3)::before{background:var(--yellow)} .offer:nth-child(6n+4)::before{background:var(--lav)}
+  .offer:nth-child(6n+5)::before{background:var(--peach)} .offer:nth-child(6n+6)::before{background:var(--sky)}
   .offer:hover{transform:translateY(-3px)}
   .offer h3{font-size:18px;margin:0 0 5px}
   .offer p{margin:0;color:var(--ink-soft);font-size:14px;font-weight:300}
-  .more{color:var(--gold);font-style:italic;font-weight:400}
+  .more{color:var(--pink-deep);font-style:italic;font-weight:400}
 
   /* OCCASIONS */
   .occgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   @media(max-width:700px){.occgrid{grid-template-columns:1fr 1fr}}
   @media(max-width:460px){.occgrid{grid-template-columns:1fr}}
-  .occ-item{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 15px;font-size:14px;font-weight:400;color:var(--ink);text-align:center}
+  .occ-item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;font-size:14px;font-weight:400;color:var(--ink);text-align:center}
 
-  /* CLIENTS — dark band */
-  .clients{background:var(--plum);background:linear-gradient(135deg,#2E1938,#4A2C57);color:#fff;border-radius:20px;padding:34px 26px;text-align:center}
-  .clients .eyebrow{color:#e7b9d4}
+  /* CLIENTS — brand pink band */
+  .clients{background:var(--grad-pink);color:#fff;border-radius:22px;padding:34px 26px;text-align:center}
+  .clients .eyebrow{color:#ffe1ee}
   .clients h2{color:#fff;margin:8px 0 6px}
-  .clients .sub{color:#e6d7e2;font-weight:300;margin:0 0 20px}
+  .clients .sub{color:#fff;opacity:.95;font-weight:300;margin:0 0 20px}
   .clogos{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
   @media(max-width:700px){.clogos{grid-template-columns:1fr 1fr}}
-  .clogo{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:16px 12px;font-family:'Playfair Display',serif;font-size:14.5px;font-weight:500;color:#fff;display:flex;align-items:center;justify-content:center;min-height:66px;text-align:center}
+  .clogo{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:16px 12px;font-family:'Fredoka',sans-serif;font-size:14.5px;font-weight:600;color:#fff;display:flex;align-items:center;justify-content:center;min-height:66px;text-align:center}
 
-  /* CTA */
-  .cta{background:var(--pink);background:linear-gradient(135deg,#F97CB4,#E94F9C);color:#fff;text-align:center;padding:50px 26px}
+  /* CTA — mint */
+  .cta{background:var(--grad-mint);color:#fff;text-align:center;padding:50px 26px}
   .cta h2{color:#fff;font-size:30px;margin:6px 0 8px}
-  .cta p{color:#ffe6f2;font-weight:300;margin:0 0 22px}
-  .btn{display:inline-block;background:#fff;color:var(--pink-deep);text-decoration:none;font-weight:600;font-size:15px;letter-spacing:.4px;padding:15px 34px;border-radius:999px;box-shadow:0 10px 26px rgba(0,0,0,.18)}
-  .cta .lines{margin-top:18px;color:#fff;font-size:14px;font-weight:300;opacity:.95}
+  .cta p{color:#fff;opacity:.95;font-weight:300;margin:0 0 22px}
+  .cta .eyebrow{color:#e6fff9}
+  .btn{display:inline-block;background:#fff;color:#1E8B80;text-decoration:none;font-weight:600;font-size:15px;letter-spacing:.4px;padding:15px 34px;border-radius:999px;box-shadow:0 10px 26px rgba(0,0,0,.16)}
+  .cta .lines{margin-top:18px;color:#fff;font-size:14px;font-weight:300;opacity:.96}
   footer{text-align:center;color:var(--ink-soft);font-size:12px;font-weight:300;padding:22px}
 </style>
 </head>
@@ -100,12 +103,12 @@
 
   <section>
     <div class="wrap">
-      <div class="eyebrow g">Who we are</div>
+      <div class="eyebrow">Who we are</div>
       <h2>A partner, not a supplier</h2>
       <p class="lead">From the first spark of an idea to the final detail on the day, we design and produce experiences that <b>engage your people, elevate your brand and get everyone talking</b>. Rooted in the UAE, we understand its occasions, its culture and its expectations like no one else — and we bring real creativity to every brief.</p>
       <div class="stats">
         <div><div class="n">500+</div><div class="l">Events delivered</div></div>
-        <div><div class="n">Abu Dhabi &amp; Dubai</div><div class="l">Where we create</div></div>
+        <div><div class="n">All 7 Emirates</div><div class="l">Where we create</div></div>
         <div><div class="n">In-house</div><div class="l">Concept to teardown</div></div>
       </div>
     </div>
@@ -113,7 +116,7 @@
 
   <section class="tint">
     <div class="wrap">
-      <div class="eyebrow g">Why organisations choose us</div>
+      <div class="eyebrow">Why organisations choose us</div>
       <h2>The Eventana difference</h2>
       <div class="why">
         <div class="c"><h3>Culture, understood</h3><p>We know the UAE's occasions, etiquette and expectations inside out — every detail right, every time.</p></div>
@@ -126,11 +129,11 @@
 
   <section>
     <div class="wrap">
-      <div class="eyebrow g">What we create</div>
+      <div class="eyebrow">What we create</div>
       <h2>Interactive. Creative. Yours.</h2>
       <p class="lead">We don't just supply services — we craft <b>a complete, custom, interactive experience</b>, built entirely around your brand and the type of occasion, and creative to the core.</p>
       <div class="offers">
-        <div class="offer"><h3>Signature Branded Stations</h3><p>Our wow moments — a branded perfume bar, a make-your-own lipstick bar, and a coffee corner that prints your logo (or a guest's photo) onto the foam.</p></div>
+        <div class="offer"><h3>Signature Branded Stations</h3><p>Our wow moments — from a branded perfume bar and a make-your-own lipstick bar to a coffee corner that prints your logo on the foam, plus many more signature stations, all branded to you.</p></div>
         <div class="offer"><h3>Complete Décor &amp; Styling</h3><p>Full concept, setup and teardown — dressed entirely to your theme and brand.</p></div>
         <div class="offer"><h3>Authentic Heritage Setups</h3><p>Complete Emirati — or any-theme — heritage settings, with every detail considered.</p></div>
         <div class="offer"><h3>Branded Food, Drinks &amp; Coffee Pop-ups</h3><p>Live stations customised to your occasion — anything you can imagine, in your brand.</p></div>
@@ -148,7 +151,7 @@
 
   <section class="tint">
     <div class="wrap">
-      <div class="eyebrow g">Occasions</div>
+      <div class="eyebrow">Occasions</div>
       <h2>Every occasion, all year</h2>
       <div class="occgrid">
         <div class="occ-item">UAE National Day &amp; Flag Day</div>
@@ -178,20 +181,20 @@
           <div class="clogo">Community Development Authority</div>
           <div class="clogo">EBS Edge</div>
           <div class="clogo">Georgetown University</div>
-          <div class="clogo" style="font-style:italic;font-size:13px;color:#e7b9d4">…and many more</div>
+          <div class="clogo" style="font-style:italic;font-weight:400">…and many more</div>
         </div>
       </div>
     </div>
   </section>
 
   <div class="cta">
-    <div class="eyebrow" style="color:#ffe0ef">Let's talk</div>
+    <div class="eyebrow">Let's talk</div>
     <h2>Create something unforgettable</h2>
     <p>Share your occasion, date and a rough budget — we'll craft a tailored proposal.</p>
     <a class="btn" href="https://wa.me/971564500777">Contact us on WhatsApp</a>
     <div class="lines">056 450 0777 · hello@eventanauae.com · eventanauae.com</div>
   </div>
 
-  <footer>Eventana Events · Abu Dhabi &amp; Dubai, UAE</footer>
+  <footer>Eventana Events · United Arab Emirates</footer>
 </body>
 </html>
