@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Jost:wght@300;400;500;600&display=swap">
 <style>
   :root{
-    --ink:#26222B; --ink-soft:#6B636F; --ground:#FFFFFF; --soft:#FBF7F9; --card:#FFFFFF;
+    --ink:#26222B; --ink-soft:#6B636F; --ground:#FFFFFF; --soft:#FFF3F8; --card:#FFFFFF;
     --line:#ECE6EB; --line2:#E0D8DF; --pink:#E94F9C; --pink-deep:#CE3A85; --pink-soft:#FCEFF6;
     --mint:#37B3A6; --lav:#8E6FD0; --peach:#F0854F; --sky:#3E9FC9; --yellow:#D9A017;
     --rainbow:linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0);
@@ -30,13 +30,13 @@
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .blob{opacity:.28}}
   :root[data-theme="dark"] .blob{opacity:.28}
 
-  /* HERO — clean white, logo + a single rainbow hairline, soft blobs behind */
-  .hero{text-align:center;padding:52px 26px 42px;position:relative;overflow:hidden}
+  /* HERO — warm pink-tinted, logo + a single rainbow hairline, soft blobs behind */
+  .hero{text-align:center;padding:56px 26px 46px;position:relative;overflow:hidden;background:linear-gradient(180deg,#FFEAF3 0%,#FFF6FA 100%)}
   .hero > *{position:relative;z-index:1}
-  .hero .b1{width:280px;height:280px;background:#FAC6DE;top:-90px;left:-70px}
-  .hero .b2{width:240px;height:240px;background:#BEEBE2;top:-60px;right:-60px}
-  .hero .b3{width:200px;height:200px;background:#D9C9F0;bottom:-90px;left:38%}
-  .hero img{width:220px;max-width:60%;height:auto}
+  .hero .b1{width:300px;height:300px;background:#F9B8D6;top:-110px;left:-80px}
+  .hero .b2{width:240px;height:240px;background:#FCD3C4;top:-70px;right:-60px}
+  .hero .b3{width:210px;height:210px;background:#F7C9E4;bottom:-100px;left:40%}
+  .hero img{width:230px;max-width:62%;height:auto}
   .hero .rr{width:80px;height:3px;background:var(--rainbow);border-radius:3px;margin:22px auto 0}
   .hero .eyebrow{margin:26px 0 0}
   .hero h1{font-size:40px;line-height:1.12;margin:12px auto 14px;max-width:620px;color:var(--ink)}
@@ -65,11 +65,10 @@
   /* SERVICES */
   .offers{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:620px){.offers{grid-template-columns:1fr}}
-  .offer{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--pink);border-radius:12px;padding:19px 22px;transition:transform .15s ease,box-shadow .15s ease}
-  .offer:nth-child(6n+2){border-left-color:var(--mint)} .offer:nth-child(6n+3){border-left-color:var(--yellow)}
-  .offer:nth-child(6n+4){border-left-color:var(--lav)} .offer:nth-child(6n+5){border-left-color:var(--peach)} .offer:nth-child(6n+6){border-left-color:var(--sky)}
-  .offer:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(38,34,43,.08)}
-  .offer h3{font-size:17.5px;margin:0 0 5px}
+  .offer{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;transition:transform .15s ease,box-shadow .15s ease}
+  .offer h3{font-size:17.5px;margin:0 0 6px;padding-left:16px;position:relative}
+  .offer h3::before{content:"";position:absolute;left:0;top:6px;width:7px;height:7px;border-radius:50%;background:var(--pink)}
+  .offer:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(233,79,156,.12)}
   .offer p{margin:0;color:var(--ink-soft);font-size:14px;font-weight:300}
   .more{color:var(--pink-deep);font-style:italic;font-weight:400}
 
@@ -77,7 +76,7 @@
   .occgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
   @media(max-width:700px){.occgrid{grid-template-columns:1fr 1fr}}
   @media(max-width:460px){.occgrid{grid-template-columns:1fr}}
-  .occ-item{border:1px solid var(--line2);border-radius:8px;padding:12px 14px;font-size:14px;font-weight:400;color:var(--ink);text-align:center;background:var(--card)}
+  .occ-item{border:1px solid var(--pink-soft);border-radius:10px;padding:12px 14px;font-size:14px;font-weight:400;color:var(--ink);text-align:center;background:var(--pink-soft)}
 
   /* CLIENTS */
   .clogos{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px}
