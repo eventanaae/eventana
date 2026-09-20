@@ -372,7 +372,11 @@ export async function adminRoutes(app: FastifyInstance) {
    * `?limit=` caps it (default 5 for the Home teaser; the feedback page asks for
    * more). Only ratings that carry a written comment are returned.
    */
-  app.get('/api/admin/customer-feedback', async (request) => {
+  app.get('/api/admin/customer-feedback', async (request, reply) => {
+    // Customer names + written feedback (incl. complaints) are owner/manager only
+    // — same rule as the ratings-report endpoint below.
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const q = request.query as { limit?: string };
     const limit = Math.min(100, Math.max(1, Number(q.limit) || 5));
     const { rows } = await pool.query(
@@ -794,8 +798,19 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!r) return reply.status(400).send({ error: 'invalid', message: 'title and at least one assignee are required' });
     return { ok: true, id: r.id };
   });
+    // Employees may act only on prep tasks ASSIGNED to them; owner/manager on any.
+    const prepTaskIsMine = async (taskId: string, req: any): Promise<boolean> => {
+      const role = req?.staff?.role;
+      if (role === 'owner' || role === 'manager') return true;
+      const { rows } = await pool.query(
+        `SELECT 1 FROM prep_task_staff WHERE task_id = $1 AND member_id = $2`,
+        [taskId, req?.staff?.id ?? '__none__'],
+      );
+      return !!rows[0];
+    };
   app.post('/api/admin/prep/task/:taskId/complete', async (request, reply) => {
     const { taskId } = request.params as { taskId: string };
+    if (!(await prepTaskIsMine(taskId, request))) return reply.status(403).send({ error: 'forbidden', message: 'You can only update tasks assigned to you.' });
     const b = (request.body ?? {}) as { completedBy?: string; photoUrl?: string };
     const { completePrepTask } = await import('../domain/prep.js');
     const actor = String((request as any).staff?.name ?? 'staff');
@@ -806,6 +821,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
   app.post('/api/admin/prep/task/:taskId/status', async (request, reply) => {
     const { taskId } = request.params as { taskId: string };
+    if (!(await prepTaskIsMine(taskId, request))) return reply.status(403).send({ error: 'forbidden', message: 'You can only update tasks assigned to you.' });
     const b = (request.body ?? {}) as { status?: string; note?: string };
     const { setPrepTaskStatus } = await import('../domain/prep.js');
     const r = await setPrepTaskStatus(taskId, String(b.status), b.note ?? null, String((request as any).staff?.name ?? 'staff'));
@@ -815,6 +831,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
   app.post('/api/admin/prep/task/:taskId/checklist', async (request, reply) => {
     const { taskId } = request.params as { taskId: string };
+    if (!(await prepTaskIsMine(taskId, request))) return reply.status(403).send({ error: 'forbidden', message: 'You can only update tasks assigned to you.' });
     const b = (request.body ?? {}) as { index?: number; done?: boolean };
     const { togglePrepChecklist } = await import('../domain/prep.js');
     const r = await togglePrepChecklist(taskId, Number(b.index), !!b.done);
@@ -823,6 +840,10 @@ export async function adminRoutes(app: FastifyInstance) {
   });
   app.post('/api/admin/prep/task/:taskId/assignees', async (request, reply) => {
     const { taskId } = request.params as { taskId: string };
+    // Reassigning who does a task is a management action — not something one
+    // employee may do to another's work.
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Only the owner or a manager can reassign tasks.' });
     const b = (request.body ?? {}) as { memberIds?: string[] };
     const { setPrepAssignees } = await import('../domain/prep.js');
     const r = await setPrepAssignees(taskId, Array.isArray(b.memberIds) ? b.memberIds : [], String((request as any).staff?.name ?? 'staff'));
@@ -1208,6 +1229,17 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.post('/api/admin/events/:eventId/phase', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
+    // Advancing a phase fires customer-facing messages (on-the-way / arrived /
+    // feedback), so it must be the owner/manager or someone actually ON this
+    // event's crew — never any employee/driver against any event id.
+    const staff = (request as any).staff as { id?: string; role?: string };
+    if (staff?.role !== 'owner' && staff?.role !== 'manager') {
+      const { rows: onCrew } = await pool.query(
+        `SELECT 1 FROM event_team WHERE event_id = $1 AND member_id = $2`,
+        [eventId, staff?.id ?? '__none__'],
+      );
+      if (!onCrew[0]) return reply.status(403).send({ error: 'forbidden', message: 'You can only update events you are assigned to.' });
+    }
     const schema = z.object({
       phase: z.enum([
         'Booking Confirmed',
