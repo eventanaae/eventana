@@ -205,8 +205,13 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     }
   }
 
-  // The map pin is required to complete a booking (spec item 7).
-  if (!cart.mapPin || typeof cart.mapPin.lat !== 'number' || typeof cart.mapPin.lng !== 'number') {
+  // The map pin is required to complete a booking (spec item 7) — UNLESS the
+  // customer ticked "I'll pin the exact location later" (locationTbd). Then the
+  // booking proceeds on the emirate + written address, and the team collects the
+  // exact pin afterwards. Delivery is priced by emirate, so nothing money-related
+  // depends on the pin.
+  const locationTbd = Boolean((cart as { locationTbd?: boolean }).locationTbd);
+  if (!locationTbd && (!cart.mapPin || typeof cart.mapPin.lat !== 'number' || typeof cart.mapPin.lng !== 'number')) {
     serverQuote.problems.push({
       code: 'missing_map_pin',
       message: 'Drop the map pin for your exact event location to continue.',

@@ -147,6 +147,12 @@ export function Checkout({
   const forKeys = ['kids', 'graduation', 'bride', 'baby', 'gender', 'adult'];
   const eventForLabel = t(`checkout.for.${forKeys.includes(draft.celebrationType) ? draft.celebrationType : 'default'}`);
 
+  // The chosen theme (a catalogue theme, or a custom-theme request) so it's
+  // visible at checkout — resolved once and shown in Step 1 and the summary.
+  const themeName = draft.themeId
+    ? (catalogue.themes.find((th) => th.id === draft.themeId)?.name ?? null)
+    : (draft.customTheme ? (lang === 'ar' ? 'ثيم مخصص' : 'Custom theme') : null);
+
   const emailOk = /.+@.+\..+/.test(reg.email.trim());
   // Validate the contact + backup as real UAE mobiles (same rule as the shop /
   // profile flows), and require them to differ — this data feeds the driver &
@@ -371,7 +377,7 @@ export function Checkout({
     !needsCustomization || draft.customization.refImages.length > 0 || draft.customization.wantDraw;
 
   const canPay =
-    Boolean(quote?.bookable) && Boolean(draft.mapPin) && !blocked && !paying && agreed && customizationReady &&
+    Boolean(quote?.bookable) && (Boolean(draft.mapPin) || draft.locationTbd) && !blocked && !paying && agreed && customizationReady &&
     (Boolean(account) || (authMode === 'register' && guestReady));
 
   // The live wallet rail (Card + Apple Pay both settle through it) is Stripe,
@@ -393,7 +399,7 @@ export function Checkout({
   const canAdvance =
     step === 1 ? true
       : step === 2 ? Boolean(zone) && !blocked
-      : step === 3 ? Boolean(draft.mapPin)
+      : step === 3 ? (Boolean(draft.mapPin) || Boolean(draft.locationTbd))
       : step === 4 ? Boolean(draft.eventDate) && Boolean(draft.startTime) && !dateTimeBlocked
       : step === 5 ? (Boolean(account) || (authMode === 'register' && guestReady))
       : true;
@@ -452,6 +458,11 @@ export function Checkout({
           value={draft.eventFor}
           onChange={(v) => update({ eventFor: v })}
         />
+        {themeName && (
+          <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
+            🎨 {themeName}
+          </div>
+        )}
       </div>
         </>
       )}
@@ -539,6 +550,19 @@ export function Checkout({
               {t('checkout.pinUsed')}
             </div>
           )}
+          {/* Some customers don't know the exact spot yet — let them book now and
+              pin it later (the team follows up before the event). */}
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', marginTop: 12 }}>
+            <input
+              type="checkbox"
+              checked={Boolean(draft.locationTbd)}
+              onChange={(e) => update({ locationTbd: e.target.checked })}
+              style={{ marginTop: 2, width: 16, height: 16, accentColor: C.pink, flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>
+              {lang === 'ar' ? 'أحدّد الموقع بالضبط لاحقًا' : "I'll pin the exact location later"}
+            </span>
+          </label>
         </div>
       </div>
 
@@ -757,6 +781,12 @@ export function Checkout({
           <span>{t('checkout.total')}</span>
           <span>{t('common.aed')} {quote ? money(quote.totalFils) : '—'}</span>
         </div>
+        {themeName && (
+          <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12.5, fontWeight: 700 }}>
+            <span style={{ color: C.muted }}>{lang === 'ar' ? 'الثيم' : 'Theme'}</span>
+            <span style={{ color: C.pinkDeep }}>🎨 {themeName}</span>
+          </div>
+        )}
         {quoteError && (
           <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: C.pinkSoft, borderRadius: 12, padding: '9px 12px' }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, color: C.red, lineHeight: 1.4 }}>{t('checkout.priceLoadFailed')}</span>
@@ -1048,7 +1078,7 @@ export function Checkout({
           <Notice tone="error">{error}</Notice>
         </div>
       )}
-      {!draft.mapPin && (
+      {!draft.mapPin && !draft.locationTbd && (
         <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: C.red, textAlign: 'center' }}>
           {t('checkout.mapPinRequired')}
         </div>

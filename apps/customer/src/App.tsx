@@ -79,6 +79,9 @@ export interface Draft {
    *  (?offer=…). Sent at checkout so the booking is tagged 'manual' and the
    *  offer is consumed on payment. */
   offerToken: string | null;
+  /** The customer will pin the exact delivery location later — lets them book
+   *  now without a map pin (the team follows up before the event). */
+  locationTbd?: boolean;
 }
 
 const emptyDraft: Draft = {
@@ -106,6 +109,7 @@ const emptyDraft: Draft = {
   themeBrief: null,
   eventFor: '',
   offerToken: null,
+  locationTbd: false,
 };
 
 /**
@@ -184,6 +188,7 @@ export function toCart(draft: Draft): CartInput & Record<string, unknown> {
     castleVariant: draft.packageId || (draft.services['castle'] ?? 0) > 0 ? draft.castleVariant : null,
     address: draft.address,
     mapPin: draft.mapPin,
+    locationTbd: draft.locationTbd ?? false,
     eventFor: draft.eventFor.trim() || undefined,
     // Previously frontend-only and silently dropped at checkout — now sent so
     // the team gets the exact age, the chosen film, and the custom-theme brief.
