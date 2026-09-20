@@ -6063,9 +6063,14 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(`SELECT sale_key, theme FROM sale_themes`),
     ]);
     const savedMap = new Map<string, string>((saved.rows as any[]).map((r) => [r.sale_key, r.theme]));
+    // Employees fill themes but don't need the customer's phone — only the
+    // owner/manager sees contact numbers here. Name + date + product are enough
+    // to identify the sale.
+    const role = (request as any).staff?.role;
+    const canSeePhone = role === 'owner' || role === 'manager';
     const rows = [...live.rows, ...qb.rows]
       .map((r: any) => ({
-        saleKey: r.sale_key, date: r.d, customer: r.name ?? '', phone: r.phone ?? '',
+        saleKey: r.sale_key, date: r.d, customer: r.name ?? '', phone: canSeePhone ? (r.phone ?? '') : '',
         product: r.product ?? '', currentTheme: r.current_theme ?? '', savedTheme: savedMap.get(r.sale_key) ?? '',
         source: String(r.sale_key).startsWith('qb:') ? 'quickbooks' : 'app',
       }))

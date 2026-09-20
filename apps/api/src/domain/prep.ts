@@ -332,6 +332,18 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   const keptKeys = new Set(
     existing.rows.filter((r) => ['completed', 'in_progress', 'issue'].includes(r.status)).map((r) => r.key),
   );
+  // Snapshot the assignees of the tasks we're about to rebuild, keyed by task
+  // key, so a task recreated under the same key keeps its people — otherwise a
+  // regenerate (add-on / reschedule / receipt reconcile) silently wiped the
+  // owner's MANUAL assignee fill on a not_started task and re-auto-assigned it.
+  const prevAssignees = await pool.query<{ key: string; members: string[] }>(
+    `SELECT pt.key, array_agg(pts.member_id) AS members
+       FROM prep_tasks pt JOIN prep_task_staff pts ON pts.task_id = pt.id
+      WHERE pt.event_id = $1 AND NOT (${KEEP}) AND left(pt.key,6) <> 'extra_'
+      GROUP BY pt.key`,
+    [eventId],
+  );
+  const prevAssigneeMap = new Map<string, string[]>(prevAssignees.rows.map((r) => [r.key, r.members ?? []]));
   await pool.query(
     `DELETE FROM prep_task_staff WHERE task_id IN (
        SELECT id FROM prep_tasks WHERE event_id = $1 AND NOT (${KEEP}) AND left(key,6) <> 'extra_')`,
@@ -364,16 +376,26 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
     const taskId = ins.rows[0].id;
     created++;
 
-    // Fair assignment: qualified, not on day-off, lowest workload first. Assign
-    // as many distinct people as the task needs (two-person tasks get two).
-    const offSet = t.category === 'design' ? offDesign : off;
-    const cands = staff
-      .filter((s) => s.skills.has(t.skill) && !offSet.has(s.id))
-      .sort((a, b) => (workload.get(a.id) ?? 0) - (workload.get(b.id) ?? 0));
-    for (let i = 0; i < t.people && i < cands.length; i++) {
-      const pick = cands[i];
-      await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, pick.id]);
-      workload.set(pick.id, (workload.get(pick.id) ?? 0) + 1); // keep it fair within this event too
+    // If this key already had people before the rebuild, KEEP them (this is how
+    // a manual assignee fill survives a regenerate); otherwise auto-assign fairly.
+    const preserved = prevAssigneeMap.get(t.key) ?? [];
+    if (preserved.length) {
+      for (const m of preserved) {
+        await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, m]);
+        workload.set(m, (workload.get(m) ?? 0) + 1);
+      }
+    } else {
+      // Fair assignment: qualified, not on day-off, lowest workload first. Assign
+      // as many distinct people as the task needs (two-person tasks get two).
+      const offSet = t.category === 'design' ? offDesign : off;
+      const cands = staff
+        .filter((s) => s.skills.has(t.skill) && !offSet.has(s.id))
+        .sort((a, b) => (workload.get(a.id) ?? 0) - (workload.get(b.id) ?? 0));
+      for (let i = 0; i < t.people && i < cands.length; i++) {
+        const pick = cands[i];
+        await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, pick.id]);
+        workload.set(pick.id, (workload.get(pick.id) ?? 0) + 1); // keep it fair within this event too
+      }
     }
   }
 
@@ -385,6 +407,49 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
     return { created: [] as string[], escalated: [] as string[] };
   });
   created += extra.created.length + extra.escalated.length;
+
+  // Nothing-dropped net for CATALOGUE services (service_id set). backfill only
+  // scans free-text lines; a runtime-added service in a category NO template
+  // covers would get no task and no alert. Probe each catalogue service's OWN
+  // signals (its categoryId + label) against the templates — if nothing fires
+  // and the label isn't otherwise recognised, it's genuinely un-homed, so give
+  // it a catch-all prep task. Probe-confirmed uncovered ⇒ never a duplicate.
+  for (const row of (es.rows as Array<{ service_id: string | null; label: string | null }>)) {
+    if (!row.service_id) continue;
+    const label = String(row.label ?? '').trim();
+    if (!label || recognizedPrepLabel(label)) continue;
+    const svc = cfg.services.get(row.service_id) as any;
+    const sid = new Set<string>(); const cat = new Set<string>();
+    if (svc?.categoryId) cat.add(String(svc.categoryId));
+    let infl = svc?.isInflatable ? 1 : 0;
+    infl += classifyLabel(label, sid, cat);
+    const probe: Ctx = {
+      packageKey: null, isDesignPackage: false, customTheme: false,
+      serviceIds: sid, categories: cat, has: (id) => sid.has(id), cat: (c) => cat.has(c),
+      inflatables: infl, noEntranceStand: false,
+    };
+    if (TEMPLATES.some((t) => t.when(probe))) continue; // a template already homes it
+    const key = xtraKey(label);
+    const skill = guessSkill(label);
+    const ins = await pool.query<{ id: string }>(
+      `INSERT INTO prep_tasks (event_id, key, title, category, skill, people_needed, due_date, status)
+       VALUES ($1,$2,$3,'physical',$4,1,$5,'not_started')
+       ON CONFLICT (event_id, key) DO NOTHING RETURNING id`,
+      [eventId, key, `Prepare: ${label}`, skill, dueOf('physical')],
+    );
+    if (!ins.rows[0]) continue;
+    const taskId = ins.rows[0].id;
+    if (skill) {
+      const cand = staff.filter((s) => s.skills.has(skill))
+        .sort((a, b) => (workload.get(a.id) ?? 0) - (workload.get(b.id) ?? 0))[0];
+      if (cand) {
+        await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, cand.id]);
+        workload.set(cand.id, (workload.get(cand.id) ?? 0) + 1);
+      }
+    }
+    await logTask(taskId, eventId, 'extra', `Auto prep task for booked catalogue service: ${label}`, 'system');
+    created++;
+  }
 
   await pool.query(
     `INSERT INTO prep_task_log (event_id, action, detail, actor) VALUES ($1,'generated',$2,'system')`,
