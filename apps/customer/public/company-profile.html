@@ -12,6 +12,7 @@
   :root{
     --ink:#26222B; --ink-soft:#6B636F; --ground:#FFFFFF; --soft:#FBF7F9; --card:#FFFFFF;
     --line:#ECE6EB; --line2:#E0D8DF; --pink:#E94F9C; --pink-deep:#CE3A85; --pink-soft:#FCEFF6;
+    --mint:#37B3A6; --lav:#8E6FD0; --peach:#F0854F; --sky:#3E9FC9; --yellow:#D9A017;
     --rainbow:linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0);
   }
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -24,8 +25,17 @@
   h1,h2,h3{font-family:'Playfair Display',Georgia,serif;letter-spacing:.2px;font-weight:600}
   .eyebrow{font-size:11px;font-weight:600;letter-spacing:2.6px;text-transform:uppercase;color:var(--pink-deep)}
 
-  /* HERO — clean white, logo + a single rainbow hairline */
-  .hero{text-align:center;padding:52px 26px 40px}
+  /* Soft ambient colour blobs — elegant depth, no photos */
+  .blob{position:absolute;border-radius:50%;filter:blur(60px);opacity:.5;z-index:0;pointer-events:none}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .blob{opacity:.28}}
+  :root[data-theme="dark"] .blob{opacity:.28}
+
+  /* HERO — clean white, logo + a single rainbow hairline, soft blobs behind */
+  .hero{text-align:center;padding:52px 26px 42px;position:relative;overflow:hidden}
+  .hero > *{position:relative;z-index:1}
+  .hero .b1{width:280px;height:280px;background:#FAC6DE;top:-90px;left:-70px}
+  .hero .b2{width:240px;height:240px;background:#BEEBE2;top:-60px;right:-60px}
+  .hero .b3{width:200px;height:200px;background:#D9C9F0;bottom:-90px;left:38%}
   .hero img{width:220px;max-width:60%;height:auto}
   .hero .rr{width:80px;height:3px;background:var(--rainbow);border-radius:3px;margin:22px auto 0}
   .hero .eyebrow{margin:26px 0 0}
@@ -55,8 +65,10 @@
   /* SERVICES */
   .offers{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:620px){.offers{grid-template-columns:1fr}}
-  .offer{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:19px 22px;transition:border-color .15s ease,transform .15s ease}
-  .offer:hover{border-color:var(--pink);transform:translateY(-2px)}
+  .offer{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--pink);border-radius:12px;padding:19px 22px;transition:transform .15s ease,box-shadow .15s ease}
+  .offer:nth-child(6n+2){border-left-color:var(--mint)} .offer:nth-child(6n+3){border-left-color:var(--yellow)}
+  .offer:nth-child(6n+4){border-left-color:var(--lav)} .offer:nth-child(6n+5){border-left-color:var(--peach)} .offer:nth-child(6n+6){border-left-color:var(--sky)}
+  .offer:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(38,34,43,.08)}
   .offer h3{font-size:17.5px;margin:0 0 5px}
   .offer p{margin:0;color:var(--ink-soft);font-size:14px;font-weight:300}
   .more{color:var(--pink-deep);font-style:italic;font-weight:400}
@@ -83,6 +95,7 @@
 </head>
 <body>
   <div class="hero">
+    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
     <img src="/email-logo.png" alt="Eventana Events">
     <div class="rr"></div>
     <div class="eyebrow">Company Profile</div>
