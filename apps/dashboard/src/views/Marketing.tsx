@@ -34,6 +34,7 @@ export function Marketing() {
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
+  const [svcEdit, setSvcEdit] = useState<any | null>(null);
   const [month, setMonth] = useState<string>('all');
 
   const load = () => {
@@ -152,7 +153,22 @@ export function Marketing() {
                 ? new Date(o.dateISO + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
                 : '—';
               const away = o.daysAway;
-              const camp = o.campaign;
+              const findFull = (id: string) => data.campaigns.find((x: any) => String(x.id) === String(id));
+              const draftRow = (label: string, camp: any) => camp && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: C.muted, minWidth: 74 }}>{label}</span>
+                  <Badge tone={STATUS_TONE[camp.status] ?? 'neutral'}>{String(camp.status).replace(/_/g, ' ')}</Badge>
+                  <button onClick={() => openPreview(Number(camp.id))} style={miniBtn}>👁</button>
+                  {(camp.status === 'pending_approval' || camp.status === 'draft') && (
+                    <>
+                      <button onClick={() => setEditing(findFull(camp.id))} style={miniBtn}>✏️</button>
+                      <button onClick={() => act(() => api.approveCampaign(camp.id), 'Approved & scheduled.')} disabled={busy || !data.emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve</button>
+                      <button onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) act(() => api.rejectCampaign(camp.id, r), 'Rejected.'); }} disabled={busy} style={{ ...miniBtn, color: C.red }}>Reject</button>
+                    </>
+                  )}
+                </div>
+              );
+              const anyDraft = o.consumer || o.corporate;
               return (
                 <div key={o.slug} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -164,26 +180,16 @@ export function Marketing() {
                     {away != null && away >= 0 && (
                       <span style={countdownStyle(away)}>{away === 0 ? '🎉 Today' : `⏳ ${away} day${away === 1 ? '' : 's'} left`}</span>
                     )}
-                    {o.needsDateConfirm ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: C.red }}>Confirm this year’s date</span>
-                    ) : camp ? (
-                      <Badge tone={STATUS_TONE[camp.status] ?? 'neutral'}>{String(camp.status).replace(/_/g, ' ')}</Badge>
-                    ) : (
-                      <button onClick={() => act(() => api.prepareOccasion(o.slug), 'Draft prepared — review it below.')} disabled={busy} style={{ ...miniBtn, borderColor: C.pink, color: C.pinkDeep }}>Prepare now</button>
-                    )}
+                    {o.needsDateConfirm && <span style={{ fontSize: 11, fontWeight: 700, color: C.red }}>Confirm this year’s date</span>}
                   </div>
-                  {camp && (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                      <button onClick={() => openPreview(Number(camp.id))} style={miniBtn}>👁 Preview</button>
-                      {(camp.status === 'pending_approval' || camp.status === 'draft') && (
-                        <>
-                          <button onClick={() => setEditing(data.campaigns.find((x: any) => String(x.id) === String(camp.id)))} style={miniBtn}>✏️ Edit</button>
-                          <button onClick={() => act(() => api.approveCampaign(camp.id), 'Approved & scheduled.')} disabled={busy || !data.emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve</button>
-                          <button onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) act(() => api.rejectCampaign(camp.id, r), 'Rejected.'); }} disabled={busy} style={{ ...miniBtn, color: C.red }}>Reject</button>
-                        </>
-                      )}
+                  {!o.needsDateConfirm && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                      {!o.greetingOnly && <button onClick={() => setSvcEdit(o)} style={miniBtn}>🧩 Services</button>}
+                      {!anyDraft && <button onClick={() => act(() => api.prepareOccasion(o.slug), 'Draft prepared.')} disabled={busy} style={{ ...miniBtn, borderColor: C.pink, color: C.pinkDeep }}>Prepare now</button>}
                     </div>
                   )}
+                  {draftRow('Customers', o.consumer)}
+                  {draftRow('Companies', o.corporate)}
                 </div>
               );
             })}
@@ -288,7 +294,45 @@ export function Marketing() {
           busy={busy}
         />
       )}
+
+      {svcEdit && (
+        <ServicesModal
+          occasion={svcEdit}
+          busy={busy}
+          onClose={() => setSvcEdit(null)}
+          onSave={async (payload) => { await act(() => api.saveOccasionSettings(svcEdit.slug, payload), 'Saved — the emails now use your services.'); setSvcEdit(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Owner-authored services / intro / customer-offer for an occasion ─────────
+function ServicesModal({ occasion, onClose, onSave, busy }: {
+  occasion: any; onClose: () => void; onSave: (p: { services: string; intro: string; offer: string }) => void; busy?: boolean;
+}) {
+  const [services, setServices] = useState<string>((occasion.services ?? []).join('\n'));
+  const [intro, setIntro] = useState<string>(occasion.intro ?? '');
+  const [offer, setOffer] = useState<string>(occasion.offer ?? '');
+  return (
+    <Modal title={`Services · ${occasion.name}`} onClose={onClose} busy={busy} saveLabel="Save"
+      onSave={() => onSave({ services, intro, offer })}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, lineHeight: 1.5 }}>
+          Write the services you want this occasion’s email to list — <b>one per line</b>. These are saved and reused every year, for both the customer and the company version.
+        </div>
+        <Field label="Suggested services (one per line)">
+          <textarea value={services} onChange={(e) => setServices(e.target.value)} rows={8} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }}
+            placeholder={'📸 Photo booth\n🖼️ Main backdrop & stand\n🎁 Giveaways\n🎨 Flower arranging / pottery painting'} />
+        </Field>
+        <Field label="Custom intro (optional)">
+          <textarea value={intro} onChange={(e) => setIntro(e.target.value)} rows={3} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }} placeholder="Leave empty to use the default warm intro." />
+        </Field>
+        <Field label="Customer offer (optional — shown to customers only)">
+          <input value={offer} onChange={(e) => setOffer(e.target.value)} style={input} placeholder="e.g. 10% off bookings this week 🎉" />
+        </Field>
+      </div>
+    </Modal>
   );
 }
 

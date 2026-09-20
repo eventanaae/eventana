@@ -599,29 +599,40 @@ function servicesFor(o: Occasion): string[] {
   return ['📸 Photo booth', '🖼️ Feature backdrop & main stand', '🌸 Beautiful themed décor', '🎨 Interactive activity (flowers / pottery)', '🎁 Giveaways & favours', '🍰 Catering & dessert tables'];
 }
 
+/** Owner-authored overrides for an occasion's email (from occasion_settings). */
+export interface OccasionOverride { services?: string[]; intro?: string; offer?: string }
+
 /** Inner campaign HTML (wrapped in the Eventana shell — which adds the WhatsApp
- *  contact CTA — at send time). Greeting-only occasions carry no services/pitch. */
-export function buildOccasionBody(o: Occasion): string {
+ *  contact CTA — at send time). Greeting-only occasions carry no services/pitch.
+ *  `ov` lets the owner override the services list, intro, and add a CUSTOMER offer. */
+export function buildOccasionBody(o: Occasion, ov?: OccasionOverride): string {
   const heading = `<p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>`;
   const greet = `<p style="margin:0 0 14px">Hi {{name}},</p>`;
-  const intro = `<p style="margin:0 0 14px">${o.copy.intro}</p>`;
+  const intro = `<p style="margin:0 0 14px">${ov?.intro || o.copy.intro}</p>`;
   if (o.greetingOnly) {
     return `${heading}${greet}${intro}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
   }
-  const services = servicesFor(o);
+  // A customer offer (e.g. "10% off this week") — shown as a highlighted banner.
+  const offer = ov?.offer
+    ? `<div style="background:#FDEFF6;border:2px dashed #F3B6D2;border-radius:16px;padding:14px 16px;text-align:center;margin:4px 0 14px">
+         <div style="font-size:12px;font-weight:800;color:#c98bb0;letter-spacing:1px">SPECIAL OFFER</div>
+         <div style="font-size:17px;font-weight:800;color:#E94F9C;margin-top:2px">${ov.offer}</div>
+       </div>`
+    : '';
+  const services = (ov?.services && ov.services.length ? ov.services : servicesFor(o));
   const list = `
     <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">What we can bring for you:</p>
     <ul style="margin:0;padding-left:20px">
       ${services.map((x) => `<li style="margin:0 0 6px">${x}</li>`).join('')}
     </ul>`;
-  return `${heading}${greet}${intro}${list}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
+  return `${heading}${greet}${intro}${offer}${list}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
 }
 
 /** Corporate (B2B) version of an occasion email — for schools, companies, banks,
  *  clinics, etc. Positions Eventana as their events partner, with the same
  *  tailored services and the shell's WhatsApp contact. No website link. */
-export function buildCorporateBody(o: Occasion): string {
-  const services = servicesFor(o);
+export function buildCorporateBody(o: Occasion, ov?: OccasionOverride): string {
+  const services = (ov?.services && ov.services.length ? ov.services : servicesFor(o));
   const servicesList = `
     <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">What we can arrange for ${o.name}:</p>
     <ul style="margin:0;padding-left:20px">
@@ -639,11 +650,60 @@ export function buildCorporateBody(o: Occasion): string {
   return `
     <p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>
     <p style="margin:0 0 14px">Hello <b>{{name}}</b>,</p>
-    <p style="margin:0 0 4px">With ${o.name} coming up, many organisations across the UAE mark it with a special activity for their people and guests — and Eventana can create it beautifully, tailored to you.</p>
+    <p style="margin:0 0 4px">${ov?.intro || `With ${o.name} coming up, many organisations across the UAE mark it with a special activity for their people and guests — and Eventana can create it beautifully, tailored to you.`}</p>
     ${servicesList}
     ${whyUs}
     <p style="margin:16px 0 6px">Share your date and a rough budget, and we’ll send you a tailored proposal.</p>
     <p style="margin:12px 0 0">Warm regards,<br/>The Eventana Team</p>`;
+}
+
+/** The owner's saved overrides for an occasion (services / intro / offer). */
+export async function getOccasionOverrides(slug: string): Promise<OccasionOverride> {
+  const { rows } = await pool.query<{ services: string | null; intro: string | null; offer: string | null }>(
+    `SELECT services, intro, offer FROM occasion_settings WHERE slug = $1`, [slug],
+  ).catch(() => ({ rows: [] as any[] }));
+  const r = rows[0];
+  if (!r) return {};
+  const services = r.services ? r.services.split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : undefined;
+  return { services: services && services.length ? services : undefined, intro: r.intro || undefined, offer: r.offer || undefined };
+}
+
+/** Save (upsert) the owner's overrides for an occasion; reused every year. */
+export async function saveOccasionSettings(
+  slug: string, d: { services?: string; intro?: string; offer?: string; by?: string },
+): Promise<void> {
+  if (!OCCASIONS.some((o) => o.slug === slug)) throw new Error('unknown_occasion');
+  await pool.query(
+    `INSERT INTO occasion_settings (slug, services, intro, offer, updated_by, updated_at)
+     VALUES ($1,$2,$3,$4,$5,now())
+     ON CONFLICT (slug) DO UPDATE SET
+       services = EXCLUDED.services, intro = EXCLUDED.intro, offer = EXCLUDED.offer,
+       updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [slug, d.services ?? null, d.intro ?? null, d.offer ?? null, d.by ?? null],
+  );
+}
+
+/** Rebuild the current editable drafts for ONE occasion from its templates +
+ *  saved overrides (used right after the owner edits an occasion's services). */
+export async function regenerateOneOccasion(slug: string): Promise<number> {
+  const o = OCCASIONS.find((x) => x.slug === slug);
+  if (!o) return 0;
+  const ov = await getOccasionOverrides(slug);
+  const { rows } = await pool.query<{ id: string; dedupe_key: string }>(
+    `SELECT id, dedupe_key FROM email_campaigns
+      WHERE source IN ('occasion','occasion_corp') AND status IN ('draft','pending_approval','scheduled')
+        AND (dedupe_key LIKE $1 OR dedupe_key LIKE $2)`,
+    [`occasion|${slug}|%`, `occasion|${slug}|%|corp`],
+  );
+  let n = 0;
+  for (const r of rows) {
+    const isCorp = r.dedupe_key.endsWith('|corp');
+    const subject = isCorp ? `${o.copy.subject} — for your organisation` : o.copy.subject;
+    const body = isCorp ? buildCorporateBody(o, ov) : buildOccasionBody(o, ov);
+    await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1`, [r.id, subject, body]);
+    n++;
+  }
+  return n;
 }
 
 const GATE = () => String(process.env.MARKETING_CALENDAR ?? 'on').toLowerCase() !== 'off';
@@ -718,14 +778,15 @@ export async function sweepMarketingCalendar(): Promise<number> {
     const away = daysUntil(next.dateISO, now);
     if (away > o.leadDays || away < o.sendDaysBefore) continue;
     const scheduledFor = sendTime(next.dateISO, o.sendDaysBefore);
+    const ov = await getOccasionOverrides(o.slug);
     // Consumer draft (to our customers) — skipped for corporate-only occasions.
     if (!o.corporateOnly) {
-      await createDraft(`occasion|${o.slug}|${next.year}`, o.audience, o.copy.subject, buildOccasionBody(o), 'occasion', o.name, next.dateISO, scheduledFor);
+      await createDraft(`occasion|${o.slug}|${next.year}`, o.audience, o.copy.subject, buildOccasionBody(o, ov), 'occasion', o.name, next.dateISO, scheduledFor);
     }
     // Corporate draft (to businesses) — for any selling/awareness occasion when
     // we actually have companies to email.
     if (!o.greetingOnly && haveCorp) {
-      await createDraft(`occasion|${o.slug}|${next.year}|corp`, 'corp:all', `${o.copy.subject} — for your organisation`, buildCorporateBody(o), 'occasion_corp', `${o.name} (companies)`, next.dateISO, scheduledFor);
+      await createDraft(`occasion|${o.slug}|${next.year}|corp`, 'corp:all', `${o.copy.subject} — for your organisation`, buildCorporateBody(o, ov), 'occasion_corp', `${o.name} (companies)`, next.dateISO, scheduledFor);
     }
     // Owner + Marsha to-do for selling occasions that actually have a draft to act
     // on (greeting-only days like Commemoration Day never create a task).
@@ -758,13 +819,14 @@ export async function prepareOccasionNow(slug: string): Promise<{ id: string; cr
   const away = daysUntil(next.dateISO);
   // If it's too close to honour the normal pre-send lead, schedule for tomorrow 10:00 Dubai.
   const scheduledFor = away < o.sendDaysBefore ? sendTime(new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), 0) : sendTime(next.dateISO, o.sendDaysBefore);
+  const ov = await getOccasionOverrides(slug);
   const ins = await pool.query<{ id: string }>(
     `INSERT INTO email_campaigns (subject, body_html, audience, status, scheduled_for, created_by, source, dedupe_key)
      VALUES ($1,$2,$3,'pending_approval',$4,'Eventana AI',$5,$6)
      RETURNING id`,
     corp
-      ? [`${o.copy.subject} — for your organisation`, buildCorporateBody(o), 'corp:all', scheduledFor.toISOString(), 'occasion_corp', dedupeKey]
-      : [o.copy.subject, buildOccasionBody(o), o.audience, scheduledFor.toISOString(), 'occasion', dedupeKey],
+      ? [`${o.copy.subject} — for your organisation`, buildCorporateBody(o, ov), 'corp:all', scheduledFor.toISOString(), 'occasion_corp', dedupeKey]
+      : [o.copy.subject, buildOccasionBody(o, ov), o.audience, scheduledFor.toISOString(), 'occasion', dedupeKey],
   );
   return { id: String(ins.rows[0].id), created: true };
 }
@@ -793,8 +855,9 @@ export async function regenerateOccasionDrafts(opts?: { all?: boolean }): Promis
     const isCorp = parts[3] === 'corp';
     const o = OCCASIONS.find((x) => x.slug === slug);
     if (!o) continue;
+    const ov = await getOccasionOverrides(slug);
     const subject = isCorp ? `${o.copy.subject} — for your organisation` : o.copy.subject;
-    const body = isCorp ? buildCorporateBody(o) : buildOccasionBody(o);
+    const body = isCorp ? buildCorporateBody(o, ov) : buildOccasionBody(o, ov);
     await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1`, [r.id, subject, body]);
     n++;
   }
@@ -806,31 +869,40 @@ export async function regenerateOccasionDrafts(opts?: { all?: boolean }): Promis
  * The calendar as the dashboard shows it: every occasion's next date, how far
  * away, its type, and the linked auto-campaign's status (if any).
  */
+type CalCampaign = { id: string; status: string; scheduledFor: string | null } | null;
 export async function marketingCalendar(): Promise<
   Array<{
-    slug: string; name: string; nameAr: string; type: OccasionType; greetingOnly: boolean;
+    slug: string; name: string; nameAr: string; type: OccasionType;
+    greetingOnly: boolean; corporateOnly: boolean;
     dateISO: string | null; daysAway: number | null; needsDateConfirm: boolean;
-    campaign: { id: string; status: string; scheduledFor: string | null } | null;
+    consumer: CalCampaign; corporate: CalCampaign;
+    services: string[]; servicesCustom: boolean; intro: string; offer: string;
   }>
 > {
   const now = new Date();
+  const lookup = async (key: string): Promise<CalCampaign> => {
+    const r = (await pool.query<{ id: string; status: string; scheduled_for: string | null }>(
+      `SELECT id, status, scheduled_for FROM email_campaigns WHERE dedupe_key = $1`, [key],
+    )).rows[0];
+    return r ? { id: String(r.id), status: r.status, scheduledFor: r.scheduled_for } : null;
+  };
   const rows = await Promise.all(
     OCCASIONS.map(async (o) => {
       const next = nextOccasionDate(o, now);
-      // Corporate-only occasions store their draft under the |corp key.
-      const dedupeKey = next ? `occasion|${o.slug}|${next.year}${o.corporateOnly ? '|corp' : ''}` : null;
-      const camp = dedupeKey
-        ? (await pool.query<{ id: string; status: string; scheduled_for: string | null }>(
-            `SELECT id, status, scheduled_for FROM email_campaigns WHERE dedupe_key = $1`, [dedupeKey],
-          )).rows[0]
-        : undefined;
+      const ov = await getOccasionOverrides(o.slug);
+      const consumer = next && !o.corporateOnly ? await lookup(`occasion|${o.slug}|${next.year}`) : null;
+      const corporate = next && !o.greetingOnly ? await lookup(`occasion|${o.slug}|${next.year}|corp`) : null;
       return {
-        slug: o.slug, name: o.name, nameAr: o.nameAr, type: o.type, greetingOnly: Boolean(o.greetingOnly),
+        slug: o.slug, name: o.name, nameAr: o.nameAr, type: o.type,
+        greetingOnly: Boolean(o.greetingOnly), corporateOnly: Boolean(o.corporateOnly),
         dateISO: next?.dateISO ?? null,
         daysAway: next ? daysUntil(next.dateISO, now) : null,
-        // A variable occasion with no confirmed date for an upcoming year.
         needsDateConfirm: Boolean(o.variable) && !next,
-        campaign: camp ? { id: String(camp.id), status: camp.status, scheduledFor: camp.scheduled_for } : null,
+        consumer, corporate,
+        services: ov.services && ov.services.length ? ov.services : servicesFor(o),
+        servicesCustom: Boolean(ov.services && ov.services.length),
+        intro: ov.intro || '',
+        offer: ov.offer || '',
       };
     }),
   );

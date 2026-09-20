@@ -936,6 +936,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_ext_idx ON corporate_leads (ex
 CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_email_idx ON corporate_leads (lower(email)) WHERE email IS NOT NULL AND email <> '';
 CREATE INDEX IF NOT EXISTS corporate_leads_cat_idx ON corporate_leads (category, status);
 
+-- Owner-authored overrides for a marketing occasion: the suggested services the
+-- email lists, an optional custom intro, and a customer-only offer line. Saved so
+-- every future year's auto-draft reuses them.
+CREATE TABLE IF NOT EXISTS occasion_settings (
+  slug        TEXT PRIMARY KEY,
+  services    TEXT,   -- one service per line; overrides the built-in list
+  intro       TEXT,   -- optional custom intro paragraph
+  offer       TEXT,   -- optional offer/discount line shown to CUSTOMERS only
+  updated_by  TEXT,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ── Push notifications (#20) ─────────────────────────────────────────────
 -- Device tokens for FCM. owner_type is 'staff' or 'customer'; a token is
 -- unique (re-registration upserts). Sends go through Firebase HTTP v1.

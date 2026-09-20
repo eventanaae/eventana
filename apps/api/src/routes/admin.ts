@@ -35,7 +35,7 @@ import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
-import { marketingCalendar, prepareOccasionNow } from '../domain/marketingCalendar.js';
+import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion } from '../domain/marketingCalendar.js';
 import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -5621,6 +5621,26 @@ export async function adminRoutes(app: FastifyInstance) {
     const res = await prepareOccasionNow(slug);
     if (!res) return reply.status(404).send({ error: 'unknown_occasion' });
     return res;
+  });
+
+  /** Save the owner's suggested services / intro / customer-offer for an occasion
+   *  (reused every year) and rebuild its current drafts so it reflects at once. */
+  app.put('/api/admin/marketing/calendar/:slug/settings', async (request, reply) => {
+    const slug = String((request.params as { slug: string }).slug);
+    const schema = z.object({
+      services: z.string().max(4000).optional(),
+      intro: z.string().max(2000).optional(),
+      offer: z.string().max(300).optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    try {
+      await saveOccasionSettings(slug, { ...parsed.data, by: String((request as any).staff?.name ?? 'Staff') });
+    } catch {
+      return reply.status(404).send({ error: 'unknown_occasion' });
+    }
+    const regenerated = await regenerateOneOccasion(slug).catch(() => 0);
+    return { ok: true, regenerated };
   });
 
   /** Rendered HTML preview of a campaign (as the customer will see it). */
