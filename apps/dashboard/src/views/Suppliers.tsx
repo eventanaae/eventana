@@ -37,6 +37,7 @@ export function Suppliers() {
                   <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
                     {[s.contact, s.phone, s.email].filter(Boolean).join(' · ') || 'No contact details'}
                   </div>
+                  {s.location && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 1 }}>📍 {s.location}</div>}
                 </div>
                 <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
               </div>
