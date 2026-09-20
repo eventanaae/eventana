@@ -444,11 +444,36 @@ export function buildFirstTouchBody(category: CorpCategory): string {
  * ~20h. Gated by CORP_AUTOSEND — kept OFF until the owner approves the templates
  * once; set CORP_AUTOSEND=on to go live (then it's fully automatic forever).
  */
+/** Company emails go out only during UAE business hours: Mon–Fri, 10:00–14:00
+ *  Dubai time (UTC+4, no DST). Protects reputation and lands in-hours. */
+export function inCorpSendWindow(now: Date = new Date()): boolean {
+  const dubai = new Date(now.getTime() + 4 * 3600 * 1000);
+  const day = dubai.getUTCDay();   // 0 Sun … 6 Sat  (UAE weekend = Sat/Sun)
+  const hour = dubai.getUTCHours();
+  return day >= 1 && day <= 5 && hour >= 10 && hour < 14;
+}
+
+/** Daily first-touch cap: env override wins; otherwise a gentle warm-up ramp —
+ *  100/day in week 1, +50 each week, capped at 200. */
+async function corpDailyCap(): Promise<number> {
+  const envN = Number(process.env.CORP_FIRST_TOUCH_PER_DAY);
+  if (Number.isFinite(envN) && envN > 0) return Math.min(400, Math.floor(envN));
+  const s = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_autosend_started'`).catch(() => ({ rows: [] as { v: string }[] }));
+  let startMs = s.rows[0]?.v ? new Date(s.rows[0].v).getTime() : 0;
+  if (!startMs) {
+    await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_autosend_started', now()) ON CONFLICT (k) DO NOTHING`).catch(() => {});
+    startMs = Date.now();
+  }
+  const weeks = Math.floor((Date.now() - startMs) / (7 * 86_400_000));
+  return Math.min(200, 100 + 50 * weeks);
+}
+
 export async function sweepCorporateFirstTouch(): Promise<number> {
   // Owner switched auto-send ON 2026-09-20. Default is now 'on'; set
   // CORP_AUTOSEND=off in the environment to pause it.
   if (String(process.env.CORP_AUTOSEND ?? 'on').toLowerCase() === 'off') return 0;
-  const perDay = Math.max(1, Math.min(400, Number(process.env.CORP_FIRST_TOUCH_PER_DAY ?? 60) || 60));
+  if (!inCorpSendWindow()) return 0; // only Mon–Fri, 10:00–14:00 Dubai
+  const perDay = await corpDailyCap();
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_firsttouch_at'`).catch(() => ({ rows: [] as { v: string }[] }));
   const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;
   if (Date.now() - lastAt < 20 * 3600 * 1000) return 0;
@@ -529,6 +554,7 @@ export function firstTouchPreview(category: CorpCategory, sampleName: string): {
  */
 export async function sweepCorporateFollowups(): Promise<number> {
   if (String(process.env.CORP_COLLECT ?? 'on').toLowerCase() === 'off') return 0;
+  if (!inCorpSendWindow()) return 0; // company emails only Mon–Fri, 10:00–14:00 Dubai
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_followup_at'`).catch(() => ({ rows: [] as { v: string }[] }));
   const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;
   if (Date.now() - lastAt < 20 * 3600 * 1000) return 0;
@@ -569,6 +595,10 @@ export async function sweepCorporateFollowups(): Promise<number> {
 // A procurement / events-looking mailbox we should prefer if a reply mentions one.
 const REPLY_PROC_RE = /\b(procurement|purchas|tender|vendor|supplier|events?|marketing|admin|info|contact)@/i;
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
+// An automated / out-of-office reply — never counts as a real reply.
+const AUTO_RE = /(out of office|auto[\s-]?reply|automatic reply|automated response|do not reply|no[\s-]?reply|away from (my|the) (office|desk)|on (annual )?leave|on vacation|إجازة|رد تلقائي|رد آلي|خارج المكتب|سيتم الرد|الرد التلقائي)/i;
+// Signals of genuine interest (or a request to proceed) — EN + AR.
+const INTEREST_RE = /(interest|proposal|quotation|\bquote\b|budget|pricing|\bprice\b|package|send (us|me|it)|share (the|your)|details|brochure|profile|catalog|meeting|call us|schedule|arrange|book|kindly send|would like|we('| a)re keen|مهتم|مهتمين|عرض سعر|عرض\b|السعر|الأسعار|التفاصيل|الباقات|اجتماع|موعد|نبغى|نبي|نود|تواصل|ابعث|أرسل|ارسل|كتالوج|بروفايل)/i;
 
 /**
  * Process an inbound reply FROM a company (fed by the mailbox reader once Google
@@ -579,7 +609,7 @@ const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
  */
 export async function processCorporateReply(msg: {
   fromEmail: string; fromName?: string; subject?: string; text?: string;
-}): Promise<{ matched: boolean; leadId?: string; emailUpdated?: boolean; company?: string }> {
+}): Promise<{ matched: boolean; leadId?: string; emailUpdated?: boolean; company?: string; auto?: boolean; interested?: boolean }> {
   const from = (msg.fromEmail || '').trim().toLowerCase();
   if (!from || !from.includes('@')) return { matched: false };
   const domain = from.split('@')[1];
@@ -598,28 +628,46 @@ export async function processCorporateReply(msg: {
   const lead = found.rows[0];
   if (!lead) return { matched: false };
 
-  // If the reply hands us a better department email (same company domain, or a
-  // procurement/events mailbox), adopt it automatically.
-  let emailUpdated = false;
   const body = `${msg.text || ''}`;
+  const subject = `${msg.subject || ''}`;
+
+  // An out-of-office / automated reply is NOT a real reply — ignore it entirely
+  // so the 14-day reminder still goes out later.
+  if (AUTO_RE.test(body) || AUTO_RE.test(subject)) {
+    return { matched: true, leadId: lead.id, company: lead.name, auto: true };
+  }
+
+  // Does the reply hand us a better department email (procurement/events @ the
+  // same company domain)? That's a strong "interested" signal.
   const candidates = (body.match(EMAIL_RE) || []).map((e) => e.toLowerCase())
     .filter((e) => !e.endsWith('@eventanauae.com'));
   const better = candidates.find((e) => REPLY_PROC_RE.test(e) && e.split('@')[1] === domain)
     || candidates.find((e) => e.split('@')[1] === domain && e !== lead.email.toLowerCase());
+  let emailUpdated = false;
   if (better && better !== lead.email.toLowerCase()) {
     await pool.query(`UPDATE corporate_leads SET email = $2, updated_at = now() WHERE id = $1`, [lead.id, better]).catch(() => {});
     emailUpdated = true;
   }
 
+  // Only treat it as "interested" when the reply shows real interest OR gives a
+  // department/procurement email — NOT a bare "thanks, received" greeting.
+  const interested = Boolean(better) || INTEREST_RE.test(body) || INTEREST_RE.test(subject);
   const keepStatus = lead.status === 'booked' || lead.status === 'not_interested';
+
+  // Record the human reply (so no reminder is sent), and flip to 'interested'
+  // only when it qualifies.
   await pool.query(
     `UPDATE corporate_leads
         SET replied_at = now(), reply_snippet = $2,
-            status = CASE WHEN $3 THEN status ELSE 'interested' END,
+            status = CASE WHEN $3 OR NOT $4 THEN status ELSE 'interested' END,
             updated_at = now()
       WHERE id = $1`,
-    [lead.id, body.slice(0, 240), keepStatus],
+    [lead.id, body.slice(0, 240), keepStatus, interested],
   ).catch(() => {});
+
+  // Only a qualifying "interested" reply pings the owner + Marsha with a
+  // suggested reply — greetings are recorded quietly, no notification.
+  if (!interested) return { matched: true, leadId: lead.id, emailUpdated, company: lead.name, interested: false };
 
   // Notify owner + Marsha with a ready suggested reply (they review & send — CC'd
   // to each other so both stay in the loop). No blind auto-reply.

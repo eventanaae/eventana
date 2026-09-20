@@ -7,7 +7,14 @@ import { createHmac } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
-import { corporateAudienceWhere } from './corporateOutreach.js';
+import { corporateAudienceWhere, inCorpSendWindow } from './corporateOutreach.js';
+
+/** Customer marketing emails go out only 16:00–22:30 Dubai time (UTC+4, no DST). */
+export function inCustomerSendWindow(now: Date = new Date()): boolean {
+  const dubai = new Date(now.getTime() + 4 * 3600 * 1000);
+  const mins = dubai.getUTCHours() * 60 + dubai.getUTCMinutes();
+  return mins >= 16 * 60 && mins <= 22 * 60 + 30;
+}
 
 export type Audience = 'all' | 'past_customers' | 'no_recent_booking' | 'anniversary';
 
@@ -412,11 +419,18 @@ export async function sweepCustomerBirthdays(): Promise<number> {
 /** Sends any scheduled campaigns whose time has come. Called from the sweep. */
 export async function sweepScheduledCampaigns(): Promise<number> {
   if (!emailEnabled()) return 0;
-  const { rows } = await pool.query<{ id: number }>(
-    `SELECT id FROM email_campaigns WHERE status = 'scheduled' AND scheduled_for <= now() ORDER BY scheduled_for LIMIT 5`,
+  const { rows } = await pool.query<{ id: number; audience: string }>(
+    `SELECT id, audience FROM email_campaigns WHERE status = 'scheduled' AND scheduled_for <= now() ORDER BY scheduled_for LIMIT 20`,
   );
+  let sent = 0;
   for (const r of rows) {
+    // Corporate campaigns respect the B2B window (Mon–Fri 10–14); customer
+    // campaigns the consumer window (16:00–22:30). Out of window → wait; it stays
+    // 'scheduled' and a later sweep sends it once the window opens.
+    const isCorp = String(r.audience || '').startsWith('corp:') || r.audience === 'corporate';
+    if (isCorp ? !inCorpSendWindow() : !inCustomerSendWindow()) continue;
     await sendCampaign(r.id).catch((e) => console.error('[marketing] scheduled send failed', e));
+    sent++;
   }
-  return rows.length;
+  return sent;
 }
