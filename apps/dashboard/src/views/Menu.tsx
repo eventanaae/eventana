@@ -12,7 +12,7 @@ const GROUPS: Array<{ label: string; items: Item[] }> = [
     { id: 'alerts', icon: '📣', label: 'Updates' },
   ] },
   { label: 'Sales & Customers', items: [
-    { id: 'finance', icon: '💸', label: 'Finance' },
+    { id: 'finance', icon: '💰', label: 'Wallet' },
     { id: 'customers', icon: '👥', label: 'Customers' },
     { id: 'products', icon: '🎁', label: 'Products' },
     { id: 'suppliers', icon: '🚚', label: 'Suppliers' },
