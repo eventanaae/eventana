@@ -8,7 +8,7 @@ import { pool } from './pool.js';
 
 export async function dumpBankTxFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const tag = process.env.DUMP_BANK_TX_TAG ?? 'v3';
+  const tag = process.env.DUMP_BANK_TX_TAG ?? 'v4';
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [`dump_banktx_${tag}`]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
 

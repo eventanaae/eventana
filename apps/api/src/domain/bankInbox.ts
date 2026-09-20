@@ -228,12 +228,15 @@ export function parseAnthropicReceipt(subject: string, text: string): AnthropicR
   const flat = `${subject}\n${text}`.replace(/ /g, ' ').replace(/\s+/g, ' ');
   // Prefer a labelled total, then any dollar amount. Accepts "$21.00", "US$21.00", "USD 21.00".
   const dollar = (label?: string): number | null => {
-    const money = `(?:US\\$|USD|\\$)\\s*([\\d,]+(?:\\.\\d{2})?)`;
-    const re = label ? new RegExp(`${label}\\D{0,20}?${money}`, 'i') : new RegExp(money, 'i');
-    const m = flat.match(re);
-    if (!m) return null;
-    const n = parseFloat(m[1].replace(/,/g, ''));
-    return Number.isFinite(n) ? n : null;
+    const pre = `(?:US\\$|USD|\\$)\\s*([\\d,]+(?:\\.\\d{2})?)`; // $20.00 / US$20.00 / USD 20.00
+    const suf = `([\\d,]+(?:\\.\\d{2})?)\\s*(?:USD|US\\$)`;      // 20.00 USD
+    const one = (money: string) => {
+      const m = flat.match(label ? new RegExp(`${label}\\D{0,20}?${money}`, 'i') : new RegExp(money, 'i'));
+      if (!m) return null;
+      const n = parseFloat(m[1].replace(/,/g, ''));
+      return Number.isFinite(n) ? n : null;
+    };
+    return one(pre) ?? one(suf);
   };
   const usd = dollar('amount paid') ?? dollar('total paid') ?? dollar('\\btotal\\b') ?? dollar('amount') ?? dollar();
   const amountFils = usd != null ? Math.round(usd * AED_PER_USD * 100) : 0;

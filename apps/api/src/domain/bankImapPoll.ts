@@ -293,6 +293,16 @@ function walkSection(section: string, acc: { text: string; html: string; attachm
     }
   }
 
+  // A forwarded email is often attached as a nested message (message/rfc822 or
+  // multipart/digest). The real receipt — its HTML with the amount AND its PDF —
+  // lives INSIDE. Walk into it as its own RFC822 message, otherwise everything in
+  // it is lost (this was the "AED 0 + no attachment" bug on forwarded receipts).
+  if (ctype.startsWith('message/rfc822') || ctype.startsWith('message/global')) {
+    const inner = /base64|quoted-printable/i.test(cte) ? decodePartBytes(body, cte).toString('utf8') : body;
+    if (inner.trim()) walkSection(inner, acc);
+    return;
+  }
+
   if (isReceiptPart(ctype, disp, filename)) {
     const bytes = decodePartBytes(body, cte);
     if (bytes.length > 0 && bytes.length <= 15 * 1024 * 1024) {
@@ -437,11 +447,21 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   // Runs once per tag (guarded in app_kv). Bump BANK_IMAP_REREAD_TAG to force a
   // fresh run later; no env flag needed for the first run.
-  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v3'}`;
+  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v4'}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const c = cfg();
   if (!c) { console.warn('[bank-imap] reread: poller not configured (BANK_IMAP_POLL/PASS)'); return; }
+
+  // Clean up rows that a PREVIOUS (buggy) pass captured broken — forwarded
+  // receipts that came through with amount 0 and no attachment because the nested
+  // message wasn't walked. They're still PENDING (never approved), so deleting is
+  // safe; the loop below re-reads the same mail and re-inserts them correctly.
+  const del = await pool.query(
+    `DELETE FROM bank_transactions
+      WHERE status = 'pending' AND (source = 'anthropic' OR amount_fils = 0)`,
+  ).catch(() => ({ rowCount: 0 }));
+  if (del.rowCount) console.log(`[bank-imap] reread: cleared ${del.rowCount} broken pending rows before re-read`);
 
   const days = Math.max(1, Number(process.env.BANK_IMAP_REREAD_DAYS ?? 2));
   const since = new Date(Date.now() - days * 86_400_000);
