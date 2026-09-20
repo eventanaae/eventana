@@ -128,10 +128,12 @@ export function Marketing() {
                   <div style={{ flex: 1, minWidth: 130 }}>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{o.name}</div>
                     <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>
-                      {dateLabel}{away != null && away >= 0 ? ` · in ${away} day${away === 1 ? '' : 's'}` : ''}
-                      {o.greetingOnly ? ' · greeting only' : ''}
+                      {dateLabel}{o.greetingOnly ? ' · greeting only' : ''}
                     </div>
                   </div>
+                  {away != null && away >= 0 && (
+                    <span style={countdownStyle(away)}>{away === 0 ? '🎉 Today' : `⏳ ${away} day${away === 1 ? '' : 's'} left`}</span>
+                  )}
                   {o.needsDateConfirm ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: C.red }}>Confirm this year’s date</span>
                   ) : o.campaign ? (
@@ -245,6 +247,16 @@ function Tile({ label, value }: { label: string; value: number }) {
       <div style={{ ...fredoka(22), color: C.ink }}>{value}</div>
     </div>
   );
+}
+
+// A clear, colour-coded "days left" pill: red when it's today/very soon,
+// pink when within two weeks, amber within a month, neutral beyond.
+function countdownStyle(days: number): CSSProperties {
+  const base: CSSProperties = { fontSize: 12, fontWeight: 800, padding: '5px 11px', borderRadius: 20, whiteSpace: 'nowrap' };
+  if (days <= 3) return { ...base, background: '#fdeaea', color: '#c2453a' };
+  if (days <= 14) return { ...base, background: C.pinkSoft, color: C.pinkDeep };
+  if (days <= 30) return { ...base, background: '#fff7ec', color: '#a97b1e' };
+  return { ...base, background: '#f3eef1', color: C.muted };
 }
 
 const input: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, borderRadius: 10, padding: '10px 12px', fontSize: 13, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink };
