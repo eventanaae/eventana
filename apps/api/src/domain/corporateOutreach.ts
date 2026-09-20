@@ -445,7 +445,9 @@ export function buildFirstTouchBody(category: CorpCategory): string {
  * once; set CORP_AUTOSEND=on to go live (then it's fully automatic forever).
  */
 export async function sweepCorporateFirstTouch(): Promise<number> {
-  if (String(process.env.CORP_AUTOSEND ?? 'off').toLowerCase() !== 'on') return 0;
+  // Owner switched auto-send ON 2026-09-20. Default is now 'on'; set
+  // CORP_AUTOSEND=off in the environment to pause it.
+  if (String(process.env.CORP_AUTOSEND ?? 'on').toLowerCase() === 'off') return 0;
   const perDay = Math.max(1, Math.min(400, Number(process.env.CORP_FIRST_TOUCH_PER_DAY ?? 60) || 60));
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_firsttouch_at'`).catch(() => ({ rows: [] as { v: string }[] }));
   const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;
