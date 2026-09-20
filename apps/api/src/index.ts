@@ -243,6 +243,8 @@ async function main() {
     await combLeftoverFromEnv().catch((err) => console.error('[comb] failed:', err));
     const { dumpUncat3FromEnv } = await import('./db/dumpUncat3.js');
     await dumpUncat3FromEnv().catch((err) => console.error('[uncat3] failed:', err));
+    const { applyFinalFixesFromEnv } = await import('./db/applyFinalFixes.js');
+    await applyFinalFixesFromEnv().catch((err) => console.error('[final-fix] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
