@@ -4171,6 +4171,9 @@ export async function adminRoutes(app: FastifyInstance) {
    * themselves with the right scope. Returned here so the owner can share it.
    */
   app.patch('/api/admin/team/:id/access', async (request, reply) => {
+    // Owner-only: changing access level / rotating a login token is a privilege
+    // boundary. Without this guard any signed-in staff could make themselves owner.
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
     const schema = z.object({
       accessLevel: z.enum(['owner', 'manager', 'employee', 'driver']),
