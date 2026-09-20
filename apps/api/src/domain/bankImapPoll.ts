@@ -447,7 +447,7 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   // Runs once per tag (guarded in app_kv). Bump BANK_IMAP_REREAD_TAG to force a
   // fresh run later; no env flag needed for the first run.
-  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v4'}`;
+  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v5'}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const c = cfg();
@@ -496,7 +496,15 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
         {
           const atts = (email.attachments ?? []).map((a) => `${a.contentType}:${a.bytes.length}`).join(',');
           const isAnth = /anthropic|claude\.ai/i.test(`${email.from} ${email.subject} ${email.text}`);
-          console.log(`[reread-diag]${isAnth ? ' ANTHROPIC' : ''} from="${(email.from ?? '').slice(0, 60)}" subj="${(email.subject ?? '').slice(0, 60)}" atts=${email.attachments?.length ?? 0} [${atts}] rawMsgLen=${rawMsg.length}`);
+          console.log(`[reread-diag]${isAnth ? ' ANTHROPIC' : ''} from="${(email.from ?? '').slice(0, 60)}" subj="${(email.subject ?? '').slice(0, 60)}" atts=${email.attachments?.length ?? 0} [${atts}] textLen=${email.text?.length ?? 0} rawMsgLen=${rawMsg.length}`);
+          if (isAnth) {
+            // MIME skeleton only (Content-* / boundary lines) — structural, no bodies.
+            const crlf = rawMsg.includes('\r\n');
+            const skel = rawMsg.split(/\r?\n/)
+              .filter((l) => /^\s*content-(type|disposition|transfer-encoding)\s*:/i.test(l) || /boundary\s*=/i.test(l))
+              .slice(0, 30).join(' ⏎ ');
+            console.log(`[reread-skel] crlf=${crlf} skel: ${skel.slice(0, 1600)}`);
+          }
         }
         const res = await ingestInboxEmail(email, 'privateemail');
         if (res && !res.duplicate) ingested++;
