@@ -451,7 +451,7 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   // Runs once per tag (guarded in app_kv). Bump BANK_IMAP_REREAD_TAG to force a
   // fresh run later; no env flag needed for the first run.
-  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v6'}`;
+  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v7'}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const c = cfg();
@@ -463,7 +463,8 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   // safe; the loop below re-reads the same mail and re-inserts them correctly.
   const del = await pool.query(
     `DELETE FROM bank_transactions
-      WHERE status = 'pending' AND (source = 'anthropic' OR amount_fils = 0)`,
+      WHERE (status = 'pending' AND (source = 'anthropic' OR amount_fils = 0))
+         OR (status = 'ignored' AND source = 'anthropic' AND amount_fils = 0)`,
   ).catch(() => ({ rowCount: 0 }));
   if (del.rowCount) console.log(`[bank-imap] reread: cleared ${del.rowCount} broken pending rows before re-read`);
 
@@ -494,13 +495,6 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
         const rawMsg = extractLiteral(fetch);
         if (!rawMsg) continue;
         const email = extractEmail(rawMsg);
-        // Diagnostic (metadata only, never bodies): shows whether forwarded mail
-        // carries attachments and their types, so we can fix attachment capture.
-        // Runs once per reread tag (this whole pass is guarded), then goes quiet.
-        {
-          const atts = (email.attachments ?? []).map((a) => `${a.contentType}:${a.bytes.length}`).join(',');
-          console.log(`[reread-diag] subj="${(email.subject ?? '').slice(0, 50)}" atts=${email.attachments?.length ?? 0} [${atts}] textLen=${email.text?.length ?? 0}`);
-        }
         const res = await ingestInboxEmail(email, 'privateemail');
         if (res && !res.duplicate) ingested++;
       } catch (err) {
