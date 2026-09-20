@@ -138,7 +138,12 @@ function pickEmails(html: string): string[] {
  */
 async function findEmails(site: string): Promise<{ general: string | null; procurement: string | null }> {
   const base = site.replace(/\/$/, '');
-  const pages = [site, `${base}/contact`, `${base}/contact-us`, `${base}/procurement`, `${base}/suppliers`, `${base}/tenders`];
+  const pages = [
+    site, `${base}/contact`, `${base}/contact-us`, `${base}/contactus`,
+    `${base}/procurement`, `${base}/suppliers`, `${base}/supplier-registration`,
+    `${base}/tenders`, `${base}/tender`, `${base}/vendors`, `${base}/vendor-registration`,
+    `${base}/rfp`, `${base}/work-with-us`, `${base}/about-us`, `${base}/about`,
+  ];
   const all = new Set<string>();
   for (const p of pages) {
     const html = await fetchHtml(p);
