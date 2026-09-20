@@ -20,6 +20,7 @@ const OCCASION_TONE: Record<string, { bg: string; fg: string; label: string }> =
   islamic: { bg: '#eef9f1', fg: '#2f8f57', label: 'Islamic' },
   seasonal: { bg: '#fff4e8', fg: '#c07a2f', label: 'Seasonal' },
   greeting: { bg: '#f4eefb', fg: '#7a2fc0', label: 'Greeting' },
+  awareness: { bg: '#eef7f9', fg: '#2f7f9c', label: 'Awareness · B2B' },
 };
 
 export function Marketing() {

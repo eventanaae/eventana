@@ -19,7 +19,7 @@
 import { pool } from '../db/pool.js';
 import type { Audience } from './marketing.js';
 
-export type OccasionType = 'commercial' | 'national' | 'islamic' | 'seasonal' | 'greeting';
+export type OccasionType = 'commercial' | 'national' | 'islamic' | 'seasonal' | 'greeting' | 'awareness';
 
 export interface Occasion {
   slug: string;
@@ -28,6 +28,8 @@ export interface Occasion {
   type: OccasionType;
   /** Relationship-only occasion: a warm greeting, NEVER a sales push. */
   greetingOnly?: boolean;
+  /** Only relevant to businesses (awareness/wellness days) — no consumer draft. */
+  corporateOnly?: boolean;
   /** Which segment this occasion targets by default. */
   audience: Audience;
   /** Prepare the draft this many days before the occasion (default 30). */
@@ -309,6 +311,120 @@ export const OCCASIONS: Occasion[] = [
       ctaLabel: 'Plan a festive gathering',
     },
   },
+  // ── Awareness / wellness days — corporate only (schools, companies, clinics
+  // run these), respectful copy, never framed as a "party". ───────────────────
+  {
+    slug: 'world-cancer-day',
+    name: 'World Cancer Day',
+    nameAr: 'اليوم العالمي للسرطان',
+    type: 'awareness',
+    corporateOnly: true,
+    audience: 'all',
+    leadDays: 22,
+    sendDaysBefore: 7,
+    fixed: { month: 2, day: 4 },
+    copy: {
+      subject: 'Plan a meaningful awareness day for your team 🎗️',
+      heading: 'World Cancer Day — awareness that matters 🎗️',
+      intro: 'Many organisations mark World Cancer Day with an awareness or wellness activity for their staff and community.',
+    },
+  },
+  {
+    slug: 'world-health-day',
+    name: 'World Health Day',
+    nameAr: 'يوم الصحة العالمي',
+    type: 'awareness',
+    corporateOnly: true,
+    audience: 'all',
+    leadDays: 22,
+    sendDaysBefore: 7,
+    fixed: { month: 4, day: 7 },
+    copy: {
+      subject: 'Host a wellness day for your team 🌿',
+      heading: 'World Health Day — a wellness day for your team 🌿',
+      intro: 'World Health Day is a lovely reason to bring a wellness activity to your workplace, school or clinic.',
+    },
+  },
+  {
+    slug: 'earth-day',
+    name: 'Earth Day',
+    nameAr: 'يوم الأرض',
+    type: 'awareness',
+    corporateOnly: true,
+    audience: 'all',
+    leadDays: 22,
+    sendDaysBefore: 7,
+    fixed: { month: 4, day: 22 },
+    copy: {
+      subject: 'Mark Earth Day with a green activity 🌍',
+      heading: 'Earth Day — a green day for your organisation 🌍',
+      intro: 'Celebrate Earth Day with an eco-themed awareness activity for your team or students.',
+    },
+  },
+  {
+    slug: 'world-environment-day',
+    name: 'World Environment Day',
+    nameAr: 'اليوم العالمي للبيئة',
+    type: 'awareness',
+    corporateOnly: true,
+    audience: 'all',
+    leadDays: 22,
+    sendDaysBefore: 7,
+    fixed: { month: 6, day: 5 },
+    copy: {
+      subject: 'A sustainability activity for your team 🌱',
+      heading: 'World Environment Day 🌱',
+      intro: 'World Environment Day is a great moment for a green, sustainability-themed activity at your organisation.',
+    },
+  },
+  {
+    slug: 'intl-youth-day',
+    name: 'International Youth Day',
+    nameAr: 'اليوم العالمي للشباب',
+    type: 'awareness',
+    corporateOnly: true,
+    audience: 'all',
+    leadDays: 20,
+    sendDaysBefore: 6,
+    fixed: { month: 8, day: 12 },
+    copy: {
+      subject: 'Celebrate your young people 🌟',
+      heading: 'International Youth Day 🌟',
+      intro: 'Schools, universities and youth programmes love to mark this day with an engaging event for their students.',
+    },
+  },
+  {
+    slug: 'older-persons-day',
+    name: 'Day of Older Persons',
+    nameAr: 'يوم كبار السن',
+    type: 'awareness',
+    corporateOnly: true,
+    audience: 'all',
+    leadDays: 20,
+    sendDaysBefore: 6,
+    fixed: { month: 10, day: 1 },
+    copy: {
+      subject: 'Honour our elders with a warm gathering 🤍',
+      heading: 'International Day of Older Persons 🤍',
+      intro: 'A thoughtful gathering to honour senior citizens — perfect for community centres, care homes and organisations.',
+    },
+  },
+  {
+    slug: 'breast-cancer-awareness',
+    name: 'Breast Cancer Awareness (Pink October)',
+    nameAr: 'أكتوبر الوردي',
+    type: 'awareness',
+    corporateOnly: true,
+    audience: 'all',
+    leadDays: 24,
+    sendDaysBefore: 7,
+    fixed: { month: 10, day: 1 },
+    copy: {
+      subject: 'Plan your Pink October awareness day 🎀',
+      heading: 'Pink October — Breast Cancer Awareness 🎀',
+      intro: 'Many organisations mark Pink October with an awareness activity for their team and community.',
+    },
+  },
   // ── Islamic / variable-date occasions — CONFIRM the Hijri date every year ──
   {
     slug: 'hag-al-laila',
@@ -470,6 +586,14 @@ function servicesFor(o: Occasion): string[] {
     return ['🎈 Joyful themed setups', '🍰 Dessert & treat tables', '📸 Fun photo corner'];
   if (s === 'world-teachers-day')
     return ['🍎 Teacher-appreciation setups', '🍰 Dessert & catering', '🎈 Hall / classroom décor', '🎁 Thank-you touches'];
+  if (['world-cancer-day', 'breast-cancer-awareness'].includes(s))
+    return ['🎗️ Awareness booth & ribbon décor', '🧺 Refreshment & wellness corner', '🖼️ Pledge / message wall', '🎁 Branded giveaways & ribbons'];
+  if (['world-health-day', 'world-environment-day', 'earth-day'].includes(s))
+    return ['🌿 Themed awareness booth & décor', '🧺 Healthy refreshment corner', '🖼️ Activity / pledge wall', '🎁 Branded giveaways'];
+  if (s === 'intl-youth-day')
+    return ['🎈 Stage & décor for the event', '🎪 Activities & games', '🍰 Refreshments & catering', '📸 Photo corner'];
+  if (s === 'older-persons-day')
+    return ['🤍 Warm gathering setup & décor', '🍰 Catering & refreshments', '🎶 Entertainment', '📸 Keepsake photo corner'];
   return ['🎈 Themed décor & setups', '🍰 Cakes & dessert tables', '📸 Photo corner', '🎉 Entertainment & activities'];
 }
 
@@ -569,10 +693,12 @@ export async function sweepMarketingCalendar(): Promise<number> {
     const away = daysUntil(next.dateISO, now);
     if (away > o.leadDays || away < o.sendDaysBefore) continue;
     const scheduledFor = sendTime(next.dateISO, o.sendDaysBefore);
-    // Consumer draft (to our customers).
-    await createDraft(`occasion|${o.slug}|${next.year}`, o.audience, o.copy.subject, buildOccasionBody(o), 'occasion', o.name, next.dateISO, scheduledFor);
-    // Corporate draft (to businesses) — only when it's a selling occasion and we
-    // actually have companies to email.
+    // Consumer draft (to our customers) — skipped for corporate-only occasions.
+    if (!o.corporateOnly) {
+      await createDraft(`occasion|${o.slug}|${next.year}`, o.audience, o.copy.subject, buildOccasionBody(o), 'occasion', o.name, next.dateISO, scheduledFor);
+    }
+    // Corporate draft (to businesses) — for any selling/awareness occasion when
+    // we actually have companies to email.
     if (!o.greetingOnly && haveCorp) {
       await createDraft(`occasion|${o.slug}|${next.year}|corp`, 'corp:all', `${o.copy.subject} — for your organisation`, buildCorporateBody(o), 'occasion_corp', `${o.name} (companies)`, next.dateISO, scheduledFor);
     }
@@ -589,7 +715,10 @@ export async function prepareOccasionNow(slug: string): Promise<{ id: string; cr
   if (!o) return null;
   const next = nextOccasionDate(o);
   if (!next) return null;
-  const dedupeKey = `occasion|${o.slug}|${next.year}`;
+  // Awareness/corporate-only occasions prepare the B2B draft; others prepare the
+  // consumer draft (the auto sweep still adds a matching corporate draft too).
+  const corp = Boolean(o.corporateOnly);
+  const dedupeKey = corp ? `occasion|${o.slug}|${next.year}|corp` : `occasion|${o.slug}|${next.year}`;
   const existing = await pool.query<{ id: string }>(`SELECT id FROM email_campaigns WHERE dedupe_key = $1`, [dedupeKey]);
   if (existing.rows[0]) return { id: String(existing.rows[0].id), created: false };
   const away = daysUntil(next.dateISO);
@@ -597,9 +726,11 @@ export async function prepareOccasionNow(slug: string): Promise<{ id: string; cr
   const scheduledFor = away < o.sendDaysBefore ? sendTime(new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), 0) : sendTime(next.dateISO, o.sendDaysBefore);
   const ins = await pool.query<{ id: string }>(
     `INSERT INTO email_campaigns (subject, body_html, audience, status, scheduled_for, created_by, source, dedupe_key)
-     VALUES ($1,$2,$3,'pending_approval',$4,'Eventana AI','occasion',$5)
+     VALUES ($1,$2,$3,'pending_approval',$4,'Eventana AI',$5,$6)
      RETURNING id`,
-    [o.copy.subject, buildOccasionBody(o), o.audience, scheduledFor.toISOString(), dedupeKey],
+    corp
+      ? [`${o.copy.subject} — for your organisation`, buildCorporateBody(o), 'corp:all', scheduledFor.toISOString(), 'occasion_corp', dedupeKey]
+      : [o.copy.subject, buildOccasionBody(o), o.audience, scheduledFor.toISOString(), 'occasion', dedupeKey],
   );
   return { id: String(ins.rows[0].id), created: true };
 }
