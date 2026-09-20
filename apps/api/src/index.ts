@@ -349,6 +349,14 @@ async function main() {
         const { importQbProductsOnce } = await import('./db/importQbProducts.js');
         await importQbProductsOnce();
       } catch (e) { console.error('[qb-import] failed:', (e as Error).message); }
+      // Zero-price imported items must NOT be bookable at AED 0 on the customer
+      // site — hide them (they still show in the internal New-Order builder as
+      // "OFF", where the owner types the price on selection). Idempotent.
+      await pool.query(
+        `UPDATE services SET active = false
+          WHERE active = true AND price_fils = 0
+            AND lower(name) IN ('balloon services','sheshah','new born set up','character cut out','customize gender reveal box','graduation silver pakage','main stand service')`,
+      ).catch(() => {});
       // One-time seed: an ADNOC AED 200 spend on the Wio card the owner forwarded
       // manually → PENDING in the approval queue. Idempotent (dedupe_key), safe to
       // leave; can be removed after it's approved.

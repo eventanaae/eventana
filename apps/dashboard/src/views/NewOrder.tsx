@@ -43,6 +43,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
   const [copied, setCopied] = useState(false);
 
   const [inactive, setInactive] = useState<any[]>([]); // turned-OFF products, shown with an "OFF" tag
+  const [priceOverride, setPriceOverride] = useState<Record<string, string>>({}); // typed price for a no-price item
 
   useEffect(() => { api.catalogue().then(setCat).catch(() => setCat(null)); }, []);
   useEffect(() => { api.inactiveServices().then((r) => setInactive(r.services ?? [])).catch(() => setInactive([])); }, []);
@@ -70,7 +71,10 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
     const pkg = eligiblePackages.find((p: any) => p.id === packageId);
     const svc = Object.entries(services).filter(([, q]) => q > 0).reduce((sum, [id, q]) => {
       const s = allServices.find((x: any) => x.id === id);
-      return sum + (s ? s.priceFils * (q || 1) : 0);
+      if (!s) return sum;
+      const ov = Math.round((Number(String(priceOverride[id] ?? '').replace(/,/g, '')) || 0) * 100);
+      const unit = (s.priceFils === 0 && ov > 0) ? ov : (s.priceFils || 0);
+      return sum + unit * (q || 1);
     }, 0);
     const custom = customItems.reduce((s, c) => s + c.priceFils * (c.qty || 1), 0);
     const products = (pkg ? pkg.priceFils : 0) + svc + custom;
@@ -79,7 +83,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
     const theme = toFils(customTheme);
     const total = products + theme - disc + (del ?? 0);
     return { products, disc, del, theme, total };
-  }, [eligiblePackages, packageId, services, allServices, customItems, discount, delivery, customTheme]);
+  }, [eligiblePackages, packageId, services, allServices, customItems, discount, delivery, customTheme, priceOverride]);
 
   const hasSelection = Boolean(packageId) || Object.values(services).some((q) => q > 0) || customItems.length > 0;
 
@@ -111,8 +115,11 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
       const offItems: Array<{ name: string; priceFils: number; qty: number }> = [];
       for (const [serviceId, quantity] of Object.entries(services).filter(([, q]) => q > 0)) {
         const s = allServices.find((x: any) => x.id === serviceId);
-        if (s && s.active === false) offItems.push({ name: s.name, priceFils: s.priceFils, qty: quantity });
-        else services2.push({ serviceId, quantity });
+        const ovFils = Math.round((Number(String(priceOverride[serviceId] ?? '').replace(/,/g, '')) || 0) * 100);
+        if (s && (s.active === false || s.priceFils === 0)) {
+          // OFF or no-price item → custom-product path, using the typed price.
+          offItems.push({ name: s.name, priceFils: ovFils > 0 ? ovFils : (s.priceFils || 0), qty: quantity });
+        } else services2.push({ serviceId, quantity });
       }
       const customItems2 = [...customItems, ...offItems];
       if (isAddon) {
@@ -197,7 +204,10 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
                 {on && per && (
                   <input value={qty} inputMode="numeric" onChange={(e) => setServices((m) => ({ ...m, [s.id]: Number(e.target.value.replace(/[^\d]/g, '')) || 0 }))} style={{ ...input, width: 64, marginBottom: 0 }} />
                 )}
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>AED {(s.priceFils / 100).toLocaleString()}</span>
+                {on && s.priceFils === 0 && (
+                  <input value={priceOverride[s.id] ?? ''} inputMode="decimal" placeholder="Price AED" onChange={(e) => setPriceOverride((m) => ({ ...m, [s.id]: e.target.value }))} style={{ ...input, width: 96, marginBottom: 0 }} />
+                )}
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>{s.priceFils === 0 ? 'set price' : `AED ${(s.priceFils / 100).toLocaleString()}`}</span>
               </div>
             );
           })}
