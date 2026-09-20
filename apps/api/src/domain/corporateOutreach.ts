@@ -426,6 +426,9 @@ export function buildFirstTouchBody(category: CorpCategory): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0">${serviceRows}</table>
     ${occasionsBand}
     <div style="text-align:center;background:#F0E9FB;border-radius:14px;padding:16px 14px;margin:16px 0;font-size:14.5px;font-weight:700;color:#3B3641">✨ Every detail <span style="color:#7C5BB8">fully branded to your logo</span> — a celebration made just for you.</div>
+    <div style="text-align:center;margin:16px 0 4px">
+      <a href="${config.publicAppUrl.replace(/\/$/, '')}/company-profile.html" style="display:inline-block;background:#fff;color:#E94F9C;text-decoration:none;font-weight:800;font-size:14px;padding:11px 22px;border-radius:999px;border:2px solid #E94F9C">📄 View our company profile</a>
+    </div>
     <p style="margin:14px 0 6px">Share a date and a rough budget, and we’ll craft a tailored proposal — no obligation.</p>
     <p style="margin:12px 0 0">Warmly,<br/><b>The Eventana Team</b> 🎈</p>`;
 }

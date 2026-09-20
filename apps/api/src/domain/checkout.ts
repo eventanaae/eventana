@@ -114,8 +114,15 @@ export function resolveRequiredAssets(cart: CartInput, cfg: LoadedConfig): strin
   return [...assets];
 }
 
+/** Tabby / Tamara are Buy-Now-Pay-Later: they charge Eventana a provider fee, so
+ *  the automatic 15% Build-Your-Own discount is not given on those payments. */
+export function isBnplProvider(provider?: string | null): boolean {
+  const p = String(provider ?? '').toLowerCase();
+  return p === 'tabby' || p === 'tamara';
+}
+
 /** Read-only quote for the app's live total. Never creates anything. */
-export async function previewQuote(cart: CartInput, offerToken?: string | null): Promise<Quote & { unavailable: string[] }> {
+export async function previewQuote(cart: CartInput, offerToken?: string | null, provider?: string | null): Promise<Quote & { unavailable: string[] }> {
   const cfg = await loadConfig();
   let taken = new Set<string>();
 
@@ -130,7 +137,7 @@ export async function previewQuote(cart: CartInput, offerToken?: string | null):
     );
   }
 
-  const result = computeQuote(cart, { ...toPricingContext(cfg, taken), nowMs: Date.now(), noByoDiscount: !!offerToken });
+  const result = computeQuote(cart, { ...toPricingContext(cfg, taken), nowMs: Date.now(), noByoDiscount: !!offerToken || isBnplProvider(provider) });
   // Same manual offer pieces as the final checkout, so the live total the
   // customer sees on a manual-order link matches exactly what they will pay.
   if (offerToken) {
@@ -191,7 +198,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
 
   // (1) The server recomputes everything. A total submitted by the
   // device is not read at all — it is not even a parameter here.
-  const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: !!req.offerToken });
+  const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: !!req.offerToken || isBnplProvider(req.provider) });
 
   // A manual-order link layers the team's manual pieces (custom products, a
   // discount, a fixed delivery, a custom-theme charge) on top of the engine

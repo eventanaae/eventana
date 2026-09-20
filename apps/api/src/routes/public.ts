@@ -453,7 +453,10 @@ export async function publicRoutes(app: FastifyInstance) {
     // The cart schema strips unknown keys, so read the optional offer token off
     // the raw body — it layers the manual-order pieces onto the live total.
     const offerToken = typeof (request.body as any)?.offerToken === 'string' ? (request.body as any).offerToken : null;
-    const result = await previewQuote(parsed.data as unknown as CartInput, offerToken);
+    // Optional payment provider: Tabby/Tamara don't get the 15% BYO discount, so
+    // the live total updates the moment the customer picks one of them.
+    const provider = typeof (request.body as any)?.provider === 'string' ? (request.body as any).provider : null;
+    const result = await previewQuote(parsed.data as unknown as CartInput, offerToken, provider);
     return {
       ...result,
       totalDisplay: formatAed(result.totalFils),
