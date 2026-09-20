@@ -552,8 +552,8 @@ export const api = {
   updateCampaign: (id: number, body: Record<string, unknown>) =>
     request<any>(`/api/admin/marketing/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   marketingCalendar: () => request<any>('/api/admin/marketing/calendar'),
-  prepareOccasion: (slug: string) =>
-    request<any>(`/api/admin/marketing/calendar/${slug}/prepare`, { method: 'POST' }),
+  prepareOccasion: (slug: string, corporate = false) =>
+    request<any>(`/api/admin/marketing/calendar/${slug}/prepare`, { method: 'POST', body: JSON.stringify({ corporate }) }),
   saveOccasionSettings: (slug: string, body: { services?: string; intro?: string; offer?: string }) =>
     request<any>(`/api/admin/marketing/calendar/${slug}/settings`, { method: 'PUT', body: JSON.stringify(body) }),
   regenerateCampaign: (id: number) =>

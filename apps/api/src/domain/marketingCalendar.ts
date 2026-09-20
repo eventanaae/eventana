@@ -856,14 +856,14 @@ export async function sweepMarketingCalendar(): Promise<number> {
  * Prepare ONE occasion's draft on demand (dashboard "Prepare now"), even outside
  * the lead window. Returns the campaign id, or the existing one if already made.
  */
-export async function prepareOccasionNow(slug: string): Promise<{ id: string; created: boolean } | null> {
+export async function prepareOccasionNow(slug: string, opts?: { corporate?: boolean }): Promise<{ id: string; created: boolean } | null> {
   const o = OCCASIONS.find((x) => x.slug === slug);
   if (!o) return null;
   const next = nextOccasionDate(o);
   if (!next) return null;
-  // Awareness/corporate-only occasions prepare the B2B draft; others prepare the
-  // consumer draft (the auto sweep still adds a matching corporate draft too).
-  const corp = Boolean(o.corporateOnly);
+  // Corporate draft when the occasion is corporate-only, OR the caller asked for
+  // the company version (and it isn't a greeting-only day). Else the consumer draft.
+  const corp = Boolean(o.corporateOnly) || (Boolean(opts?.corporate) && !o.greetingOnly);
   const dedupeKey = corp ? `occasion|${o.slug}|${next.year}|corp` : `occasion|${o.slug}|${next.year}`;
   const existing = await pool.query<{ id: string }>(`SELECT id FROM email_campaigns WHERE dedupe_key = $1`, [dedupeKey]);
   if (existing.rows[0]) return { id: String(existing.rows[0].id), created: false };

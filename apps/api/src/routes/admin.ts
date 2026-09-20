@@ -5621,7 +5621,8 @@ export async function adminRoutes(app: FastifyInstance) {
   /** Prepare an occasion's draft campaign on demand (outside the auto window). */
   app.post('/api/admin/marketing/calendar/:slug/prepare', async (request, reply) => {
     const slug = String((request.params as { slug: string }).slug);
-    const res = await prepareOccasionNow(slug);
+    const corporate = Boolean((request.body as any)?.corporate);
+    const res = await prepareOccasionNow(slug, { corporate });
     if (!res) return reply.status(404).send({ error: 'unknown_occasion' });
     return res;
   });

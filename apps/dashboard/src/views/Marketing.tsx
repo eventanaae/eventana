@@ -124,9 +124,12 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
   // shared
   const [aud, setAud] = useState<'customer' | 'company'>(initialAud ?? 'customer');
   // new
+  const [category, setCategory] = useState<string>('all'); // company category (or 'all')
   const [subject, setSubject] = useState('');
   const [services, setServices] = useState('');
   const [offer, setOffer] = useState('');
+  const [occasionNote, setOccasionNote] = useState('');
+  const [sendDate, setSendDate] = useState('');
   const [working, setWorking] = useState(false);
   const [created, setCreated] = useState<any | null>(null);
   // existing
@@ -147,6 +150,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
   // ---- build a manual email body from the wizard fields ----
   const buildBody = (): string => {
     const isCorp = aud === 'company';
+    const heading = occasionNote.trim() ? `<p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${occasionNote.trim()}</p>` : '';
     const greet = isCorp ? `<p>Hello <b>{{name}}</b>,</p>` : `<p>Hi {{name}},</p>`;
     const lead = isCorp
       ? `<p>We’d love to help you create a memorable event — Eventana can handle every detail, tailored to your organisation.</p>`
@@ -158,14 +162,21 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
     const list = lines.length ? `<p style="font-weight:700;margin:16px 0 8px">What we can bring:</p><ul style="margin:0;padding-left:20px">${lines.map((l) => `<li style="margin:0 0 6px">${l}</li>`).join('')}</ul>` : '';
     const why = isCorp ? `<p style="font-weight:700;margin:16px 0 8px">Why Eventana:</p><ul style="margin:0;padding-left:20px"><li style="margin:0 0 6px">🇦🇪 We know UAE occasions & local culture better than anyone.</li><li style="margin:0 0 6px">🎨 Tailored to your brand, theme and budget.</li><li style="margin:0 0 6px">✅ Fully managed — setup & teardown handled.</li></ul>` : '';
     const sig = isCorp ? `<p style="margin:16px 0 0">Warm regards,<br/>The Eventana Team</p>` : `<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
-    return `${greet}${lead}${offerHtml}${list}${why}${sig}`;
+    return `${heading}${greet}${lead}${offerHtml}${list}${why}${sig}`;
   };
+
+  // Steps adapt to the audience (company adds a category picker).
+  const newSteps = aud === 'company'
+    ? ['audience', 'category', 'subject', 'services', 'when', 'done']
+    : ['audience', 'subject', 'services', 'when', 'done'];
+  const key = newSteps[step - 1];
 
   const generate = async () => {
     setWorking(true);
     try {
-      const c = await api.createCampaign({ subject: subject.trim(), bodyHtml: buildBody(), audience: aud === 'company' ? 'corp:all' : 'all' });
-      setCreated(c); onReload(); setStep(4);
+      const audience = aud === 'company' ? (category === 'all' ? 'corp:all' : `corp:${category}`) : 'all';
+      const c = await api.createCampaign({ subject: subject.trim(), bodyHtml: buildBody(), audience, scheduledFor: sendDate ? new Date(sendDate).toISOString() : undefined });
+      setCreated(c); onReload(); setStep(newSteps.indexOf('done') + 1);
     } catch (e: any) { setMsg(e?.message ?? 'Could not create the campaign.'); }
     finally { setWorking(false); }
   };
@@ -188,26 +199,33 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
 
       {/* NEW */}
       {path === 'new' && (
-        <Wiz step={step} total={4}
+        <Wiz step={step} total={newSteps.length}
           onBack={back}
-          onNext={step === 3 ? undefined : () => setStep(step + 1)}
-          nextLabel="Next"
-          canNext={(step === 1) || (step === 2 && subject.trim().length > 1)}
-          footer={step === 3 ? <Button onClick={generate} disabled={working || !subject.trim()}>{working ? 'Generating…' : '✨ Generate'}</Button> : undefined}
-          hideNav={step === 4}
+          canNext={key === 'subject' ? subject.trim().length > 1 : true}
+          onNext={key === 'subject' || key === 'services' ? () => setStep(step + 1) : undefined}
+          footer={key === 'when' ? <Button onClick={generate} disabled={working || !subject.trim()}>{working ? 'Generating…' : '✨ Generate'}</Button> : undefined}
+          hideNav={key === 'audience' || key === 'category' || key === 'done'}
         >
-          {step === 1 && (
+          {key === 'audience' && (
             <Q title="Who is this campaign for?">
               <Choice emoji="👨‍👩‍👧" label="Our customers" sub={`${data.audiences.all} emails`} active={aud === 'customer'} onClick={() => { setAud('customer'); setStep(2); }} />
               <Choice emoji="🏢" label="Companies" sub={`${data.corporate?.emailable ?? 0} emails`} active={aud === 'company'} onClick={() => { setAud('company'); setStep(2); }} />
             </Q>
           )}
-          {step === 2 && (
+          {key === 'category' && (
+            <Q title="Which companies?">
+              <Choice emoji="🏙️" label="All companies" sub={`${data.corporate?.emailable ?? 0} emails`} active={category === 'all'} onClick={() => { setCategory('all'); setStep(step + 1); }} />
+              {Object.keys(data.corporateLabels ?? {}).filter((c) => (data.corporate?.byCategory?.[c]?.emailable ?? 0) > 0).map((c) => (
+                <Choice key={c} emoji="🏢" label={data.corporateLabels[c]} sub={`${data.corporate?.byCategory?.[c]?.emailable ?? 0} emails`} active={category === c} onClick={() => { setCategory(c); setStep(step + 1); }} />
+              ))}
+            </Q>
+          )}
+          {key === 'subject' && (
             <Q title="What’s the subject line?">
               <input value={subject} onChange={(e) => setSubject(e.target.value)} autoFocus placeholder={aud === 'company' ? 'e.g. Plan a memorable event with Eventana' : 'e.g. A treat for your next celebration 🎉'} style={input} />
             </Q>
           )}
-          {step === 3 && (
+          {key === 'services' && (
             <Q title="Which services to include?">
               <textarea value={services} onChange={(e) => setServices(e.target.value)} rows={6} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }}
                 placeholder={'📸 Photo booth\n🖼️ Main backdrop & stand\n🎁 Giveaways\n🎨 Flower arranging / pottery painting'} />
@@ -220,7 +238,15 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
               <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, marginTop: 8 }}>The logo, buttons and WhatsApp contact are added automatically.</div>
             </Q>
           )}
-          {step === 4 && created && (
+          {key === 'when' && (
+            <Q title="Occasion & when to send">
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, marginBottom: 6 }}>Occasion / headline (optional)</div>
+              <input value={occasionNote} onChange={(e) => setOccasionNote(e.target.value)} placeholder="e.g. Ramadan 2027, National Day…" style={input} />
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, margin: '12px 0 6px' }}>Send date &amp; time (optional — leave empty to send on approval)</div>
+              <input type="datetime-local" value={sendDate} onChange={(e) => setSendDate(e.target.value)} style={input} />
+            </Q>
+          )}
+          {key === 'done' && created && (
             <Q title="Done 🎉 — review before it goes out">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <Action emoji="👁" label="Preview the email" onClick={() => onPreview(Number(created.id))} />
@@ -245,18 +271,26 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
           )}
           {step === 2 && (
             <Q title="Choose a campaign">
-              {!cal ? <Spinner /> : existingList.length === 0 ? <Empty>No prepared {aud === 'company' ? 'company' : 'customer'} drafts yet.</Empty> : (
+              {!cal ? <Spinner /> : existingList.length === 0 ? <Empty>No occasions for this audience.</Empty> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {existingList.map((o) => {
+                  {existingList.map((o, i) => {
                     const c = aud === 'company' ? o.corporate : o.consumer;
                     const tone = OCCASION_TONE[o.type] ?? OCCASION_TONE.seasonal;
+                    const m = o.dateISO ? o.dateISO.slice(0, 7) : '';
+                    const prevM = i > 0 && existingList[i - 1].dateISO ? existingList[i - 1].dateISO.slice(0, 7) : '';
+                    const monthHdr = m && m !== prevM
+                      ? new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+                      : null;
                     return (
-                      <button key={o.slug} onClick={() => { setOcc(o); setStep(3); }} style={{ textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
-                        <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{o.name}</span>
-                        {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
-                        <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
-                      </button>
+                      <div key={o.slug}>
+                        {monthHdr && <div style={{ fontSize: 11.5, fontWeight: 800, color: C.pinkDeep, margin: i === 0 ? '0 0 6px' : '12px 0 6px', letterSpacing: 0.3 }}>{monthHdr}</div>}
+                        <button onClick={() => { setOcc(o); setStep(3); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
+                          <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{o.name}</span>
+                          {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
+                          <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -285,7 +319,10 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                     )}
                   </>
                 ) : (
-                  <Action emoji="✨" label="Prepare this draft" onClick={() => onAct(() => api.prepareOccasion(occ.slug), 'Draft prepared.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
+                  <>
+                    {!occ.greetingOnly && <Action emoji="🧩" label={`Add suggested services${occ.servicesCustom ? ' ✓' : ''}`} onClick={() => setSvc(true)} />}
+                    <Action emoji="✨" label="Prepare this draft" onClick={() => onAct(() => api.prepareOccasion(occ.slug, aud === 'company'), 'Draft prepared.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
+                  </>
                 )}
               </div>
               {svc && (
@@ -425,8 +462,6 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
   const [leads, setLeads] = useState<any[] | null>(null);
   const [cat, setCat] = useState('');
   const [busy, setBusy] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importText, setImportText] = useState('');
 
   const loadLeads = (category = cat) => {
     api.corporateLeads(category ? { category } : undefined).then((r) => setLeads(r.leads ?? [])).catch(() => setLeads([]));
@@ -448,17 +483,14 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run(() => api.collectCorporate(), 'Collecting from Google — this can take a minute.')} disabled={busy} style={{ ...miniBtn, borderColor: C.pink, color: C.pinkDeep }}>🔄 Collect from Google now</button>
-        <button onClick={() => setImporting(true)} style={miniBtn}>⬆ Import list</button>
         <button onClick={() => setOpen((v) => !v)} style={miniBtn}>{open ? 'Hide list' : 'View list'}</button>
       </div>
       {open && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-            <button onClick={() => { setCat(''); loadLeads(''); }} style={{ ...chip, ...(cat === '' ? chipActive : {}) }}>All</button>
-            {cats.map((c) => (
-              <button key={c} onClick={() => { setCat(c); loadLeads(c); }} style={{ ...chip, ...(cat === c ? chipActive : {}) }}>{labels[c]}</button>
-            ))}
-          </div>
+          <select value={cat} onChange={(e) => { setCat(e.target.value); loadLeads(e.target.value); }} style={{ ...input, marginBottom: 10 }}>
+            <option value="">All categories</option>
+            {cats.map((c) => <option key={c} value={c}>{labels[c]}</option>)}
+          </select>
           {leads === null ? <Spinner /> : leads.length === 0 ? <Empty>No companies yet — collect from Google or import a list.</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflowY: 'auto' }}>
               {leads.map((l) => (
@@ -478,15 +510,6 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
             </div>
           )}
         </div>
-      )}
-      {importing && (
-        <Modal title="Import companies" onClose={() => setImporting(false)} busy={busy}
-          onSave={async () => { await run(() => api.importCorporate(importText), 'Imported.'); setImportText(''); setImporting(false); }} saveLabel="Import">
-          <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 8, lineHeight: 1.5 }}>
-            Paste one company per line: <b>Name, email, phone, emirate</b>. Category is detected automatically.
-          </div>
-          <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={10} placeholder={'GEMS Dubai American Academy, info@example.ae, 04 123 4567, Dubai'} style={{ ...input, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }} />
-        </Modal>
       )}
     </>
   );
