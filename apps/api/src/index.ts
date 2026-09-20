@@ -227,6 +227,8 @@ async function main() {
     await dumpSupplierSheetFromEnv().catch((err) => console.error('[sheet-dump] failed:', err));
     const { dumpReceiptUrlsFromEnv } = await import('./db/dumpReceiptUrls.js');
     await dumpReceiptUrlsFromEnv().catch((err) => console.error('[rcpt-dump] failed:', err));
+    const { dumpExpenseAuditFromEnv } = await import('./db/dumpExpenseAudit.js');
+    await dumpExpenseAuditFromEnv().catch((err) => console.error('[exp-audit] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
