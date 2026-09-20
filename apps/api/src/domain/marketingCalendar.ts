@@ -652,6 +652,9 @@ const GATE = () => String(process.env.MARKETING_CALENDAR ?? 'on').toLowerCase() 
 export async function sweepMarketingCalendar(): Promise<number> {
   if (!GATE()) return 0;
   const now = new Date();
+  // Self-heal any drafts still on an older template (safe: stale-only, so manual
+  // edits are never touched). Fixes drafts prepared before a template change.
+  await regenerateOccasionDrafts().catch(() => 0);
   const { pushToOwner } = await import('../integrations/push.js');
   const targets = (await pool.query<{ id: string }>(
     `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
@@ -766,12 +769,17 @@ export async function prepareOccasionNow(slug: string): Promise<{ id: string; cr
  * CURRENT templates — used after a template change so drafts prepared earlier pick
  * up the new design (services list, no website link, etc.). Skips sent campaigns.
  */
-export async function regenerateOccasionDrafts(): Promise<number> {
+export async function regenerateOccasionDrafts(opts?: { all?: boolean }): Promise<number> {
+  // By default only refresh STALE drafts — those still holding the old inline
+  // website button (`<a `), which the new template never produces. This makes it
+  // safe to run every sweep: new drafts and manual plain-text edits never match,
+  // so a person's edits are never clobbered. `all:true` rewrites every draft.
+  const staleOnly = opts?.all ? '' : `AND (body_html LIKE '%<a %' OR body_html LIKE '%Or reply to this email%')`;
   const { rows } = await pool.query<{ id: string; dedupe_key: string }>(
     `SELECT id, dedupe_key FROM email_campaigns
       WHERE source IN ('occasion','occasion_corp')
         AND status IN ('draft','pending_approval','scheduled')
-        AND dedupe_key IS NOT NULL`,
+        AND dedupe_key IS NOT NULL ${staleOnly}`,
   );
   let n = 0;
   for (const r of rows) {

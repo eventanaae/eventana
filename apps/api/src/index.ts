@@ -332,7 +332,7 @@ async function main() {
     // off afterwards. Skips sent campaigns; only rewrites editable drafts.
     if (String(process.env.REGEN_OCCASION_DRAFTS ?? '').toLowerCase() === 'on') {
       const { regenerateOccasionDrafts } = await import('./domain/marketingCalendar.js');
-      await regenerateOccasionDrafts().catch((err) => console.error('[marketing] regen failed:', err));
+      await regenerateOccasionDrafts({ all: true }).catch((err) => console.error('[marketing] regen failed:', err));
     }
     // Read the REAL payment method for QuickBooks receipts from QuickBooks itself
     // (QB_METHODS=preview logs what it finds; =apply writes finance_receipts.paid_with).
