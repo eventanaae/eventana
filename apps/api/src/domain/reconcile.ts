@@ -17,7 +17,7 @@ import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
 import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepWinbackCampaignAuto, sweepCustomerBirthdays } from './marketing.js';
 import { sweepMarketingCalendar } from './marketingCalendar.js';
-import { sweepCorporateCollect } from './corporateOutreach.js';
+import { sweepCorporateCollect, sweepCorporateFollowups } from './corporateOutreach.js';
 import { deliverPendingNotifications } from './notify.js';
 
 export interface ReconcileReport {
@@ -265,6 +265,12 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   await sweepCorporateCollect()
     .then((n) => { if (n) console.log(`[corp] collected/updated ${n} lead(s)`); })
     .catch((err) => console.error('[corp] collect sweep failed:', err));
+
+  // Auto follow-up: chase companies we contacted 14+ days ago that never replied
+  // with ONE gentle reminder (asks again for the right department contact).
+  await sweepCorporateFollowups()
+    .then((n) => { if (n) console.log(`[corp] sent ${n} follow-up reminder(s)`); })
+    .catch((err) => console.error('[corp] follow-up sweep failed:', err));
 
   // The monthly report is sent by sweepReconReport (below) as ONE email on the
   // last day of each month — the standalone finance-report sweep is retired.

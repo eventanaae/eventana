@@ -36,7 +36,7 @@ import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign, campaignRecipients } from '../domain/marketing.js';
 import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign, learnFromCampaign } from '../domain/marketingCalendar.js';
-import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS, resetCorporateLeads } from '../domain/corporateOutreach.js';
+import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS, resetCorporateLeads, processCorporateReply, buildSuggestedReply } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
@@ -5812,6 +5812,24 @@ export async function adminRoutes(app: FastifyInstance) {
     // immediately (a full run reads hundreds of sites and takes minutes).
     void collectCorporateLeads({ maxPagesPerQuery: 3, maxEnrich: 250 }).catch((e) => console.error('[corp-collect] manual run failed:', e));
     return { started: true };
+  });
+
+  /** Log a company's reply → flag it interested, auto-update the department email
+   *  if the reply gives a better one, and notify owner + Marsha with a suggested
+   *  reply. The mailbox reader (once Google access to hello@ is on) posts here;
+   *  the team can also paste a reply manually in the meantime. */
+  app.post('/api/admin/corporate/reply', async (request, reply) => {
+    const schema = z.object({
+      fromEmail: z.string().email(),
+      fromName: z.string().max(160).optional(),
+      subject: z.string().max(300).optional(),
+      text: z.string().max(20000).optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid' });
+    const res = await processCorporateReply(p.data);
+    if (!res.matched) return reply.status(404).send({ error: 'no_lead', message: 'No company matches that sender.' });
+    return { ...res, suggestedReply: buildSuggestedReply(res.company || '') };
   });
 
   /* --------------------------- Theme backfill ----------------------------- */

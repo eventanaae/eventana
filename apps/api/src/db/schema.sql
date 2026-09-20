@@ -955,6 +955,13 @@ CREATE TABLE IF NOT EXISTS corporate_leads (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS procurement_checked BOOLEAN NOT NULL DEFAULT FALSE;
+-- Outreach sequence tracking (B2B follow-up): when we first emailed a company,
+-- when we sent the 2-week reminder, and when they replied. Drives the automatic
+-- follow-up and the "interested" detection.
+ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS first_contacted_at TIMESTAMPTZ;
+ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ;
+ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ;
+ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS reply_snippet TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_ext_idx ON corporate_leads (external_id) WHERE external_id IS NOT NULL;
 
 -- Tiny key→timestamp store for periodic-job guards (e.g. daily corp collect).

@@ -133,6 +133,18 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
       sent++;
       await pool.query(`INSERT INTO email_send_log (campaign_id, email, kind) VALUES ($1,$2,$3)`,
         [campaignId, r.email.toLowerCase(), isCorp ? 'corporate' : 'customer']).catch(() => {});
+      // B2B sequence: record the first contact so the 2-week auto follow-up can
+      // chase companies that never reply. Only advances a brand-new lead.
+      if (isCorp) {
+        await pool.query(
+          `UPDATE corporate_leads
+              SET first_contacted_at = COALESCE(first_contacted_at, now()),
+                  status = CASE WHEN status = 'new' THEN 'contacted' ELSE status END,
+                  updated_at = now()
+            WHERE id = $1`,
+          [r.id],
+        ).catch(() => {});
+      }
     }
     await new Promise((res) => setTimeout(res, 120));
   }

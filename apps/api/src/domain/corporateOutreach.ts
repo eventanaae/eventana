@@ -17,6 +17,7 @@
  */
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
+import { sendEmail, renderCampaignHtml } from '../integrations/email.js';
 
 export type CorpCategory =
   | 'school' | 'nursery' | 'university' | 'hospital' | 'clinic'
@@ -282,6 +283,157 @@ export async function sweepCorporateCollect(): Promise<number> {
   const res = await collectCorporateLeads({ maxPagesPerQuery: anyPlaces.rowCount ? 1 : 2, maxEnrich: 220, discover }).catch(() => ({ added: 0, enriched: 0 }));
   await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_collect_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
   return (res.added ?? 0) + (res.enriched ?? 0);
+}
+
+// ── B2B outreach sequence: auto follow-up + reply detection ────────────────
+
+/** The gentle 2-week reminder body for a company that never replied. */
+function buildReminderBody(): string {
+  return `
+    <p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">Just following up 💛</p>
+    <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
+    <p style="margin:0 0 14px">Hello <b>{{name}}</b>,</p>
+    <p style="margin:0 0 4px">We reached out a couple of weeks ago about Eventana handling your organisation’s celebrations and events across the UAE, and wanted to make sure it reached the right desk.</p>
+    <p style="margin:14px 0 4px"><b>Who is the best person to speak to</b> about events or procurement? A quick reply with their name and email is all we need, and we’ll take it from there.</p>
+    <p style="margin:14px 0 6px">We’d be glad to prepare a tailored proposal whenever it suits you — no obligation.</p>
+    <p style="margin:12px 0 0">Warm regards,<br/>The Eventana Team</p>`;
+}
+
+/** A ready suggested reply the owner/Marsha can review and send when a company
+ *  shows interest — kept warm, specific and short. */
+export function buildSuggestedReply(companyName: string): string {
+  const who = companyName && companyName !== 'there' ? companyName : 'your team';
+  return `Hi ${who},\n\nThank you so much for getting back to us — great to hear from you!\n\n`
+    + `We'd love to put together a tailored proposal for your event. To make it a perfect fit, could you share:\n`
+    + `• The occasion and rough date\n• Approximate number of guests\n• A rough budget (so we tailor the concept)\n\n`
+    + `We handle everything end-to-end — concept, décor, setup and teardown — and we know the UAE's occasions and local culture inside out.\n\n`
+    + `You can also reach us any time on 056 450 0777 (WhatsApp or call).\n\nWarm regards,\nThe Eventana Team`;
+}
+
+/**
+ * DAILY auto follow-up: any company we contacted 14+ days ago that never replied
+ * and hasn't been reminded yet gets ONE gentle reminder. Guarded to run at most
+ * once per ~20h. Respects suppression, opt-out and 'not_interested'. Gated by
+ * CORP_COLLECT (same switch as the collector).
+ */
+export async function sweepCorporateFollowups(): Promise<number> {
+  if (String(process.env.CORP_COLLECT ?? 'on').toLowerCase() === 'off') return 0;
+  const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_followup_at'`).catch(() => ({ rows: [] as { v: string }[] }));
+  const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;
+  if (Date.now() - lastAt < 20 * 3600 * 1000) return 0;
+
+  const { rows } = await pool.query<{ id: string; email: string; name: string }>(
+    `SELECT id, email, name FROM corporate_leads
+      WHERE email IS NOT NULL AND email <> '' AND email_opt_out = FALSE
+        AND status = 'contacted'
+        AND replied_at IS NULL AND reminded_at IS NULL
+        AND first_contacted_at IS NOT NULL AND first_contacted_at < now() - interval '14 days'
+        AND lower(email) NOT IN (SELECT lower(email) FROM email_suppression)
+      ORDER BY first_contacted_at ASC
+      LIMIT 150`,
+  ).catch(() => ({ rows: [] as { id: string; email: string; name: string }[] }));
+
+  let sent = 0;
+  const { unsubToken } = await import('./marketing.js');
+  for (const r of rows) {
+    const unsub = `${config.email.publicBaseUrl}/api/unsubscribe?k=corp&c=${encodeURIComponent(r.id)}&t=${unsubToken(r.id)}`;
+    const html = renderCampaignHtml(buildReminderBody().replace(/\{\{\s*name\s*\}\}/gi, r.name || 'there'), unsub);
+    const res = await sendEmail({
+      to: r.email, subject: 'Following up — Eventana events for your organisation',
+      html, skipMonitorBcc: true, replyTo: config.email.replyTo,
+      tags: [{ name: 'corp', value: 'followup' }],
+    });
+    if (res.ok) {
+      sent++;
+      await pool.query(`UPDATE corporate_leads SET reminded_at = now(), updated_at = now() WHERE id = $1`, [r.id]).catch(() => {});
+      await pool.query(`INSERT INTO email_send_log (campaign_id, email, kind) VALUES (NULL,$1,$2)`, [r.email.toLowerCase(), 'corporate']).catch(() => {});
+    }
+    await new Promise((res) => setTimeout(res, 120));
+  }
+  await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_followup_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+  if (sent) console.log(`[corp-followup] sent ${sent} reminders`);
+  return sent;
+}
+
+// A procurement / events-looking mailbox we should prefer if a reply mentions one.
+const REPLY_PROC_RE = /\b(procurement|purchas|tender|vendor|supplier|events?|marketing|admin|info|contact)@/i;
+const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
+
+/**
+ * Process an inbound reply FROM a company (fed by the mailbox reader once Google
+ * access to hello@ is granted). Matches the lead, flags it interested, auto-
+ * updates the department email if the reply gives a better one, and notifies the
+ * owner + Marsha with a ready suggested reply. Safe to call repeatedly.
+ * Returns what it did so a caller/route can report it.
+ */
+export async function processCorporateReply(msg: {
+  fromEmail: string; fromName?: string; subject?: string; text?: string;
+}): Promise<{ matched: boolean; leadId?: string; emailUpdated?: boolean; company?: string }> {
+  const from = (msg.fromEmail || '').trim().toLowerCase();
+  if (!from || !from.includes('@')) return { matched: false };
+  const domain = from.split('@')[1];
+
+  // Match by exact address first, then by the sender's domain (a colleague may
+  // reply from a different mailbox on the same company domain).
+  const found = await pool.query<{ id: string; name: string; email: string; status: string }>(
+    `SELECT id, name, email, status FROM corporate_leads
+      WHERE lower(email) = $1
+         OR lower(email) LIKE $2
+         OR lower(COALESCE(website,'')) LIKE $2
+      ORDER BY (lower(email) = $1) DESC
+      LIMIT 1`,
+    [from, `%${domain}%`],
+  ).catch(() => ({ rows: [] as { id: string; name: string; email: string; status: string }[] }));
+  const lead = found.rows[0];
+  if (!lead) return { matched: false };
+
+  // If the reply hands us a better department email (same company domain, or a
+  // procurement/events mailbox), adopt it automatically.
+  let emailUpdated = false;
+  const body = `${msg.text || ''}`;
+  const candidates = (body.match(EMAIL_RE) || []).map((e) => e.toLowerCase())
+    .filter((e) => !e.endsWith('@eventanauae.com'));
+  const better = candidates.find((e) => REPLY_PROC_RE.test(e) && e.split('@')[1] === domain)
+    || candidates.find((e) => e.split('@')[1] === domain && e !== lead.email.toLowerCase());
+  if (better && better !== lead.email.toLowerCase()) {
+    await pool.query(`UPDATE corporate_leads SET email = $2, updated_at = now() WHERE id = $1`, [lead.id, better]).catch(() => {});
+    emailUpdated = true;
+  }
+
+  const keepStatus = lead.status === 'booked' || lead.status === 'not_interested';
+  await pool.query(
+    `UPDATE corporate_leads
+        SET replied_at = now(), reply_snippet = $2,
+            status = CASE WHEN $3 THEN status ELSE 'interested' END,
+            updated_at = now()
+      WHERE id = $1`,
+    [lead.id, body.slice(0, 240), keepStatus],
+  ).catch(() => {});
+
+  // Notify owner + Marsha with a ready suggested reply (they review & send — CC'd
+  // to each other so both stay in the loop). No blind auto-reply.
+  try {
+    const { pushToOwner } = await import('../integrations/push.js');
+    const targets = (await pool.query<{ id: string }>(
+      `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
+    )).rows;
+    const linkKey = `corp_reply|${lead.id}`;
+    const already = await pool.query(`SELECT 1 FROM focus_tasks WHERE link_key = $1 LIMIT 1`, [linkKey]);
+    for (const t of targets) {
+      if (!already.rowCount) {
+        await pool.query(
+          `INSERT INTO focus_tasks (member_id, title, sort_order, link_key)
+           VALUES ($1,$2,COALESCE((SELECT MIN(sort_order) - 1 FROM focus_tasks WHERE member_id = $1 AND NOT done),0),$3)`,
+          [t.id, `💬 ${lead.name} replied — review & send our proposal`, linkKey],
+        ).catch(() => {});
+      }
+      await pushToOwner('staff', t.id, `💬 ${lead.name} is interested`,
+        `${lead.name} replied to our outreach${emailUpdated ? ' (department email updated)' : ''}. Open Companies to review and send the proposal.`,
+        { leadId: String(lead.id) }).catch(() => {});
+    }
+  } catch { /* notification is non-fatal */ }
+
+  return { matched: true, leadId: lead.id, emailUpdated, company: lead.name };
 }
 
 /** WHERE clause for an emailable corporate segment ('all' or a category). */
