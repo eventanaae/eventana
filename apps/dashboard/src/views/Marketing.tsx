@@ -126,6 +126,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
   // existing
   const [occ, setOcc] = useState<any | null>(null);
   const [svc, setSvc] = useState(false);
+  const [openMonths, setOpenMonths] = useState<Record<string, boolean>>({});
 
   const back = () => {
     if (step > 1) return setStep(step - 1);
@@ -262,28 +263,48 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
           )}
           {step === 2 && (
             <Q title="Choose a campaign">
-              {!cal ? <Spinner /> : existingList.length === 0 ? <Empty>No occasions for this audience.</Empty> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {existingList.map((o, i) => {
-                    const c = aud === 'company' ? o.corporate : o.consumer;
-                    const m = o.dateISO ? o.dateISO.slice(0, 7) : '';
-                    const prevM = i > 0 && existingList[i - 1].dateISO ? existingList[i - 1].dateISO.slice(0, 7) : '';
-                    const monthHdr = m && m !== prevM
-                      ? new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
-                      : null;
-                    return (
-                      <div key={o.slug}>
-                        {monthHdr && <div style={{ fontSize: 11.5, fontWeight: 800, color: C.pinkDeep, margin: i === 0 ? '0 0 6px' : '12px 0 6px', letterSpacing: 0.3 }}>{monthHdr}</div>}
-                        <button onClick={() => { setOcc(o); setStep(3); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, color: C.ink }}>
-                          <span style={{ flex: 1, fontWeight: 700, fontSize: 13.5, color: C.ink }}>{o.name}</span>
-                          {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
-                          <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {!cal ? <Spinner /> : existingList.length === 0 ? <Empty>No occasions for this audience.</Empty> : (() => {
+                // Group by month, in date order.
+                const groups: Array<{ month: string; label: string; items: any[] }> = [];
+                for (const o of existingList) {
+                  const m = o.dateISO ? o.dateISO.slice(0, 7) : 'other';
+                  let g = groups.find((x) => x.month === m);
+                  if (!g) { g = { month: m, label: m === 'other' ? 'Other' : new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }), items: [] }; groups.push(g); }
+                  g.items.push(o);
+                }
+                const firstMonth = groups[0]?.month;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {groups.map((g) => {
+                      const isOpen = openMonths[g.month] ?? (g.month === firstMonth);
+                      return (
+                        <div key={g.month}>
+                          <button onClick={() => setOpenMonths((s) => ({ ...s, [g.month]: !isOpen }))}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px' }}>
+                            <span style={{ flex: 1, textAlign: 'left', fontSize: 12.5, fontWeight: 800, color: C.pinkDeep, letterSpacing: 0.3 }}>{g.label}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{g.items.length}</span>
+                            <span style={{ color: C.muted, fontSize: 14, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
+                          </button>
+                          {isOpen && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                              {g.items.map((o) => {
+                                const c = aud === 'company' ? o.corporate : o.consumer;
+                                return (
+                                  <button key={o.slug} onClick={() => { setOcc(o); setStep(3); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, color: C.ink }}>
+                                    <span style={{ flex: 1, fontWeight: 700, fontSize: 13.5, color: C.ink }}>{o.name}</span>
+                                    {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
+                                    <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </Q>
           )}
           {step === 3 && occ && (

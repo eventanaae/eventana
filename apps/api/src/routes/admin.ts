@@ -5673,7 +5673,8 @@ export async function adminRoutes(app: FastifyInstance) {
   /** List corporate leads with optional category/status/search filters. */
   app.get('/api/admin/corporate/leads', async (request) => {
     const q = request.query as { category?: string; status?: string; search?: string; limit?: string };
-    const where: string[] = [];
+    // Email is mandatory in the list — only businesses we can actually email show.
+    const where: string[] = [`email IS NOT NULL AND email <> ''`];
     const params: unknown[] = [];
     if (q.category && q.category in CORP_CATEGORY_LABELS) { params.push(q.category); where.push(`category = $${params.length}`); }
     if (q.status) { params.push(q.status); where.push(`status = $${params.length}`); }

@@ -653,6 +653,7 @@ export function buildCorporateBody(o: Occasion, ov?: OccasionOverride): string {
     </ul>`;
   return `
     <p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>
+    <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
     <p style="margin:0 0 14px">Hello <b>{{name}}</b>,</p>
     <p style="margin:0 0 4px">${ov?.intro || `With ${o.name} coming up, many organisations across the UAE mark it with a special activity for their people and guests — and Eventana can create it beautifully, tailored to you.`}</p>
     ${servicesList}
