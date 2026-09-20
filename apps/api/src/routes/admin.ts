@@ -2121,6 +2121,33 @@ export async function adminRoutes(app: FastifyInstance) {
     return { accounts };
   });
 
+  // Individual transactions under one account + supplier (drill-down for the
+  // Chart of Accounts screen). vendor '(no supplier)' matches blank vendors.
+  app.get('/api/admin/expense-txns', async (req) => {
+    const q = (req.query ?? {}) as { account?: string; vendor?: string };
+    const account = String(q.account ?? '').trim();
+    const vendor = String(q.vendor ?? '').trim();
+    if (!account) return { rows: [] };
+    const blank = vendor === '' || vendor === '(no supplier)';
+    const { rows } = await pool.query(
+      `SELECT id, to_char(spent_on,'YYYY-MM-DD') AS spent_on, amount_fils,
+              COALESCE(description,'') AS description, COALESCE(receipt_url,'') AS receipt_url,
+              COALESCE(payment_method,'') AS payment_method, COALESCE(source,'') AS source
+         FROM expenses
+        WHERE btrim(category) = $1
+          AND (${blank ? `COALESCE(btrim(vendor),'') = ''` : `lower(btrim(vendor)) = lower($2)`})
+        ORDER BY spent_on DESC, id DESC`,
+      blank ? [account] : [account, vendor],
+    );
+    return {
+      rows: (rows as any[]).map((r) => ({
+        id: r.id, spentOn: r.spent_on, amountFils: Number(r.amount_fils),
+        amountDisplay: formatAed(Number(r.amount_fils)), description: r.description,
+        receiptUrl: r.receipt_url || null, paymentMethod: r.payment_method, source: r.source,
+      })),
+    };
+  });
+
   /**
    * Suggested monthly budgets — rational, workload-based, not a flat average.
    *

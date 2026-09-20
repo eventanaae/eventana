@@ -42,27 +42,123 @@ function TabBtn({ on, onClick, children }: { on: boolean; onClick: () => void; c
   );
 }
 
-// ── Accounting ───────────────────────────────────────────────────────────────
+// ── Accounting · Chart of Accounts ───────────────────────────────────────────
+// Professional, QuickBooks-style: cash/receivables summary on top, then the full
+// chart of accounts. Tap an account → its suppliers (each with spend); tap a
+// supplier → its individual transactions (date, note, amount, receipt).
 function AccountingTab() {
-  const [data, setData] = useState<any>(null);
-  useEffect(() => { api.finAccounting().then(setData).catch(() => setData({ accounts: [] })); }, []);
-  if (!data) return <Spinner />;
+  const [acc, setAcc] = useState<any>(null);   // finAccounting (cash / A/R)
+  const [coa, setCoa] = useState<any>(null);   // expense accounts → suppliers
+  const [q, setQ] = useState('');
+  const [openAcct, setOpenAcct] = useState<Record<string, boolean>>({});
+  const [openSup, setOpenSup] = useState<Record<string, boolean>>({});
+  const [txns, setTxns] = useState<Record<string, any[] | 'loading'>>({});
+
+  useEffect(() => {
+    api.finAccounting().then(setAcc).catch(() => setAcc({ accounts: [] }));
+    api.expenseAccounts().then(setCoa).catch(() => setCoa({ accounts: [] }));
+  }, []);
+  if (!acc || !coa) return <Spinner />;
+
+  const loadTxns = (account: string, vendor: string) => {
+    const key = `${account}|||${vendor}`;
+    setOpenSup((o) => ({ ...o, [key]: !o[key] }));
+    if (!txns[key]) {
+      setTxns((t) => ({ ...t, [key]: 'loading' }));
+      api.expenseTxns(account, vendor).then((r) => setTxns((t) => ({ ...t, [key]: r.rows })))
+        .catch(() => setTxns((t) => ({ ...t, [key]: [] })));
+    }
+  };
+
+  const needle = q.trim().toLowerCase();
+  const accounts: any[] = (coa.accounts ?? []).filter((a: any) => !needle
+    || prettyCat(a.account).toLowerCase().includes(needle)
+    || a.suppliers.some((s: any) => (s.vendor || '').toLowerCase().includes(needle)));
+  const grand = (coa.accounts ?? []).reduce((n: number, a: any) => n + a.totalFils, 0);
+
   return (
-    <Panel title="Accounts">
-      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 14 }}>
-        The accounts you use and how much is in each. Cash on hand grows with sales receipts &amp; collected invoices, and shrinks with expenses and refunds paid out.
-      </div>
-      {data.accounts.map((a: any) => (
-        <div key={a.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 4px', borderBottom: `1px solid ${C.lineSoft}` }}>
-          <div>
-            <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.5px' }}>{a.group.toUpperCase()}</div>
-            <div style={{ ...fredoka(15), color: C.ink }}>{a.name}</div>
-            {a.note && <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{a.note}</div>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Cash & receivables summary */}
+      <Panel title="Cash & receivables">
+        {(acc.accounts ?? []).map((a: any) => (
+          <div key={a.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 2px', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, letterSpacing: '.5px' }}>{String(a.group || '').toUpperCase()}</div>
+              <div style={{ ...fredoka(14.5), color: C.ink }}>{a.name}</div>
+              {a.note && <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{a.note}</div>}
+            </div>
+            <div style={{ ...fredoka(17), color: a.balanceFils < 0 ? C.red : C.ink, fontVariantNumeric: 'tabular-nums' }}>AED {money(a.balanceFils)}</div>
           </div>
-          <div style={{ ...fredoka(18), color: a.balanceFils < 0 ? C.red : C.ink }}>AED {money(a.balanceFils)}</div>
+        ))}
+      </Panel>
+
+      {/* Chart of accounts */}
+      <Panel title="Chart of accounts">
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 10 }}>
+          Every account is built from your real receipts. Tap an account to see its suppliers, then a supplier to see its transactions.
         </div>
-      ))}
-    </Panel>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fbeff5', borderRadius: 10, marginBottom: 10 }}>
+          <span style={{ ...fredoka(13.5), color: C.ink }}>Total expenses</span>
+          <span style={{ ...fredoka(16), color: C.pinkDeep, fontVariantNumeric: 'tabular-nums' }}>AED {money(grand)}</span>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔎 Filter by account or supplier…"
+          style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.line}`, borderRadius: 10, padding: '9px 12px', fontWeight: 600, fontSize: 12.5, color: C.ink, marginBottom: 12 }} />
+        {accounts.length === 0 && <Empty>No matching accounts.</Empty>}
+        {accounts.map((a: any) => {
+          const aOpen = needle ? true : openAcct[a.account];
+          return (
+            <div key={a.account} style={{ border: `1px solid ${C.line}`, borderRadius: 12, marginBottom: 8, overflow: 'hidden' }}>
+              <button type="button" onClick={() => setOpenAcct((o) => ({ ...o, [a.account]: !o[a.account] }))}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '13px 13px', background: '#faf6f8', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <span style={{ color: C.muted2, fontSize: 11, fontWeight: 700 }}>{aOpen ? '▾' : '▸'}</span>
+                  <span style={{ ...fredoka(14), color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prettyCat(a.account)}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>· {a.suppliers.length}</span>
+                </span>
+                <span style={{ ...fredoka(14.5), color: C.pinkDeep, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>AED {money(a.totalFils)}</span>
+              </button>
+              {aOpen && (
+                <div style={{ padding: '4px 8px 8px' }}>
+                  {a.suppliers.map((s: any, i: number) => {
+                    const key = `${a.account}|||${s.vendor}`;
+                    const sOpen = openSup[key];
+                    const rows = txns[key];
+                    return (
+                      <div key={i} style={{ borderTop: i === 0 ? 'none' : `1px solid ${C.lineSoft}` }}>
+                        <button type="button" onClick={() => loadTxns(a.account, s.vendor)}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 5px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                            <span style={{ color: C.muted2, fontSize: 10, fontWeight: 700 }}>{sOpen ? '▾' : '▸'}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: s.vendor === '(no supplier)' ? C.muted2 : C.ink, fontStyle: s.vendor === '(no supplier)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
+                          </span>
+                          <span style={{ fontSize: 11.5, color: C.muted2, fontWeight: 700, whiteSpace: 'nowrap' }}>{s.count}× · AED {money(s.totalFils)}</span>
+                        </button>
+                        {sOpen && (
+                          <div style={{ padding: '2px 6px 8px 20px' }}>
+                            {rows === 'loading' && <div style={{ fontSize: 11.5, color: C.muted2, fontWeight: 600, padding: '4px 0' }}>Loading…</div>}
+                            {Array.isArray(rows) && rows.length === 0 && <div style={{ fontSize: 11.5, color: C.muted2, padding: '4px 0' }}>No transactions.</div>}
+                            {Array.isArray(rows) && rows.map((t: any) => (
+                              <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0', borderTop: `1px solid ${C.lineSoft}` }}>
+                                <span style={{ minWidth: 0 }}>
+                                  <span style={{ fontSize: 11.5, color: C.ink, fontWeight: 600 }}>{fmtDate(t.spentOn)}</span>
+                                  {t.description && <span style={{ fontSize: 11, color: C.muted2, fontWeight: 600 }}> · {t.description}</span>}
+                                  {t.receiptUrl && <a href={t.receiptUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: C.pink, fontWeight: 800, marginInlineStart: 6, textDecoration: 'none' }}>receipt</a>}
+                                </span>
+                                <span style={{ fontSize: 11.5, color: C.ink, fontWeight: 800, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>AED {money(t.amountFils)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Panel>
+    </div>
   );
 }
 
