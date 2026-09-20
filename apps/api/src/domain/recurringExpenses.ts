@@ -17,18 +17,25 @@ export async function sweepRecurringExpenses(): Promise<void> {
     const d = new Date(Date.UTC(VAN.startYear, VAN.startMonth0 + (n - 1), VAN.day));
     if (d.getTime() > now.getTime()) continue; // not due yet
     const desc = `Van Installment ${n}/36`;
+    const dateStr = d.toISOString().slice(0, 10);
+    // Idempotency keyed on the STABLE identity of the installment — its auto
+    // source + due date + amount — not on the vendor name or description, which
+    // the owner can edit in the Chart of Accounts (renaming the vendor used to
+    // make this re-post the same installment on every sweep).
     const exists = await pool.query(
-      `SELECT 1 FROM expenses WHERE description = $1 AND lower(btrim(vendor)) LIKE '%emirates nbd peugeot%' LIMIT 1`,
-      [desc],
+      `SELECT 1 FROM expenses
+         WHERE source = 'auto' AND spent_on = $1::date AND amount_fils = $2
+         LIMIT 1`,
+      [dateStr, VAN.amountFils],
     );
     if (exists.rowCount) continue;
     await pool.query(
       `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, payment_method, source)
        VALUES ('Assets', $1, $2, 'Emirates Nbd Peugeot', $3, 'bank_transfer', 'auto')`,
-      [desc, VAN.amountFils, d.toISOString().slice(0, 10)],
+      [desc, VAN.amountFils, dateStr],
     );
     posted++;
-    console.log(`[recurring] van installment ${n}/36 auto-posted (${d.toISOString().slice(0, 10)})`);
+    console.log(`[recurring] van installment ${n}/36 auto-posted (${dateStr})`);
   }
   if (posted) console.log(`[recurring] posted ${posted} due recurring expense(s)`);
 }

@@ -11,6 +11,8 @@ import { eventDateYMD, parseEndHour, parseHour } from '@eventana/shared';
 import { withTransaction } from '../db/pool.js';
 import { eventWindow, getAssets } from './inventory.js';
 import { titleCaseName } from './maintenance.js';
+import { reAlignPendingNotifications } from './lifecycle.js';
+import { syncEventToCalendar } from '../integrations/googleCalendar.js';
 
 export class EventEditError extends Error {
   constructor(message: string, readonly code: string) {
@@ -37,7 +39,7 @@ export type EventPatch = {
 };
 
 export async function staffUpdateEvent(eventId: string, patch: EventPatch): Promise<{ ok: true }> {
-  return withTransaction(async (db) => {
+  const res = await withTransaction(async (db) => {
     const { rows } = await db.query(`SELECT * FROM events WHERE id = $1 FOR UPDATE`, [eventId]);
     const ev = rows[0];
     if (!ev) throw new EventEditError('Event not found.', 'not_found');
@@ -96,6 +98,10 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
         );
       }
       await db.query(`UPDATE events SET start_time = $2, base_end_time = $3 WHERE id = $1`, [eventId, newStart, newEnd]);
+      // Move the still-unsent reminders (3-day / party-day / feedback) to the NEW
+      // start moment — the customer reschedule path does this; the staff edit
+      // path used to leave them firing at the OLD offsets.
+      await reAlignPendingNotifications(eventId, db);
     }
 
     // ── Customer contact (phones + email) live on the customer record ───────
@@ -210,6 +216,11 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       );
     }
 
-    return { ok: true };
+    return { ok: true as const, calendarAffected: Boolean(patch.startTime || patch.endTime || locationChanged) };
   });
+
+  // Keep the shared team Google Calendar in step after a time/location edit
+  // (best-effort, outside the transaction — same as the reschedule path).
+  if (res.calendarAffected) void syncEventToCalendar(eventId);
+  return { ok: true };
 }

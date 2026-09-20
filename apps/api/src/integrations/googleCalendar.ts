@@ -101,15 +101,21 @@ async function accessToken(sa: ServiceAccount): Promise<string> {
 
 /**
  * Normalise an events.event_date to a plain `YYYY-MM-DD`. node-postgres returns
- * a DATE column as a JS Date, and `String(date)` yields `"Fri Aug 30 2026 …"`,
- * so slicing that gives Google a garbage date and a bare 400. Handle both a
- * Date object and an already-ISO string. The server runs in UTC, so the Date is
- * at UTC midnight and toISOString keeps the calendar day.
+ * a DATE column as a JS Date at LOCAL midnight, so `toISOString()` (UTC) would
+ * roll the calendar day back one on a server ahead of UTC (e.g. Asia/Dubai,
+ * +04). Read the LOCAL date components instead, which give the right calendar
+ * day in any timezone. Handle both a Date object and an already-ISO string.
  */
 function ymd(eventDate: unknown): string {
-  if (eventDate instanceof Date) return eventDate.toISOString().slice(0, 10);
+  if (eventDate instanceof Date) {
+    const y = eventDate.getFullYear();
+    const m = String(eventDate.getMonth() + 1).padStart(2, '0');
+    const d = String(eventDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
   const s = String(eventDate);
-  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : new Date(s).toISOString().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return ymd(new Date(s));
 }
 
 /** 'HH:MM' or 'HH:MM:SS' → 'HH:MM:SS' (local wall time, paired with a timeZone). */

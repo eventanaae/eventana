@@ -877,11 +877,12 @@ function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose:
   const save = async () => {
     const fils = Math.round((Number(amount.replace(/,/g, '')) || 0) * 100);
     if (fils <= 0) { setErr('Enter an amount.'); return; }
+    if (!vendor.trim()) { setErr('Vendor is required — every expense must have a vendor.'); return; }
     setBusy(true); setErr(null);
     try {
       await api.updateExpense(expense.id, {
         category: (category || 'other').trim(),
-        vendor: vendor.trim() || null,
+        vendor: vendor.trim(),
         amountFils: fils,
         description: description.trim() || undefined,
         spentOn: spentOn || undefined,

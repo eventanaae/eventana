@@ -365,6 +365,12 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   }
   merchant = merchant.slice(0, 120);
 
+  // A credit (money IN — a refund, deposit or received transfer) is NOT an
+  // expense; don't queue it for expense approval (mirrors the Wio feed, which
+  // skips credits). Anthropic/Tabby/Tamara are always debits, so this only
+  // affects the generic RAKBANK-style path.
+  if (direction === 'credit') return null;
+
   // Not a real money transaction (statement, OTP, marketing, or an amount our
   // parser couldn't read) → don't create a zero-amount pending row that clutters
   // the review list. Real charges always have a positive amount. EXCEPTIONS:

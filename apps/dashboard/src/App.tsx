@@ -112,8 +112,11 @@ export default function App() {
     } catch { /* ignore */ }
     return 'today';
   });
-  const [role, setRole] = useState<string>('owner');
-  const [staffName, setStaffName] = useState<string>('Owner');
+  // Start at the LEAST-privileged role until /api/me resolves, so owner-only
+  // tabs (CEO dashboard, Reports, cash) never flash to a manager/employee who
+  // opens the app or a ?view= deep link. It snaps to the real role a beat later.
+  const [role, setRole] = useState<string>('employee');
+  const [staffName, setStaffName] = useState<string>('');
   const [counts, setCounts] = useState<{ tasks: number; review: number }>({ tasks: 0, review: 0 });
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);

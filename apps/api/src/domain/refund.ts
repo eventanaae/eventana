@@ -57,7 +57,9 @@ export async function refundOrderMoney(params: {
       const { rows } = await db.query(
         `SELECT p.*, o.total_fils, o.event_id, o.customer_id
            FROM payments p JOIN orders o ON o.id = p.order_id
-          WHERE p.order_id = $1 ORDER BY p.created_at DESC LIMIT 1
+          WHERE p.order_id = $1
+          ORDER BY (p.status IN ('paid','captured','partially_refunded')) DESC, p.created_at DESC
+          LIMIT 1
           FOR UPDATE OF p`,
         [orderId],
       );
@@ -67,16 +69,40 @@ export async function refundOrderMoney(params: {
       if (payment.status !== 'paid' && payment.status !== 'captured' && payment.status !== 'partially_refunded') {
         return { ok: false, error: 'not_refundable' };
       }
-      const alreadyRefunded = Number(payment.refunded_fils);
       const cap = Number(payment.amount_fils);
+      const provider = getProvider(payment.provider);
+
+      // Reconcile against the PROVIDER's own refunded total before moving money.
+      // If a previous attempt refunded at the provider but our books rolled back
+      // (e.g. a commit failed), the provider already shows it — so we neither
+      // double-refund on a dashboard retry nor trust a stale DB figure. This also
+      // fixes equal-value partial refunds that a provider idempotency key would
+      // otherwise silently swallow while our books counted both.
+      const pre = await provider.retrievePayment(payment.provider_payment_id).catch(() => null);
+      const dbRefunded = Number(payment.refunded_fils);
+      const alreadyRefunded = Math.max(dbRefunded, Number(pre?.refundedFils ?? 0));
       const toRefund = Math.min(amountFils, cap - alreadyRefunded);
-      if (toRefund <= 0) return { ok: false, error: 'nothing_to_refund' };
+
+      if (toRefund <= 0) {
+        // Nothing left to move. If the provider is ahead of our books (a prior
+        // attempt's money moved but the commit failed), reconcile the books to
+        // the provider truth WITHOUT moving money or writing a duplicate refunds
+        // row — so a retry is a safe no-op, never a second refund.
+        if (alreadyRefunded > dbRefunded) {
+          const status: 'refunded' | 'partially_refunded' = alreadyRefunded >= cap ? 'refunded' : 'partially_refunded';
+          await db.query(`UPDATE payments SET status = $2, refunded_fils = $3, updated_at = now() WHERE id = $1`, [payment.id, status, alreadyRefunded]);
+          await db.query(`UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`, [orderId, orderStatusFor(status)]);
+          return { ok: true, status, refundedFils: alreadyRefunded };
+        }
+        return { ok: false, error: 'nothing_to_refund' };
+      }
 
       // Money moves here, under the lock.
-      const provider = getProvider(payment.provider);
       const verified = await provider.refund(payment.provider_payment_id, toRefund, reason);
 
-      const refundedTotal = alreadyRefunded + toRefund;
+      // Prefer the provider's authoritative post-refund total; never record less
+      // than what we know moved.
+      const refundedTotal = Math.max(alreadyRefunded + toRefund, Number(verified.refundedFils ?? 0));
       const nextStatus: 'refunded' | 'partially_refunded' =
         refundedTotal >= cap ? 'refunded' : 'partially_refunded';
 

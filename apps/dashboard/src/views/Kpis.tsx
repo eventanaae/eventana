@@ -60,6 +60,7 @@ export function Kpis({ role }: { role?: string }) {
             {personal ? (
               (() => {
                 const o = data.overall; const target = data.rules?.targetPoints ?? 600;
+                if (!o) return <div style={{ color: C.muted, fontWeight: 600, fontSize: 13, padding: 20, textAlign: 'center' }}>No earnings yet this month.</div>;
                 return (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
@@ -119,13 +120,15 @@ export function Kpis({ role }: { role?: string }) {
                   </div>
                 );
               })()
-            ) : (
+            ) : data.overall ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 8 }}>
                 <Tile label="Tips this month" value={`AED ${data.overall.tipsDisplay}`} accent={C.pinkDeep} />
                 <Tile label="Team-pool tips" value={`AED ${data.overall.teamPoolDisplay}`} />
                 <Tile label="Events completed" value={String(data.overall.eventsDone)} />
                 <Tile label={`Avg rating · ${data.overall.ratingsCount} reviews`} value={data.overall.avgRating > 0 ? `${data.overall.avgRating} ★` : '—'} />
               </div>
+            ) : (
+              <div style={{ color: C.muted, fontWeight: 600, fontSize: 13, padding: 20, textAlign: 'center' }}>No team earnings yet this month.</div>
             )}
           </>
         )}
@@ -158,14 +161,14 @@ export function Kpis({ role }: { role?: string }) {
 
       {data && !personal && (
         <Panel title="Team earnings (owner)">
-          {data.staff.length === 0 ? (
+          {(data.staff?.length ?? 0) === 0 ? (
             <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>No active staff.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* Rank by actual EARNINGS (bonus + tips + commission), not the
                   server's tips-first order — else the 🥇 went to the top tipper
                   and a high commission-earner (e.g. Marsha, 0 tips) sank to last. */}
-              {[...data.staff].sort((a: any, b: any) => (b.earningsFils ?? 0) - (a.earningsFils ?? 0)).map((s: any, i: number) => (
+              {[...(data.staff ?? [])].sort((a: any, b: any) => (b.earningsFils ?? 0) - (a.earningsFils ?? 0)).map((s: any, i: number) => (
                 <div key={s.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                     <span style={{ fontSize: 17, width: 24, textAlign: 'center', flex: 'none', fontWeight: 800, color: C.muted }}>{i === 0 ? '🥇' : i + 1}</span>
