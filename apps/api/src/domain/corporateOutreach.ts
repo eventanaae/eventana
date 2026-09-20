@@ -359,21 +359,23 @@ export function buildFirstTouchBody(category: CorpCategory): string {
   const p = CORP_PITCH[category] ?? CORP_PITCH.other;
   const sector = (CORP_CATEGORY_LABELS[category] ?? 'organisation').toLowerCase().replace(/s$/, '');
   const servicesList = `
-    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">How Eventana can help your ${sector}:</p>
+    <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">A glimpse of what we can create for your ${sector}:</p>
     <ul style="margin:0;padding-left:20px">
       ${p.services.map((x) => `<li style="margin:0 0 6px">${x}</li>`).join('')}
     </ul>`;
   return `
-    <p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${p.subject}</p>
+    <p style="font-size:20px;font-weight:800;margin:0 0 12px;color:#3B3641">${p.subject}</p>
     <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
-    <p style="margin:0 0 14px">Hello <b>{{name}}</b>,</p>
+    <p style="margin:0 0 14px">Dear <b>{{name}}</b>,</p>
+    <p style="margin:0 0 10px">Every celebration tells a story — and the right one stays in people’s hearts long after the day is over. At Eventana, creating those moments is what we love most. 💛</p>
     <p style="margin:0 0 4px">${p.intro}</p>
-    <p style="margin:14px 0 4px"><b>Could you kindly point us to the right person</b> in your procurement or events team? Just reply with their name and email and we’ll send the details straight to them.</p>
+    <p style="margin:14px 0 4px"><b>Could you kindly point us to the right person</b> in your procurement or events team? Just reply with their name and email and we’ll take care of the rest.</p>
     ${servicesList}
-    <p style="margin:16px 0 4px;background:#FDEFF6;border-radius:10px;padding:11px 13px">✨ <b>Every detail designed around your brand</b> — your logo and colours throughout, so it feels like a private event created just for you.</p>
+    <p style="margin:12px 0 4px">…and so much more. Whatever the occasion, we design it from the ground up — <b>there’s no celebration we can’t bring to life</b>. The list above is just a glimpse.</p>
+    <p style="margin:16px 0 4px;background:#FDEFF6;border-radius:10px;padding:11px 13px">✨ <b>Every detail designed around your brand</b> — your logo and colours woven throughout, so it feels like a private celebration created just for you.</p>
     ${WHY_US_HTML}
-    <p style="margin:16px 0 6px">Share a rough date and budget whenever it suits, and we’ll prepare a tailored proposal — no obligation.</p>
-    <p style="margin:12px 0 0">Warm regards,<br/>The Eventana Team</p>`;
+    <p style="margin:16px 0 6px">We’d be honoured to create something unforgettable for you. Share a rough date and budget whenever it suits, and we’ll craft a proposal made just for your organisation — no obligation.</p>
+    <p style="margin:12px 0 0">Warmly,<br/>The Eventana Team 🎈</p>`;
 }
 
 /**
