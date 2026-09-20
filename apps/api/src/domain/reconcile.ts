@@ -361,6 +361,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sweepStaffPayReport }) => sweepStaffPayReport())
     .catch((err) => console.error('[staff-pay-report] failed:', err));
 
+  await import('./recurringExpenses.js')
+    .then(({ sweepRecurringExpenses }) => sweepRecurringExpenses())
+    .catch((err) => console.error('[recurring] failed:', err));
+
   return report;
 }
 
