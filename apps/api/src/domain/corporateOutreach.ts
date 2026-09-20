@@ -326,8 +326,8 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; oc
   hospital: {
     subject: 'Moments your team & patients will treasure 💛',
     services: [
-      '💛 Appreciation events',
-      '🌸 Workshops',
+      '💛 Staff & nurses’ appreciation events',
+      '🌸 Creative workshops (flower arranging, pottery & art)',
       '✨ Pop-up activations or healthy-food corners',
       '🎁 Custom-designed giveaways',
     ],
@@ -336,8 +336,8 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; oc
   clinic: {
     subject: 'Warm celebrations for your clinic 💐',
     services: [
-      '💛 Appreciation events',
-      '🌸 Workshops',
+      '💛 Staff & patient appreciation events',
+      '🌸 Creative workshops (flower arranging, pottery & art)',
       '✨ Pop-up activations or healthy-food corners',
       '🎁 Custom-designed giveaways',
     ],
@@ -413,8 +413,11 @@ export function buildFirstTouchBody(category: CorpCategory): string {
       <div style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#ffe6f2">Eventana Events · UAE</div>
       <div style="font-size:22px;font-weight:800;line-height:1.25;margin-top:7px;color:#ffffff">${p.subject}</div>
     </div>`;
-  const occasionsBand = p.occasions
-    ? `<div style="background:#FFF3D6;border-radius:12px;padding:13px 15px;margin:16px 0;font-size:13.5px;color:#5a4a2a"><b>🎊 We celebrate:</b> ${p.occasions}</div>`
+  const occText = p.occasions
+    ? (/every occasion/i.test(p.occasions) ? p.occasions : `${p.occasions} — and every occasion 🎉`)
+    : '';
+  const occasionsBand = occText
+    ? `<div style="background:#FFF3D6;border-radius:12px;padding:13px 15px;margin:16px 0;font-size:13.5px;color:#5a4a2a"><b>🎊 We celebrate:</b> ${occText}</div>`
     : '';
   return `
     ${hero}
@@ -424,6 +427,7 @@ export function buildFirstTouchBody(category: CorpCategory): string {
     <div style="background:#FDEFF6;border-left:4px solid #E94F9C;border-radius:10px;padding:12px 14px;margin:0 0 4px;font-size:14px"><b>Who’s the right person</b> for events or procurement? Just reply with their name and email.</div>
     <p style="margin:18px 0 8px;font-weight:800;color:#3B3641;font-size:15px">A few things we create for your ${sector} 👇</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0">${serviceRows}</table>
+    <p style="margin:4px 0 0;font-size:13.5px;color:#8a7f88;font-style:italic">…and so much more — whatever the occasion, we design it from scratch. ✨</p>
     ${occasionsBand}
     <div style="text-align:center;background:#F0E9FB;border-radius:14px;padding:16px 14px;margin:16px 0;font-size:14.5px;font-weight:700;color:#3B3641">✨ Every detail <span style="color:#7C5BB8">fully branded to your logo</span> — a celebration made just for you.</div>
     <div style="text-align:center;margin:16px 0 4px">
