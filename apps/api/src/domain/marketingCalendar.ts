@@ -683,6 +683,27 @@ export async function saveOccasionSettings(
   );
 }
 
+/** Rebuild ONE campaign's email from its occasion template + saved services
+ *  (the "Regenerate" action — for when the owner doesn't like the current copy).
+ *  Only works on an editable auto occasion draft. Returns true if rebuilt. */
+export async function regenerateCampaign(id: number): Promise<boolean> {
+  const { rows } = await pool.query<{ dedupe_key: string | null; source: string; status: string }>(
+    `SELECT dedupe_key, source, status FROM email_campaigns WHERE id = $1`, [id],
+  );
+  const c = rows[0];
+  if (!c || !c.dedupe_key || !['occasion', 'occasion_corp'].includes(c.source)) return false;
+  if (!['draft', 'pending_approval', 'scheduled'].includes(c.status)) return false;
+  const slug = c.dedupe_key.split('|')[1];
+  const isCorp = c.dedupe_key.endsWith('|corp');
+  const o = OCCASIONS.find((x) => x.slug === slug);
+  if (!o) return false;
+  const ov = await getOccasionOverrides(slug);
+  const subject = isCorp ? `${o.copy.subject} — for your organisation` : o.copy.subject;
+  const body = isCorp ? buildCorporateBody(o, ov) : buildOccasionBody(o, ov);
+  await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1`, [id, subject, body]);
+  return true;
+}
+
 /** Rebuild the current editable drafts for ONE occasion from its templates +
  *  saved overrides (used right after the owner edits an occasion's services). */
 export async function regenerateOneOccasion(slug: string): Promise<number> {

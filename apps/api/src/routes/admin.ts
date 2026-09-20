@@ -35,7 +35,7 @@ import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
-import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion } from '../domain/marketingCalendar.js';
+import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign } from '../domain/marketingCalendar.js';
 import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -5641,6 +5641,14 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     const regenerated = await regenerateOneOccasion(slug).catch(() => 0);
     return { ok: true, regenerated };
+  });
+
+  /** Regenerate an occasion campaign's email from the template + saved services. */
+  app.post('/api/admin/marketing/campaigns/:id/regenerate', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const ok = await regenerateCampaign(id).catch(() => false);
+    if (!ok) return reply.status(409).send({ error: 'cannot_regenerate', message: 'Only an auto occasion draft can be regenerated.' });
+    return { ok: true };
   });
 
   /** Rendered HTML preview of a campaign (as the customer will see it). */

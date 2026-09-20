@@ -556,6 +556,8 @@ export const api = {
     request<any>(`/api/admin/marketing/calendar/${slug}/prepare`, { method: 'POST' }),
   saveOccasionSettings: (slug: string, body: { services?: string; intro?: string; offer?: string }) =>
     request<any>(`/api/admin/marketing/calendar/${slug}/settings`, { method: 'PUT', body: JSON.stringify(body) }),
+  regenerateCampaign: (id: number) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}/regenerate`, { method: 'POST' }),
   // Fetch the rendered email HTML (with auth) so the UI can open a live preview.
   campaignPreviewHtml: async (id: number): Promise<string> => {
     const res = await fetch(`${BASE}/api/admin/marketing/campaigns/${id}/preview`, {
