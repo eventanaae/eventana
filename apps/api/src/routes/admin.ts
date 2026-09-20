@@ -2084,15 +2084,24 @@ export async function adminRoutes(app: FastifyInstance) {
   /** Review report: every expense account with the suppliers used under it,
    *  and the count + total spent for each — so the owner can review that each
    *  supplier sits under the right account. Read-only, across all time. */
-  app.get('/api/admin/expense-accounts', async () => {
+  app.get('/api/admin/expense-accounts', async (request) => {
+    const role = (request as any).staff?.role;
+    const yr = String((request.query as { year?: string })?.year ?? '').trim();
+    const yearNum = /^\d{4}$/.test(yr) ? Number(yr) : null;
+    const params: any[] = [];
+    let where = `category IS NOT NULL AND btrim(category) <> ''`;
+    if (yearNum) { params.push(yearNum); where += ` AND EXTRACT(YEAR FROM spent_on) = $${params.length}`; }
+    // Salaries are sensitive — only the owner sees that account anywhere.
+    if (role !== 'owner') where += ` AND btrim(category) <> 'Salaries'`;
     const { rows } = await pool.query(
       `SELECT btrim(category) AS account,
               COALESCE(NULLIF(btrim(vendor), ''), '') AS vendor,
               COUNT(*)::int AS n,
               COALESCE(SUM(amount_fils), 0)::bigint AS total_fils
          FROM expenses
-        WHERE category IS NOT NULL AND btrim(category) <> ''
+        WHERE ${where}
         GROUP BY 1, 2`,
+      params,
     );
     // Group flat (account, vendor) rows into accounts -> suppliers.
     const byAccount = new Map<
@@ -2124,20 +2133,25 @@ export async function adminRoutes(app: FastifyInstance) {
   // Individual transactions under one account + supplier (drill-down for the
   // Chart of Accounts screen). vendor '(no supplier)' matches blank vendors.
   app.get('/api/admin/expense-txns', async (req) => {
-    const q = (req.query ?? {}) as { account?: string; vendor?: string };
+    const q = (req.query ?? {}) as { account?: string; vendor?: string; year?: string };
     const account = String(q.account ?? '').trim();
     const vendor = String(q.vendor ?? '').trim();
     if (!account) return { rows: [] };
-    const blank = vendor === '' || vendor === '(no supplier)';
+    const blank = vendor === '' || vendor === '(no vendor)' || vendor === '(no supplier)';
+    const yr = String(q.year ?? '').trim();
+    const yearNum = /^\d{4}$/.test(yr) ? Number(yr) : null;
+    const params: any[] = blank ? [account] : [account, vendor];
+    let yearClause = '';
+    if (yearNum) { params.push(yearNum); yearClause = ` AND EXTRACT(YEAR FROM spent_on) = $${params.length}`; }
     const { rows } = await pool.query(
       `SELECT id, to_char(spent_on,'YYYY-MM-DD') AS spent_on, amount_fils,
               COALESCE(description,'') AS description, COALESCE(receipt_url,'') AS receipt_url,
               COALESCE(payment_method,'') AS payment_method, COALESCE(source,'') AS source
          FROM expenses
         WHERE btrim(category) = $1
-          AND (${blank ? `COALESCE(btrim(vendor),'') = ''` : `lower(btrim(vendor)) = lower($2)`})
+          AND (${blank ? `COALESCE(btrim(vendor),'') = ''` : `lower(btrim(vendor)) = lower($2)`})${yearClause}
         ORDER BY spent_on DESC, id DESC`,
-      blank ? [account] : [account, vendor],
+      params,
     );
     return {
       rows: (rows as any[]).map((r) => ({
@@ -2146,6 +2160,29 @@ export async function adminRoutes(app: FastifyInstance) {
         receiptUrl: r.receipt_url || null, paymentMethod: r.payment_method, source: r.source,
       })),
     };
+  });
+
+  // Owner edit of a vendor from the Chart of Accounts: rename it and/or move it
+  // to another account, across ALL its expenses. Also keeps the suppliers
+  // directory name in step. Owner/manager (finance-gated by the /finance prefix
+  // is separate; this lives under /api/admin which the admin auth already gates).
+  app.post('/api/admin/vendor-edit', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const b = (request.body ?? {}) as { oldVendor?: string; newVendor?: string; newAccount?: string };
+    const oldV = String(b.oldVendor ?? '').trim();
+    if (!oldV) return reply.status(400).send({ error: 'invalid', message: 'oldVendor required' });
+    const newV = (b.newVendor ?? '').trim();
+    const newA = (b.newAccount ?? '').trim();
+    if (!newV && !newA) return reply.status(400).send({ error: 'invalid', message: 'nothing to change' });
+    const sets: string[] = []; const vals: any[] = [oldV];
+    if (newV) { vals.push(newV); sets.push(`vendor = $${vals.length}`); }
+    if (newA) { vals.push(newA); sets.push(`category = $${vals.length}`); }
+    const res = await pool.query(`UPDATE expenses SET ${sets.join(', ')} WHERE lower(btrim(vendor)) = lower($1)`, vals);
+    // keep the suppliers directory name aligned on a rename
+    if (newV) await pool.query(`UPDATE suppliers SET name = $2 WHERE lower(btrim(name)) = lower($1)`, [oldV, newV]).catch(() => {});
+    logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role, action: 'vendor_edit', target: oldV, detail: b });
+    return { ok: true, updated: res.rowCount };
   });
 
   // Learned vendor → usual account map (most-common category per vendor), so the

@@ -699,14 +699,16 @@ export const api = {
     request<any>(`/api/admin/bank-transactions/${id}/ignore`, { method: 'POST' }),
   bankTxManual: (body: { amountFils: number; merchant?: string; source?: string; spentOn?: string; note?: string }) =>
     request<any>(`/api/admin/bank-transactions/manual`, { method: 'POST', body: JSON.stringify(body) }),
-  expenseAccounts: () =>
+  expenseAccounts: (year?: string) =>
     request<{ accounts: Array<{ account: string; count: number; totalFils: number; totalDisplay: string; suppliers: Array<{ vendor: string; count: number; totalFils: number; totalDisplay: string }> }> }>(
-      '/api/admin/expense-accounts',
+      `/api/admin/expense-accounts${year && year !== 'all' ? `?year=${encodeURIComponent(year)}` : ''}`,
     ),
   vendorAccounts: () => request<{ map: Record<string, string> }>('/api/admin/vendor-accounts'),
-  expenseTxns: (account: string, vendor: string) =>
+  vendorEdit: (oldVendor: string, newVendor?: string, newAccount?: string) =>
+    request<{ ok: boolean; updated: number }>('/api/admin/vendor-edit', { method: 'POST', body: JSON.stringify({ oldVendor, newVendor, newAccount }) }),
+  expenseTxns: (account: string, vendor: string, year?: string) =>
     request<{ rows: Array<{ id: number; spentOn: string; amountFils: number; amountDisplay: string; description: string; receiptUrl: string | null; paymentMethod: string; source: string }> }>(
-      `/api/admin/expense-txns?account=${encodeURIComponent(account)}&vendor=${encodeURIComponent(vendor)}`,
+      `/api/admin/expense-txns?account=${encodeURIComponent(account)}&vendor=${encodeURIComponent(vendor)}${year && year !== 'all' ? `&year=${encodeURIComponent(year)}` : ''}`,
     ),
 
   // ── Finance module ──

@@ -50,26 +50,41 @@ function AccountingTab() {
   const [acc, setAcc] = useState<any>(null);   // finAccounting (cash / A/R)
   const [coa, setCoa] = useState<any>(null);   // expense accounts → suppliers
   const [q, setQ] = useState('');
+  const [year, setYear] = useState('all');
   const [openAcct, setOpenAcct] = useState<Record<string, boolean>>({});
   const [openSup, setOpenSup] = useState<Record<string, boolean>>({});
   const [txns, setTxns] = useState<Record<string, any[] | 'loading'>>({});
+  // Inline vendor edit (rename + move account).
+  const [edit, setEdit] = useState<{ key: string; vendor: string; name: string; account: string } | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    api.finAccounting().then(setAcc).catch(() => setAcc({ accounts: [] }));
-    api.expenseAccounts().then(setCoa).catch(() => setCoa({ accounts: [] }));
-  }, []);
+  const reloadCoa = (y: string) => { setCoa(null); setTxns({}); setOpenSup({}); api.expenseAccounts(y).then(setCoa).catch(() => setCoa({ accounts: [] })); };
+  useEffect(() => { api.finAccounting().then(setAcc).catch(() => setAcc({ accounts: [] })); }, []);
+  useEffect(() => { reloadCoa(year); }, [year]);
   if (!acc || !coa) return <Spinner />;
 
+  const allAccounts: string[] = (coa.accounts ?? []).map((a: any) => a.account);
   const loadTxns = (account: string, vendor: string) => {
     const key = `${account}|||${vendor}`;
     setOpenSup((o) => ({ ...o, [key]: !o[key] }));
     if (!txns[key]) {
       setTxns((t) => ({ ...t, [key]: 'loading' }));
-      api.expenseTxns(account, vendor).then((r) => setTxns((t) => ({ ...t, [key]: r.rows })))
+      api.expenseTxns(account, vendor, year).then((r) => setTxns((t) => ({ ...t, [key]: r.rows })))
         .catch(() => setTxns((t) => ({ ...t, [key]: [] })));
     }
   };
+  const saveEdit = async () => {
+    if (!edit) return;
+    const nm = edit.name.trim(); const ac = edit.account.trim();
+    if ((!nm || nm === edit.vendor) && (!ac)) { setEdit(null); return; }
+    setSaving(true);
+    try {
+      await api.vendorEdit(edit.vendor, nm && nm !== edit.vendor ? nm : undefined, ac || undefined);
+      setEdit(null); reloadCoa(year);
+    } catch { /* keep dialog open on error */ } finally { setSaving(false); }
+  };
 
+  const years = ['all', '2026', '2025', '2024', '2023'];
   const needle = q.trim().toLowerCase();
   const accounts: any[] = (coa.accounts ?? []).filter((a: any) => !needle
     || prettyCat(a.account).toLowerCase().includes(needle)
@@ -97,8 +112,16 @@ function AccountingTab() {
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginBottom: 10 }}>
           Every account is built from your real receipts. Tap an account to see its vendors, then a vendor to see its transactions.
         </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          {years.map((y) => (
+            <button key={y} type="button" onClick={() => setYear(y)}
+              style={{ border: `1px solid ${year === y ? C.pink : C.line}`, background: year === y ? C.pink : '#fff', color: year === y ? '#fff' : C.ink, borderRadius: 20, padding: '6px 13px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+              {y === 'all' ? 'All years' : y}
+            </button>
+          ))}
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fbeff5', borderRadius: 10, marginBottom: 10 }}>
-          <span style={{ ...fredoka(13.5), color: C.ink }}>Total expenses</span>
+          <span style={{ ...fredoka(13.5), color: C.ink }}>Total{year !== 'all' ? ` · ${year}` : ''}</span>
           <span style={{ ...fredoka(16), color: C.pinkDeep, fontVariantNumeric: 'tabular-nums' }}>AED {money(grand)}</span>
         </div>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔎 Filter by account or vendor…"
@@ -123,16 +146,37 @@ function AccountingTab() {
                     const key = `${a.account}|||${s.vendor}`;
                     const sOpen = openSup[key];
                     const rows = txns[key];
+                    const editing = edit && edit.key === key;
                     return (
                       <div key={i} style={{ borderTop: i === 0 ? 'none' : `1px solid ${C.lineSoft}` }}>
-                        <button type="button" onClick={() => loadTxns(a.account, s.vendor)}
-                          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 5px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                            <span style={{ color: C.muted2, fontSize: 10, fontWeight: 700 }}>{sOpen ? '▾' : '▸'}</span>
-                            <span style={{ fontSize: 12.5, fontWeight: 700, color: s.vendor === '(no vendor)' ? C.muted2 : C.ink, fontStyle: s.vendor === '(no vendor)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
-                          </span>
-                          <span style={{ fontSize: 11.5, color: C.muted2, fontWeight: 700, whiteSpace: 'nowrap' }}>{s.count}× · AED {money(s.totalFils)}</span>
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button type="button" onClick={() => loadTxns(a.account, s.vendor)}
+                            style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 5px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                              <span style={{ color: C.muted2, fontSize: 10, fontWeight: 700 }}>{sOpen ? '▾' : '▸'}</span>
+                              <span style={{ fontSize: 12.5, fontWeight: 700, color: s.vendor === '(no vendor)' ? C.muted2 : C.ink, fontStyle: s.vendor === '(no vendor)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
+                            </span>
+                            <span style={{ fontSize: 11.5, color: C.muted2, fontWeight: 700, whiteSpace: 'nowrap' }}>{s.count}× · AED {money(s.totalFils)}</span>
+                          </button>
+                          {s.vendor !== '(no vendor)' && (
+                            <button type="button" title="Edit vendor" onClick={() => setEdit({ key, vendor: s.vendor, name: s.vendor, account: a.account })}
+                              style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, opacity: 0.6, padding: '4px 6px' }}>✎</button>
+                          )}
+                        </div>
+                        {editing && (
+                          <div style={{ padding: '6px 6px 12px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <input value={edit!.name} onChange={(e) => setEdit({ ...edit!, name: e.target.value })} placeholder="Vendor name"
+                              style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '8px 10px', fontSize: 12.5, fontWeight: 700, color: C.ink }} />
+                            <select value={edit!.account} onChange={(e) => setEdit({ ...edit!, account: e.target.value })}
+                              style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '8px 10px', fontSize: 12.5, fontWeight: 700, color: C.ink, background: '#fff' }}>
+                              {allAccounts.map((ac) => <option key={ac} value={ac}>{prettyCat(ac)}</option>)}
+                            </select>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <Button onClick={saveEdit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+                              <Button tone="ghost" onClick={() => setEdit(null)}>Cancel</Button>
+                            </div>
+                          </div>
+                        )}
                         {sOpen && (
                           <div style={{ padding: '2px 6px 8px 20px' }}>
                             {rows === 'loading' && <div style={{ fontSize: 11.5, color: C.muted2, fontWeight: 600, padding: '4px 0' }}>Loading…</div>}
@@ -444,7 +488,6 @@ function ExpensesTab({ role }: { role?: string }) {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [viewing, setViewing] = useState<string | null>(null);
-  const [reviewing, setReviewing] = useState(false);
   const searching = search.trim().length > 0;
   const load = () =>
     (searching ? api.expenses(undefined, search.trim()) : api.expenses(month))
@@ -468,7 +511,6 @@ function ExpensesTab({ role }: { role?: string }) {
     <BankReview role={role} categories={data.categories ?? []} onApproved={load} />
     <Panel title="Expenses" action={
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Button tone="ghost" onClick={() => setReviewing(true)}>📋 Accounts review</Button>
         <Button onClick={() => setCreating(true)}>+ New expense</Button>
       </div>
     }>
@@ -518,7 +560,6 @@ function ExpensesTab({ role }: { role?: string }) {
       {creating && <ExpenseForm categories={data.categories ?? []} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
       {editing && <EditExpenseForm expense={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
       {viewing && <ReceiptViewer url={viewing} onClose={() => setViewing(null)} />}
-      {reviewing && <AccountsReview onClose={() => setReviewing(false)} />}
     </Panel>
     </>
   );
@@ -700,72 +741,6 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   );
 }
 
-/** Review report: each expense account with the vendors filed under it, so
- *  the owner can check every supplier sits under the right account. Read-only. */
-function AccountsReview({ onClose }: { onClose: () => void }) {
-  const [data, setData] = useState<any>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [q, setQ] = useState('');
-  useEffect(() => {
-    api.expenseAccounts().then(setData).catch((e) => setErr(e?.message || 'Could not load.'));
-  }, []);
-  const accounts: any[] = data?.accounts ?? [];
-  const needle = q.trim().toLowerCase();
-  const shown = needle
-    ? accounts.filter((a) => a.account.toLowerCase().includes(needle) ||
-        a.suppliers.some((s: any) => (s.vendor || '').toLowerCase().includes(needle)))
-    : accounts;
-  return (
-    <Modal title="Accounts review — vendors under each account" onClose={onClose}>
-      {err && <div style={{ color: C.red, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
-      {!data && !err && <Spinner />}
-      {data && (
-        <>
-          <div style={{ fontSize: 12, color: C.muted2, fontWeight: 600, marginBottom: 10 }}>
-            Every account is built from your real receipts. Tap an account to see the vendors filed under it.
-          </div>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="🔎 Filter by account or vendor…"
-            style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e7dfe3', borderRadius: 10, padding: '9px 12px', fontWeight: 600, fontSize: 12.5, color: C.ink, marginBottom: 12 }}
-          />
-          {shown.length === 0 && <Empty>No matching accounts.</Empty>}
-          {shown.map((a: any) => {
-            const isOpen = needle ? true : open[a.account];
-            return (
-              <div key={a.account} style={{ border: `1px solid ${C.line}`, borderRadius: 12, marginBottom: 8, overflow: 'hidden' }}>
-                <button
-                  type="button"
-                  onClick={() => setOpen((o) => ({ ...o, [a.account]: !o[a.account] }))}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 13px', background: '#faf6f8', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                    <span style={{ color: C.muted2, fontSize: 11, fontWeight: 700 }}>{isOpen ? '▾' : '▸'}</span>
-                    <span style={{ fontWeight: 800, fontSize: 13, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prettyCat(a.account)}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>· {a.suppliers.length} vendor(s)</span>
-                  </span>
-                  <span style={{ fontWeight: 800, fontSize: 12.5, color: C.pinkDeep, whiteSpace: 'nowrap' }}>AED {money(a.totalFils)}</span>
-                </button>
-                {isOpen && (
-                  <div style={{ padding: '4px 13px 10px' }}>
-                    {a.suppliers.map((s: any, i: number) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderTop: i === 0 ? 'none' : `1px solid ${C.line}` }}>
-                        <span style={{ fontSize: 12.5, color: s.vendor === '(no vendor)' ? C.muted2 : C.ink, fontWeight: 600, fontStyle: s.vendor === '(no vendor)' ? 'italic' : 'normal', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.vendor}</span>
-                        <span style={{ fontSize: 11.5, color: C.muted2, fontWeight: 700, whiteSpace: 'nowrap' }}>{s.count}× · AED {money(s.totalFils)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </>
-      )}
-    </Modal>
-  );
-}
 
 function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; onClose: () => void; onSaved: () => void }) {
   const [suppliers, setSuppliers] = useState<any[]>([]);
