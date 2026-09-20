@@ -478,6 +478,12 @@ export async function sweepCorporateFirstTouch(): Promise<number> {
   const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;
   if (Date.now() - lastAt < 20 * 3600 * 1000) return 0;
 
+  // Owner asked to CC herself + Marsha on the VERY FIRST batch only (to watch it
+  // go out), and to keep that first batch small (20) so the CC doesn't flood.
+  const ccDone = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'corp_firsttouch_cc_done'`).catch(() => ({ rowCount: 0 }));
+  const firstBatchCc = ccDone.rowCount ? undefined : ['sheem@eventanauae.com', 'marsha@eventanauae.com'];
+  const limit = firstBatchCc ? Math.min(perDay, 20) : perDay;
+
   const { rows } = await pool.query<{ id: string; email: string; name: string; category: string }>(
     `SELECT id, email, name, category FROM corporate_leads
       WHERE email IS NOT NULL AND email <> '' AND email_opt_out = FALSE
@@ -485,13 +491,8 @@ export async function sweepCorporateFirstTouch(): Promise<number> {
         AND lower(email) NOT IN (SELECT lower(email) FROM email_suppression)
       ORDER BY created_at ASC
       LIMIT $1`,
-    [perDay],
+    [limit],
   ).catch(() => ({ rows: [] as { id: string; email: string; name: string; category: string }[] }));
-
-  // Owner asked to CC herself + Marsha on the VERY FIRST batch only, to watch it
-  // go out — then it stops.
-  const ccDone = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'corp_firsttouch_cc_done'`).catch(() => ({ rowCount: 0 }));
-  const firstBatchCc = ccDone.rowCount ? undefined : ['sheem@eventanauae.com', 'marsha@eventanauae.com'];
 
   let sent = 0;
   const { unsubToken } = await import('./marketing.js');
