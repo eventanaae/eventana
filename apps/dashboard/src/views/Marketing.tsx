@@ -8,6 +8,19 @@ const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> 
   sent: 'ok', approved: 'ok', scheduled: 'info', sending: 'info',
   pending_approval: 'warn', rejected: 'error', failed: 'error', draft: 'neutral',
 };
+// A company's stage in the outreach journey (see the Companies list).
+const CORP_STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> = {
+  new: 'neutral', contacted: 'info', interested: 'warn', booked: 'ok', not_interested: 'neutral',
+};
+const CORP_STATUS_LABEL: Record<string, string> = {
+  new: '🆕 New', contacted: '📤 Contacted', interested: '💬 Interested', booked: '✅ Booked', not_interested: 'Not interested',
+};
+/** Short "12 Sep" date for the journey line; safe on a null/blank value. */
+function fmtDay(v?: string | null): string {
+  if (!v) return '';
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
 export function Marketing() {
   const [data, setData] = useState<any>(null);
   const [cal, setCal] = useState<any[] | null>(null);
@@ -530,10 +543,14 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
   const [open, setOpen] = useState(false);
   const [leads, setLeads] = useState<any[] | null>(null);
   const [cat, setCat] = useState('');
+  const [stat, setStat] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const loadLeads = (category = cat) => {
-    api.corporateLeads(category ? { category } : undefined).then((r) => setLeads(r.leads ?? [])).catch(() => setLeads([]));
+  const loadLeads = (category = cat, status = stat) => {
+    const q: { category?: string; status?: string } = {};
+    if (category) q.category = category;
+    if (status) q.status = status;
+    api.corporateLeads(Object.keys(q).length ? q : undefined).then((r) => setLeads(r.leads ?? [])).catch(() => setLeads([]));
   };
   useEffect(() => { if (open && leads === null) loadLeads(); }, [open]);
 
@@ -557,19 +574,40 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
       </div>
       {open && (
         <div style={{ marginTop: 12 }}>
-          <select value={cat} onChange={(e) => { setCat(e.target.value); loadLeads(e.target.value); }} style={{ ...input, marginBottom: 10 }}>
-            <option value="">All categories</option>
-            {cats.map((c) => <option key={c} value={c}>{labels[c]}</option>)}
-          </select>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <select value={cat} onChange={(e) => { setCat(e.target.value); loadLeads(e.target.value, stat); }} style={{ ...input, flex: 1, minWidth: 130 }}>
+              <option value="">All categories</option>
+              {cats.map((c) => <option key={c} value={c}>{labels[c]}</option>)}
+            </select>
+            <select value={stat} onChange={(e) => { setStat(e.target.value); loadLeads(cat, e.target.value); }} style={{ ...input, flex: 1, minWidth: 130 }}>
+              <option value="">Any stage</option>
+              <option value="new">🆕 New (not emailed)</option>
+              <option value="contacted">📤 Contacted</option>
+              <option value="interested">💬 Replied / interested</option>
+              <option value="booked">✅ Booked</option>
+              <option value="not_interested">Not interested</option>
+            </select>
+          </div>
           {leads === null ? <Spinner /> : leads.length === 0 ? <Empty>No companies yet — collect from Google or import a list.</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflowY: 'auto' }}>
               {leads.map((l) => (
                 <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 10, padding: '8px 10px', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 150 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700 }}>{l.name}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {l.name}
+                      <Badge tone={CORP_STATUS_TONE[l.status] ?? 'neutral'}>{CORP_STATUS_LABEL[l.status] ?? l.status}</Badge>
+                    </div>
                     <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>
                       {labels[l.category] ?? l.category}{l.emirate ? ` · ${l.emirate}` : ''}{l.email ? ` · ${l.email}` : ' · no email'}{l.phone ? ` · ${l.phone}` : ''}
                     </div>
+                    {(l.first_contacted_at || l.replied_at) && (
+                      <div style={{ fontSize: 10.5, color: C.muted2, fontWeight: 700, marginTop: 3 }}>
+                        {l.first_contacted_at ? `📤 emailed ${fmtDay(l.first_contacted_at)}` : ''}
+                        {l.reminded_at ? ` · ⏰ reminded ${fmtDay(l.reminded_at)}` : ''}
+                        {l.replied_at ? ` · 💬 replied ${fmtDay(l.replied_at)}` : ''}
+                      </div>
+                    )}
+                    {l.reply_snippet && <div style={{ fontSize: 11, color: C.ink, marginTop: 3, fontStyle: 'italic', opacity: .85 }}>“{String(l.reply_snippet).slice(0, 120)}”</div>}
                   </div>
                   <select value={l.status} onChange={(e) => run(() => api.updateCorporateLead(Number(l.id), { status: e.target.value }), 'Updated.')} style={{ ...input, width: 'auto', padding: '5px 8px', fontSize: 11.5 }}>
                     {['new', 'contacted', 'interested', 'booked', 'not_interested'].map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}

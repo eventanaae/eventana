@@ -5699,7 +5699,8 @@ export async function adminRoutes(app: FastifyInstance) {
     if (q.search) { params.push(`%${q.search.toLowerCase()}%`); where.push(`(lower(name) LIKE $${params.length} OR lower(email) LIKE $${params.length})`); }
     const limit = Math.min(500, Math.max(1, Number(q.limit) || 200));
     const { rows } = await pool.query(
-      `SELECT id, name, category, email, contact_name, phone, emirate, website, status, email_opt_out, source, created_at
+      `SELECT id, name, category, email, contact_name, phone, emirate, website, status, email_opt_out, source, created_at,
+              first_contacted_at, reminded_at, replied_at, reply_snippet
          FROM corporate_leads ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
         ORDER BY (email IS NOT NULL AND email <> '') DESC, created_at DESC LIMIT ${limit}`,
       params,
