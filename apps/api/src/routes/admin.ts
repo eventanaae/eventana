@@ -5382,7 +5382,7 @@ export async function adminRoutes(app: FastifyInstance) {
       };
     }
 
-    const [lowStock, pendingLeave, needsReview, tips, ratings, staffingGaps] = await Promise.all([
+    const [lowStock, pendingLeave, needsReview, tips, ratings, staffingGaps, annualLeave] = await Promise.all([
       pool.query(
         `SELECT id, name, unit, on_hand, reorder_level FROM consumables
           WHERE active AND on_hand <= reorder_level
@@ -5423,6 +5423,13 @@ export async function adminRoutes(app: FastifyInstance) {
          HAVING count(*) FILTER (WHERE es.status IN ('part_time_required','to_confirm')) > 0
           ORDER BY e.event_date LIMIT 30`,
       ),
+      // Pending ANNUAL leave (separate system from staff_days_off) — so it shows
+      // on Home/Alerts too, not only inside the Leave tab.
+      pool.query(
+        `SELECT lr.id, lr.start_date, lr.end_date, lr.days, lr.reason, m.name AS member_name
+           FROM leave_requests lr JOIN team_members m ON m.id = lr.member_id
+          WHERE lr.status = 'pending' ORDER BY lr.start_date`,
+      ),
     ]);
 
     // Events whose pre-event preparation is behind and the day is near.
@@ -5439,11 +5446,13 @@ export async function adminRoutes(app: FastifyInstance) {
         reference: r.receipt_number ? `EV-${r.receipt_number}` : r.event_id,
       })),
       staffingGaps: staffingGaps.rows,
+      annualLeave: annualLeave.rows,
       offToday,
       prepAtRisk,
       counts: {
         lowStock: lowStock.rowCount,
         pendingLeave: pendingLeave.rowCount,
+        annualLeave: annualLeave.rowCount,
         needsReview: needsReview.rows[0].n,
         staffingGaps: staffingGaps.rowCount,
         prepAtRisk: prepAtRisk.length,

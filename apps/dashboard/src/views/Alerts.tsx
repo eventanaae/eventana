@@ -103,23 +103,41 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
 
       {!scoped && (
       <Panel title="🌴 Leave requests">
-        {data.pendingLeave.length === 0 ? (
+        {data.pendingLeave.length === 0 && (data.annualLeave?.length ?? 0) === 0 ? (
           <Empty>No pending leave requests.</Empty>
         ) : (
-          data.pendingLeave.map((d: any) => (
-            <div key={d.id} style={row}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flex: 'none' }} />
-              <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 110 }}>{d.member_name}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
-                {new Date(d.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                {String(d.end_date).slice(0, 10) !== String(d.start_date).slice(0, 10) &&
-                  ` → ${new Date(d.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}
-                {d.reason ? ` · ${d.reason}` : ''}
-              </span>
-              <button onClick={async () => { await api.setDayOffStatus(d.id, 'approved'); load(); }} style={miniBtn}>Approve</button>
-              <button onClick={async () => { await api.setDayOffStatus(d.id, 'denied'); load(); }} style={{ ...miniBtn, color: C.red }}>Deny</button>
-            </div>
-          ))
+          <>
+            {data.pendingLeave.map((d: any) => (
+              <div key={d.id} style={row}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flex: 'none' }} />
+                <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 110 }}>{d.member_name}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
+                  {new Date(d.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                  {String(d.end_date).slice(0, 10) !== String(d.start_date).slice(0, 10) &&
+                    ` → ${new Date(d.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}
+                  {d.reason ? ` · ${d.reason}` : ''}
+                </span>
+                <button onClick={async () => { await api.setDayOffStatus(d.id, 'approved'); load(); }} style={miniBtn}>Approve</button>
+                <button onClick={async () => { await api.setDayOffStatus(d.id, 'denied'); load(); }} style={{ ...miniBtn, color: C.red }}>Deny</button>
+              </div>
+            ))}
+            {(data.annualLeave?.length ?? 0) > 0 && (
+              <div style={{ marginTop: data.pendingLeave.length ? 10 : 0, paddingTop: data.pendingLeave.length ? 10 : 0, borderTop: data.pendingLeave.length ? `1px solid ${C.lineSoft}` : 'none' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, marginBottom: 6, letterSpacing: 0.3 }}>ANNUAL LEAVE — approve in the Leave tab</div>
+                {data.annualLeave.map((d: any) => (
+                  <div key={'al' + d.id} style={row}>
+                    <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 110 }}>{d.member_name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
+                      {new Date(d.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                      {String(d.end_date).slice(0, 10) !== String(d.start_date).slice(0, 10) &&
+                        ` → ${new Date(d.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}
+                      {d.days ? ` · ${d.days} day${d.days === 1 ? '' : 's'}` : ''}{d.reason ? ` · ${d.reason}` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </Panel>
       )}

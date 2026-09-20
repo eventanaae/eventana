@@ -327,10 +327,17 @@ function InviteCell({ member }: { member: any }) {
 function TokenCell({ member, onChange }: { member: any; onChange: () => void }) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
-  const token: string | null = member.access_token ?? null;
+  // The team list never carries the secret token (it's stripped server-side), so
+  // capture it from the issue/rotate response and hold it here to show + copy.
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const token: string | null = revealed ?? member.access_token ?? null;
   const issue = async (rotate: boolean) => {
     setBusy(true);
-    try { await api.setTeamAccess(member.id, member.access_level ?? 'employee', rotate); await onChange(); } finally { setBusy(false); }
+    try {
+      const r = await api.setTeamAccess(member.id, member.access_level ?? 'employee', rotate);
+      if (r?.access_token) setRevealed(r.access_token);
+      await onChange();
+    } finally { setBusy(false); }
   };
   if (!token) {
     return <button onClick={() => issue(false)} disabled={busy} style={miniBtn}>{busy ? '…' : 'Issue login token'}</button>;

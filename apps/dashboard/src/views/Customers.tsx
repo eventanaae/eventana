@@ -18,12 +18,12 @@ export function Customers() {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<number | null>(null);
 
-  const load = (search?: string) => {
-    setRows(null);
+  const load = (search?: string, initial = false) => {
+    if (initial) setRows(null); // only the very first load shows the full spinner
     api.customers(search).then(setRows).catch(() => setRows([]));
   };
-  useEffect(() => { load(); }, []);
-  // Debounced search.
+  useEffect(() => { load(undefined, true); }, []);
+  // Debounced search — keeps the current list on screen (no full-page flicker).
   useEffect(() => {
     const t = setTimeout(() => load(q.trim() || undefined), 300);
     return () => clearTimeout(t);

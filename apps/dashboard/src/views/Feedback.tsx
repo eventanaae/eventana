@@ -61,15 +61,7 @@ export function Feedback({ onBack, onOpenEvent }: { onBack: () => void; onOpenEv
             )}
           </Panel>
 
-          {/* Google reviews status */}
-          <Panel>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: C.ink }}>
-              <span>🔵 Google reviews:</span>
-              {data.google.connected
-                ? <span style={{ color: '#2e9e7e' }}>{data.google.reviews} in system · connected</span>
-                : <span style={{ color: C.muted }}>{data.google.reviews} in system · not linked yet</span>}
-            </div>
-          </Panel>
+          {/* Google-review status already shown by <GoogleReviews/> above — no duplicate panel here. */}
 
           {/* The report */}
           {data.rows.length > 0 && (
