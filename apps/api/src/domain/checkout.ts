@@ -130,7 +130,7 @@ export async function previewQuote(cart: CartInput, offerToken?: string | null):
     );
   }
 
-  const result = computeQuote(cart, { ...toPricingContext(cfg, taken), nowMs: Date.now() });
+  const result = computeQuote(cart, { ...toPricingContext(cfg, taken), nowMs: Date.now(), noByoDiscount: !!offerToken });
   // Same manual offer pieces as the final checkout, so the live total the
   // customer sees on a manual-order link matches exactly what they will pay.
   if (offerToken) {
@@ -191,7 +191,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
 
   // (1) The server recomputes everything. A total submitted by the
   // device is not read at all — it is not even a parameter here.
-  const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now() });
+  const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: !!req.offerToken });
 
   // A manual-order link layers the team's manual pieces (custom products, a
   // discount, a fixed delivery, a custom-theme charge) on top of the engine

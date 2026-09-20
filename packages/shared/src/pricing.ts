@@ -88,6 +88,12 @@ export interface PricingContext {
    * Omitted on unit tests and any context that does not care about lead time.
    */
   nowMs?: number;
+  /**
+   * Suppress the automatic Build-Your-Own 15% discount. Set for a manual-order
+   * link (offer): the team already priced those items exactly, so the customer
+   * must not also receive the BYO threshold discount on top.
+   */
+  noByoDiscount?: boolean;
 }
 
 /**
@@ -221,7 +227,7 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
     .reduce((sum, l) => sum + l.amountFils, 0);
 
   const discountUnlocked =
-    mode === 'byo' && eligibleSubtotalFils >= rules.byoDiscountThresholdFils;
+    mode === 'byo' && !ctx.noByoDiscount && eligibleSubtotalFils >= rules.byoDiscountThresholdFils;
   const discountFils = discountUnlocked
     ? percentOf(eligibleSubtotalFils, rules.byoDiscountPercent)
     : 0;
