@@ -229,8 +229,23 @@ export async function collectCorporateLeads(opts?: { maxPagesPerQuery?: number; 
     await new Promise((r) => setTimeout(r, 150));
   }
 
+  // New rule: email is mandatory. Drop auto-collected businesses that can never
+  // be emailed — no website at all, or a site we already checked with no email.
+  await pool.query(
+    `DELETE FROM corporate_leads
+      WHERE source = 'places' AND (email IS NULL OR email = '')
+        AND ((website IS NULL OR website = '') OR procurement_checked = TRUE)`,
+  ).catch(() => {});
+
   console.log(`[corp-collect] discovered ${discovered}, added ${added}, enriched ${enriched}`);
   return { discovered, added, enriched };
+}
+
+/** Wipe the whole corporate directory and let collection start fresh. */
+export async function resetCorporateLeads(): Promise<number> {
+  const r = await pool.query(`DELETE FROM corporate_leads`);
+  await pool.query(`DELETE FROM app_kv WHERE k = 'corp_collect_at'`).catch(() => {});
+  return r.rowCount ?? 0;
 }
 
 /**

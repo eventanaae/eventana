@@ -36,7 +36,7 @@ import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign } from '../domain/marketing.js';
 import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign, learnFromCampaign } from '../domain/marketingCalendar.js';
-import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS } from '../domain/corporateOutreach.js';
+import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS, resetCorporateLeads } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
@@ -5777,6 +5777,12 @@ export async function adminRoutes(app: FastifyInstance) {
       if (ins.rowCount) added++;
     }
     return { added, seen: lines.length };
+  });
+
+  /** Wipe the directory and start fresh (owner "Reset & recollect"). */
+  app.post('/api/admin/corporate/reset', async () => {
+    const removed = await resetCorporateLeads();
+    return { removed };
   });
 
   /** Trigger a Google Places collection run now (owner "Collect now"). */

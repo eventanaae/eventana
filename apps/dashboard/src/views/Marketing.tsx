@@ -493,6 +493,7 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run(() => api.collectCorporate(), 'Collecting from Google — this can take a minute.')} disabled={busy} style={{ ...miniBtn, borderColor: C.pink, color: C.pinkDeep }}>🔄 Collect from Google now</button>
+        <button onClick={() => { if (window.confirm('Delete ALL companies and start fresh from Google under the new rules (email required)?')) run(async () => { await api.resetCorporate(); return api.collectCorporate(); }, 'Cleared — recollecting from Google (this can take a minute).'); }} disabled={busy} style={{ ...miniBtn, color: C.red }}>🗑️ Reset &amp; recollect</button>
         <button onClick={() => setOpen((v) => !v)} style={miniBtn}>{open ? 'Hide list' : 'View list'}</button>
       </div>
       {open && (

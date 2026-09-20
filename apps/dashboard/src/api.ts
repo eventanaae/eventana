@@ -586,6 +586,8 @@ export const api = {
     request<any>('/api/admin/corporate/import', { method: 'POST', body: JSON.stringify({ text }) }),
   collectCorporate: () =>
     request<any>('/api/admin/corporate/collect', { method: 'POST' }),
+  resetCorporate: () =>
+    request<any>('/api/admin/corporate/reset', { method: 'POST' }),
 
   promoCodes: () => request<{ codes: PromoCode[] }>('/api/admin/promo-codes'),
   createPromoCode: (body: {
