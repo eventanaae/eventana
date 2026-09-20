@@ -39,10 +39,13 @@ export const C = {
   gradHero: 'linear-gradient(130deg,#FFE3F0 0%,#F9C6DC 42%,#FBD9C6 100%)',
   gradMint: 'linear-gradient(135deg,#6FDccb 0%,#37B3A6 100%)',
   rainbow: 'linear-gradient(90deg,#7FD8C4,#BFE29A,#F7D06B,#F7A98C,#F080A8,#B79BE0)',
-  // soft, pink-tinted, layered shadows
-  shadow: '0 2px 10px rgba(233,79,156,.07)',
-  shadowLg: '0 12px 30px rgba(233,79,156,.14)',
-  shadowXl: '0 20px 46px rgba(233,79,156,.20)',
+  // Clean, QuickBooks-style shape: flat, light, neutral shadows (brand colours
+  // stay; only the "feel" is calmer and clearer). Kept the same names so every
+  // view picks up the new look without edits.
+  line2: '#D9CED5',     // stronger border for buttons/inputs/table heads
+  shadow: '0 1px 2px rgba(44,40,48,.06)',
+  shadowLg: '0 6px 20px rgba(44,40,48,.12)',
+  shadowXl: '0 16px 40px rgba(44,40,48,.18)',
 } as const;
 
 /** The festive accent family, cycled for stat cards / quick actions. */
@@ -102,10 +105,9 @@ export function Panel({
     <div
       className={className}
       style={{
-        background: 'rgba(255,255,255,.92)',
-        backdropFilter: 'blur(6px)',
+        background: '#fff',
         border: `1px solid ${C.line}`,
-        borderRadius: 22,
+        borderRadius: 12,
         padding: 20,
         boxShadow: C.shadow,
         ...style,
@@ -129,8 +131,8 @@ export function Card({ children, style, className, onClick }: { children: ReactN
       onClick={onClick}
       className={className}
       style={{
-        background: 'rgba(255,255,255,.92)', border: `1px solid ${C.line}`,
-        borderRadius: 20, boxShadow: C.shadow, cursor: onClick ? 'pointer' : undefined, ...style,
+        background: '#fff', border: `1px solid ${C.line}`,
+        borderRadius: 12, boxShadow: C.shadow, cursor: onClick ? 'pointer' : undefined, ...style,
       }}
     >
       {children}
@@ -170,7 +172,7 @@ export function Badge({
         fontSize: 10.5,
         fontWeight: 700,
         padding: '4px 9px',
-        borderRadius: 10,
+        borderRadius: 6,
         whiteSpace: 'nowrap',
         letterSpacing: '.2px',
       }}
@@ -186,11 +188,11 @@ export function Th({ children, width }: { children?: ReactNode; width?: number |
       style={{
         textAlign: 'left',
         padding: '9px 12px',
-        borderBottom: `1.5px solid ${C.line}`,
-        fontWeight: 700,
+        borderBottom: `1px solid ${C.line2}`,
+        fontWeight: 800,
         fontSize: 11.5,
-        color: C.ink,
-        background: '#FDF5F9',
+        color: C.muted2,
+        background: '#FAF4F8',
         width,
       }}
     >
@@ -230,9 +232,9 @@ export function Button({
   style?: CSSProperties;
 }) {
   const palette = {
-    primary: { bg: C.gradPink, fg: '#fff', border: 'none', shadow: '0 6px 16px rgba(233,79,156,.30)' },
-    ghost: { bg: '#fff', fg: C.ink, border: `1px solid ${C.line}`, shadow: 'none' },
-    danger: { bg: C.redSoft, fg: C.red, border: 'none', shadow: 'none' },
+    primary: { bg: C.pink, fg: '#fff', border: `1px solid ${C.pink}` },
+    ghost: { bg: '#fff', fg: C.ink, border: `1px solid ${C.line2}` },
+    danger: { bg: '#fff', fg: C.red, border: `1px solid #E7B9B3` },
   }[tone];
   return (
     <button
@@ -243,11 +245,10 @@ export function Button({
         background: palette.bg,
         color: palette.fg,
         border: palette.border,
-        boxShadow: palette.shadow,
         fontWeight: 700,
         fontSize: 12.5,
         padding: '10px 16px',
-        borderRadius: 13,
+        borderRadius: 8,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         whiteSpace: 'nowrap',
@@ -267,11 +268,11 @@ export function QuickAction({ icon, label, accent, onClick }: { icon: ReactNode;
       className="lift tap"
       style={{
         display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start',
-        background: 'rgba(255,255,255,.94)', border: `1px solid ${C.line}`, borderRadius: 18,
+        background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12,
         padding: '13px 13px 12px', cursor: 'pointer', textAlign: 'left', boxShadow: C.shadow, minWidth: 0,
       }}
     >
-      <span style={{ width: 38, height: 38, borderRadius: 12, background: accent.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: `0 6px 14px ${accent.soft}` }}>{icon}</span>
+      <span style={{ width: 38, height: 38, borderRadius: 10, background: accent.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{icon}</span>
       <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.2 }}>{label}</span>
     </button>
   );
@@ -288,13 +289,13 @@ export function StatCard({ label, value, icon, accent, hint, i = 0, onClick }: {
       style={{
         ['--i' as any]: i,
         position: 'relative', overflow: 'hidden',
-        background: 'rgba(255,255,255,.94)', border: `1px solid ${C.line}`, borderRadius: 20,
+        background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12,
         padding: '15px 16px', boxShadow: C.shadow, cursor: onClick ? 'pointer' : undefined,
+        borderInlineStart: `4px solid ${accent.fg}`,
       }}
     >
-      <div style={{ position: 'absolute', right: -14, top: -14, width: 74, height: 74, borderRadius: '50%', background: accent.grad, opacity: .14 }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span style={{ width: 30, height: 30, borderRadius: 10, background: accent.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>{icon}</span>
+        <span style={{ width: 30, height: 30, borderRadius: 8, background: accent.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>{icon}</span>
         <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: C.muted2 }}>{label}</span>
       </div>
       <div style={{ ...fredoka(24), marginTop: 9, color: C.ink }}>{value}</div>
@@ -325,7 +326,7 @@ export function Stat({ label, value, tone }: { label: string; value: ReactNode; 
       style={{
         background: '#fff',
         border: `1px solid ${tone === 'alert' ? '#f0cdd4' : C.line}`,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: '16px 18px',
         flex: 1,
         minWidth: 0,
