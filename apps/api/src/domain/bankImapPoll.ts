@@ -437,7 +437,7 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   // Runs once per tag (guarded in app_kv). Bump BANK_IMAP_REREAD_TAG to force a
   // fresh run later; no env flag needed for the first run.
-  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v2'}`;
+  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v3'}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const c = cfg();
@@ -470,6 +470,14 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
         const rawMsg = extractLiteral(fetch);
         if (!rawMsg) continue;
         const email = extractEmail(rawMsg);
+        // Diagnostic (metadata only, never bodies): shows whether forwarded mail
+        // carries attachments and their types, so we can fix attachment capture.
+        // Runs once per reread tag (this whole pass is guarded), then goes quiet.
+        {
+          const atts = (email.attachments ?? []).map((a) => `${a.contentType}:${a.bytes.length}`).join(',');
+          const isAnth = /anthropic|claude\.ai/i.test(`${email.from} ${email.subject} ${email.text}`);
+          console.log(`[reread-diag]${isAnth ? ' ANTHROPIC' : ''} from="${(email.from ?? '').slice(0, 60)}" subj="${(email.subject ?? '').slice(0, 60)}" atts=${email.attachments?.length ?? 0} [${atts}] rawMsgLen=${rawMsg.length}`);
+        }
         const res = await ingestInboxEmail(email, 'privateemail');
         if (res && !res.duplicate) ingested++;
       } catch (err) {
