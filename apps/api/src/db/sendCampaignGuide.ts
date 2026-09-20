@@ -7,7 +7,7 @@ import { pool } from './pool.js';
 import { config } from '../config.js';
 
 export async function sendCampaignGuideOnce(): Promise<void> {
-  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'campaign_guide_sent_v2'`).catch(() => ({ rowCount: 0 }));
+  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'campaign_guide_sent_v3'`).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
 
   const { sendEmail } = await import('../integrations/email.js');
@@ -30,6 +30,9 @@ export async function sendCampaignGuideOnce(): Promise<void> {
 
           <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">✉️ What we send</h2>
           <p style="margin:0;font-size:14px">A tailored first email per sector: an intro to Eventana + our services + the occasions + a <b>link to our company profile</b> + a question asking who the right contact is (procurement / events). All branded, in our style.</p>
+
+          <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">📅 Occasion campaigns (important)</h2>
+          <p style="margin:0;font-size:14px">About <b>one month before each occasion</b> (National Day, Ramadan, Eid, Women's Day, and more), the system automatically <b>prepares a ready draft email — with the right services already selected</b> — and sends you a <b>notification to review &amp; approve</b>. Nothing is scheduled or sent until you approve it.</p>
 
           <h2 style="font-size:16px;margin:18px 0 4px;color:#E94F9C">🕐 Timing</h2>
           <p style="margin:0;font-size:14px">
@@ -72,7 +75,7 @@ export async function sendCampaignGuideOnce(): Promise<void> {
     skipMonitorBcc: true,
   });
   if (res.ok) {
-    await pool.query(`INSERT INTO app_kv (k, v) VALUES ('campaign_guide_sent_v2', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+    await pool.query(`INSERT INTO app_kv (k, v) VALUES ('campaign_guide_sent_v3', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
     console.log('[campaign-guide] sent to Marsha in English (CC owner)');
   } else {
     console.error('[campaign-guide] send failed:', res.error);
