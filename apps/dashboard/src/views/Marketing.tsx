@@ -22,8 +22,9 @@ export function Marketing() {
   const [cal, setCal] = useState<any[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [flow, setFlow] = useState(false);
+  const [flowInit, setFlowInit] = useState<{ path: 'menu' | 'new' | 'existing'; aud: 'customer' | 'company'; step: number } | null>(null);
   const [companies, setCompanies] = useState(false);
+  const openFlow = (path: 'menu' | 'new' | 'existing', aud: 'customer' | 'company' = 'customer', step = 1) => { setMsg(null); setFlowInit({ path, aud, step }); };
   const [preview, setPreview] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
 
@@ -62,25 +63,27 @@ export function Marketing() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <Tile label="Customer emails" value={data.audiences.all} />
-        <Tile label="Company emails" value={data.corporate?.emailable ?? 0} />
+        <Tile label="Customer emails" value={data.audiences.all} onClick={() => openFlow('new', 'customer', 2)} />
+        <Tile label="Company emails" value={data.corporate?.emailable ?? 0} onClick={() => openFlow('new', 'company', 2)} />
       </div>
 
       <Panel title="Marketing">
         <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
-          Send a new campaign or review one that’s already prepared — I’ll walk you through it step by step. 🌸
+          What would you like to do? 🌸
         </div>
-        <Button onClick={() => { setMsg(null); setFlow(true); }}>✉️ Send a campaign</Button>
-        <div style={{ marginTop: 12 }}>
-          <button onClick={() => setCompanies(true)} style={linkBtn}>🏢 Companies directory ({data.corporate?.total ?? 0})</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Choice emoji="🆕" label="New campaign" sub="Write and send a fresh one" onClick={() => openFlow('new')} />
+          <Choice emoji="📅" label="Existing occasion" sub="Review a draft that’s ready" onClick={() => openFlow('existing')} />
+          <Choice emoji="🏢" label="Companies directory" sub={`${data.corporate?.total ?? 0} businesses`} onClick={() => setCompanies(true)} />
         </div>
         {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginTop: 12 }}>{msg}</div>}
       </Panel>
 
-      {flow && (
+      {flowInit && (
         <MarketingFlow
           data={data} cal={cal} busy={busy}
-          onClose={() => setFlow(false)}
+          initialPath={flowInit.path} initialAud={flowInit.aud} initialStep={flowInit.step}
+          onClose={() => setFlowInit(null)}
           onPreview={openPreview}
           onEdit={(id: string) => setEditing(findFull(id))}
           onAct={act}
@@ -110,15 +113,16 @@ export function Marketing() {
 }
 
 // ── The one marketing flow: step by step, one question per screen ────────────
-function MarketingFlow({ data, cal, busy, onClose, onPreview, onEdit, onAct, onReload, setMsg }: {
+function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, onClose, onPreview, onEdit, onAct, onReload, setMsg }: {
   data: any; cal: any[] | null; busy?: boolean;
+  initialPath?: 'menu' | 'new' | 'existing'; initialAud?: 'customer' | 'company'; initialStep?: number;
   onClose: () => void; onPreview: (id: number) => void; onEdit: (id: string) => void;
   onAct: (fn: () => Promise<any>, ok: string) => Promise<void>; onReload: () => void; setMsg: (m: string) => void;
 }) {
-  const [path, setPath] = useState<'menu' | 'new' | 'existing'>('menu');
-  const [step, setStep] = useState(1);
+  const [path, setPath] = useState<'menu' | 'new' | 'existing'>(initialPath ?? 'menu');
+  const [step, setStep] = useState(initialStep ?? 1);
   // shared
-  const [aud, setAud] = useState<'customer' | 'company'>('customer');
+  const [aud, setAud] = useState<'customer' | 'company'>(initialAud ?? 'customer');
   // new
   const [subject, setSubject] = useState('');
   const [services, setServices] = useState('');
@@ -130,9 +134,10 @@ function MarketingFlow({ data, cal, busy, onClose, onPreview, onEdit, onAct, onR
   const [svc, setSvc] = useState(false);
 
   const back = () => {
-    if (path === 'menu') return onClose();
     if (step > 1) return setStep(step - 1);
-    setPath('menu'); setStep(1); setCreated(null); setOcc(null);
+    // At the first step: go back to the menu only if we started there; else close.
+    if (path !== 'menu' && (initialPath ?? 'menu') === 'menu') { setPath('menu'); setCreated(null); setOcc(null); return; }
+    onClose();
   };
 
   const title = path === 'menu' ? 'Send a campaign'
@@ -513,13 +518,15 @@ function Modal({ title, children, onClose, onSave, onBack, busy, saveLabel }: {
   );
 }
 
-function Tile({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px' }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 5 }}>{label}</div>
+function Tile({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
+  const style: CSSProperties = { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', textAlign: 'left', cursor: onClick ? 'pointer' : 'default', width: '100%' };
+  const inner = (
+    <>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 5 }}>{label}{onClick ? ' ›' : ''}</div>
       <div style={{ ...fredoka(22), color: C.ink }}>{value}</div>
-    </div>
+    </>
   );
+  return onClick ? <button onClick={onClick} style={style}>{inner}</button> : <div style={style}>{inner}</div>;
 }
 
 function htmlToText(html: string): string {
@@ -546,4 +553,3 @@ const input: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, bor
 const chip: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 20, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
 const chipActive: CSSProperties = { border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep };
 const miniBtn: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
-const linkBtn: CSSProperties = { border: 'none', background: 'none', color: C.pinkDeep, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0 };
