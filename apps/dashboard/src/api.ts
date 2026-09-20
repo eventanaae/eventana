@@ -697,6 +697,8 @@ export const api = {
     request<any>(`/api/admin/bank-transactions/${id}/approve`, { method: 'POST', body: JSON.stringify(body) }),
   bankTxIgnore: (id: string) =>
     request<any>(`/api/admin/bank-transactions/${id}/ignore`, { method: 'POST' }),
+  bankTxManual: (body: { amountFils: number; merchant?: string; source?: string; spentOn?: string; note?: string }) =>
+    request<any>(`/api/admin/bank-transactions/manual`, { method: 'POST', body: JSON.stringify(body) }),
   expenseAccounts: () =>
     request<{ accounts: Array<{ account: string; count: number; totalFils: number; totalDisplay: string; suppliers: Array<{ vendor: string; count: number; totalFils: number; totalDisplay: string }> }> }>(
       '/api/admin/expense-accounts',

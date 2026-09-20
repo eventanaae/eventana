@@ -2404,6 +2404,31 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows.map((r) => ({ ...r, amountDisplay: formatAed(Number(r.amount_fils)) }));
   });
 
+  /** Manually log a spend that didn't auto-capture (a Wio card, cash, etc.) → a
+   *  PENDING row in the approval queue, exactly like an auto-captured alert. */
+  app.post('/api/admin/bank-transactions/manual', async (request, reply) => {
+    const schema = z.object({
+      amountFils: z.number().int().positive(),
+      merchant: z.string().max(120).optional(),
+      source: z.string().max(30).optional(),
+      spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      note: z.string().max(400).optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const actor = String((request as any).staff?.name ?? 'Staff');
+    const postedOn = p.data.spentOn ?? new Date().toISOString().slice(0, 10);
+    const { ingestExternalTxn } = await import('../domain/bankInbox.js');
+    const res = await ingestExternalTxn({
+      amountFils: p.data.amountFils, direction: 'debit', kind: 'purchase',
+      merchant: p.data.merchant ?? null, postedOn,
+      raw: p.data.note ?? `Manual entry by ${actor}: ${p.data.merchant ?? 'expense'} AED ${(p.data.amountFils / 100).toFixed(2)}`,
+      source: p.data.source ?? 'manual',
+      dedupeKey: `manual|${actor}|${p.data.merchant ?? ''}|${p.data.amountFils}|${postedOn}|${Date.now()}`,
+    });
+    return { ok: true, id: res.id };
+  });
+
   /** Attach/replace a receipt on a pending bank transaction (before approval). */
   app.post('/api/admin/bank-transactions/:id/receipt', async (request, reply) => {
     const id = String((request.params as { id: string }).id);

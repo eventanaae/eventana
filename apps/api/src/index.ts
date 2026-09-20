@@ -343,6 +343,17 @@ async function main() {
       await pool.query(`DELETE FROM services WHERE lower(name) IN ('stripe','tamara')`).catch(async () => {
         await pool.query(`UPDATE services SET active = false WHERE lower(name) IN ('stripe','tamara')`).catch(() => {});
       });
+      // One-time seed: an ADNOC AED 200 spend on the Wio card the owner forwarded
+      // manually → PENDING in the approval queue. Idempotent (dedupe_key), safe to
+      // leave; can be removed after it's approved.
+      try {
+        const { ingestExternalTxn } = await import('./domain/bankInbox.js');
+        await ingestExternalTxn({
+          amountFils: 20000, direction: 'debit', kind: 'purchase', merchant: 'ADNOC',
+          postedOn: '2026-09-20', raw: 'Payment of 200 AED at ADNOC using your Wio card 6295 with Own AED funds.',
+          source: 'wio', dedupeKey: 'manual|wio6295|adnoc|200|2026-09-20',
+        });
+      } catch (e) { console.error('[seed] adnoc wio expense failed:', (e as Error).message); }
       if (String(process.env.REGEN_OCCASION_DRAFTS ?? '').toLowerCase() === 'on') {
         await regenerateOccasionDrafts({ all: true }).catch((err) => console.error('[marketing] regen failed:', err));
       }

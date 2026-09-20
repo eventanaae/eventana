@@ -474,6 +474,9 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   const [vendor, setVendor] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [mAmt, setMAmt] = useState('');
+  const [mMerch, setMMerch] = useState('');
 
   useEffect(() => {
     api.bankTransactions('pending').then((r) => setRows(Array.isArray(r) ? r : [])).catch(() => setRows([]));
@@ -483,9 +486,22 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
     }).catch(() => setSuppliers([]));
   }, []);
 
-  if (!rows || rows.length === 0) return null; // nothing pending → stay out of the way
+  if (rows === null) return null; // still loading
 
-  const tag = (s?: string) => s === 'tabby' ? 'Tabby' : s === 'tamara' ? 'Tamara' : s === 'rakbank' ? 'RAKBANK' : s === 'wio' ? 'Wio' : null;
+  const tag = (s?: string) => s === 'tabby' ? 'Tabby' : s === 'tamara' ? 'Tamara' : s === 'rakbank' ? 'RAKBANK' : s === 'wio' ? 'Wio' : s === 'manual' ? 'Manual' : null;
+
+  async function addManual() {
+    const fils = Math.round((Number(String(mAmt).replace(/,/g, '')) || 0) * 100);
+    if (fils <= 0) { setErr('Enter an amount.'); return; }
+    setBusy('manual'); setErr(null);
+    try {
+      await api.bankTxManual({ amountFils: fils, merchant: mMerch.trim() || undefined, source: 'manual' });
+      setMAmt(''); setMMerch(''); setAdding(false);
+      const r = await api.bankTransactions('pending');
+      setRows(Array.isArray(r) ? r : []);
+      onApproved();
+    } catch (e: any) { setErr(e?.message || 'Could not add — please try again.'); } finally { setBusy(null); }
+  }
 
   async function approve(r: any) {
     const category = cat[r.id] ?? '';
@@ -517,8 +533,20 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   const fieldStyle = { fontFamily: 'inherit', fontSize: 12.5, padding: '7px 9px', borderRadius: 9, border: `1px solid ${C.line}`, background: '#fff', color: C.ink } as const;
 
   return (
-    <Panel title={`🧾 Expenses needing approval (${rows.length})`} style={{ marginBottom: 14, border: `1px solid ${C.pink}` }}>
+    <Panel
+      title={`🧾 Expenses needing approval (${rows.length})`}
+      style={{ marginBottom: 14, border: `1px solid ${C.pink}` }}
+      action={<button onClick={() => { setAdding((v) => !v); setErr(null); }} style={{ ...fieldStyle, fontWeight: 800, color: C.pinkDeep, borderColor: C.pink, cursor: 'pointer' }}>{adding ? 'Close' : '+ Add expense'}</button>}
+    >
       {err && <div style={{ color: C.red, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
+      {adding && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', border: `1px dashed ${C.pink}`, borderRadius: 12, padding: 10, marginBottom: 10 }}>
+          <input value={mMerch} onChange={(e) => setMMerch(e.target.value)} placeholder="Where (e.g. ADNOC)" style={{ ...fieldStyle, flex: 1, minWidth: 130 }} />
+          <input value={mAmt} onChange={(e) => setMAmt(e.target.value)} inputMode="decimal" placeholder="Amount AED" style={{ ...fieldStyle, width: 120 }} />
+          <button onClick={addManual} disabled={busy === 'manual'} style={{ ...fieldStyle, fontWeight: 800, color: '#fff', background: C.pink, borderColor: C.pink, cursor: 'pointer' }}>{busy === 'manual' ? 'Adding…' : 'Add for approval'}</button>
+        </div>
+      )}
+      {rows.length === 0 && !adding && <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>Nothing pending. Tap “+ Add expense” to log a Wio/cash spend for approval.</div>}
       <div style={{ display: 'grid', gap: 10 }}>
         {rows.map((r) => (
           <div key={r.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: 12 }}>
