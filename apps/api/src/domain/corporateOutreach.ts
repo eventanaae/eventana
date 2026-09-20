@@ -294,52 +294,52 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; intro: string; service
   school: {
     subject: 'Unforgettable celebrations for your school ✨',
     intro: '',
-    services: ['🎓 Graduation & prize-day stage, backdrop and décor', '🇦🇪 National Day & cultural-day setups', '🌸 Hands-on workshops — flower arranging & pottery painting', '🍿 Pop-up snack corners (popcorn, candy floss, treats)', '📸 Photo booth & fun activities for students', '🎁 Branded giveaways for staff & pupils'],
+    services: ['🎓 Graduation & prize-day stage, backdrop and décor', '🇦🇪 National Day & cultural-day setups', '🌸 Hands-on workshops — flower arranging & pottery painting', '🍿 Live snack & treats corner (popcorn, candy floss)', '📸 Photo booth & fun activities for students', '🎁 Branded giveaways for staff & pupils'],
   },
   nursery: {
     subject: 'Little moments, magically done 🎈',
     intro: '',
-    services: ['🎓 KG graduation stage & décor', '🎨 Craft workshops — flower arranging & pottery painting', '🇦🇪 National Day & seasonal parties', '🍿 Pop-up kids’ snack corner & treats', '📸 Photo corner for parents', '🎁 Sweet giveaways for the little ones'],
+    services: ['🎓 KG graduation stage & décor', '🎨 Craft workshops — flower arranging & pottery painting', '🇦🇪 National Day & seasonal parties', '🍿 Kids’ snack & treats corner', '📸 Photo corner for parents', '🎁 Sweet giveaways for the little ones'],
   },
   university: {
     subject: 'Events students will never forget 🎓',
     intro: '',
-    services: ['🎓 Graduation & convocation staging and décor', '🎪 Orientation, club & festival setups', '🌸 Creative workshops — flower arranging & pottery painting', '🍔 Pop-up food & snack corners', '📸 Photo & content moments', '🎁 Branded merchandise & giveaways'],
+    services: ['🎓 Graduation & convocation staging and décor', '🎪 Orientation, club & festival setups', '🌸 Creative workshops — flower arranging & pottery painting', '🍔 Live food & dessert corners', '📸 Photo & content moments', '🎁 Branded merchandise & giveaways'],
   },
   hospital: {
     subject: 'Moments your team & patients will treasure 💛',
     intro: '',
-    services: ['💛 Staff & nurses’ appreciation events', '🎀 Awareness-day activations (e.g. Pink October)', '🌸 Relaxing workshops — flower arranging & pottery painting', '🍵 Pop-up refreshment & healthy snack corners', '🧸 Children’s-ward celebrations', '📸 Photo moments & giveaways'],
+    services: ['💛 Staff & nurses’ appreciation events', '🎀 Awareness-day activations (e.g. Pink October)', '🌸 Relaxing workshops — flower arranging & pottery painting', '🍵 Refreshment & healthy snack corners', '🧸 Children’s-ward celebrations', '📸 Photo moments & giveaways'],
   },
   clinic: {
     subject: 'Warm celebrations for your clinic 💐',
     intro: '',
-    services: ['🎗️ Awareness-day activations', '✂️ Clinic opening & launch décor', '🌸 Flower-arranging & pottery-painting corners', '🍵 Pop-up refreshment & snack corners', '💛 Patient & staff appreciation', '🎁 Branded giveaways'],
+    services: ['🎗️ Awareness-day activations', '✂️ Clinic opening & launch décor', '🌸 Flower-arranging & pottery-painting corners', '🍵 Refreshment & snack corners', '💛 Patient & staff appreciation', '🎁 Branded giveaways'],
   },
   bank: {
     subject: 'Celebrations your people will love 🎉',
     intro: '',
-    services: ['👨‍👩‍👧 Staff & family day setups', '🏦 Branch opening & launch décor', '🌸 Interactive workshops — flower arranging & pottery painting', '🍔 Pop-up food corners & coffee carts', '🌙 Ramadan iftar & majlis setups', '🇦🇪 National Day celebrations & branded giveaways'],
+    services: ['👨‍👩‍👧 Staff & family day setups', '🏦 Branch opening & launch décor', '🌸 Interactive workshops — flower arranging & pottery painting', '🍔 Live food corners & coffee carts', '🌙 Ramadan iftar & majlis setups', '🇦🇪 National Day celebrations & branded giveaways'],
   },
   government: {
     subject: 'Celebrations done to the right standard 🇦🇪',
     intro: '',
-    services: ['🇦🇪 National Day, Flag Day & cultural events', '😊 Employee happiness & appreciation', '🌸 Workshops — flower arranging & pottery painting', '🍔 Pop-up food corners & hospitality', '🕌 Majlis & hospitality setups', '🎁 Branded giveaways'],
+    services: ['🇦🇪 National Day, Flag Day & cultural events', '😊 Employee happiness & appreciation', '🌸 Workshops — flower arranging & pottery painting', '🍔 Live food corners & hospitality', '🕌 Majlis & hospitality setups', '🎁 Branded giveaways'],
   },
   company: {
     subject: 'Bring your team together — beautifully 🎉',
     intro: '',
-    services: ['🎉 Staff parties & family days', '🚀 Product launches & milestone events', '🌸 Team workshops — flower arranging & pottery painting', '🍔 Pop-up food & snack corners', '🌙 Ramadan iftar setups', '🇦🇪 National Day celebrations & branded gifts'],
+    services: ['👨‍👩‍👧 Family days & staff parties', '🚀 Product launches & milestone events', '🌸 Team workshops — flower arranging & pottery painting', '🍔 Live food & dessert corners', '🌙 Ramadan iftar setups', '🇦🇪 National Day celebrations & branded gifts'],
   },
   new_shop: {
     subject: 'Make your grand opening unforgettable 🎊',
     intro: '',
-    services: ['✂️ Grand-opening décor & ribbon cutting', '🎈 Launch-day activations & balloons', '🍿 Pop-up food & snack corners to draw footfall', '🌸 Interactive workshops — flower arranging & pottery painting', '📸 Photo moment for social media', '🎁 Giveaways to draw footfall'],
+    services: ['✂️ Grand-opening décor & ribbon cutting', '🎈 Launch-day activations & balloons', '🍿 Live food & snack corners to draw footfall', '🌸 Interactive workshops — flower arranging & pottery painting', '📸 Photo moment for social media', '🎁 Giveaways to draw footfall'],
   },
   other: {
     subject: 'Celebrations, beautifully done ✨',
     intro: '',
-    services: ['🎉 Themed décor & staging', '🌸 Workshops — flower arranging & pottery painting', '🍔 Pop-up food & snack corners', '📸 Photo booth & activities', '🎁 Branded giveaways', '✅ Fully managed, end to end'],
+    services: ['🎉 Themed décor & staging', '🌸 Workshops — flower arranging & pottery painting', '🍔 Live food & dessert corners', '📸 Photo booth & activities', '🎁 Branded giveaways', '✅ Fully managed, end to end'],
   },
 };
 
@@ -359,7 +359,7 @@ export function buildFirstTouchBody(category: CorpCategory): string {
     <p style="font-size:20px;font-weight:800;margin:0 0 12px;color:#3B3641">${p.subject}</p>
     <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
     <p style="margin:0 0 12px">Dear <b>{{name}}</b>,</p>
-    <p style="margin:0 0 10px">At Eventana Events, we don’t just decorate — we create experiences that bring your people together. 💛</p>
+    <p style="margin:0 0 10px">At Eventana Events, we don’t just decorate — we create experiences that bring your people together. Every concept is designed with real creativity, and <b>no one knows the UAE’s occasions and local culture like we do</b>. 💛</p>
     <p style="margin:12px 0 4px"><b>Who’s the right person</b> for events or procurement? Reply with their name and email.</p>
     ${servicesList}
     <p style="margin:12px 0 4px">Perfect for National Day, Flag Day, Ramadan iftars, Eid &amp; Women’s Day — every occasion, <b>fully branded to your logo</b>. ✨</p>
