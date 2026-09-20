@@ -170,8 +170,9 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
     finally { setWorking(false); }
   };
 
-  // occasions that have a prepared draft for the chosen audience
-  const existingList = (cal ?? []).filter((o) => (aud === 'company' ? o.corporate : o.consumer));
+  // all occasions relevant to the chosen audience (prepared or not — the ones
+  // without a draft can be prepared with one tap on the next step)
+  const existingList = (cal ?? []).filter((o) => !o.needsDateConfirm && (aud === 'company' ? !o.greetingOnly : !o.corporateOnly));
   const chosenCamp = occ ? (aud === 'company' ? occ.corporate : occ.consumer) : null;
 
   return (
@@ -253,7 +254,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                       <button key={o.slug} onClick={() => { setOcc(o); setStep(3); }} style={{ textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
                         <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{o.name}</span>
-                        {c && <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>}
+                        {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
                         <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
                       </button>
                     );
