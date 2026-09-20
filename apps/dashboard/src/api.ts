@@ -703,6 +703,7 @@ export const api = {
     request<{ accounts: Array<{ account: string; count: number; totalFils: number; totalDisplay: string; suppliers: Array<{ vendor: string; count: number; totalFils: number; totalDisplay: string }> }> }>(
       '/api/admin/expense-accounts',
     ),
+  vendorAccounts: () => request<{ map: Record<string, string> }>('/api/admin/vendor-accounts'),
   expenseTxns: (account: string, vendor: string) =>
     request<{ rows: Array<{ id: number; spentOn: string; amountFils: number; amountDisplay: string; description: string; receiptUrl: string | null; paymentMethod: string; source: string }> }>(
       `/api/admin/expense-txns?account=${encodeURIComponent(account)}&vendor=${encodeURIComponent(vendor)}`,

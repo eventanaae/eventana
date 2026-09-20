@@ -573,6 +573,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   const [adding, setAdding] = useState(false);
   const [mAmt, setMAmt] = useState('');
   const [mMerch, setMMerch] = useState('');
+  const [vendorAcct, setVendorAcct] = useState<Record<string, string>>({});
 
   useEffect(() => {
     api.bankTransactions('pending').then((r) => setRows(Array.isArray(r) ? r : [])).catch(() => setRows([]));
@@ -580,7 +581,14 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
       const names = (d?.rows ?? []).map((s: any) => s.name ?? s.vendor ?? s.supplier).filter(Boolean);
       setSuppliers(Array.from(new Set(names)).sort() as string[]);
     }).catch(() => setSuppliers([]));
+    api.vendorAccounts().then((r) => setVendorAcct(r.map || {})).catch(() => setVendorAcct({}));
   }, []);
+  // When a known vendor is chosen, auto-fill that row's account from history.
+  const pickVendor = (id: string, val: string) => {
+    setVendor((v) => ({ ...v, [id]: val }));
+    const a = vendorAcct[val.trim().toLowerCase()];
+    if (a && categories.includes(a)) setCat((c) => ({ ...c, [id]: a }));
+  };
 
   if (rows === null) return null; // still loading
 
@@ -659,7 +667,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
               <label style={{ display: 'grid', gap: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Vendor</span>
                 <SupplierField value={vendor[r.id] ?? r.merchant ?? ''} suppliers={suppliers}
-                  onChange={(val) => setVendor((v) => ({ ...v, [r.id]: val }))} />
+                  onChange={(val) => pickVendor(r.id, val)} />
               </label>
               <label style={{ display: 'grid', gap: 3 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>Account</span>
@@ -773,7 +781,15 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [vendorAcct, setVendorAcct] = useState<Record<string, string>>({});
   useEffect(() => { api.suppliers().then((r) => setSuppliers(r.rows)).catch(() => setSuppliers([])); }, []);
+  useEffect(() => { api.vendorAccounts().then((r) => setVendorAcct(r.map || {})).catch(() => setVendorAcct({})); }, []);
+  // Pick a vendor and auto-fill its usual account (learned from history).
+  const applyVendor = (name: string) => {
+    setSupplier(name);
+    const a = vendorAcct[name.trim().toLowerCase()];
+    if (a && categories.includes(a)) setCategory(a);
+  };
   // Attach the receipt photo to the expense.
   const handleReceipt = async (f: File) => {
     setUploading(true); setErr(null);
@@ -788,11 +804,12 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
     catch (e: any) { setErr(e?.message || 'Could not add supplier.'); }
   };
   const save = async () => {
+    if (!supplier.trim()) { setErr('Vendor is required — pick or type a vendor.'); return; }
     const fils = Math.round((Number(amount.replace(/,/g, '')) || 0) * 100);
     if (fils <= 0) { setErr('Enter an amount.'); return; }
     setBusy(true); setErr(null);
     try {
-      await api.addExpense({ category, description: description || prettyCat(category), amountFils: fils, vendor: supplier || undefined, spentOn, receiptUrl: receiptUrl || null, paymentMethod: 'cash' });
+      await api.addExpense({ category, description: description || prettyCat(category), amountFils: fils, vendor: supplier.trim(), spentOn, receiptUrl: receiptUrl || null, paymentMethod: 'cash' });
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
   };
@@ -809,10 +826,10 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
           <a href={receiptUrl} target="_blank" rel="noreferrer"><img src={receiptUrl} alt="receipt" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.line}` }} /></a>
         </div>
       )}
-      <Field label="Supplier">
+      <Field label="Vendor *">
         {addingSupplier ? (
           <div style={{ display: 'flex', gap: 8 }}>
-            <input value={newSupplier} onChange={(e) => setNewSupplier(e.target.value)} placeholder="New supplier name" style={input} autoFocus />
+            <input value={newSupplier} onChange={(e) => setNewSupplier(e.target.value)} placeholder="New vendor name" style={input} autoFocus />
             <Button onClick={addNew}>Add</Button>
             <Button tone="ghost" onClick={() => setAddingSupplier(false)}>✕</Button>
           </div>
@@ -826,8 +843,8 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
                 value={supplier}
                 onChange={(e) => { setSupplier(e.target.value); setSupOpen(true); }}
                 onFocus={() => setSupOpen(true)}
-                onBlur={() => setTimeout(() => setSupOpen(false), 150)}
-                placeholder="Type to search supplier…"
+                onBlur={() => { setTimeout(() => setSupOpen(false), 150); applyVendor(supplier); }}
+                placeholder="Type to search vendor…"
                 style={input}
               />
               <Button tone="ghost" onClick={() => setAddingSupplier(true)}>+ New</Button>
@@ -845,7 +862,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
                     <button
                       key={s.id}
                       type="button"
-                      onMouseDown={(e) => { e.preventDefault(); setSupplier(String(s.name)); setSupOpen(false); }}
+                      onMouseDown={(e) => { e.preventDefault(); applyVendor(String(s.name)); setSupOpen(false); }}
                       style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 13px', border: 'none', borderBottom: `1px solid ${C.lineSoft}`, background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: C.ink }}
                     >
                       {s.name}

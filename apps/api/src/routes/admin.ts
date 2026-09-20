@@ -2148,6 +2148,21 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  // Learned vendor → usual account map (most-common category per vendor), so the
+  // expense form and bank inbox can auto-fill the account when a vendor is chosen.
+  app.get('/api/admin/vendor-accounts', async () => {
+    const { rows } = await pool.query<{ vendor: string; category: string }>(
+      `SELECT lower(btrim(vendor)) AS vendor,
+              mode() WITHIN GROUP (ORDER BY category) AS category
+         FROM expenses
+        WHERE COALESCE(btrim(vendor),'') <> '' AND COALESCE(btrim(category),'') <> ''
+        GROUP BY 1`,
+    );
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.vendor] = r.category;
+    return { map };
+  });
+
   /**
    * Suggested monthly budgets — rational, workload-based, not a flat average.
    *
