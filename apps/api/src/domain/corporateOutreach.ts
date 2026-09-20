@@ -401,21 +401,33 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; oc
 export function buildFirstTouchBody(category: CorpCategory): string {
   const p = CORP_PITCH[category] ?? CORP_PITCH.other;
   const sector = (CORP_CATEGORY_LABELS[category] ?? 'organisation').toLowerCase().replace(/s$/, '');
-  const servicesList = `
-    <p style="margin:16px 0 6px;font-weight:700;color:#3B3641">A few things we create for your ${sector} (and much more):</p>
-    <ul style="margin:0;padding-left:20px">
-      ${p.services.map((x) => `<li style="margin:0 0 5px">${x}</li>`).join('')}
-    </ul>`;
+  // Services as coloured "chips" (a table row each) so the eye scans them fast —
+  // far more dynamic than a plain bullet list. Email-safe (tables + inline).
+  const serviceRows = p.services.map((x) => `
+    <tr><td style="padding:10px 14px;background:#FBF1F7;border-radius:12px;font-size:14px;font-weight:600;color:#3B3641;border-left:4px solid #F06CA8">${x}</td></tr>
+    <tr><td style="height:8px;line-height:8px;font-size:0">&nbsp;</td></tr>`).join('');
+  // Solid colour FIRST, gradient layered on top — Outlook keeps the solid so the
+  // white hero text is never invisible.
+  const hero = `
+    <div style="background:#E94F9C;background:linear-gradient(135deg,#F97CB4 0%,#E94F9C 100%);border-radius:16px;padding:22px 22px 20px;margin:0 0 18px;color:#ffffff">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#ffe6f2">Eventana Events · UAE</div>
+      <div style="font-size:22px;font-weight:800;line-height:1.25;margin-top:7px;color:#ffffff">${p.subject}</div>
+    </div>`;
+  const occasionsBand = p.occasions
+    ? `<div style="background:#FFF3D6;border-radius:12px;padding:13px 15px;margin:16px 0;font-size:13.5px;color:#5a4a2a"><b>🎊 We celebrate:</b> ${p.occasions}</div>`
+    : '';
   return `
-    <p style="font-size:20px;font-weight:800;margin:0 0 12px;color:#3B3641">${p.subject}</p>
-    <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
+    ${hero}
+    <p style="margin:0 0 4px;font-size:11.5px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
     <p style="margin:0 0 12px">Dear <b>{{name}}</b>,</p>
-    <p style="margin:0 0 10px">At Eventana Events, we don’t just decorate — we create experiences that bring your people together. Every concept is designed with real creativity, and <b>no one knows the UAE’s occasions and local culture like we do</b>. 💛</p>
-    <p style="margin:12px 0 4px"><b>Who’s the right person</b> for events or procurement? Reply with their name and email.</p>
-    ${servicesList}
-    ${p.occasions ? `<p style="margin:12px 0 4px">Perfect for ${p.occasions} — every occasion <b>fully branded to your logo</b>. ✨</p>` : `<p style="margin:12px 0 4px">Every detail <b>fully branded to your logo</b>. ✨</p>`}
-    <p style="margin:12px 0 6px">Share a date and rough budget and we’ll craft a proposal made just for you.</p>
-    <p style="margin:12px 0 0">Warmly,<br/>The Eventana Team 🎈</p>`;
+    <p style="margin:0 0 12px">At Eventana Events, we don’t just decorate — we create experiences that bring your people together. Every concept is designed with real creativity, and <b>no one knows the UAE’s occasions and local culture like we do</b>. 💛</p>
+    <div style="background:#FDEFF6;border-left:4px solid #E94F9C;border-radius:10px;padding:12px 14px;margin:0 0 4px;font-size:14px"><b>Who’s the right person</b> for events or procurement? Just reply with their name and email.</div>
+    <p style="margin:18px 0 8px;font-weight:800;color:#3B3641;font-size:15px">A few things we create for your ${sector} 👇</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0">${serviceRows}</table>
+    ${occasionsBand}
+    <div style="text-align:center;background:#F0E9FB;border-radius:14px;padding:16px 14px;margin:16px 0;font-size:14.5px;font-weight:700;color:#3B3641">✨ Every detail <span style="color:#7C5BB8">fully branded to your logo</span> — a celebration made just for you.</div>
+    <p style="margin:14px 0 6px">Share a date and a rough budget, and we’ll craft a tailored proposal — no obligation.</p>
+    <p style="margin:12px 0 0">Warmly,<br/><b>The Eventana Team</b> 🎈</p>`;
 }
 
 /**
