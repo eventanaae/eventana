@@ -287,59 +287,111 @@ export async function sweepCorporateCollect(): Promise<number> {
 
 // ── B2B outreach sequence: auto first-touch + follow-up + reply detection ──
 
-/** A tailored pitch per business type — a category-specific intro, the events
- *  that sector actually runs, and a subject line. Keeps every first email
- *  relevant instead of generic. */
-const CORP_PITCH: Record<CorpCategory, { subject: string; intro: string; services: string[] }> = {
+// "Pop-up activation" — the owner's term: a pop-up stand for a product,
+// giveaways/distributions, or a special staff perk. Kept broad, not food-only.
+/** A tailored pitch per business type — subject, the services that sector cares
+ *  about, and the real occasions it celebrates. Owner-authored, polished. */
+const CORP_PITCH: Record<CorpCategory, { subject: string; services: string[]; occasions: string }> = {
   school: {
     subject: 'Unforgettable celebrations for your school ✨',
-    intro: '',
-    services: ['🎓 Graduation & prize-day stage, backdrop and décor', '🇦🇪 National Day & cultural-day setups', '🌸 Hands-on workshops — flower arranging & pottery painting', '🍿 Live snack & treats corner (popcorn, candy floss)', '📸 Photo booth & fun activities for students', '🎁 Branded giveaways for staff & pupils'],
+    services: [
+      '🎓 Graduation-day stage & balloon setups',
+      '🎨 Workshops for teachers & students — fun & art',
+      '✨ Pop-up activations & light bites',
+      '📸 Photo booth',
+    ],
+    occasions: 'graduations, Teachers’ Day, National Day & Flag Day, and recognition ceremonies',
   },
   nursery: {
     subject: 'Little moments, magically done 🎈',
-    intro: '',
-    services: ['🎓 KG graduation stage & décor', '🎨 Craft workshops — flower arranging & pottery painting', '🇦🇪 National Day & seasonal parties', '🍿 Kids’ snack & treats corner', '📸 Photo corner for parents', '🎁 Sweet giveaways for the little ones'],
+    services: [
+      '🎈 Full décor & balloons',
+      '🎪 Games, activities & clowns',
+      '🎨 Party & parents’-meeting setups',
+      '✨ Pop-up activations & light bites',
+      '📸 Photo booth',
+    ],
+    occasions: 'KG graduations, Teachers’ Day, National Day & Flag Day, the first day of school, and parents’ meetings',
   },
   university: {
     subject: 'Events students will never forget 🎓',
-    intro: '',
-    services: ['🎓 Graduation & convocation staging and décor', '🎪 Orientation, club & festival setups', '🌸 Creative workshops — flower arranging & pottery painting', '🍔 Live food & dessert corners', '📸 Photo & content moments', '🎁 Branded merchandise & giveaways'],
+    services: [
+      '🎨 Themed décor & styling with balloons',
+      '🎓 Student workshops',
+      '✨ Pop-up activations — live experiences or light bites',
+      '📸 Photo booth',
+    ],
+    occasions: 'graduation ceremonies, Teachers’ Day, National Day & Flag Day, summer & freshers’ welcomes, and career fairs',
   },
   hospital: {
     subject: 'Moments your team & patients will treasure 💛',
-    intro: '',
-    services: ['💛 Staff & nurses’ appreciation events', '🎀 Awareness-day activations (e.g. Pink October)', '🌸 Relaxing workshops — flower arranging & pottery painting', '🍵 Refreshment & healthy snack corners', '🧸 Children’s-ward celebrations', '📸 Photo moments & giveaways'],
+    services: [
+      '💛 Appreciation events',
+      '🌸 Workshops',
+      '✨ Pop-up activations or healthy-food corners',
+      '🎁 Custom-designed giveaways',
+    ],
+    occasions: 'National Day & Flag Day, International & Emirati Women’s Day, awareness days (breast cancer, diabetes and more), and staff celebrations',
   },
   clinic: {
     subject: 'Warm celebrations for your clinic 💐',
-    intro: '',
-    services: ['🎗️ Awareness-day activations', '✂️ Clinic opening & launch décor', '🌸 Flower-arranging & pottery-painting corners', '🍵 Refreshment & snack corners', '💛 Patient & staff appreciation', '🎁 Branded giveaways'],
+    services: [
+      '💛 Appreciation events',
+      '🌸 Workshops',
+      '✨ Pop-up activations or healthy-food corners',
+      '🎁 Custom-designed giveaways',
+    ],
+    occasions: 'National Day & Flag Day, International & Emirati Women’s Day, awareness days (breast cancer, diabetes and more), and staff celebrations',
   },
   bank: {
     subject: 'Celebrations your people will love 🎉',
-    intro: '',
-    services: ['👨‍👩‍👧 Staff & family day setups', '🏦 Branch opening & launch décor', '🌸 Interactive workshops — flower arranging & pottery painting', '🍔 Live food corners & coffee carts', '🌙 Ramadan iftar & majlis setups', '🇦🇪 National Day celebrations & branded giveaways'],
+    services: [
+      '✨ Pop-up activations — live experiences or food',
+      '🌸 Workshops for your staff or customers',
+      '🎨 Standout décor & styling',
+      '🏆 Full milestone-event management',
+    ],
+    occasions: 'Family Day, engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & Christmas',
   },
   government: {
     subject: 'Celebrations done to the right standard 🇦🇪',
-    intro: '',
-    services: ['🇦🇪 National Day, Flag Day & cultural events', '😊 Employee happiness & appreciation', '🌸 Workshops — flower arranging & pottery painting', '🍔 Live food corners & hospitality', '🕌 Majlis & hospitality setups', '🎁 Branded giveaways'],
+    services: [
+      '✨ Pop-up activations — live experiences or food',
+      '🌸 Workshops for your staff or customers',
+      '🎨 Standout décor & styling',
+      '🏆 Full milestone-event management',
+    ],
+    occasions: 'Family Day, engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & the International Day of Happiness',
   },
   company: {
     subject: 'Bring your team together — beautifully 🎉',
-    intro: '',
-    services: ['👨‍👩‍👧 Family days & staff parties', '🚀 Product launches & milestone events', '🌸 Team workshops — flower arranging & pottery painting', '🍔 Live food & dessert corners', '🌙 Ramadan iftar setups', '🇦🇪 National Day celebrations & branded gifts'],
+    services: [
+      '✨ Pop-up activations — live experiences or food',
+      '🌸 Workshops for your staff or customers',
+      '🎨 Standout décor & styling',
+      '🏆 Full milestone-event management',
+    ],
+    occasions: 'Family Day, engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & the International Day of Happiness',
   },
   new_shop: {
     subject: 'Make your grand opening unforgettable 🎊',
-    intro: '',
-    services: ['✂️ Grand-opening décor & ribbon cutting', '🎈 Launch-day activations & balloons', '🍿 Live food & snack corners to draw footfall', '🌸 Interactive workshops — flower arranging & pottery painting', '📸 Photo moment for social media', '🎁 Giveaways to draw footfall'],
+    services: [
+      '✂️ Grand-opening décor & ribbon cutting',
+      '🎈 Launch-day activations & balloons',
+      '✨ Pop-up activations or light bites',
+      '🌸 Interactive workshops — flower arranging & pottery painting',
+    ],
+    occasions: 'Family Day, engagement & recognition celebrations, National Day, Flag Day & Women’s Day, and Eid & the International Day of Happiness',
   },
   other: {
     subject: 'Celebrations, beautifully done ✨',
-    intro: '',
-    services: ['🎉 Themed décor & staging', '🌸 Workshops — flower arranging & pottery painting', '🍔 Live food & dessert corners', '📸 Photo booth & activities', '🎁 Branded giveaways', '✅ Fully managed, end to end'],
+    services: [
+      '🎨 Themed décor & styling',
+      '🌸 Workshops — flower arranging & pottery painting',
+      '✨ Pop-up activations — live experiences or food',
+      '📸 Photo booth',
+    ],
+    occasions: 'National Day, Flag Day, Ramadan iftars, Eid & Women’s Day, and every occasion',
   },
 };
 
@@ -349,11 +401,10 @@ const CORP_PITCH: Record<CorpCategory, { subject: string; intro: string; service
 export function buildFirstTouchBody(category: CorpCategory): string {
   const p = CORP_PITCH[category] ?? CORP_PITCH.other;
   const sector = (CORP_CATEGORY_LABELS[category] ?? 'organisation').toLowerCase().replace(/s$/, '');
-  const topFour = p.services.slice(0, 4);
   const servicesList = `
     <p style="margin:16px 0 6px;font-weight:700;color:#3B3641">A few things we create for your ${sector} (and much more):</p>
     <ul style="margin:0;padding-left:20px">
-      ${topFour.map((x) => `<li style="margin:0 0 5px">${x}</li>`).join('')}
+      ${p.services.map((x) => `<li style="margin:0 0 5px">${x}</li>`).join('')}
     </ul>`;
   return `
     <p style="font-size:20px;font-weight:800;margin:0 0 12px;color:#3B3641">${p.subject}</p>
@@ -362,7 +413,7 @@ export function buildFirstTouchBody(category: CorpCategory): string {
     <p style="margin:0 0 10px">At Eventana Events, we don’t just decorate — we create experiences that bring your people together. Every concept is designed with real creativity, and <b>no one knows the UAE’s occasions and local culture like we do</b>. 💛</p>
     <p style="margin:12px 0 4px"><b>Who’s the right person</b> for events or procurement? Reply with their name and email.</p>
     ${servicesList}
-    <p style="margin:12px 0 4px">Perfect for National Day, Flag Day, Ramadan iftars, Eid &amp; Women’s Day — every occasion, <b>fully branded to your logo</b>. ✨</p>
+    <p style="margin:12px 0 4px">Perfect for ${p.occasions} — every occasion <b>fully branded to your logo</b>. ✨</p>
     <p style="margin:12px 0 6px">Share a date and rough budget and we’ll craft a proposal made just for you.</p>
     <p style="margin:12px 0 0">Warmly,<br/>The Eventana Team 🎈</p>`;
 }
