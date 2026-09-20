@@ -934,6 +934,22 @@ export async function releaseSatisfiedWaitingDesign(): Promise<number> {
  * the reconciliation sweep. Internal only.
  */
 export async function sweepPrepAtRisk(): Promise<number> {
+  // Self-heal: clear the alert for any event that is no longer at risk — all prep
+  // finished, or the event is now past/cancelled — mirroring how prep_issue and
+  // prep_unassigned delete their ops-alerts when resolved. This also lets the
+  // alert re-fire later if the event regresses (new incomplete add-on tasks).
+  await pool.query(
+    `DELETE FROM notifications n
+      WHERE n.template = 'prep_at_risk'
+        AND NOT EXISTS (
+          SELECT 1 FROM prep_tasks pt JOIN events e ON e.id = pt.event_id
+           WHERE pt.event_id = n.event_id
+             AND e.phase <> 'Cancelled'
+             AND e.event_date >= CURRENT_DATE
+             AND e.event_date <= CURRENT_DATE + interval '3 days'
+           GROUP BY pt.event_id
+           HAVING count(*) FILTER (WHERE pt.status = 'completed') < count(*))`,
+  ).catch(() => {});
   const { rows } = await pool.query<{ event_id: string; total: number; done: number }>(
     `SELECT pt.event_id,
             count(*)::int AS total,
