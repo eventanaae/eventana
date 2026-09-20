@@ -152,9 +152,12 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       if (customTheme) { cart.customTheme = titleCaseName(customTheme); delete cart.themeId; }
       else if (patch.themeId !== undefined && patch.themeId) { cart.themeId = patch.themeId; delete cart.customTheme; }
       if (patch.referenceImages !== undefined) cart.referenceImages = patch.referenceImages;
-      // Only overwrite the cart's time snapshot if it actually held one, so we
-      // don't invent keys on carts that never carried them.
-      if (patch.startTime !== undefined && cart.startTime !== undefined) cart.startTime = patch.startTime;
+      // ALWAYS sync the cart's time snapshot when the time changes — several
+      // customer-facing views (paylink, "view your booking") read the time from
+      // the order cart, so a conditional update left them showing the OLD time
+      // after a staff time edit (the recurring "time shows wrong" bug).
+      if (patch.startTime !== undefined) cart.startTime = patch.startTime;
+      if (patch.endTime !== undefined && cart.endTime !== undefined) cart.endTime = patch.endTime;
       await db.query(`UPDATE orders SET cart = $2 WHERE id = $1`, [ev.order_id, cart]);
     }
 
