@@ -107,6 +107,45 @@ export async function webhookRoutes(app: FastifyInstance) {
     return reply;
   });
 
+  /* ---------------- Resend delivery events (marketing tracking) ---------- */
+
+  /**
+   * Resend webhook: delivered / opened / clicked / bounced / complained. Each
+   * marketing send is tagged with its campaign id, so we roll the events up into
+   * per-campaign counters, and add hard-bounce / complaint addresses to the
+   * suppression list so we never email them again. Configure the endpoint URL in
+   * the Resend dashboard (Webhooks). Returns 200 fast; processing is best-effort.
+   */
+  app.post('/api/webhooks/resend', async (request, reply) => {
+    reply.status(200).send({ ok: true });
+    try {
+      const body = request.body as any;
+      const type = String(body?.type ?? '');
+      const data = body?.data ?? {};
+      let campaignId: number | null = null;
+      const tags = data.tags;
+      if (Array.isArray(tags)) { const t = tags.find((x: any) => x?.name === 'campaign'); if (t) campaignId = Number(t.value); }
+      else if (tags && typeof tags === 'object' && tags.campaign) campaignId = Number(tags.campaign);
+      const toList: string[] = Array.isArray(data.to) ? data.to : data.to ? [data.to] : [];
+      const bump = async (col: string) => { if (campaignId) await pool.query(`UPDATE email_campaigns SET ${col} = ${col} + 1 WHERE id = $1`, [campaignId]).catch(() => {}); };
+      if (type === 'email.delivered') await bump('delivered_count');
+      else if (type === 'email.opened') await bump('opened_count');
+      else if (type === 'email.clicked') await bump('clicked_count');
+      else if (type === 'email.bounced' || type === 'email.complained') {
+        await bump('bounced_count');
+        for (const e of toList) {
+          await pool.query(
+            `INSERT INTO email_suppression (email, reason) VALUES (lower($1), $2) ON CONFLICT (email) DO NOTHING`,
+            [e, type === 'email.complained' ? 'complaint' : 'bounce'],
+          ).catch(() => {});
+        }
+      }
+    } catch (err) {
+      request.log.error({ err }, 'resend webhook processing failed');
+    }
+    return reply;
+  });
+
   /* ---------------- bank alerts (RAKBANK) ------------------------- */
 
   /**

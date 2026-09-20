@@ -588,6 +588,8 @@ export const api = {
     request<any>('/api/admin/corporate/collect', { method: 'POST' }),
   resetCorporate: () =>
     request<any>('/api/admin/corporate/reset', { method: 'POST' }),
+  recipientsPreview: (audience: string) =>
+    request<any>(`/api/admin/marketing/recipients?audience=${encodeURIComponent(audience)}`),
 
   promoCodes: () => request<{ codes: PromoCode[] }>('/api/admin/promo-codes'),
   createPromoCode: (body: {

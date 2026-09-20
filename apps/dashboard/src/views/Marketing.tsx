@@ -15,6 +15,7 @@ export function Marketing() {
   const [msg, setMsg] = useState<string | null>(null);
   const [flowInit, setFlowInit] = useState<{ path: 'menu' | 'new' | 'existing'; aud: 'customer' | 'company'; step: number } | null>(null);
   const [companies, setCompanies] = useState(false);
+  const [perf, setPerf] = useState(false);
   const openFlow = (path: 'menu' | 'new' | 'existing', aud: 'customer' | 'company' = 'customer', step = 1) => { setMsg(null); setFlowInit({ path, aud, step }); };
   const [preview, setPreview] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
@@ -66,6 +67,7 @@ export function Marketing() {
           <Choice emoji="🆕" label="New campaign" sub="Write and send a fresh one" onClick={() => openFlow('new')} />
           <Choice emoji="📅" label="Existing occasion" sub="Review a draft that’s ready" onClick={() => openFlow('existing')} />
           <Choice emoji="🏢" label="Companies directory" sub={`${data.corporate?.total ?? 0} businesses`} onClick={() => setCompanies(true)} />
+          <Choice emoji="📊" label="Campaigns & performance" sub={`${data.campaigns.length} campaigns`} onClick={() => setPerf(true)} />
         </div>
         {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginTop: 12 }}>{msg}</div>}
       </Panel>
@@ -86,6 +88,46 @@ export function Marketing() {
       {companies && (
         <Modal title="Companies (B2B)" onClose={() => setCompanies(false)}>
           <CorporatePanel labels={data.corporateLabels ?? {}} counts={data.corporate} onChanged={load} setMsg={setMsg} bare />
+        </Modal>
+      )}
+
+      {perf && (
+        <Modal title="Campaigns & performance" onClose={() => setPerf(false)}>
+          {data.campaigns.length === 0 ? <Empty>No campaigns yet.</Empty> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {data.campaigns.map((c: any) => (
+                <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                    {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
+                    <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
+                  </div>
+                  {c.status === 'sent' ? (
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, fontWeight: 700 }}>
+                      <Stat label="Sent" v={c.sent_count} />
+                      <Stat label="Delivered" v={c.delivered_count} />
+                      <Stat label="Opened" v={c.opened_count} tone={C.green} />
+                      <Stat label="Clicked" v={c.clicked_count} tone={C.pinkDeep} />
+                      <Stat label="Bounced" v={c.bounced_count} tone={C.red} />
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 4 }}>
+                      {c.scheduled_for ? `⏰ ${new Date(c.scheduled_for).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'not sent yet'}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <button onClick={() => openPreview(Number(c.id))} style={miniBtn}>👁 Preview</button>
+                    {(c.status === 'pending_approval' || c.status === 'draft') && (
+                      <button onClick={() => act(() => api.approveCampaign(c.id), 'Approved.')} disabled={busy || !data.emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve</button>
+                    )}
+                    {(c.status === 'draft' || c.status === 'rejected' || c.status === 'scheduled' || c.status === 'failed') && (
+                      <button onClick={() => act(() => api.deleteCampaign(c.id), 'Deleted.')} disabled={busy} style={{ ...miniBtn, color: C.red }}>Delete</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Modal>
       )}
 
@@ -127,6 +169,12 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
   const [occ, setOcc] = useState<any | null>(null);
   const [svc, setSvc] = useState(false);
   const [openMonths, setOpenMonths] = useState<Record<string, boolean>>({});
+  const [recips, setRecips] = useState<{ count: number; sample: any[] } | null>(null);
+  const audienceStr = aud === 'company' ? (category === 'all' ? 'corp:all' : `corp:${category}`) : 'all';
+  const seeRecipients = async () => {
+    setRecips({ count: -1, sample: [] });
+    try { setRecips(await api.recipientsPreview(audienceStr)); } catch { setRecips({ count: 0, sample: [] }); }
+  };
 
   const back = () => {
     if (step > 1) return setStep(step - 1);
@@ -236,6 +284,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
               <input value={occasionNote} onChange={(e) => setOccasionNote(e.target.value)} placeholder="e.g. Ramadan 2027, National Day…" style={input} />
               <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, margin: '12px 0 6px' }}>Send date &amp; time (optional — leave empty to send on approval)</div>
               <input type="datetime-local" value={sendDate} onChange={(e) => setSendDate(e.target.value)} style={input} />
+              <button onClick={seeRecipients} style={{ ...miniBtn, marginTop: 12 }}>👥 See who will receive</button>
             </Q>
           )}
           {key === 'done' && created && (
@@ -343,6 +392,22 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
             </Q>
           )}
         </Wiz>
+      )}
+
+      {recips && (
+        <Modal title={recips.count < 0 ? 'Loading…' : `Recipients · ${recips.count}`} onClose={() => setRecips(null)}>
+          {recips.count < 0 ? <Spinner /> : recips.count === 0 ? <Empty>No eligible recipients right now (all opted out, suppressed, or recently emailed).</Empty> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 4 }}><b>{recips.count}</b> will receive it{recips.sample.length < recips.count ? ` — showing first ${recips.sample.length}` : ''}.</div>
+              {recips.sample.map((r, idx) => (
+                <div key={idx} style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: '7px 10px' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{r.name || '—'}</div>
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{r.email}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
       )}
     </Modal>
   );
@@ -527,6 +592,15 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
   return bare ? inner : <Panel title="Companies (B2B directory)">{inner}</Panel>;
 }
 
+function Stat({ label, v, tone }: { label: string; v: number; tone?: string }) {
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', minWidth: 54, border: `1px solid ${C.line}`, borderRadius: 10, padding: '6px 8px' }}>
+      <span style={{ fontSize: 15, fontWeight: 800, color: tone ?? C.ink }}>{v ?? 0}</span>
+      <span style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</span>
+    </span>
+  );
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
@@ -585,6 +659,4 @@ function textToHtml(text: string): string {
 }
 
 const input: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, borderRadius: 10, padding: '10px 12px', fontSize: 13, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink };
-const chip: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 20, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
-const chipActive: CSSProperties = { border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep };
 const miniBtn: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };

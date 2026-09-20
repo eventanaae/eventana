@@ -88,31 +88,86 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
     : await pool.query<{ id: string; email: string; name: string }>(
         `SELECT c.id, c.email, c.name FROM customers c WHERE ${audienceWhere(camp.audience as Audience)}`,
       );
+
+  // Deliverability guards: never send to a suppressed address (hard bounce /
+  // spam complaint), and honour a frequency cap so we don't email the same
+  // person again within EMAIL_FREQ_DAYS (default 7).
+  const freqDays = Math.max(0, Number(process.env.EMAIL_FREQ_DAYS ?? 7) || 7);
+  const emails = recips.map((r) => r.email.toLowerCase());
+  const blocked = new Set<string>();
+  if (emails.length) {
+    const { rows: sup } = await pool.query<{ e: string }>(`SELECT lower(email) e FROM email_suppression WHERE lower(email) = ANY($1)`, [emails]);
+    sup.forEach((x) => blocked.add(x.e));
+    if (freqDays > 0) {
+      const { rows: recent } = await pool.query<{ e: string }>(
+        `SELECT DISTINCT lower(email) e FROM email_send_log WHERE lower(email) = ANY($1) AND sent_at > now() - ($2 || ' days')::interval`,
+        [emails, String(freqDays)],
+      );
+      recent.forEach((x) => blocked.add(x.e));
+    }
+  }
+  const finalRecips = recips.filter((r) => !blocked.has(r.email.toLowerCase()));
+
   await pool.query(`UPDATE email_campaigns SET status = 'sending', recipient_count = $2 WHERE id = $1`, [
     campaignId,
-    recips.length,
+    finalRecips.length,
   ]);
 
   let sent = 0;
-  for (const r of recips) {
+  for (const r of finalRecips) {
     const unsub = isCorp
       ? `${config.email.publicBaseUrl}/api/unsubscribe?k=corp&c=${encodeURIComponent(r.id)}&t=${unsubToken(r.id)}`
       : `${config.email.publicBaseUrl}/api/unsubscribe?c=${encodeURIComponent(r.id)}&t=${unsubToken(r.id)}`;
-    // Light personalisation: {{name}} → the customer's first name.
-    const personalised = camp.body_html.replace(/\{\{\s*name\s*\}\}/gi, (r.name || 'there').split(' ')[0]);
+    // Light personalisation: {{name}} → the customer's first name (companies get the full name).
+    const nameToken = isCorp ? (r.name || 'there') : (r.name || 'there').split(' ')[0];
+    const personalised = camp.body_html.replace(/\{\{\s*name\s*\}\}/gi, nameToken);
     const html = renderCampaignHtml(personalised, unsub);
-    // Bulk send: never BCC the manager monitor inbox (one copy per recipient
-    // would flood it and double the send volume). Pace to respect Resend's
-    // per-second limit and only count a real success.
-    const res = await sendEmail({ to: r.email, subject: camp.subject, html, skipMonitorBcc: true });
-    if (res.ok) sent++;
+    // Bulk send: no manager BCC; a monitored Reply-To so replies reach us; tag
+    // with the campaign id so opens/clicks/bounces attribute back to it.
+    const res = await sendEmail({
+      to: r.email, subject: camp.subject, html, skipMonitorBcc: true,
+      replyTo: config.email.replyTo,
+      tags: [{ name: 'campaign', value: String(campaignId) }],
+    });
+    if (res.ok) {
+      sent++;
+      await pool.query(`INSERT INTO email_send_log (campaign_id, email, kind) VALUES ($1,$2,$3)`,
+        [campaignId, r.email.toLowerCase(), isCorp ? 'corporate' : 'customer']).catch(() => {});
+    }
     await new Promise((res) => setTimeout(res, 120));
   }
   await pool.query(
     `UPDATE email_campaigns SET status = $2, sent_count = $3, sent_at = now() WHERE id = $1`,
-    [campaignId, sent > 0 || recips.length === 0 ? 'sent' : 'failed', sent],
+    [campaignId, sent > 0 || finalRecips.length === 0 ? 'sent' : 'failed', sent],
   );
-  return { recipients: recips.length, sent };
+  return { recipients: finalRecips.length, sent };
+}
+
+/**
+ * Who WOULD receive a campaign to this audience right now — after suppression and
+ * the frequency cap. Used by the dashboard "See recipients" preview.
+ */
+export async function campaignRecipients(audience: string): Promise<{ count: number; sample: Array<{ name: string; email: string }> }> {
+  const isCorp = String(audience || '').startsWith('corp:') || audience === 'corporate';
+  const { rows } = isCorp
+    ? await pool.query<{ email: string; name: string }>(`SELECT email, name FROM corporate_leads WHERE ${corporateAudienceWhere(String(audience))}`)
+    : await pool.query<{ email: string; name: string }>(`SELECT c.email, c.name FROM customers c WHERE ${audienceWhere(audience as Audience)}`);
+  const emails = rows.map((r) => r.email.toLowerCase());
+  const blocked = new Set<string>();
+  if (emails.length) {
+    const freqDays = Math.max(0, Number(process.env.EMAIL_FREQ_DAYS ?? 7) || 7);
+    const { rows: sup } = await pool.query<{ e: string }>(`SELECT lower(email) e FROM email_suppression WHERE lower(email) = ANY($1)`, [emails]);
+    sup.forEach((x) => blocked.add(x.e));
+    if (freqDays > 0) {
+      const { rows: recent } = await pool.query<{ e: string }>(
+        `SELECT DISTINCT lower(email) e FROM email_send_log WHERE lower(email) = ANY($1) AND sent_at > now() - ($2 || ' days')::interval`,
+        [emails, String(freqDays)],
+      );
+      recent.forEach((x) => blocked.add(x.e));
+    }
+  }
+  const final = rows.filter((r) => !blocked.has(r.email.toLowerCase()));
+  return { count: final.length, sample: final.slice(0, 50).map((r) => ({ name: r.name || '', email: r.email })) };
 }
 
 /**

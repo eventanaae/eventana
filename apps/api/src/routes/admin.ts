@@ -34,7 +34,7 @@ import { logAudit, listAudit } from '../domain/auditLog.js';
 import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
-import { audienceCounts, sendCampaign } from '../domain/marketing.js';
+import { audienceCounts, sendCampaign, campaignRecipients } from '../domain/marketing.js';
 import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign, learnFromCampaign } from '../domain/marketingCalendar.js';
 import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS, resetCorporateLeads } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
@@ -5455,8 +5455,8 @@ export async function adminRoutes(app: FastifyInstance) {
       audienceCounts(),
       pool.query(
         `SELECT id, subject, body_html, audience, status, scheduled_for, sent_at,
-                recipient_count, sent_count, created_at, created_by,
-                approved_by, approved_at, rejection_reason, source
+                recipient_count, sent_count, delivered_count, opened_count, clicked_count, bounced_count,
+                created_at, created_by, approved_by, approved_at, rejection_reason, source
            FROM email_campaigns ORDER BY created_at DESC LIMIT 50`,
       ),
     ]);
@@ -5647,6 +5647,12 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true, regenerated };
   });
 
+  /** Who would receive a given audience right now (after suppression + freq cap). */
+  app.get('/api/admin/marketing/recipients', async (request) => {
+    const audience = String((request.query as { audience?: string }).audience ?? 'all');
+    return campaignRecipients(audience);
+  });
+
   /** Regenerate an occasion campaign's email from the template + saved services. */
   app.post('/api/admin/marketing/campaigns/:id/regenerate', async (request, reply) => {
     const id = Number((request.params as { id: string }).id);
@@ -5790,9 +5796,10 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!config.googleMapsApiKey) {
       return reply.status(409).send({ error: 'no_google_key', message: 'Add a Google API key with Places API enabled to auto-collect.' });
     }
-    // Deeper pagination on a manual run to pull as much as Google returns.
-    const res = await collectCorporateLeads({ maxPagesPerQuery: 3, maxEnrich: 80 });
-    return res;
+    // Deeper pull + big email pass; run in the background so the request returns
+    // immediately (a full run reads hundreds of sites and takes minutes).
+    void collectCorporateLeads({ maxPagesPerQuery: 3, maxEnrich: 250 }).catch((e) => console.error('[corp-collect] manual run failed:', e));
+    return { started: true };
   });
 
   /* --------------------------- Theme backfill ----------------------------- */

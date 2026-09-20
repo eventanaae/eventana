@@ -168,7 +168,7 @@ export async function collectCorporateLeads(opts?: { maxPagesPerQuery?: number; 
 }> {
   if (!config.googleMapsApiKey) return { discovered: 0, added: 0, enriched: 0 };
   const maxPages = Math.max(0, Math.min(3, opts?.maxPagesPerQuery ?? 2));
-  const maxEnrich = Math.max(0, Math.min(150, opts?.maxEnrich ?? 60));
+  const maxEnrich = Math.max(0, Math.min(300, opts?.maxEnrich ?? 60));
   const targets = opts?.discover ?? SEARCH_TARGETS;
   let discovered = 0;
   let added = 0;
@@ -274,7 +274,7 @@ export async function sweepCorporateCollect(): Promise<number> {
     const i = (day * 2) % n;
     discover = [SEARCH_TARGETS[i], SEARCH_TARGETS[(i + 1) % n]];
   }
-  const res = await collectCorporateLeads({ maxPagesPerQuery: anyPlaces.rowCount ? 1 : 2, maxEnrich: 60, discover }).catch(() => ({ added: 0, enriched: 0 }));
+  const res = await collectCorporateLeads({ maxPagesPerQuery: anyPlaces.rowCount ? 1 : 2, maxEnrich: 220, discover }).catch(() => ({ added: 0, enriched: 0 }));
   await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_collect_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
   return (res.added ?? 0) + (res.enriched ?? 0);
 }

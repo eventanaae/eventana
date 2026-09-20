@@ -218,6 +218,8 @@ export const config = {
   email: {
     resendApiKey: env.RESEND_API_KEY ?? null,
     from: env.EMAIL_FROM ?? 'Eventana <onboarding@resend.dev>',
+    // Where marketing replies go so a customer/company reply reaches a real inbox.
+    replyTo: env.EMAIL_REPLY_TO ?? 'hello@eventanauae.com',
     publicBaseUrl: toUrl(env.PUBLIC_API_URL ?? env.PUBLIC_API_HOST, 'http://localhost:4000'),
     // Extra recipients for the monthly finance report, comma-separated. Owner
     // and manager team members with an email on file also receive it.

@@ -33,6 +33,9 @@ export async function sendEmail(args: {
   /** Optional file attachments. `content` is base64-encoded; `contentType`
    *  maps to Resend's `content_type` when given. */
   attachments?: Array<{ filename: string; content: string; contentType?: string }>;
+  /** Resend tags — echoed back in delivery webhooks (used to attribute a
+   *  marketing campaign's opens/clicks/bounces). Names/values: [a-zA-Z0-9_-]. */
+  tags?: Array<{ name: string; value: string }>;
 }): Promise<SendResult> {
   if (!config.email.resendApiKey) return { ok: false, error: 'email_disabled' };
   // Merge the caller's BCC with the global monitor inbox (config), so a manager
@@ -65,6 +68,7 @@ export async function sendEmail(args: {
         ...(ccList.length ? { cc: ccList } : {}),
         ...(bccList.length ? { bcc: bccList } : {}),
         ...(args.replyTo ? { reply_to: args.replyTo } : {}),
+        ...(args.tags && args.tags.length ? { tags: args.tags } : {}),
         ...(args.attachments && args.attachments.length
           ? {
               attachments: args.attachments.map((a) => ({

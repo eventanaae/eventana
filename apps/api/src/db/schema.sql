@@ -909,6 +909,28 @@ ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS source TEXT;         -- manual | anniversary
 ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS dedupe_key TEXT;     -- unique-ish suggestion key
 CREATE UNIQUE INDEX IF NOT EXISTS email_campaigns_dedupe_idx ON email_campaigns (dedupe_key) WHERE dedupe_key IS NOT NULL;
+-- Engagement counters for a campaign, updated from Resend delivery webhooks.
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS delivered_count INT NOT NULL DEFAULT 0;
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS opened_count    INT NOT NULL DEFAULT 0;
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS clicked_count   INT NOT NULL DEFAULT 0;
+ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS bounced_count   INT NOT NULL DEFAULT 0;
+
+-- Never email these again (hard bounce / spam complaint), from Resend webhooks.
+CREATE TABLE IF NOT EXISTS email_suppression (
+  email      TEXT PRIMARY KEY,
+  reason     TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- One row per marketing send — powers the frequency cap + per-campaign attribution.
+CREATE TABLE IF NOT EXISTS email_send_log (
+  id          BIGSERIAL PRIMARY KEY,
+  campaign_id BIGINT,
+  email       TEXT NOT NULL,
+  kind        TEXT,            -- customer | corporate
+  sent_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS email_send_log_email_idx ON email_send_log (lower(email), sent_at);
+CREATE INDEX IF NOT EXISTS email_send_log_campaign_idx ON email_send_log (campaign_id);
 
 -- ── Corporate / B2B leads (schools, universities, hospitals, clinics, banks,
 -- government, companies, new shops) — a directory the team can email for event
