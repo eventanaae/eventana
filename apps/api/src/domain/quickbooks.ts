@@ -144,6 +144,26 @@ async function qbQuery(query: string): Promise<any> {
   return res?.QueryResponse ?? {};
 }
 
+/** All Items (products & services) from the connected QuickBooks company. */
+export async function listQbItems(): Promise<Array<{ name: string; fullName: string; type: string; active: boolean; price: number }>> {
+  const items: Array<{ name: string; fullName: string; type: string; active: boolean; price: number }> = [];
+  for (let pos = 1; ; pos += 100) {
+    const q = await qbQuery(`select * from Item startposition ${pos} maxresults 100`);
+    const rows: any[] = q.Item ?? [];
+    for (const it of rows) {
+      items.push({
+        name: String(it.Name ?? '').trim(),
+        fullName: String(it.FullyQualifiedName ?? it.Name ?? '').trim(),
+        type: String(it.Type ?? ''),
+        active: it.Active !== false,
+        price: Number(it.UnitPrice ?? 0),
+      });
+    }
+    if (rows.length < 100) break;
+  }
+  return items;
+}
+
 /** Map a QuickBooks expense account name to one of our category buckets. */
 function bucketFor(accountName: string | undefined): string {
   const n = (accountName ?? '').toLowerCase();

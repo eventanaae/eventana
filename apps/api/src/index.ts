@@ -343,6 +343,21 @@ async function main() {
       await pool.query(`DELETE FROM services WHERE lower(name) IN ('stripe','tamara')`).catch(async () => {
         await pool.query(`UPDATE services SET active = false WHERE lower(name) IN ('stripe','tamara')`).catch(() => {});
       });
+      // TEMP diagnostic: pull the product list straight from QuickBooks and show
+      // which items are NOT yet in our app catalogue (so we can add the missing).
+      try {
+        const { quickbooksConfigured, listQbItems } = await import('./domain/quickbooks.js');
+        if (!quickbooksConfigured()) {
+          console.log('[qb-items] QuickBooks client not configured (no client id/secret).');
+        } else {
+          const items = await listQbItems();
+          const ours = new Set((await pool.query(`SELECT lower(name) n FROM services`)).rows.map((r: any) => r.n));
+          const norm = (s: string) => s.toLowerCase().trim();
+          const missing = items.filter((i) => i.name && !ours.has(norm(i.name)));
+          console.log(`[qb-items] QuickBooks items: ${items.length} · in our catalogue: ${items.length - missing.length} · MISSING: ${missing.length}`);
+          console.log('[qb-items] MISSING names: ' + JSON.stringify(missing.map((m) => `${m.name} (${m.type}${m.active ? '' : ',inactive'}, AED ${m.price})`)));
+        }
+      } catch (e) { console.error('[qb-items] failed:', (e as Error).message); }
       // One-time seed: an ADNOC AED 200 spend on the Wio card the owner forwarded
       // manually → PENDING in the approval queue. Idempotent (dedupe_key), safe to
       // leave; can be removed after it's approved.
