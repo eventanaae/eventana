@@ -360,6 +360,19 @@ async function main() {
         const { sendCampaignGuideOnce } = await import('./db/sendCampaignGuide.js');
         await sendCampaignGuideOnce();
       } catch (e) { console.error('[campaign-guide] failed:', (e as Error).message); }
+      // One-time RESET (owner "start fresh"): wipe every auto-generated occasion
+      // campaign that hasn't been sent + its review tasks, so the calendar starts
+      // clean and re-prepares fresh drafts with the new templates. Sent history is
+      // untouched. Guarded so it runs once.
+      try {
+        const g = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'occasion_reset_20260920'`).catch(() => ({ rowCount: 0 }));
+        if (!g.rowCount) {
+          const del = await pool.query(`DELETE FROM email_campaigns WHERE source IN ('occasion','occasion_corp') AND status <> 'sent'`).catch(() => ({ rowCount: 0 }));
+          await pool.query(`DELETE FROM focus_tasks WHERE link_key LIKE 'mktg|%'`).catch(() => {});
+          await pool.query(`INSERT INTO app_kv (k, v) VALUES ('occasion_reset_20260920', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+          console.log(`[occasion-reset] cleared ${del.rowCount ?? 0} unsent occasion draft(s)`);
+        }
+      } catch (e) { console.error('[occasion-reset] failed:', (e as Error).message); }
       // Zero-price imported items must NOT be bookable at AED 0 on the customer
       // site — hide them (they still show in the internal New-Order builder as
       // "OFF", where the owner types the price on selection). Idempotent.

@@ -80,7 +80,7 @@ export function Marketing() {
           <Choice emoji="🆕" label="New campaign" sub="Write and send a fresh one" onClick={() => openFlow('new')} />
           <Choice emoji="📅" label="Existing occasion" sub="Review a draft that’s ready" onClick={() => openFlow('existing')} />
           <Choice emoji="🏢" label="Companies directory" sub={`${data.corporate?.total ?? 0} businesses`} onClick={() => setCompanies(true)} />
-          <Choice emoji="📊" label="Campaigns & performance" sub={`${data.campaigns.length} campaigns`} onClick={() => setPerf(true)} />
+          <Choice emoji="📊" label="Campaigns & performance" sub={`${data.campaigns.filter((c: any) => c.status === 'sent').length} sent`} onClick={() => setPerf(true)} />
         </div>
         {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginTop: 12 }}>{msg}</div>}
       </Panel>
