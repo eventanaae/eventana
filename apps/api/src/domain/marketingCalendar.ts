@@ -750,7 +750,8 @@ export async function marketingCalendar(): Promise<
   const rows = await Promise.all(
     OCCASIONS.map(async (o) => {
       const next = nextOccasionDate(o, now);
-      const dedupeKey = next ? `occasion|${o.slug}|${next.year}` : null;
+      // Corporate-only occasions store their draft under the |corp key.
+      const dedupeKey = next ? `occasion|${o.slug}|${next.year}${o.corporateOnly ? '|corp' : ''}` : null;
       const camp = dedupeKey
         ? (await pool.query<{ id: string; status: string; scheduled_for: string | null }>(
             `SELECT id, status, scheduled_for FROM email_campaigns WHERE dedupe_key = $1`, [dedupeKey],
