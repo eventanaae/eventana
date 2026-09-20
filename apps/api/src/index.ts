@@ -237,6 +237,8 @@ async function main() {
     await dumpVendorDescsFromEnv().catch((err) => console.error('[vdesc] failed:', err));
     const { dumpCheckJaneFromEnv } = await import('./db/dumpCheckJane.js');
     await dumpCheckJaneFromEnv().catch((err) => console.error('[cjane] failed:', err));
+    const { applySupplierMappingFromEnv } = await import('./db/applySupplierMapping.js');
+    await applySupplierMappingFromEnv().catch((err) => console.error('[map-apply] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
