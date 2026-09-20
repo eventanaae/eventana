@@ -126,7 +126,7 @@ export function Marketing() {
                 <div key={o.slug} style={{ display: 'flex', alignItems: 'center', gap: 10, border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', flexWrap: 'wrap' }}>
                   <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
                   <div style={{ flex: 1, minWidth: 130 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{o.name} <span style={{ color: C.muted, fontWeight: 600 }}>· {o.nameAr}</span></div>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{o.name}</div>
                     <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>
                       {dateLabel}{away != null && away >= 0 ? ` · in ${away} day${away === 1 ? '' : 's'}` : ''}
                       {o.greetingOnly ? ' · greeting only' : ''}
