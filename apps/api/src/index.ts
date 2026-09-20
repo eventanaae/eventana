@@ -354,6 +354,13 @@ async function main() {
           source: 'wio', dedupeKey: 'manual|wio6295|adnoc|200|2026-09-20',
         });
       } catch (e) { console.error('[seed] adnoc wio expense failed:', (e as Error).message); }
+      // TEMP diagnostic: does a balloon service exist (active or not)? + counts.
+      try {
+        const b = await pool.query(`SELECT name, active FROM services WHERE lower(name) LIKE '%balloon%' OR lower(name) LIKE '%ballon%' OR name LIKE '%بالون%' ORDER BY active DESC, name`);
+        console.log('[diag-balloon] matches:', JSON.stringify(b.rows));
+        const c = await pool.query(`SELECT count(*) FILTER (WHERE active) AS active, count(*) FILTER (WHERE NOT active) AS inactive FROM services`);
+        console.log('[diag-balloon] service counts:', JSON.stringify(c.rows[0]));
+      } catch (e) { console.error('[diag-balloon] failed:', (e as Error).message); }
       if (String(process.env.REGEN_OCCASION_DRAFTS ?? '').toLowerCase() === 'on') {
         await regenerateOccasionDrafts({ all: true }).catch((err) => console.error('[marketing] regen failed:', err));
       }
