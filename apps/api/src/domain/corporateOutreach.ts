@@ -292,54 +292,54 @@ export async function sweepCorporateCollect(): Promise<number> {
  *  relevant instead of generic. */
 const CORP_PITCH: Record<CorpCategory, { subject: string; intro: string; services: string[] }> = {
   school: {
-    subject: 'Memorable events & celebrations for your school',
-    intro: 'Schools across the UAE trust Eventana to bring their moments to life — graduations, National Day assemblies, sports days, teacher appreciation and end-of-year celebrations, all done beautifully and age-appropriately.',
-    services: ['🎓 Graduation & prize-day stage, backdrop and décor', '🇦🇪 National Day & cultural-day setups', '🌸 Hands-on workshops — flower arranging & pottery painting', '🍿 Live snack kiosks (popcorn, candy floss, mini treats)', '📸 Photo booth and fun activities for students', '🎁 Branded giveaways for staff and pupils'],
+    subject: 'Unforgettable celebrations for your school ✨',
+    intro: '',
+    services: ['🎓 Graduation & prize-day stage, backdrop and décor', '🇦🇪 National Day & cultural-day setups', '🌸 Hands-on workshops — flower arranging & pottery painting', '🍿 Pop-up snack corners (popcorn, candy floss, treats)', '📸 Photo booth & fun activities for students', '🎁 Branded giveaways for staff & pupils'],
   },
   nursery: {
-    subject: 'Joyful celebrations for your nursery',
-    intro: 'We help nurseries create magical little moments — KG graduations, themed activity days, National Day and seasonal parties — safe, colourful and perfect for young children.',
-    services: ['🎓 KG graduation stage & décor', '🎨 Craft workshop stations — flower arranging & pottery painting', '🇦🇪 National Day & seasonal parties', '🍿 Kid-friendly snack kiosks & treats', '📸 Photo corner for parents', '🎁 Sweet giveaways for the little ones'],
+    subject: 'Little moments, magically done 🎈',
+    intro: '',
+    services: ['🎓 KG graduation stage & décor', '🎨 Craft workshops — flower arranging & pottery painting', '🇦🇪 National Day & seasonal parties', '🍿 Pop-up kids’ snack corner & treats', '📸 Photo corner for parents', '🎁 Sweet giveaways for the little ones'],
   },
   university: {
-    subject: 'Standout events for your university or college',
-    intro: 'From graduations to orientation, clubs, cultural festivals and career fairs, Eventana delivers polished, on-brand events that students and faculty remember.',
-    services: ['🎓 Graduation & convocation staging and décor', '🎪 Orientation, club and festival setups', '🌸 Creative workshops — flower arranging & pottery painting', '🍔 Live food kiosks & snack carts', '📸 Photo & content moments', '🎁 Branded merchandise and giveaways'],
+    subject: 'Events students will never forget 🎓',
+    intro: '',
+    services: ['🎓 Graduation & convocation staging and décor', '🎪 Orientation, club & festival setups', '🌸 Creative workshops — flower arranging & pottery painting', '🍔 Pop-up food & snack corners', '📸 Photo & content moments', '🎁 Branded merchandise & giveaways'],
   },
   hospital: {
-    subject: 'Thoughtful events for your hospital’s people & patients',
-    intro: 'Eventana supports hospitals with warm, well-run occasions — staff and nurses’ appreciation days, wellness and awareness activations, children’s-ward celebrations and National Day — handled with care and the right tone.',
-    services: ['💛 Staff & nurses’ appreciation events', '🎀 Awareness-day activations (e.g. Pink October)', '🌸 Relaxing workshops — flower arranging & pottery painting', '🍵 Live refreshment kiosks & healthy snack carts', '🧸 Children’s-ward celebrations', '📸 Photo moments & giveaways'],
+    subject: 'Moments your team & patients will treasure 💛',
+    intro: '',
+    services: ['💛 Staff & nurses’ appreciation events', '🎀 Awareness-day activations (e.g. Pink October)', '🌸 Relaxing workshops — flower arranging & pottery painting', '🍵 Pop-up refreshment & healthy snack corners', '🧸 Children’s-ward celebrations', '📸 Photo moments & giveaways'],
   },
   clinic: {
-    subject: 'Warm events & activations for your clinic',
-    intro: 'We help clinics mark their moments — patient appreciation days, clinic openings, awareness activations and staff celebrations — professional and welcoming.',
-    services: ['🎗️ Awareness-day activations', '✂️ Clinic opening & launch décor', '🌸 Flower-arranging & pottery-painting stations', '🍵 Refreshment & snack kiosks', '💛 Patient & staff appreciation', '🎁 Branded giveaways'],
+    subject: 'Warm celebrations for your clinic 💐',
+    intro: '',
+    services: ['🎗️ Awareness-day activations', '✂️ Clinic opening & launch décor', '🌸 Flower-arranging & pottery-painting corners', '🍵 Pop-up refreshment & snack corners', '💛 Patient & staff appreciation', '🎁 Branded giveaways'],
   },
   bank: {
-    subject: 'Engaging events for your bank’s teams & customers',
-    intro: 'Eventana runs polished corporate occasions for banks — staff engagement and family days, customer appreciation, branch openings, Ramadan iftars and National Day — always on-brand.',
-    services: ['👨‍👩‍👧 Staff & family day setups', '🏦 Branch opening & launch décor', '🌸 Interactive workshops — flower arranging & pottery painting', '🍔 Live food kiosks & coffee carts', '🌙 Ramadan iftar & majlis setups', '🇦🇪 National Day celebrations & branded giveaways'],
+    subject: 'Celebrations your people will love 🎉',
+    intro: '',
+    services: ['👨‍👩‍👧 Staff & family day setups', '🏦 Branch opening & launch décor', '🌸 Interactive workshops — flower arranging & pottery painting', '🍔 Pop-up food corners & coffee carts', '🌙 Ramadan iftar & majlis setups', '🇦🇪 National Day celebrations & branded giveaways'],
   },
   government: {
-    subject: 'Dignified events for your organisation',
-    intro: 'We support government entities with occasions handled to the right standard — National Day, Flag Day and Commemoration Day, employee-happiness initiatives, cultural events and majlis hospitality.',
-    services: ['🇦🇪 National Day, Flag Day & cultural events', '😊 Employee happiness & appreciation', '🌸 Workshop stations — flower arranging & pottery painting', '🍔 Live food kiosks & hospitality carts', '🕌 Majlis & hospitality setups', '🎁 Branded giveaways'],
+    subject: 'Celebrations done to the right standard 🇦🇪',
+    intro: '',
+    services: ['🇦🇪 National Day, Flag Day & cultural events', '😊 Employee happiness & appreciation', '🌸 Workshops — flower arranging & pottery painting', '🍔 Pop-up food corners & hospitality', '🕌 Majlis & hospitality setups', '🎁 Branded giveaways'],
   },
   company: {
-    subject: 'Events your team will love',
-    intro: 'From staff parties and family days to product launches, Ramadan iftars, National Day and milestone celebrations, Eventana delivers memorable, fully-managed corporate events.',
-    services: ['🎉 Staff parties & family days', '🚀 Product launches & milestone events', '🌸 Team workshops — flower arranging & pottery painting', '🍔 Live food kiosks & snack carts', '🌙 Ramadan iftar setups', '🇦🇪 National Day celebrations & branded gifts'],
+    subject: 'Bring your team together — beautifully 🎉',
+    intro: '',
+    services: ['🎉 Staff parties & family days', '🚀 Product launches & milestone events', '🌸 Team workshops — flower arranging & pottery painting', '🍔 Pop-up food & snack corners', '🌙 Ramadan iftar setups', '🇦🇪 National Day celebrations & branded gifts'],
   },
   new_shop: {
-    subject: 'Make your grand opening unforgettable',
-    intro: 'Congratulations on your new opening! Eventana creates buzzing launch events — eye-catching décor, ribbon-cutting moments and activations that pull in footfall from day one.',
-    services: ['✂️ Grand-opening décor & ribbon cutting', '🎈 Launch-day activations & balloons', '🍿 Live food kiosks & snack carts to draw footfall', '🌸 Interactive workshops — flower arranging & pottery painting', '📸 Photo moment for social media', '🎁 Giveaways to draw footfall'],
+    subject: 'Make your grand opening unforgettable 🎊',
+    intro: '',
+    services: ['✂️ Grand-opening décor & ribbon cutting', '🎈 Launch-day activations & balloons', '🍿 Pop-up food & snack corners to draw footfall', '🌸 Interactive workshops — flower arranging & pottery painting', '📸 Photo moment for social media', '🎁 Giveaways to draw footfall'],
   },
   other: {
-    subject: 'Celebrations & events, done beautifully',
-    intro: 'Eventana creates and fully manages memorable events across the UAE — tailored to your people, your brand and your budget.',
-    services: ['🎉 Themed décor & staging', '🌸 Workshops — flower arranging & pottery painting', '🍔 Live food kiosks & snack carts', '📸 Photo booth & activities', '🎁 Branded giveaways', '✅ Fully managed, end to end'],
+    subject: 'Celebrations, beautifully done ✨',
+    intro: '',
+    services: ['🎉 Themed décor & staging', '🌸 Workshops — flower arranging & pottery painting', '🍔 Pop-up food & snack corners', '📸 Photo booth & activities', '🎁 Branded giveaways', '✅ Fully managed, end to end'],
   },
 };
 
@@ -359,13 +359,11 @@ export function buildFirstTouchBody(category: CorpCategory): string {
     <p style="font-size:20px;font-weight:800;margin:0 0 12px;color:#3B3641">${p.subject}</p>
     <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
     <p style="margin:0 0 12px">Dear <b>{{name}}</b>,</p>
-    <p style="margin:0 0 10px">At Eventana Events, we don’t just decorate — we create experiences that engage, inspire and bring your people together. 💛 Based in the UAE, we tailor every celebration to your ${sector}’s culture and calendar.</p>
-    <p style="margin:12px 0 4px"><b>Who’s the right person</b> for events or procurement? Just reply with their name and email.</p>
+    <p style="margin:0 0 10px">At Eventana Events, we don’t just decorate — we create experiences that bring your people together. 💛</p>
+    <p style="margin:12px 0 4px"><b>Who’s the right person</b> for events or procurement? Reply with their name and email.</p>
     ${servicesList}
-    <p style="margin:14px 0 6px;font-weight:700;color:#3B3641">We cover every occasion:</p>
-    <p style="margin:0 0 4px">🇦🇪 UAE Flag Day &amp; National Day · 🌙 Ramadan gatherings, iftars &amp; suhoors · 🎊 Eid al-Fitr &amp; al-Adha · 💐 International &amp; Emirati Women’s Day — and more.</p>
-    <p style="margin:14px 0 4px">Whatever the occasion, we design it from scratch — <b>fully branded to your logo</b>, like a private celebration made just for you.</p>
-    <p style="margin:14px 0 6px">Share a rough date and budget and we’ll craft a proposal made for you — no obligation.</p>
+    <p style="margin:12px 0 4px">Perfect for National Day, Flag Day, Ramadan iftars, Eid &amp; Women’s Day — every occasion, <b>fully branded to your logo</b>. ✨</p>
+    <p style="margin:12px 0 6px">Share a date and rough budget and we’ll craft a proposal made just for you.</p>
     <p style="margin:12px 0 0">Warmly,<br/>The Eventana Team 🎈</p>`;
 }
 
