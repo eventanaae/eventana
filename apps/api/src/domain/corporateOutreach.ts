@@ -359,10 +359,12 @@ export function buildFirstTouchBody(category: CorpCategory): string {
     <p style="font-size:20px;font-weight:800;margin:0 0 12px;color:#3B3641">${p.subject}</p>
     <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
     <p style="margin:0 0 12px">Dear <b>{{name}}</b>,</p>
-    <p style="margin:0 0 10px">Every celebration tells a story — and we love creating the ones people remember. 💛 ${p.intro}</p>
+    <p style="margin:0 0 10px">At Eventana Events, we don’t just decorate — we create experiences that engage, inspire and bring your people together. 💛 Based in the UAE, we tailor every celebration to your ${sector}’s culture and calendar.</p>
     <p style="margin:12px 0 4px"><b>Who’s the right person</b> for events or procurement? Just reply with their name and email.</p>
     ${servicesList}
-    <p style="margin:12px 0 4px">Whatever the occasion, we design it from scratch — <b>fully branded to your logo</b>, like a private celebration made just for you.</p>
+    <p style="margin:14px 0 6px;font-weight:700;color:#3B3641">We cover every occasion:</p>
+    <p style="margin:0 0 4px">🇦🇪 UAE Flag Day &amp; National Day · 🌙 Ramadan gatherings, iftars &amp; suhoors · 🎊 Eid al-Fitr &amp; al-Adha · 💐 International &amp; Emirati Women’s Day — and more.</p>
+    <p style="margin:14px 0 4px">Whatever the occasion, we design it from scratch — <b>fully branded to your logo</b>, like a private celebration made just for you.</p>
     <p style="margin:14px 0 6px">Share a rough date and budget and we’ll craft a proposal made for you — no obligation.</p>
     <p style="margin:12px 0 0">Warmly,<br/>The Eventana Team 🎈</p>`;
 }
