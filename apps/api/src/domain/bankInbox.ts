@@ -344,6 +344,15 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     postedOn = a.postedOn ?? dubaiToday();
     merchant = 'Anthropic';
     settlementNote = a.note;
+  } else if (provider === 'tabby' || provider === 'tamara') {
+    // Settlement couldn't be parsed. Do NOT fall through to the generic "AED <n>"
+    // grabber — in a Tabby/Tamara payout the first amount is the GROSS SALES
+    // figure, and booking that as an expense would massively overstate spend.
+    // Capture a zero-amount row so the owner sets the real fee manually.
+    amountFils = 0;
+    direction = 'debit';
+    kind = 'other';
+    settlementNote = `${providerLabel(provider, from)} payout — couldn't read the settlement fee automatically, please set it`;
   } else {
     const p = parseRakbankAlert(subject, text);
     if (p) {
@@ -358,10 +367,12 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
 
   // Not a real money transaction (statement, OTP, marketing, or an amount our
   // parser couldn't read) → don't create a zero-amount pending row that clutters
-  // the review list. Real charges always have a positive amount. EXCEPTION:
-  // Anthropic — the owner wants every Anthropic email captured for review even
-  // if we couldn't read the amount, so she can set it and approve.
-  if ((!Number.isFinite(amountFils) || amountFils <= 0) && provider !== 'anthropic') return null;
+  // the review list. Real charges always have a positive amount. EXCEPTIONS:
+  // Anthropic and Tabby/Tamara payouts — a known receipt/payout we always want
+  // captured for review even when the amount couldn't be read, so the owner can
+  // set it and approve (never silently dropped).
+  const alwaysCapture = provider === 'anthropic' || provider === 'tabby' || provider === 'tamara';
+  if ((!Number.isFinite(amountFils) || amountFils <= 0) && !alwaysCapture) return null;
   if (!Number.isFinite(amountFils) || amountFils < 0) amountFils = 0;
 
   // Keep the human-readable fee breakdown at the top of raw_text so it shows in
@@ -395,7 +406,7 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   // Only ping Marsha + owner when there's real money to review. Zero-amount
   // emails (statements, OTPs, marketing, or a charge our parser couldn't read)
   // are still captured silently in the Bank Inbox — no notification noise.
-  if (amountFils > 0 || provider === 'anthropic') {
+  if (amountFils > 0 || alwaysCapture) {
     const aed = (amountFils / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const tag = provider === 'other' ? '' : `${providerLabel(provider, from)} · `;
     const clip = att ? ' 📎 receipt attached' : '';
@@ -480,7 +491,10 @@ export async function approveBankTransaction(
     ? String(tx.raw_text ?? '').split('\n')[0].slice(0, 300)
     : null;
   const description = (opts.description ?? settlementDesc ?? tx.merchant ?? 'Bank transaction').toString().slice(0, 300);
-  const vendor = (opts.vendor ?? tx.merchant ?? null);
+  const vendor = (opts.vendor ?? tx.merchant ?? '').toString().trim() || null;
+  // Vendor is MANDATORY on every expense (owner's rule). Block approval — on any
+  // screen — that would create a vendorless expense, so the approver must set one.
+  if (!vendor) return { ok: false, reason: 'vendor_required' };
   const defaultCategory = isSettlement ? 'Payment Fees' : isAnthropic ? 'Dues and Subscriptions' : tx.kind === 'transfer' ? 'transfer' : 'general';
   const category = (opts.category ?? defaultCategory).toString().slice(0, 80);
   const paymentMethod = opts.paymentMethod ?? (isSettlement ? 'settlement' : tx.kind === 'transfer' ? 'bank_transfer' : 'card');

@@ -1093,10 +1093,23 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     );
     const e = evr[0];
     if (e) {
-      const dur = parseHour(e.base_end_time) - parseHour(e.start_time);
+      // "24:00" is the valid midnight sentinel — parseHour returns NaN for it,
+      // which used to silently collapse a 6-hour party to 4h. Treat it as hour 24.
+      const endRaw = String(e.base_end_time ?? '');
+      const endH = /^24(:00)?$/.test(endRaw) ? 24 : parseHour(endRaw);
+      const dur = endH - parseHour(e.start_time);
       // Clamp at 24:00 so a late start never yields an invalid "25:00" end time.
       const newEnd = formatHour24(Math.min(24, parseHour(d.eventTime) + (Number.isFinite(dur) && dur > 0 ? dur : 4)));
       await pool.query(`UPDATE events SET start_time = $2, base_end_time = $3 WHERE id = $1`,
+        [saved.event_id, d.eventTime, newEnd]).catch(() => {});
+      // Keep the order cart's time snapshot in step (customer-facing views read
+      // cart.startTime/endTime) — same stale-time bug fixed on the other paths.
+      await pool.query(
+        `UPDATE orders o
+            SET cart = jsonb_set(
+                         jsonb_set(o.cart, '{startTime}', to_jsonb($2::text), true),
+                         '{endTime}', to_jsonb($3::text), false)
+           FROM events ev WHERE ev.id = $1 AND ev.order_id = o.id AND o.cart ? 'startTime'`,
         [saved.event_id, d.eventTime, newEnd]).catch(() => {});
     }
   }

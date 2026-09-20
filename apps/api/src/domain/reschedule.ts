@@ -118,6 +118,18 @@ export async function rescheduleEvent(args: {
       `UPDATE events SET event_date = $2, start_time = $3, base_end_time = $4 WHERE id = $1`,
       [args.eventId, args.newDate, args.newStartTime, endTime],
     );
+    // Keep the order cart's time snapshot in step. Customer-facing views (paylink,
+    // "view your booking") read cart.startTime/endTime; leaving them stale is the
+    // exact recurring "wrong time" bug already fixed on the staff-edit path.
+    await db.query(
+      `UPDATE orders o
+          SET cart = jsonb_set(
+                       jsonb_set(o.cart, '{startTime}', to_jsonb($2::text), true),
+                       '{endTime}', to_jsonb($3::text), false)
+         FROM events e
+        WHERE e.id = $1 AND e.order_id = o.id AND o.cart ? 'startTime'`,
+      [args.eventId, args.newStartTime, endTime],
+    );
     // Move the still-unsent reminder emails to the NEW start moment (3-day at
     // start−3d, party-day at start−4h, feedback at start+1d) — NOT midnight of
     // the new date. Shared helper keeps this identical to the booking lifecycle

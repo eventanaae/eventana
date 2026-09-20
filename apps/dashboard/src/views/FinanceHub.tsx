@@ -651,9 +651,11 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   async function approve(r: any) {
     const category = cat[r.id] ?? '';
     if (!category) { setErr('Please choose an account for each transaction before approving.'); return; }
+    const v = (vendor[r.id] ?? r.merchant ?? '').trim();
+    if (!v) { setErr('Please enter a vendor before approving — vendor is required on every expense.'); return; }
     setBusy(r.id); setErr(null);
     try {
-      await api.bankTxApprove(r.id, { category, vendor: (vendor[r.id] ?? r.merchant ?? '') || null });
+      await api.bankTxApprove(r.id, { category, vendor: v });
       setRows((rs) => rs?.filter((x) => x.id !== r.id) ?? rs);
       onApproved();
     } catch (e: any) { setErr(e?.message || 'Could not approve — please try again.'); } finally { setBusy(null); }

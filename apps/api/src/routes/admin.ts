@@ -2017,6 +2017,10 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/expenses', async (request) => {
     const q = request.query as { month?: string; search?: string };
     const search = (q.search ?? '').trim();
+    // Salaries are sensitive — only the owner sees that account anywhere
+    // (matches /api/admin/expense-accounts). Case-insensitive so a 'salaries'
+    // variant can't slip through.
+    const salFilter = (request as any).staff?.role !== 'owner' ? ` AND lower(btrim(category)) <> 'salaries'` : '';
 
     // The "Type of expense" list = ONLY the account names actually used on an
     // expense (the real QuickBooks accounts), most-used first so the owner's
@@ -2025,7 +2029,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const catRows = await pool.query(
       `SELECT btrim(category) AS category, COUNT(*) AS n
          FROM expenses
-        WHERE category IS NOT NULL AND btrim(category) <> ''
+        WHERE category IS NOT NULL AND btrim(category) <> ''${salFilter}
         GROUP BY btrim(category)
         ORDER BY n DESC, lower(btrim(category)) ASC`,
     );
@@ -2045,8 +2049,8 @@ export async function adminRoutes(app: FastifyInstance) {
       const { rows } = await pool.query(
         `SELECT e.*, ev.id AS event_ref
            FROM expenses e LEFT JOIN events ev ON ev.id = e.event_id
-          WHERE e.vendor ILIKE $1 OR e.category ILIKE $1 OR e.description ILIKE $1
-             OR ($2::bigint IS NOT NULL AND e.amount_fils = $2)
+          WHERE (e.vendor ILIKE $1 OR e.category ILIKE $1 OR e.description ILIKE $1
+             OR ($2::bigint IS NOT NULL AND e.amount_fils = $2))${salFilter.replace(/category/g, 'e.category')}
           ORDER BY e.spent_on DESC, e.id DESC
           LIMIT 300`,
         [like, amountFils],
@@ -2069,7 +2073,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const { rows } = await pool.query(
       `SELECT e.*, ev.id AS event_ref
          FROM expenses e LEFT JOIN events ev ON ev.id = e.event_id
-        WHERE e.spent_on >= $1 AND e.spent_on < $2
+        WHERE e.spent_on >= $1 AND e.spent_on < $2${salFilter.replace(/category/g, 'e.category')}
         ORDER BY e.spent_on DESC, e.id DESC`,
       [start, end.toISOString().slice(0, 10)],
     );
@@ -2137,6 +2141,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const account = String(q.account ?? '').trim();
     const vendor = String(q.vendor ?? '').trim();
     if (!account) return { rows: [] };
+    // Salaries are owner-only — don't let a non-owner drill into that account.
+    if ((req as any).staff?.role !== 'owner' && account.toLowerCase() === 'salaries') return { rows: [] };
     const blank = vendor === '' || vendor === '(no vendor)' || vendor === '(no supplier)';
     const yr = String(q.year ?? '').trim();
     const yearNum = /^\d{4}$/.test(yr) ? Number(yr) : null;
@@ -2187,12 +2193,17 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // Learned vendor → usual account map (most-common category per vendor), so the
   // expense form and bank inbox can auto-fill the account when a vendor is chosen.
-  app.get('/api/admin/vendor-accounts', async () => {
+  app.get('/api/admin/vendor-accounts', async (request) => {
+    // Owner/manager only, and non-owners never see the Salaries mapping (the
+    // vendor→account map would otherwise reveal who is paid a salary).
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return { map: {} };
+    const salFilter = role !== 'owner' ? ` AND lower(btrim(category)) <> 'salaries'` : '';
     const { rows } = await pool.query<{ vendor: string; category: string }>(
       `SELECT lower(btrim(vendor)) AS vendor,
               mode() WITHIN GROUP (ORDER BY category) AS category
          FROM expenses
-        WHERE COALESCE(btrim(vendor),'') <> '' AND COALESCE(btrim(category),'') <> ''
+        WHERE COALESCE(btrim(vendor),'') <> '' AND COALESCE(btrim(category),'') <> ''${salFilter}
         GROUP BY 1`,
     );
     const map: Record<string, string> = {};
