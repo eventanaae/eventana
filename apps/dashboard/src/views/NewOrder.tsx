@@ -195,17 +195,21 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
             const on = qty > 0;
             const per = s.pricing?.kind === 'per_piece' || s.pricing?.kind === 'per_child';
             return (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderBottom: `1px solid ${C.lineSoft}` }}>
-                <input type="checkbox" checked={on} onChange={(e) => setServices((m) => ({ ...m, [s.id]: e.target.checked ? (s.pricing?.minQuantity ?? s.pricing?.minChildren ?? 1) : 0 }))} />
+              <div
+                key={s.id}
+                onClick={() => setServices((m) => ({ ...m, [s.id]: on ? 0 : (s.pricing?.minQuantity ?? s.pricing?.minChildren ?? 1) }))}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer', background: on ? C.pinkSoft : undefined }}
+              >
+                <input type="checkbox" checked={on} readOnly style={{ pointerEvents: 'none', width: 18, height: 18 }} />
                 <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600 }}>
                   {s.name}
                   {s.active === false && <span style={{ marginInlineStart: 6, fontSize: 9.5, fontWeight: 800, color: C.muted, background: C.lineSoft, padding: '2px 6px', borderRadius: 5 }}>OFF</span>}
                 </span>
                 {on && per && (
-                  <input value={qty} inputMode="numeric" onChange={(e) => setServices((m) => ({ ...m, [s.id]: Number(e.target.value.replace(/[^\d]/g, '')) || 0 }))} style={{ ...input, width: 64, marginBottom: 0 }} />
+                  <input value={qty} inputMode="numeric" onClick={(e) => e.stopPropagation()} onChange={(e) => setServices((m) => ({ ...m, [s.id]: Number(e.target.value.replace(/[^\d]/g, '')) || 0 }))} style={{ ...input, width: 64, marginBottom: 0 }} />
                 )}
                 {on && s.priceFils === 0 && (
-                  <input value={priceOverride[s.id] ?? ''} inputMode="decimal" placeholder="Price AED" onChange={(e) => setPriceOverride((m) => ({ ...m, [s.id]: e.target.value }))} style={{ ...input, width: 96, marginBottom: 0 }} />
+                  <input value={priceOverride[s.id] ?? ''} inputMode="decimal" placeholder="Price AED" onClick={(e) => e.stopPropagation()} onChange={(e) => setPriceOverride((m) => ({ ...m, [s.id]: e.target.value }))} style={{ ...input, width: 96, marginBottom: 0 }} />
                 )}
                 <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>{s.priceFils === 0 ? 'set price' : `AED ${(s.priceFils / 100).toLocaleString()}`}</span>
               </div>
