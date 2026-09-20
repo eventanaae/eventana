@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
@@ -8,7 +8,6 @@ const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> 
   sent: 'ok', approved: 'ok', scheduled: 'info', sending: 'info',
   pending_approval: 'warn', rejected: 'error', failed: 'error', draft: 'neutral',
 };
-
 const OCCASION_TONE: Record<string, { bg: string; fg: string; label: string }> = {
   commercial: { bg: '#fdeef6', fg: '#c02f80', label: 'Offer' },
   national: { bg: '#eef4ff', fg: '#2f5fc0', label: 'National' },
@@ -23,13 +22,10 @@ export function Marketing() {
   const [cal, setCal] = useState<any[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [flow, setFlow] = useState(false);
+  const [companies, setCompanies] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
-  const [occ, setOcc] = useState<any | null>(null);        // occasion pop-up
-  const [wizard, setWizard] = useState(false);             // new-campaign wizard
-  const [occPicker, setOccPicker] = useState(false);       // pick an occasion pop-up
-  const [companiesOpen, setCompaniesOpen] = useState(false);
-  const [campaignsOpen, setCampaignsOpen] = useState(false);
 
   const load = () => {
     api.marketing().then(setData).catch(() => setData(null));
@@ -55,33 +51,7 @@ export function Marketing() {
   };
 
   if (!data) return <Spinner />;
-
-  // Audience options: our customers + the corporate directory.
-  const corpLabels: Record<string, string> = data.corporateLabels ?? {};
-  const corpBy: Record<string, { total: number; emailable: number }> = data.corporate?.byCategory ?? {};
-  const audienceGroups = [
-    {
-      group: '👨‍👩‍👧 Our customers',
-      options: [
-        { id: 'all', label: 'All customers', n: data.audiences.all },
-        { id: 'past_customers', label: 'Past customers', n: data.audiences.past_customers },
-        { id: 'no_recent_booking', label: 'Lapsed (90d)', n: data.audiences.no_recent_booking },
-      ],
-    },
-    {
-      group: '🏢 Companies (B2B)',
-      options: [
-        { id: 'corp:all', label: 'All companies', n: data.corporate?.emailable ?? 0 },
-        ...Object.keys(corpLabels).map((c) => ({ id: `corp:${c}`, label: corpLabels[c], n: corpBy[c]?.emailable ?? 0 })),
-      ],
-    },
-  ];
-  const audienceLabel = (a: string): string => {
-    for (const g of audienceGroups) for (const o of g.options) if (o.id === a) return o.label;
-    return String(a).replace(/_/g, ' ');
-  };
   const findFull = (id: string) => data.campaigns.find((x: any) => String(x.id) === String(id));
-  const refreshOcc = (slug: string, updated: any[]) => setOcc((updated ?? []).find((o) => o.slug === slug) ?? null);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -91,38 +61,37 @@ export function Marketing() {
         </div>
       )}
 
-      {/* Just what matters: how many we can email. */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Tile label="Customer emails" value={data.audiences.all} />
         <Tile label="Company emails" value={data.corporate?.emailable ?? 0} />
       </div>
 
       <Panel title="Marketing">
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
-          Everything opens step by step. Pick what you want to do 🌸
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
+          Send a new campaign or review one that’s already prepared — I’ll walk you through it step by step. 🌸
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <HubButton emoji="➕" label="New campaign" sub="Write & send" onClick={() => { setMsg(null); setWizard(true); }} primary />
-          <HubButton emoji="📅" label="Occasions" sub="Review ready drafts" onClick={() => setOccPicker(true)} />
-          <HubButton emoji="🏢" label="Companies" sub={`${data.corporate?.total ?? 0} businesses`} onClick={() => setCompaniesOpen(true)} />
-          <HubButton emoji="📋" label="All campaigns" sub={`${data.campaigns.length} total`} onClick={() => setCampaignsOpen(true)} />
+        <Button onClick={() => { setMsg(null); setFlow(true); }}>✉️ Send a campaign</Button>
+        <div style={{ marginTop: 12 }}>
+          <button onClick={() => setCompanies(true)} style={linkBtn}>🏢 Companies directory ({data.corporate?.total ?? 0})</button>
         </div>
         {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginTop: 12 }}>{msg}</div>}
       </Panel>
 
-      {occPicker && (
-        <OccasionPicker cal={cal} onClose={() => setOccPicker(false)} onPick={(o) => { setOccPicker(false); setOcc(o); }} />
+      {flow && (
+        <MarketingFlow
+          data={data} cal={cal} busy={busy}
+          onClose={() => setFlow(false)}
+          onPreview={openPreview}
+          onEdit={(id: string) => setEditing(findFull(id))}
+          onAct={act}
+          onReload={load}
+          setMsg={setMsg}
+        />
       )}
 
-      {companiesOpen && (
-        <Modal title="Companies (B2B)" onClose={() => setCompaniesOpen(false)}>
-          <CorporatePanel labels={corpLabels} counts={data.corporate} onChanged={load} setMsg={setMsg} bare />
-        </Modal>
-      )}
-
-      {campaignsOpen && (
-        <Modal title="All campaigns" onClose={() => setCampaignsOpen(false)}>
-          <CampaignList data={data} busy={busy} audienceLabel={audienceLabel} onPreview={openPreview} onEdit={setEditing} onAct={act} />
+      {companies && (
+        <Modal title="Companies (B2B)" onClose={() => setCompanies(false)}>
+          <CorporatePanel labels={data.corporateLabels ?? {}} counts={data.corporate} onChanged={load} setMsg={setMsg} bare />
         </Modal>
       )}
 
@@ -133,352 +102,264 @@ export function Marketing() {
       )}
 
       {editing && (
-        <EditModal campaign={editing} groups={audienceGroups} busy={busy}
+        <EditModal campaign={editing} busy={busy}
           onClose={() => setEditing(null)} onSave={saveEdit} onPreview={() => openPreview(Number(editing.id))} />
       )}
-
-      {occ && (
-        <OccasionModal
-          occ={occ} busy={busy} emailConfigured={data.emailConfigured} findFull={findFull}
-          onClose={() => setOcc(null)}
-          onPreview={openPreview}
-          onEdit={(id) => setEditing(findFull(id))}
-          onAct={act}
-          onReloaded={(slug) => { api.marketingCalendar().then((r) => refreshOcc(slug, r.occasions ?? [])); load(); }}
-        />
-      )}
-
-      {wizard && (
-        <NewCampaignWizard groups={audienceGroups} busy={busy} emailConfigured={data.emailConfigured}
-          onClose={() => setWizard(false)} onPreview={openPreview} onReload={load} setMsg={setMsg} />
-      )}
     </div>
   );
 }
 
-// ── Home hub button ─────────────────────────────────────────────────────────
-function HubButton({ emoji, label, sub, onClick, primary }: { emoji: string; label: string; sub: string; onClick: () => void; primary?: boolean }) {
-  return (
-    <button onClick={onClick} style={{
-      cursor: 'pointer', textAlign: 'left', borderRadius: 16, padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 4,
-      border: primary ? 'none' : `1px solid ${C.line}`,
-      background: primary ? C.pink : '#fff', color: primary ? '#fff' : C.ink,
-    }}>
-      <span style={{ fontSize: 24 }}>{emoji}</span>
-      <span style={{ fontWeight: 800, fontSize: 14 }}>{label}</span>
-      <span style={{ fontSize: 11.5, fontWeight: 600, color: primary ? 'rgba(255,255,255,.9)' : C.muted }}>{sub}</span>
-    </button>
-  );
-}
-
-// ── Pick an occasion (pop-up, month-filtered) ────────────────────────────────
-function OccasionPicker({ cal, onClose, onPick }: { cal: any[] | null; onClose: () => void; onPick: (o: any) => void }) {
-  const [month, setMonth] = useState('all');
-  const uniqueMonths = Array.from(new Set((cal ?? []).filter((o) => o.dateISO).map((o) => o.dateISO.slice(0, 7)))).sort();
-  const monthLabel = (m: string) => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-  return (
-    <Modal title="Pick an occasion" onClose={onClose}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 12 }}>
-        Tap one to review & approve its ready drafts. Islamic dates are estimates — confirm before approving.
-      </div>
-      {uniqueMonths.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-          <button onClick={() => setMonth('all')} style={{ ...chip, ...(month === 'all' ? chipActive : {}) }}>All</button>
-          {uniqueMonths.map((m) => (
-            <button key={m} onClick={() => setMonth(m)} style={{ ...chip, ...(month === m ? chipActive : {}) }}>{monthLabel(m)}</button>
-          ))}
-        </div>
-      )}
-      {!cal ? <Spinner /> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {cal.filter((o) => month === 'all' || (o.dateISO && o.dateISO.slice(0, 7) === month)).map((o) => {
-            const tone = OCCASION_TONE[o.type] ?? OCCASION_TONE.seasonal;
-            const dateLabel = o.dateISO ? new Date(o.dateISO + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—';
-            const away = o.daysAway;
-            const drafts = [o.consumer, o.corporate].filter(Boolean).length;
-            return (
-              <button key={o.slug} onClick={() => onPick(o)} style={{ textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
-                <div style={{ flex: 1, minWidth: 120 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{o.name}</div>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>
-                    {dateLabel}{o.needsDateConfirm ? ' · confirm date' : drafts ? ` · ${drafts} draft${drafts > 1 ? 's' : ''} ready` : ' · tap to prepare'}
-                  </div>
-                </div>
-                {away != null && away >= 0 && <span style={countdownStyle(away)}>{away === 0 ? '🎉' : `⏳ ${away}d`}</span>}
-                <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </Modal>
-  );
-}
-
-// ── Campaigns list (inside a pop-up) ─────────────────────────────────────────
-function CampaignList({ data, busy, audienceLabel, onPreview, onEdit, onAct }: {
-  data: any; busy?: boolean; audienceLabel: (a: string) => string;
-  onPreview: (id: number) => void; onEdit: (c: any) => void; onAct: (fn: () => Promise<any>, ok: string) => Promise<void>;
-}) {
-  if (!data.campaigns.length) return <Empty>No campaigns yet.</Empty>;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {data.campaigns.map((c: any) => (
-        <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
-            {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
-            <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
-          </div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 0' }}>
-            {audienceLabel(c.audience)}
-            {c.status === 'sent' && ` · ${c.sent_count}/${c.recipient_count} sent`}
-            {c.scheduled_for && c.status !== 'sent' ? ` · ⏰ ${new Date(c.scheduled_for).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            <button onClick={() => onPreview(Number(c.id))} style={miniBtn}>👁 Preview</button>
-            {(c.status === 'draft' || c.status === 'rejected' || c.status === 'pending_approval' || c.status === 'scheduled') && (
-              <button onClick={() => onEdit(c)} style={miniBtn}>✏️ Edit</button>
-            )}
-            {(c.status === 'draft' || c.status === 'rejected') && (
-              <button onClick={() => onAct(() => api.submitCampaign(c.id), 'Submitted for approval.')} disabled={busy} style={miniBtn}>Submit</button>
-            )}
-            {c.status === 'pending_approval' && (
-              <>
-                <button onClick={() => onAct(() => api.approveCampaign(c.id), 'Approved.')} disabled={busy || !data.emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve</button>
-                <button onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) onAct(() => api.rejectCampaign(c.id, r), 'Rejected.'); }} disabled={busy} style={{ ...miniBtn, color: C.red }}>Reject</button>
-              </>
-            )}
-            {(c.status === 'draft' || c.status === 'rejected' || c.status === 'scheduled' || c.status === 'failed') && (
-              <button onClick={() => onAct(() => api.deleteCampaign(c.id), 'Deleted.')} disabled={busy} style={{ ...miniBtn, color: C.red }}>Delete</button>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Occasion pop-up: both versions + services + actions (incl. Regenerate) ────
-function OccasionModal({ occ, busy, emailConfigured, findFull, onClose, onPreview, onEdit, onAct, onReloaded }: {
-  occ: any; busy?: boolean; emailConfigured: boolean; findFull: (id: string) => any;
+// ── The one marketing flow: step by step, one question per screen ────────────
+function MarketingFlow({ data, cal, busy, onClose, onPreview, onEdit, onAct, onReload, setMsg }: {
+  data: any; cal: any[] | null; busy?: boolean;
   onClose: () => void; onPreview: (id: number) => void; onEdit: (id: string) => void;
-  onAct: (fn: () => Promise<any>, ok: string) => Promise<void>; onReloaded: (slug: string) => void;
+  onAct: (fn: () => Promise<any>, ok: string) => Promise<void>; onReload: () => void; setMsg: (m: string) => void;
 }) {
-  const [svc, setSvc] = useState(false);
-  const dateLabel = occ.dateISO ? new Date(occ.dateISO + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
-
-  const version = (label: string, camp: any, canHave: boolean) => {
-    if (!canHave) return null;
-    return (
-      <div style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 800, fontSize: 13, flex: 1 }}>{label}</span>
-          {camp ? <Badge tone={STATUS_TONE[camp.status] ?? 'neutral'}>{String(camp.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11.5, color: C.muted, fontWeight: 700 }}>not prepared</span>}
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          {!camp ? (
-            <button onClick={() => onAct(() => api.prepareOccasion(occ.slug), 'Draft prepared.').then(() => onReloaded(occ.slug))} disabled={busy} style={{ ...miniBtn, borderColor: C.pink, color: C.pinkDeep }}>✨ Generate draft</button>
-          ) : (
-            <>
-              <button onClick={() => onPreview(Number(camp.id))} style={miniBtn}>👁 Preview</button>
-              {(camp.status === 'pending_approval' || camp.status === 'draft') && (
-                <>
-                  <button onClick={() => onEdit(camp.id)} style={miniBtn}>✏️ Edit</button>
-                  <button onClick={() => onAct(() => api.regenerateCampaign(Number(camp.id)), 'Regenerated from the template.').then(() => onReloaded(occ.slug))} disabled={busy} style={miniBtn}>🔄 Regenerate</button>
-                  <button onClick={() => onAct(() => api.approveCampaign(Number(camp.id)), 'Approved & scheduled.').then(() => onReloaded(occ.slug))} disabled={busy || !emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve</button>
-                  <button onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) onAct(() => api.rejectCampaign(Number(camp.id), r), 'Rejected.').then(() => onReloaded(occ.slug)); }} disabled={busy} style={{ ...miniBtn, color: C.red }}>Reject</button>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <Modal title={occ.name} onClose={onClose}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted }}>
-          {dateLabel}{occ.daysAway != null && occ.daysAway >= 0 ? ` · in ${occ.daysAway} day${occ.daysAway === 1 ? '' : 's'}` : ''}
-        </div>
-        {occ.needsDateConfirm && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.red }}>Please confirm this year’s Hijri date before approving.</div>}
-
-        {!occ.greetingOnly && (
-          <button onClick={() => setSvc(true)} style={{ ...miniBtn, alignSelf: 'flex-start' }}>🧩 Edit suggested services{occ.servicesCustom ? ' ✓' : ''}</button>
-        )}
-
-        {occ.greetingOnly
-          ? version('Greeting to customers', occ.consumer, true)
-          : (
-            <>
-              {version('👨‍👩‍👧 Customers version', occ.consumer, !occ.corporateOnly)}
-              {version('🏢 Companies version', occ.corporate, true)}
-            </>
-          )}
-      </div>
-
-      {svc && (
-        <ServicesModal occasion={occ} busy={busy}
-          onClose={() => setSvc(false)}
-          onSave={async (payload) => { await onAct(() => api.saveOccasionSettings(occ.slug, payload), 'Saved — emails updated.'); setSvc(false); onReloaded(occ.slug); }} />
-      )}
-    </Modal>
-  );
-}
-
-// ── New-campaign wizard (step by step) ───────────────────────────────────────
-function NewCampaignWizard({ groups, busy, emailConfigured, onClose, onPreview, onReload, setMsg }: {
-  groups: any[]; busy?: boolean; emailConfigured: boolean;
-  onClose: () => void; onPreview: (id: number) => void; onReload: () => void; setMsg: (m: string) => void;
-}) {
+  const [path, setPath] = useState<'menu' | 'new' | 'existing'>('menu');
   const [step, setStep] = useState(1);
-  const [audience, setAudience] = useState('all');
+  // shared
+  const [aud, setAud] = useState<'customer' | 'company'>('customer');
+  // new
   const [subject, setSubject] = useState('');
   const [services, setServices] = useState('');
-  const [message, setMessage] = useState('');
   const [offer, setOffer] = useState('');
   const [working, setWorking] = useState(false);
   const [created, setCreated] = useState<any | null>(null);
-  const isCorp = audience.startsWith('corp:');
+  // existing
+  const [occ, setOcc] = useState<any | null>(null);
+  const [svc, setSvc] = useState(false);
 
+  const back = () => {
+    if (path === 'menu') return onClose();
+    if (step > 1) return setStep(step - 1);
+    setPath('menu'); setStep(1); setCreated(null); setOcc(null);
+  };
+
+  const title = path === 'menu' ? 'Send a campaign'
+    : path === 'new' ? 'New campaign'
+    : 'Existing campaign';
+
+  // ---- build a manual email body from the wizard fields ----
   const buildBody = (): string => {
-    const greet = `<p>Hi {{name}},</p>`;
-    const msg = message.trim() ? textToHtml(message) : '';
+    const isCorp = aud === 'company';
+    const greet = isCorp ? `<p>Hello <b>{{name}}</b>,</p>` : `<p>Hi {{name}},</p>`;
+    const lead = isCorp
+      ? `<p>We’d love to help you create a memorable event — Eventana can handle every detail, tailored to your organisation.</p>`
+      : '';
     const offerHtml = (!isCorp && offer.trim())
-      ? `<div style="background:#FDEFF6;border:2px dashed #F3B6D2;border-radius:16px;padding:14px 16px;text-align:center;margin:4px 0 14px"><div style="font-size:12px;font-weight:800;color:#c98bb0;letter-spacing:1px">SPECIAL OFFER</div><div style="font-size:17px;font-weight:800;color:#E94F9C;margin-top:2px">${offer.trim()}</div></div>`
+      ? `<div style="background:#FDEFF6;border:2px dashed #F3B6D2;border-radius:16px;padding:14px 16px;text-align:center;margin:8px 0 14px"><div style="font-size:12px;font-weight:800;color:#c98bb0;letter-spacing:1px">SPECIAL OFFER</div><div style="font-size:17px;font-weight:800;color:#E94F9C;margin-top:2px">${offer.trim()}</div></div>`
       : '';
     const lines = services.split('\n').map((s) => s.trim()).filter(Boolean);
-    const svc = lines.length ? `<p style="font-weight:700;margin:16px 0 8px">What we can bring:</p><ul style="margin:0;padding-left:20px">${lines.map((l) => `<li style="margin:0 0 6px">${l}</li>`).join('')}</ul>` : '';
-    const sig = `<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
-    return `${greet}${msg}${offerHtml}${svc}${sig}`;
+    const list = lines.length ? `<p style="font-weight:700;margin:16px 0 8px">What we can bring:</p><ul style="margin:0;padding-left:20px">${lines.map((l) => `<li style="margin:0 0 6px">${l}</li>`).join('')}</ul>` : '';
+    const why = isCorp ? `<p style="font-weight:700;margin:16px 0 8px">Why Eventana:</p><ul style="margin:0;padding-left:20px"><li style="margin:0 0 6px">🇦🇪 We know UAE occasions & local culture better than anyone.</li><li style="margin:0 0 6px">🎨 Tailored to your brand, theme and budget.</li><li style="margin:0 0 6px">✅ Fully managed — setup & teardown handled.</li></ul>` : '';
+    const sig = isCorp ? `<p style="margin:16px 0 0">Warm regards,<br/>The Eventana Team</p>` : `<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
+    return `${greet}${lead}${offerHtml}${list}${why}${sig}`;
   };
 
   const generate = async () => {
     setWorking(true);
     try {
-      const c = await api.createCampaign({ subject: subject.trim(), bodyHtml: buildBody(), audience });
-      setCreated(c);
-      onReload();
-      setStep(5);
+      const c = await api.createCampaign({ subject: subject.trim(), bodyHtml: buildBody(), audience: aud === 'company' ? 'corp:all' : 'all' });
+      setCreated(c); onReload(); setStep(4);
     } catch (e: any) { setMsg(e?.message ?? 'Could not create the campaign.'); }
     finally { setWorking(false); }
   };
 
-  const canNext = (step === 1 && audience) || (step === 2 && subject.trim().length > 1) || step === 3 || step === 4;
-  const stepTitles = ['Who is it for?', 'Subject line', 'Services & message', 'Review', 'Done 🎉'];
+  // occasions that have a prepared draft for the chosen audience
+  const existingList = (cal ?? []).filter((o) => (aud === 'company' ? o.corporate : o.consumer));
+  const chosenCamp = occ ? (aud === 'company' ? occ.corporate : occ.consumer) : null;
 
   return (
-    <Modal title={`New campaign · ${stepTitles[step - 1]}`} onClose={onClose}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* progress dots */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <div key={n} style={{ flex: 1, height: 5, borderRadius: 4, background: n <= step ? C.pink : C.line }} />
-          ))}
+    <Modal title={title} onClose={onClose} onBack={path === 'menu' ? undefined : back}>
+      {/* MENU */}
+      {path === 'menu' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>What would you like to do?</div>
+          <Choice emoji="🆕" label="A new campaign" sub="Write and send a fresh one" onClick={() => { setPath('new'); setStep(1); }} />
+          <Choice emoji="📅" label="An existing occasion" sub="Review a draft that’s ready" onClick={() => { setPath('existing'); setStep(1); }} />
         </div>
+      )}
 
-        {step === 1 && (
-          <Field label="Send this campaign to">
-            <AudienceSelect groups={groups} value={audience} onChange={setAudience} />
-            <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, marginTop: 6 }}>
-              {isCorp ? 'Companies get a services + “why us” email.' : 'Customers get a warm email — you can add a special offer.'}
-            </div>
-          </Field>
-        )}
-        {step === 2 && (
-          <Field label="Subject line (what they see first)">
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. A little treat for your next celebration 🎉" style={input} autoFocus />
-          </Field>
-        )}
-        {step === 3 && (
-          <>
-            <Field label="Services to feature (one per line, optional)">
-              <textarea value={services} onChange={(e) => setServices(e.target.value)} rows={5} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }}
+      {/* NEW */}
+      {path === 'new' && (
+        <Wiz step={step} total={4}
+          onBack={back}
+          onNext={step === 3 ? undefined : () => setStep(step + 1)}
+          nextLabel="Next"
+          canNext={(step === 1) || (step === 2 && subject.trim().length > 1)}
+          footer={step === 3 ? <Button onClick={generate} disabled={working || !subject.trim()}>{working ? 'Generating…' : '✨ Generate'}</Button> : undefined}
+          hideNav={step === 4}
+        >
+          {step === 1 && (
+            <Q title="Who is this campaign for?">
+              <Choice emoji="👨‍👩‍👧" label="Our customers" sub={`${data.audiences.all} emails`} active={aud === 'customer'} onClick={() => { setAud('customer'); setStep(2); }} />
+              <Choice emoji="🏢" label="Companies" sub={`${data.corporate?.emailable ?? 0} emails`} active={aud === 'company'} onClick={() => { setAud('company'); setStep(2); }} />
+            </Q>
+          )}
+          {step === 2 && (
+            <Q title="What’s the subject line?">
+              <input value={subject} onChange={(e) => setSubject(e.target.value)} autoFocus placeholder={aud === 'company' ? 'e.g. Plan a memorable event with Eventana' : 'e.g. A treat for your next celebration 🎉'} style={input} />
+            </Q>
+          )}
+          {step === 3 && (
+            <Q title="Which services to include?">
+              <textarea value={services} onChange={(e) => setServices(e.target.value)} rows={6} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }}
                 placeholder={'📸 Photo booth\n🖼️ Main backdrop & stand\n🎁 Giveaways\n🎨 Flower arranging / pottery painting'} />
-            </Field>
-            <Field label="Message (optional)">
-              <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={4} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }} placeholder="A warm line or two…" />
-            </Field>
-            {!isCorp && (
-              <Field label="Special offer for customers (optional)">
-                <input value={offer} onChange={(e) => setOffer(e.target.value)} placeholder="e.g. 10% off this week 🎉" style={input} />
-              </Field>
-            )}
-          </>
-        )}
-        {step === 4 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-            <Row k="To" v={groups.flatMap((g: any) => g.options).find((o: any) => o.id === audience)?.label ?? audience} />
-            <Row k="Subject" v={subject} />
-            <Row k="Services" v={services.trim() ? `${services.split('\n').filter((s) => s.trim()).length} listed` : '—'} />
-            {!isCorp && <Row k="Offer" v={offer.trim() || '—'} />}
-            <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, marginTop: 4 }}>The logo, buttons and WhatsApp contact are added automatically.</div>
-          </div>
-        )}
-        {step === 5 && created && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.green }}>✅ Draft created — review it before it goes out.</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button onClick={() => onPreview(Number(created.id))} style={miniBtn}>👁 Preview</button>
-              <button onClick={async () => { await api.submitCampaign(created.id).catch(() => {}); onReload(); setMsg('Submitted for approval.'); onClose(); }} style={miniBtn}>Submit for approval</button>
-              <button onClick={async () => { try { await api.approveCampaign(created.id); onReload(); setMsg('Approved & sending.'); onClose(); } catch (e: any) { setMsg(e?.message ?? 'Approve failed.'); } }} disabled={!emailConfigured} style={{ ...miniBtn, borderColor: C.green, color: C.green }}>✓ Approve &amp; send</button>
-            </div>
-          </div>
-        )}
+              {aud === 'customer' && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, marginBottom: 6 }}>Special offer (optional)</div>
+                  <input value={offer} onChange={(e) => setOffer(e.target.value)} placeholder="e.g. 10% off this week 🎉" style={input} />
+                </div>
+              )}
+              <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, marginTop: 8 }}>The logo, buttons and WhatsApp contact are added automatically.</div>
+            </Q>
+          )}
+          {step === 4 && created && (
+            <Q title="Done 🎉 — review before it goes out">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Action emoji="👁" label="Preview the email" onClick={() => onPreview(Number(created.id))} />
+                <Action emoji="✏️" label="Edit the text" onClick={() => onEdit(String(created.id))} />
+                <Action emoji="✅" label="Approve & send" tone="green" disabled={!data.emailConfigured}
+                  onClick={async () => { try { await api.approveCampaign(created.id); onReload(); setMsg('Approved & sending.'); onClose(); } catch (e: any) { setMsg(e?.message ?? 'Approve failed.'); } }} />
+                <Action emoji="📨" label="Submit for approval" onClick={async () => { await api.submitCampaign(created.id).catch(() => {}); onReload(); setMsg('Submitted for approval.'); onClose(); }} />
+              </div>
+            </Q>
+          )}
+        </Wiz>
+      )}
 
-        {/* nav */}
-        {step < 5 && (
-          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-            {step > 1 && <Button tone="ghost" onClick={() => setStep(step - 1)}>Back</Button>}
-            <div style={{ flex: 1 }} />
-            {step < 4 && <Button onClick={() => setStep(step + 1)} disabled={!canNext}>Next</Button>}
-            {step === 4 && <Button onClick={generate} disabled={working || !subject.trim()}>{working ? 'Generating…' : '✨ Generate'}</Button>}
-          </div>
-        )}
-      </div>
+      {/* EXISTING */}
+      {path === 'existing' && (
+        <Wiz step={step} total={3} onBack={back} hideNav>
+          {step === 1 && (
+            <Q title="Which audience?">
+              <Choice emoji="👨‍👩‍👧" label="Customers" sub="Our customer list" active={aud === 'customer'} onClick={() => { setAud('customer'); setStep(2); }} />
+              <Choice emoji="🏢" label="Companies" sub="The B2B directory" active={aud === 'company'} onClick={() => { setAud('company'); setStep(2); }} />
+            </Q>
+          )}
+          {step === 2 && (
+            <Q title="Choose a campaign">
+              {!cal ? <Spinner /> : existingList.length === 0 ? <Empty>No prepared {aud === 'company' ? 'company' : 'customer'} drafts yet.</Empty> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {existingList.map((o) => {
+                    const c = aud === 'company' ? o.corporate : o.consumer;
+                    const tone = OCCASION_TONE[o.type] ?? OCCASION_TONE.seasonal;
+                    return (
+                      <button key={o.slug} onClick={() => { setOcc(o); setStep(3); }} style={{ textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{tone.label}</span>
+                        <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{o.name}</span>
+                        {c && <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>}
+                        <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Q>
+          )}
+          {step === 3 && occ && (
+            <Q title={occ.name}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {chosenCamp ? (
+                  <>
+                    <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>
+                      Status: <Badge tone={STATUS_TONE[chosenCamp.status] ?? 'neutral'}>{String(chosenCamp.status).replace(/_/g, ' ')}</Badge>
+                    </div>
+                    <Action emoji="👁" label="Preview the email" onClick={() => onPreview(Number(chosenCamp.id))} />
+                    {!occ.greetingOnly && <Action emoji="🧩" label={`Edit suggested services${occ.servicesCustom ? ' ✓' : ''}`} onClick={() => setSvc(true)} />}
+                    {(chosenCamp.status === 'pending_approval' || chosenCamp.status === 'draft') && (
+                      <>
+                        <Action emoji="✏️" label="Edit the text" onClick={() => onEdit(String(chosenCamp.id))} />
+                        <Action emoji="🔄" label="Regenerate (I don’t like it)" onClick={() => onAct(() => api.regenerateCampaign(Number(chosenCamp.id)), 'Regenerated — preview it again.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
+                        <Action emoji="✅" label="Approve & schedule" tone="green" disabled={!data.emailConfigured}
+                          onClick={() => onAct(() => api.approveCampaign(Number(chosenCamp.id)), 'Approved & scheduled.').then(onClose)} />
+                        <Action emoji="🚫" label="Reject" tone="red"
+                          onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) onAct(() => api.rejectCampaign(Number(chosenCamp.id), r), 'Rejected.').then(onClose); }} />
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <Action emoji="✨" label="Prepare this draft" onClick={() => onAct(() => api.prepareOccasion(occ.slug), 'Draft prepared.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
+                )}
+              </div>
+              {svc && (
+                <ServicesModal occasion={occ} busy={busy}
+                  onClose={() => setSvc(false)}
+                  onSave={async (p) => { await onAct(() => api.saveOccasionSettings(occ.slug, p), 'Saved — emails updated.'); setSvc(false); api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)); }} />
+              )}
+            </Q>
+          )}
+        </Wiz>
+      )}
     </Modal>
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 8 }}>
-      <span style={{ fontWeight: 800, color: C.muted, minWidth: 70 }}>{k}</span>
-      <span style={{ flex: 1, fontWeight: 600 }}>{v}</span>
-    </div>
-  );
-}
-
-// ── Audience selector (customers + companies), grouped ──────────────────────
-function AudienceSelect({ groups, value, onChange }: {
-  groups: Array<{ group: string; options: Array<{ id: string; label: string; n: number }> }>;
-  value: string; onChange: (v: string) => void;
+// ── Wizard chrome: progress dots + Back/Next ────────────────────────────────
+function Wiz({ step, total, children, onBack, onNext, canNext, nextLabel, footer, hideNav }: {
+  step: number; total: number; children: ReactNode; onBack: () => void; onNext?: () => void;
+  canNext?: boolean; nextLabel?: string; footer?: ReactNode; hideNav?: boolean;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {groups.map((g) => (
-        <div key={g.group}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, margin: '2px 0 6px' }}>{g.group}</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {g.options.map((o) => (
-              <button key={o.id} onClick={() => onChange(o.id)} style={{ ...chip, ...(value === o.id ? chipActive : {}) }}>{o.label} · {o.n}</button>
-            ))}
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {Array.from({ length: total }).map((_, i) => (
+          <div key={i} style={{ flex: 1, height: 5, borderRadius: 4, background: i < step ? C.pink : C.line }} />
+        ))}
+      </div>
+      {children}
+      {!hideNav && (
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <Button tone="ghost" onClick={onBack}>Back</Button>
+          <div style={{ flex: 1 }} />
+          {footer ?? (onNext && <Button onClick={onNext} disabled={!canNext}>{nextLabel ?? 'Next'}</Button>)}
         </div>
-      ))}
+      )}
     </div>
   );
 }
 
-// ── Edit a draft: subject, audience, schedule, plain-text message ────────────
-function EditModal({ campaign, groups, onClose, onSave, onPreview, busy }: {
-  campaign: any; groups: any[]; onClose: () => void; onSave: (p: Record<string, unknown>) => void; onPreview: () => void; busy?: boolean;
+function Q({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ ...fredoka(17), color: C.ink }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function Choice({ emoji, label, sub, onClick, active }: { emoji: string; label: string; sub: string; onClick: () => void; active?: boolean }) {
+  return (
+    <button onClick={onClick} style={{
+      cursor: 'pointer', textAlign: 'left', borderRadius: 16, padding: '16px 16px', display: 'flex', alignItems: 'center', gap: 14,
+      border: active ? `2px solid ${C.pink}` : `1px solid ${C.line}`, background: active ? C.pinkSoft : '#fff', color: C.ink,
+    }}>
+      <span style={{ fontSize: 28 }}>{emoji}</span>
+      <span style={{ display: 'flex', flexDirection: 'column' }}>
+        <span style={{ fontWeight: 800, fontSize: 15 }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>{sub}</span>
+      </span>
+    </button>
+  );
+}
+
+function Action({ emoji, label, onClick, tone, disabled }: { emoji: string; label: string; onClick: () => void; tone?: 'green' | 'red'; disabled?: boolean }) {
+  const color = tone === 'green' ? C.green : tone === 'red' ? C.red : C.ink;
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1, textAlign: 'left', borderRadius: 12, padding: '13px 14px',
+      display: 'flex', alignItems: 'center', gap: 12, border: `1px solid ${C.line}`, background: '#fff', color, fontWeight: 700, fontSize: 14,
+    }}>
+      <span style={{ fontSize: 20 }}>{emoji}</span>{label}
+    </button>
+  );
+}
+
+// ── Edit a draft: subject, schedule, plain-text message ──────────────────────
+function EditModal({ campaign, onClose, onSave, onPreview, busy }: {
+  campaign: any; onClose: () => void; onSave: (p: Record<string, unknown>) => void; onPreview: () => void; busy?: boolean;
 }) {
   const [subject, setSubject] = useState(campaign.subject ?? '');
-  const [audience, setAudience] = useState(campaign.audience ?? 'all');
   const [bodyText, setBodyText] = useState(htmlToText(campaign.body_html ?? ''));
   const toLocal = (iso: string | null) => {
     if (!iso) return '';
@@ -488,10 +369,9 @@ function EditModal({ campaign, groups, onClose, onSave, onPreview, busy }: {
   const [schedule, setSchedule] = useState(toLocal(campaign.scheduled_for));
   return (
     <Modal title="Edit campaign" onClose={onClose} busy={busy} saveLabel="Save"
-      onSave={() => onSave({ subject: subject.trim(), audience, bodyHtml: textToHtml(bodyText), scheduledFor: schedule ? new Date(schedule).toISOString() : undefined })}>
+      onSave={() => onSave({ subject: subject.trim(), bodyHtml: textToHtml(bodyText), scheduledFor: schedule ? new Date(schedule).toISOString() : undefined })}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Field label="Subject"><input value={subject} onChange={(e) => setSubject(e.target.value)} style={input} /></Field>
-        <Field label="Who receives it"><AudienceSelect groups={groups} value={audience} onChange={setAudience} /></Field>
         <Field label="Send time"><input type="datetime-local" value={schedule} onChange={(e) => setSchedule(e.target.value)} style={input} /></Field>
         <Field label="Message">
           <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} rows={9} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }} />
@@ -514,17 +394,17 @@ function ServicesModal({ occasion, onClose, onSave, busy }: {
     <Modal title={`Services · ${occasion.name}`} onClose={onClose} busy={busy} saveLabel="Save" onSave={() => onSave({ services, intro, offer })}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, lineHeight: 1.5 }}>
-          The services this occasion’s email lists — <b>one per line</b>. Saved and reused every year, for both the customer and company version.
+          The services this occasion’s email lists — <b>one per line</b>. Saved and reused every year.
         </div>
         <Field label="Suggested services (one per line)">
-          <textarea value={services} onChange={(e) => setServices(e.target.value)} rows={8} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }}
-            placeholder={'📸 Photo booth\n🖼️ Main backdrop & stand\n🎁 Giveaways\n🎨 Flower arranging / pottery painting'} />
+          <textarea value={services} onChange={(e) => setServices(e.target.value)} rows={7} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }}
+            placeholder={'📸 Photo booth\n🖼️ Main backdrop & stand\n🎁 Giveaways'} />
         </Field>
         <Field label="Custom intro (optional)">
-          <textarea value={intro} onChange={(e) => setIntro(e.target.value)} rows={3} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }} placeholder="Leave empty to use the default warm intro." />
+          <textarea value={intro} onChange={(e) => setIntro(e.target.value)} rows={3} style={{ ...input, resize: 'vertical', lineHeight: 1.5 }} placeholder="Leave empty for the default." />
         </Field>
         <Field label="Customer offer (optional — customers only)">
-          <input value={offer} onChange={(e) => setOffer(e.target.value)} style={input} placeholder="e.g. 10% off bookings this week 🎉" />
+          <input value={offer} onChange={(e) => setOffer(e.target.value)} style={input} placeholder="e.g. 10% off this week 🎉" />
         </Field>
       </div>
     </Modal>
@@ -565,7 +445,6 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
         <button onClick={() => setImporting(true)} style={miniBtn}>⬆ Import list</button>
         <button onClick={() => setOpen((v) => !v)} style={miniBtn}>{open ? 'Hide list' : 'View list'}</button>
       </div>
-
       {open && (
         <div style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -594,7 +473,6 @@ function CorporatePanel({ labels, counts, onChanged, setMsg, bare }: {
           )}
         </div>
       )}
-
       {importing && (
         <Modal title="Import companies" onClose={() => setImporting(false)} busy={busy}
           onSave={async () => { await run(() => api.importCorporate(importText), 'Imported.'); setImportText(''); setImporting(false); }} saveLabel="Import">
@@ -618,18 +496,18 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Modal({ title, children, onClose, onSave, busy, saveLabel }: {
-  title: string; children: ReactNode; onClose: () => void; onSave?: () => void; busy?: boolean; saveLabel?: string;
+function Modal({ title, children, onClose, onSave, onBack, busy, saveLabel }: {
+  title: string; children: ReactNode; onClose: () => void; onSave?: () => void; onBack?: () => void; busy?: boolean; saveLabel?: string;
 }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '16px 12px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '92dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.28)' }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 18px 12px', flex: 'none', borderBottom: `1px solid ${C.line}` }}>
-          <button onClick={onClose} style={{ ...miniBtn, border: 'none', color: C.muted }}>Close</button>
+          <button onClick={onBack ?? onClose} style={{ ...miniBtn, border: 'none', color: C.muted }}>{onBack ? '‹ Back' : 'Close'}</button>
           <div style={{ ...fredoka(15), flex: 1, textAlign: 'center' }}>{title}</div>
           {onSave ? <button onClick={onSave} disabled={busy} style={{ ...miniBtn, border: 'none', color: C.pinkDeep, fontWeight: 800 }}>{busy ? '…' : (saveLabel ?? 'Save')}</button> : <span style={{ width: 48 }} />}
         </div>
-        <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '14px 18px 18px' }}>{children}</div>
+        <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 18px 18px' }}>{children}</div>
       </div>
     </div>
   );
@@ -642,14 +520,6 @@ function Tile({ label, value }: { label: string; value: number }) {
       <div style={{ ...fredoka(22), color: C.ink }}>{value}</div>
     </div>
   );
-}
-
-function countdownStyle(days: number): CSSProperties {
-  const base: CSSProperties = { fontSize: 12, fontWeight: 800, padding: '5px 11px', borderRadius: 20, whiteSpace: 'nowrap' };
-  if (days <= 3) return { ...base, background: '#fdeaea', color: '#c2453a' };
-  if (days <= 14) return { ...base, background: C.pinkSoft, color: C.pinkDeep };
-  if (days <= 30) return { ...base, background: '#fff7ec', color: '#a97b1e' };
-  return { ...base, background: '#f3eef1', color: C.muted };
 }
 
 function htmlToText(html: string): string {
@@ -676,3 +546,4 @@ const input: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, bor
 const chip: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 20, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
 const chipActive: CSSProperties = { border: `1px solid ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep };
 const miniBtn: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
+const linkBtn: CSSProperties = { border: 'none', background: 'none', color: C.pinkDeep, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0 };
