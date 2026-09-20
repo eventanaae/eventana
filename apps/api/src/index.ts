@@ -355,6 +355,11 @@ async function main() {
         const { sendCorpPreviewsOnce } = await import('./db/sendCorpPreviews.js');
         await sendCorpPreviewsOnce();
       } catch (e) { console.error('[corp-previews] failed:', (e as Error).message); }
+      // One-time: email Marsha (CC owner) the B2B campaign guide. Guarded.
+      try {
+        const { sendCampaignGuideOnce } = await import('./db/sendCampaignGuide.js');
+        await sendCampaignGuideOnce();
+      } catch (e) { console.error('[campaign-guide] failed:', (e as Error).message); }
       // Zero-price imported items must NOT be bookable at AED 0 on the customer
       // site — hide them (they still show in the internal New-Order builder as
       // "OFF", where the owner types the price on selection). Idempotent.
