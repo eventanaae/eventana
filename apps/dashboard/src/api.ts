@@ -629,6 +629,7 @@ export const api = {
   kpis: (month?: string) => request<any>(`/api/admin/kpis${month ? `?month=${month}` : ''}`),
 
   catalogue: () => request<any>('/api/catalogue'),
+  inactiveServices: () => request<any>('/api/admin/inactive-services'),
   quotePreview: (cart: Record<string, unknown>) =>
     request<any>('/api/quote', { method: 'POST', body: JSON.stringify(cart) }),
   manualOrder: (body: { customer: Record<string, unknown>; cart: Record<string, unknown> }) =>

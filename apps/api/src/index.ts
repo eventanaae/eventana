@@ -337,6 +337,12 @@ async function main() {
       await regenerateOccasionDrafts().catch((err) => console.error('[marketing] boot regen failed:', err));
       // Remove zero-amount pending bank rows (non-transaction emails mis-captured).
       await pool.query(`DELETE FROM bank_transactions WHERE status = 'pending' AND (amount_fils IS NULL OR amount_fils <= 0)`).catch(() => {});
+      // Remove junk payment-provider rows that leaked into the services catalogue
+      // ("stripe" / "tamara" are payment methods, not sellable services). Delete if
+      // unreferenced; otherwise just deactivate so they leave the customer catalogue.
+      await pool.query(`DELETE FROM services WHERE lower(name) IN ('stripe','tamara')`).catch(async () => {
+        await pool.query(`UPDATE services SET active = false WHERE lower(name) IN ('stripe','tamara')`).catch(() => {});
+      });
       if (String(process.env.REGEN_OCCASION_DRAFTS ?? '').toLowerCase() === 'on') {
         await regenerateOccasionDrafts({ all: true }).catch((err) => console.error('[marketing] regen failed:', err));
       }

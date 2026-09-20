@@ -4938,6 +4938,23 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  /** Turned-OFF services — so the manual New-Order builder can still list and sell
+   *  them (they ride the custom-product path, so nothing touches the live catalogue
+   *  or pricing engine). Junk payment-provider rows are excluded. */
+  app.get('/api/admin/inactive-services', async () => {
+    const { rows } = await pool.query(
+      `SELECT id, name, price_fils, pricing, celebration_types FROM services
+        WHERE NOT active AND lower(name) NOT IN ('stripe','tamara')
+        ORDER BY name`,
+    );
+    return {
+      services: rows.map((r) => ({
+        id: r.id, name: r.name, priceFils: Number(r.price_fils),
+        pricing: r.pricing, celebrationTypes: r.celebration_types ?? [], active: false,
+      })),
+    };
+  });
+
   app.patch('/api/admin/packages/:packageId', async (request, reply) => {
     const { packageId } = request.params as { packageId: string };
     const p = z.object({

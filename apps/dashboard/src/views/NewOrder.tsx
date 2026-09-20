@@ -42,11 +42,21 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [inactive, setInactive] = useState<any[]>([]); // turned-OFF products, shown with an "OFF" tag
+
   useEffect(() => { api.catalogue().then(setCat).catch(() => setCat(null)); }, []);
+  useEffect(() => { api.inactiveServices().then((r) => setInactive(r.services ?? [])).catch(() => setInactive([])); }, []);
+
+  // The active catalogue services + the OFF ones (tagged), so the builder shows
+  // everything in Products. OFF items are sold via the custom-product path.
+  const allServices = useMemo(() => {
+    const act = (cat?.services ?? []).map((s: any) => ({ ...s, active: s.active !== false }));
+    return [...act, ...inactive];
+  }, [cat, inactive]);
 
   const eligiblePackages = useMemo(() => (showAll || celebrationType === 'kids' ? (cat?.packages ?? []) : []), [cat, celebrationType, showAll]);
   const eligibleThemes = useMemo(() => (cat?.themes ?? []).filter((t: any) => showAll || !t.celebrationType || t.celebrationType === celebrationType), [cat, celebrationType, showAll]);
-  const eligibleServices = useMemo(() => (showAll ? (cat?.services ?? []) : (cat?.services ?? []).filter((s: any) => (s.celebrationTypes ?? []).includes(celebrationType))), [cat, celebrationType, showAll]);
+  const eligibleServices = useMemo(() => (showAll ? allServices : allServices.filter((s: any) => (s.celebrationTypes ?? []).includes(celebrationType))), [allServices, celebrationType, showAll]);
   const shownServices = useMemo(() => {
     const q = search.trim().toLowerCase();
     return q ? eligibleServices.filter((s: any) => String(s.name).toLowerCase().includes(q)) : eligibleServices;
@@ -59,7 +69,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
   const est = useMemo(() => {
     const pkg = eligiblePackages.find((p: any) => p.id === packageId);
     const svc = Object.entries(services).filter(([, q]) => q > 0).reduce((sum, [id, q]) => {
-      const s = (cat?.services ?? []).find((x: any) => x.id === id);
+      const s = allServices.find((x: any) => x.id === id);
       return sum + (s ? s.priceFils * (q || 1) : 0);
     }, 0);
     const custom = customItems.reduce((s, c) => s + c.priceFils * (c.qty || 1), 0);
@@ -69,7 +79,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
     const theme = toFils(customTheme);
     const total = products + theme - disc + (del ?? 0);
     return { products, disc, del, theme, total };
-  }, [eligiblePackages, packageId, services, cat, customItems, discount, delivery, customTheme]);
+  }, [eligiblePackages, packageId, services, allServices, customItems, discount, delivery, customTheme]);
 
   const hasSelection = Boolean(packageId) || Object.values(services).some((q) => q > 0) || customItems.length > 0;
 
@@ -94,17 +104,27 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
     setBusy(true); setError(null); setResult(null);
     try {
       const del = delivery.trim() === '' ? null : toFils(delivery);
-      const services2 = Object.entries(services).filter(([, q]) => q > 0).map(([serviceId, quantity]) => ({ serviceId, quantity }));
+      // Split the picks: live (ON) items go through the pricing engine as services;
+      // OFF items ride the custom-product path so they price correctly without
+      // being on the live catalogue.
+      const services2: Array<{ serviceId: string; quantity: number }> = [];
+      const offItems: Array<{ name: string; priceFils: number; qty: number }> = [];
+      for (const [serviceId, quantity] of Object.entries(services).filter(([, q]) => q > 0)) {
+        const s = allServices.find((x: any) => x.id === serviceId);
+        if (s && s.active === false) offItems.push({ name: s.name, priceFils: s.priceFils, qty: quantity });
+        else services2.push({ serviceId, quantity });
+      }
+      const customItems2 = [...customItems, ...offItems];
       if (isAddon) {
         const r = await api.addonLink({
           eventId: addonEventId!, celebrationType, packageId: packageId || null, services: services2,
-          customItems, discountFils: toFils(discount), deliveryFils: del, customThemeFils: toFils(customTheme), refImages,
+          customItems: customItems2, discountFils: toFils(discount), deliveryFils: del, customThemeFils: toFils(customTheme), refImages,
         });
         setResult({ link: r.payUrl, totalDisplay: r.totalDisplay, items: null });
       } else {
         const r = await api.createOffer({
           celebrationType, packageId: packageId || null, services: services2, themeId: themeId || null,
-          customItems, discountFils: toFils(discount), deliveryFils: del, customThemeFils: toFils(customTheme), refImages,
+          customItems: customItems2, discountFils: toFils(discount), deliveryFils: del, customThemeFils: toFils(customTheme), refImages,
         });
         setResult(r);
       }
@@ -170,7 +190,10 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
             return (
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderBottom: `1px solid ${C.lineSoft}` }}>
                 <input type="checkbox" checked={on} onChange={(e) => setServices((m) => ({ ...m, [s.id]: e.target.checked ? (s.pricing?.minQuantity ?? s.pricing?.minChildren ?? 1) : 0 }))} />
-                <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600 }}>{s.name}</span>
+                <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600 }}>
+                  {s.name}
+                  {s.active === false && <span style={{ marginInlineStart: 6, fontSize: 9.5, fontWeight: 800, color: C.muted, background: C.lineSoft, padding: '2px 6px', borderRadius: 5 }}>OFF</span>}
+                </span>
                 {on && per && (
                   <input value={qty} inputMode="numeric" onChange={(e) => setServices((m) => ({ ...m, [s.id]: Number(e.target.value.replace(/[^\d]/g, '')) || 0 }))} style={{ ...input, width: 64, marginBottom: 0 }} />
                 )}
