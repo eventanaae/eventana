@@ -249,6 +249,8 @@ async function main() {
     await dumpBlankVendorFromEnv().catch((err) => console.error('[blankv] failed:', err));
     const { blankFix1FromEnv } = await import('./db/blankFix1.js');
     await blankFix1FromEnv().catch((err) => console.error('[blankfix1] failed:', err));
+    const { dumpBlankReceiptsFromEnv } = await import('./db/dumpBlankReceipts.js');
+    await dumpBlankReceiptsFromEnv().catch((err) => console.error('[blankr] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
