@@ -19,11 +19,11 @@ import { respondToLead } from '../domain/whatsappAgent.js';
 
 /**
  * A booking customer replied to our automated WhatsApp (a confirmation/reminder
- * from the notification number, which isn't monitored). Send them ONE friendly
- * auto-reply pointing them to the real contact number, so they reach us instead
+ * from the notification number, which isn't monitored). Reply to them EVERY time
+ * they write, pointing them to the real contact number so they reach us instead
  * of talking to an unwatched line. Only for a KNOWN customer who has an order
- * (fresh ad enquiries are handled by the leads flow), and at most once per 12h
- * per number so we never spam a back-and-forth.
+ * (fresh ad enquiries are handled by the leads flow). Our reply is outbound, so
+ * it never re-triggers this — no loop.
  */
 async function autoReplyKnownCustomer(msg: { phone: string }): Promise<void> {
   try {
@@ -38,12 +38,8 @@ async function autoReplyKnownCustomer(msg: { phone: string }): Promise<void> {
       [last9],
     );
     if (!known.rows[0]) return;
-    const key = `wa_autoreply_${phone}`;
-    const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = $1`, [key]).catch(() => ({ rows: [] as { v: string }[] }));
-    if (last.rows[0] && Date.now() - new Date(last.rows[0].v).getTime() < 12 * 3600 * 1000) return;
     const body = `شكراً لتواصلك معنا 💛\nهذا رقم آلي للإشعارات فقط. لأي استفسار أو مساعدة كلّمنا على ${config.contact.phoneDisplay} (واتساب/اتصال) وبنردّ عليك فوراً 🌸`;
     await sendWhatsAppText({ to: phone, body, fromStaff: true }).catch(() => {});
-    await pool.query(`INSERT INTO app_kv (k, v) VALUES ($1, now()) ON CONFLICT (k) DO UPDATE SET v = now()`, [key]).catch(() => {});
   } catch { /* non-fatal */ }
 }
 
