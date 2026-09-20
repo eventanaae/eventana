@@ -39,7 +39,13 @@ function dubaiToday(): string {
 export function parseRakbankAlert(subject: string, body: string): ParsedAlert | null {
   const text = clean(`${subject ?? ''}\n${body ?? ''}`);
 
-  const amountMatch = text.match(/AED\s*([\d,]+(?:\.\d{1,2})?)/i);
+  // Amount in dirhams, in any common shape: "AED 100.00", "AED100", "100.00 AED",
+  // "Dhs 100", "100 Dirhams", "د.إ 100", "100 درهم". Currency before OR after.
+  const CUR = 'AED|AED\\.|Dhs?|Dirhams?|د\\.?\\s?إ|درهم';
+  const num = '([\\d,]+(?:\\.\\d{1,2})?)';
+  const pre = text.match(new RegExp(`(?:${CUR})\\s*${num}`, 'i'));
+  const post = text.match(new RegExp(`${num}\\s*(?:${CUR})`, 'i'));
+  const amountMatch = pre ?? post;
   if (!amountMatch) return null;
   const amountFils = Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100);
 

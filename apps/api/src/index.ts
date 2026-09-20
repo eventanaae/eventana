@@ -586,8 +586,11 @@ async function main() {
   // Read bank@eventanauae.com over IMAP and turn each new bank-alert email into
   // a PENDING bank_transactions row for the owner to approve. No-op unless
   // BANK_IMAP_POLL=true with a mailbox password set in the environment.
-  const { startBankImapPolling } = await import('./domain/bankImapPoll.js');
+  const { startBankImapPolling, rereadRecentInboxFromEnv } = await import('./domain/bankImapPoll.js');
   startBankImapPolling();
+  // One-time re-read of recent mail (env BANK_IMAP_REREAD=true) so receipts the
+  // poller dropped before the parser learned their format get a second chance.
+  rereadRecentInboxFromEnv().catch((err) => console.error('[bank-imap] reread failed:', err));
 
   // Pull the Wio bank feed from Wafeq into the pending-expenses queue. No-op
   // unless WAFEQ_API_KEY is set.

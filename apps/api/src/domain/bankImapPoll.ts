@@ -22,6 +22,7 @@
  */
 import * as tls from 'node:tls';
 import { ingestInboxEmail } from './bankInbox.js';
+import { pool } from '../db/pool.js';
 
 interface ImapCfg {
   host: string;
@@ -419,4 +420,64 @@ export function startBankImapPolling(): void {
 export function stopBankImapPolling(): void {
   if (timer) clearInterval(timer);
   timer = null;
+}
+
+/**
+ * One-time RE-READ of recent mail (env-gated). The normal poller only reads
+ * UNSEEN messages and marks each \Seen, so anything it dropped (e.g. a receipt
+ * in a currency/format the parser has since learned) is never re-read. This
+ * re-scans the last few days with BODY.PEEK (which does NOT change read/unread
+ * state) and re-ingests every message; the ingest de-dupe means already-recorded
+ * ones are skipped. Guarded in app_kv so it runs once per REREAD tag.
+ *
+ * Enable: BANK_IMAP_REREAD=true (+ optional BANK_IMAP_REREAD_DAYS, default 2, and
+ * BANK_IMAP_REREAD_TAG to force another run). Requires RUN_MIGRATIONS_ON_BOOT.
+ */
+export async function rereadRecentInboxFromEnv(): Promise<void> {
+  if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
+  if (String(process.env.BANK_IMAP_REREAD ?? '').toLowerCase() !== 'true') return;
+  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v1'}`;
+  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
+  if (guard.rowCount) return;
+  const c = cfg();
+  if (!c) { console.warn('[bank-imap] reread: poller not configured (BANK_IMAP_POLL/PASS)'); return; }
+
+  const days = Math.max(1, Number(process.env.BANK_IMAP_REREAD_DAYS ?? 2));
+  const since = new Date(Date.now() - days * 86_400_000);
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][since.getUTCMonth()];
+  const sinceStr = `${since.getUTCDate()}-${mon}-${since.getUTCFullYear()}`; // IMAP DD-Mon-YYYY
+
+  const sock = await new Promise<tls.TLSSocket>((resolve, reject) => {
+    const s = tls.connect({ host: c.host, port: c.port, servername: c.host }, () => resolve(s));
+    s.once('error', reject);
+    s.setTimeout(30000, () => { s.destroy(); reject(new Error('IMAP socket timeout')); });
+  });
+  const conn = new ImapConn(sock);
+  let read = 0;
+  let ingested = 0;
+  try {
+    await conn.greeting();
+    await conn.authPlain(c.user, c.pass);
+    verboseRx = false;
+    await conn.cmd('SELECT INBOX');
+    const search = await conn.cmd(`UID SEARCH SINCE ${sinceStr}`);
+    const uids = parseSearchUids(search.toString('latin1')).slice(0, 200);
+    for (const uid of uids) {
+      read++;
+      try {
+        const fetch = await conn.cmd(`UID FETCH ${uid} BODY.PEEK[]`); // PEEK = don't touch \Seen
+        const rawMsg = extractLiteral(fetch);
+        if (!rawMsg) continue;
+        const email = extractEmail(rawMsg);
+        const res = await ingestInboxEmail(email, 'privateemail');
+        if (res && !res.duplicate) ingested++;
+      } catch (err) {
+        console.error(`[bank-imap] reread uid ${uid} failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+  } finally {
+    conn.logout();
+  }
+  console.log(`[bank-imap] reread SINCE ${sinceStr}: read ${read}, ingested ${ingested}`);
+  await pool.query(`INSERT INTO app_kv (k, v) VALUES ($1, now()) ON CONFLICT (k) DO NOTHING`, [guardKey]).catch(() => {});
 }
