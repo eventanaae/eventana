@@ -125,20 +125,24 @@ const INV: { d: string; f: number; n: number }[] = [
 
 export async function recordTabbyFeesFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const gk = 'record_tabby_fees_v1';
+  const gk = 'record_tabby_fees_v2';
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k=$1`, [gk]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Safety: clear any prior Tabby Payment-Fees rows so a re-key never doubles.
+    // Clear any prior Tabby Payment-Fees rows (incl. the v1 source='tabby' ones).
     await client.query(`DELETE FROM expenses WHERE vendor = 'Tabby' AND category = 'Payment Fees'`);
     let ins = 0, total = 0;
     for (const w of INV) {
+      // source='quickbooks' = historical: these fees were already deducted by Tabby
+      // in real life, so the actual cash balance (opening balance) already reflects
+      // them. They show in the Payment Fees report / P&L but are NOT subtracted from
+      // live Cash again (that double-count dropped cash to ~56k).
       await client.query(
         `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, payment_method, source)
-         VALUES ('Payment Fees', $1, $2, 'Tabby', $3::date, 'tabby', 'tabby')`,
+         VALUES ('Payment Fees', $1, $2, 'Tabby', $3::date, 'tabby', 'quickbooks')`,
         [`Tabby weekly settlement charge — ${w.n} txn(s)`, w.f, w.d],
       );
       ins++; total += w.f;

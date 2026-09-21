@@ -5,7 +5,7 @@ import { pool } from './pool.js';
 
 export async function financeVerifyFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const tag = process.env.FIN_VERIFY_TAG ?? 'v1';
+  const tag = process.env.FIN_VERIFY_TAG ?? 'v2';
   const gk = `fin_verify_${tag}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k=$1`, [gk]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
@@ -35,15 +35,16 @@ export async function financeVerifyFromEnv(): Promise<void> {
      count(*)::int n FROM finance_invoices`);
   console.log(`[fin-verify] invoices: ${inv.rows[0].n} docs · collected ${aed(inv.rows[0].paid)} · outstanding(A/R) ${aed(inv.rows[0].unpaid)}`);
 
-  // Final cash under the new (all in - all out) formula.
+  // Cash under the corrected formula: opening balance + LIVE only (excl. quickbooks).
   const c = await pool.query<any>(`SELECT
-     (SELECT COALESCE(sum(total_fils),0)::bigint FROM finance_receipts) rc,
-     (SELECT COALESCE(sum(amount_paid_fils),0)::bigint FROM finance_invoices) ip,
-     (SELECT COALESCE(sum(amount_fils),0)::bigint FROM expenses) ex,
+     (SELECT value FROM settings WHERE key='finance.cashOpeningFils') op,
+     (SELECT COALESCE(sum(total_fils),0)::bigint FROM finance_receipts WHERE source<>'quickbooks') rc,
+     (SELECT COALESCE(sum(amount_paid_fils),0)::bigint FROM finance_invoices WHERE (source IS NULL OR source<>'quickbooks')) ip,
+     (SELECT COALESCE(sum(amount_fils),0)::bigint FROM expenses WHERE source<>'quickbooks') ex,
      (SELECT COALESCE(sum(amount_fils),0)::bigint FROM refunds) rf`);
   const r = c.rows[0];
-  const cash = Number(r.rc) + Number(r.ip) - Number(r.ex) - Number(r.rf);
-  console.log(`[fin-verify] CASH = receipts ${aed(r.rc)} + collected ${aed(r.ip)} - expenses ${aed(r.ex)} - refunds ${aed(r.rf)} = AED ${aed(cash)}`);
+  const cash = Number(r.op ?? 0) + Number(r.rc) + Number(r.ip) - Number(r.ex) - Number(r.rf);
+  console.log(`[fin-verify] CASH = opening ${aed(r.op ?? 0)} + live receipts ${aed(r.rc)} + collected ${aed(r.ip)} - live expenses ${aed(r.ex)} - refunds ${aed(r.rf)} = AED ${aed(cash)}`);
 
   await pool.query(`INSERT INTO app_kv (k,v) VALUES ($1, now()) ON CONFLICT (k) DO NOTHING`, [gk]).catch(() => {});
 }
