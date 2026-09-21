@@ -109,8 +109,9 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   const m2 = text.match(/\b(?:to|at)\s+(.+?)(?:\s+on\s+\d|\.|$)/i);
   merchant = (mName?.[1] ?? m1?.[1] ?? m2?.[1] ?? '').trim() || null;
   if (merchant) {
-    // Cut off any following label that ran into it (no newline in the HTML).
-    merchant = merchant.split(/\b(?:date of debit|overdrawn account|amount|reference|card)\b\s*:/i)[0]
+    // Cut off any following label that ran into it (the HTML had no separator, so
+    // "ZED MOBILITYDate of Debit:" — no word boundary to rely on).
+    merchant = merchant.split(/date of debit|overdrawn account|amount\s*:|reference\s*:|date of/i)[0]
       .replace(/\s+/g, ' ').trim().slice(0, 120) || null;
   }
 

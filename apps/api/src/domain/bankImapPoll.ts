@@ -451,7 +451,7 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   // Runs once per tag (guarded in app_kv). Bump BANK_IMAP_REREAD_TAG to force a
   // fresh run later; no env flag needed for the first run.
-  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v15'}`;
+  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v16'}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const c = cfg();
@@ -463,6 +463,14 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
     `DELETE FROM bank_transactions WHERE status = 'pending' AND direction = 'credit'`,
   ).catch(() => ({ rowCount: 0 }));
   if (delCr.rowCount) console.log(`[bank-imap] reread: removed ${delCr.rowCount} inward/credit pending rows`);
+
+  // Tidy any merchant where a following label ran into it (e.g.
+  // "ZED MOBILITYDate of Debit: 21-09-2026" → "ZED MOBILITY").
+  await pool.query(
+    `UPDATE bank_transactions
+        SET merchant = btrim(regexp_replace(merchant, 'date of debit.*$', '', 'i'))
+      WHERE merchant ~* 'date of debit'`,
+  ).catch(() => {});
 
   // Re-read only ADDS what's missing — the ingest de-dupes by the receipt/
   // transaction reference number, so an email already captured (pending OR
