@@ -275,6 +275,8 @@ async function main() {
     await enrichVendorsFromEnv().catch((err) => console.error('[enrich] failed:', err));
     const { dumpSubscriptionsFromEnv } = await import('./db/dumpSubscriptions.js');
     await dumpSubscriptionsFromEnv().catch((err) => console.error('[subs] failed:', err));
+    const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
+    await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
     await prepAuditFromEnv().catch((err) => console.error('[prep-audit] failed:', err));
     const { generatePrepMissingFromEnv } = await import('./db/generatePrepMissing.js');
