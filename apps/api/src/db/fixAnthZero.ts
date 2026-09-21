@@ -9,7 +9,7 @@ import { parseAnthropicReceipt } from '../domain/bankInbox.js';
 
 export async function fixAnthZeroFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const tag = process.env.FIX_ANTHZ_TAG ?? 'v2';
+  const tag = process.env.FIX_ANTHZ_TAG ?? 'v3';
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [`fix_anthz_${tag}`]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
 
@@ -39,5 +39,14 @@ export async function fixAnthZeroFromEnv(): Promise<void> {
     }
   }
   console.log(`[fix-anthz] fixed ${fixed}/${rows.length} zero-amount Anthropic rows`);
+
+  // Rows the owner rejected only because they showed AED 0 — now they have a real
+  // amount, put them back in the approval queue (not yet posted to expenses).
+  const flip = await pool.query(
+    `UPDATE bank_transactions SET status = 'pending', decided_by = NULL, decided_at = NULL
+      WHERE status = 'ignored' AND amount_fils > 0 AND expense_id IS NULL
+        AND (source = 'anthropic' OR lower(coalesce(merchant,'')) = 'anthropic')`,
+  ).catch(() => ({ rowCount: 0 }));
+  console.log(`[fix-anthz] restored ${flip.rowCount ?? 0} rejected Anthropic rows to approval`);
   await pool.query(`INSERT INTO app_kv (k, v) VALUES ($1, now()) ON CONFLICT (k) DO NOTHING`, [`fix_anthz_${tag}`]).catch(() => {});
 }
