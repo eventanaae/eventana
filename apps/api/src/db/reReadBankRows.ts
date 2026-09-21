@@ -13,7 +13,7 @@ const AED_PER_USD = 3.6725;
 
 export async function reReadBankRowsFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const tag = process.env.REREAD_BANK_TAG ?? 'v1';
+  const tag = process.env.REREAD_BANK_TAG ?? 'v2';
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [`reread_bank_${tag}`]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const { anthropicEnabled } = await import('../integrations/anthropic.js');
@@ -35,6 +35,7 @@ export async function reReadBankRowsFromEnv(): Promise<void> {
     const flags: string[] = [];
     if (!llm.confident) flags.push(`auto-read may be wrong${llm.note ? `: ${llm.note}` : ''}`);
     if (llm.direction === 'credit') flags.push('looks like INWARD money (not an expense) — reject if so');
+    if (!llm.date) flags.push('transaction date not in the email — the shown date is the day it was read, please set the real date');
     const reviewNote = flags.length ? `⚠️ NEEDS REVIEW — ${flags.join('; ')}. Check amount, vendor & date.` : null;
     // Keep the rest of the stored raw after the first (note) line.
     const raw = String(r.raw_text ?? '');

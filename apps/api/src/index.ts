@@ -277,8 +277,8 @@ async function main() {
     await cleanVendorDirectoryFromEnv().catch((err) => console.error('[clean-vendors] failed:', err));
     const { reReadBankRowsFromEnv } = await import('./db/reReadBankRows.js');
     await reReadBankRowsFromEnv().catch((err) => console.error('[reread-bank] failed:', err));
-    const { dumpDatesFromEnv } = await import('./db/dumpDates.js');
-    await dumpDatesFromEnv().catch((err) => console.error('[dump-dates] failed:', err));
+    const { addWioManualFromEnv } = await import('./db/addWioManual.js');
+    await addWioManualFromEnv().catch((err) => console.error('[add-wio-manual] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
