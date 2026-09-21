@@ -9,13 +9,15 @@ import { parseAnthropicReceipt } from '../domain/bankInbox.js';
 
 export async function fixAnthZeroFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const tag = process.env.FIX_ANTHZ_TAG ?? 'v1';
+  const tag = process.env.FIX_ANTHZ_TAG ?? 'v2';
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [`fix_anthz_${tag}`]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
 
-  const { rows } = await pool.query<{ id: string; raw_text: string }>(
-    `SELECT id, raw_text FROM bank_transactions
-      WHERE status = 'pending' AND amount_fils = 0
+  // Any status — a frustrated tap may have already approved/ignored a 0-amount
+  // row; if it was approved, fix the linked expense's amount too.
+  const { rows } = await pool.query<{ id: string; raw_text: string; status: string; expense_id: string | null }>(
+    `SELECT id, raw_text, status, expense_id FROM bank_transactions
+      WHERE amount_fils = 0
         AND (source = 'anthropic' OR lower(coalesce(merchant,'')) = 'anthropic')`,
   );
   let fixed = 0;
@@ -27,10 +29,13 @@ export async function fixAnthZeroFromEnv(): Promise<void> {
       const body = nl >= 0 ? raw.slice(nl) : `\n\n${raw}`;
       const newRaw = (a.note + body).slice(0, 4000);
       await pool.query(`UPDATE bank_transactions SET amount_fils = $2, raw_text = $3 WHERE id = $1`, [r.id, a.amountFils, newRaw]);
+      if (r.expense_id) {
+        await pool.query(`UPDATE expenses SET amount_fils = $2 WHERE id = $1`, [r.expense_id, a.amountFils]).catch(() => {});
+      }
       fixed++;
-      console.log(`[fix-anthz] ${r.id} → ${a.note}`);
+      console.log(`[fix-anthz] ${r.id} (${r.status}${r.expense_id ? '+expense' : ''}) → ${a.note}`);
     } else {
-      console.log(`[fix-anthz] ${r.id} still no amount`);
+      console.log(`[fix-anthz] ${r.id} (${r.status}) still no amount`);
     }
   }
   console.log(`[fix-anthz] fixed ${fixed}/${rows.length} zero-amount Anthropic rows`);
