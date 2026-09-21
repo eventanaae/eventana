@@ -83,7 +83,10 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   const num = '([\\d,]+(?:\\.\\d{1,2})?)';
   const pre = text.match(new RegExp(`(?:${CUR})\\s*${num}`, 'i'));
   const post = text.match(new RegExp(`${num}\\s*(?:${CUR})`, 'i'));
-  const amountMatch = pre ?? post;
+  // RAKBANK's overdraft/settlement + some card emails label it "Amount: 29.16"
+  // with NO currency next to the number — read that too.
+  const labeled = text.match(/\bamount\b\s*:\s*(?:AED\s*)?([\d,]+(?:\.\d{1,2})?)/i);
+  const amountMatch = pre ?? post ?? labeled;
   if (!amountMatch) return null;
   const amountFils = Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100);
 
@@ -94,16 +97,20 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   if (/withdraw|cash withdrawal|atm/.test(low)) kind = 'withdrawal';
   if (/transfer/.test(low)) kind = 'transfer';
 
-  // Merchant: "from <X> on <date>", or "to <X>" for transfers, or "at <X>".
+  // Merchant: labeled "Merchant Name: X" (RAKBANK settlement format), else
+  // "from <X> on <date>", or "to <X>" for transfers, or "at <X>".
   let merchant: string | null = null;
+  const mName = text.match(/merchant name\s*:\s*([^\n]+)/i);
   const m1 = text.match(/\bfrom\s+(.+?)\s+on\s+\d{1,2}[/-]\d{1,2}/i);
   const m2 = text.match(/\b(?:to|at)\s+(.+?)(?:\s+on\s+\d|\.|$)/i);
-  merchant = (m1?.[1] ?? m2?.[1] ?? '').trim() || null;
+  merchant = (mName?.[1] ?? m1?.[1] ?? m2?.[1] ?? '').trim() || null;
   if (merchant) merchant = merchant.replace(/\s+/g, ' ').slice(0, 120);
 
-  // Date: "on DD/MM" or "DD/MM/YYYY". Year defaults to Dubai's current year.
+  // Date: "Date of Debit: DD-MM-YYYY" (settlement format), else "on DD/MM" or
+  // "DD/MM/YYYY". Year defaults to Dubai's current year.
   let postedOn: string | null = null;
-  const dm = text.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/);
+  const dm = text.match(/date of debit\s*:\s*(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/i)
+    ?? text.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/);
   if (dm) {
     const dd = dm[1].padStart(2, '0');
     const mm = dm[2].padStart(2, '0');
