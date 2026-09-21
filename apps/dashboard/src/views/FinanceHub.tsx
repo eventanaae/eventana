@@ -609,6 +609,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   const [busy, setBusy] = useState<string | null>(null);
   const [cat, setCat] = useState<Record<string, string>>({});
   const [vendor, setVendor] = useState<Record<string, string>>({});
+  const [amt, setAmt] = useState<Record<string, string>>({}); // manual amount for rows captured at 0
   const [err, setErr] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -653,9 +654,13 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
     if (!category) { setErr('Please choose an account for each transaction before approving.'); return; }
     const v = (vendor[r.id] ?? r.merchant ?? '').trim();
     if (!v) { setErr('Please enter a vendor before approving — vendor is required on every expense.'); return; }
+    // Amount: use the typed amount for rows captured at 0, else the row's amount.
+    const typed = Math.round((Number((amt[r.id] ?? '').replace(/,/g, '')) || 0) * 100);
+    const amountFils = typed > 0 ? typed : Number(r.amount_fils);
+    if (!(amountFils > 0)) { setErr('Please enter the amount before approving.'); return; }
     setBusy(r.id); setErr(null);
     try {
-      await api.bankTxApprove(r.id, { category, vendor: v });
+      await api.bankTxApprove(r.id, { category, vendor: v, amountFils });
       setRows((rs) => rs?.filter((x) => x.id !== r.id) ?? rs);
       onApproved();
     } catch (e: any) { setErr(e?.message || 'Could not approve — please try again.'); } finally { setBusy(null); }
@@ -698,9 +703,20 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
         {rows.map((r) => (
           <div key={r.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: 12 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: r.direction === 'credit' ? C.mintDeep : C.ink, fontVariantNumeric: 'tabular-nums' }}>
-                {r.direction === 'credit' ? '+' : ''}AED {r.amountDisplay}
-              </div>
+              {Number(r.amount_fils) > 0 ? (
+                <div style={{ fontSize: 18, fontWeight: 800, color: r.direction === 'credit' ? C.mintDeep : C.ink, fontVariantNumeric: 'tabular-nums' }}>
+                  {r.direction === 'credit' ? '+' : ''}AED {r.amountDisplay}
+                </div>
+              ) : (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>AED</span>
+                  <input
+                    value={amt[r.id] ?? ''} inputMode="decimal" placeholder="0.00"
+                    onChange={(e) => setAmt((a) => ({ ...a, [r.id]: e.target.value }))}
+                    style={{ ...fieldStyle, width: 96, fontWeight: 800 }}
+                  />
+                </label>
+              )}
               {tag(r.source) && <span style={{ fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 8, padding: '2px 8px' }}>{tag(r.source)}</span>}
               <div style={{ flex: 1 }} />
               <div style={{ fontSize: 12.5, color: C.muted2, fontWeight: 700 }}>📅 {fmtDate(r.posted_on)}</div>

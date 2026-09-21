@@ -91,20 +91,33 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   // RAKBANK's overdraft/settlement + some card emails label it "Amount: 29.16"
   // with NO currency next to the number — read that too.
   const labeled = text.match(/\bamount\b\s*:\s*(?:AED\s*)?([\d,]+(?:\.\d{1,2})?)/i);
-  const amountMatch = charged ?? pre ?? post ?? labeled;
+  // A bare "AED <n>" (no verb next to it) is only trusted when the email clearly
+  // IS a transaction — otherwise a promo/marketing "AED 99" would become a fake
+  // charge. The verb-adjacent (`charged`) and labeled ("Amount:") matches are
+  // always trusted.
+  const hasTxnContext = /\bcharged\b|\bdebited\b|\bspent\b|withdraw|transaction|purchase|settle|date of debit/i.test(text);
+  const amountMatch = charged ?? labeled ?? (hasTxnContext ? (pre ?? post) : null);
   if (!amountMatch) return null;
   const amountFils = Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100);
 
   const low = text.toLowerCase();
   let direction: ParsedAlert['direction'] = 'debit';
   let kind: ParsedAlert['kind'] = 'purchase';
-  if (/credited|received|refund|deposit|inward|incoming|remittance/.test(low)) { direction = 'credit'; kind = 'other'; }
+  // CREDIT only on strong account-context signals — not a bare "received"/"refund"
+  // /"deposit" that might just be part of a merchant name. Credits are dropped, so
+  // a mislabelled credit = a LOST expense; we bias to debit and require real
+  // wording ("credited to your", "inward transfer", "received in your account"…).
+  if (/credited to your|has been credited|inward (?:transfer|remittance)|received (?:money|in your|into your)|deposit(?:ed)? (?:to|into|in) your|refund(?:ed)? to your|transferred to your account/.test(low)) {
+    direction = 'credit'; kind = 'other';
+  }
   if (/withdraw|cash withdrawal|atm/.test(low)) kind = 'withdrawal';
-  if (/transfer/.test(low)) kind = 'transfer';
-  // Explicit OUTGOING signals win over a loose credit keyword — a settlement /
-  // card charge that says "debited from your account", "Date of Debit" or
-  // "is charged" is money OUT even if the word "payment" made it look inward.
-  if (/\bdebited\b|date of debit|is charged|charged on your/.test(low)) { direction = 'debit'; if (kind === 'other') kind = 'purchase'; }
+  if (/transfer/.test(low) && direction === 'debit') kind = 'transfer';
+  // Explicit OUTGOING signals win over any credit keyword — a settlement / card
+  // charge that says "debited", "Date of Debit", "is charged", "spent" or
+  // "withdrawn" is money OUT even if a merchant name looked inward.
+  if (/\bdebited\b|date of debit|is charged|charged on your|\bspent\b|withdrawn from your|purchase at/.test(low)) {
+    direction = 'debit'; if (kind === 'other') kind = 'purchase';
+  }
 
   // Merchant: labeled "Merchant Name: X" (RAKBANK settlement format), else
   // "from <X> on <date>", or "to <X>" for transfers, or "at <X>".
@@ -189,12 +202,18 @@ export type EmailProvider = 'rakbank' | 'tabby' | 'tamara' | 'anthropic' | 'othe
 function classifyProvider(from: string, subject: string, text: string): EmailProvider {
   const head = `${from} ${subject}`.toLowerCase();
   const all = `${head} ${text.toLowerCase()}`;
-  // Anthropic (Claude) receipts — matched anywhere, because a forwarded email
-  // carries the original sender inside the body, not in the From header.
-  if (/anthropic|invoice\+statements@mail\.anthropic\.com|receipt from anthropic|claude\.ai/.test(all)) return 'anthropic';
+  // Anthropic (Claude) receipts — matched on the ACTUAL receipt markers (sender
+  // address or "receipt from Anthropic, PBC"), checked anywhere because a
+  // forwarded email carries the original sender in the body. NOT a loose mention
+  // of "anthropic"/"claude.ai" (a newsletter that name-drops Claude must not turn
+  // into a phantom USD expense).
+  if (/invoice\+statements@mail\.anthropic\.com|receipt from anthropic|anthropic,\s*pbc|your receipt from anthropic/.test(all)) return 'anthropic';
   if (/tabby/.test(head)) return 'tabby';
   if (/tamara/.test(head)) return 'tamara';
-  if (/rakbank|rak bank|debit card|credit card|your card|is charged/.test(all)) return 'rakbank';
+  // RAKBANK — the bank sender, or the real alert wording. NOT a loose "credit
+  // card"/"your card" substring (a marketing/promo mail must not become a fake
+  // charge).
+  if (/rakbank|rak bank|@rakbank\.ae|is charged on your|debited from your account|withdrawn from your|spent on your (?:debit|credit) card/.test(all)) return 'rakbank';
   return 'other';
 }
 
@@ -297,7 +316,10 @@ export function parseAnthropicReceipt(subject: string, text: string): AnthropicR
     };
     return one(pre) ?? one(suf);
   };
-  let usd = dollar('amount paid') ?? dollar('total paid') ?? dollar('\\btotal\\b') ?? dollar('amount') ?? dollar();
+  // Prefer a LABELLED total. We deliberately do NOT fall back to "any $ figure"
+  // (that could grab a discount/credit/plan-price line); if no label matches, the
+  // bare-decimal MAX fallback below is a safer guess for the real total.
+  let usd = dollar('amount paid') ?? dollar('total paid') ?? dollar('\\btotal\\b') ?? dollar('amount due') ?? dollar('amount');
   // Fallback: some Anthropic/Stripe emails render the amount without a "$" next
   // to it in the text (the body is mostly invisible pre-header padding + download
   // links, and the number sits bare, e.g. "310.29"). Strip URLs and long token
@@ -329,7 +351,7 @@ export function parseAnthropicReceipt(subject: string, text: string): AnthropicR
 }
 
 export interface InboxAttachment { filename: string; contentType: string; bytes: Buffer; }
-export interface InboxEmail { subject: string; from: string; text: string; attachments: InboxAttachment[]; }
+export interface InboxEmail { subject: string; from: string; text: string; attachments: InboxAttachment[]; messageId?: string; }
 
 /** Pick the best receipt attachment: prefer a PDF, then any, under Cloudinary's limit. */
 function pickReceiptAttachment(atts: InboxAttachment[]): InboxAttachment | null {
@@ -355,14 +377,19 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   const text = msg.text ?? '';
   const provider = classifyProvider(from, subject, text);
   const raw = clean(`${subject}\n${from}\n${text}`).slice(0, 4000);
-  // De-dupe by a STABLE reference (receipt/transaction number) when we can find
-  // one — so re-forwarding the same receipt never double-records it, and two
-  // different receipts never collide. Fall back to a content hash (with the
-  // invisible forward-padding stripped so two forwards still match).
+  // De-dupe key, in order of reliability:
+  //  1. a STABLE receipt/transaction reference (Anthropic receipt no.) — so
+  //     re-forwarding the same receipt never doubles it, and two different
+  //     receipts never collide.
+  //  2. the email's Message-ID — unique per email, so a re-read never re-inserts
+  //     an email we already captured, YET two genuinely-identical same-day bank
+  //     charges (separate emails, different Message-IDs) are BOTH kept.
+  //  3. a content hash (last resort, e.g. a forward with no Message-ID).
   const ref = stableReference(provider, subject, text);
-  const dedupeKey = createHash('sha256')
-    .update(ref ? `ref|${ref}` : `${source}|${stripInvisible(raw)}`)
-    .digest('hex');
+  const dedupeBasis = ref ? `ref|${ref}`
+    : msg.messageId ? `mid|${msg.messageId}`
+    : `${source}|${stripInvisible(raw)}`;
+  const dedupeKey = createHash('sha256').update(dedupeBasis).digest('hex');
 
   const dup = await pool.query<{ id: string }>(`SELECT id FROM bank_transactions WHERE dedupe_key = $1 LIMIT 1`, [dedupeKey]);
   if (dup.rows[0]) return { id: String(dup.rows[0].id), duplicate: true };
@@ -428,7 +455,9 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   // only affects the generic bank path.
   if (direction === 'credit' && !alwaysCapture) return null;
   const hasAttachment = (msg.attachments ?? []).some((a) => a.bytes && a.bytes.length > 0);
-  const NOISE_RE = /one[-\s]?time (?:pass|code)|passcode|\botp\b|verification code|verify your|confirm your email|email address has changed|added to apple pay|new beneficiary|you'?re now connected|reset your password|unsubscribe|log[-\s]?in attempt|new sign[-\s]?in/i;
+  // NOTE: no generic footer words like "unsubscribe" here — those appear in real
+  // receipt emails too, and would silently drop a genuine expense.
+  const NOISE_RE = /one[-\s]?time (?:pass|code)|passcode|\botp\b|verification code|verify your|confirm your email|email address has changed|added to apple pay|new beneficiary|you'?re now connected|reset your password|log[-\s]?in attempt|new sign[-\s]?in/i;
   if (amountFils <= 0 && !hasAttachment && !alwaysCapture && NOISE_RE.test(`${subject}\n${text}`)) return null;
 
   // Keep a readable summary at the top of raw_text (fee/amount note + the
@@ -467,7 +496,9 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   if (amountFils > 0 || alwaysCapture || att) {
     const aed = (amountFils / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const tag = provider === 'other' ? '' : `${providerLabel(provider, from)} · `;
-    const clip = att ? ' 📎 receipt attached' : '';
+    // Only say "receipt attached" if it actually uploaded (a failed upload leaves
+    // receiptUrl null).
+    const clip = receiptUrl ? ' 📎 receipt attached' : '';
     const title = '🏦 New bank transaction — needs review';
     const amtPart = amountFils > 0 ? `AED ${aed} — ` : 'amount not read — ';
     const bodyMsg = `${tag}${amtPart}${merchant}.${clip} Open Bank Inbox to review and approve.`;
@@ -534,13 +565,18 @@ export async function listBankTransactions(status?: string): Promise<BankTxRow[]
  */
 export async function approveBankTransaction(
   id: string,
-  opts: { category?: string; vendor?: string | null; receiptUrl?: string | null; spentOn?: string | null; description?: string | null; paymentMethod?: string | null },
+  opts: { category?: string; vendor?: string | null; receiptUrl?: string | null; spentOn?: string | null; description?: string | null; paymentMethod?: string | null; amountFils?: number | null },
   actor: string,
 ): Promise<{ ok: boolean; reason?: string; expenseId?: string }> {
   const { rows } = await pool.query<any>(`SELECT * FROM bank_transactions WHERE id = $1 LIMIT 1`, [id]);
   const tx = rows[0];
   if (!tx) return { ok: false, reason: 'not_found' };
   if (tx.status !== 'pending') return { ok: false, reason: `already_${tx.status}` };
+
+  // The amount can be corrected at approval (rows captured with amount 0 when it
+  // couldn't be read). A non-positive amount must never post as an expense.
+  const amountFils = Math.round(Number(opts.amountFils ?? tx.amount_fils) || 0);
+  if (amountFils <= 0) return { ok: false, reason: 'amount_required' };
 
   const isSettlement = tx.source === 'tabby' || tx.source === 'tamara';
   const isAnthropic = tx.source === 'anthropic' || String(tx.merchant ?? '').toLowerCase() === 'anthropic';
@@ -562,9 +598,13 @@ export async function approveBankTransaction(
   const exp = await pool.query<{ id: string }>(
     `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, receipt_url, payment_method, recorded_by, source)
      VALUES ($1,$2,$3,$4,COALESCE($5::date, current_date),$6,$7,$8,'bank') RETURNING id`,
-    [category, description, tx.amount_fils, vendor, spentOn, receiptUrl, paymentMethod, actor],
+    [category, description, amountFils, vendor, spentOn, receiptUrl, paymentMethod, actor],
   );
   const expenseId = String(exp.rows[0].id);
+  // If the amount was corrected at approval, reflect it on the bank row too.
+  if (amountFils !== Number(tx.amount_fils)) {
+    await pool.query(`UPDATE bank_transactions SET amount_fils = $2 WHERE id = $1`, [id, amountFils]).catch(() => {});
+  }
 
   // If the supplier chosen at approval isn't in our list yet, add it — so it's
   // reusable and shows in the supplier autocomplete next time. Idempotent.

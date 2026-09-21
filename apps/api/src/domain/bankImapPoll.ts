@@ -233,7 +233,7 @@ function stripHtml(s: string): string {
 }
 
 export interface EmailAttachment { filename: string; contentType: string; bytes: Buffer; }
-export interface ParsedEmail { subject: string; from: string; text: string; attachments: EmailAttachment[]; }
+export interface ParsedEmail { subject: string; from: string; text: string; attachments: EmailAttachment[]; messageId?: string; }
 
 function headerValue(headers: string, name: string): string {
   const m = headers.match(new RegExp(`^${name}:\\s*([^\\r\\n]*)`, 'im'));
@@ -330,12 +330,16 @@ export function extractEmail(raw: string): ParsedEmail {
   const topHeaders = (sep >= 0 ? raw.slice(0, sep) : raw).replace(/\r\n[ \t]+/g, ' ');
   const subject = decodeMimeWords(headerValue(topHeaders, 'subject'));
   const from = decodeMimeWords(headerValue(topHeaders, 'from'));
+  // The RFC Message-ID uniquely identifies this email — used to de-dupe on
+  // re-reads WITHOUT collapsing two genuinely-identical same-day charges (which
+  // are separate emails with different Message-IDs).
+  const messageId = (headerValue(topHeaders, 'message-id').match(/<([^>]+)>/)?.[1] ?? headerValue(topHeaders, 'message-id')).trim() || undefined;
   const acc = { text: '', html: '', attachments: [] as EmailAttachment[] };
   walkSection(raw, acc);
   let text = acc.text.trim();
   if (!text && acc.html) text = stripHtml(acc.html);
   text = text.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim();
-  return { subject, from, text, attachments: acc.attachments };
+  return { subject, from, text, attachments: acc.attachments, messageId };
 }
 
 /** Parse UIDs from a `* SEARCH 1 2 3` response. */

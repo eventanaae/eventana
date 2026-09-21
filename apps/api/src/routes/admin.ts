@@ -2573,6 +2573,7 @@ export async function adminRoutes(app: FastifyInstance) {
       receiptUrl: z.string().url().nullable().optional(),
       spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+      amountFils: z.number().int().positive().optional(),
     });
     const parsed = schema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
