@@ -353,6 +353,67 @@ export function parseAnthropicReceipt(subject: string, text: string): AnthropicR
 export interface InboxAttachment { filename: string; contentType: string; bytes: Buffer; }
 export interface InboxEmail { subject: string; from: string; text: string; attachments: InboxAttachment[]; messageId?: string; }
 
+export interface LlmTx {
+  isTransaction: boolean;
+  direction: 'debit' | 'credit' | null;
+  currency: string | null;
+  amount: number | null;   // in the stated currency (e.g. 170.00), NOT fils
+  merchant: string | null;
+  date: string | null;     // YYYY-MM-DD
+  confident: boolean;      // true only if amount + direction + merchant are unambiguous
+  note: string | null;
+}
+
+/**
+ * Read ONE transaction out of a bank/receipt email with Claude — far more robust
+ * than field regexes for the many RAKBANK/receipt layouts. It returns null when
+ * Claude isn't configured or the call fails (caller falls back to regex), and it
+ * is told to prefer null + confident:false over GUESSING, so we can flag unclear
+ * rows for review instead of saving wrong data. 15s timeout so a hang can't stall
+ * the poll cycle.
+ */
+export async function llmExtractTransaction(subject: string, from: string, text: string): Promise<LlmTx | null> {
+  const { generateText, anthropicEnabled } = await import('../integrations/anthropic.js');
+  if (!anthropicEnabled()) return null;
+  const body = `FROM: ${from}\nSUBJECT: ${subject}\n\nBODY:\n${text}`.replace(/https?:\/\/\S+/g, ' ').slice(0, 6000);
+  const system = [
+    'You extract ONE bank/payment transaction from a bank-alert or receipt email for a UAE events company\'s expense book.',
+    'Return ONLY minified JSON, no prose:',
+    '{"isTransaction":bool,"direction":"debit"|"credit"|null,"currency":string|null,"amount":number|null,"merchant":string|null,"date":"YYYY-MM-DD"|null,"confident":bool,"note":string|null}',
+    'Rules:',
+    '- isTransaction=false for: statement-ready notices, OTP/verification, marketing, beneficiary-added notices, and pending/"Under Process" notices with no settled amount.',
+    '- direction: "debit"=money OUT (charged/debited/spent/purchase/paid/settlement fee); "credit"=money IN (credited/received/inward transfer/deposit/refund to your account).',
+    '- amount: the transaction amount as a number in its currency (e.g. 170.00). NEVER a fee/VAT line, running balance, card number, phone number, reference or a date. If unsure which number is the amount, set amount=null and confident=false.',
+    '- merchant: the payee/merchant/vendor NAME only. NEVER a status ("Under Process"), an account number, or a card number. null if not clearly a name.',
+    '- date: the transaction/debit date as YYYY-MM-DD. null if unclear.',
+    '- confident: true ONLY if amount, direction AND merchant are clearly and unambiguously present. If ANY is a guess, confident=false and say why in note.',
+    '- Never invent values. Prefer null + confident:false over guessing.',
+  ].join('\n');
+  let out: string | null = null;
+  try {
+    out = await Promise.race([
+      generateText({ system, prompt: body, maxTokens: 300 }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
+    ]);
+  } catch { return null; }
+  if (!out) return null;
+  try {
+    const m = out.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    const p = JSON.parse(m[0]) as Record<string, unknown>;
+    return {
+      isTransaction: Boolean(p.isTransaction),
+      direction: p.direction === 'credit' ? 'credit' : p.direction === 'debit' ? 'debit' : null,
+      currency: typeof p.currency === 'string' ? p.currency : null,
+      amount: Number.isFinite(Number(p.amount)) && Number(p.amount) > 0 ? Number(p.amount) : null,
+      merchant: typeof p.merchant === 'string' && p.merchant.trim() ? p.merchant.trim().slice(0, 120) : null,
+      date: typeof p.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.date) ? p.date : null,
+      confident: Boolean(p.confident),
+      note: typeof p.note === 'string' ? p.note.slice(0, 200) : null,
+    };
+  } catch { return null; }
+}
+
 /** Pick the best receipt attachment: prefer a PDF, then any, under Cloudinary's limit. */
 function pickReceiptAttachment(atts: InboxAttachment[]): InboxAttachment | null {
   const ok = atts.filter((a) => a.bytes.length > 0 && a.bytes.length <= 10 * 1024 * 1024);
@@ -403,6 +464,7 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   let postedOn: string = dubaiToday();
   let merchant = providerLabel(provider, from);
   let settlementNote: string | null = null;
+  let needsReview = false; // the LLM read the email but wasn't sure — flag, don't guess
 
   const settle = provider === 'tabby' || provider === 'tamara' ? parseSettlement(subject, text) : null;
   if (settle) {
@@ -431,13 +493,37 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     kind = 'other';
     settlementNote = `${providerLabel(provider, from)} payout — couldn't read the settlement fee automatically, please set it`;
   } else {
-    const p = parseRakbankAlert(subject, text);
-    if (p) {
-      amountFils = p.amountFils;
-      direction = p.direction;
-      kind = p.kind;
-      postedOn = p.postedOn ?? dubaiToday();
-      merchant = p.merchant ?? merchant;
+    // Generic bank alert — read the fields with Claude first (accurate across the
+    // many RAKBANK layouts, and it won't mistake a status like "Under Process" for
+    // a merchant, a fee for the amount, or the wrong date). Regex is the fallback
+    // when Claude is unavailable. Anything Claude isn't sure about is FLAGGED for
+    // review rather than guessed.
+    // Only spend an LLM call when the email plausibly IS a transaction (a bank
+    // sender, or money/transaction wording) — skip OTP/marketing/newsletters.
+    const looksTransactional = provider === 'rakbank'
+      || /\baed\b|\bdhs?\b|\$|\bamount\b|charged|debited|\bspent\b|transaction|payment|receipt|invoice|purchase|withdraw/i.test(`${subject}\n${text}`);
+    const llm = looksTransactional ? await llmExtractTransaction(subject, from, text) : null;
+    if (llm) {
+      if (!llm.isTransaction) return null; // statement / OTP / marketing / pending-only
+      direction = llm.direction ?? 'debit';
+      kind = 'purchase';
+      const rate = (llm.currency ?? 'AED').toUpperCase() === 'USD' ? AED_PER_USD : 1;
+      amountFils = llm.amount != null ? Math.round(llm.amount * rate * 100) : 0;
+      if (llm.merchant) merchant = llm.merchant;
+      if (llm.date) postedOn = llm.date;
+      if (!llm.confident) {
+        needsReview = true;
+        settlementNote = `⚠️ NEEDS REVIEW — auto-read may be wrong${llm.note ? `: ${llm.note}` : ''}. Check the amount, vendor and date against the email before approving.`;
+      }
+    } else {
+      const p = parseRakbankAlert(subject, text);
+      if (p) {
+        amountFils = p.amountFils;
+        direction = p.direction;
+        kind = p.kind;
+        postedOn = p.postedOn ?? dubaiToday();
+        merchant = p.merchant ?? merchant;
+      }
     }
   }
   merchant = merchant.slice(0, 120);
@@ -449,10 +535,10 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   // read (she sets it or rejects). The ONLY thing we skip is pure system noise
   // (one-time codes, verification, beneficiary/marketing) that has no amount AND
   // no attachment — those are never a transaction.
-  const alwaysCapture = provider === 'anthropic' || provider === 'tabby' || provider === 'tamara';
+  const alwaysCapture = provider === 'anthropic' || provider === 'tabby' || provider === 'tamara' || needsReview;
   // INWARD money (a credit — received / deposit / inward remittance) is NOT an
-  // expense; don't queue it. Anthropic/Tabby/Tamara are always outgoing, so this
-  // only affects the generic bank path.
+  // expense; don't queue it. Anthropic/Tabby/Tamara are always outgoing; a
+  // flagged (needs-review) row is kept so the owner can judge it.
   if (direction === 'credit' && !alwaysCapture) return null;
   const hasAttachment = (msg.attachments ?? []).some((a) => a.bytes && a.bytes.length > 0);
   // NOTE: no generic footer words like "unsubscribe" here — those appear in real
