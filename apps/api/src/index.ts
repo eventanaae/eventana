@@ -287,8 +287,8 @@ async function main() {
     await fixZedDateFromEnv().catch((err) => console.error('[fix-zed-date] failed:', err));
     const { recordTabbyFeesFromEnv } = await import('./db/recordTabbyFees.js');
     await recordTabbyFeesFromEnv().catch((err) => console.error('[record-tabby] failed:', err));
-    const { financeVerifyFromEnv } = await import('./db/financeVerify.js');
-    await financeVerifyFromEnv().catch((err) => console.error('[fin-verify] failed:', err));
+    const { accountAuditFromEnv } = await import('./db/accountAudit.js');
+    await accountAuditFromEnv().catch((err) => console.error('[acct-audit] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
