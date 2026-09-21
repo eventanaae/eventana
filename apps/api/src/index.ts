@@ -283,8 +283,6 @@ async function main() {
     await rebuildVanLoanFromEnv().catch((err) => console.error('[rebuild-van] failed:', err));
     const { clearTabbyFromEnv } = await import('./db/clearTabby.js');
     await clearTabbyFromEnv().catch((err) => console.error('[clear-tabby] failed:', err));
-    const { tabbyHistoryFromEnv } = await import('./db/tabbyHistory.js');
-    await tabbyHistoryFromEnv().catch((err) => console.error('[tabby-history] failed:', err));
     const { fixZedDateFromEnv } = await import('./db/fixZedDate.js');
     await fixZedDateFromEnv().catch((err) => console.error('[fix-zed-date] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
