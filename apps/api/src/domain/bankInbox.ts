@@ -46,6 +46,22 @@ function stableReference(provider: EmailProvider, subject: string, text: string)
   return null;
 }
 
+/**
+ * A human-readable reference/receipt/transaction number to SHOW on the row (and
+ * carry to the expense), so the owner can see it and duplicates are obvious.
+ * Best-effort across providers; display only (de-dup uses stableReference/hash).
+ */
+function referenceLabel(subject: string, text: string): string | null {
+  const hay = stripInvisible(`${subject}\n${text}`);
+  const anth = hay.match(/#\s*(\d{4}-\d{4}-\d{4})/);            // Anthropic/Stripe receipt no.
+  if (anth) return `#${anth[1]}`;
+  const inv = hay.match(/Invoice[-\s]?([A-Z0-9]{5,}-\d{3,})/i); // Stripe invoice no.
+  if (inv) return `Invoice-${inv[1].toUpperCase()}`;
+  const gen = hay.match(/(?:receipt|invoice|order|payout|reference|txn|transaction)\s*(?:no\.?|number|id|#|:)\s*([A-Z0-9][A-Z0-9\-\/]{4,})/i);
+  if (gen) return gen[1].toUpperCase();
+  return null;
+}
+
 /** Dubai "today" as YYYY-MM-DD, used when an alert has no year. */
 function dubaiToday(): string {
   return new Date(Date.now() + 4 * 3_600_000).toISOString().slice(0, 10);
@@ -390,9 +406,12 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   const NOISE_RE = /one[-\s]?time (?:pass|code)|passcode|\botp\b|verification code|verify your|confirm your email|email address has changed|added to apple pay|new beneficiary|you'?re now connected|reset your password|unsubscribe|log[-\s]?in attempt|new sign[-\s]?in/i;
   if (amountFils <= 0 && !hasAttachment && !alwaysCapture && NOISE_RE.test(`${subject}\n${text}`)) return null;
 
-  // Keep the human-readable fee breakdown at the top of raw_text so it shows in
-  // the Bank Inbox and carries into the expense on approval.
-  const rawText = settlementNote ? `${settlementNote}\n\n${raw}`.slice(0, 4000) : raw;
+  // Keep a readable summary at the top of raw_text (fee/amount note + the
+  // reference/receipt number) so it shows in the Bank Inbox and carries into the
+  // expense on approval — the reference number also makes any duplicate obvious.
+  const refDisplay = referenceLabel(subject, text);
+  const head = [settlementNote, refDisplay ? `Ref ${refDisplay}` : ''].filter(Boolean).join(' · ');
+  const rawText = head ? `${head}\n\n${raw}`.slice(0, 4000) : raw;
 
   // Upload the first receipt-like attachment (PDF/CSV/…) to Cloudinary.
   let receiptUrl: string | null = null;
