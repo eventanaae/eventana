@@ -299,6 +299,10 @@ async function main() {
     await recordMissing4FromEnv().catch((err) => console.error('[missing4] failed:', err));
     const { stripeFeesFromEnv } = await import('./db/stripeFees.js');
     await stripeFeesFromEnv().catch((err) => console.error('[stripe-fees] failed:', err));
+    const { recordMissing5FromEnv } = await import('./db/recordMissing5.js');
+    await recordMissing5FromEnv().catch((err) => console.error('[missing5] failed:', err));
+    const { qbSubAuditFromEnv } = await import('./db/qbSubAudit.js');
+    await qbSubAuditFromEnv().catch((err) => console.error('[qb-sub] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
