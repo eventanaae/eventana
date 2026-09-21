@@ -68,6 +68,15 @@ const BATCH3: Enrich[] = [
   { names: ["women's world textile"], provides: 'Fabric', emirate: 'Dubai', area: 'Al Barsha' },
 ];
 
+// Batch 4 — owner-confirmed 2026-09-21. Al Yafi Style is a supplies/décor vendor
+// (the directory's "gifts/decor" listing was right, not fabric); apply to the
+// base name it's mapped to.
+const BATCH4: Enrich[] = [
+  { names: ['al yafi style gen trd'], phone: '+971 4 251 1915', provides: 'Supplies & décor', emirate: 'Dubai', area: 'Al Qusais' },
+  // Owner confirmed Quatro is in Ajman.
+  { names: ['quatro for advertisment'], phone: '+971 50 993 9094', provides: 'Advertising & printing', emirate: 'Ajman', area: 'Al Hamidiya' },
+];
+
 async function applyBatch(batch: Enrich[], guardKey: string, label: string): Promise<void> {
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
@@ -102,4 +111,5 @@ export async function enrichVendorsFromEnv(): Promise<void> {
   await applyBatch(BATCH1, 'enrich_vendors_v1', 'batch 1');
   await applyBatch(BATCH2, 'enrich_vendors_v2', 'batch 2');
   await applyBatch(BATCH3, 'enrich_vendors_v3', 'batch 3');
+  await applyBatch(BATCH4, 'enrich_vendors_v4', 'batch 4');
 }
