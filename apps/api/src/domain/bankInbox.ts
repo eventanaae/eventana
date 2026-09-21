@@ -90,7 +90,7 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   const low = text.toLowerCase();
   let direction: ParsedAlert['direction'] = 'debit';
   let kind: ParsedAlert['kind'] = 'purchase';
-  if (/credited|received|refund|deposit/.test(low)) { direction = 'credit'; kind = 'other'; }
+  if (/credited|received|refund|deposit|inward|incoming|remittance/.test(low)) { direction = 'credit'; kind = 'other'; }
   if (/withdraw|cash withdrawal|atm/.test(low)) kind = 'withdrawal';
   if (/transfer/.test(low)) kind = 'transfer';
 
@@ -402,6 +402,10 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   // (one-time codes, verification, beneficiary/marketing) that has no amount AND
   // no attachment — those are never a transaction.
   const alwaysCapture = provider === 'anthropic' || provider === 'tabby' || provider === 'tamara';
+  // INWARD money (a credit — received / deposit / inward remittance) is NOT an
+  // expense; don't queue it. Anthropic/Tabby/Tamara are always outgoing, so this
+  // only affects the generic bank path.
+  if (direction === 'credit' && !alwaysCapture) return null;
   const hasAttachment = (msg.attachments ?? []).some((a) => a.bytes && a.bytes.length > 0);
   const NOISE_RE = /one[-\s]?time (?:pass|code)|passcode|\botp\b|verification code|verify your|confirm your email|email address has changed|added to apple pay|new beneficiary|you'?re now connected|reset your password|unsubscribe|log[-\s]?in attempt|new sign[-\s]?in/i;
   if (amountFils <= 0 && !hasAttachment && !alwaysCapture && NOISE_RE.test(`${subject}\n${text}`)) return null;

@@ -451,15 +451,22 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   // Runs once per tag (guarded in app_kv). Bump BANK_IMAP_REREAD_TAG to force a
   // fresh run later; no env flag needed for the first run.
-  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v11'}`;
+  const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v12'}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const c = cfg();
   if (!c) { console.warn('[bank-imap] reread: poller not configured (BANK_IMAP_POLL/PASS)'); return; }
 
+  // Inward money (credits/deposits) is not an expense — drop any pending credit
+  // rows that slipped in during the brief "capture everything" window.
+  const delCr = await pool.query(
+    `DELETE FROM bank_transactions WHERE status = 'pending' AND direction = 'credit'`,
+  ).catch(() => ({ rowCount: 0 }));
+  if (delCr.rowCount) console.log(`[bank-imap] reread: removed ${delCr.rowCount} inward/credit pending rows`);
+
   // Re-read only ADDS what's missing — the ingest de-dupes by the receipt/
   // transaction reference number, so an email already captured (pending OR
-  // approved) is skipped, never duplicated. We do NOT delete existing rows.
+  // approved) is skipped, never duplicated. We do NOT delete existing debit rows.
   const days = Math.max(1, Number(process.env.BANK_IMAP_REREAD_DAYS ?? 2));
   const since = new Date(Date.now() - days * 86_400_000);
   const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][since.getUTCMonth()];
