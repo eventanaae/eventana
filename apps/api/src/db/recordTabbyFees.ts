@@ -125,25 +125,28 @@ const INV: { d: string; f: number; n: number }[] = [
 
 export async function recordTabbyFeesFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const gk = 'record_tabby_fees_v2';
+  const gk = 'record_tabby_fees_v3';
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k=$1`, [gk]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
 
+  // The owner's real account is "Payments/Bank fees" (already holds Wio/other fees).
+  // v1/v2 wrongly created a separate "Payment Fees" account — put Tabby in the real one.
+  const ACCOUNT = 'Payments/Bank fees';
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Clear any prior Tabby Payment-Fees rows (incl. the v1 source='tabby' ones).
-    await client.query(`DELETE FROM expenses WHERE vendor = 'Tabby' AND category = 'Payment Fees'`);
+    // Remove any Tabby rows from BOTH the wrong new account and the real one (re-key safe).
+    await client.query(`DELETE FROM expenses WHERE vendor = 'Tabby' AND category IN ('Payment Fees', 'Payments/Bank fees')`);
     let ins = 0, total = 0;
     for (const w of INV) {
       // source='quickbooks' = historical: these fees were already deducted by Tabby
       // in real life, so the actual cash balance (opening balance) already reflects
-      // them. They show in the Payment Fees report / P&L but are NOT subtracted from
-      // live Cash again (that double-count dropped cash to ~56k).
+      // them. They show in the report / P&L but are NOT subtracted from live Cash
+      // again (that double-count dropped cash to ~56k).
       await client.query(
         `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, payment_method, source)
-         VALUES ('Payment Fees', $1, $2, 'Tabby', $3::date, 'tabby', 'quickbooks')`,
-        [`Tabby weekly settlement charge — ${w.n} txn(s)`, w.f, w.d],
+         VALUES ($4, $1, $2, 'Tabby', $3::date, 'tabby', 'quickbooks')`,
+        [`Tabby weekly settlement charge — ${w.n} txn(s)`, w.f, w.d, ACCOUNT],
       );
       ins++; total += w.f;
     }
