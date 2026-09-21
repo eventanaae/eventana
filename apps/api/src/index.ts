@@ -285,6 +285,8 @@ async function main() {
     await clearTabbyFromEnv().catch((err) => console.error('[clear-tabby] failed:', err));
     const { fixZedDateFromEnv } = await import('./db/fixZedDate.js');
     await fixZedDateFromEnv().catch((err) => console.error('[fix-zed-date] failed:', err));
+    const { recordTabbyFeesFromEnv } = await import('./db/recordTabbyFees.js');
+    await recordTabbyFeesFromEnv().catch((err) => console.error('[record-tabby] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
