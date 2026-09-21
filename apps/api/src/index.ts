@@ -281,6 +281,8 @@ async function main() {
     await addWioManualFromEnv().catch((err) => console.error('[add-wio-manual] failed:', err));
     const { rebuildVanLoanFromEnv } = await import('./db/rebuildVanLoan.js');
     await rebuildVanLoanFromEnv().catch((err) => console.error('[rebuild-van] failed:', err));
+    const { anthropicSpendFromEnv } = await import('./db/anthropicSpend.js');
+    await anthropicSpendFromEnv().catch((err) => console.error('[anthropic-spend] failed:', err));
     const { fixZedDateFromEnv } = await import('./db/fixZedDate.js');
     await fixZedDateFromEnv().catch((err) => console.error('[fix-zed-date] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
