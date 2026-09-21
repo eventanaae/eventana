@@ -18,17 +18,17 @@ export async function sweepRecurringExpenses(): Promise<void> {
     if (d.getTime() > now.getTime()) continue; // not due yet
     const desc = `Van Installment ${n}/36`;
     const dateStr = d.toISOString().slice(0, 10);
-    // Idempotency keyed on the installment's STABLE identity — its due date +
-    // amount — across ANY source. Checking only source='auto' let the sweep
-    // re-post an installment the owner had already entered by hand (same date +
-    // amount, source 'manual'), double-counting the van loan against cash. The
-    // vendor/description are intentionally NOT part of the key (the owner can
-    // rename the vendor in the Chart of Accounts).
+    // Idempotency keyed on the installment NUMBER (its description) + amount,
+    // across ANY source. Date is deliberately NOT part of the key: the real
+    // bank debit date drifts from the scheduled 24th (e.g. installment 3 fell on
+    // the 25th, installment 7 on Apr 1), so a date-based key re-posted the same
+    // installment as a duplicate. Matching the stable "Van Installment N/36"
+    // label instead means a corrected date never causes a re-post.
     const exists = await pool.query(
       `SELECT 1 FROM expenses
-         WHERE spent_on = $1::date AND amount_fils = $2
+         WHERE description = $1 AND amount_fils = $2
          LIMIT 1`,
-      [dateStr, VAN.amountFils],
+      [desc, VAN.amountFils],
     );
     if (exists.rowCount) continue;
     await pool.query(

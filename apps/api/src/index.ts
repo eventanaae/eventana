@@ -279,8 +279,8 @@ async function main() {
     await reReadBankRowsFromEnv().catch((err) => console.error('[reread-bank] failed:', err));
     const { addWioManualFromEnv } = await import('./db/addWioManual.js');
     await addWioManualFromEnv().catch((err) => console.error('[add-wio-manual] failed:', err));
-    const { dupAuditFromEnv } = await import('./db/dupAudit.js');
-    await dupAuditFromEnv().catch((err) => console.error('[dup-audit] failed:', err));
+    const { rebuildVanLoanFromEnv } = await import('./db/rebuildVanLoan.js');
+    await rebuildVanLoanFromEnv().catch((err) => console.error('[rebuild-van] failed:', err));
     const { fixZedDateFromEnv } = await import('./db/fixZedDate.js');
     await fixZedDateFromEnv().catch((err) => console.error('[fix-zed-date] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
