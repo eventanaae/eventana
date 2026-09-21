@@ -1256,27 +1256,25 @@ function decorateReceipt(r: any) {
 
 // ── Accounting (the accounts we actually use, with balances) ─────────────────
 export async function accountingSummary() {
-  const [opening, receipts, paidInv, unpaidInv, expenses, refunds] = await Promise.all([
-    pool.query(`SELECT value FROM settings WHERE key = 'finance.cashOpeningFils'`),
-    pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_receipts WHERE source <> 'quickbooks'`),
-    // Money actually COLLECTED against invoices adds to Cash — the amount paid so
-    // far (full or partial) — but NOT the QuickBooks-migrated ones (those are
-    // already inside the Cash opening balance, so counting them again double-counts).
-    pool.query(`SELECT COALESCE(sum(amount_paid_fils),0)::bigint v FROM finance_invoices WHERE (source IS NULL OR source <> 'quickbooks')`),
+  // Cash on hand = ALL money in − ALL money out, over the whole of Eventana's
+  // reconciled data (migrated rows included — they are our real data, not a
+  // separate "historical" set). No opening balance and no source exclusion, so
+  // every receipt or expense added or removed moves the balance immediately.
+  const [receipts, paidInv, unpaidInv, expenses, refunds] = await Promise.all([
+    pool.query(`SELECT COALESCE(sum(total_fils),0)::bigint v FROM finance_receipts`),
+    // Money actually COLLECTED against invoices adds to Cash — the amount paid so far.
+    pool.query(`SELECT COALESCE(sum(amount_paid_fils),0)::bigint v FROM finance_invoices`),
     // Accounts Receivable = the outstanding BALANCE (total − paid), not the whole
     // invoice, so a part-paid invoice only shows what's still owed.
     pool.query(`SELECT COALESCE(sum(total_fils - amount_paid_fils),0)::bigint v, count(*)::int c FROM finance_invoices WHERE total_fils > amount_paid_fils`),
-    // Only manually-logged expenses reduce live Cash. QuickBooks-imported
-    // expenses are kept for their receipt images + history but are already
-    // inside the Cash opening balance, so counting them again double-counts.
-    pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM expenses WHERE source <> 'quickbooks'`),
+    // Every expense reduces Cash.
+    pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM expenses`),
     // Money actually refunded to customers has LEFT the account. Receipts above are
     // gross (a refund never reduces the sale row), so subtract the real refunds
-    // ledger here or Cash on hand overstates. Refunds are all live (no QB rows).
+    // ledger here or Cash on hand overstates.
     pool.query(`SELECT COALESCE(sum(amount_fils),0)::bigint v FROM refunds`),
   ]);
-  const open = Number(opening.rows[0]?.value ?? 0);
-  const cashOnHand = open + Number(receipts.rows[0].v) + Number(paidInv.rows[0].v) - Number(expenses.rows[0].v) - Number(refunds.rows[0].v);
+  const cashOnHand = Number(receipts.rows[0].v) + Number(paidInv.rows[0].v) - Number(expenses.rows[0].v) - Number(refunds.rows[0].v);
   const ar = Number(unpaidInv.rows[0].v);
   return {
     accounts: [
