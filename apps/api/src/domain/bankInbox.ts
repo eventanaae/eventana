@@ -96,6 +96,10 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   if (/credited|received|refund|deposit|inward|incoming|remittance/.test(low)) { direction = 'credit'; kind = 'other'; }
   if (/withdraw|cash withdrawal|atm/.test(low)) kind = 'withdrawal';
   if (/transfer/.test(low)) kind = 'transfer';
+  // Explicit OUTGOING signals win over a loose credit keyword — a settlement /
+  // card charge that says "debited from your account", "Date of Debit" or
+  // "is charged" is money OUT even if the word "payment" made it look inward.
+  if (/\bdebited\b|date of debit|is charged|charged on your/.test(low)) { direction = 'debit'; if (kind === 'other') kind = 'purchase'; }
 
   // Merchant: labeled "Merchant Name: X" (RAKBANK settlement format), else
   // "from <X> on <date>", or "to <X>" for transfers, or "at <X>".
@@ -104,7 +108,11 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   const m1 = text.match(/\bfrom\s+(.+?)\s+on\s+\d{1,2}[/-]\d{1,2}/i);
   const m2 = text.match(/\b(?:to|at)\s+(.+?)(?:\s+on\s+\d|\.|$)/i);
   merchant = (mName?.[1] ?? m1?.[1] ?? m2?.[1] ?? '').trim() || null;
-  if (merchant) merchant = merchant.replace(/\s+/g, ' ').slice(0, 120);
+  if (merchant) {
+    // Cut off any following label that ran into it (no newline in the HTML).
+    merchant = merchant.split(/\b(?:date of debit|overdrawn account|amount|reference|card)\b\s*:/i)[0]
+      .replace(/\s+/g, ' ').trim().slice(0, 120) || null;
+  }
 
   // Date: "Date of Debit: DD-MM-YYYY" (settlement format), else "on DD/MM" or
   // "DD/MM/YYYY". Year defaults to Dubai's current year.
