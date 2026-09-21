@@ -279,8 +279,8 @@ async function main() {
     await cleanVendorDirectoryFromEnv().catch((err) => console.error('[clean-vendors] failed:', err));
     const { fixAnthZeroFromEnv } = await import('./db/fixAnthZero.js');
     await fixAnthZeroFromEnv().catch((err) => console.error('[fix-anthz] failed:', err));
-    const { dumpEnocFromEnv } = await import('./db/dumpEnoc.js');
-    await dumpEnocFromEnv().catch((err) => console.error('[dump-enoc] failed:', err));
+    const { fixEnocFromEnv } = await import('./db/fixEnoc.js');
+    await fixEnocFromEnv().catch((err) => console.error('[fix-enoc] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');

@@ -75,18 +75,23 @@ function dubaiToday(): string {
  * transfers ("transferred"/"transfer to"). Returns null only if no amount at all.
  */
 export function parseRakbankAlert(subject: string, body: string): ParsedAlert | null {
-  const text = clean(`${subject ?? ''}\n${body ?? ''}`);
+  // Strip tracking URLs first — a forwarded RAKBANK alert is mostly footer links,
+  // and a stray number inside one used to be grabbed as the amount.
+  const text = clean(`${subject ?? ''}\n${body ?? ''}`).replace(/https?:\/\/\S+/gi, ' ');
 
   // Amount in dirhams, in any common shape: "AED 100.00", "AED100", "100.00 AED",
   // "Dhs 100", "100 Dirhams", "د.إ 100", "100 درهم". Currency before OR after.
   const CUR = 'AED|AED\\.|Dhs?|Dirhams?|د\\.?\\s?إ|درهم';
   const num = '([\\d,]+(?:\\.\\d{1,2})?)';
+  // PREFER the amount that sits next to the transaction verb ("AED 170.00 is
+  // charged / debited / spent"), so a footer/fee number never wins over it.
+  const charged = text.match(new RegExp(`(?:${CUR})\\s*${num}\\s+(?:is|was|has been|been)?\\s*(?:charged|debited|spent|paid|withdrawn)`, 'i'));
   const pre = text.match(new RegExp(`(?:${CUR})\\s*${num}`, 'i'));
   const post = text.match(new RegExp(`${num}\\s*(?:${CUR})`, 'i'));
   // RAKBANK's overdraft/settlement + some card emails label it "Amount: 29.16"
   // with NO currency next to the number — read that too.
   const labeled = text.match(/\bamount\b\s*:\s*(?:AED\s*)?([\d,]+(?:\.\d{1,2})?)/i);
-  const amountMatch = pre ?? post ?? labeled;
+  const amountMatch = charged ?? pre ?? post ?? labeled;
   if (!amountMatch) return null;
   const amountFils = Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100);
 
