@@ -273,14 +273,8 @@ async function main() {
     await clearEchoDescsFromEnv().catch((err) => console.error('[echo-desc] failed:', err));
     const { enrichVendorsFromEnv } = await import('./db/enrichVendors.js');
     await enrichVendorsFromEnv().catch((err) => console.error('[enrich] failed:', err));
-    const { dumpSubscriptionsFromEnv } = await import('./db/dumpSubscriptions.js');
-    await dumpSubscriptionsFromEnv().catch((err) => console.error('[subs] failed:', err));
     const { cleanVendorDirectoryFromEnv } = await import('./db/cleanVendorDirectory.js');
     await cleanVendorDirectoryFromEnv().catch((err) => console.error('[clean-vendors] failed:', err));
-    const { fixAnthZeroFromEnv } = await import('./db/fixAnthZero.js');
-    await fixAnthZeroFromEnv().catch((err) => console.error('[fix-anthz] failed:', err));
-    const { fixEnocFromEnv } = await import('./db/fixEnoc.js');
-    await fixEnocFromEnv().catch((err) => console.error('[fix-enoc] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');

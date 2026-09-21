@@ -21,7 +21,7 @@
  *   BANK_IMAP_INTERVAL_MIN=5                 (default)
  */
 import * as tls from 'node:tls';
-import { ingestInboxEmail, parseRakbankAlert } from './bankInbox.js';
+import { ingestInboxEmail } from './bankInbox.js';
 import { pool } from '../db/pool.js';
 
 interface ImapCfg {
@@ -502,12 +502,6 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
         const rawMsg = extractLiteral(fetch);
         if (!rawMsg) continue;
         const email = extractEmail(rawMsg);
-        // Diagnostic: for RAKBANK mail, show why it is/isn't captured (direction
-        // + amount), so an "it didn't reflect" can be explained precisely.
-        if (/rakbank|rak bank/i.test(`${email.from} ${email.subject}`)) {
-          const p = parseRakbankAlert(email.subject, email.text);
-          console.log(`[rak-diag] from="${(email.from ?? '').slice(0, 40)}" subj="${(email.subject ?? '').slice(0, 55)}" dir=${p?.direction ?? '-'} amt=${p?.amountFils ?? '-'} merch="${p?.merchant ?? '-'}" atts=${email.attachments?.length ?? 0}`);
-        }
         const res = await ingestInboxEmail(email, 'privateemail');
         if (res && !res.duplicate) ingested++;
       } catch (err) {
