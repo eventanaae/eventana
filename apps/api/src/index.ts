@@ -289,6 +289,8 @@ async function main() {
     await recordTabbyFeesFromEnv().catch((err) => console.error('[record-tabby] failed:', err));
     const { recordMissing1FromEnv } = await import('./db/recordMissing1.js');
     await recordMissing1FromEnv().catch((err) => console.error('[missing1] failed:', err));
+    const { fixCommunityNameFromEnv } = await import('./db/fixCommunityName.js');
+    await fixCommunityNameFromEnv().catch((err) => console.error('[fix-community] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
