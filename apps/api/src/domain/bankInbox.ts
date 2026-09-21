@@ -377,22 +377,18 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     }
   }
   merchant = merchant.slice(0, 120);
-
-  // A credit (money IN — a refund, deposit or received transfer) is NOT an
-  // expense; don't queue it for expense approval (mirrors the Wio feed, which
-  // skips credits). Anthropic/Tabby/Tamara are always debits, so this only
-  // affects the generic RAKBANK-style path.
-  if (direction === 'credit') return null;
-
-  // Not a real money transaction (statement, OTP, marketing, or an amount our
-  // parser couldn't read) → don't create a zero-amount pending row that clutters
-  // the review list. Real charges always have a positive amount. EXCEPTIONS:
-  // Anthropic and Tabby/Tamara payouts — a known receipt/payout we always want
-  // captured for review even when the amount couldn't be read, so the owner can
-  // set it and approve (never silently dropped).
-  const alwaysCapture = provider === 'anthropic' || provider === 'tabby' || provider === 'tamara';
-  if ((!Number.isFinite(amountFils) || amountFils <= 0) && !alwaysCapture) return null;
   if (!Number.isFinite(amountFils) || amountFils < 0) amountFils = 0;
+
+  // The owner's rule: EVERY email that lands in the bank mailbox must appear in
+  // the approval queue for review — Tabby, Tamara, Anthropic, a bank charge, or
+  // any other receipt — never silently dropped, even if the amount couldn't be
+  // read (she sets it or rejects). The ONLY thing we skip is pure system noise
+  // (one-time codes, verification, beneficiary/marketing) that has no amount AND
+  // no attachment — those are never a transaction.
+  const alwaysCapture = provider === 'anthropic' || provider === 'tabby' || provider === 'tamara';
+  const hasAttachment = (msg.attachments ?? []).some((a) => a.bytes && a.bytes.length > 0);
+  const NOISE_RE = /one[-\s]?time (?:pass|code)|passcode|\botp\b|verification code|verify your|confirm your email|email address has changed|added to apple pay|new beneficiary|you'?re now connected|reset your password|unsubscribe|log[-\s]?in attempt|new sign[-\s]?in/i;
+  if (amountFils <= 0 && !hasAttachment && !alwaysCapture && NOISE_RE.test(`${subject}\n${text}`)) return null;
 
   // Keep the human-readable fee breakdown at the top of raw_text so it shows in
   // the Bank Inbox and carries into the expense on approval.
@@ -422,10 +418,9 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
   );
   const id = String(ins.rows[0].id);
 
-  // Only ping Marsha + owner when there's real money to review. Zero-amount
-  // emails (statements, OTPs, marketing, or a charge our parser couldn't read)
-  // are still captured silently in the Bank Inbox — no notification noise.
-  if (amountFils > 0 || alwaysCapture) {
+  // Ping Marsha + owner when there's real money, a known provider, or a receipt
+  // attached. Other captured-for-review rows sit quietly in the Bank Inbox.
+  if (amountFils > 0 || alwaysCapture || att) {
     const aed = (amountFils / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const tag = provider === 'other' ? '' : `${providerLabel(provider, from)} · `;
     const clip = att ? ' 📎 receipt attached' : '';
