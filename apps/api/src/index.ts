@@ -279,8 +279,8 @@ async function main() {
     await reReadBankRowsFromEnv().catch((err) => console.error('[reread-bank] failed:', err));
     const { addWioManualFromEnv } = await import('./db/addWioManual.js');
     await addWioManualFromEnv().catch((err) => console.error('[add-wio-manual] failed:', err));
-    const { cashAuditFromEnv } = await import('./db/cashAudit.js');
-    await cashAuditFromEnv().catch((err) => console.error('[cash-audit] failed:', err));
+    const { dupAuditFromEnv } = await import('./db/dupAudit.js');
+    await dupAuditFromEnv().catch((err) => console.error('[dup-audit] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');

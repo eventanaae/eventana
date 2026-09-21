@@ -18,13 +18,15 @@ export async function sweepRecurringExpenses(): Promise<void> {
     if (d.getTime() > now.getTime()) continue; // not due yet
     const desc = `Van Installment ${n}/36`;
     const dateStr = d.toISOString().slice(0, 10);
-    // Idempotency keyed on the STABLE identity of the installment — its auto
-    // source + due date + amount — not on the vendor name or description, which
-    // the owner can edit in the Chart of Accounts (renaming the vendor used to
-    // make this re-post the same installment on every sweep).
+    // Idempotency keyed on the installment's STABLE identity — its due date +
+    // amount — across ANY source. Checking only source='auto' let the sweep
+    // re-post an installment the owner had already entered by hand (same date +
+    // amount, source 'manual'), double-counting the van loan against cash. The
+    // vendor/description are intentionally NOT part of the key (the owner can
+    // rename the vendor in the Chart of Accounts).
     const exists = await pool.query(
       `SELECT 1 FROM expenses
-         WHERE source = 'auto' AND spent_on = $1::date AND amount_fils = $2
+         WHERE spent_on = $1::date AND amount_fils = $2
          LIMIT 1`,
       [dateStr, VAN.amountFils],
     );
