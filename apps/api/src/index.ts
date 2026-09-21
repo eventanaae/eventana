@@ -295,6 +295,8 @@ async function main() {
     await recordMissing2FromEnv().catch((err) => console.error('[missing2] failed:', err));
     const { recordMissing3FromEnv } = await import('./db/recordMissing3.js');
     await recordMissing3FromEnv().catch((err) => console.error('[missing3] failed:', err));
+    const { recordMissing4FromEnv } = await import('./db/recordMissing4.js');
+    await recordMissing4FromEnv().catch((err) => console.error('[missing4] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
