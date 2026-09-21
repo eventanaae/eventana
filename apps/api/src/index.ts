@@ -277,6 +277,8 @@ async function main() {
     await dumpSubscriptionsFromEnv().catch((err) => console.error('[subs] failed:', err));
     const { cleanVendorDirectoryFromEnv } = await import('./db/cleanVendorDirectory.js');
     await cleanVendorDirectoryFromEnv().catch((err) => console.error('[clean-vendors] failed:', err));
+    const { dumpAnthZeroFromEnv } = await import('./db/dumpAnthZero.js');
+    await dumpAnthZeroFromEnv().catch((err) => console.error('[anthz] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
