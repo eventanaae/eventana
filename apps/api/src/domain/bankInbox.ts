@@ -260,7 +260,20 @@ export function parseAnthropicReceipt(subject: string, text: string): AnthropicR
     };
     return one(pre) ?? one(suf);
   };
-  const usd = dollar('amount paid') ?? dollar('total paid') ?? dollar('\\btotal\\b') ?? dollar('amount') ?? dollar();
+  let usd = dollar('amount paid') ?? dollar('total paid') ?? dollar('\\btotal\\b') ?? dollar('amount') ?? dollar();
+  // Fallback: some Anthropic/Stripe emails render the amount without a "$" next
+  // to it in the text (the body is mostly invisible pre-header padding + download
+  // links, and the number sits bare, e.g. "310.29"). Strip URLs and long token
+  // blobs (base64/ids), then take the largest plain decimal as the USD amount.
+  if (usd == null) {
+    const stripped = flat
+      .replace(/https?:\/\/\S+/gi, ' ')
+      .replace(/[A-Za-z0-9%._+/=-]{18,}/g, ' ');
+    const nums = [...stripped.matchAll(/(?<![\d.])(\d{1,3}(?:,\d{3})*\.\d{2})(?!\d)/g)]
+      .map((m) => parseFloat(m[1].replace(/,/g, '')))
+      .filter((n) => Number.isFinite(n) && n > 0 && n < 100000);
+    if (nums.length) usd = Math.max(...nums);
+  }
   const amountFils = usd != null ? Math.round(usd * AED_PER_USD * 100) : 0;
 
   // Date: "September 20, 2026" / "Sep 20, 2026" / "20 September 2026" / ISO.
