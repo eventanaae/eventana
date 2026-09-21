@@ -8,7 +8,7 @@ export async function dumpPendingFromEnv(): Promise<void> {
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [`dump_pending_${tag}`]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const counts = await pool.query<any>(`SELECT status, count(*)::int n FROM bank_transactions GROUP BY status ORDER BY n DESC`);
-  console.log(`[dump-pending] counts: ${counts.rows.map((r) => `${r.status}=${r.n}`).join(', ')}`);
+  console.log(`[dump-pending] counts: ${counts.rows.map((r: any) => `${r.status}=${r.n}`).join(', ')}`);
   const { rows } = await pool.query<any>(
     `SELECT to_char(created_at,'MM-DD HH24:MI') AS at, status, source, direction,
             amount_fils, merchant
