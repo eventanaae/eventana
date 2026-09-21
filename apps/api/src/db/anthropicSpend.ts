@@ -4,7 +4,7 @@ import { pool } from './pool.js';
 
 export async function anthropicSpendFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const tag = process.env.ANTHROPIC_SPEND_TAG ?? 'v1';
+  const tag = process.env.ANTHROPIC_SPEND_TAG ?? 'v2';
   const gk = `anthropic_spend_${tag}`;
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k=$1`, [gk]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
@@ -20,10 +20,14 @@ export async function anthropicSpendFromEnv(): Promise<void> {
   for (const r of exp.rows) { total += Number(r.amount_fils); console.log(`[anthropic-spend] ${r.sp} | AED ${aed(Number(r.amount_fils))} | ${r.v} | ${r.src}`); }
   console.log(`[anthropic-spend] TOTAL recorded = AED ${aed(total)} (${exp.rows.length} payments)`);
 
-  const pend = await pool.query<any>(
-    `SELECT COUNT(*)::int n, COALESCE(sum(amount_fils),0)::bigint s FROM bank_transactions
-      WHERE status='pending' AND (source='anthropic' OR merchant ILIKE $1)`, [like]);
-  console.log(`[anthropic-spend] still pending approval: ${pend.rows[0].n} rows · AED ${aed(Number(pend.rows[0].s))}`);
+  // Every captured Anthropic bank row, whatever its status (many were 'ignored').
+  const bank = await pool.query<any>(
+    `SELECT to_char(posted_on,'YYYY-MM-DD') sp, status, amount_fils
+       FROM bank_transactions WHERE source='anthropic' OR merchant ILIKE $1 ORDER BY posted_on`, [like]);
+  let bankTotal = 0;
+  console.log(`[anthropic-spend] captured bank rows (any status): ${bank.rows.length}`);
+  for (const r of bank.rows) { bankTotal += Number(r.amount_fils); console.log(`[anthropic-spend] bank ${r.sp} | ${r.status} | AED ${aed(Number(r.amount_fils))}`); }
+  console.log(`[anthropic-spend] TOTAL captured in mailbox = AED ${aed(bankTotal)} (${bank.rows.length} charges)`);
 
   await pool.query(`INSERT INTO app_kv (k,v) VALUES ($1, now()) ON CONFLICT (k) DO NOTHING`, [gk]).catch(() => {});
 }
