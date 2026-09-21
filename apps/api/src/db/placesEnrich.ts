@@ -48,7 +48,7 @@ function emirateOf(addr: string): string {
 
 export async function placesEnrichFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const tag = process.env.PLACES_ENRICH_TAG ?? 'v1';
+  const tag = process.env.PLACES_ENRICH_TAG ?? 'v2';
   const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [`places_enrich_${tag}`]).catch(() => ({ rowCount: 0 }));
   if (guard.rowCount) return;
   const key = process.env.GOOGLE_MAPS_API_KEY ?? '';
