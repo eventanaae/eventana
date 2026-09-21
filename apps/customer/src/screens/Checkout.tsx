@@ -180,10 +180,14 @@ export function Checkout({
   const phoneN = uaeMobile(reg.phone);
   const backupN = uaeMobile(reg.backupPhone);
   const phonesDiffer = Boolean(phoneN) && Boolean(backupN) && phoneN !== backupN;
+  // Name must be at least a two-part name (first + family), not just a couple of
+  // letters — the team needs a real name for the booking.
+  const nameOk = reg.name.trim().split(/\s+/).filter((w) => w.length >= 2).length >= 2;
+  const nameHint = reg.name.trim().length > 0 && !nameOk;
   // Guest details needed to book (backup phone + email are mandatory). If they
   // opt into an account, a password is needed too.
   const guestReady =
-    reg.name.trim().length >= 2 && emailOk && Boolean(phoneN) && Boolean(backupN) &&
+    nameOk && emailOk && Boolean(phoneN) && Boolean(backupN) &&
     phonesDiffer && (!wantAccount || reg.password.length >= 6);
   const loginReady = emailOk && reg.password.length >= 1;
 
@@ -417,7 +421,7 @@ export function Checkout({
   // is optional and step 7 has no Next — Pay there stays gated by the unchanged
   // `canPay` below, never weakened here.
   const canAdvance =
-    step === 1 ? true
+    step === 1 ? Boolean(draft.eventFor?.trim())
       : step === 2 ? Boolean(zone) && !blocked
       : step === 3 ? (Boolean(draft.mapPin) || Boolean(draft.locationTbd))
       : step === 4 ? Boolean(draft.eventDate) && Boolean(draft.startTime) && !dateTimeBlocked
@@ -474,10 +478,15 @@ export function Checkout({
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('checkout.forWho')}</div>
         <Field
-          placeholder={eventForLabel}
+          placeholder={`${eventForLabel} *`}
           value={draft.eventFor}
           onChange={(v) => update({ eventFor: v })}
         />
+        {!draft.eventFor?.trim() && (
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '6px 0 0 2px' }}>
+            {lang === 'ar' ? 'هذي المعلومة مطلوبة للمتابعة' : 'This is needed to continue'}
+          </div>
+        )}
         {themeName && (
           <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
             🎨 {themeName}
@@ -910,7 +919,12 @@ export function Checkout({
               </>
             ) : (
               <>
-                <Field placeholder={`${t('checkout.phFullName')} *`} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: 9 }} />
+                <Field placeholder={`${t('checkout.phFullName')} *`} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: nameHint ? 3 : 9 }} />
+                {nameHint && (
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.red, margin: '0 0 9px 2px' }}>
+                    {lang === 'ar' ? 'اكتبي الاسم الثنائي (الاسم الأول واسم العائلة)' : 'Please enter your full name (first & family name)'}
+                  </div>
+                )}
                 <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
                 <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
                 <Field placeholder={`${t('checkout.phBackup')} *`} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} style={{ marginBottom: 9 }} />
