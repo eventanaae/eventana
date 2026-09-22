@@ -675,7 +675,8 @@ export async function approveBankTransaction(
   // Vendor is MANDATORY on every expense (owner's rule). Block approval — on any
   // screen — that would create a vendorless expense, so the approver must set one.
   if (!vendor) return { ok: false, reason: 'vendor_required' };
-  const defaultCategory = isSettlement ? 'Payment Fees' : isAnthropic ? 'Dues and Subscriptions' : tx.kind === 'transfer' ? 'transfer' : 'general';
+  const isFee = isSettlement || tx.source === 'stripe' || tx.source === 'ziina';
+  const defaultCategory = isFee ? 'Payments/Bank fees' : isAnthropic ? 'Dues and Subscriptions' : tx.kind === 'transfer' ? 'transfer' : 'general';
   const category = (opts.category ?? defaultCategory).toString().slice(0, 80);
   const paymentMethod = opts.paymentMethod ?? (isSettlement ? 'settlement' : tx.kind === 'transfer' ? 'bank_transfer' : 'card');
   const spentOn = opts.spentOn ?? tx.posted_on ?? null;
