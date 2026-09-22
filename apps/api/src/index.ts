@@ -303,8 +303,8 @@ async function main() {
     await recordMissing5FromEnv().catch((err) => console.error('[missing5] failed:', err));
     const { qbSubAuditFromEnv } = await import('./db/qbSubAudit.js');
     await qbSubAuditFromEnv().catch((err) => console.error('[qb-sub] failed:', err));
-    const { qbReceiptsScopeFromEnv } = await import('./db/qbReceiptsScope.js');
-    await qbReceiptsScopeFromEnv().catch((err) => console.error('[qb-scope] failed:', err));
+    const { deleteQuickBookSubFromEnv } = await import('./db/deleteQuickBookSub.js');
+    await deleteQuickBookSubFromEnv().catch((err) => console.error('[del-qbsub] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
