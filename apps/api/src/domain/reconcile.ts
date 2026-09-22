@@ -365,6 +365,11 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sweepRecurringExpenses }) => sweepRecurringExpenses())
     .catch((err) => console.error('[recurring] failed:', err));
 
+  // Auto-record Stripe processing fees from the Stripe API (throttled internally).
+  await import('./syncStripeFees.js')
+    .then(({ syncStripeFees }) => syncStripeFees())
+    .catch((err) => console.error('[stripe-sync] failed:', err));
+
   return report;
 }
 
