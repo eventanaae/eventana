@@ -305,6 +305,8 @@ async function main() {
     await qbSubAuditFromEnv().catch((err) => console.error('[qb-sub] failed:', err));
     const { deleteQuickBookSubFromEnv } = await import('./db/deleteQuickBookSub.js');
     await deleteQuickBookSubFromEnv().catch((err) => console.error('[del-qbsub] failed:', err));
+    const { recordMissing6FromEnv } = await import('./db/recordMissing6.js');
+    await recordMissing6FromEnv().catch((err) => console.error('[missing6] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
