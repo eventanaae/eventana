@@ -309,6 +309,8 @@ async function main() {
     await recordMissing6FromEnv().catch((err) => console.error('[missing6] failed:', err));
     const { cashNowFromEnv } = await import('./db/cashNow.js');
     await cashNowFromEnv().catch((err) => console.error('[cash-now] failed:', err));
+    const { clearStripeThrottleFromEnv } = await import('./db/clearStripeThrottle.js');
+    await clearStripeThrottleFromEnv().catch((err) => console.error('[clear-stripe-throttle] failed:', err));
     const { placesEnrichFromEnv } = await import('./db/placesEnrich.js');
     await placesEnrichFromEnv().catch((err) => console.error('[places] failed:', err));
     const { prepAuditFromEnv } = await import('./db/prepAudit.js');
