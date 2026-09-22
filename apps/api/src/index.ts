@@ -616,6 +616,10 @@ async function main() {
     // generated data file is empty.
     await applyThemeGallery();
     await applyPackageAssets();
+    // One-time: exchange a Zoho grant code (set in the env) for a permanent
+    // refresh token so the bank feed (RAKBANK + Wio) can sync. Idempotent.
+    const { zohoBootstrapFromEnv } = await import('./db/zohoBootstrap.js');
+    await zohoBootstrapFromEnv().catch((err) => console.error('[zoho-bootstrap] failed:', err));
   }
 
   const app = await buildServer();

@@ -40,12 +40,21 @@ function daysAgo(iso: string, n: number): string {
 // Access token cached in memory for its lifetime (~1h), refreshed on demand.
 let cachedToken: { token: string; exp: number } | null = null;
 
+/** Refresh token from the env, else the one the bootstrap task stored in app_kv. */
+async function refreshTokenValue(): Promise<string | null> {
+  if (config.zoho.refreshToken) return config.zoho.refreshToken;
+  const r = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'zoho_refresh_token'`).catch(() => ({ rows: [] as any[] }));
+  return r.rows[0]?.v ?? null;
+}
+
 async function accessToken(): Promise<string | null> {
   const z = config.zoho;
-  if (!z.clientId || !z.clientSecret || !z.refreshToken) return null;
+  if (!z.clientId || !z.clientSecret) return null;
+  const refreshToken = await refreshTokenValue();
+  if (!refreshToken) return null;
   if (cachedToken && Date.now() < cachedToken.exp) return cachedToken.token;
   const qs = new URLSearchParams({
-    refresh_token: z.refreshToken,
+    refresh_token: refreshToken,
     client_id: z.clientId,
     client_secret: z.clientSecret,
     grant_type: 'refresh_token',
@@ -97,7 +106,7 @@ function isMoneyOut(t: any): boolean {
 
 export async function syncZohoBank(): Promise<void> {
   const z = config.zoho;
-  if (!z.organizationId || !z.clientId || !z.clientSecret || !z.refreshToken) return;
+  if (!z.organizationId || !z.clientId || !z.clientSecret) return;
 
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'zoho_bank_sync_at'`).catch(() => ({ rows: [] as any[] }));
   if (last.rows[0] && Date.now() - new Date(last.rows[0].v).getTime() < THROTTLE_MS) return;
