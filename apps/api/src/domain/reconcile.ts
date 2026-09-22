@@ -370,6 +370,12 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ syncStripeFees }) => syncStripeFees())
     .catch((err) => console.error('[stripe-sync] failed:', err));
 
+  // Auto-feed RAKBANK + Wio transactions from Zoho Books into the Bank Inbox for
+  // approval (throttled internally; no-op until Zoho is configured).
+  await import('./syncZohoBank.js')
+    .then(({ syncZohoBank }) => syncZohoBank())
+    .catch((err) => console.error('[zoho-sync] failed:', err));
+
   return report;
 }
 

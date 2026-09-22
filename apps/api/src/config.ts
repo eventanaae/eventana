@@ -344,6 +344,37 @@ export const config = {
   },
 
   /**
+   * Zoho Books — the bridge that auto-feeds Eventana's OWN bank transactions
+   * (RAKBANK via Yodlee + Wio as a direct partner feed) into our Bank Inbox.
+   *
+   * Zoho pulls every real bank movement automatically — including charges that
+   * never trigger an SMS — and, unlike QuickBooks, its API returns even the
+   * uncategorized feed lines. A scheduled job reads them and queues each
+   * money-OUT as a pending expense the owner approves (source='zoho').
+   *
+   * OAuth 2.0 with a permanent refresh token (generated once from a Zoho
+   * Self Client at api-console.zoho.com, scope ZohoBooks.banking.READ). Data
+   * center hosts default to the global/US DC (books.zoho.com → accounts.zoho.com
+   * + www.zohoapis.com); override with ZOHO_ACCOUNTS_HOST / ZOHO_API_HOST if the
+   * org lives in another DC (e.g. .ae/.eu/.in). Any of orgId/clientId/
+   * clientSecret/refreshToken absent → the whole bridge is a silent no-op.
+   */
+  zoho: {
+    organizationId: env.ZOHO_ORG_ID ?? null,
+    clientId: env.ZOHO_CLIENT_ID ?? null,
+    clientSecret: env.ZOHO_CLIENT_SECRET ?? null,
+    refreshToken: env.ZOHO_REFRESH_TOKEN ?? null,
+    accountsHost: env.ZOHO_ACCOUNTS_HOST ?? 'accounts.zoho.com',
+    apiHost: env.ZOHO_API_HOST ?? 'www.zohoapis.com',
+    // Optional allow-list of Zoho bank account_ids to sync (comma-separated).
+    // Empty → every active bank / credit-card account in the org.
+    bankAccountIds: (env.ZOHO_BANK_ACCOUNT_IDS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  },
+
+  /**
    * Google Business Profile — automatic replies to the Eventana listing's
    * reviews (OAuth 2.0 authorization_code, `business.manage` scope). CLIENT_ID
    * and CLIENT_SECRET come from a Google Cloud OAuth client; the redirect URI
