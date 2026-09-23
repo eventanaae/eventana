@@ -129,17 +129,7 @@ export function Team({ role = 'owner' }: { role?: string }) {
                   {canManage && <Row label="Warning (this month)"><WarningCell member={m} onChange={load} /></Row>}
                   {isOwner && <Row label="Access"><AccessSelect member={m} onChange={load} /></Row>}
                   {isOwner && <Row label="Invite"><InviteCell member={m} /></Row>}
-                  {isOwner && <Row label="Login token"><TokenCell member={m} onChange={load} /></Row>}
                   {canManage && <PerfEditor member={m} onChange={load} />}
-                  <Row label="Assignments">
-                    {!m.assignments || m.assignments.length === 0 ? (
-                      <span style={{ color: C.muted, fontSize: 12.5, fontWeight: 600 }}>Free</span>
-                    ) : (
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>
-                        {m.assignments.map((a: any) => `${a.eventId} (${new Date(a.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })})`).join(' · ')}
-                      </span>
-                    )}
-                  </Row>
                 </div>
               </div>
             ))}
@@ -320,33 +310,6 @@ function InviteCell({ member }: { member: any }) {
         </div>
       )}
       {err && <span style={{ fontSize: 11.5, fontWeight: 700, color: C.red }}>{err}</span>}
-    </div>
-  );
-}
-
-function TokenCell({ member, onChange }: { member: any; onChange: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const [busy, setBusy] = useState(false);
-  // The team list never carries the secret token (it's stripped server-side), so
-  // capture it from the issue/rotate response and hold it here to show + copy.
-  const [revealed, setRevealed] = useState<string | null>(null);
-  const token: string | null = revealed ?? member.access_token ?? null;
-  const issue = async (rotate: boolean) => {
-    setBusy(true);
-    try {
-      const r = await api.setTeamAccess(member.id, member.access_level ?? 'employee', rotate);
-      if (r?.access_token) setRevealed(r.access_token);
-      await onChange();
-    } finally { setBusy(false); }
-  };
-  if (!token) {
-    return <button onClick={() => issue(false)} disabled={busy} style={miniBtn}>{busy ? '…' : 'Issue login token'}</button>;
-  }
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <code style={{ fontSize: 10.5, fontFamily: 'ui-monospace, monospace', background: C.lineSoft, padding: '4px 7px', borderRadius: 7, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={token}>{token}</code>
-      <button onClick={() => { navigator.clipboard?.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 1500); }} style={miniBtn}>{copied ? '✓' : 'Copy'}</button>
-      <button onClick={() => issue(true)} disabled={busy} title="Rotate — signs out the old device" style={{ ...miniBtn, color: C.red }}>{busy ? '…' : '↻'}</button>
     </div>
   );
 }
