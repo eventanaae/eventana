@@ -1,6 +1,6 @@
 {
-  "name": "Eventana Operations",
-  "short_name": "Eventana",
+  "name": "Eventana Ops",
+  "short_name": "Eventana Ops",
   "description": "Eventana team operations — events, tasks, inventory, schedule and more.",
   "start_url": "/",
   "scope": "/",
