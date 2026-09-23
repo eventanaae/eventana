@@ -181,6 +181,8 @@ async function main() {
     await moveThemesTaskFromEnv().catch((err) => console.error('[themes-move] failed:', err));
     const { seedOwnerTasksFromEnv } = await import('./db/seedOwnerTasks.js');
     await seedOwnerTasksFromEnv().catch((err) => console.error('[seed-owner-tasks] failed:', err));
+    const { diagMemberPointsFromEnv } = await import('./db/diagMemberPoints.js');
+    await diagMemberPointsFromEnv().catch((err) => console.error('[diag-points] failed:', err));
     const { diagStaffWaFromEnv } = await import('./db/diagStaffWa.js');
     await diagStaffWaFromEnv().catch((err) => console.error('[diag-wa] failed:', err));
     const { notifyGloriaFixFromEnv } = await import('./db/notifyGloriaFix.js');
