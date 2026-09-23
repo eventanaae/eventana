@@ -87,4 +87,21 @@ export async function diagMemberPointsFromEnv(): Promise<void> {
     [id, COUNTING_START],
   );
   console.log(`[diag-points] this-month 5★ = ${fiveStar.rows[0].c} · expected activity points ≈ ${pointsStat.rows[0].c * 10 + fiveStar.rows[0].c * 20}`);
+
+  // Every warning row for this member — to catch a stale/duplicate row that the
+  // kpis engine's warnMap might pick instead of the exception. kpis wipes points
+  // when the surviving row has affects_points !== false (so NULL also wipes!).
+  const warnAll = await pool.query(
+    `SELECT id, ym, wtype, affects_points, reason, to_char(issued_date,'YYYY-MM-DD') AS issued
+       FROM staff_warnings WHERE member_id = $1 ORDER BY ym, id`,
+    [id],
+  );
+  console.log(`[diag-points] total warning rows: ${warnAll.rows.length}`);
+  for (const w of warnAll.rows) {
+    const raw = w.affects_points;
+    console.log(`[diag-points]   id=${w.id} ym=${w.ym} type=${w.wtype} affects_points=${raw === null ? 'NULL' : raw} (${raw === null ? 'null' : typeof raw}) issued=${w.issued}`);
+  }
+  const ymRows = warnAll.rows.filter((w: any) => w.ym === ym);
+  const anyWipes = ymRows.some((w: any) => w.affects_points !== false);
+  console.log(`[diag-points] ym=${ym} warning rows: ${ymRows.length} · kpis would ${anyWipes ? 'WIPE points to 0 (a row is not exactly false)' : 'KEEP points'}`);
 }
