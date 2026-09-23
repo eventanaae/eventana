@@ -35,19 +35,19 @@ export async function zohoDiagFromEnv(): Promise<void> {
   for (const a of accounts) {
     console.log(`[zoho-diag]  acct id=${a.account_id} type=${a.account_type} name="${a.account_name}" balance=${a.balance ?? a.bank_balance ?? '?'}`);
   }
-  const first = accounts.find((a) => a.account_type === 'bank' || a.account_type === 'credit_card') ?? accounts[0];
-  if (!first) { console.log('[zoho-diag] no account to test transactions'); return; }
-
-  // Transactions for the first account
-  const txRes = await fetch(`https://${z.apiHost}/books/v3/banktransactions?account_id=${encodeURIComponent(first.account_id)}&organization_id=${z.organizationId}&per_page=5`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } }).catch(() => null);
-  const txJson: any = txRes ? await txRes.json().catch(() => null) : null;
-  console.log(`[zoho-diag] banktransactions status=${txRes?.status} code=${txJson?.code} msg=${txJson?.message}`);
-  const txns: any[] = txJson?.banktransactions ?? [];
-  console.log(`[zoho-diag] txn count(first page, acct ${first.account_id})=${txns.length}`);
-  if (txns[0]) {
-    console.log(`[zoho-diag] txn keys: ${Object.keys(txns[0]).join(',')}`);
-    for (const t of txns.slice(0, 5)) {
-      console.log(`[zoho-diag]  txn date=${t.date} amount=${t.amount} dc=${t.debit_or_credit} type=${t.transaction_type} status=${t.status} payee="${t.payee ?? t.description ?? ''}"`);
+  // Transactions for EVERY account (all statuses + uncategorized feed).
+  for (const acct of accounts) {
+    for (const extra of ['', '&status=uncategorized']) {
+      const txRes = await fetch(`https://${z.apiHost}/books/v3/banktransactions?account_id=${encodeURIComponent(acct.account_id)}&organization_id=${z.organizationId}&per_page=5${extra}`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } }).catch(() => null);
+      const txJson: any = txRes ? await txRes.json().catch(() => null) : null;
+      const txns: any[] = txJson?.banktransactions ?? [];
+      console.log(`[zoho-diag] acct "${acct.account_name}" filter="${extra || 'all'}" status=${txRes?.status} code=${txJson?.code} count=${txns.length}`);
+      if (txns[0]) {
+        console.log(`[zoho-diag]   keys: ${Object.keys(txns[0]).join(',')}`);
+        for (const t of txns.slice(0, 3)) {
+          console.log(`[zoho-diag]   txn date=${t.date} amount=${t.amount} dc=${t.debit_or_credit} type=${t.transaction_type} status=${t.status} payee="${t.payee ?? t.description ?? ''}"`);
+        }
+      }
     }
   }
 
