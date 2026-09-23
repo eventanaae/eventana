@@ -70,7 +70,6 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'marketing' },
   { id: 'feedback', label: 'Review Report', icon: '🌟', title: 'Review Report', sub: 'Google reviews + every customer rating (event, dates, team)', section: 'marketing' },
   { id: 'discounts', label: 'Discount Codes', icon: '🏷️', title: 'Discount Codes', sub: 'Create & manage promo codes customers use at checkout', section: 'marketing' },
-  { id: 'themes', label: 'Themes', icon: '🎨', title: 'Themes', sub: "Fill in each party's theme for the whole year", section: 'marketing' },
   // Staff
   { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
