@@ -78,11 +78,17 @@ export function customRecipients(audience: string): Array<{ id: string; email: s
   const raw = String(audience).slice('custom:'.length);
   const seen = new Set<string>();
   const out: Array<{ id: string; email: string; name: string }> = [];
-  for (const part of raw.split(/[,;\s]+/)) {
-    const email = part.trim().toLowerCase();
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || seen.has(email)) continue;
+  // One recipient per line/semicolon, as "Name <email>" or plain "email"; a line
+  // without a "<...>" may still be a comma-separated list of plain emails.
+  const chunks = raw.split(/[\n;]+/).flatMap((line) => (line.includes('<') ? [line] : line.split(',')));
+  for (const seg of chunks) {
+    const m = seg.match(/[^\s<>,;]+@[^\s<>,;]+\.[^\s<>,;]+/);
+    if (!m) continue;
+    const email = m[0].toLowerCase();
+    if (seen.has(email)) continue;
     seen.add(email);
-    out.push({ id: email, email, name: '' });
+    const name = seg.replace(m[0], '').replace(/[<>"]/g, '').replace(/\s+/g, ' ').trim();
+    out.push({ id: email, email, name });
   }
   return out;
 }

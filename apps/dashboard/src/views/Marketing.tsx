@@ -281,10 +281,10 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
             </Q>
           )}
           {key === 'custom' && (
-            <Q title="Add recipient emails">
-              <textarea value={customEmails} onChange={(e) => setCustomEmails(e.target.value)} autoFocus placeholder="name@company.com, another@company.com" style={{ ...input, minHeight: 96, resize: 'vertical', lineHeight: 1.5 }} />
+            <Q title="Add recipients">
+              <textarea value={customEmails} onChange={(e) => setCustomEmails(e.target.value)} autoFocus placeholder={'Ahmed Ali <ahmed@company.com>\nSara <sara@school.ae>'} style={{ ...input, minHeight: 110, resize: 'vertical', lineHeight: 1.6 }} />
               <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 6 }}>
-                Separate multiple emails with a comma. {customEmails.split(/[,;\s]+/).filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.trim())).length} valid email(s)
+                One per line, with a name so the email greets them: <b>Name &lt;email&gt;</b>. A plain email works too. {(customEmails.match(/[^\s<>,;]+@[^\s<>,;]+\.[^\s<>,;]+/g) || []).length} valid recipient(s)
               </div>
             </Q>
           )}
