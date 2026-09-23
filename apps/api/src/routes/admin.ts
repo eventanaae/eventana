@@ -216,6 +216,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // /api/admin/alerts is now role-scoped in the handler (employees get their
       // own "Latest updates" feed), so it is NOT gated to managers here.
       path.startsWith('/api/admin/marketing') ||
+      path.startsWith('/api/admin/stories') ||
       path.startsWith('/api/admin/promo-codes') ||
       // B2B corporate leads (read/import/edit/delete/reset/reply) — Manager+Owner
       // only. Was ungated: an employee could wipe the whole lead directory.
@@ -320,6 +321,82 @@ export async function adminRoutes(app: FastifyInstance) {
     const { sendWebPush, webPushEnabled } = await import('../integrations/webpush.js');
     if (!webPushEnabled()) return reply.status(409).send({ error: 'not_configured' });
     await sendWebPush('staff', memberId, { title: 'Eventana Ops', body: 'Notifications are on 🎉 This is how alerts will look.', url: '/' });
+    return { ok: true };
+  });
+
+  // ── Story Studio (daily Instagram/WhatsApp stories) ────────────────────────
+  app.get('/api/admin/stories', async () => {
+    const { rows } = await pool.query(
+      `SELECT id, image_url, caption_en, caption_ar, link_url,
+              to_char(scheduled_date,'YYYY-MM-DD') AS scheduled_date,
+              posted_at, posted_to, created_at
+         FROM marketing_stories
+        ORDER BY (posted_at IS NOT NULL), scheduled_date NULLS LAST, id`,
+    );
+    return rows;
+  });
+  // Today's story: the one scheduled for today (Dubai) if any, else the oldest
+  // unscheduled, still-unposted one in the queue.
+  app.get('/api/admin/stories/today', async () => {
+    const { rows } = await pool.query(
+      `SELECT id, image_url, caption_en, caption_ar, link_url,
+              to_char(scheduled_date,'YYYY-MM-DD') AS scheduled_date, posted_at
+         FROM marketing_stories
+        WHERE posted_at IS NULL
+          AND (scheduled_date = (now() AT TIME ZONE 'Asia/Dubai')::date OR scheduled_date IS NULL)
+        ORDER BY (scheduled_date IS NULL), scheduled_date, id
+        LIMIT 1`,
+    );
+    return { story: rows[0] ?? null };
+  });
+  app.post('/api/admin/stories', async (request, reply) => {
+    const schema = z.object({
+      imageUrl: z.string().url(),
+      captionEn: z.string().max(2200).optional(),
+      captionAr: z.string().max(2200).optional(),
+      linkUrl: z.string().url().optional().or(z.literal('')),
+      scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const { rows } = await pool.query(
+      `INSERT INTO marketing_stories (image_url, caption_en, caption_ar, link_url, scheduled_date, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [p.data.imageUrl, p.data.captionEn ?? null, p.data.captionAr ?? null, p.data.linkUrl || null, p.data.scheduledDate ?? null, String((request as any).staff?.name ?? 'owner')],
+    );
+    return reply.status(201).send({ id: Number(rows[0].id) });
+  });
+  app.patch('/api/admin/stories/:id', async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    const schema = z.object({
+      captionEn: z.string().max(2200).nullable().optional(),
+      captionAr: z.string().max(2200).nullable().optional(),
+      linkUrl: z.string().url().nullable().optional().or(z.literal('')),
+      scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      markPosted: z.enum(['instagram', 'whatsapp', 'both']).optional(),
+    });
+    const p = schema.safeParse(request.body);
+    if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
+    const d = p.data;
+    const { rows } = await pool.query(
+      `UPDATE marketing_stories SET
+         caption_en     = COALESCE($2, caption_en),
+         caption_ar     = COALESCE($3, caption_ar),
+         link_url       = CASE WHEN $4::text IS NULL THEN link_url ELSE NULLIF($4,'') END,
+         scheduled_date = CASE WHEN $5::text IS NULL THEN scheduled_date ELSE NULLIF($5,'')::date END,
+         posted_at      = CASE WHEN $6::text IS NULL THEN posted_at ELSE now() END,
+         posted_to      = COALESCE($6, posted_to)
+       WHERE id = $1 RETURNING id`,
+      [id, d.captionEn ?? null, d.captionAr ?? null,
+       d.linkUrl === undefined ? null : (d.linkUrl ?? ''),
+       d.scheduledDate === undefined ? null : (d.scheduledDate ?? ''),
+       d.markPosted ?? null],
+    );
+    if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
+    return { ok: true };
+  });
+  app.delete('/api/admin/stories/:id', async (request) => {
+    await pool.query(`DELETE FROM marketing_stories WHERE id = $1`, [Number((request.params as { id: string }).id)]);
     return { ok: true };
   });
 

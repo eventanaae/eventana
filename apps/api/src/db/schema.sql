@@ -1017,6 +1017,23 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_idx ON push_subscriptions (endpoint);
 CREATE INDEX IF NOT EXISTS push_subscriptions_owner_idx ON push_subscriptions (owner_type, owner_id);
 
+-- Story Studio: a library of daily-story images + captions with a schedule, so a
+-- story can be prepared once and posted (to Instagram / WhatsApp) each day.
+CREATE TABLE IF NOT EXISTS marketing_stories (
+  id             BIGSERIAL PRIMARY KEY,
+  image_url      TEXT NOT NULL,
+  caption_en     TEXT,
+  caption_ar     TEXT,
+  link_url       TEXT,                          -- optional swipe-up / booking link
+  scheduled_date DATE,                          -- the day it should go out (NULL = unscheduled queue)
+  posted_at      TIMESTAMPTZ,                   -- set when it's been posted
+  posted_to      TEXT,                          -- e.g. 'instagram', 'whatsapp', 'both'
+  created_by     TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS marketing_stories_sched_idx ON marketing_stories (scheduled_date);
+CREATE INDEX IF NOT EXISTS marketing_stories_posted_idx ON marketing_stories (posted_at);
+
 -- ── Monthly finance report (#31) ─────────────────────────────────────────
 -- Managers can receive a monthly finance summary by email. Staff emails let
 -- owner/manager members receive it; finance_reports dedupes the auto-send so

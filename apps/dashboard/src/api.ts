@@ -451,6 +451,14 @@ export const api = {
   pushVapidKey: () => request<{ key: string | null; enabled: boolean }>('/api/admin/push/vapid-key'),
   pushSubscribe: (subscription: any) => request<{ ok: boolean }>('/api/admin/push/web-subscribe', { method: 'POST', body: JSON.stringify({ subscription }) }),
   pushTest: () => request<{ ok: boolean }>('/api/admin/push/test', { method: 'POST' }),
+  // Story Studio
+  stories: () => request<any[]>('/api/admin/stories'),
+  storyToday: () => request<{ story: any | null }>('/api/admin/stories/today'),
+  addStory: (body: { imageUrl: string; captionEn?: string; captionAr?: string; linkUrl?: string; scheduledDate?: string }) =>
+    request<{ id: number }>('/api/admin/stories', { method: 'POST', body: JSON.stringify(body) }),
+  updateStory: (id: number, body: { captionEn?: string | null; captionAr?: string | null; linkUrl?: string | null; scheduledDate?: string | null; markPosted?: 'instagram' | 'whatsapp' | 'both' }) =>
+    request<{ ok: boolean }>(`/api/admin/stories/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteStory: (id: number) => request<{ ok: boolean }>(`/api/admin/stories/${id}`, { method: 'DELETE' }),
   setTeamAccess: (id: string, accessLevel: string, rotateToken = false) =>
     request<any>(`/api/admin/team/${id}/access`, {
       method: 'PATCH',
