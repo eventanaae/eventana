@@ -447,6 +447,10 @@ export const api = {
 
   team: () => request<any[]>('/api/admin/team'),
   teamDayOffs: () => request<Array<{ name: string; weekly_day_off: number }>>('/api/admin/team-dayoffs'),
+  // Web Push (browser/PWA notifications)
+  pushVapidKey: () => request<{ key: string | null; enabled: boolean }>('/api/admin/push/vapid-key'),
+  pushSubscribe: (subscription: any) => request<{ ok: boolean }>('/api/admin/push/web-subscribe', { method: 'POST', body: JSON.stringify({ subscription }) }),
+  pushTest: () => request<{ ok: boolean }>('/api/admin/push/test', { method: 'POST' }),
   setTeamAccess: (id: string, accessLevel: string, rotateToken = false) =>
     request<any>(`/api/admin/team/${id}/access`, {
       method: 'PATCH',

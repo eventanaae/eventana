@@ -19,6 +19,34 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+// ── Web Push: show the notification on the phone (with the system sound) ──────
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
+  const title = data.title || 'Eventana Ops';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: data.tag || undefined,
+    data: { url: data.url || '/' },
+    vibrate: [80, 40, 80],
+  }));
+});
+
+// Tapping the notification focuses the app (or opens it) at the given URL.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) {
+      if ('focus' in c) { try { await c.focus(); if ('navigate' in c && url && url !== '/') await c.navigate(url); } catch { /* noop */ } return; }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(url);
+  })());
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;

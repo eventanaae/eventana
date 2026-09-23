@@ -250,8 +250,12 @@ export async function adminRoutes(app: FastifyInstance) {
             path === '/api/admin/customer-feedback' ||
             // "The Eventana Week" days-off strip (name + rest day only).
             path === '/api/admin/team-dayoffs' ||
+            // Web Push: read the VAPID key (subscribe/test are POSTs, allowed below).
+            path === '/api/admin/push/vapid-key' ||
             /^\/api\/admin\/events\/[^/]+$/.test(path))) ||
         (method === 'POST' && /^\/api\/admin\/events\/[^/]+\/phase$/.test(path)) ||
+        // Web Push subscribe / test — drivers get push too.
+        (method === 'POST' && (path === '/api/admin/push/web-subscribe' || path === '/api/admin/push/test')) ||
         // Contact the supplier for a shopping item — the handler restricts it to
         // the person the item is assigned to (the buyer, often the driver).
         (method === 'POST' && /^\/api\/admin\/missing-items\/\d+\/contact-supplier$/.test(path)) ||
@@ -269,6 +273,35 @@ export async function adminRoutes(app: FastifyInstance) {
   /** The signed-in staff member and their access level. */
   app.get('/api/admin/me', async (request) => {
     return (request as any).staff ?? { name: 'Staff', role: 'employee' };
+  });
+
+  // ── Web Push (browser/PWA notifications) ───────────────────────────────────
+  // The VAPID public key the browser needs to subscribe.
+  app.get('/api/admin/push/vapid-key', async () => {
+    return { key: config.vapid.publicKey, enabled: Boolean(config.vapid.publicKey) };
+  });
+  // Save this device's push subscription for the signed-in staff member.
+  app.post('/api/admin/push/web-subscribe', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string };
+    if (!staff?.id) return reply.status(400).send({ error: 'no_member' });
+    const b = (request.body as any) ?? {};
+    const sub = b.subscription ?? b;
+    try {
+      const { saveWebPushSubscription } = await import('../integrations/webpush.js');
+      await saveWebPushSubscription('staff', staff.id, sub);
+      return { ok: true };
+    } catch {
+      return reply.status(400).send({ error: 'invalid_subscription' });
+    }
+  });
+  // Send the signed-in member a test push (used by the "Enable notifications" flow).
+  app.post('/api/admin/push/test', async (request, reply) => {
+    const staff = (request as any).staff as { id?: string };
+    if (!staff?.id) return reply.status(400).send({ error: 'no_member' });
+    const { sendWebPush, webPushEnabled } = await import('../integrations/webpush.js');
+    if (!webPushEnabled()) return reply.status(409).send({ error: 'not_configured' });
+    await sendWebPush('staff', staff.id, { title: 'Eventana Ops', body: 'Notifications are on 🎉 This is how alerts will look.', url: '/' });
+    return { ok: true };
   });
 
   // ── QuickBooks Online connection (owner) ───────────────────────────────────

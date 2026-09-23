@@ -8,6 +8,7 @@ import { Today } from './views/Today';
 import { Schedule } from './views/Schedule';
 import { MyTasks } from './views/MyTasks';
 import { InstallPrompt } from './views/InstallPrompt';
+import { NotificationsPrompt } from './views/NotificationsPrompt';
 import { EventDrawer } from './views/Events';
 import { ShopOrderDrawer } from './views/ShopOrderDrawer';
 import { Inventory } from './views/Inventory';
@@ -325,7 +326,7 @@ export default function App() {
           )}
         </div>
 
-        <div style={{ flex: 1, padding: 14, paddingBottom: 84, minWidth: 0 }}><InstallPrompt />{body}</div>
+        <div style={{ flex: 1, padding: 14, paddingBottom: 84, minWidth: 0 }}><InstallPrompt /><NotificationsPrompt />{body}</div>
 
         <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 10, background: '#fff', borderTop: `1px solid ${C.line}`, display: 'flex', padding: '8px 4px calc(8px + env(safe-area-inset-bottom))' }}>
           {primaryNav.map((n) => (

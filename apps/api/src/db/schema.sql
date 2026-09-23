@@ -1003,6 +1003,20 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 CREATE UNIQUE INDEX IF NOT EXISTS device_tokens_token_idx ON device_tokens (token);
 CREATE INDEX IF NOT EXISTS device_tokens_owner_idx ON device_tokens (owner_type, owner_id);
 
+-- Web Push (VAPID) subscriptions for browser/PWA notifications (staff phones).
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id          BIGSERIAL PRIMARY KEY,
+  owner_type  TEXT NOT NULL,                 -- staff | customer
+  owner_id    TEXT NOT NULL,
+  endpoint    TEXT NOT NULL,
+  p256dh      TEXT NOT NULL,                 -- client public key (base64url)
+  auth        TEXT NOT NULL,                 -- client auth secret (base64url)
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_idx ON push_subscriptions (endpoint);
+CREATE INDEX IF NOT EXISTS push_subscriptions_owner_idx ON push_subscriptions (owner_type, owner_id);
+
 -- ── Monthly finance report (#31) ─────────────────────────────────────────
 -- Managers can receive a monthly finance summary by email. Staff emails let
 -- owner/manager members receive it; finance_reports dedupes the auto-send so

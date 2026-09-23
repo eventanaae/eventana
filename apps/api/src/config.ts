@@ -282,6 +282,13 @@ export const config = {
     projectId: env.FCM_PROJECT_ID ?? null,
   },
 
+  // Web Push (VAPID) — browser/PWA notifications for staff. See integrations/webpush.ts.
+  vapid: {
+    publicKey: env.VAPID_PUBLIC_KEY ?? null,
+    privateKey: env.VAPID_PRIVATE_KEY ?? null,
+    subject: env.VAPID_SUBJECT ?? 'mailto:bank@eventanauae.com',
+  },
+
   /**
    * Meta Conversions API — the server half of ad attribution.
    *

@@ -9,6 +9,7 @@
 import { createSign } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
+import { sendWebPush } from './webpush.js';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -119,6 +120,9 @@ export async function pushToStaff(
   // WhatsApp mirror first — it must reach the team even when FCM isn't
   // configured or a phone has no app installed (iOS push is unreliable).
   void staffWhatsApp(title, body);
+  // Browser/PWA push (Web Push) to every staff subscription — the on-screen
+  // notification with sound on installed phones. Best-effort, non-fatal.
+  void sendWebPush('staff', null, { title, body, url: data?.url, tag: data?.kind });
   if (!pushEnabled()) return;
   try {
     await sendToTokens(await tokensFor('staff'), { title, body, data });
@@ -137,6 +141,8 @@ export async function pushToOwner(
 ): Promise<void> {
   // Mirror staff-directed notifications to that member's WhatsApp too.
   if (ownerType === 'staff') void staffWhatsApp(title, body, ownerId);
+  // Browser/PWA push to that member's (or customer's) subscriptions.
+  void sendWebPush(ownerType, ownerId, { title, body, url: data?.url, tag: data?.kind });
   if (!pushEnabled()) return;
   try {
     await sendToTokens(await tokensFor(ownerType, ownerId), { title, body, data });
