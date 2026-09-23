@@ -380,7 +380,7 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
       {/* The package (what they booked) as a pink pill on the right — where the
           redundant "Booking Confirmed" badge used to be. */}
       {e.package_name && (
-        <span style={{ flex: 'none', maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>📦 {e.package_name}</span>
+        <span style={{ flex: 'none', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>📦 {e.package_name}</span>
       )}
       <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
     </div>
