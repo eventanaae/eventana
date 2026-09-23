@@ -685,13 +685,23 @@ export interface OccasionOverride { services?: string[]; intro?: string; offer?:
 /** Inner campaign HTML (wrapped in the Eventana shell — which adds the WhatsApp
  *  contact CTA — at send time). Greeting-only occasions carry no services/pitch.
  *  `ov` lets the owner override the services list, intro, and add a CUSTOMER offer. */
+/** A clear "when is this occasion" line — many recipients don't know the exact
+ *  date, so every occasion email states it. Empty if the date can't be resolved. */
+export function occasionWhenLine(o: Occasion): string {
+  const nd = nextOccasionDate(o);
+  if (!nd) return '';
+  const d = new Date(`${nd.dateISO}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return `<p style="margin:0 0 14px;font-weight:700;color:#E94F9C">📅 ${o.name} is on ${d}.</p>`;
+}
+
 export function buildOccasionBody(o: Occasion, ov?: OccasionOverride): string {
   if (ov?.customConsumer) return ov.customConsumer; // learned from the owner's edit
   const heading = `<p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>`;
   const greet = `<p style="margin:0 0 14px">Hi {{name}},</p>`;
   const intro = `<p style="margin:0 0 14px">${ov?.intro || o.copy.intro}</p>`;
+  const when = occasionWhenLine(o);
   if (o.greetingOnly) {
-    return `${heading}${greet}${intro}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
+    return `${heading}${greet}${intro}${when}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
   }
   // A customer offer (e.g. "10% off this week") — shown as a highlighted banner.
   const offer = ov?.offer
@@ -706,7 +716,7 @@ export function buildOccasionBody(o: Occasion, ov?: OccasionOverride): string {
     <ul style="margin:0;padding-left:20px">
       ${services.map((x) => `<li style="margin:0 0 6px">${x}</li>`).join('')}
     </ul>`;
-  return `${heading}${greet}${intro}${offer}${list}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
+  return `${heading}${greet}${intro}${when}${offer}${list}<p style="margin:16px 0 0">With love,<br/>The Eventana Team 💕</p>`;
 }
 
 /** Corporate (B2B) version of an occasion email — for schools, companies, banks,
@@ -733,6 +743,7 @@ export function buildCorporateBody(o: Occasion, ov?: OccasionOverride): string {
     <p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>
     <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#8a7f88;letter-spacing:.3px">Attn: Procurement / Events Department</p>
     <p style="margin:0 0 14px">Hello <b>{{name}}</b>,</p>
+    ${occasionWhenLine(o)}
     <p style="margin:0 0 4px">${ov?.intro || `With ${o.name} coming up, many organisations across the UAE mark it with a special activity for their people and guests — and Eventana can create it beautifully, tailored to you.`}</p>
     <p style="margin:14px 0 4px"><b>Could you kindly point us to the right person</b> in your procurement or events team? We’ll send the details straight to them — just reply with their name and email.</p>
     ${servicesList}
