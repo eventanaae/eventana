@@ -207,6 +207,9 @@ export async function adminRoutes(app: FastifyInstance) {
       // own "Latest updates" feed), so it is NOT gated to managers here.
       path.startsWith('/api/admin/marketing') ||
       path.startsWith('/api/admin/promo-codes') ||
+      // B2B corporate leads (read/import/edit/delete/reset/reply) — Manager+Owner
+      // only. Was ungated: an employee could wipe the whole lead directory.
+      path.startsWith('/api/admin/corporate') ||
       // (theme-backfill is open to employees too — the owner assigns the
       //  "fill in the themes" task to employees, so they must read + save it.)
       path.startsWith('/api/admin/focus') ||
@@ -683,10 +686,11 @@ export async function adminRoutes(app: FastifyInstance) {
         needsReview: k.needs_review,
         processing: k.processing,
       },
-      events: events.rows.map((e) => ({
-        ...e,
-        totalDisplay: formatAed(Number(e.total_fils)),
-      })),
+      // Employees & drivers don't see money — strip each event's total (was leaked).
+      events: events.rows.map((e) => {
+        const hideMoney = (request as any).staff?.role === 'employee' || (request as any).staff?.role === 'driver';
+        return { ...e, total_fils: hideMoney ? null : e.total_fils, totalDisplay: hideMoney ? null : formatAed(Number(e.total_fils)) };
+      }),
       tasks: tasks.rows,
       criticalInventory: inventory.rows,
       pendingDesignApprovals: approvals.rows,
@@ -1248,6 +1252,16 @@ export async function adminRoutes(app: FastifyInstance) {
    *  pending version, or opens the next version pending. */
   app.post('/api/admin/events/:eventId/design', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
+    // Only the event's own crew (or a manager/owner) may post/replace the
+    // customer-facing design image — same guard as /phase. Was ungated.
+    const dStaff = (request as any).staff as { id?: string; role?: string };
+    if (dStaff?.role !== 'owner' && dStaff?.role !== 'manager') {
+      const { rows: onCrew } = await pool.query(
+        `SELECT 1 FROM event_team WHERE event_id = $1 AND member_id = $2`,
+        [eventId, dStaff?.id ?? '__none__'],
+      );
+      if (!onCrew[0]) return reply.status(403).send({ error: 'forbidden', message: 'You can only update events you are assigned to.' });
+    }
     const schema = z.object({ imageUrl: z.string().url() });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -1595,6 +1609,15 @@ export async function adminRoutes(app: FastifyInstance) {
    */
   app.post('/api/admin/events/:eventId/extra', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
+    // Only the event's own crew (or manager/owner) may add extra items/tasks to it.
+    const xStaff = (request as any).staff as { id?: string; role?: string };
+    if (xStaff?.role !== 'owner' && xStaff?.role !== 'manager') {
+      const { rows: onCrew } = await pool.query(
+        `SELECT 1 FROM event_team WHERE event_id = $1 AND member_id = $2`,
+        [eventId, xStaff?.id ?? '__none__'],
+      );
+      if (!onCrew[0]) return reply.status(403).send({ error: 'forbidden', message: 'You can only update events you are assigned to.' });
+    }
     const schema = z.object({
       label: z.string().trim().min(2).max(160),
       quantity: z.number().int().min(1).max(999).optional(),
@@ -4143,6 +4166,16 @@ export async function adminRoutes(app: FastifyInstance) {
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    // A non-manager may only change a task on an event they're on the crew of.
+    const tStaff = (request as any).staff as { id?: string; role?: string };
+    if (tStaff?.role !== 'owner' && tStaff?.role !== 'manager') {
+      const { rows: ok } = await pool.query(
+        `SELECT 1 FROM event_tasks t JOIN event_team te ON te.event_id = t.event_id
+          WHERE t.id = $1 AND te.member_id = $2`,
+        [Number(taskId), tStaff?.id ?? '__none__'],
+      );
+      if (!ok[0]) return reply.status(403).send({ error: 'forbidden', message: 'You can only update tasks on events you are assigned to.' });
+    }
     const { rows } = await pool.query(
       `UPDATE event_tasks SET status = $2, blocked_reason = $3 WHERE id = $1 RETURNING *`,
       [Number(taskId), parsed.data.status, parsed.data.blockedReason ?? null],
