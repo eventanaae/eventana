@@ -35,6 +35,18 @@ export async function diagFeedbackFromEnv(): Promise<void> {
 }
 
 /**
+ * Cleanup (DIAG_DELETE_RATING=<eventId>): remove the test rating left by the
+ * rating-flow end-to-end test, so it doesn't skew ratings/points. Deletes the
+ * event_ratings row(s) for that ONE event. Turn off after.
+ */
+export async function diagDeleteRatingFromEnv(): Promise<void> {
+  const ev = String(process.env.DIAG_DELETE_RATING ?? '').trim();
+  if (!ev) return;
+  const r = await pool.query(`DELETE FROM event_ratings WHERE event_id = $1`, [ev]);
+  console.log(`[diag-del-rating] deleted ${r.rowCount} rating row(s) for ${ev}`);
+}
+
+/**
  * Diagnostic (DIAG_FEEDBACK_LINK=true): print a REAL, signed feedback link for the
  * most recent completed event, so the rating flow can be tested end-to-end. The
  * token is server-signed (can't be forged client-side). Read-only. Turn off after.
