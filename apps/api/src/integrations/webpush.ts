@@ -88,7 +88,7 @@ async function sendOne(sub: Sub, msg: object): Promise<number> {
       'Content-Type': 'application/octet-stream',
       Authorization: `vapid t=${vapidJwt(audience)}, k=${config.vapid.publicKey}`,
     },
-    body,
+    body: body as unknown as BodyInit,
   });
   return res.status;
 }
