@@ -137,7 +137,10 @@ export async function syncZohoBank(): Promise<void> {
   let sampled = false;
   for (const acc of accounts) {
     for (let page = 1; page <= 50; page++) {
-      const j = await zohoGet(`banktransactions?account_id=${encodeURIComponent(acc.account_id)}&sort_column=date&sort_order=D&page=${page}&per_page=200`, token);
+      // The raw bank-FEED lines (what we want) live under Status.Uncategorized —
+      // Zoho's default/Status.All list only returns categorized ledger entries,
+      // which stays empty because we approve in our own app, not in Zoho.
+      const j = await zohoGet(`banktransactions?account_id=${encodeURIComponent(acc.account_id)}&filter_by=Status.Uncategorized&sort_column=date&sort_order=D&page=${page}&per_page=200`, token);
       const list: any[] = j?.banktransactions ?? [];
       if (!list.length) break;
       // One-time visibility: log the raw shape of the first line so the exact
