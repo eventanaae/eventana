@@ -45,7 +45,7 @@ export interface CheckoutRequest {
   /** Signed-in customer, or null for a guest checkout (see `guest`). */
   customerId: string | null;
   /** Guest contact details, used to mint a lightweight customer when not signed in. */
-  guest?: { name: string; phone: string; backupPhone: string; email: string };
+  guest?: { name: string; phone: string; backupPhone?: string; email: string };
   provider: string;
   lang?: 'en' | 'ar';
   idempotencyKey?: string;
@@ -469,7 +469,7 @@ export interface ShopCheckoutRequest {
   /** The guest's drawing(s) to print, or the request that we draw one. */
   customization?: { refImages?: string[]; wantDraw?: boolean } | null;
   customerId: string | null;
-  guest?: { name: string; phone: string; backupPhone: string; email: string };
+  guest?: { name: string; phone: string; backupPhone?: string; email: string };
   provider: string;
   lang?: 'en' | 'ar';
   termsAccepted?: boolean;
@@ -1109,7 +1109,7 @@ async function createGuestCustomer(
   g: {
     name: string;
     phone: string;
-    backupPhone: string;
+    backupPhone?: string;
     email: string;
   },
   opts: { reuseRegistered?: boolean } = {},
@@ -1118,7 +1118,7 @@ async function createGuestCustomer(
   // unrecognisable number is kept as-is here (checkout must not hard-fail on an
   // edge case, and pay-links reuse historical data) — registration enforces it.
   const phone = toValidCustomerPhone(g.phone) ?? g.phone;
-  const backupPhone = g.backupPhone ? (toValidCustomerPhone(g.backupPhone) ?? g.backupPhone) : g.backupPhone;
+  const backupPhone = g.backupPhone ? (toValidCustomerPhone(g.backupPhone) ?? g.backupPhone) : '';
   const name = titleCaseName(g.name);
   // Resolve an existing customer WITHOUT the old bug: a blank email ('' on
   // manual/pay-link bookings) must NEVER match — it used to match the first

@@ -179,16 +179,20 @@ export function Checkout({
   // ops WhatsApp/callbacks, so "123456" or a duplicated number must be rejected.
   const phoneN = uaeMobile(reg.phone);
   const backupN = uaeMobile(reg.backupPhone);
-  const phonesDiffer = Boolean(phoneN) && Boolean(backupN) && phoneN !== backupN;
-  // Name must be at least a two-part name (first + family), not just a couple of
-  // letters — the team needs a real name for the booking.
-  const nameOk = reg.name.trim().split(/\s+/).filter((w) => w.length >= 2).length >= 2;
+  // Backup phone is OPTIONAL — most people have one number, and forcing a
+  // second, different one silently disabled Pay and was the #1 reason bookings
+  // stalled at the last step. If a backup IS typed, it must be a real UAE
+  // mobile that differs from the first; if it's blank, that's fine.
+  const backupOk = !reg.backupPhone.trim() || (Boolean(backupN) && backupN !== phoneN);
+  // A single name is fine ("Noor", "Sara") — we don't reject real names anymore;
+  // we just need something to call the customer by.
+  const nameOk = reg.name.trim().length >= 2;
   const nameHint = reg.name.trim().length > 0 && !nameOk;
-  // Guest details needed to book (backup phone + email are mandatory). If they
-  // opt into an account, a password is needed too.
+  // Guest details needed to book: a name, a valid email and one valid UAE
+  // mobile. If they opt into an account, a password is needed too.
   const guestReady =
-    nameOk && emailOk && Boolean(phoneN) && Boolean(backupN) &&
-    phonesDiffer && (!wantAccount || reg.password.length >= 6);
+    nameOk && emailOk && Boolean(phoneN) && backupOk &&
+    (!wantAccount || reg.password.length >= 6);
   const loginReady = emailOk && reg.password.length >= 1;
 
   const submitAuth = async () => {
@@ -417,24 +421,23 @@ export function Checkout({
   const dateTimeBlocked =
     Boolean(quote?.problems.some((p) => p.code === 'too_soon' || p.code === 'item_needs_lead' || p.code === 'end_after_midnight')) ||
     Boolean(quote?.unavailable && quote.unavailable.length > 0);
-  // Whether the current step is complete enough to reveal Next. Step 6 (add-ons)
-  // is optional and step 7 has no Next — Pay there stays gated by the unchanged
-  // `canPay` below, never weakened here.
+  // 6 steps now (emirate + exact location merged into one; the star's name on
+  // step 1 no longer blocks). Each gate only reveals Next — Pay on the last step
+  // stays gated by the unchanged `canPay` below, never weakened here.
   const canAdvance =
-    step === 1 ? Boolean(draft.eventFor?.trim())
-      : step === 2 ? Boolean(zone) && !blocked
-      : step === 3 ? (Boolean(draft.mapPin) || Boolean(draft.locationTbd))
-      : step === 4 ? Boolean(draft.eventDate) && Boolean(draft.startTime) && !dateTimeBlocked
-      : step === 5 ? (Boolean(account) || (authMode === 'register' && guestReady))
+    step === 1 ? true
+      : step === 2 ? (Boolean(zone) && !blocked && (Boolean(draft.mapPin) || Boolean(draft.locationTbd)))
+      : step === 3 ? Boolean(draft.eventDate) && Boolean(draft.startTime) && !dateTimeBlocked
+      : step === 4 ? (Boolean(account) || (authMode === 'register' && guestReady))
       : true;
-  const goNext = () => { if (step < 7 && canAdvance) { setStep(step + 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
+  const goNext = () => { if (step < 6 && canAdvance) { setStep(step + 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
   const goStepBack = () => { if (step > 1) { setStep(step - 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
   const stepTitles = lang === 'ar'
-    ? ['شو اسم بطل الحفلة؟ 🎈', 'في أي إمارة بتكون الحفلة؟', 'وين بالضبط نجهّز الحفلة؟ 📍', 'متى موعد الحفلة؟ 🗓️', 'معلومات التواصل 💬', 'تبين تضيفين شي لحفلتك؟ ✨', 'باقي تفاصيل بسيطة عشان نجهّز كل شي على ذوقك 💛']
-    : ["Who's the star of the party? 🎈", 'Which emirate is the party in?', 'Where exactly should we set up? 📍', 'When is the party? 🗓️', 'Your contact details 💬', 'Want to add anything to your party? ✨', "A few last details, then you're set 💛"];
+    ? ['شو اسم بطل الحفلة؟ 🎈', 'وين بتكون الحفلة؟ 📍', 'متى موعد الحفلة؟ 🗓️', 'معلومات التواصل 💬', 'تبين تضيفين شي لحفلتك؟ ✨', 'باقي تفاصيل بسيطة ونجهّز كل شي على ذوقك 💛']
+    : ["Who's the star of the party? 🎈", "Where's the party? 📍", 'When is the party? 🗓️', 'Your contact details 💬', 'Want to add anything to your party? ✨', "A few last details, then you're set 💛"];
   const stepSubs = lang === 'ar'
-    ? ['خلّنا نكمل تفاصيل حفلتك ✨', '', '', '', '', '', '']
-    : ["Let's set up your celebration ✨", '', '', '', '', '', ''];
+    ? ['خلّنا نكمل تفاصيل حفلتج ✨', 'نحسب التوصيل لج تلقائياً 💛', '', '', '', '']
+    : ["Let's set up your celebration ✨", "We'll work out delivery for you 💛", '', '', '', ''];
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
@@ -458,12 +461,12 @@ export function Checkout({
       {/* Per-step header: a thin progress bar + a warm title that changes per
           step, styled with the same fredoka/pink language as the other steps. */}
       <div style={{ display: 'flex', gap: 6, margin: '10px 0 12px' }}>
-        {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+        {[1, 2, 3, 4, 5, 6].map((n) => (
           <span key={n} style={{ flex: 1, height: 5, borderRadius: 3, background: n <= step ? C.pink : C.pinkLine, transition: 'background .2s ease' }} />
         ))}
       </div>
       <div style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>
-        {lang === 'ar' ? `الخطوة ${step} من 7` : `Step ${step} of 7`}
+        {lang === 'ar' ? `الخطوة ${step} من 6` : `Step ${step} of 6`}
       </div>
       <div style={{ ...fredoka(22), margin: '2px 0 2px' }}>{stepTitles[step - 1]}</div>
       {stepSubs[step - 1] && (
@@ -478,15 +481,10 @@ export function Checkout({
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('checkout.forWho')}</div>
         <Field
-          placeholder={`${eventForLabel} *`}
+          placeholder={eventForLabel}
           value={draft.eventFor}
           onChange={(v) => update({ eventFor: v })}
         />
-        {!draft.eventFor?.trim() && (
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '6px 0 0 2px' }}>
-            {lang === 'ar' ? 'هذي المعلومة مطلوبة للمتابعة' : 'This is needed to continue'}
-          </div>
-        )}
         {themeName && (
           <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
             🎨 {themeName}
@@ -524,9 +522,9 @@ export function Checkout({
         </>
       )}
 
-      {/* ============================ STEP 2 ============================ */}
-      {/* ---------------- location: emirate ---------------- */}
+      {/* ============= STEP 2 · location: emirate + exact spot (merged) ============= */}
       {step === 2 && (
+        <>
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('checkout.location')}</div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 9 }}>
@@ -555,12 +553,7 @@ export function Checkout({
           )
         )}
       </div>
-      )}
 
-      {/* ============================ STEP 3 ============================ */}
-      {/* ---------------- location: exact spot + map pin ---------------- */}
-      {step === 3 && (
-        <>
       <div style={cardStyle}>
         <div style={{ marginTop: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
           <Field
@@ -626,8 +619,8 @@ export function Checkout({
         </>
       )}
 
-      {/* ============================ STEP 4 ============================ */}
-      {step === 4 && (
+      {/* ============================ STEP 3 · date & time ============================ */}
+      {step === 3 && (
         <>
       {/* ---------------- date & time ---------------- */}
       <div style={cardStyle}>
@@ -728,8 +721,8 @@ export function Checkout({
         </>
       )}
 
-      {/* ============================ STEP 6 — Add-ons ============================ */}
-      {step === 6 && (
+      {/* ============================ STEP 5 — Add-ons ============================ */}
+      {step === 5 && (
         <>
       {/* Manual-order (offer) links: let the customer add anything else from the
           full catalogue while reviewing — the server re-prices and keeps the
@@ -813,8 +806,8 @@ export function Checkout({
         </>
       )}
 
-      {/* ===================== STEP 7 — Review & pay (part 1) ===================== */}
-      {step === 7 && (
+      {/* ===================== STEP 6 — Review & pay (part 1) ===================== */}
+      {step === 6 && (
         <>
       {/* ---------------- summary ---------------- */}
       <div style={cardStyle}>
@@ -865,9 +858,9 @@ export function Checkout({
         </>
       )}
 
-      {/* ============================ STEP 5 ============================ */}
+      {/* ======================= STEP 4 · contact details ======================= */}
       {/* ---------------- your details / account (guest checkout allowed) ---------------- */}
-      {step === 5 && (
+      {step === 4 && (
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>
           {account || authMode === 'login' ? t('checkout.yourAccount') : t('checkout.yourDetails')}
@@ -922,12 +915,12 @@ export function Checkout({
                 <Field placeholder={`${t('checkout.phFullName')} *`} value={reg.name} onChange={(v) => setReg((r) => ({ ...r, name: v }))} style={{ marginBottom: nameHint ? 3 : 9 }} />
                 {nameHint && (
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.red, margin: '0 0 9px 2px' }}>
-                    {lang === 'ar' ? 'اكتبي الاسم الثنائي (الاسم الأول واسم العائلة)' : 'Please enter your full name (first & family name)'}
+                    {lang === 'ar' ? 'اكتبي اسمج حبيبتي 💕' : 'Please enter your name'}
                   </div>
                 )}
                 <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
                 <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
-                <Field placeholder={`${t('checkout.phBackup')} *`} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} style={{ marginBottom: 9 }} />
+                <Field placeholder={`${t('checkout.phBackup')} (${lang === 'ar' ? 'اختياري' : 'optional'})`} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} style={{ marginBottom: 9 }} />
 
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', margin: '4px 0 0' }}>
                   <input type="checkbox" checked={wantAccount} onChange={(e) => setWantAccount(e.target.checked)} style={{ marginTop: 2, width: 16, height: 16, accentColor: C.pink, flexShrink: 0 }} />
@@ -963,8 +956,8 @@ export function Checkout({
       </div>
       )}
 
-      {/* ===================== STEP 7 — Review & pay (part 2) ===================== */}
-      {step === 7 && (
+      {/* ===================== STEP 6 — Review & pay (part 2) ===================== */}
+      {step === 6 && (
         <>
       {/* ---------------- customization (printed drawing items) ---------------- */}
       {needsCustomization && (
@@ -1200,7 +1193,7 @@ export function Checkout({
 
       {/* --------------------- wizard footer: Back / Next --------------------- */}
       {/* Back is hidden on step 1 (the top go(...) control covers that);
-          Next is hidden on step 7, where the Pay button is the primary action. */}
+          Next is hidden on the last step, where the Pay button is the primary action. */}
       <div style={{ display: 'flex', gap: 10, marginTop: 18, alignItems: 'stretch' }}>
         {step > 1 && (
           <button
@@ -1210,7 +1203,7 @@ export function Checkout({
             {lang === 'ar' ? '‹ رجوع' : '‹ Back'}
           </button>
         )}
-        {step < 7 && (
+        {step < 6 && (
           <div style={{ flex: 1 }}>
             <PrimaryButton disabled={!canAdvance} onClick={goNext}>
               {lang === 'ar' ? 'التالي ›' : 'Next ›'}

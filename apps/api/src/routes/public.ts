@@ -498,7 +498,9 @@ export async function publicRoutes(app: FastifyInstance) {
         .object({
           name: z.string().trim().min(2).max(120),
           phone: z.string().trim().min(6).max(30),
-          backupPhone: z.string().trim().min(6).max(30),
+          // Backup phone is optional — most customers have one number, and
+          // requiring a second one was the top reason guest checkout stalled.
+          backupPhone: z.string().trim().max(30).optional(),
           email: z.string().trim().email(),
         })
         .optional(),
@@ -586,7 +588,9 @@ export async function publicRoutes(app: FastifyInstance) {
         .object({
           name: z.string().trim().min(2).max(120),
           phone: z.string().trim().min(6).max(30),
-          backupPhone: z.string().trim().min(6).max(30),
+          // Backup phone is optional — most customers have one number, and
+          // requiring a second one was the top reason guest checkout stalled.
+          backupPhone: z.string().trim().max(30).optional(),
           email: z.string().trim().email(),
         })
         .optional(),
