@@ -363,9 +363,8 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
   const db = dateBadge(e);
   const theme = themeOf(e);
   const headline = e.package_name || eventTitle(e);
-  const secondary = e.package_name
-    ? [eventTitle(e), theme].filter(Boolean).join(' · ')
-    : (theme || (e.customer ? `by ${e.customer}` : ''));
+  // When the package is the headline, whose-party goes on the secondary line.
+  const secondary = e.package_name ? eventTitle(e) : '';
   const timePlace = [e.start_time ? to12h(e.start_time) : '', e.emirate].filter(Boolean).join(' · ');
   return (
     <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
@@ -379,10 +378,10 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
         {secondary && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secondary}</div>}
         {timePlace && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{timePlace}</div>}
       </div>
-      {/* "Booking Confirmed" is the norm here and just adds noise — only badge
-          the phases that actually tell you something. */}
-      {e.phase && e.phase !== 'Booking Confirmed' && (
-        <Badge tone={e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
+      {/* Theme as a clear pink pill on the right — replaces the redundant
+          "Booking Confirmed" badge and shows what they requested at a glance. */}
+      {theme && (
+        <span style={{ flex: 'none', maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>🎨 {theme}</span>
       )}
       <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
     </div>
