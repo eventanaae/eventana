@@ -347,7 +347,10 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                                 const c = aud === 'company' ? o.corporate : o.consumer;
                                 return (
                                   <button key={o.slug} onClick={() => { setOcc(o); setStep(3); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, color: C.ink }}>
-                                    <span style={{ flex: 1, fontWeight: 700, fontSize: 13.5, color: C.ink }}>{o.name}</span>
+                                    <span style={{ flex: 1, minWidth: 0 }}>
+                                      <span style={{ display: 'block', fontWeight: 700, fontSize: 13.5, color: C.ink }}>{o.name}</span>
+                                      {o.dateISO && <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, marginTop: 2 }}>📅 {fmtDay(o.dateISO)}</span>}
+                                    </span>
                                     {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
                                     <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
                                   </button>
