@@ -102,6 +102,29 @@ export async function diagMemberPointsFromEnv(): Promise<void> {
     console.log(`[diag-points]   id=${w.id} ym=${w.ym} type=${w.wtype} affects_points=${raw === null ? 'NULL' : raw} (${raw === null ? 'null' : typeof raw}) issued=${w.issued}`);
   }
   const ymRows = warnAll.rows.filter((w: any) => w.ym === ym);
-  const anyWipes = ymRows.some((w: any) => w.affects_points !== false);
-  console.log(`[diag-points] ym=${ym} warning rows: ${ymRows.length} · kpis would ${anyWipes ? 'WIPE points to 0 (a row is not exactly false)' : 'KEEP points'}`);
+  const anyWipes = ymRows.some((w: any) => w.affects_points === true);
+  console.log(`[diag-points] ym=${ym} warning rows: ${ymRows.length} · points ${anyWipes ? 'WIPED (an explicit affects_points=true)' : 'KEPT'}`);
+
+  // Exact final points, replicating the kpis engine (event_team completed*10 +
+  // 5★*20 + glam*20 + referral value/200), using this month's window.
+  const monthStart = new Date().toISOString().slice(0, 8) + '01';
+  const start = monthStart < String(COUNTING_START) ? String(COUNTING_START) : monthStart;
+  const end = new Date(); end.setUTCDate(1); end.setUTCMonth(end.getUTCMonth() + 1);
+  const endStr = end.toISOString().slice(0, 10);
+  const glam = await pool.query(
+    `SELECT COUNT(DISTINCT e.id)::int n FROM events e
+       JOIN event_staff gs ON gs.event_id = e.id AND (gs.source ILIKE '%glam%' OR gs.role ILIKE '%glam%')
+       JOIN event_staff crew ON crew.event_id = e.id AND crew.assignee_id = $1
+      WHERE e.phase='Event Completed' AND e.event_date >= $2 AND e.event_date < $3`,
+    [id, start, endStr],
+  );
+  const ref = await pool.query(
+    `SELECT COALESCE(SUM(event_value_fils),0)::bigint v FROM staff_referral_events
+      WHERE member_id=$1 AND created_at >= $2 AND created_at < $3`,
+    [id, start, endStr],
+  );
+  const ev = Number(pointsStat.rows[0].c), fs = Number(fiveStar.rows[0].c), gl = Number(glam.rows[0].n);
+  const refPts = Math.round(Number(ref.rows[0].v) / 200);
+  const finalPts = anyWipes ? 0 : ev * 10 + fs * 20 + gl * 20 + refPts;
+  console.log(`[diag-points] EXACT points = ${finalPts}  (events ${ev}×10 + 5★ ${fs}×20 + glam ${gl}×20 + referral ${refPts})`);
 }

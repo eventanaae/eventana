@@ -1877,7 +1877,10 @@ export async function adminRoutes(app: FastifyInstance) {
     // documented on the file only (owner exception). Tips/commission unaffected.
     const warnRes = await pool.query(`SELECT member_id, reason, affects_points FROM staff_warnings WHERE ym = $1`, [monthStr]);
     const warnMap = new Map<string, { reason: string | null; affectsPoints: boolean }>(
-      (warnRes.rows as any[]).map((r) => [r.member_id, { reason: r.reason ?? null, affectsPoints: r.affects_points !== false }]),
+      // Only an EXPLICIT affects_points=true wipes the month's points. A false
+      // (owner exception) or an unset/NULL must NOT wipe — otherwise a missing
+      // flag silently zeroes someone's earnings.
+      (warnRes.rows as any[]).map((r) => [r.member_id, { reason: r.reason ?? null, affectsPoints: r.affects_points === true }]),
     );
     // AED 100 = 1 step; 100 points = AED 10 above the 600 target.
     const rules = { targetPoints: TARGET_POINTS, pointsToAed10: 100, eventPoints: EVENT_POINTS, fiveStarPoints: FIVE_STAR_POINTS, glamPoints: GLAM_POINTS, valuePointsPerAed: 0.5, commissionRate: 2, commissionMinAed: 20000 };
@@ -4492,14 +4495,15 @@ export async function adminRoutes(app: FastifyInstance) {
                           passport_name, passport_number, emirates_id,
                           performance_feedback, performance_by, to_char(performance_at,'YYYY-MM-DD') AS performance_at, email
                      FROM team_members WHERE id = $1`, [staff.id]),
-      // Events they've run THIS calendar month (1st → end of month), completed
-      // or already past — the figure the owner asked for.
-      pool.query(`SELECT count(DISTINCT es.event_id)::int c FROM event_staff es JOIN events e ON e.id = es.event_id
-                   WHERE es.assignee_id = $1
-                     AND e.phase <> 'Cancelled' AND e.cancelled_at IS NULL
+      // Events they've run THIS calendar month — counted the SAME way as the
+      // points engine (their crew roster `event_team`, event marked Completed),
+      // so the "EVENTS" figure always matches the points they earned. (Was
+      // event_staff before, which disagreed with points — e.g. 4 vs 5.)
+      pool.query(`SELECT count(DISTINCT et.event_id)::int c FROM event_team et JOIN events e ON e.id = et.event_id
+                   WHERE et.member_id = $1
+                     AND e.phase = 'Event Completed'
                      AND e.event_date >= GREATEST(date_trunc('month', CURRENT_DATE), $2::date)
-                     AND e.event_date <  date_trunc('month', CURRENT_DATE) + interval '1 month'
-                     AND (e.phase = 'Event Completed' OR e.event_date < CURRENT_DATE)`, [staff.id, COUNTING_START]),
+                     AND e.event_date <  date_trunc('month', CURRENT_DATE) + interval '1 month'`, [staff.id, COUNTING_START]),
       pool.query(`SELECT id, event_id, kind, amount_fils, note, to_char(created_at,'YYYY-MM-DD') AS date
                     FROM staff_rewards WHERE member_id = $1 ORDER BY created_at DESC LIMIT 50`, [staff.id]),
     ]);
