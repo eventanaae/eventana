@@ -36,6 +36,36 @@ export async function diagFeedbackFromEnv(): Promise<void> {
 }
 
 /**
+ * Diagnostic (DIAG_GOOGLE=true): is the Google Business / Reviews integration
+ * ready to (re)connect? Prints whether the OAuth app is configured, whether a
+ * connection row exists, its location + token expiry — so we know if the owner
+ * can just click Connect or if the server side needs setup. Read-only.
+ */
+export async function diagGoogleFromEnv(): Promise<void> {
+  if (String(process.env.DIAG_GOOGLE ?? '').toLowerCase() !== 'true') return;
+  try {
+    const gr = await import('../domain/googleReviews.js');
+    const configured = gr.googleConfigured();
+    console.log(`[diag-google] OAuth app configured (client id+secret set): ${configured}`);
+    const conn = await pool.query(
+      `SELECT (refresh_token IS NOT NULL AND refresh_token <> '') AS has_refresh,
+              to_char(expires_at,'YYYY-MM-DD HH24:MI') AS expires_at,
+              location_name, to_char(updated_at,'YYYY-MM-DD') AS updated
+         FROM google_oauth_connection WHERE id = 1`,
+    ).catch(() => ({ rows: [] as any[] }));
+    if (conn.rows[0]) {
+      const c = conn.rows[0];
+      console.log(`[diag-google] connection row: has_refresh=${c.has_refresh} · expires=${c.expires_at} · location=${c.location_name ?? 'NONE'} · updated=${c.updated}`);
+    } else {
+      console.log('[diag-google] no connection row — never connected (or was disconnected).');
+    }
+    console.log(`[diag-google] → ${configured ? 'READY: owner can click Connect (Review Report → Google Reviews → Connect) to re-authorize.' : 'NOT configured: set GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET (needs a Google Cloud OAuth app) before Connect will work.'}`);
+  } catch (e) {
+    console.log(`[diag-google] error: ${(e as Error).message}`);
+  }
+}
+
+/**
  * Cleanup (DIAG_DELETE_RATING=<eventId>): remove the test rating left by the
  * rating-flow end-to-end test, so it doesn't skew ratings/points. Deletes the
  * event_ratings row(s) for that ONE event. Turn off after.
