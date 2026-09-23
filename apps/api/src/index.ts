@@ -620,6 +620,8 @@ async function main() {
     // refresh token so the bank feed (RAKBANK + Wio) can sync. Idempotent.
     const { zohoBootstrapFromEnv } = await import('./db/zohoBootstrap.js');
     await zohoBootstrapFromEnv().catch((err) => console.error('[zoho-bootstrap] failed:', err));
+    const { zohoDiagFromEnv } = await import('./db/zohoDiag.js');
+    await zohoDiagFromEnv().catch((err) => console.error('[zoho-diag] failed:', err));
   }
 
   const app = await buildServer();
