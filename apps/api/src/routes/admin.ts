@@ -129,28 +129,21 @@ export async function adminRoutes(app: FastifyInstance) {
     if (typeof token !== 'string' || !token) {
       return reply.status(401).send({ error: 'unauthorized' });
     }
-    // Auth precedence (all additive, so nothing is ever locked out mid-switch):
-    //   1. master token → Owner (backward compatible; disabled by the owner once
-    //      email/password login is confirmed working).
-    //   2. a signed staff SESSION token from email/password login → its member.
-    //   3. a personal access_token (the old emailed token) → its member.
-    let staff: { id?: string; name: string; role: string };
-    if (token === config.staffToken) {
-      staff = { name: 'Owner', role: 'owner' };
-    } else {
-      const sessionMemberId = verifyStaffSession(token);
-      const { rows } = sessionMemberId
-        ? await pool.query(
-            `SELECT id, name, access_level FROM team_members WHERE id = $1 AND active LIMIT 1`,
-            [sessionMemberId],
-          )
-        : await pool.query(
-            `SELECT id, name, access_level FROM team_members WHERE access_token = $1 AND active LIMIT 1`,
-            [token],
-          );
-      if (!rows[0]) return reply.status(401).send({ error: 'unauthorized' });
-      staff = { id: rows[0].id, name: rows[0].name, role: rows[0].access_level ?? 'employee' };
-    }
+    // Auth: email/password only (owner's security decision 2026-09-23). A signed
+    // SESSION token — from /api/staff/login, or the owner's "view as" preview —
+    // identifies the member. The old shared master token and the personal
+    // access_tokens were retired: they were a standing backdoor, and every member
+    // already signs in with email + password.
+    const sessionMemberId = verifyStaffSession(token);
+    if (!sessionMemberId) return reply.status(401).send({ error: 'unauthorized' });
+    const { rows } = await pool.query(
+      `SELECT id, name, access_level FROM team_members WHERE id = $1 AND active LIMIT 1`,
+      [sessionMemberId],
+    );
+    if (!rows[0]) return reply.status(401).send({ error: 'unauthorized' });
+    const staff: { id?: string; name: string; role: string } = {
+      id: rows[0].id, name: rows[0].name, role: rows[0].access_level ?? 'employee',
+    };
     (request as any).staff = staff;
 
     // ── Role-based authorization ─────────────────────────────────────────

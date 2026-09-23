@@ -588,18 +588,17 @@ function useIsMobile(): boolean {
 }
 
 /**
- * Staff login — email + password, with a forgot-password flow and a set-password
- * screen reached from the emailed invite/reset link (?setup=TOKEN). The old
- * "paste your access token" method stays available under "Advanced" so nobody is
- * stranded during the switch to passwords.
+ * Staff login — email + password only, with a forgot-password flow and a
+ * set-password screen reached from the emailed invite/reset link (?setup=TOKEN).
+ * The old shared master token and "paste your access token" method were retired
+ * (owner's security decision 2026-09-23).
  */
 function StaffLogin({ onDone }: { onDone: () => void }) {
   const setupToken = (() => { try { return new URLSearchParams(window.location.search).get('setup'); } catch { return null; } })();
-  const [mode, setMode] = useState<'login' | 'forgot' | 'setup' | 'token'>(setupToken ? 'setup' : 'login');
+  const [mode, setMode] = useState<'login' | 'forgot' | 'setup'>(setupToken ? 'setup' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
-  const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -634,14 +633,6 @@ function StaffLogin({ onDone }: { onDone: () => void }) {
     catch (e: any) { setErr(e?.message || 'This link is invalid or expired.'); }
     finally { setBusy(false); }
   };
-  const doToken = async () => {
-    if (!token.trim()) return;
-    setBusy(true); setErr(null); setStaffToken(token.trim());
-    try { await api.today(); onDone(); }
-    catch { clearStaffToken(); setErr('Invalid access token.'); }
-    finally { setBusy(false); }
-  };
-
   const btn = (label: string, onClick: () => void, disabled = false) => (
     <button onClick={onClick} disabled={busy || disabled}
       style={{ width: '100%', background: busy || disabled ? '#d8d2cf' : C.pink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '13px 0', borderRadius: 12, cursor: busy || disabled ? 'not-allowed' : 'pointer', marginTop: 4 }}>
@@ -665,9 +656,8 @@ function StaffLogin({ onDone }: { onDone: () => void }) {
           <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
           <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void doLogin(); }} style={inputStyle} />
           {btn('Sign in', doLogin, !email.trim() || !password)}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
             {link('Forgot password?', () => { setErr(null); setNote(null); setMode('forgot'); })}
-            {link('Use access token', () => { setErr(null); setMode('token'); })}
           </div>
         </>)}
 
@@ -687,12 +677,6 @@ function StaffLogin({ onDone }: { onDone: () => void }) {
           <div style={{ marginTop: 14, textAlign: 'center' }}>{link('← Back to sign in', () => { clearUrl(); setErr(null); setMode('login'); })}</div>
         </>)}
 
-        {mode === 'token' && (<>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>Advanced: paste your staff access token.</div>
-          <input type="password" placeholder="Staff access token" value={token} onChange={(e) => setToken(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void doToken(); }} style={inputStyle} />
-          {btn('Sign in with token', doToken, !token.trim())}
-          <div style={{ marginTop: 14, textAlign: 'center' }}>{link('← Back to sign in', () => { setErr(null); setMode('login'); })}</div>
-        </>)}
       </div>
     </div>
   );
