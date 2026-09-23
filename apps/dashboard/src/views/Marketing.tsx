@@ -105,28 +105,45 @@ export function Marketing() {
       )}
 
       {perf && (() => {
-        const sent = data.campaigns.filter((c: any) => c.status === 'sent');
+        const fmt = (v?: string | null) => v ? new Date(v).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+        // Show EVERY campaign (draft, pending, scheduled, sent), newest activity first.
+        const list = [...(data.campaigns ?? [])].sort((a: any, b: any) => {
+          const t = (c: any) => new Date(c.sent_at || c.scheduled_for || c.created_at || 0).getTime();
+          return t(b) - t(a);
+        });
+        const whenLine = (c: any) =>
+          c.status === 'sent' ? `Sent ${fmt(c.sent_at)}`
+          : c.status === 'sending' ? 'Sending now…'
+          : c.status === 'scheduled' ? `⏰ Scheduled for ${fmt(c.scheduled_for)}`
+          : c.status === 'pending_approval' ? 'Awaiting approval'
+          : c.status === 'rejected' ? 'Rejected'
+          : `Draft · created ${fmt(c.created_at)}`;
         return (
         <Modal title="Campaigns & performance" onClose={() => setPerf(false)}>
-          {sent.length === 0 ? <Empty>No sent campaigns yet — performance shows here once a campaign goes out.</Empty> : (
+          {list.length === 0 ? <Empty>No campaigns yet — create one and it shows here with its status and results.</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {sent.map((c: any) => (
+              {list.map((c: any) => (
                 <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                     {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
                     <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-                    {c.sent_at ? new Date(c.sent_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
-                  </div>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, fontWeight: 700 }}>
-                    <Stat label="Sent" v={c.sent_count} />
-                    <Stat label="Delivered" v={c.delivered_count} />
-                    <Stat label="Opened" v={c.opened_count} tone={C.green} />
-                    <Stat label="Clicked" v={c.clicked_count} tone={C.pinkDeep} />
-                    <Stat label="Bounced" v={c.bounced_count} tone={C.red} />
-                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>{whenLine(c)}</div>
+                  {c.status === 'sent' ? (
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, fontWeight: 700 }}>
+                      <Stat label="Recipients" v={c.recipient_count} />
+                      <Stat label="Sent" v={c.sent_count} />
+                      <Stat label="Delivered" v={c.delivered_count} />
+                      <Stat label="Opened" v={c.opened_count} tone={C.green} />
+                      <Stat label="Clicked" v={c.clicked_count} tone={C.pinkDeep} />
+                      <Stat label="Bounced" v={c.bounced_count} tone={C.red} />
+                    </div>
+                  ) : (c.recipient_count > 0 || String(c.status) === 'scheduled') ? (
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, marginTop: 8 }}>
+                      {c.recipient_count > 0 ? `→ ${c.recipient_count} recipient${c.recipient_count === 1 ? '' : 's'}` : 'Recipients decided at send time'}
+                    </div>
+                  ) : null}
                   <div style={{ marginTop: 10 }}>
                     <button onClick={() => openPreview(Number(c.id))} style={miniBtn}>👁 Preview</button>
                   </div>
