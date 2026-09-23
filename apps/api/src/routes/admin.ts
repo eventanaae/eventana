@@ -196,9 +196,12 @@ export async function adminRoutes(app: FastifyInstance) {
       // Bank Inbox (#16): pending bank transactions → expenses. Manager + Owner
       // (ignore is further restricted to the owner inside the route).
       path.startsWith('/api/admin/bank-transactions') ||
-      // Whole-team tips / earnings / points: Manager + Owner (an employee sees
-      // only their own, in Profile — never every colleague's tip income).
-      path === '/api/admin/kpis' ||
+      // NOTE: /api/admin/kpis is NOT gated here. The handler is role-aware — the
+      // owner gets the full money leaderboard, while everyone else gets only the
+      // points board (no money) + their OWN tips/earnings. Employees MUST reach it
+      // for their Profile points and the Home competition board; gating it to
+      // managers here silently zeroed every employee's points. (Money stays owner-only
+      // via the handler, not this gate.)
       // Customer-facing messaging on any event (send/delete a message, open the
       // chat) is Manager + Owner — an employee must not message customers.
       (request.method !== 'GET' && /^\/api\/admin\/events\/[^/]+\/(messages|chat)(\/|$)/.test(path)) ||

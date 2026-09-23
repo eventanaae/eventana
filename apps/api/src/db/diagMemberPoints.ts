@@ -8,6 +8,54 @@
 import { pool } from './pool.js';
 import { COUNTING_START } from '../domain/period.js';
 
+/**
+ * Team-wide sweep (DIAG_ALL_POINTS=true): for every scored member, compare the
+ * OLD EVENTS count (event_staff) vs the NEW one (event_team = points base),
+ * print exact points, and flag any warning whose affects_points is NULL (which
+ * the old code would have used to wrongly wipe points). Read-only.
+ */
+export async function diagAllPointsFromEnv(): Promise<void> {
+  if (String(process.env.DIAG_ALL_POINTS ?? '').toLowerCase() !== 'true') return;
+  const monthStart = new Date().toISOString().slice(0, 8) + '01';
+  const start = monthStart < String(COUNTING_START) ? String(COUNTING_START) : monthStart;
+  const end = new Date(); end.setUTCDate(1); end.setUTCMonth(end.getUTCMonth() + 1);
+  const endStr = end.toISOString().slice(0, 10);
+  const ym = new Date().toISOString().slice(0, 7);
+  console.log(`[diag-all] scoring window ${start} → ${endStr} (ym ${ym})`);
+
+  const members = await pool.query<{ id: string; name: string }>(
+    `SELECT id, name FROM team_members WHERE active AND lower(name) NOT IN ('shan','sheem') ORDER BY name`,
+  );
+  const anomalies: string[] = [];
+  for (const m of members.rows) {
+    const [teamC, staffC, fs, glam, ref, warns] = await Promise.all([
+      pool.query(`SELECT COUNT(DISTINCT et.event_id)::int c FROM event_team et JOIN events e ON e.id=et.event_id
+                   WHERE et.member_id=$1 AND e.phase='Event Completed' AND e.event_date>=$2 AND e.event_date<$3`, [m.id, start, endStr]),
+      pool.query(`SELECT COUNT(DISTINCT es.event_id)::int c FROM event_staff es JOIN events e ON e.id=es.event_id
+                   WHERE es.assignee_id=$1 AND e.phase<>'Cancelled' AND e.cancelled_at IS NULL
+                     AND e.event_date>=$2 AND e.event_date<$3 AND (e.phase='Event Completed' OR e.event_date<CURRENT_DATE)`, [m.id, start, endStr]),
+      pool.query(`SELECT COUNT(*)::int c FROM event_ratings r JOIN event_team et ON et.event_id=r.event_id JOIN events e ON e.id=r.event_id
+                   WHERE et.member_id=$1 AND r.stars=5 AND e.event_date>=$2 AND e.event_date<$3`, [m.id, start, endStr]),
+      pool.query(`SELECT COUNT(DISTINCT e.id)::int n FROM events e
+                   JOIN event_staff gs ON gs.event_id=e.id AND (gs.source ILIKE '%glam%' OR gs.role ILIKE '%glam%')
+                   JOIN event_staff crew ON crew.event_id=e.id AND crew.assignee_id=$1
+                   WHERE e.phase='Event Completed' AND e.event_date>=$2 AND e.event_date<$3`, [m.id, start, endStr]),
+      pool.query(`SELECT COALESCE(SUM(event_value_fils),0)::bigint v FROM staff_referral_events WHERE member_id=$1 AND created_at>=$2 AND created_at<$3`, [m.id, start, endStr]),
+      pool.query(`SELECT affects_points, wtype FROM staff_warnings WHERE member_id=$1 AND ym=$2`, [m.id, ym]),
+    ]);
+    const ev = teamC.rows[0].c, sv = staffC.rows[0].c, five = fs.rows[0].c, gl = glam.rows[0].n;
+    const refPts = Math.round(Number(ref.rows[0].v) / 200);
+    const wipes = warns.rows.some((w: any) => w.affects_points === true);
+    const nullWarn = warns.rows.some((w: any) => w.affects_points === null || w.affects_points === undefined);
+    const pts = wipes ? 0 : ev * 10 + five * 20 + gl * 20 + refPts;
+    const warnStr = warns.rows.length ? ` · warnings=${warns.rows.map((w: any) => `${w.wtype}:${w.affects_points === null ? 'NULL' : w.affects_points}`).join(',')}` : '';
+    console.log(`[diag-all] ${m.name}: EVENTS old(staff)=${sv} new(team)=${ev} · 5★=${five} glam=${gl} ref=${refPts} · POINTS=${pts}${wipes ? ' (WIPED)' : ''}${warnStr}`);
+    if (sv !== ev) anomalies.push(`${m.name}: EVENTS mismatch old=${sv} new=${ev}`);
+    if (nullWarn) anomalies.push(`${m.name}: warning with NULL affects_points (old code would have wiped points!)`);
+  }
+  console.log(`[diag-all] anomalies: ${anomalies.length ? anomalies.join(' | ') : 'none'}`);
+}
+
 export async function diagMemberPointsFromEnv(): Promise<void> {
   const name = String(process.env.DIAG_MEMBER_POINTS ?? '').trim();
   if (!name) return;
