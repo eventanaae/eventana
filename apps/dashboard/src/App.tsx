@@ -278,7 +278,7 @@ export default function App() {
       {view === 'suppliers' && <Suppliers />}
       {view === 'staffpay' && <StaffPay />}
       {view === 'menu' && <Menu onGoto={go} isVisible={isVisible} staffName={staffName} onSignedOut={() => setAuthed(false)} />}
-      {view === 'settings' && <Settings />}
+      {view === 'settings' && <Settings role={role} />}
     </>
   );
 

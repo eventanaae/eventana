@@ -320,6 +320,14 @@ export const api = {
       '/api/admin/whatsapp/preview',
       { method: 'POST', body: JSON.stringify({ text }) },
     ),
+  tabbyWebhookStatus: () =>
+    request<{ mode: string; secretConfigured: boolean; secretLength: number; webhookUrl: string; canRegister: boolean }>(
+      '/api/admin/payments/tabby/webhook-status',
+    ),
+  tabbyRegisterWebhook: () =>
+    request<{ ok: boolean; url: string; isTest: boolean }>('/api/admin/payments/tabby/register-webhook', {
+      method: 'POST',
+    }),
   events: (status?: string) =>
     request<any[]>(`/api/admin/events${status ? `?status=${status}` : ''}`),
   event: (id: string) => request<any>(`/api/admin/events/${id}`),

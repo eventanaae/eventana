@@ -120,7 +120,7 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
                     {p.id === 'summer' ? t('explore.limitedTime') : p.tag}
                   </span>
                   <span style={{ position: 'absolute', top: 12, right: 12, background: '#C7F2C2', color: '#2e7d4f', fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
-                    {t('explore.installments')}
+                    {t('explore.installments', { aed: `${t('common.aed')} ${money(Math.round(p.priceFils / 4))}` })}
                   </span>
                 </div>
                 <div style={{ padding: '15px 18px 17px' }}>

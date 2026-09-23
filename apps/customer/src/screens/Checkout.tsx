@@ -1085,11 +1085,14 @@ export function Checkout({
         {(() => {
           // A BNPL method is offered only when the server has it live (real keys).
           const live = (name: string) => catalogue.paymentMethods.some((p) => p.name === name && p.mode !== 'disabled');
+          // Tabby/Tamara show the instalment amount up front (order total ÷ 4)
+          // so the customer sees what "pay later" actually means before choosing.
+          const each = estTotalFils > 0 ? t('checkout.bnplEach', { aed: `${t('common.aed')} ${money(Math.round(estTotalFils / 4))}` }) : t('checkout.bnplSplit');
           return [
-            { key: 'card', label: t('checkout.pmCard'), logos: <CardLogos />, disabled: false },
-            { key: 'applepay', label: 'Apple Pay', logos: <ApplePayMark />, disabled: false },
-            { key: 'tabby', label: 'Tabby', logos: <TabbyMark />, disabled: !live('tabby') },
-            { key: 'tamara', label: 'Tamara', logos: <TamaraMark />, disabled: !live('tamara') },
+            { key: 'card', label: t('checkout.pmCard'), logos: <CardLogos />, disabled: false, desc: null as string | null },
+            { key: 'applepay', label: 'Apple Pay', logos: <ApplePayMark />, disabled: false, desc: null },
+            { key: 'tabby', label: t('checkout.pmTabby'), logos: <TabbyMark />, disabled: !live('tabby'), desc: each },
+            { key: 'tamara', label: t('checkout.pmTamara'), logos: <TamaraMark />, disabled: !live('tamara'), desc: each },
           ];
         })().map((row, i) => {
           const selected = !row.disabled && payChoice === row.key;
@@ -1124,6 +1127,9 @@ export function Checkout({
                     </span>
                   )}
                 </div>
+                {row.desc && !row.disabled && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, marginTop: 2 }}>{row.desc}</div>
+                )}
                 <div style={{ display: 'flex', gap: 5, marginTop: 7, flexWrap: 'wrap', alignItems: 'center' }}>{row.logos}</div>
               </div>
             </div>

@@ -23,7 +23,7 @@ const NUMBER_RULES: Array<{ key: string; label: string; help: string; suffix?: s
   { key: 'customTshirtMinimum', label: 'Customized t-shirt minimum', help: 'Minimum order quantity.', suffix: ' pcs' },
 ];
 
-export function Settings() {
+export function Settings({ role }: { role?: string }) {
   const [data, setData] = useState<any>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   // Money rules are edited as free AED TEXT (like delivery zones), NOT round-
@@ -168,6 +168,8 @@ export function Settings() {
         </div>
       </Panel>
 
+      {role === 'owner' && <TabbyWebhookPanel />}
+
       <Panel title="Integrations">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {(data.integrations ?? []).map((i: any) => (
@@ -218,6 +220,45 @@ export function Settings() {
         </div>
       </Panel>
     </div>
+  );
+}
+
+/**
+ * Owner-only. Tabby confirms bookings via a webhook that echoes back the static
+ * secret we registered. If that secret drifts from ours, every webhook is
+ * rejected and orders confirm ~10 min late via polling. One click re-registers
+ * the webhook with our current secret so live confirmations are instant again.
+ */
+function TabbyWebhookPanel() {
+  const [st, setSt] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => { api.tabbyWebhookStatus().then(setSt).catch(() => setSt({ error: true })); }, []);
+  if (!st || st.error) return null;
+  const register = async () => {
+    setBusy(true); setNote(null);
+    try {
+      const r = await api.tabbyRegisterWebhook();
+      setNote(`✓ Webhook re-registered (${r.isTest ? 'sandbox' : 'live'}). Tabby will now confirm bookings instantly.`);
+    } catch (e: any) {
+      setNote(e?.message || 'Could not re-register the webhook.');
+    } finally { setBusy(false); }
+  };
+  return (
+    <Panel title="🟢 Tabby — instant confirmation">
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2, lineHeight: 1.65, marginBottom: 12 }}>
+        Tabby confirms a paid booking through a webhook. If Tabby rejects it, the booking still
+        confirms — but ~10 minutes later, from a backup check. Re-registering the webhook with the
+        current secret makes those confirmations <b>instant</b>. Safe to run anytime.
+      </div>
+      <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginBottom: 10, fontFamily: 'ui-monospace, monospace' }}>
+        Mode: {st.mode} · Secret set: {st.secretConfigured ? 'yes' : 'no'} · {st.webhookUrl}
+      </div>
+      <Button onClick={register} disabled={busy || !st.canRegister}>
+        {busy ? 'Re-registering…' : 'Re-register Tabby webhook'}
+      </Button>
+      {note && <div style={{ fontSize: 12, fontWeight: 700, color: note.startsWith('✓') ? C.green : C.red, marginTop: 10 }}>{note}</div>}
+    </Panel>
   );
 }
 

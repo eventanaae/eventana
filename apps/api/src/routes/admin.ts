@@ -12,6 +12,7 @@ import { refundOrderMoney } from '../domain/refund.js';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import { getProvider, integrationStatus } from '../payments/index.js';
+import { TabbyProvider } from '../payments/tabby.js';
 import { invalidateConfigCache, loadConfig, savePricingRules } from '../domain/settings.js';
 import { applyPaymentStatus, orderStatusFor, recordPaymentEvent } from '../domain/orders.js';
 import { withTransaction } from '../db/pool.js';
@@ -6862,8 +6863,48 @@ export async function adminRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
+  /**
+   * Tabby webhook health + one-click re-registration (owner only).
+   *
+   * Tabby verifies webhooks by echoing back the STATIC secret we registered in
+   * the `X-Eventana-Signature` header — it does not HMAC the body. When the
+   * secret Tabby holds drifts from our `TABBY_WEBHOOK_SECRET`, every delivery is
+   * rejected 401 and orders only confirm ~10 min later via the polling sweep.
+   * Re-registering makes Tabby store (and echo) our current secret, so live
+   * webhooks match again and bookings confirm instantly.
+   */
+  app.get('/api/admin/payments/tabby/webhook-status', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const cfg = config.providers.tabby;
+    return {
+      mode: cfg.mode,
+      secretConfigured: Boolean(cfg.webhookSecret),
+      secretLength: cfg.webhookSecret ? cfg.webhookSecret.length : 0,
+      webhookUrl: `${config.publicApiUrl}/api/webhooks/tabby`,
+      canRegister: cfg.mode === 'live' || cfg.mode === 'sandbox',
+    };
+  });
+
+  app.post('/api/admin/payments/tabby/register-webhook', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const cfg = config.providers.tabby;
+    if (!cfg.webhookSecret) return reply.status(409).send({ error: 'no_secret', message: 'Set TABBY_WEBHOOK_SECRET first.' });
+    const provider = getProvider('tabby');
+    if (!(provider instanceof TabbyProvider)) {
+      return reply.status(409).send({ error: 'not_live', message: 'Tabby is not connected with real keys in this environment.' });
+    }
+    const url = `${config.publicApiUrl}/api/webhooks/tabby`;
+    const isTest = cfg.mode !== 'live';
+    try {
+      const result = await provider.registerWebhook(url, isTest);
+      return { ok: true, url, isTest, result };
+    } catch (err) {
+      return reply.status(502).send({ error: 'register_failed', message: (err as Error).message });
+    }
+  });
+
   // The manual refund now delegates to refundOrderMoney, so these payment
   // primitives are no longer referenced directly here. Kept imported (other
   // refactors may reuse them); voided so an unused-locals build stays green.
-  void recordPaymentEvent; void getProvider; void applyPaymentStatus; void orderStatusFor;
+  void recordPaymentEvent; void applyPaymentStatus; void orderStatusFor;
 }
