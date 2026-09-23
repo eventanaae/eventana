@@ -352,21 +352,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ phase, eta }),
     }),
-  sendSampleEmails: (email: string) =>
-    request<{ sent: number; total: number; failed: string[] }>('/api/admin/notifications/test', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    }),
-  previewResendConfirmations: () =>
-    request<{ dryRun: true; count: number; recipients: Array<{ id: string; kind: string; name: string | null; email: string | null }> }>(
-      '/api/admin/notifications/resend-confirmations',
-      { method: 'POST', body: JSON.stringify({ dryRun: true }) },
-    ),
-  resendConfirmations: () =>
-    request<{ sent: number; total: number; failed: string[] }>('/api/admin/notifications/resend-confirmations', {
-      method: 'POST',
-      body: JSON.stringify({ confirm: true }),
-    }),
   reply: (id: string, body: string) =>
     request<any>(`/api/admin/events/${id}/messages`, {
       method: 'POST',
@@ -756,13 +741,6 @@ export const api = {
   eventUpdateDetails: (eventId: string, patch: { startTime?: string; endTime?: string; emirate?: string; eventFor?: string | null; themeId?: string | null; customThemeName?: string; locationNote?: string | null; mapLat?: number | null; mapLng?: number | null; phone?: string | null; backupPhone?: string | null; email?: string | null; referenceImages?: string[]; teamNote?: string | null }) =>
     request(`/api/admin/events/${eventId}/details`, { method: 'PATCH', body: JSON.stringify(patch) }),
   themesList: () => request<{ rows: Array<{ id: string; name: string; celebration_type: string }> }>('/api/admin/themes-list'),
-  // QuickBooks Online connection (owner).
-  qbStatus: () => request<{ configured: boolean; connected: boolean; realmId?: string; environment?: string; companyName?: string }>('/api/admin/quickbooks/status'),
-  qbConnect: () => request<{ url: string }>('/api/admin/quickbooks/connect'),
-  qbDisconnect: () => request('/api/admin/quickbooks/disconnect', { method: 'POST' }),
-  qbSyncExpenses: () => request<{ started: boolean; already: boolean }>('/api/admin/quickbooks/sync-expenses', { method: 'POST' }),
-  qbSyncStatus: () => request<{ running: boolean; message: string; error: string | null; result: { imported: number; withReceipt: number; total: number } | null }>('/api/admin/quickbooks/sync-status'),
-  qbPreview: () => request<{ purchases: number; attachments: number; sample: { date: string | null; vendor: string | null; amount: number; account: string | null }[] }>('/api/admin/quickbooks/preview'),
   // Google Business Profile — review auto-reply (owner/manager).
   googleStatus: () => request<{ configured: boolean; connected: boolean; locationSet?: boolean; polling?: boolean; pendingDrafts?: number; autoRepliedTotal?: number }>('/api/admin/google/reviews/status'),
   googleConnect: () => request<{ url: string }>('/api/admin/google/connect'),
