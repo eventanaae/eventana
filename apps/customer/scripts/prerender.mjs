@@ -75,6 +75,12 @@ const imageFor = (page) => page.image ?? DEFAULT_IMAGE;
 const thumb = (url, w) =>
   url.replace('/image/upload/', `/image/upload/c_fill,w_${w},h_${w},q_auto,f_auto/`);
 
+/** Social-share image: a 1200×630 (1.91:1) smart crop, the size WhatsApp /
+ *  Facebook / Instagram / X expect. Declaring the exact dimensions stops the
+ *  first-share "no preview" and unpredictable cropping. */
+const ogImg = (url) =>
+  url.replace('/image/upload/', '/image/upload/c_fill,g_auto,w_1200,h_630,q_auto,f_jpg/');
+
 /**
  * The canonical address of a landing page — note the trailing slash.
  *
@@ -395,12 +401,19 @@ function render(page, url) {
     `<meta property="og:url" content="${esc(url)}" />`,
     `<meta property="og:locale" content="en_AE" />`,
     `<meta property="og:locale:alternate" content="ar_AE" />`,
-    `<meta property="og:image" content="${esc(imageFor(page))}" />`,
+    `<meta property="og:image" content="${esc(ogImg(imageFor(page)))}" />`,
+    `<meta property="og:image:secure_url" content="${esc(ogImg(imageFor(page)))}" />`,
+    `<meta property="og:image:type" content="image/jpeg" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
     `<meta property="og:image:alt" content="${esc(en.headline)} — Eventana Events" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${esc(en.title)}" />`,
     `<meta name="twitter:description" content="${esc(en.description)}" />`,
-    `<meta name="twitter:image" content="${esc(imageFor(page))}" />`,
+    `<meta name="twitter:image" content="${esc(ogImg(imageFor(page)))}" />`,
+    `<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />`,
+    `<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />`,
+    `<link rel="manifest" href="/manifest.webmanifest" />`,
     `<meta name="geo.region" content="AE-DU" />`,
     `<meta name="geo.placename" content="Dubai" />`,
     ld(organisation),
