@@ -6,6 +6,7 @@ import { BookingNotifier } from './BookingNotifier';
 import { NotificationBell } from './NotificationBell';
 import { Today } from './views/Today';
 import { Schedule } from './views/Schedule';
+import { MyTasks } from './views/MyTasks';
 import { EventDrawer } from './views/Events';
 import { ShopOrderDrawer } from './views/ShopOrderDrawer';
 import { Inventory } from './views/Inventory';
@@ -37,7 +38,7 @@ import { ThemeBackfill } from './views/ThemeBackfill';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'reports' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'reports' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek' | 'mytasks';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -56,6 +57,7 @@ const SECTIONS: Array<{ id: Section; label: string }> = [
 // `mobile: true` marks the handful of top tabs shown in the phone bottom bar.
 const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: string; section: Section; mobile?: boolean }> = [
   { id: 'today', label: 'Home', icon: '◉', title: 'Home', sub: 'Your day at a glance', section: 'ops', mobile: true },
+  { id: 'mytasks', label: 'My Tasks', icon: '📋', title: 'My Tasks', sub: 'Your private working list — priorities & backlog', section: 'ops' },
   { id: 'schedule', label: 'Events', icon: '▦', title: 'Events', sub: 'Events, jobs, bookings & tasks', section: 'ops', mobile: true },
   { id: 'driverschedule', label: 'Schedule', icon: '🚐', title: 'My Schedule', sub: 'Your weekly delivery schedule', section: 'ops', mobile: true },
   { id: 'inventory', label: 'Inventory', icon: '▣', title: 'Inventory', sub: 'Assets, stock & issue reports', section: 'ops' },
@@ -243,6 +245,7 @@ export default function App() {
   ) : (
     <>
       {view === 'today' && <Today onOpenEvent={openEvent} onOpenShop={setOpenShopId} onGoto={go} staffName={staffName} role={role} />}
+      {view === 'mytasks' && <MyTasks />}
       {view === 'schedule' && (role === 'driver'
         ? <DriverEvents onOpenEvent={openEvent} />
         : <Schedule onOpenEvent={openEvent} canSeeAll={canSeeAll} role={role} />)}
