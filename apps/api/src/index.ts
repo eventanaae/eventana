@@ -185,8 +185,9 @@ async function main() {
     await diagMemberPointsFromEnv().catch((err) => console.error('[diag-points] failed:', err));
     await diagAllPointsFromEnv().catch((err) => console.error('[diag-all] failed:', err));
     await diagAuthFromEnv().catch((err) => console.error('[diag-auth] failed:', err));
-    const { diagFeedbackFromEnv } = await import('./db/diagMemberPoints.js');
+    const { diagFeedbackFromEnv, diagFeedbackLinkFromEnv } = await import('./db/diagMemberPoints.js');
     await diagFeedbackFromEnv().catch((err) => console.error('[diag-fb] failed:', err));
+    await diagFeedbackLinkFromEnv().catch((err) => console.error('[diag-fblink] failed:', err));
     const { diagStaffWaFromEnv } = await import('./db/diagStaffWa.js');
     await diagStaffWaFromEnv().catch((err) => console.error('[diag-wa] failed:', err));
     const { notifyGloriaFixFromEnv } = await import('./db/notifyGloriaFix.js');

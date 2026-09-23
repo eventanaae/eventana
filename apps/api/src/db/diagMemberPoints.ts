@@ -35,6 +35,27 @@ export async function diagFeedbackFromEnv(): Promise<void> {
 }
 
 /**
+ * Diagnostic (DIAG_FEEDBACK_LINK=true): print a REAL, signed feedback link for the
+ * most recent completed event, so the rating flow can be tested end-to-end. The
+ * token is server-signed (can't be forged client-side). Read-only. Turn off after.
+ */
+export async function diagFeedbackLinkFromEnv(): Promise<void> {
+  if (String(process.env.DIAG_FEEDBACK_LINK ?? '').toLowerCase() !== 'true') return;
+  const { config } = await import('../config.js');
+  const { issueFeedbackToken } = await import('../domain/customerAuth.js');
+  const { rows } = await pool.query<{ id: string; has_rating: boolean }>(
+    `SELECT e.id, EXISTS (SELECT 1 FROM event_ratings r WHERE r.event_id = e.id) AS has_rating
+       FROM events e WHERE e.phase = 'Event Completed'
+      ORDER BY e.event_date DESC LIMIT 5`,
+  );
+  const base = String(config.publicAppUrl || '').replace(/\/$/, '');
+  console.log(`[diag-fblink] publicAppUrl=${base || 'MISSING'}`);
+  for (const r of rows) {
+    console.log(`[diag-fblink] ${r.id} (rated=${r.has_rating}): ${base}/?event=${encodeURIComponent(r.id)}&fb=${encodeURIComponent(issueFeedbackToken(r.id))}&rate=1`);
+  }
+}
+
+/**
  * Diagnostic (DIAG_AUTH=true): before retiring the master token / access-token
  * login, confirm the owner (and team) can actually sign in with email + password
  * — i.e. each has an email set and a password_hash. Read-only. Turn off after.
