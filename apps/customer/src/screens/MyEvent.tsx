@@ -1509,5 +1509,3 @@ const cancelDangerBtn: React.CSSProperties = {
   flex: 1, background: C.red, color: '#fff', border: 'none',
   fontWeight: 700, fontSize: 12.5, padding: '12px 0', borderRadius: 14,
 };
-
-void timeLabel;
