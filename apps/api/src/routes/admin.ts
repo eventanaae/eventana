@@ -564,12 +564,17 @@ export async function adminRoutes(app: FastifyInstance) {
         `SELECT e.id, e.event_date, e.date_tbd, e.start_time, e.base_end_time, e.phase, e.eta,
                 e.emirate, e.celebration_type, c.name AS customer, p.name AS package_name, o.total_fils,
                 COALESCE(th.name, initcap(o.cart->>'customTheme')) AS theme_name, e.custom_theme,
-                initcap(o.cart->>'eventFor') AS "eventFor"
+                initcap(o.cart->>'eventFor') AS "eventFor", svc.names AS ordered_services
            FROM events e
            LEFT JOIN customers c ON c.id = e.customer_id
            LEFT JOIN orders o ON o.id = e.order_id
            LEFT JOIN packages p ON p.id = e.package_id
            LEFT JOIN themes th ON th.id = e.theme_id
+           LEFT JOIN LATERAL (
+             SELECT string_agg(es.label, ', ' ORDER BY es.id) AS names
+               FROM event_services es
+              WHERE es.event_id = e.id AND es.source <> 'package_item'
+           ) svc ON TRUE
           WHERE e.phase <> 'Cancelled'
             AND (e.event_date >= CURRENT_DATE OR (e.event_date IS NULL AND e.date_tbd))
           ORDER BY e.event_date NULLS FIRST, e.start_time

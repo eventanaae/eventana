@@ -375,6 +375,8 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headline}</div>
         {theme && <div style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {theme}</div>}
+        {/* Custom (no-package) bookings: show what the customer ordered. */}
+        {!e.package_name && e.ordered_services && <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🛍️ {e.ordered_services}</div>}
         {timePlace && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{timePlace}</div>}
       </div>
       {/* The package (what they booked) as a pink pill on the right — where the
