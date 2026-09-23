@@ -28,12 +28,12 @@ export function webPushEnabled(): boolean {
 let cachedKey: crypto.KeyObject | null = null;
 function vapidPrivateKey(): crypto.KeyObject {
   if (cachedKey) return cachedKey;
-  const pub = fromB64url(config.vapid.publicKey); // 0x04 || X(32) || Y(32)
+  const pub = fromB64url(String(config.vapid.publicKey)); // 0x04 || X(32) || Y(32)
   cachedKey = crypto.createPrivateKey({
     format: 'jwk',
     key: {
       kty: 'EC', crv: 'P-256',
-      d: config.vapid.privateKey,
+      d: String(config.vapid.privateKey),
       x: b64url(pub.subarray(1, 33)),
       y: b64url(pub.subarray(33, 65)),
     },
@@ -88,7 +88,7 @@ async function sendOne(sub: Sub, msg: object): Promise<number> {
       'Content-Type': 'application/octet-stream',
       Authorization: `vapid t=${vapidJwt(audience)}, k=${config.vapid.publicKey}`,
     },
-    body: body as unknown as BodyInit,
+    body: body as any,
   });
   return res.status;
 }
