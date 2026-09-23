@@ -679,14 +679,19 @@ export async function adminRoutes(app: FastifyInstance) {
     // "Open tasks" means different things by role: an employee/driver sees THEIR
     // own unfinished prep tasks, not the business-wide department-task count.
     let openTasksCount = k.open_tasks;
-    if (staffCtx?.id && (staffCtx.role === 'employee' || staffCtx.role === 'driver')) {
+    // The signed-in person's OWN unfinished tasks — used for the Tasks tab badge
+    // (everyone, incl. owner/manager, so the badge is "my open tasks", not the
+    // business-wide department count).
+    let myOpenTasks = 0;
+    if (staffCtx?.id) {
       const mine = await pool.query(
         `SELECT count(DISTINCT pt.id)::int c FROM prep_tasks pt
            JOIN prep_task_staff ps ON ps.task_id = pt.id
           WHERE ps.member_id = $1 AND pt.status <> 'completed'`,
         [staffCtx.id],
       );
-      openTasksCount = mine.rows[0].c;
+      myOpenTasks = mine.rows[0].c;
+      if (staffCtx.role === 'employee' || staffCtx.role === 'driver') openTasksCount = myOpenTasks;
     }
     return {
       kpis: {
@@ -695,6 +700,7 @@ export async function adminRoutes(app: FastifyInstance) {
         // Revenue is the Owner's number only — managers and staff don't see money.
         revenueThisMonthDisplay: (request as any).staff?.role === 'owner' ? formatAed(Number(k.revenue_month)) : null,
         openTasks: openTasksCount,
+        myOpenTasks,
         needsReview: k.needs_review,
         processing: k.processing,
       },

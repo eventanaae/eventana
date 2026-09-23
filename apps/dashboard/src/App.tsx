@@ -179,7 +179,7 @@ export default function App() {
       api
         .today()
         .then((d) => {
-          setCounts({ tasks: d.kpis?.openTasks ?? 0, review: d.kpis?.needsReview ?? 0 });
+          setCounts({ tasks: d.kpis?.myOpenTasks ?? 0, review: d.kpis?.needsReview ?? 0 });
           setIntegrations(d.integrations ?? []);
           setError(null);
         })
@@ -335,8 +335,8 @@ export default function App() {
               id={n.id}
               label={n.label}
               active={view === n.id}
-              badge={n.id === 'schedule' ? (counts.review + counts.tasks) : 0}
-              badgeColor={counts.review > 0 ? C.red : C.pink}
+              badge={n.id === 'schedule' ? counts.tasks : 0}
+              badgeColor={C.pink}
               onClick={() => go(n.id)}
             />
           ))}
@@ -440,7 +440,7 @@ export default function App() {
                 </div>
                 {items.map((n) => {
                   const active = view === n.id;
-                  const badge = n.id === 'schedule' ? (counts.review + counts.tasks) : 0;
+                  const badge = n.id === 'schedule' ? counts.tasks : 0;
                   return (
                     <div
                       key={n.id}
