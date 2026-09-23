@@ -61,17 +61,15 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
         {social?.packages[pkg.id] && social.packages[pkg.id].count > 0 && (
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, color: C.yellowInk, background: C.yellowSoft, borderRadius: 12, padding: '5px 11px', fontSize: 12.5, marginBottom: 14 }}>
             ⭐ {social.packages[pkg.id].avg}
-            <span style={{ fontWeight: 600, color: C.muted }}>· {social.packages[pkg.id].count} {social.packages[pkg.id].count === 1 ? 'review' : 'reviews'}</span>
+            <span style={{ fontWeight: 600, color: C.muted }}>· {social.packages[pkg.id].count} {social.packages[pkg.id].count === 1 ? t('pkg.review') : t('pkg.reviews')}</span>
           </div>
         )}
 
         {isSpa && (
           <div style={{ background: 'linear-gradient(135deg,#FDEFF6,#F3E9FB)', borderRadius: 18, padding: '14px 16px', marginBottom: 14 }}>
-            <div style={{ ...fredoka(15), color: C.pinkDeep }}>A pamper day they’ll never forget 💅</div>
+            <div style={{ ...fredoka(15), color: C.pinkDeep }}>{t('pkg.spaTitle')}</div>
             <div style={{ fontSize: 12, fontWeight: 600, color: C.muted2, marginTop: 5, lineHeight: 1.55 }}>
-              Robes on, music up — little guests enjoy kid-safe manis &amp; pedis, a braid corner,
-              face masks and a glam setup. A calm, magical alternative to a traditional party, made
-              for a girls’ celebration where everyone feels like a star.
+              {t('pkg.spaDesc')}
             </div>
           </div>
         )}
