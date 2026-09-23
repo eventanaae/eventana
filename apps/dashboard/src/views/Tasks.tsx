@@ -46,6 +46,37 @@ function TabBar({ tabs, tab, setTab, subtle }: { tabs: [string, string][]; tab: 
   );
 }
 
+/** A tap-to-open card — used so the "By person" board lists everyone's NAME
+ *  compactly (collapsed) and expands one person's tasks on tap. */
+function PersonCard({ name, badge, children }: { name: string; badge: React.ReactNode; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 16, boxShadow: C.shadow, overflow: 'hidden' }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+        <span style={{ ...fredoka(15), flex: 1, textAlign: 'left' }}>{name}</span>
+        {badge}
+        <span style={{ color: C.muted, fontWeight: 800, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>⌄</span>
+      </button>
+      {open && <div style={{ padding: '0 16px 16px' }}>{children}</div>}
+    </div>
+  );
+}
+
+/** Completed ASSIGNED tasks are tucked into a collapsed "archive" so the live
+ *  list stays short — still reachable (to reopen) but out of the way. */
+function DoneArchive({ rows, render }: { rows: any[]; render: (t: any) => React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  if (rows.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: '100%', textAlign: 'left', border: `1px dashed ${C.line}`, background: C.lineSoft, borderRadius: 10, padding: '8px 11px', fontSize: 11.5, fontWeight: 800, color: C.muted2, cursor: 'pointer' }}>
+        🗄️ {rows.length} completed · {open ? 'hide' : 'show'}
+      </button>
+      {open && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{rows.map(render)}</div>}
+    </div>
+  );
+}
+
 export function Tasks({ role }: { role?: string }) {
   const [openEvent, setOpenEvent] = useState<string | null>(null);
   const canSeeAll = role === 'owner' || role === 'manager';
@@ -149,6 +180,8 @@ function MyTasks() {
   if (!tasks) return <Spinner />;
 
   const manual = tasks.filter((t) => t.category === 'manual');
+  const manualActive = manual.filter((t) => t.status !== 'completed');
+  const manualDoneList = manual.filter((t) => t.status === 'completed');
   // Active first, completed last (so a finished task stays reachable to reopen /
   // re-upload its design without cluttering the top of the list).
   const eventTasks = tasks.filter((t) => t.category !== 'manual')
@@ -171,8 +204,11 @@ function MyTasks() {
             <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? C.green : C.pink, transition: 'width .3s' }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {manual.map((t) => <MyTaskRow key={t.id} t={t} onAction={load} />)}
+            {manualActive.length > 0
+              ? manualActive.map((t) => <MyTaskRow key={t.id} t={t} onAction={load} />)
+              : <div style={{ fontSize: 12.5, fontWeight: 800, color: C.green }}>All assigned tasks done ✓</div>}
           </div>
+          <DoneArchive rows={manualDoneList} render={(t) => <MyTaskRow key={t.id} t={t} onAction={load} />} />
         </Panel>
       )}
 
@@ -330,16 +366,18 @@ function ByPerson() {
       {board.length === 0 ? (
         <Panel><Empty>No prep tasks yet — assign one above, or they’re generated when a booking is confirmed.</Empty></Panel>
       ) : (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {board.map((p) => {
         const manual = (p.tasks ?? []).filter((t: any) => t.category === 'manual');
+        const manualActive = manual.filter((t: any) => t.status !== 'completed');
+        const manualDoneList = manual.filter((t: any) => t.status === 'completed');
         const eventTasks = (p.tasks ?? []).filter((t: any) => t.category !== 'manual');
         const manualTotal = p.manual_total ?? 0;
         const manualDone = p.manual_done ?? 0;
         const pct = manualTotal > 0 ? Math.round((manualDone / manualTotal) * 100) : 0;
         return (
-        <Panel key={p.id} title={p.name}
-          action={<Badge tone={p.open_count > 0 ? 'warn' : 'ok'}>{p.open_count} open</Badge>}>
+        <PersonCard key={p.id} name={p.name}
+          badge={<Badge tone={p.open_count > 0 ? 'warn' : 'ok'}>{p.open_count} open</Badge>}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* 📌 Assigned by Sheem — the owner's manual tasks + completion % */}
             {manualTotal > 0 && (
@@ -348,13 +386,15 @@ function ByPerson() {
                   <span style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, flex: 1 }}>📌 Assigned by Sheem</span>
                   <span style={{ fontSize: 11, fontWeight: 800, color: pct === 100 ? C.green : C.pinkDeep }}>{manualDone}/{manualTotal} · {pct}%</span>
                 </div>
-                <div style={{ height: 6, borderRadius: 5, background: '#fff', overflow: 'hidden', marginBottom: manual.length ? 9 : 0 }}>
+                <div style={{ height: 6, borderRadius: 5, background: '#fff', overflow: 'hidden', marginBottom: 9 }}>
                   <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? C.green : C.pink }} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {manual.map((t: any) => <TaskRow key={t.id} t={t} onAction={load} />)}
-                  {manual.length === 0 && <span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>All assigned tasks done ✓</span>}
+                  {manualActive.length > 0
+                    ? manualActive.map((t: any) => <TaskRow key={t.id} t={t} onAction={load} />)
+                    : <span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>All assigned tasks done ✓</span>}
                 </div>
+                <DoneArchive rows={manualDoneList} render={(t) => <TaskRow key={t.id} t={t} onAction={load} />} />
               </div>
             )}
             {/* 🎉 Event preparation tasks */}
@@ -365,7 +405,7 @@ function ByPerson() {
             )}
             {eventTasks.length === 0 && manualTotal === 0 && <Empty>All clear 🎉</Empty>}
           </div>
-        </Panel>
+        </PersonCard>
         );
       })}
       </div>

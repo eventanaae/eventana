@@ -4229,11 +4229,11 @@ export async function adminRoutes(app: FastifyInstance) {
       // visitors let the conversion % exceed 100%.
       pool.query(`SELECT COUNT(*)::int n FROM customers
                    WHERE password_hash IS NOT NULL
-                     AND created_at >= (SELECT MIN(day) FROM site_visits)`),
+                     AND registered_at >= (SELECT MIN(day) FROM site_visits)`),
       pool.query(
         `SELECT COUNT(*)::int n FROM customers c
           WHERE c.password_hash IS NOT NULL
-            AND c.created_at >= (SELECT MIN(day) FROM site_visits)
+            AND c.registered_at >= (SELECT MIN(day) FROM site_visits)
             AND (EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status = 'paid')
                  OR EXISTS (SELECT 1 FROM events e WHERE e.customer_id = c.id AND e.phase <> 'Cancelled'))`,
       ),
