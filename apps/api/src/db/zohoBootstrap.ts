@@ -22,11 +22,11 @@ export async function zohoBootstrapFromEnv(): Promise<void> {
 
   // If a refresh token is already configured (env) or stored, nothing to do.
   if (process.env.ZOHO_REFRESH_TOKEN) { console.log('[zoho-bootstrap] refresh token already in env — skipping'); return; }
-  const have = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'zoho_refresh_token'`).catch(() => ({ rowCount: 0 }));
+  const have = await pool.query(`SELECT 1 FROM app_secrets WHERE k = 'zoho_refresh_token'`).catch(() => ({ rowCount: 0 }));
   if (have.rowCount) { console.log('[zoho-bootstrap] refresh token already stored — skipping'); return; }
 
   // Don't burn the same (already-tried) grant code twice.
-  const used = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'zoho_grant_used'`).catch(() => ({ rows: [] as any[] }));
+  const used = await pool.query<{ v: string }>(`SELECT v FROM app_secrets WHERE k = 'zoho_grant_used'`).catch(() => ({ rows: [] as any[] }));
   if (used.rows[0]?.v === code) { console.log('[zoho-bootstrap] this grant code was already used — generate a new one'); return; }
 
   const qs = new URLSearchParams({
@@ -38,16 +38,20 @@ export async function zohoBootstrapFromEnv(): Promise<void> {
   const res = await fetch(`https://${accountsHost}/oauth/v2/token?${qs}`, { method: 'POST' }).catch(() => null);
   if (!res) { console.error('[zoho-bootstrap] token request failed (network)'); return; }
   const j: any = await res.json().catch(() => null);
-  // Record that we tried this code, so a redeploy doesn't loop on a spent code.
-  await pool.query(`INSERT INTO app_kv (k, v) VALUES ('zoho_grant_used', $1) ON CONFLICT (k) DO UPDATE SET v = $1`, [code]).catch(() => {});
 
   if (!j?.refresh_token) {
+    // Only mark the code spent when Zoho actually rejected it (so a transient
+    // network/parse error doesn't burn a still-valid code on the next boot).
+    if (j?.error) {
+      await pool.query(`INSERT INTO app_secrets (k, v, updated_at) VALUES ('zoho_grant_used', $1, now()) ON CONFLICT (k) DO UPDATE SET v = $1, updated_at = now()`, [code]).catch(() => {});
+    }
     console.error(`[zoho-bootstrap] no refresh_token returned (error: ${j?.error ?? res.status}). Generate a fresh grant code and set ZOHO_GRANT_CODE again.`);
     return;
   }
   await pool.query(
-    `INSERT INTO app_kv (k, v) VALUES ('zoho_refresh_token', $1) ON CONFLICT (k) DO UPDATE SET v = $1`,
+    `INSERT INTO app_secrets (k, v, updated_at) VALUES ('zoho_refresh_token', $1, now()) ON CONFLICT (k) DO UPDATE SET v = $1, updated_at = now()`,
     [String(j.refresh_token)],
   );
+  await pool.query(`INSERT INTO app_secrets (k, v, updated_at) VALUES ('zoho_grant_used', $1, now()) ON CONFLICT (k) DO UPDATE SET v = $1, updated_at = now()`, [code]).catch(() => {});
   console.log('[zoho-bootstrap] ✅ refresh token obtained and stored — bank sync is now live. You can remove ZOHO_GRANT_CODE.');
 }

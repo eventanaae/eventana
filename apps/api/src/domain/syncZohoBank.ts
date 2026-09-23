@@ -43,7 +43,7 @@ let cachedToken: { token: string; exp: number } | null = null;
 /** Refresh token from the env, else the one the bootstrap task stored in app_kv. */
 async function refreshTokenValue(): Promise<string | null> {
   if (config.zoho.refreshToken) return config.zoho.refreshToken;
-  const r = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'zoho_refresh_token'`).catch(() => ({ rows: [] as any[] }));
+  const r = await pool.query<{ v: string }>(`SELECT v FROM app_secrets WHERE k = 'zoho_refresh_token'`).catch(() => ({ rows: [] as any[] }));
   return r.rows[0]?.v ?? null;
 }
 

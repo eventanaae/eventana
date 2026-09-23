@@ -966,6 +966,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_ext_idx ON corporate_leads (ex
 
 -- Tiny key→timestamp store for periodic-job guards (e.g. daily corp collect).
 CREATE TABLE IF NOT EXISTS app_kv (k TEXT PRIMARY KEY, v TIMESTAMPTZ NOT NULL DEFAULT now());
+-- Text key/value store for small server-side secrets/tokens (e.g. the Zoho
+-- refresh token). Separate from app_kv, whose value column is a timestamp.
+CREATE TABLE IF NOT EXISTS app_secrets (k TEXT PRIMARY KEY, v TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE UNIQUE INDEX IF NOT EXISTS corporate_leads_email_idx ON corporate_leads (lower(email)) WHERE email IS NOT NULL AND email <> '';
 CREATE INDEX IF NOT EXISTS corporate_leads_cat_idx ON corporate_leads (category, status);
 
