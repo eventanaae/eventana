@@ -92,15 +92,16 @@ async function bankAccounts(token: string): Promise<ZohoAccount[]> {
   return all.filter((a) => a.account_type === 'bank' || a.account_type === 'credit_card');
 }
 
-/** Direction from the bank-feed line. `debit_or_credit` is the reliable signal;
- *  fall back to the categorized transaction_type when it's absent. */
+/** Direction from the bank-feed line. IMPORTANT: Zoho's `debit_or_credit` is from
+ *  the BANK ACCOUNT's ledger perspective, which is the OPPOSITE of the statement:
+ *  money OUT of the account (withdrawal/payment) = "credit"; money IN = "debit".
+ *  Verified on a real feed line (a 10 AED withdrawal came through as "credit"). */
 function isMoneyOut(t: any): boolean {
   const dc = String(t.debit_or_credit ?? '').toLowerCase();
-  if (dc === 'debit') return true;
-  if (dc === 'credit') return false;
+  if (dc === 'credit') return true;  // money OUT of the bank account
+  if (dc === 'debit') return false;  // money IN
   const tt = String(t.transaction_type ?? '').toLowerCase();
-  // Money-out categorized types. Anything else (deposit, *_income, refund,
-  // owner_contribution, sales_without_invoices, sales_return) is money in.
+  // Fallback for categorized types (feed lines are 'uncategorized', so rarely hit).
   return ['expense', 'card_payment', 'owner_drawings', 'vendor_payment', 'transfer_fund'].includes(tt);
 }
 
