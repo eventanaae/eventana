@@ -26,6 +26,7 @@ export async function diagFeedbackFromEnv(): Promise<void> {
   await q('events completed (45d)', `SELECT count(*)::int n FROM events WHERE phase='Event Completed' AND event_date >= current_date - 45`);
   await q('feedback_request rows (45d)', `SELECT count(*)::int total, count(*) FILTER (WHERE sent_at IS NOT NULL)::int sent, count(*) FILTER (WHERE sent_at IS NULL AND cancelled_at IS NULL)::int pending, count(*) FILTER (WHERE cancelled_at IS NOT NULL)::int cancelled FROM notifications WHERE template='feedback_request' AND created_at >= now() - interval '45 days'`);
   await q('feedback_request by channel (45d, sent)', `SELECT channel, count(*)::int n FROM notifications WHERE template='feedback_request' AND sent_at IS NOT NULL AND created_at >= now() - interval '45 days' GROUP BY channel`);
+  await q('feedback WhatsApp actually delivered (45d)', `SELECT count(*) FILTER (WHERE whatsapp_sent_at IS NOT NULL)::int wa_sent, count(*) FILTER (WHERE sent_at IS NOT NULL)::int email_sent, count(*)::int total FROM notifications WHERE template='feedback_request' AND created_at >= now() - interval '45 days'`);
   await q('ratings received (45d)', `SELECT count(*)::int n, count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int last7 FROM event_ratings WHERE created_at >= now() - interval '45 days'`);
   await q('latest rating', `SELECT to_char(max(created_at),'YYYY-MM-DD HH24:MI') last_rating FROM event_ratings`);
   try {
