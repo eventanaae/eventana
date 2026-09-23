@@ -43,6 +43,11 @@ function providerConfig(
     /** Retire a provider: never offered for new payments (historical orders
      *  can still be refunded/reconciled via getProvider). */
     disabled?: boolean;
+    /** QA override: run this provider against its SANDBOX (with non-live test
+     *  credentials) even in a live deployment, so a payment partner can certify
+     *  the integration without flipping the whole store off live. Visibility is
+     *  gated separately (a secret QA token) so real customers never see it. */
+    forceSandbox?: boolean;
   },
 ): ProviderConfig {
   const values = {
@@ -65,6 +70,10 @@ function providerConfig(
   if (opts.disabled) {
     // Retired provider — always off for new payments.
     mode = 'disabled';
+  } else if (opts.forceSandbox && missing.length === 0) {
+    // QA sandbox override (see forceSandbox): treat as sandbox even in a live
+    // deployment. Requires a complete set of (test) credentials.
+    mode = 'sandbox';
   } else if (declared === 'live') {
     // Live deployment: activate providers that are genuinely
     // production-ready; disable the rest rather than blocking the whole app.
@@ -176,6 +185,11 @@ export const config = {
 
   /** Staff token for dashboard/admin routes. Replace with real SSO. */
   staffToken: env.STAFF_TOKEN ?? 'dev-staff-token',
+
+  /** Secret token that reveals the Tabby sandbox method at checkout for the
+   *  payment partner's QA (via ?qa=<token>). Absent → Tabby is never listed
+   *  unless it is genuinely live. */
+  tabbyQaToken: env.TABBY_QA_TOKEN ?? null,
 
   /** How often the reconciliation sweep runs, ms. */
   reconcileIntervalMs: Number(env.RECONCILE_INTERVAL_MS ?? 5 * 60_000),
@@ -414,6 +428,10 @@ export const config = {
       sandboxUrl: 'https://api.tabby.ai/api',
       liveUrl: 'https://api.tabby.ai/api',
       requires: ['secretKey', 'merchantCode', 'webhookSecret'],
+      // Certification-only: with test keys + TABBY_QA_SANDBOX=true, run Tabby in
+      // sandbox at checkout (behind the secret TABBY_QA_TOKEN) while the store
+      // stays live on Stripe/Tamara. Removed once Tabby issues live keys.
+      forceSandbox: env.TABBY_QA_SANDBOX === 'true',
     }),
     tamara: providerConfig('tamara', {
       publicKey: env.TAMARA_PUBLIC_KEY,

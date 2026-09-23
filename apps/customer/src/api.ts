@@ -24,6 +24,19 @@ function apiBase(): string {
 const BASE = apiBase();
 
 /**
+ * Certification helper: a `?qa=<token>` in the page URL reveals the Tabby
+ * sandbox method at checkout (for the payment partner's QA). Persisted for the
+ * session so it survives navigation. Real customers never have this token.
+ */
+function qaToken(): string {
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('qa');
+    if (fromUrl) sessionStorage.setItem('ev_qa', fromUrl);
+    return sessionStorage.getItem('ev_qa') ?? '';
+  } catch { return ''; }
+}
+
+/**
  * Anonymous visit ping for the website funnel. Sends a random per-browser id
  * (kept in localStorage, hashed server-side) once per session. Never throws —
  * analytics must not affect the page. No personal data, no cookies.
@@ -136,7 +149,7 @@ export interface QuoteResult extends Quote {
 }
 
 export const api = {
-  catalogue: () => request<Catalogue>('/api/catalogue'),
+  catalogue: () => request<Catalogue>('/api/catalogue' + (qaToken() ? `?qa=${encodeURIComponent(qaToken())}` : '')),
 
   socialProof: () =>
     request<{

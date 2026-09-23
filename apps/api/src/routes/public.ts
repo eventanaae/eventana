@@ -381,8 +381,11 @@ export async function publicRoutes(app: FastifyInstance) {
     return offer;
   });
 
-  app.get('/api/catalogue', async () => {
+  app.get('/api/catalogue', async (request) => {
     const cfg = await loadConfig();
+    // Tabby (QA sandbox) is hidden from real customers: only listed when it is
+    // genuinely live, or when the request carries the secret QA token.
+    const qaTabby = Boolean(config.tabbyQaToken) && (request.query as { qa?: string } | undefined)?.qa === config.tabbyQaToken;
     const [themes, categories, inspo] = await Promise.all([
       pool.query(`SELECT * FROM themes WHERE active ORDER BY celebration_type, sort_order`),
       pool.query(`SELECT * FROM service_categories ORDER BY sort_order`),
@@ -428,12 +431,14 @@ export async function publicRoutes(app: FastifyInstance) {
       startTimes: START_TIMES,
       notices: NOTICES,
       missingServiceNotes: MISSING_SERVICE_NOTES,
-      paymentMethods: allProviders().map((p) => ({
-        name: p.name,
-        label: p.label,
-        tagline: p.tagline,
-        mode: p.mode,
-      })),
+      paymentMethods: allProviders()
+        .filter((p) => p.name !== 'tabby' || p.mode === 'live' || qaTabby)
+        .map((p) => ({
+          name: p.name,
+          label: p.label,
+          tagline: p.tagline,
+          mode: p.mode,
+        })),
       // Browser-side Google Maps key (client-exposed by design; restrict by
       // referrer/bundle in Google Cloud). Served from the API so it lives only
       // in the API's environment — never committed to the repo.
