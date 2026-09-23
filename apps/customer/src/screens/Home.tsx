@@ -4,7 +4,7 @@ import { C, fredoka, money, SectionTitle, wasPriceFils } from '../ui';
 export function Home({ catalogue, draft, shopCart, update, go, customerName, t }: ScreenProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
-  const firstName = (customerName || '').trim().split(' ')[0] || 'there';
+  const firstName = (customerName || '').trim().split(' ')[0] || t('common.friend');
   const initial = firstName.charAt(0).toUpperCase() || '☺';
 
   // "Pick up where you left off": both carts persist across a refresh, so surface
