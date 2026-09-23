@@ -215,6 +215,18 @@ export async function respondToLead(
   return send(msg.phone, ai ?? answer.reply);
 }
 
+/**
+ * Preview what the bot WOULD reply to a message — without sending. Used to test
+ * the quality of the AI/rule-based answers before the agent is switched live.
+ */
+export async function previewReply(text: string): Promise<{ escalated: boolean; source: 'handoff' | 'ai' | 'rules'; reply: string }> {
+  const ar = isArabic(text) || !text;
+  const answer = await answerAssistant(text);
+  if (answer.escalated) return { escalated: true, source: 'handoff', reply: ar ? HANDOFF_AR : HANDOFF_EN };
+  const ai = await aiAnswer(text, ar);
+  return { escalated: false, source: ai ? 'ai' : 'rules', reply: ai ?? answer.reply };
+}
+
 async function send(phone: string, body: string): Promise<AgentOutcome> {
   const res = await sendWhatsAppText({ to: phone, body });
   if (!res.ok) return { replied: false, handoff: false };

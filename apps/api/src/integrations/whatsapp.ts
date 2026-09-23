@@ -17,6 +17,7 @@
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
+import { pool } from '../db/pool.js';
 
 export type AgentMode = 'off' | 'greet' | 'full';
 
@@ -43,10 +44,58 @@ export function whatsappDriverNotifyEnabled(): boolean {
   return whatsappEnabled() && config.whatsapp.driverNotify === true;
 }
 
-/** 'off' unless explicitly configured — never inferred from anything else. */
-export function agentMode(): AgentMode {
+/** The env default — the mode when the owner has never set one from the dashboard. */
+function envAgentMode(): AgentMode {
   const raw = (config.whatsapp.agentMode ?? 'off').toLowerCase();
   return raw === 'greet' || raw === 'full' ? raw : 'off';
+}
+
+// The live mode is owner-controlled from the dashboard (settings key
+// 'whatsapp_agent_mode') so it can be switched without a redeploy. It's cached
+// in memory with a short TTL and refreshed in the background — the send guards
+// and the agent read it synchronously, so it must never do I/O on the hot path.
+let modeCache: { at: number; mode: AgentMode } | null = null;
+const MODE_TTL_MS = 8_000;
+
+/** Reads the owner-set mode from settings, falling back to the env default. */
+export async function refreshAgentMode(): Promise<AgentMode> {
+  let mode: AgentMode;
+  try {
+    const r = await pool.query<{ value: any }>(
+      `SELECT value FROM settings WHERE key = 'whatsapp_agent_mode'`,
+    );
+    const raw = String(r.rows[0]?.value ?? '').toLowerCase();
+    mode = raw === 'greet' || raw === 'full' || raw === 'off' ? (raw as AgentMode) : envAgentMode();
+  } catch {
+    mode = envAgentMode(); // DB unreachable: fail safe to the env default
+  }
+  modeCache = { at: Date.now(), mode };
+  return mode;
+}
+
+/**
+ * The live agent mode — 'off' unless the owner turned it on. Synchronous: returns
+ * the cached value and refreshes in the background when stale, so a customer send
+ * is never blocked on a query. Falls back to the env default until the first
+ * refresh lands.
+ */
+export function agentMode(): AgentMode {
+  if (modeCache) {
+    if (Date.now() - modeCache.at > MODE_TTL_MS) void refreshAgentMode();
+    return modeCache.mode;
+  }
+  void refreshAgentMode();
+  return envAgentMode();
+}
+
+/** Owner sets the mode from the dashboard. Persists AND updates the live cache. */
+export async function setAgentMode(mode: AgentMode, by: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO settings (key, value, updated_by) VALUES ('whatsapp_agent_mode', $1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [JSON.stringify(mode), by],
+  );
+  modeCache = { at: Date.now(), mode };
 }
 
 /**

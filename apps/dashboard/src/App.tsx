@@ -269,7 +269,7 @@ export default function App() {
       {view === 'discounts' && <Discounts />}
       {view === 'themes' && <ThemeBackfill />}
       {view === 'neworder' && <NewOrder />}
-      {view === 'leads' && <Leads />}
+      {view === 'leads' && <Leads role={role} />}
       {view === 'reviews' && <GoogleReviews />}
       {view === 'customers' && <Customers />}
       {view === 'profile' && <Profile onSignedOut={() => setAuthed(false)} />}

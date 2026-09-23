@@ -639,6 +639,13 @@ async function main() {
 
   startReconciliation();
 
+  // Warm the WhatsApp auto-reply mode from the settings table so the very first
+  // inbound message after a deploy honours the owner's dashboard choice rather
+  // than the env default. Best-effort — agentMode() self-refreshes anyway.
+  import('./integrations/whatsapp.js')
+    .then((m) => m.refreshAgentMode())
+    .catch(() => {});
+
   // Read bank@eventanauae.com over IMAP and turn each new bank-alert email into
   // a PENDING bank_transactions row for the owner to approve. No-op unless
   // BANK_IMAP_POLL=true with a mailbox password set in the environment.

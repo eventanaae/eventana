@@ -41,7 +41,8 @@ import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
 import { registerDevice, pushToOwner } from '../integrations/push.js';
 import { listLeads, leadFunnel, importLeads, leadMessages, replyWindow, recordOutboundMessage } from '../domain/whatsappLeads.js';
-import { agentMode, whatsappEnabled, sendWhatsAppText } from '../integrations/whatsapp.js';
+import { agentMode, setAgentMode, whatsappEnabled, sendWhatsAppText, type AgentMode } from '../integrations/whatsapp.js';
+import { previewReply } from '../domain/whatsappAgent.js';
 
 /**
  * Moves an event to the terminal Cancelled phase and stands its
@@ -1078,6 +1079,34 @@ export async function adminRoutes(app: FastifyInstance) {
       sentBy: 'staff',
     });
     return { ok: true, messages: await leadMessages(phone) };
+  });
+
+  /**
+   * Owner turns the auto-reply assistant on or off from the dashboard — no
+   * redeploy. 'off' = listen only (default), 'greet' = one welcome reply to a
+   * brand-new enquiry, 'full' = also answer catalogue questions. Sensitive
+   * asks (refunds, discounts, prices) always hand off to a human, in every mode.
+   */
+  app.post('/api/admin/whatsapp/agent-mode', async (request, reply) => {
+    const staff = (request as any).staff;
+    if (staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const parsed = z.object({ mode: z.enum(['off', 'greet', 'full']) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    await setAgentMode(parsed.data.mode as AgentMode, staff.name || staff.id || 'owner');
+    return { ok: true, agentMode: parsed.data.mode };
+  });
+
+  /**
+   * Preview what the assistant WOULD reply to a message — without sending
+   * anything to a customer. Lets the owner read the bot's answers and judge
+   * their quality before switching it live.
+   */
+  app.post('/api/admin/whatsapp/preview', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const parsed = z.object({ text: z.string().trim().min(1).max(1500) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    return previewReply(parsed.data.text);
   });
 
   /**

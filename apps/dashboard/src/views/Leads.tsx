@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api } from '../api';
-import { C, fredoka, Panel, Badge, Spinner, Stat } from '../ui';
+import { C, fredoka, Panel, Badge, Button, Spinner, Stat } from '../ui';
 import { Empty } from './Today';
 import { LeadThread } from './LeadThread';
 
@@ -173,7 +173,138 @@ function parseExport(text: string) {
   return out;
 }
 
-export function Leads() {
+const MODE_INFO: Record<string, { label: string; blurb: string; tone: 'ok' | 'warn' | 'neutral' }> = {
+  off: {
+    label: 'Listening only',
+    blurb: 'Every enquiry is recorded with its party date, but the assistant sends no replies — the team answers as usual.',
+    tone: 'neutral',
+  },
+  greet: {
+    label: 'Welcome reply',
+    blurb: 'Each brand-new enquiry gets one warm welcome asking for the date, emirate and number of kids. After that, the assistant stays quiet.',
+    tone: 'warn',
+  },
+  full: {
+    label: 'Full auto-reply',
+    blurb: 'Also answers catalogue questions (packages, prices, delivery) from the live price list. Refunds, discounts, price disputes and confirmations always go to a human.',
+    tone: 'ok',
+  },
+};
+
+/**
+ * The owner's on/off switch for the auto-reply assistant — plus a safe way to
+ * read exactly what it would say before turning it on. Managers see the status
+ * and can test replies; only the owner can change the mode.
+ */
+function AgentControl({
+  mode,
+  isOwner,
+  onChanged,
+}: {
+  mode: string;
+  isOwner: boolean;
+  onChanged: (m: 'off' | 'greet' | 'full') => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [test, setTest] = useState('');
+  const [preview, setPreview] = useState<{ source: string; reply: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const info = MODE_INFO[mode] ?? MODE_INFO.off;
+
+  const setMode = async (m: 'off' | 'greet' | 'full') => {
+    if (m === mode) return;
+    setBusy(m);
+    try {
+      await api.setWhatsappAgentMode(m);
+      onChanged(m);
+    } catch {
+      /* the poll will re-sync the real state */
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const runTest = async () => {
+    if (!test.trim()) return;
+    setTesting(true);
+    setPreview(null);
+    try {
+      const r = await api.previewWhatsappReply(test.trim());
+      setPreview({ source: r.source, reply: r.reply });
+    } catch {
+      setPreview({ source: 'error', reply: 'Could not generate a preview just now.' });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <Panel style={{ background: info.tone === 'neutral' ? C.pinkSoft : C.greenSoft, borderColor: info.tone === 'neutral' ? '#f0cdd4' : '#c9e6cf' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+        <div style={{ ...fredoka(14), color: info.tone === 'neutral' ? C.pinkDeep : C.green }}>
+          Auto-reply: {info.label}
+        </div>
+        <Badge tone={info.tone}>{mode === 'off' ? 'silent' : mode === 'greet' ? 'greeting' : 'answering'}</Badge>
+      </div>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2, lineHeight: 1.65, marginBottom: isOwner ? 12 : 0 }}>
+        {info.blurb}
+      </div>
+
+      {isOwner && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {(['off', 'greet', 'full'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              disabled={busy !== null}
+              style={{
+                border: `1.5px solid ${m === mode ? C.pinkDeep : C.line}`,
+                background: m === mode ? C.pinkDeep : '#fff',
+                color: m === mode ? '#fff' : C.ink,
+                borderRadius: 10,
+                padding: '8px 14px',
+                fontSize: 12.5,
+                fontWeight: 800,
+                cursor: busy ? 'wait' : 'pointer',
+              }}
+            >
+              {busy === m ? '…' : m === 'off' ? 'Listen only' : m === 'greet' ? 'Welcome only' : 'Full replies'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Test the reply quality — never sends anything to a customer. */}
+      <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, color: C.ink, marginBottom: 6 }}>
+          Test a reply (nothing is sent)
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            value={test}
+            placeholder="e.g. كم سعر باكج ٢٠ طفل؟"
+            onChange={(e) => setTest(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void runTest(); }}
+            style={{ flex: 1, minWidth: 200, border: `1px solid ${C.line}`, borderRadius: 10, padding: '9px 12px', fontSize: 12.5, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink }}
+          />
+          <Button onClick={runTest} disabled={testing || !test.trim()}>{testing ? 'Thinking…' : 'Test reply'}</Button>
+        </div>
+        {preview && (
+          <div style={{ marginTop: 10, background: '#fff', border: `1px solid ${C.lineSoft}`, borderRadius: 12, padding: '10px 13px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Badge tone={preview.source === 'handoff' ? 'warn' : preview.source === 'ai' ? 'ok' : 'neutral'}>
+                {preview.source === 'handoff' ? 'Hands off to team' : preview.source === 'ai' ? 'AI answer' : preview.source === 'rules' ? 'Standard answer' : 'Error'}
+              </Badge>
+            </div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{preview.reply}</div>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+export function Leads({ role }: { role?: string }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [funnel, setFunnel] = useState<Funnel | null>(null);
   const [agentMode, setAgentMode] = useState<string>('off');
@@ -263,15 +394,12 @@ export function Leads() {
         </Panel>
       )}
 
-      {connected && agentMode === 'off' && (
-        <Panel style={{ background: C.pinkSoft, borderColor: '#f0cdd4' }}>
-          <div style={{ ...fredoka(14), color: C.pinkDeep, marginBottom: 6 }}>Listening only</div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted2, lineHeight: 1.65 }}>
-            Every enquiry is being recorded with its party date, but the assistant sends no replies.
-            Turn that on from the server when you’re ready — the team keeps answering as usual until
-            then.
-          </div>
-        </Panel>
+      {connected && (
+        <AgentControl
+          mode={agentMode}
+          isOwner={role === 'owner'}
+          onChanged={(m) => setAgentMode(m)}
+        />
       )}
 
       {/* Years of booking history live only in the WhatsApp app's labels. */}

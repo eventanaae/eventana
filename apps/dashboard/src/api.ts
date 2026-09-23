@@ -310,6 +310,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ leads }),
     }),
+  setWhatsappAgentMode: (mode: 'off' | 'greet' | 'full') =>
+    request<{ ok: boolean; agentMode: string }>('/api/admin/whatsapp/agent-mode', {
+      method: 'POST',
+      body: JSON.stringify({ mode }),
+    }),
+  previewWhatsappReply: (text: string) =>
+    request<{ escalated: boolean; source: 'handoff' | 'ai' | 'rules'; reply: string }>(
+      '/api/admin/whatsapp/preview',
+      { method: 'POST', body: JSON.stringify({ text }) },
+    ),
   events: (status?: string) =>
     request<any[]>(`/api/admin/events${status ? `?status=${status}` : ''}`),
   event: (id: string) => request<any>(`/api/admin/events/${id}`),
