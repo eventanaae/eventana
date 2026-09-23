@@ -51,17 +51,24 @@ export function verifyCustomerToken(token: string | undefined | null): string | 
 /** How long a signed-in session stays valid before re-login. */
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
+/** A feedback link stays valid for 90 days after it's issued, then the customer
+ *  signs in to rate — this bounds any leaked/forwarded link's exposure window. */
+const FEEDBACK_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
 /**
  * A signed, event-scoped feedback token. It lets a guest with no account rate
- * exactly ONE event from the link we send them — nothing else. No expiry:
- * feedback can arrive any time after the party.
+ * exactly ONE event from the link we send them — nothing else. Carries an issue
+ * timestamp so the link expires after 90 days (privacy: the link exposes booking
+ * context, so it must not live forever). Legacy tokens without a timestamp are
+ * still accepted (never expire) so links already in customers' inboxes keep working.
  */
 export function issueFeedbackToken(eventId: string): string {
-  const body = Buffer.from(`fb:${eventId}`).toString('base64url');
+  const body = Buffer.from(`fb:${eventId}:${Date.now()}`).toString('base64url');
   return `${body}.${sign(body)}`;
 }
 
-/** Return the event id iff the feedback token's signature verifies, else null. */
+/** Return the event id iff the feedback token's signature verifies (and, for a
+ *  timestamped token, hasn't expired), else null. */
 export function verifyFeedbackToken(token: string | undefined | null): string | null {
   if (!token) return null;
   const dot = token.lastIndexOf('.');
@@ -74,7 +81,17 @@ export function verifyFeedbackToken(token: string | undefined | null): string | 
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
     const decoded = Buffer.from(body, 'base64url').toString('utf8');
-    return decoded.startsWith('fb:') ? decoded.slice(3) || null : null;
+    if (!decoded.startsWith('fb:')) return null;
+    const rest = decoded.slice(3);
+    // Event ids ("EV-2026-0187") contain no colon, so a trailing ":<digits>" is
+    // the issue timestamp. Legacy tokens are just "fb:<eventId>" (no expiry).
+    const c = rest.lastIndexOf(':');
+    if (c > 0 && /^\d+$/.test(rest.slice(c + 1))) {
+      const issuedAt = Number(rest.slice(c + 1));
+      if (Number.isFinite(issuedAt) && Date.now() - issuedAt > FEEDBACK_TTL_MS) return null;
+      return rest.slice(0, c) || null;
+    }
+    return rest || null;
   } catch {
     return null;
   }

@@ -9,6 +9,32 @@ import { pool } from './pool.js';
 import { COUNTING_START } from '../domain/period.js';
 
 /**
+ * Diagnostic (DIAG_FEEDBACK=true): why are no new ratings coming in? Reports
+ * whether post-event feedback requests are actually going out (email + WhatsApp)
+ * and what's coming back, over the last 45 days. Read-only. Turn off after.
+ */
+export async function diagFeedbackFromEnv(): Promise<void> {
+  if (String(process.env.DIAG_FEEDBACK ?? '').toLowerCase() !== 'true') return;
+  const { config } = await import('../config.js');
+  const { whatsappEnabled } = await import('../integrations/whatsapp.js').catch(() => ({ whatsappEnabled: () => false }));
+  console.log(`[diag-fb] whatsapp configured=${(() => { try { return whatsappEnabled(); } catch { return 'err'; } })()} · customerNotify=${config.whatsapp?.customerNotify} → WhatsApp feedback ${config.whatsapp?.customerNotify ? 'ON' : 'OFF (email only)'}`);
+
+  const q = async (label: string, sql: string) => {
+    try { const { rows } = await pool.query(sql); console.log(`[diag-fb] ${label}: ${JSON.stringify(rows[0] ?? rows)}`); }
+    catch (e) { console.log(`[diag-fb] ${label}: ERR ${(e as Error).message}`); }
+  };
+  await q('events completed (45d)', `SELECT count(*)::int n FROM events WHERE phase='Event Completed' AND event_date >= current_date - 45`);
+  await q('feedback_request rows (45d)', `SELECT count(*)::int total, count(*) FILTER (WHERE sent_at IS NOT NULL)::int sent, count(*) FILTER (WHERE sent_at IS NULL AND cancelled_at IS NULL)::int pending, count(*) FILTER (WHERE cancelled_at IS NOT NULL)::int cancelled FROM notifications WHERE template='feedback_request' AND created_at >= now() - interval '45 days'`);
+  await q('feedback_request by channel (45d, sent)', `SELECT channel, count(*)::int n FROM notifications WHERE template='feedback_request' AND sent_at IS NOT NULL AND created_at >= now() - interval '45 days' GROUP BY channel`);
+  await q('ratings received (45d)', `SELECT count(*)::int n, count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int last7 FROM event_ratings WHERE created_at >= now() - interval '45 days'`);
+  await q('latest rating', `SELECT to_char(max(created_at),'YYYY-MM-DD HH24:MI') last_rating FROM event_ratings`);
+  try {
+    const { rows } = await pool.query(`SELECT event_id, channel, to_char(scheduled_for,'YYYY-MM-DD') sched, (sent_at IS NOT NULL) sent, (cancelled_at IS NOT NULL) cancelled FROM notifications WHERE template='feedback_request' ORDER BY created_at DESC LIMIT 8`);
+    for (const r of rows) console.log(`[diag-fb]   ${r.event_id} · ${r.channel} · sched=${r.sched} · sent=${r.sent} · cancelled=${r.cancelled}`);
+  } catch (e) { console.log(`[diag-fb] sample ERR ${(e as Error).message}`); }
+}
+
+/**
  * Diagnostic (DIAG_AUTH=true): before retiring the master token / access-token
  * login, confirm the owner (and team) can actually sign in with email + password
  * — i.e. each has an email set and a password_hash. Read-only. Turn off after.

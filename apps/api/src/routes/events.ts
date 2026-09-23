@@ -559,6 +559,10 @@ export async function eventRoutes(app: FastifyInstance) {
     );
     const event = rows[0];
     if (!event) return reply.status(404).send({ error: 'not_found' });
+    // The signed-in OWNER of this booking sees everything; a guest who opened it
+    // via the forwardable feedback link (token only) gets rating context without
+    // the private contact/address/card details.
+    const fullView = !!customerId && customerId === event.customer_id;
 
     const [services, team, staffing, messages, designs, tasks, rating, payment] = await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
@@ -700,17 +704,21 @@ export async function eventRoutes(app: FastifyInstance) {
       ageBand: (event.cart as any)?.ageBand ?? null,
       childrenCount: event.children_count,
       emirate: event.emirate,
-      address: event.address,
-      mapPin: { lat: event.map_lat, lng: event.map_lng },
+      // Privacy: a booking opened via the forwardable feedback LINK (no login)
+      // gets only rating context — the full address, map pin, phone/email and
+      // card details are shown ONLY to the signed-in owner of the booking.
+      address: fullView ? event.address : null,
+      mapPin: fullView ? { lat: event.map_lat, lng: event.map_lng } : null,
       castleVariant: event.castle_variant,
       // The customer's own contact on file (backup phone only if it was captured
       // into the cart — the customers table has no column for it).
       contact: {
         name: event.contact_name ?? null,
-        phone: event.contact_phone ?? null,
-        backupPhone:
-          (event.cart as any)?.guest?.backupPhone ?? (event.cart as any)?.backupPhone ?? null,
-        email: event.contact_email ?? null,
+        phone: fullView ? (event.contact_phone ?? null) : null,
+        backupPhone: fullView
+          ? ((event.cart as any)?.guest?.backupPhone ?? (event.cart as any)?.backupPhone ?? null)
+          : null,
+        email: fullView ? (event.contact_email ?? null) : null,
       },
       // Full price breakdown straight from the stored quote, so the receipt
       // mirrors exactly what was charged at checkout (items, discount, delivery).
@@ -742,7 +750,9 @@ export async function eventRoutes(app: FastifyInstance) {
           totalDisplay: formatAed(total),
         };
       })(),
-      payment: payment.rows[0]
+      // Card brand/last-4 are shown only to the signed-in owner — never in the
+      // forwardable feedback link.
+      payment: (payment.rows[0] && fullView)
         ? (() => {
             const p = payment.rows[0] as any;
             const raw = (p.raw as any) || {};
