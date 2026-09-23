@@ -5575,11 +5575,17 @@ export async function adminRoutes(app: FastifyInstance) {
           `SELECT r.id, r.stars, r.feedback, r.created_at, r.event_id,
                   to_char(e.event_date,'YYYY-MM-DD') AS event_date,
                   COALESCE(th.name, CASE WHEN e.custom_theme THEN 'Custom theme' ELSE NULL END) AS theme_name,
-                  (SELECT fr.number FROM finance_receipts fr WHERE fr.event_id = e.id ORDER BY fr.id LIMIT 1) AS receipt_number
+                  COALESCE(rc.customer_name, c.name) AS customer,
+                  rc.event_for AS event_for,
+                  COALESCE(rc.celebration_type, e.celebration_type) AS celebration_type,
+                  rc.number AS receipt_number
              FROM event_ratings r
              JOIN event_team et ON et.event_id = r.event_id
              LEFT JOIN events e ON e.id = r.event_id
              LEFT JOIN themes th ON th.id = e.theme_id
+             LEFT JOIN customers c ON c.id = e.customer_id
+             LEFT JOIN LATERAL (SELECT number, event_for, celebration_type, customer_name
+                                  FROM finance_receipts fr WHERE fr.event_id = e.id ORDER BY fr.id LIMIT 1) rc ON true
             WHERE et.member_id=$1 ORDER BY r.created_at DESC LIMIT 8`, [staff.id]),
       ]);
       const myEventIds = new Set(

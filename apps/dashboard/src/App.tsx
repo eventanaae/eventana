@@ -204,8 +204,8 @@ export default function App() {
     : role === 'manager'
       ? ['today', 'schedule', 'inventory', 'profile'] // Updates removed; business tools live in More
       : role === 'driver'
-        ? ['schedule', 'driverschedule'] // driver's two tabs: Events + Schedule
-        : ['today', 'schedule', 'inventory', 'profile']; // employee — filtered by isVisible
+        ? ['schedule', 'driverschedule', 'theweek'] // driver: Events + Schedule + The Week
+        : ['today', 'schedule', 'inventory', 'theweek', 'profile']; // employee — The Week direct (no More)
   const primaryNav = primaryIds.filter((id) => isVisible(id)).map((id) => NAV.find((n) => n.id === id)!);
   const primarySet = new Set<View>(primaryIds);
   const moreNav = visibleNav.filter((n) => !primarySet.has(n.id));
@@ -330,7 +330,7 @@ export default function App() {
           {primaryNav.map((n) => (
             <BarItem
               key={n.id}
-              icon={n.icon}
+              id={n.id}
               label={n.label}
               active={view === n.id}
               badge={n.id === 'schedule' ? (counts.review + counts.tasks) : 0}
@@ -339,7 +339,7 @@ export default function App() {
             />
           ))}
           {moreNav.length > 0 && role !== 'manager' && role !== 'owner' && (
-            <BarItem icon="⋯" label="More" active={moreOpen || moreNav.some((n) => n.id === view)} onClick={() => setMoreOpen(true)} />
+            <BarItem id="more" label="More" active={moreOpen || moreNav.some((n) => n.id === view)} onClick={() => setMoreOpen(true)} />
           )}
         </div>
 
@@ -527,17 +527,46 @@ export default function App() {
 }
 
 /** A single bottom-bar tab. */
+/**
+ * Clean, uniform line icons for the phone tab bar — one visual language and one
+ * size for every tab (like Instagram's bar), instead of mixed emoji that render
+ * at different sizes. `active` fills/strengthens the current tab.
+ */
+function NavIcon({ id, active }: { id: View | 'more'; active: boolean }) {
+  const s = { width: 25, height: 25, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+    strokeWidth: active ? 2.1 : 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  switch (id) {
+    case 'today':
+      return (<svg {...s}><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" /></svg>);
+    case 'schedule': // Events — a grid
+      return (<svg {...s}><rect x="3.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" /></svg>);
+    case 'inventory': // a box
+      return (<svg {...s}><path d="M12 3 3 7.5v9L12 21l9-4.5v-9L12 3Z" /><path d="M3 7.5 12 12l9-4.5" /><path d="M12 12v9" /></svg>);
+    case 'theweek': // a calendar (the weekly rhythm)
+      return (<svg {...s}><rect x="3.5" y="4.5" width="17" height="16" rx="2.5" /><path d="M3.5 9.5h17" /><path d="M8 3v3M16 3v3" /></svg>);
+    case 'profile': // a person
+      return (<svg {...s}><circle cx="12" cy="8" r="3.6" /><path d="M5 20c0-3.6 3.1-6.3 7-6.3s7 2.7 7 6.3" /></svg>);
+    case 'driverschedule': // a delivery van
+      return (<svg {...s}><path d="M3 6.5h11v9H3z" /><path d="M14 9.5h3.6L21 13v2.5h-7z" /><circle cx="7" cy="17.5" r="1.7" /><circle cx="17.3" cy="17.5" r="1.7" /></svg>);
+    case 'ceo': // a chart
+      return (<svg {...s}><path d="M4 20V11M10 20V4M16 20v-6M22 20H2" /></svg>);
+    case 'more':
+      return (<svg {...s}><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" /></svg>);
+    default:
+      return (<svg {...s}><circle cx="12" cy="12" r="8" /></svg>);
+  }
+}
+
 function BarItem({
-  icon, label, active, badge = 0, badgeColor = C.pink, onClick,
+  id, label, active, badge = 0, badgeColor = C.pink, onClick,
 }: {
-  icon: string; label: string; active: boolean; badge?: number; badgeColor?: string; onClick: () => void;
+  id: View | 'more'; label: string; active: boolean; badge?: number; badgeColor?: string; onClick: () => void;
 }) {
   return (
-    <div onClick={onClick} className="tap" style={{ flex: 1, textAlign: 'center', cursor: 'pointer', color: active ? C.pinkDeep : C.muted, position: 'relative' }}>
-      <div style={{ width: 40, height: 27, margin: '0 auto', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, background: active ? C.pinkSoft : 'transparent', transition: 'background .16s ease' }}>{icon}</div>
-      <div style={{ fontSize: 9.5, fontWeight: active ? 800 : 700, marginTop: 2 }}>{label}</div>
+    <div onClick={onClick} className="tap" aria-label={label} title={label} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: active ? C.pinkDeep : C.muted2, position: 'relative', height: 34 }}>
+      <NavIcon id={id} active={active} />
       {badge > 0 && (
-        <span style={{ position: 'absolute', top: -3, left: '50%', marginLeft: 6, background: badgeColor, color: '#fff', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 8 }}>
+        <span style={{ position: 'absolute', top: 0, left: '50%', marginLeft: 4, background: badgeColor, color: '#fff', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 8 }}>
           {badge}
         </span>
       )}

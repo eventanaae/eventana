@@ -114,7 +114,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         const isMgr = role === 'owner' || role === 'manager';
         const acts = [
           isMgr && { icon: '🎀', label: 'New order', accent: ACCENTS[0], to: 'neworder' as View },
-          { icon: '🗓️', label: 'Schedule', accent: ACCENTS[1], to: 'schedule' as View },
+          { icon: '🗓️', label: 'Events', accent: ACCENTS[1], to: 'schedule' as View },
           role !== 'driver' && { icon: '✅', label: 'Tasks', accent: ACCENTS[3], to: 'tasks' as View },
           isMgr && { icon: '💰', label: 'Finance', accent: ACCENTS[5], to: 'finance' as View },
         ].filter(Boolean) as Array<{ icon: string; label: string; accent: any; to: View }>;
@@ -216,7 +216,46 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
 
       {/* What customers say about our events — the latest feedback wall. */}
       <CustomerVoices onGoto={onGoto} onOpenEvent={onOpenEvent} role={role} />
+
+      {/* The ratings customers left on YOUR events — kept at the very end of Home. */}
+      {role === 'employee' && <RatingsOnYourEvents onOpenEvent={onOpenEvent} />}
     </div>
+  );
+}
+
+/**
+ * A staff member's own event ratings, at the end of Home — same rich shape as
+ * the owner's feedback wall: the customer's name, what the event was, and the
+ * date, plus the stars, theme and any words they left.
+ */
+function RatingsOnYourEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
+  const [ratings, setRatings] = useState<any[] | null>(null);
+  useEffect(() => {
+    const load = () => api.alerts().then((d) => setRatings(d.recentRatings ?? [])).catch(() => setRatings([]));
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!ratings || ratings.length === 0) return null;
+  return (
+    <Panel title="⭐ Ratings on your events">
+      {ratings.map((r: any) => {
+        const evType = r.event_for ? `${r.event_for}'s ${celebrationName(r.celebration_type)}` : (r.celebration_type ? celebrationName(r.celebration_type) : (r.reference || r.event_id));
+        return (
+          <div key={r.id} style={{ padding: '11px 0', borderTop: `1px solid ${C.lineSoft}`, cursor: 'pointer' }} onClick={() => onOpenEvent(r.event_id)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1 }}>{'★'.repeat(r.stars)}<span style={{ color: C.line }}>{'★'.repeat(5 - r.stars)}</span></span>
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>{fmtDate(r.event_date) || ago2(r.created_at)}</span>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, marginTop: 4 }}>{evType}</div>
+            {r.customer && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>by {r.customer}</div>}
+            {r.theme_name && <div style={{ fontSize: 11.5, fontWeight: 700, color: C.pinkDeep, marginTop: 3 }}>🎨 {r.theme_name}</div>}
+            {r.feedback && <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.4, marginTop: 3 }}>“{r.feedback}”</div>}
+          </div>
+        );
+      })}
+    </Panel>
   );
 }
 
@@ -414,10 +453,10 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   if (!data) return <Spinner />;
   const prep = data.prepAtRisk ?? [];
   const low = data.lowStock ?? [];
-  const ratings = data.recentRatings ?? [];
   const rowS: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` };
 
-  const nothing = prep.length === 0 && low.length === 0 && ratings.length === 0;
+  // Ratings on your events now live at the very end of Home (see RatingsOnYourEvents).
+  const nothing = prep.length === 0 && low.length === 0;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <OffTodayPanel list={data.offToday ?? []} />
@@ -440,23 +479,6 @@ function StaffUpdates({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           <div key={c.id} style={rowS}>
             <span style={{ fontWeight: 700, fontSize: 12.5, flex: 1 }}>{c.name}</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: c.on_hand === 0 ? C.red : '#c98a2b' }}>{c.on_hand} {c.unit} left</span>
-          </div>
-        ))}
-      </Panel>
-      )}
-
-      {ratings.length > 0 && (
-      <Panel title="⭐ Ratings on your events">
-        {ratings.map((r: any) => (
-          <div key={r.id} style={{ padding: '11px 0', borderTop: `1px solid ${C.lineSoft}`, cursor: 'pointer' }} onClick={() => onOpenEvent(r.event_id)}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1 }}>{'★'.repeat(r.stars)}<span style={{ color: C.line }}>{'★'.repeat(5 - r.stars)}</span></span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: C.ink }}>{r.reference || r.event_id}</span>
-              <span style={{ flex: 1 }} />
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>{fmtDate(r.event_date) || ago2(r.created_at)}</span>
-            </div>
-            {r.theme_name && <div style={{ fontSize: 11.5, fontWeight: 700, color: C.pinkDeep, marginTop: 3 }}>🎨 {r.theme_name}</div>}
-            {r.feedback && <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.4, marginTop: 3 }}>“{r.feedback}”</div>}
           </div>
         ))}
       </Panel>
