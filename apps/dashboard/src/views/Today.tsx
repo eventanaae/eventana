@@ -362,9 +362,8 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
   void label; void accentIdx;
   const db = dateBadge(e);
   const theme = themeOf(e);
-  const headline = e.package_name || eventTitle(e);
-  // When the package is the headline, whose-party goes on the secondary line.
-  const secondary = e.package_name ? eventTitle(e) : '';
+  // Headline = guest of honour + celebration type (e.g. "Youssef's Kids Birthday").
+  const headline = eventTitle(e);
   const timePlace = [e.start_time ? to12h(e.start_time) : '', e.emirate].filter(Boolean).join(' · ');
   return (
     <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
@@ -375,7 +374,7 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headline}</div>
-        {secondary && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secondary}</div>}
+        {e.package_name && <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📦 {e.package_name}</div>}
         {timePlace && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{timePlace}</div>}
       </div>
       {/* Theme as a clear pink pill on the right — replaces the redundant
