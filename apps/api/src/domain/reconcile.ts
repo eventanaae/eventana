@@ -320,6 +320,11 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sweepFeedbackReminders }) => sweepFeedbackReminders())
     .catch((err) => console.error('[feedback-reminder] sweep failed:', err));
 
+  // Once a day (10:00 Dubai), nudge owner + Marsha that today's story is ready to post.
+  await import('./storyReminder.js')
+    .then(({ sweepDailyStoryReminder }) => sweepDailyStoryReminder())
+    .catch((err) => console.error('[story-reminder] sweep failed:', err));
+
   // Wish every team member a happy birthday (once a year, on the day).
   await import('./staffBirthdays.js')
     .then(({ sendStaffBirthdayEmails }) => sendStaffBirthdayEmails())

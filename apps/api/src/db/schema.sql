@@ -1034,6 +1034,12 @@ CREATE TABLE IF NOT EXISTS marketing_stories (
 CREATE INDEX IF NOT EXISTS marketing_stories_sched_idx ON marketing_stories (scheduled_date);
 CREATE INDEX IF NOT EXISTS marketing_stories_posted_idx ON marketing_stories (posted_at);
 
+-- Dedupe the once-a-day "today's story is ready to post" reminder (one per Dubai day).
+CREATE TABLE IF NOT EXISTS story_reminders (
+  ymd     DATE PRIMARY KEY,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ── Monthly finance report (#31) ─────────────────────────────────────────
 -- Managers can receive a monthly finance summary by email. Staff emails let
 -- owner/manager members receive it; finance_reports dedupes the auto-send so
