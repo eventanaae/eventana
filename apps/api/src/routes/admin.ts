@@ -5480,9 +5480,15 @@ export async function adminRoutes(app: FastifyInstance) {
     for (const b of birthdays.rows) {
       items.push({ id: `bd-${b.name}-${todayIso.slice(0, 10)}`, level: 'info', icon: '🎂', title: `It's ${b.name}'s birthday today!`, text: 'Wish them a happy birthday from the Eventana family 💕', at: todayIso });
     }
+    // "Off today" surfaces from 10:00 AM Dubai (not before), and is timestamped at
+    // 10 AM so it reads as a morning notice instead of "just now".
     if (offNames.length) {
-      const names = offNames.join(', ');
-      items.push({ id: `off-${todayIso.slice(0, 10)}`, level: 'info', icon: '🌴', title: 'Off today', text: `${names} ${offNames.length === 1 ? 'is' : 'are'} off today`, at: todayIso });
+      const dubai = new Date(Date.now() + 4 * 3_600_000);
+      const dubaiDate = dubai.toISOString().slice(0, 10);
+      if (dubai.getUTCHours() >= 10) {
+        const names = offNames.join(', ');
+        items.push({ id: `off-${dubaiDate}`, level: 'info', icon: '🌴', title: 'Off today', text: `${names} ${offNames.length === 1 ? 'is' : 'are'} off today`, at: `${dubaiDate}T06:00:00.000Z` });
+      }
     }
 
     // Owner/manager: a team member activated their login (set their password).
