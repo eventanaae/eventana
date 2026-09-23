@@ -61,4 +61,30 @@ export async function diagMemberPointsFromEnv(): Promise<void> {
   );
   console.log(`[diag-points] EVENTS stat (event_staff, completed-or-past) = ${eventsStat.rows[0].c}`);
   console.log(`[diag-points] POINTS events_done (event_team, Event Completed only) = ${pointsStat.rows[0].c}`);
+
+  // Why might points show 0 despite completed events? A disciplinary warning for
+  // this month with affects_points=true wipes the month's points by design.
+  const ym = new Date().toISOString().slice(0, 7);
+  const warn = await pool.query(
+    `SELECT reason, affects_points, wtype, to_char(issued_date,'YYYY-MM-DD') AS issued
+       FROM staff_warnings WHERE member_id = $1 AND ym = $2`,
+    [id, ym],
+  );
+  if (warn.rows[0]) {
+    const w = warn.rows[0];
+    console.log(`[diag-points] WARNING for ${ym}: type="${w.wtype}" affects_points=${w.affects_points} issued=${w.issued} reason="${w.reason}"`);
+    console.log(`[diag-points] → points ${w.affects_points ? 'ARE WIPED to 0 by this warning (by design)' : 'NOT wiped (on record only)'}`);
+  } else {
+    console.log(`[diag-points] no warning for ${ym} — points should reflect the ${pointsStat.rows[0].c} completed events`);
+  }
+
+  // Five-star ratings this month on her team's events (adds 20 pts each).
+  const fiveStar = await pool.query(
+    `SELECT COUNT(*)::int c FROM event_ratings r
+       JOIN event_team et ON et.event_id = r.event_id
+       JOIN events e ON e.id = r.event_id
+      WHERE et.member_id = $1 AND r.stars = 5 AND e.event_date >= $2::date`,
+    [id, COUNTING_START],
+  );
+  console.log(`[diag-points] this-month 5★ = ${fiveStar.rows[0].c} · expected activity points ≈ ${pointsStat.rows[0].c * 10 + fiveStar.rows[0].c * 20}`);
 }
