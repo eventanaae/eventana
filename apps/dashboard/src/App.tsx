@@ -316,7 +316,7 @@ export default function App() {
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: C.bg }}>
         {previewBar}
         {toastEl}
-        <BookingNotifier enabled={authed && (role === 'owner' || role === 'manager')} />
+        <BookingNotifier enabled={authed} />
         <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: `1px solid ${C.line}`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ ...fredoka(16), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current.title}</div>
           <span style={{ background: error ? C.redSoft : C.greenSoft, color: error ? C.red : C.green, fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 10, flex: 'none' }}>
@@ -411,7 +411,7 @@ export default function App() {
       {previewBar}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       {toastEl}
-      <BookingNotifier enabled={authed && (role === 'owner' || role === 'manager')} />
+      <BookingNotifier enabled={authed} />
       <div
         style={{
           width: 212, flex: 'none', background: '#fff', color: C.ink,

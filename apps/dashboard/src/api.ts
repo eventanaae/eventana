@@ -173,7 +173,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: {
       'content-type': 'application/json',
       'x-staff-token': getStaffToken(),
-      'x-staff-name': 'Maryam',
       ...(init.headers ?? {}),
     },
   };
@@ -584,7 +583,7 @@ export const api = {
   campaignPreviewHtml: async (id: number): Promise<string> => {
     const res = await fetch(`${BASE}/api/admin/marketing/campaigns/${id}/preview`, {
       cache: 'no-store',
-      headers: { 'x-staff-token': getStaffToken(), 'x-staff-name': 'Maryam' },
+      headers: { 'x-staff-token': getStaffToken() },
     });
     if (!res.ok) throw new Error('preview_failed');
     return res.text();
