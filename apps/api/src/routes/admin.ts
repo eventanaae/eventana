@@ -280,15 +280,26 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/push/vapid-key', async () => {
     return { key: config.vapid.publicKey, enabled: Boolean(config.vapid.publicKey) };
   });
+  // The signed-in member's id — or, for the master-token Owner (who has no id),
+  // the single active owner row, so the owner's own device can subscribe too.
+  const pushMemberId = async (request: any): Promise<string | null> => {
+    if (request.staff?.id) return request.staff.id;
+    if (request.staff?.role === 'owner') {
+      const { rows } = await pool.query(`SELECT id FROM team_members WHERE access_level = 'owner' AND active`);
+      return rows.length === 1 ? rows[0].id : null;
+    }
+    return null;
+  };
+
   // Save this device's push subscription for the signed-in staff member.
   app.post('/api/admin/push/web-subscribe', async (request, reply) => {
-    const staff = (request as any).staff as { id?: string };
-    if (!staff?.id) return reply.status(400).send({ error: 'no_member' });
+    const memberId = await pushMemberId(request);
+    if (!memberId) return reply.status(400).send({ error: 'no_member' });
     const b = (request.body as any) ?? {};
     const sub = b.subscription ?? b;
     try {
       const { saveWebPushSubscription } = await import('../integrations/webpush.js');
-      await saveWebPushSubscription('staff', staff.id, sub);
+      await saveWebPushSubscription('staff', memberId, sub);
       return { ok: true };
     } catch {
       return reply.status(400).send({ error: 'invalid_subscription' });
@@ -296,11 +307,11 @@ export async function adminRoutes(app: FastifyInstance) {
   });
   // Send the signed-in member a test push (used by the "Enable notifications" flow).
   app.post('/api/admin/push/test', async (request, reply) => {
-    const staff = (request as any).staff as { id?: string };
-    if (!staff?.id) return reply.status(400).send({ error: 'no_member' });
+    const memberId = await pushMemberId(request);
+    if (!memberId) return reply.status(400).send({ error: 'no_member' });
     const { sendWebPush, webPushEnabled } = await import('../integrations/webpush.js');
     if (!webPushEnabled()) return reply.status(409).send({ error: 'not_configured' });
-    await sendWebPush('staff', staff.id, { title: 'Eventana Ops', body: 'Notifications are on 🎉 This is how alerts will look.', url: '/' });
+    await sendWebPush('staff', memberId, { title: 'Eventana Ops', body: 'Notifications are on 🎉 This is how alerts will look.', url: '/' });
     return { ok: true };
   });
 
