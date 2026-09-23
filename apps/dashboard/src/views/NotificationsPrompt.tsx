@@ -59,7 +59,7 @@ export function NotificationsPrompt() {
       const { key, enabled } = await api.pushVapidKey();
       if (!enabled || !key) { setErr('Notifications aren’t set up on the server yet.'); setBusy(false); return; }
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(key) });
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(key) as any });
       await api.pushSubscribe((sub as any).toJSON());
       await api.pushTest().catch(() => {});
       try { localStorage.setItem('ev_push_on', '1'); } catch { /* ignore */ }
