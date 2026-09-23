@@ -344,34 +344,40 @@ export function eventTitle(e: any): string {
   return e.eventFor ? `${e.eventFor}'s ${t}` : (e.customer || t);
 }
 
-/** A clear date for an event row: "Sat 26 Sep 2026 · 5:00 PM" (with the year so
- *  bookings months/years out are never ambiguous). Handles to-be-scheduled. */
-function rowDate(e: any): string {
+/** Date badge parts for an event row: "Sat / 03 / Oct 26". Handles to-be-set. */
+function dateBadge(e: any): { wd: string; day: string; mo: string } {
   const ymd = e.event_date ? String(e.event_date).slice(0, 10) : '';
   const d = ymd ? new Date(`${ymd}T00:00:00`) : null;
-  const datePart = d && !isNaN(d.getTime())
-    ? d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
-    : (e.date_tbd ? 'Date to be set' : '');
-  const timePart = e.start_time ? to12h(e.start_time) : '';
-  return [datePart, timePart].filter(Boolean).join(' · ');
+  if (!d || isNaN(d.getTime())) return { wd: e.date_tbd ? 'Date' : '', day: e.date_tbd ? 'TBD' : '—', mo: '' };
+  return {
+    wd: d.toLocaleDateString('en-GB', { weekday: 'short' }),
+    day: d.toLocaleDateString('en-GB', { day: '2-digit' }),
+    mo: d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }),
+  };
 }
 
+/** Upcoming booking card: the DATE (side badge) and WHAT they booked (package as
+ *  the headline) read at a glance; the rest is secondary. */
 function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; onOpen: () => void; accentIdx?: number }) {
-  const ac = ACCENTS[accentIdx % ACCENTS.length];
+  void label; void accentIdx;
+  const db = dateBadge(e);
+  const theme = themeOf(e);
+  const headline = e.package_name || eventTitle(e);
+  const secondary = e.package_name
+    ? [eventTitle(e), theme].filter(Boolean).join(' · ')
+    : (theme || (e.customer ? `by ${e.customer}` : ''));
+  const timePlace = [e.start_time ? to12h(e.start_time) : '', e.emirate].filter(Boolean).join(' · ');
   return (
-    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
-      <span style={{ width: 34, height: 34, borderRadius: 11, background: ac.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: 'none' }}>🎈</span>
+    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
+      <div style={{ width: 54, flex: 'none', textAlign: 'center', background: C.pinkSoft, borderRadius: 11, padding: '6px 0', color: C.pinkDeep }}>
+        <div style={{ fontSize: 11, fontWeight: 700 }}>{db.wd}</div>
+        <div style={{ fontSize: 19, fontWeight: 800, lineHeight: 1.05 }}>{db.day}</div>
+        {db.mo && <div style={{ fontSize: 10.5, fontWeight: 700 }}>{db.mo}</div>}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</div>
-        {e.eventFor && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2 }}>by {e.customer}</div>}
-        {/* Date made prominent (dark + bold, with the year) so it never reads as unclear. */}
-        <div style={{ fontSize: 12, fontWeight: 800, color: C.ink }}>📅 {rowDate(e) || label}{e.emirate ? ` · ${e.emirate}` : ''}</div>
-        {e.package_name && (
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📦 {e.package_name}</div>
-        )}
-        {themeOf(e) && (
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {themeOf(e)}</div>
-        )}
+        <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headline}</div>
+        {secondary && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secondary}</div>}
+        {timePlace && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{timePlace}</div>}
       </div>
       {/* "Booking Confirmed" is the norm here and just adds noise — only badge
           the phases that actually tell you something. */}
