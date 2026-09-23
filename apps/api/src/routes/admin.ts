@@ -245,6 +245,8 @@ export async function adminRoutes(app: FastifyInstance) {
             // (their tips / their events), so let them read the feed too.
             path === '/api/admin/notification-feed' ||
             path === '/api/admin/customer-feedback' ||
+            // "The Eventana Week" days-off strip (name + rest day only).
+            path === '/api/admin/team-dayoffs' ||
             /^\/api\/admin\/events\/[^/]+$/.test(path))) ||
         (method === 'POST' && /^\/api\/admin\/events\/[^/]+\/phase$/.test(path)) ||
         // Contact the supplier for a shopping item — the handler restricts it to
@@ -4316,6 +4318,17 @@ export async function adminRoutes(app: FastifyInstance) {
     // incl. an owner) and the password_hash. Strip both before returning.
     for (const r of rows) { delete (r as any).access_token; delete (r as any).password_hash; }
     return rows;
+  });
+
+  /**
+   * Everyone's weekly rest day — name + weekday index only. Unlike /team (which
+   * carries salary, warnings, contacts and is manager/owner-only), this is safe
+   * for ALL staff, so "The Eventana Week" days-off strip works for employees and
+   * drivers too.
+   */
+  app.get('/api/admin/team-dayoffs', async () => {
+    const { weeklyDayOffMap } = await import('../domain/dayOff.js');
+    return weeklyDayOffMap();
   });
 
   /**

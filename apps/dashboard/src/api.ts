@@ -446,6 +446,7 @@ export const api = {
   latestBooking: () => request<any>('/api/admin/bookings/latest'),
 
   team: () => request<any[]>('/api/admin/team'),
+  teamDayOffs: () => request<Array<{ name: string; weekly_day_off: number }>>('/api/admin/team-dayoffs'),
   setTeamAccess: (id: string, accessLevel: string, rotateToken = false) =>
     request<any>(`/api/admin/team/${id}/access`, {
       method: 'PATCH',

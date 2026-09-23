@@ -122,6 +122,22 @@ export async function offTodayDetailed(): Promise<OffTodayEntry[]> {
   return out;
 }
 
+/**
+ * Everyone's recurring weekly rest day — just name + weekday index (0=Sun..6=Sat),
+ * for active members who have one set. Safe for ALL staff to read (no salary,
+ * no credentials), so the "The Eventana Week" days-off strip works for employees
+ * and drivers too, not only managers.
+ */
+export async function weeklyDayOffMap(): Promise<Array<{ name: string; weekly_day_off: number }>> {
+  const { rows } = await pool.query<{ name: string; weekly_day_off: number }>(
+    `SELECT name, weekly_day_off
+       FROM team_members
+      WHERE active AND weekly_day_off IS NOT NULL
+      ORDER BY name`,
+  );
+  return rows.map((r) => ({ name: r.name, weekly_day_off: Number(r.weekly_day_off) }));
+}
+
 /** Owner/manager (+ Marsha): every change request, pending first. */
 export async function listDayOffChanges(): Promise<any[]> {
   const { rows } = await pool.query(

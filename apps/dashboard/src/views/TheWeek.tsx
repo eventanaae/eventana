@@ -69,7 +69,10 @@ export function TheWeek() {
 
   useEffect(() => {
     let live = true;
-    api.team().then((t) => { if (live) setTeam(Array.isArray(t) ? t : []); }).catch(() => { if (live) setTeam([]); });
+    // Use the all-staff day-off feed (name + rest day only). The full /team
+    // endpoint is manager/owner-only, so employees & drivers used to see an
+    // empty strip here.
+    api.teamDayOffs().then((t) => { if (live) setTeam(Array.isArray(t) ? t : []); }).catch(() => { if (live) setTeam([]); });
     return () => { live = false; };
   }, []);
 
