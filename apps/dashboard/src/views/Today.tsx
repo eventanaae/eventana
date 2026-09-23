@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { celebrationLabel, eventDateYMD, to12h, timeRange12h } from '@eventana/shared';
 import type { View } from '../App';
 import { api } from '../api';
-import { ACCENTS, Badge, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner } from '../ui';
-import { FocusPanel } from './FocusPanel';
+import { ACCENTS, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner } from '../ui';
 
 /**
  * The operational home — a warm, lively landing that answers, at a glance:
@@ -110,9 +109,6 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         </div>
       )}
 
-      {/* 🎯 My focus today — the owner/manager's own short daily to-do */}
-      {canBrief && <FocusPanel />}
-
       {/* Quick actions — only the ones this role can actually open */}
       {(() => {
         const isMgr = role === 'owner' || role === 'manager';
@@ -139,32 +135,15 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
           sees today's job first thing, before stats or the competition board. */}
       {todays.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div className="rise-in lift" style={{ ['--i' as any]: 1, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={() => onOpenEvent(todays[0].id)}>
-            <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
-                <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>{todays.length === 1 ? 'YOUR EVENT · TODAY' : 'FIRST TODAY'}</div>
-              </div>
-              <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(todays[0])}</div>
-              {todays[0].eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {todays[0].customer}</div>}
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>Today · {timeRange12h(todays[0].start_time, todays[0].base_end_time)} · {todays[0].emirate}</div>
-              {themeOf(todays[0]) && (
-                <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(todays[0])}</div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
-                <Badge tone={todays[0].phase === 'Event Completed' ? 'neutral' : 'info'}>{todays[0].phase}</Badge>
-                <div style={{ flex: 1 }} />
-                <Button onClick={() => onOpenEvent(todays[0].id)}>Open job →</Button>
-              </div>
-            </div>
-          </div>
-          {todays.length > 1 && (
-            <Panel title={`Also today · ${todays.length - 1} more`}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {todays.slice(1).map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx + 1} onOpen={() => onOpenEvent(e.id)} />)}
-              </div>
-            </Panel>
-          )}
+          {todays.map((e, i) => (
+            <HeroEventCard
+              key={e.id}
+              e={e}
+              eyebrow={i === 0 ? (todays.length === 1 ? 'YOUR EVENT · TODAY' : 'FIRST TODAY') : 'ALSO TODAY'}
+              dateText={`Today · ${timeRange12h(e.start_time, e.base_end_time)}`}
+              onOpen={() => onOpenEvent(e.id)}
+            />
+          ))}
         </div>
       )}
 
@@ -179,32 +158,15 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
           Every event that day gets its own pink card (a day can have two). */}
       {next && !isToday(next) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div className="rise-in lift" style={{ ['--i' as any]: 2, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={() => onOpenEvent(nextDayEvents[0].id)}>
-            <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
-                <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>NEXT EVENT</div>
-              </div>
-              <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(nextDayEvents[0])}</div>
-              {nextDayEvents[0].eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {nextDayEvents[0].customer}</div>}
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{when(nextDayEvents[0])}–{to12h(nextDayEvents[0].base_end_time)} · {nextDayEvents[0].emirate}</div>
-              {themeOf(nextDayEvents[0]) && (
-                <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {themeOf(nextDayEvents[0])}</div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
-                <Badge tone={nextDayEvents[0].phase === 'Event Completed' ? 'neutral' : 'info'}>{nextDayEvents[0].phase}</Badge>
-                <div style={{ flex: 1 }} />
-                <Button onClick={() => onOpenEvent(nextDayEvents[0].id)}>Open job →</Button>
-              </div>
-            </div>
-          </div>
-          {nextDayEvents.length > 1 && (
-            <Panel title={`Also that day · ${nextDayEvents.length - 1} more`}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {nextDayEvents.slice(1).map((e, idx) => <EventRow key={e.id} e={e} label={when(e)} accentIdx={idx + 1} onOpen={() => onOpenEvent(e.id)} />)}
-              </div>
-            </Panel>
-          )}
+          {nextDayEvents.map((e, i) => (
+            <HeroEventCard
+              key={e.id}
+              e={e}
+              eyebrow={i === 0 ? 'NEXT EVENT' : 'SAME DAY'}
+              dateText={`${new Date(e.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })} · ${timeRange12h(e.start_time, e.base_end_time)}`}
+              onOpen={() => onOpenEvent(e.id)}
+            />
+          ))}
         </div>
       )}
 
@@ -342,6 +304,32 @@ export function celebrationName(type?: string): string {
 export function eventTitle(e: any): string {
   const t = celebrationName(e.celebration_type);
   return e.eventFor ? `${e.eventFor}'s ${t}` : (e.customer || t);
+}
+
+/** The featured pink event card. Used for EVERY same-day event (not just the
+ *  first) so two events on one day look identical, never pink-then-white. */
+function HeroEventCard({ e, eyebrow, dateText, onOpen }: { e: any; eyebrow: string; dateText: string; onOpen: () => void }) {
+  const theme = themeOf(e);
+  const booked = e.package_name ? `📦 ${e.package_name}` : (e.ordered_services ? `🛍️ ${e.ordered_services}` : '');
+  return (
+    <div className="rise-in lift" style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 22, padding: 4, boxShadow: C.shadow, cursor: 'pointer' }} onClick={onOpen}>
+      <div style={{ borderRadius: 18, background: 'linear-gradient(135deg,#FFF0F7,#FDE7F0)', padding: '16px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.pink, animation: 'pulse 1.8s infinite', boxShadow: '0 0 0 4px rgba(240,108,168,.18)' }} />
+          <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.8px', color: C.pinkDeep }}>{eyebrow}</div>
+        </div>
+        <div style={{ ...fredoka(21), marginTop: 8 }}>{eventTitle(e)}</div>
+        {e.eventFor && <div style={{ fontSize: 12, fontWeight: 600, color: '#a07d8f' }}>by {e.customer}</div>}
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8b6c7a', marginTop: 3 }}>{dateText}{e.emirate ? ` · ${e.emirate}` : ''}</div>
+        {theme && <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4 }}>🎨 {theme}</div>}
+        {booked && <div style={{ marginTop: 6 }}><span style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, padding: '4px 10px' }}>{booked}</span></div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
+          <div style={{ flex: 1 }} />
+          <Button onClick={onOpen}>Open job →</Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** Date badge parts for an event row: "Sat / 03 / Oct 26". Handles to-be-set. */
