@@ -116,9 +116,19 @@ function AddStory({ onAdded }: { onAdded: () => void }) {
   const [linkUrl, setLinkUrl] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.line}`, borderRadius: 11, padding: '10px 12px', fontSize: 13.5, fontWeight: 600, color: C.ink, outline: 'none' };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true); setErr(null);
+    try { const url = await api.uploadImage(file, 'themes'); setImageUrl(url); }
+    catch { setErr('Upload failed — try another photo.'); }
+    finally { setUploading(false); e.target.value = ''; }
+  };
 
   const add = async () => {
     if (!/^https?:\/\/.+/.test(imageUrl.trim())) { setErr('Paste an image link (starts with https://).'); return; }
@@ -140,7 +150,14 @@ function AddStory({ onAdded }: { onAdded: () => void }) {
   return (
     <Panel title="➕ Add a story">
       <div style={{ display: 'grid', gap: 9 }}>
-        <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Image link (https://…)  — paste a photo/story image URL" style={inp} />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ cursor: uploading ? 'default' : 'pointer', border: 'none', borderRadius: 12, padding: '11px 18px', fontWeight: 800, fontSize: 13.5, background: C.gradPink, color: '#fff', opacity: uploading ? 0.6 : 1 }}>
+            {uploading ? 'Uploading…' : '📷 Upload a photo'}
+            <input type="file" accept="image/*" onChange={onFile} disabled={uploading} style={{ display: 'none' }} />
+          </label>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>or paste an image link below</span>
+        </div>
+        <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Image link (https://…)" style={inp} />
         {imageUrl && /^https?:\/\/.+/.test(imageUrl) && <img src={imageUrl} alt="preview" style={{ width: 110, height: 196, objectFit: 'cover', borderRadius: 12, border: `1px solid ${C.line}`, background: C.pinkSoft }} />}
         <textarea value={captionEn} onChange={(e) => setCaptionEn(e.target.value)} placeholder="Caption (English) — optional" rows={2} style={{ ...inp, resize: 'vertical' }} />
         <textarea value={captionAr} onChange={(e) => setCaptionAr(e.target.value)} dir="rtl" placeholder="الكابشن (عربي) — اختياري" rows={2} style={{ ...inp, resize: 'vertical' }} />
