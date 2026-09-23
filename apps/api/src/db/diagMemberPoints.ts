@@ -9,6 +9,32 @@ import { pool } from './pool.js';
 import { COUNTING_START } from '../domain/period.js';
 
 /**
+ * Diagnostic (DIAG_AUTH=true): before retiring the master token / access-token
+ * login, confirm the owner (and team) can actually sign in with email + password
+ * — i.e. each has an email set and a password_hash. Read-only. Turn off after.
+ */
+export async function diagAuthFromEnv(): Promise<void> {
+  if (String(process.env.DIAG_AUTH ?? '').toLowerCase() !== 'true') return;
+  const { rows } = await pool.query(
+    `SELECT name, access_level, active,
+            (email IS NOT NULL AND email <> '') AS has_email,
+            email,
+            (password_hash IS NOT NULL AND password_hash <> '') AS has_password,
+            to_char(last_login_at,'YYYY-MM-DD HH24:MI') AS last_login
+       FROM team_members
+      ORDER BY (access_level='owner') DESC, (access_level='manager') DESC, name`,
+  );
+  console.log(`[diag-auth] ${rows.length} members:`);
+  for (const r of rows) {
+    console.log(`[diag-auth]   ${r.name} · ${r.access_level} · active=${r.active} · email=${r.has_email ? r.email : 'NONE'} · password=${r.has_password ? 'set' : 'NOT SET'} · lastLogin=${r.last_login ?? 'never'}`);
+  }
+  const owners = rows.filter((r: any) => r.access_level === 'owner' && r.active);
+  const readyOwners = owners.filter((r: any) => r.has_email && r.has_password);
+  console.log(`[diag-auth] active owners: ${owners.length} · ready to log in (email+password): ${readyOwners.length}`);
+  console.log(`[diag-auth] ${readyOwners.length >= 1 ? 'SAFE to retire the master token — an owner can sign in with email+password.' : '⚠️ NOT SAFE yet — no owner has BOTH an email and a password set.'}`);
+}
+
+/**
  * Team-wide sweep (DIAG_ALL_POINTS=true): for every scored member, compare the
  * OLD EVENTS count (event_staff) vs the NEW one (event_team = points base),
  * print exact points, and flag any warning whose affects_points is NULL (which
