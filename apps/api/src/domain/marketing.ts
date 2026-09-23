@@ -71,6 +71,22 @@ export async function audienceCounts(): Promise<Record<Audience, number> & { opt
  * Sends a campaign to its audience now. Marks it sending → sent (partial
  * counts kept). Caller must ensure email is configured.
  */
+/** Parse a "custom:a@b.com, c@d.com" audience into a de-duplicated recipient
+ *  list of manually-entered addresses. Invalid entries are dropped. */
+export function customRecipients(audience: string): Array<{ id: string; email: string; name: string }> {
+  if (!String(audience || '').startsWith('custom:')) return [];
+  const raw = String(audience).slice('custom:'.length);
+  const seen = new Set<string>();
+  const out: Array<{ id: string; email: string; name: string }> = [];
+  for (const part of raw.split(/[,;\s]+/)) {
+    const email = part.trim().toLowerCase();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || seen.has(email)) continue;
+    seen.add(email);
+    out.push({ id: email, email, name: '' });
+  }
+  return out;
+}
+
 export async function sendCampaign(campaignId: number): Promise<{ recipients: number; sent: number }> {
   const { rows } = await pool.query(`SELECT * FROM email_campaigns WHERE id = $1`, [campaignId]);
   const camp = rows[0];
@@ -84,17 +100,23 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
     throw new Error('not_approved');
   }
 
-  // Corporate (B2B) campaigns draw from the corporate_leads directory; consumer
-  // campaigns draw from customers. The audience string picks the source.
-  const isCorp = String(camp.audience || '').startsWith('corp:') || camp.audience === 'corporate';
-  const { rows: recips } = isCorp
-    ? await pool.query<{ id: string; email: string; name: string }>(
-        // {{name}} = the company name (so the email greets the organisation).
-        `SELECT id, email, name FROM corporate_leads WHERE ${corporateAudienceWhere(String(camp.audience))}`,
-      )
-    : await pool.query<{ id: string; email: string; name: string }>(
-        `SELECT c.id, c.email, c.name FROM customers c WHERE ${audienceWhere(camp.audience as Audience)}`,
-      );
+  // A "custom:" audience is a manual list of email addresses the owner typed;
+  // corporate (B2B) draws from corporate_leads; consumer draws from customers.
+  const isCustom = String(camp.audience || '').startsWith('custom:');
+  const isCorp = !isCustom && (String(camp.audience || '').startsWith('corp:') || camp.audience === 'corporate');
+  let recips: Array<{ id: string; email: string; name: string }>;
+  if (isCustom) {
+    recips = customRecipients(String(camp.audience));
+  } else if (isCorp) {
+    // {{name}} = the company name (so the email greets the organisation).
+    recips = (await pool.query<{ id: string; email: string; name: string }>(
+      `SELECT id, email, name FROM corporate_leads WHERE ${corporateAudienceWhere(String(camp.audience))}`,
+    )).rows;
+  } else {
+    recips = (await pool.query<{ id: string; email: string; name: string }>(
+      `SELECT c.id, c.email, c.name FROM customers c WHERE ${audienceWhere(camp.audience as Audience)}`,
+    )).rows;
+  }
 
   // Deliverability guards: never send to a suppressed address (hard bounce /
   // spam complaint), and honour a frequency cap so we don't email the same
@@ -167,6 +189,10 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
  * the frequency cap. Used by the dashboard "See recipients" preview.
  */
 export async function campaignRecipients(audience: string): Promise<{ count: number; sample: Array<{ name: string; email: string }> }> {
+  if (String(audience || '').startsWith('custom:')) {
+    const list = customRecipients(String(audience));
+    return { count: list.length, sample: list.slice(0, 50).map((r) => ({ name: r.name, email: r.email })) };
+  }
   const isCorp = String(audience || '').startsWith('corp:') || audience === 'corporate';
   const { rows } = isCorp
     ? await pool.query<{ email: string; name: string }>(`SELECT email, name FROM corporate_leads WHERE ${corporateAudienceWhere(String(audience))}`)

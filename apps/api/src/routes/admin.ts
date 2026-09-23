@@ -5683,8 +5683,8 @@ export async function adminRoutes(app: FastifyInstance) {
       subject: z.string().min(1).max(200),
       bodyHtml: z.string().min(1).max(50_000),
       // Consumer segments or a corporate segment ('corp:all' / 'corp:<category>').
-      audience: z.string().max(40).refine(
-        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^corp:[a-z_]+$/.test(a),
+      audience: z.string().max(4000).refine(
+        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^corp:[a-z_]+$/.test(a) || /^custom:.+@.+/.test(a),
         'invalid audience',
       ).default('all'),
       scheduledFor: z.string().datetime().optional(),
@@ -5777,8 +5777,8 @@ export async function adminRoutes(app: FastifyInstance) {
       status: z.enum(['draft', 'scheduled']).optional(),
       subject: z.string().min(1).max(300).optional(),
       bodyHtml: z.string().min(1).optional(),
-      audience: z.string().max(40).refine(
-        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^corp:[a-z_]+$/.test(a),
+      audience: z.string().max(4000).refine(
+        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^corp:[a-z_]+$/.test(a) || /^custom:.+@.+/.test(a),
         'invalid audience',
       ).optional(),
     });

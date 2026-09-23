@@ -162,9 +162,10 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
   const [path, setPath] = useState<'menu' | 'new' | 'existing'>(initialPath ?? 'menu');
   const [step, setStep] = useState(initialStep ?? 1);
   // shared
-  const [aud, setAud] = useState<'customer' | 'company'>(initialAud ?? 'customer');
+  const [aud, setAud] = useState<'customer' | 'company' | 'custom'>(initialAud ?? 'customer');
   // new
   const [category, setCategory] = useState<string>('all'); // company category (or 'all')
+  const [customEmails, setCustomEmails] = useState(''); // manual recipient list (aud === 'custom')
   const [subject, setSubject] = useState('');
   const [services, setServices] = useState('');
   const [offer, setOffer] = useState('');
@@ -177,7 +178,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
   const [svc, setSvc] = useState(false);
   const [openMonths, setOpenMonths] = useState<Record<string, boolean>>({});
   const [recips, setRecips] = useState<{ count: number; sample: any[] } | null>(null);
-  const audienceStr = aud === 'company' ? (category === 'all' ? 'corp:all' : `corp:${category}`) : 'all';
+  const audienceStr = aud === 'custom' ? `custom:${customEmails}` : aud === 'company' ? (category === 'all' ? 'corp:all' : `corp:${category}`) : 'all';
   const seeRecipients = async () => {
     setRecips({ count: -1, sample: [] });
     try { setRecips(await api.recipientsPreview(audienceStr)); } catch { setRecips({ count: 0, sample: [] }); }
@@ -215,13 +216,15 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
   // Steps adapt to the audience (company adds a category picker).
   const newSteps = aud === 'company'
     ? ['audience', 'category', 'subject', 'services', 'when', 'done']
-    : ['audience', 'subject', 'services', 'when', 'done'];
+    : aud === 'custom'
+      ? ['audience', 'custom', 'subject', 'services', 'when', 'done']
+      : ['audience', 'subject', 'services', 'when', 'done'];
   const key = newSteps[step - 1];
 
   const generate = async () => {
     setWorking(true);
     try {
-      const audience = aud === 'company' ? (category === 'all' ? 'corp:all' : `corp:${category}`) : 'all';
+      const audience = aud === 'custom' ? `custom:${customEmails.trim()}` : aud === 'company' ? (category === 'all' ? 'corp:all' : `corp:${category}`) : 'all';
       const c = await api.createCampaign({ subject: subject.trim(), bodyHtml: buildBody(), audience, scheduledFor: sendDate ? new Date(sendDate).toISOString() : undefined });
       setCreated(c); onReload(); setStep(newSteps.indexOf('done') + 1);
     } catch (e: any) { setMsg(e?.message ?? 'Could not create the campaign.'); }
@@ -248,8 +251,8 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
       {path === 'new' && (
         <Wiz step={step} total={newSteps.length}
           onBack={back}
-          canNext={key === 'subject' ? subject.trim().length > 1 : true}
-          onNext={key === 'subject' || key === 'services' ? () => setStep(step + 1) : undefined}
+          canNext={key === 'subject' ? subject.trim().length > 1 : key === 'custom' ? /[^@\s]+@[^@\s]+\.[^@\s]+/.test(customEmails) : true}
+          onNext={key === 'subject' || key === 'services' || key === 'custom' ? () => setStep(step + 1) : undefined}
           footer={key === 'when' ? <Button onClick={generate} disabled={working || !subject.trim()}>{working ? 'Generating…' : '✨ Generate'}</Button> : undefined}
           hideNav={key === 'audience' || key === 'category' || key === 'done'}
         >
@@ -257,6 +260,15 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
             <Q title="Who is this campaign for?">
               <Choice emoji="👨‍👩‍👧" label="Our customers" sub={`${data.audiences.all} emails`} active={aud === 'customer'} onClick={() => { setAud('customer'); setStep(2); }} />
               <Choice emoji="🏢" label="Companies" sub={`${data.corporate?.emailable ?? 0} emails`} active={aud === 'company'} onClick={() => { setAud('company'); setStep(2); }} />
+              <Choice emoji="✉️" label="Specific email(s)" sub="Type your own recipients" active={aud === 'custom'} onClick={() => { setAud('custom'); setStep(2); }} />
+            </Q>
+          )}
+          {key === 'custom' && (
+            <Q title="Add recipient emails">
+              <textarea value={customEmails} onChange={(e) => setCustomEmails(e.target.value)} autoFocus placeholder="name@company.com, another@company.com" style={{ ...input, minHeight: 96, resize: 'vertical', lineHeight: 1.5 }} />
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 6 }}>
+                Separate multiple emails with a comma. {customEmails.split(/[,;\s]+/).filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.trim())).length} valid email(s)
+              </div>
             </Q>
           )}
           {key === 'category' && (
