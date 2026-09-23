@@ -15,7 +15,7 @@ import { ShopOrderDrawer } from './views/ShopOrderDrawer';
 import { Inventory } from './views/Inventory';
 import { Tasks } from './views/Tasks';
 import { Team } from './views/Team';
-import { Kpis } from './views/Kpis';
+import { Performance } from './views/Performance';
 import { Alerts } from './views/Alerts';
 import { FinanceHub } from './views/FinanceHub';
 import { Ceo } from './views/Ceo';
@@ -74,10 +74,9 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'marketing', label: 'Marketing', icon: '📣', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'marketing' },
   { id: 'stories', label: 'Story Studio', icon: '🎬', title: 'Story Studio', sub: 'Daily Instagram & WhatsApp stories', section: 'marketing' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'marketing' },
-  { id: 'feedback', label: 'Review Report', icon: '🌟', title: 'Review Report', sub: 'Google reviews + every customer rating (event, dates, team)', section: 'marketing' },
   { id: 'discounts', label: 'Discount Codes', icon: '🏷️', title: 'Discount Codes', sub: 'Create & manage promo codes customers use at checkout', section: 'marketing' },
   // Staff
-  { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Tips', sub: 'Achievements, rewards & points', section: 'staff' },
+  { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Reviews', sub: 'Team points & rewards + what customers said', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
   { id: 'leave', label: 'Leave', icon: '🌴', title: 'Annual Leave', sub: 'Leave requests, balances & approvals', section: 'staff' },
   { id: 'theweek', label: 'The Week', icon: '🗓️', title: 'The Eventana Week', sub: 'Our weekly rhythm — pickups, office hours, days off & shopping day', section: 'staff' },
@@ -262,7 +261,7 @@ export default function App() {
       {view === 'leave' && <Leave role={role} />}
       {view === 'theweek' && <TheWeek />}
       {view === 'reports' && <Reports />}
-      {view === 'kpis' && <Kpis role={role} />}
+      {view === 'kpis' && <Performance role={role} onOpenEvent={openEvent} />}
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}
       {view === 'marketing' && <Marketing />}
