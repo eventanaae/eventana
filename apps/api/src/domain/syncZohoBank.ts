@@ -119,10 +119,19 @@ export async function syncZohoBank(): Promise<void> {
 
   // Only look back to the watermark (minus a small overlap), or the first-run
   // floor. ingestExternalTxn dedupes by transaction_id, so overlap is harmless.
+  // The watermark column is TIMESTAMPTZ, so pg returns it as a JS Date — build the
+  // floor from that Date directly (a bad String().slice() here was the "Invalid
+  // time value" crash). Fall back to the first-run lookback if absent/unparseable.
   const wm = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'zoho_bank_sync_since'`).catch(() => ({ rows: [] as any[] }));
-  const floor = wm.rows[0]?.v
-    ? daysAgo(String(wm.rows[0].v).slice(0, 10), OVERLAP_DAYS)
-    : daysAgo(dubaiToday(), FIRST_RUN_LOOKBACK_DAYS);
+  let floor = daysAgo(dubaiToday(), FIRST_RUN_LOOKBACK_DAYS);
+  const wmVal = wm.rows[0]?.v as unknown;
+  if (wmVal) {
+    const d = new Date(wmVal as any);
+    if (!Number.isNaN(d.getTime())) {
+      d.setUTCDate(d.getUTCDate() - OVERLAP_DAYS);
+      floor = d.toISOString().slice(0, 10);
+    }
+  }
 
   let pended = 0;
   let sampled = false;
