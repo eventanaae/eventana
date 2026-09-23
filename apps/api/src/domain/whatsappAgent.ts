@@ -61,6 +61,24 @@ export interface AgentOutcome {
   body?: string;
 }
 
+/**
+ * Free-text "house knowledge" the owner types into the dashboard to TEACH the
+ * assistant — parking, setup time, what's included, common questions, the way
+ * we like to answer. Injected into the AI prompt so the bot answers in our
+ * words. Empty until the owner writes something.
+ */
+export async function agentKnowledge(): Promise<string> {
+  try {
+    const r = await pool.query<{ value: any }>(
+      `SELECT value FROM settings WHERE key = 'whatsapp_agent_knowledge'`,
+    );
+    const v = r.rows[0]?.value;
+    return typeof v === 'string' ? v.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
 /** Compact, live catalogue facts for the AI — never lets it invent a price. */
 async function catalogueFacts(): Promise<string> {
   const cfg = await loadConfig();
@@ -87,17 +105,20 @@ async function catalogueFacts(): Promise<string> {
 async function aiAnswer(question: string, ar: boolean): Promise<string | null> {
   if (!anthropicEnabled()) return null;
   const facts = await catalogueFacts();
+  const knowledge = await agentKnowledge();
   const appUrl = String(config.publicAppUrl).replace(/\/$/, '');
   const system = [
     'You are the WhatsApp assistant for Eventana Events — a warm, upscale kids-party & celebrations company in the UAE, Arabic-first, run by women.',
     'Voice: warm, friendly, feminine, like a real person on the team — never a corporate bot. Keep it WhatsApp-short: 2–4 sentences, one or two soft emoji at most.',
     ar ? 'Reply in warm Gulf/Emirati Arabic (khaleeji).' : 'Reply in warm, natural English.',
-    'Answer ONLY from the FACTS below. NEVER invent a price, package, discount, or availability. If it is not in the facts, say the team will confirm it.',
+    'PRICES & PACKAGES: quote ONLY from the FACTS below (they are live). NEVER invent a price, package, discount, or availability. If it is not there, say the team will confirm it.',
+    'HOUSE KNOWLEDGE below is written by the owner — treat it as true for policies, what is included, logistics and how we like to answer. If it conflicts with FACTS on a price, the FACTS win.',
     `Gently invite them to browse and book on the app: ${appUrl}`,
     'You do NOT approve refunds, discounts, price changes, or confirm bookings — a human handles those.',
     'Output ONLY the reply text — no preamble, no quotes.',
     '',
     facts,
+    knowledge ? `\nHOUSE KNOWLEDGE (from the owner):\n${knowledge}` : '',
   ].join('\n');
   const out = await generateText({ system, prompt: question.slice(0, 1500), maxTokens: 350 });
   return out?.trim() || null;

@@ -209,7 +209,25 @@ function AgentControl({
   const [test, setTest] = useState('');
   const [preview, setPreview] = useState<{ source: string; reply: string } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [knowledge, setKnowledge] = useState<string | null>(null);
+  const [savingK, setSavingK] = useState(false);
+  const [savedK, setSavedK] = useState(false);
   const info = MODE_INFO[mode] ?? MODE_INFO.off;
+
+  useEffect(() => {
+    if (!isOwner) return;
+    api.getWhatsappKnowledge().then((r) => setKnowledge(r.knowledge ?? '')).catch(() => setKnowledge(''));
+  }, [isOwner]);
+
+  const saveKnowledge = async () => {
+    if (knowledge == null) return;
+    setSavingK(true); setSavedK(false);
+    try {
+      await api.saveWhatsappKnowledge(knowledge);
+      setSavedK(true);
+      setTimeout(() => setSavedK(false), 2500);
+    } catch { /* ignore */ } finally { setSavingK(false); }
+  };
 
   const setMode = async (m: 'off' | 'greet' | 'full') => {
     if (m === mode) return;
@@ -300,6 +318,31 @@ function AgentControl({
           </div>
         )}
       </div>
+
+      {/* Teach the assistant — free-text house knowledge the bot answers from. */}
+      {isOwner && (
+        <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: C.ink, marginBottom: 4 }}>
+            Teach the assistant
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, lineHeight: 1.6, marginBottom: 8 }}>
+            Write anything you want it to know — parking, setup time, what's included, common questions,
+            the way you like to answer. It uses this in every reply. (Prices always come from your live
+            catalogue, never from here.)
+          </div>
+          <textarea
+            value={knowledge ?? ''}
+            onChange={(e) => setKnowledge(e.target.value)}
+            placeholder={'e.g. نوصل قبل الحفلة بساعة نجهّز. التوصيل حسب الإمارة. ما نسوي حجز بدون دفعة.'}
+            rows={5}
+            style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', fontSize: 12.5, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink, resize: 'vertical', lineHeight: 1.6 }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+            <Button onClick={saveKnowledge} disabled={savingK || knowledge == null}>{savingK ? 'Saving…' : 'Save'}</Button>
+            {savedK && <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>Saved ✓ — test a reply above to see it.</span>}
+          </div>
+        </div>
+      )}
     </Panel>
   );
 }

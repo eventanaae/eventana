@@ -1098,6 +1098,32 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /**
+   * The owner "teaches" the assistant: free-text house knowledge (parking,
+   * setup time, what's included, common questions, our tone) that gets injected
+   * into the AI's prompt so it answers in our words. Prices always come from the
+   * live catalogue, never from here.
+   */
+  app.get('/api/admin/whatsapp/knowledge', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const r = await pool.query<{ value: any }>(`SELECT value FROM settings WHERE key = 'whatsapp_agent_knowledge'`);
+    return { knowledge: typeof r.rows[0]?.value === 'string' ? r.rows[0].value : '' };
+  });
+
+  app.post('/api/admin/whatsapp/knowledge', async (request, reply) => {
+    const staff = (request as any).staff;
+    if (staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
+    const parsed = z.object({ knowledge: z.string().max(8000) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_by) VALUES ('whatsapp_agent_knowledge', $1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+      [JSON.stringify(parsed.data.knowledge), staff.name || staff.id || 'owner'],
+    );
+    return { ok: true };
+  });
+
+  /**
    * Preview what the assistant WOULD reply to a message — without sending
    * anything to a customer. Lets the owner read the bot's answers and judge
    * their quality before switching it live.

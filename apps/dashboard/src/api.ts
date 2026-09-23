@@ -320,6 +320,12 @@ export const api = {
       '/api/admin/whatsapp/preview',
       { method: 'POST', body: JSON.stringify({ text }) },
     ),
+  getWhatsappKnowledge: () => request<{ knowledge: string }>('/api/admin/whatsapp/knowledge'),
+  saveWhatsappKnowledge: (knowledge: string) =>
+    request<{ ok: boolean }>('/api/admin/whatsapp/knowledge', {
+      method: 'POST',
+      body: JSON.stringify({ knowledge }),
+    }),
   tabbyWebhookStatus: () =>
     request<{ mode: string; secretConfigured: boolean; secretLength: number; webhookUrl: string; canRegister: boolean }>(
       '/api/admin/payments/tabby/webhook-status',
