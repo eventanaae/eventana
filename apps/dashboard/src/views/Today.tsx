@@ -30,9 +30,6 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
 
   if (!data) return <Spinner />;
 
-  // Guard kpis (a scoped/partial payload for some role could omit it) so Home
-  // never white-screens — App.tsx reads the same field defensively.
-  const k = data.kpis ?? {};
   const events: any[] = [...(data.events ?? [])].sort((a, b) =>
     `${String(a.event_date).slice(0, 10)} ${a.start_time}`.localeCompare(`${String(b.event_date).slice(0, 10)} ${b.start_time}`),
   );
@@ -44,14 +41,6 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
   // parties shows both in the Next-event card, not just the first.
   const nextDay = next ? String(next.event_date).slice(0, 10) : null;
   const nextDayEvents = nextDay ? events.filter((e) => String(e.event_date).slice(0, 10) === nextDay) : [];
-
-  const lowStock = (data.criticalInventory ?? []).filter((a: any) => a.status !== 'available' || a.committed > 0);
-  const attention: Array<{ label: string; n: number; onClick: () => void }> = [
-    { label: 'Open tasks', n: k.openTasks ?? 0, onClick: () => onGoto('tasks') },
-    { label: 'Needs review', n: k.needsReview ?? 0, onClick: () => onGoto('schedule') },
-    { label: 'Design approvals', n: (data.pendingDesignApprovals ?? []).length, onClick: () => onGoto('schedule') },
-    { label: 'Assets in demand', n: lowStock.length, onClick: () => onGoto('inventory') },
-  ].filter((a) => a.n > 0);
 
   const when = (e: any) =>
     isToday(e)
@@ -168,25 +157,6 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
             />
           ))}
         </div>
-      )}
-
-      {/* Needs attention — a manager/owner overview (staff have it on their own screens) */}
-      {(role === 'owner' || role === 'manager') && attention.length > 0 && (
-        <Panel className="rise-in" style={{ ['--i' as any]: 3 } as any} title="Needs attention">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {attention.map((a, idx) => {
-              const ac = ACCENTS[idx % ACCENTS.length];
-              return (
-                <div key={a.label} onClick={a.onClick} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 4px', borderBottom: idx < attention.length - 1 ? `1px solid ${C.lineSoft}` : 'none', cursor: 'pointer', borderRadius: 10 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: ac.grad, flex: 'none' }} />
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.ink }}>{a.label}</span>
-                  <span style={{ background: ac.soft, color: ac.fg, fontWeight: 800, fontSize: 12.5, minWidth: 26, textAlign: 'center', borderRadius: 9, padding: '3px 9px' }}>{a.n}</span>
-                  <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
-                </div>
-              );
-            })}
-          </div>
-        </Panel>
       )}
 
       {/* Manager/owner: staffing that needs action + day-off requests, right on Home. */}
