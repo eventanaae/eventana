@@ -7,7 +7,7 @@
  *   • Hashed static assets (js/css/fonts/icons) are cache-first (safe: the file
  *     name changes on every build).
  */
-const CACHE = 'eventana-ops-v2';
+const CACHE = 'eventana-ops-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 
