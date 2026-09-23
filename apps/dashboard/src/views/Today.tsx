@@ -374,13 +374,13 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headline}</div>
-        {e.package_name && <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📦 {e.package_name}</div>}
+        {theme && <div style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {theme}</div>}
         {timePlace && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{timePlace}</div>}
       </div>
-      {/* Theme as a clear pink pill on the right — replaces the redundant
-          "Booking Confirmed" badge and shows what they requested at a glance. */}
-      {theme && (
-        <span style={{ flex: 'none', maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>🎨 {theme}</span>
+      {/* The package (what they booked) as a pink pill on the right — where the
+          redundant "Booking Confirmed" badge used to be. */}
+      {e.package_name && (
+        <span style={{ flex: 'none', maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>📦 {e.package_name}</span>
       )}
       <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
     </div>
