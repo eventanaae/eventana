@@ -158,9 +158,19 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'forbidden', message: 'Only the owner can change team access.' });
     }
 
-    // The full CEO dashboard and the Cash-on-hand accounting balance are the
-    // Owner's alone (income totals).
-    if (path.startsWith('/api/admin/ceo') || path.startsWith('/api/admin/finance/accounting')) {
+    // The full CEO dashboard, the Cash-on-hand accounting balance, and the
+    // company revenue / profit / P&L history are the Owner's alone (income
+    // totals). Managers run daily ops but never see company income — the /finance
+    // summary itself nulls revenue/profit for managers inside the handler.
+    if (
+      path.startsWith('/api/admin/ceo') ||
+      path.startsWith('/api/admin/finance/accounting') ||
+      path === '/api/admin/finance/qb-breakdown' ||
+      path === '/api/admin/import/revenue-by-year' ||
+      path === '/api/admin/import/pnl-by-year' ||
+      path === '/api/admin/import/expenses' ||
+      path === '/api/admin/import/status'
+    ) {
       return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
     }
 
@@ -210,6 +220,8 @@ export async function adminRoutes(app: FastifyInstance) {
       // B2B corporate leads (read/import/edit/delete/reset/reply) — Manager+Owner
       // only. Was ungated: an employee could wipe the whole lead directory.
       path.startsWith('/api/admin/corporate') ||
+      // QuickBooks connection status/sync — no reason for employees/drivers to see it.
+      path.startsWith('/api/admin/quickbooks') ||
       // (theme-backfill is open to employees too — the owner assigns the
       //  "fill in the themes" task to employees, so they must read + save it.)
       path.startsWith('/api/admin/focus') ||
@@ -3241,30 +3253,37 @@ export async function adminRoutes(app: FastifyInstance) {
       trend.push({ month: m, revenueFils: r, expenseFils: e, profitFils: r - e });
     }
 
+    // Revenue / profit / margin / tips are the OWNER's numbers — managers run
+    // expenses but never see company income (same rule as listReceipts + Today).
+    // Managers still get expenses (by category + trend) so their Finance page works.
+    const isOwner = (request as any).staff?.role === 'owner';
     return {
       month: monthStr,
-      revenueFils: revenue,
-      revenueDisplay: formatAed(revenue),
+      revenueFils: isOwner ? revenue : null,
+      revenueDisplay: isOwner ? formatAed(revenue) : null,
       expensesFils: expenses,
       expensesDisplay: formatAed(expenses),
-      profitFils: profit,
-      profitDisplay: formatAed(Math.abs(profit)),
-      profitNegative: profit < 0,
-      marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
-      tipsCollectedFils: Number(tipsRow.rows[0].v),
-      tipsCollectedDisplay: formatAed(Number(tipsRow.rows[0].v)),
+      profitFils: isOwner ? profit : null,
+      profitDisplay: isOwner ? formatAed(Math.abs(profit)) : null,
+      profitNegative: isOwner ? profit < 0 : null,
+      marginPct: isOwner ? (revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0) : null,
+      tipsCollectedFils: isOwner ? Number(tipsRow.rows[0].v) : null,
+      tipsCollectedDisplay: isOwner ? formatAed(Number(tipsRow.rows[0].v)) : null,
       byCategory: byCat.rows.map((r) => ({
         category: r.category,
         amountFils: Number(r.v),
         amountDisplay: formatAed(Number(r.v)),
       })),
       trend: trend.map((t) => ({
-        ...t,
-        revenueDisplay: formatAed(t.revenueFils),
+        month: t.month,
+        expenseFils: t.expenseFils,
         expenseDisplay: formatAed(t.expenseFils),
+        revenueFils: isOwner ? t.revenueFils : null,
+        revenueDisplay: isOwner ? formatAed(t.revenueFils) : null,
+        profitFils: isOwner ? t.profitFils : null,
         // abs() — the client adds its own "−" sign for loss months, so returning
         // a signed value here rendered a double minus ("−-50").
-        profitDisplay: formatAed(Math.abs(t.profitFils)),
+        profitDisplay: isOwner ? formatAed(Math.abs(t.profitFils)) : null,
       })),
     };
   });
