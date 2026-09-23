@@ -373,7 +373,11 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
           <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {themeOf(e)}</div>
         )}
       </div>
-      <Badge tone={e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
+      {/* "Booking Confirmed" is the norm here and just adds noise — only badge
+          the phases that actually tell you something. */}
+      {e.phase && e.phase !== 'Booking Confirmed' && (
+        <Badge tone={e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
+      )}
       <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
     </div>
   );
