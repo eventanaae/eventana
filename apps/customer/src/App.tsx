@@ -25,7 +25,12 @@ import { PayLink } from './screens/PayLink';
 import { TermsSheet } from './screens/Terms';
 import { PrivacySheet } from './screens/Privacy';
 import { Landing } from './screens/Landing';
-import { landingFromPath, type LandingRoute } from './landing';
+import { landingFromPath, LANDING_ROUTES, type LandingRoute } from './landing';
+
+/** On a laptop, the bare home shows this full marketing page (a real website)
+ *  instead of the mobile app in a phone frame. The flagship "Party organizer in
+ *  Dubai" page matches the home title/SEO. */
+const HOME_LANDING: LandingRoute = LANDING_ROUTES.find((r) => r.slug === 'party-organizer-dubai') ?? LANDING_ROUTES[0];
 import { useProfile } from './profile';
 import { loadAccount, loadPendingClaim, setPendingClaim, clearPendingClaim } from './account';
 import { useLang, makeT, type Lang, type TFn } from './i18n';
@@ -267,12 +272,23 @@ export default function App() {
    * back on the sales page.
    */
   const [landing, setLanding] = useState<LandingRoute | null>(() => landingFromPath());
+  // Once the visitor taps "Book" (or on a phone), we're past the desktop sales
+  // page and into the app — so the desktop landing doesn't re-appear on re-render.
+  const [enteredApp, setEnteredApp] = useState(false);
   const enterFromLanding = useCallback((route: LandingRoute) => {
     setDraft((d) => ({ ...d, celebrationType: route.celebrationType, celebrationTypeChosen: true }));
     try { history.replaceState({}, '', '/'); } catch { /* file:// or a locked-down webview */ }
     document.title = 'Eventana';
     setLanding(null);
+    setEnteredApp(true);
     setScreen('explore');
+  }, []);
+  // Laptop/desktop viewport (matches the ev-brand breakpoint).
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 980);
+  useEffect(() => {
+    const on = () => setIsDesktop(window.innerWidth >= 980);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
   }, []);
 
   useEffect(() => {
@@ -566,6 +582,21 @@ export default function App() {
         setLang={setLang}
         social={social}
         onStart={() => enterFromLanding(landing)}
+      />
+    );
+  }
+
+  // Desktop/laptop: a bare home visit (no landing slug, no deep link, not yet
+  // entered) shows the full marketing website, not the mobile app in a phone
+  // frame. Phones keep the direct app; any deep link opens the app on desktop too.
+  if (isDesktop && !enteredApp && !landing && !resetToken && !deepLinkIntent) {
+    return (
+      <Landing
+        route={HOME_LANDING}
+        lang={lang}
+        setLang={setLang}
+        social={social}
+        onStart={() => enterFromLanding(HOME_LANDING)}
       />
     );
   }
