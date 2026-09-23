@@ -344,6 +344,18 @@ export function eventTitle(e: any): string {
   return e.eventFor ? `${e.eventFor}'s ${t}` : (e.customer || t);
 }
 
+/** A clear date for an event row: "Sat 26 Sep 2026 · 5:00 PM" (with the year so
+ *  bookings months/years out are never ambiguous). Handles to-be-scheduled. */
+function rowDate(e: any): string {
+  const ymd = e.event_date ? String(e.event_date).slice(0, 10) : '';
+  const d = ymd ? new Date(`${ymd}T00:00:00`) : null;
+  const datePart = d && !isNaN(d.getTime())
+    ? d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+    : (e.date_tbd ? 'Date to be set' : '');
+  const timePart = e.start_time ? to12h(e.start_time) : '';
+  return [datePart, timePart].filter(Boolean).join(' · ');
+}
+
 function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; onOpen: () => void; accentIdx?: number }) {
   const ac = ACCENTS[accentIdx % ACCENTS.length];
   return (
@@ -352,7 +364,11 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</div>
         {e.eventFor && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2 }}>by {e.customer}</div>}
-        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{label} · {e.emirate}</div>
+        {/* Date made prominent (dark + bold, with the year) so it never reads as unclear. */}
+        <div style={{ fontSize: 12, fontWeight: 800, color: C.ink }}>📅 {rowDate(e) || label}{e.emirate ? ` · ${e.emirate}` : ''}</div>
+        {e.package_name && (
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📦 {e.package_name}</div>
+        )}
         {themeOf(e) && (
           <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {themeOf(e)}</div>
         )}
