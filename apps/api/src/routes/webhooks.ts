@@ -213,6 +213,14 @@ export async function webhookRoutes(app: FastifyInstance) {
 
     if (result.httpStatus === 401) {
       request.log.warn({ provider }, 'webhook rejected: bad signature');
+      // TEMP DIAG (Tabby cert): capture the exact static secret Tabby echoes so we
+      // can align TABBY_WEBHOOK_SECRET to it, then remove this. Our own shared
+      // secret, private logs only.
+      if (provider === 'tabby') {
+        const sig = request.headers['x-eventana-signature'];
+        const cfg = (config.providers as any).tabby?.webhookSecret ?? '';
+        console.log('[tabby-diag] sent=', JSON.stringify(sig), 'cfgLen=', String(cfg).length, 'match=', sig === cfg);
+      }
     }
     return reply.status(result.httpStatus).send({ outcome: result.outcome });
   });
