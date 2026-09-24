@@ -646,6 +646,33 @@ async function main() {
     .then((m) => m.refreshAgentMode())
     .catch(() => {});
 
+  // One-time (env-gated) Tabby webhook re-registration: makes Tabby store & echo
+  // our current TABBY_WEBHOOK_SECRET so live confirmations stop returning 401 and
+  // bookings confirm instantly. Also logs the private QA link. Set
+  // TABBY_REREGISTER_WEBHOOK=true for one deploy, then unset it.
+  if (String(process.env.TABBY_REREGISTER_WEBHOOK ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { getProvider } = await import('./payments/index.js');
+        const { TabbyProvider } = await import('./payments/tabby.js');
+        const p = getProvider('tabby');
+        const cfg = config.providers.tabby;
+        if (p instanceof TabbyProvider && cfg.webhookSecret) {
+          const url = `${config.publicApiUrl}/api/webhooks/tabby`;
+          const isTest = cfg.mode !== 'live';
+          const res = await p.registerWebhook(url, isTest);
+          console.log('[tabby] webhook re-registered', JSON.stringify({ url, isTest, res }));
+        } else {
+          console.log('[tabby] re-register skipped', JSON.stringify({ mode: cfg.mode, hasSecret: Boolean(cfg.webhookSecret) }));
+        }
+        const base = String(config.publicAppUrl).replace(/\/$/, '');
+        console.log('[tabby] QA link:', config.tabbyQaToken ? `${base}/?qa=${config.tabbyQaToken}` : '(TABBY_QA_TOKEN not set)');
+      } catch (e) {
+        console.error('[tabby] re-register failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // Read bank@eventanauae.com over IMAP and turn each new bank-alert email into
   // a PENDING bank_transactions row for the owner to approve. No-op unless
   // BANK_IMAP_POLL=true with a mailbox password set in the environment.
