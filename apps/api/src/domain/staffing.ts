@@ -474,16 +474,23 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     );
     if (clash.length) {
       const driverName = driverAssign.assignee.name;
-      await pool.query(
+      // Only fire ONCE per event: the ops-alert row is deduped, and the phone
+      // push must fire ONLY when a new alert row was actually inserted — otherwise
+      // every re-staffing (each edit / re-assign / save) re-pushed the same
+      // conflict and buried the owner's phone in duplicate alerts.
+      const ins = await pool.query(
         `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
          SELECT $1,'ops_alert','driver_conflict', now(), $2
-          WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template = 'driver_conflict' AND event_id = $1 AND cancelled_at IS NULL)`,
+          WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template = 'driver_conflict' AND event_id = $1 AND cancelled_at IS NULL)
+         RETURNING id`,
         [eventId, JSON.stringify({ eventId, driver: driverName, conflicts: clash.map((c) => ({ eventId: c.id, date: c.d, start: c.start_time, end: c.base_end_time })) })],
-      ).catch(() => {});
-      try {
-        const { pushToStaff } = await import('../integrations/push.js');
-        void pushToStaff('⚠️ Delivery conflict', `${driverName} has overlapping deliveries on ${clash[0].d}`, { eventId });
-      } catch { /* push optional */ }
+      ).catch(() => ({ rowCount: 0 }));
+      if (ins.rowCount) {
+        try {
+          const { pushToStaff } = await import('../integrations/push.js');
+          void pushToStaff('⚠️ Delivery conflict', `${driverName} has overlapping deliveries on ${clash[0].d}`, { eventId });
+        } catch { /* push optional */ }
+      }
     } else {
       // No overlap now — clear any stale conflict alert for this event.
       await pool.query(`DELETE FROM notifications WHERE template = 'driver_conflict' AND event_id = $1`, [eventId]).catch(() => {});
