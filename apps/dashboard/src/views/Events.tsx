@@ -54,26 +54,37 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   // One event card.
   const card = (e: any) => {
     const d = new Date(e.event_date);
+    // Date badge on the side — same language as the Home "Upcoming" list.
+    const wd = e.date_tbd ? '' : d.toLocaleDateString('en-GB', { weekday: 'short' });
+    const day = e.date_tbd ? 'TBD' : d.toLocaleDateString('en-GB', { day: '2-digit' });
+    const mo = e.date_tbd ? '' : d.toLocaleDateString('en-GB', { month: 'short' });
     return (
       <div
         onClick={() => onOpenEvent(e.id)}
-        style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer' }}
+        style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'flex-start' }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</span>
-          {e.totalDisplay != null && (
-            <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
-          )}
+        <div style={{ width: 54, flex: 'none', textAlign: 'center', background: C.pinkSoft, borderRadius: 11, padding: '7px 0', color: C.pinkDeep }}>
+          {wd && <div style={{ fontSize: 11, fontWeight: 700 }}>{wd}</div>}
+          <div style={{ fontSize: e.date_tbd ? 13 : 19, fontWeight: 800, lineHeight: 1.05 }}>{day}</div>
+          {mo && <div style={{ fontSize: 10.5, fontWeight: 700 }}>{mo}</div>}
         </div>
-        {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
-        <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
-          <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.reference ?? e.id}</span> ·{' '}
-          {e.date_tbd ? 'Date TBD' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} · {timeRange12h(e.start_time, e.base_end_time)} · {e.emirate}
-          {e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Badge tone={e.phase === 'Cancelled' ? 'error' : e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
-          <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</span>
+            {e.totalDisplay != null && (
+              <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
+            )}
+          </div>
+          {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
+            <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.reference ?? e.id}</span> ·{' '}
+            {timeRange12h(e.start_time, e.base_end_time)} · {e.emirate}
+            {e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Badge tone={e.phase === 'Cancelled' ? 'error' : e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
+            <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
+          </div>
         </div>
       </div>
     );
