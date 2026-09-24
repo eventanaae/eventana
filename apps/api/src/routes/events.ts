@@ -249,7 +249,9 @@ export async function eventRoutes(app: FastifyInstance) {
       themeBrief: cart.themeBrief ?? null,
       castleVariant: cart.castleVariant ?? null,
       emirate: cart.emirate ?? 'Dubai',
-      childrenCount: cart.childrenCount ?? 25,
+      // 0 = not specified. Manual/offer bookings often don't collect a headcount;
+      // don't fabricate "25" (it drove per-guest deductions and over-staffing).
+      childrenCount: cart.childrenCount ?? 0,
       movie: cart.movie ?? null,
       eventFor: cart.eventFor ?? '',
       address: cart.address ?? { area: '', street: '', villa: '', details: '' },
