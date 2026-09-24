@@ -652,23 +652,35 @@ async function main() {
   // TABBY_REREGISTER_WEBHOOK=true for one deploy, then unset it.
   if (String(process.env.TABBY_REREGISTER_WEBHOOK ?? '').toLowerCase() === 'true') {
     (async () => {
+      const base = String(config.publicAppUrl).replace(/\/$/, '');
+      console.log('[tabby] QA link:', config.tabbyQaToken ? `${base}/?qa=${config.tabbyQaToken}` : '(TABBY_QA_TOKEN not set)');
       try {
         const { getProvider } = await import('./payments/index.js');
         const { TabbyProvider } = await import('./payments/tabby.js');
         const p = getProvider('tabby');
         const cfg = config.providers.tabby;
-        if (p instanceof TabbyProvider && cfg.webhookSecret) {
-          const url = `${config.publicApiUrl}/api/webhooks/tabby`;
-          const isTest = cfg.mode !== 'live';
-          const res = await p.registerWebhook(url, isTest);
-          console.log('[tabby] webhook re-registered', JSON.stringify({ url, isTest, res }));
-        } else {
-          console.log('[tabby] re-register skipped', JSON.stringify({ mode: cfg.mode, hasSecret: Boolean(cfg.webhookSecret) }));
+        if (!(p instanceof TabbyProvider) || !cfg.webhookSecret) {
+          console.log('[tabby] skipped', JSON.stringify({ mode: cfg.mode, hasSecret: Boolean(cfg.webhookSecret) }));
+          return;
         }
-        const base = String(config.publicAppUrl).replace(/\/$/, '');
-        console.log('[tabby] QA link:', config.tabbyQaToken ? `${base}/?qa=${config.tabbyQaToken}` : '(TABBY_QA_TOKEN not set)');
+        // 1) See what Tabby already has (its stored header = the secret it echoes).
+        const existing = await p.listWebhooks().catch((e) => ({ error: (e as Error).message }));
+        console.log('[tabby] existing webhooks:', JSON.stringify(existing));
+        // 2) Reset: delete any webhook pointing at our URL, then register fresh
+        //    with OUR current secret so Tabby echoes it and deliveries verify 200.
+        const ourUrl = `${config.publicApiUrl}/api/webhooks/tabby`;
+        const list: any[] = Array.isArray(existing) ? existing : Array.isArray((existing as any)?.webhooks) ? (existing as any).webhooks : [];
+        for (const w of list) {
+          if (w?.id && (w.url === ourUrl || String(w.url || '').includes('/api/webhooks/tabby'))) {
+            const del = await p.deleteWebhook(String(w.id)).catch((e) => ({ error: (e as Error).message }));
+            console.log('[tabby] deleted webhook', w.id, JSON.stringify(del));
+          }
+        }
+        const isTest = cfg.mode !== 'live';
+        const res = await p.registerWebhook(ourUrl, isTest).catch((e) => ({ error: (e as Error).message }));
+        console.log('[tabby] re-registered', JSON.stringify({ ourUrl, isTest, res }));
       } catch (e) {
-        console.error('[tabby] re-register failed:', (e as Error).message);
+        console.error('[tabby] reset failed:', (e as Error).message);
       }
     })();
   }

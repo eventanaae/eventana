@@ -239,4 +239,20 @@ export class TabbyProvider implements PaymentProvider {
       },
     });
   }
+
+  /** List the webhooks Tabby has registered for us (includes their header config). */
+  async listWebhooks(): Promise<unknown> {
+    return providerFetch('tabby', `${this.cfg.baseUrl}/v1/webhooks`, {
+      method: 'GET',
+      headers: { ...this.auth(), 'x-merchant-code': this.cfg.merchantCode ?? '' },
+    });
+  }
+
+  /** Delete a webhook by id (to recreate it with our current secret). */
+  async deleteWebhook(id: string): Promise<unknown> {
+    return providerFetch('tabby', `${this.cfg.baseUrl}/v1/webhooks/${id}`, {
+      method: 'DELETE',
+      headers: { ...this.auth(), 'x-merchant-code': this.cfg.merchantCode ?? '' },
+    });
+  }
 }
