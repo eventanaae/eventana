@@ -562,8 +562,10 @@ export const api = {
     request<any>(`/api/admin/marketing/campaigns/${id}/send`, { method: 'POST' }),
   submitCampaign: (id: number) =>
     request<any>(`/api/admin/marketing/campaigns/${id}/submit`, { method: 'POST' }),
-  approveCampaign: (id: number) =>
-    request<any>(`/api/admin/marketing/campaigns/${id}/approve`, { method: 'POST' }),
+  approveCampaign: (id: number, scheduledFor?: string) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}/approve`, { method: 'POST', body: JSON.stringify(scheduledFor ? { scheduledFor } : {}) }),
+  retryCampaign: (id: number) =>
+    request<any>(`/api/admin/marketing/campaigns/${id}/retry`, { method: 'POST' }),
   rejectCampaign: (id: number, reason: string) =>
     request<any>(`/api/admin/marketing/campaigns/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
   deleteCampaign: (id: number) =>

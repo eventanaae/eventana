@@ -5987,6 +5987,13 @@ export async function adminRoutes(app: FastifyInstance) {
     if (camp.status !== 'pending_approval' && camp.status !== 'draft') {
       return reply.status(409).send({ error: 'invalid_state', message: 'Only a pending campaign can be approved.' });
     }
+    // Optional: the owner can pick the send date at approval time. A valid future
+    // ISO date reschedules the campaign; anything else keeps its existing schedule.
+    const picked = (request.body as any)?.scheduledFor;
+    if (typeof picked === 'string' && !Number.isNaN(Date.parse(picked))) {
+      await pool.query(`UPDATE email_campaigns SET scheduled_for = $2 WHERE id = $1`, [id, new Date(picked).toISOString()]);
+      camp.scheduled_for = new Date(picked).toISOString();
+    }
     const future = camp.scheduled_for && new Date(camp.scheduled_for).getTime() > Date.now();
     await pool.query(
       `UPDATE email_campaigns SET status = $2, approved_by = $3, approved_at = now(), rejection_reason = NULL WHERE id = $1`,
@@ -6025,6 +6032,26 @@ export async function adminRoutes(app: FastifyInstance) {
     try {
       const result = await sendCampaign(id);
       return { ...result };
+    } catch (e) {
+      return reply.status(400).send({ error: 'send_failed', message: (e as Error).message });
+    }
+  });
+
+  /** Retry a campaign that got stuck 'sending' or 'failed' (e.g. after an error).
+   *  Resets it to approved and sends again — the frequency cap + suppression list
+   *  guarantee nobody already emailed is contacted twice. Owner/manager. */
+  app.post('/api/admin/marketing/campaigns/:id/retry', async (request, reply) => {
+    if (!emailEnabled()) return reply.status(409).send({ error: 'email_disabled' });
+    const id = Number((request.params as { id: string }).id);
+    const upd = await pool.query(
+      `UPDATE email_campaigns SET status = 'approved', sent_at = NULL
+        WHERE id = $1 AND status IN ('sending','failed') RETURNING id`,
+      [id],
+    );
+    if (!upd.rows[0]) return reply.status(409).send({ error: 'invalid_state', message: 'Only a stuck or failed campaign can be retried.' });
+    try {
+      const result = await sendCampaign(id);
+      return { id, ...result };
     } catch (e) {
       return reply.status(400).send({ error: 'send_failed', message: (e as Error).message });
     }

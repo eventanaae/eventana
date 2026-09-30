@@ -106,14 +106,16 @@ export function Marketing() {
 
       {perf && (() => {
         const fmt = (v?: string | null) => v ? new Date(v).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-        // Performance = only the campaigns we actually SENT, newest first.
+        // Performance = campaigns we actually tried to send (sent, sending now, or
+        // failed) — newest first. Drafts/pending/scheduled aren't "sent" yet.
         const list = [...(data.campaigns ?? [])]
-          .filter((c: any) => c.status === 'sent')
-          .sort((a: any, b: any) => new Date(b.sent_at || 0).getTime() - new Date(a.sent_at || 0).getTime());
+          .filter((c: any) => ['sent', 'sending', 'failed'].includes(c.status))
+          .sort((a: any, b: any) => new Date(b.sent_at || b.scheduled_for || b.created_at || 0).getTime() - new Date(a.sent_at || a.scheduled_for || a.created_at || 0).getTime());
         const corp = data.corporate ?? {};
         const whenLine = (c: any) =>
           c.status === 'sent' ? `Sent ${fmt(c.sent_at)}`
-          : c.status === 'sending' ? 'Sending now…'
+          : c.status === 'sending' ? 'Was interrupted — tap retry to finish sending'
+          : c.status === 'failed' ? 'Send failed — tap retry'
           : c.status === 'scheduled' ? `⏰ Scheduled for ${fmt(c.scheduled_for)}`
           : c.status === 'pending_approval' ? 'Awaiting approval'
           : c.status === 'rejected' ? 'Rejected'
@@ -155,8 +157,11 @@ export function Marketing() {
                       {c.recipient_count > 0 ? `→ ${c.recipient_count} recipient${c.recipient_count === 1 ? '' : 's'}` : 'Recipients decided at send time'}
                     </div>
                   ) : null}
-                  <div style={{ marginTop: 10 }}>
+                  <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button onClick={() => openPreview(Number(c.id))} style={miniBtn}>👁 Preview</button>
+                    {(c.status === 'failed' || c.status === 'sending') && (
+                      <button onClick={() => act(() => api.retryCampaign(Number(c.id)), 'Sent.')} disabled={busy} style={{ ...miniBtn, borderColor: C.pink, color: C.pinkDeep }}>🔄 Retry sending</button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -206,6 +211,9 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
   const [svc, setSvc] = useState(false);
   const [openMonths, setOpenMonths] = useState<Record<string, boolean>>({});
   const [recips, setRecips] = useState<{ count: number; sample: any[] } | null>(null);
+  // Owner-chosen send date when reviewing an occasion draft (empty = keep its
+  // existing schedule). datetime-local format "YYYY-MM-DDTHH:mm".
+  const [pickDate, setPickDate] = useState('');
   const audienceStr = aud === 'custom' ? `custom:${customEmails}` : aud === 'company' ? (category === 'all' ? 'corp:all' : `corp:${category}`) : 'all';
   const seeRecipients = async () => {
     setRecips({ count: -1, sample: [] });
@@ -435,8 +443,15 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                         )}
                         <Action emoji="✏️" label="Edit the text" onClick={() => onEdit(String(chosenCamp.id))} />
                         <Action emoji="🔄" label="Regenerate (I don’t like it)" onClick={() => onAct(() => api.regenerateCampaign(Number(chosenCamp.id)), 'Regenerated — preview it again.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
+                        <div>
+                          <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, marginBottom: 6 }}>Send date &amp; time</div>
+                          <input type="datetime-local"
+                            value={pickDate || (chosenCamp.scheduled_for ? String(chosenCamp.scheduled_for).slice(0, 16) : '')}
+                            onChange={(e) => setPickDate(e.target.value)} style={input as any} />
+                          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 4 }}>Leave as-is to keep the suggested date, or pick when it should go out.</div>
+                        </div>
                         <Action emoji="✅" label="Approve & schedule" tone="green" disabled={!data.emailConfigured}
-                          onClick={() => onAct(() => api.approveCampaign(Number(chosenCamp.id)), 'Approved & scheduled.').then(onClose)} />
+                          onClick={() => onAct(() => api.approveCampaign(Number(chosenCamp.id), pickDate ? new Date(pickDate).toISOString() : undefined), 'Approved & scheduled.').then(onClose)} />
                         <Action emoji="🚫" label="Reject" tone="red"
                           onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) onAct(() => api.rejectCampaign(Number(chosenCamp.id), r), 'Rejected.').then(onClose); }} />
                       </>
