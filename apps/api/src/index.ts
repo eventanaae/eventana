@@ -688,8 +688,11 @@ async function main() {
   // Read bank@eventanauae.com over IMAP and turn each new bank-alert email into
   // a PENDING bank_transactions row for the owner to approve. No-op unless
   // BANK_IMAP_POLL=true with a mailbox password set in the environment.
-  const { startBankImapPolling, rereadRecentInboxFromEnv } = await import('./domain/bankImapPoll.js');
+  const { startBankImapPolling, rereadRecentInboxFromEnv, startCorporateReplyPolling } = await import('./domain/bankImapPoll.js');
   startBankImapPolling();
+  // Read the hello@ inbox for company REPLIES to our B2B outreach and record them
+  // (replied/interested + notify owner). No-op unless CORP_REPLY_IMAP_POLL=true.
+  startCorporateReplyPolling();
   // One-time re-read of recent mail (env BANK_IMAP_REREAD=true) so receipts the
   // poller dropped before the parser learned their format get a second chance.
   rereadRecentInboxFromEnv().catch((err) => console.error('[bank-imap] reread failed:', err));

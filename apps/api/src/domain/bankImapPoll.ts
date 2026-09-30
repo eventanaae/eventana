@@ -440,6 +440,127 @@ export function stopBankImapPolling(): void {
   timer = null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Corporate REPLY reader (hello@ inbox) — detects companies replying to our B2B
+// outreach and records them (replied/interested + a suggested reply to the
+// owner). Reuses the same IMAP client. Unlike the bank inbox, hello@ is a HUMAN
+// mailbox, so we NEVER mark messages \Seen — we track the highest processed UID
+// in app_kv and only look at genuinely new mail. First run just baselines the
+// current max UID (so we don't backfill years of old email as "replies").
+//
+// Enable with:
+//   CORP_REPLY_IMAP_POLL=true
+//   CORP_REPLY_IMAP_PASS=<hello@ mailbox app-password>   (owner sets this)
+//   CORP_REPLY_IMAP_USER=hello@eventanauae.com           (default)
+//   CORP_REPLY_IMAP_HOST=mail.privateemail.com           (default)
+//   CORP_REPLY_IMAP_PORT=993                              (default)
+//   CORP_REPLY_IMAP_INTERVAL_MIN=10                       (default)
+function corpCfg(): ImapCfg | null {
+  if (String(process.env.CORP_REPLY_IMAP_POLL ?? '').toLowerCase() !== 'true') return null;
+  const pass = process.env.CORP_REPLY_IMAP_PASS ?? '';
+  if (!pass) {
+    console.warn('[corp-reply-imap] CORP_REPLY_IMAP_POLL=true but CORP_REPLY_IMAP_PASS is empty — skipping.');
+    return null;
+  }
+  return {
+    host: process.env.CORP_REPLY_IMAP_HOST ?? 'mail.privateemail.com',
+    port: Number(process.env.CORP_REPLY_IMAP_PORT ?? 993),
+    user: (process.env.CORP_REPLY_IMAP_USER ?? 'hello@eventanauae.com').replace(/[\r\n]/g, ''),
+    pass,
+  };
+}
+
+function parseFrom(from: string): { email: string; name?: string } {
+  const m = from.match(/<([^>]+)>/);
+  const email = (m ? m[1] : from).trim().toLowerCase();
+  const name = from.replace(/<[^>]+>/, '').replace(/["']/g, '').trim();
+  return { email, name: name || undefined };
+}
+
+async function corpPollOnce(): Promise<{ read: number; matched: number }> {
+  const c = corpCfg();
+  if (!c) return { read: 0, matched: 0 };
+  const { processCorporateReply } = await import('./corporateOutreach.js');
+
+  const sock = await new Promise<tls.TLSSocket>((resolve, reject) => {
+    const s = tls.connect({ host: c.host, port: c.port, servername: c.host }, () => resolve(s));
+    s.once('error', reject);
+    s.setTimeout(30000, () => { s.destroy(); reject(new Error('IMAP socket timeout')); });
+  });
+  const conn = new ImapConn(sock);
+  let read = 0;
+  let matched = 0;
+  try {
+    await conn.greeting();
+    await conn.authPlain(c.user, c.pass);
+    await conn.cmd('SELECT INBOX');
+    const search = await conn.cmd('UID SEARCH ALL');
+    const allUids = parseSearchUids(search.toString('latin1'));
+    if (!allUids.length) return { read: 0, matched: 0 };
+    const maxUid = Math.max(...allUids);
+
+    const kv = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_reply_last_uid'`).catch(() => ({ rows: [] as { v: string }[] }));
+    const lastUid = Number(kv.rows[0]?.v ?? 0) || 0;
+
+    if (lastUid === 0) {
+      // Baseline only — record where we are; process new mail from next cycle on.
+      await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_reply_last_uid', $1) ON CONFLICT (k) DO UPDATE SET v = $1`, [String(maxUid)]).catch(() => {});
+      return { read: 0, matched: 0 };
+    }
+
+    const fresh = allUids.filter((u) => u > lastUid).sort((a, b) => a - b).slice(-25);
+    for (const uid of fresh) {
+      read++;
+      try {
+        const fetch = await conn.cmd(`UID FETCH ${uid} BODY.PEEK[]`); // PEEK: never marks \Seen
+        const rawMsg = extractLiteral(fetch);
+        if (!rawMsg) continue;
+        const email = extractEmail(rawMsg);
+        const { email: fromEmail, name } = parseFrom(email.from);
+        if (!fromEmail.includes('@') || fromEmail.endsWith('@eventanauae.com')) continue;
+        const res = await processCorporateReply({ fromEmail, fromName: name, subject: email.subject, text: email.text });
+        if (res.matched) matched++;
+      } catch (err) {
+        console.error(`[corp-reply-imap] uid ${uid} failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+    await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_reply_last_uid', $1) ON CONFLICT (k) DO UPDATE SET v = $1`, [String(maxUid)]).catch(() => {});
+  } finally {
+    conn.logout();
+  }
+  return { read, matched };
+}
+
+let corpRunning = false;
+let corpTimer: NodeJS.Timeout | null = null;
+
+/** Wire the corporate-reply reader into boot. No-op unless CORP_REPLY_IMAP_POLL=true. */
+export function startCorporateReplyPolling(): void {
+  const c = corpCfg();
+  if (!c) return;
+  const intervalMs = Math.max(1, Number(process.env.CORP_REPLY_IMAP_INTERVAL_MIN ?? 10)) * 60_000;
+  const tick = async () => {
+    if (corpRunning) return;
+    corpRunning = true;
+    try {
+      const r = await corpPollOnce();
+      if (r.read || r.matched) console.log(`[corp-reply-imap] cycle: read ${r.read}, matched ${r.matched}`);
+    } catch (err) {
+      console.error('[corp-reply-imap] cycle failed:', err instanceof Error ? err.message : err);
+    } finally {
+      corpRunning = false;
+    }
+  };
+  console.log(`[corp-reply-imap] enabled — polling ${c.user} on ${c.host}:${c.port} every ${intervalMs / 60000}min`);
+  setTimeout(tick, 15_000);
+  corpTimer = setInterval(tick, intervalMs);
+}
+
+export function stopCorporateReplyPolling(): void {
+  if (corpTimer) clearInterval(corpTimer);
+  corpTimer = null;
+}
+
 /**
  * One-time RE-READ of recent mail (env-gated). The normal poller only reads
  * UNSEEN messages and marks each \Seen, so anything it dropped (e.g. a receipt
