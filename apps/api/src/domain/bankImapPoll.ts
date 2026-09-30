@@ -494,6 +494,7 @@ async function corpPollOnce(): Promise<{ read: number; matched: number }> {
     await conn.greeting();
     await conn.authPlain(c.user, c.pass);
     await conn.cmd('SELECT INBOX');
+    if (!corpConnectedOk) { corpConnectedOk = true; console.log(`[corp-reply-imap] connected ✓ (auth ok for ${c.user})`); }
     const search = await conn.cmd('UID SEARCH ALL');
     const allUids = parseSearchUids(search.toString('latin1'));
     if (!allUids.length) return { read: 0, matched: 0 };
@@ -532,6 +533,7 @@ async function corpPollOnce(): Promise<{ read: number; matched: number }> {
 }
 
 let corpRunning = false;
+let corpConnectedOk = false;
 let corpTimer: NodeJS.Timeout | null = null;
 
 /** Wire the corporate-reply reader into boot. No-op unless CORP_REPLY_IMAP_POLL=true. */
