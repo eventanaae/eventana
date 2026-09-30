@@ -18,11 +18,14 @@ export function inCustomerSendWindow(now: Date = new Date()): boolean {
 
 export type Audience = 'all' | 'past_customers' | 'no_recent_booking' | 'anniversary';
 
-/** Deterministic, verifiable unsubscribe token — no extra column needed. */
-export function unsubToken(customerId: string): string {
-  return createHmac('sha256', config.staffToken).update(customerId).digest('hex').slice(0, 24);
+/** Deterministic, verifiable unsubscribe token — no extra column needed.
+ *  Accepts string OR numeric ids (company ids are integers): a number passed
+ *  straight to hmac.update() throws "data must be string/Buffer… number", which
+ *  crashed every company campaign — so coerce to string here. */
+export function unsubToken(customerId: string | number): string {
+  return createHmac('sha256', config.staffToken).update(String(customerId)).digest('hex').slice(0, 24);
 }
-export function verifyUnsub(customerId: string, token: string): boolean {
+export function verifyUnsub(customerId: string | number, token: string): boolean {
   const expected = unsubToken(customerId);
   return token.length === expected.length && token === expected;
 }
