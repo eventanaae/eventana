@@ -106,11 +106,11 @@ export function Marketing() {
 
       {perf && (() => {
         const fmt = (v?: string | null) => v ? new Date(v).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-        // Show EVERY campaign (draft, pending, scheduled, sent), newest activity first.
-        const list = [...(data.campaigns ?? [])].sort((a: any, b: any) => {
-          const t = (c: any) => new Date(c.sent_at || c.scheduled_for || c.created_at || 0).getTime();
-          return t(b) - t(a);
-        });
+        // Performance = only the campaigns we actually SENT, newest first.
+        const list = [...(data.campaigns ?? [])]
+          .filter((c: any) => c.status === 'sent')
+          .sort((a: any, b: any) => new Date(b.sent_at || 0).getTime() - new Date(a.sent_at || 0).getTime());
+        const corp = data.corporate ?? {};
         const whenLine = (c: any) =>
           c.status === 'sent' ? `Sent ${fmt(c.sent_at)}`
           : c.status === 'sending' ? 'Sending now…'
@@ -120,7 +120,18 @@ export function Marketing() {
           : `Draft · created ${fmt(c.created_at)}`;
         return (
         <Modal title="Campaigns & performance" onClose={() => setPerf(false)}>
-          {list.length === 0 ? <Empty>No campaigns yet — create one and it shows here with its status and results.</Empty> : (
+          {/* Company outreach outcomes — the "how many replied" picture for B2B. */}
+          {(corp.contacted ?? 0) > 0 && (
+            <div style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px', marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.ink, marginBottom: 8 }}>🏢 Company outreach</div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11.5, fontWeight: 700 }}>
+                <Stat label="Contacted" v={corp.contacted} />
+                <Stat label="Replied" v={corp.replied} tone={C.green} />
+                <Stat label="Interested" v={corp.interested} tone={C.pinkDeep} />
+              </div>
+            </div>
+          )}
+          {list.length === 0 ? <Empty>No campaigns sent yet — once you approve &amp; send one, its results show here (received, opened, clicked).</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {list.map((c: any) => (
                 <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
@@ -134,7 +145,7 @@ export function Marketing() {
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, fontWeight: 700 }}>
                       <Stat label="Recipients" v={c.recipient_count} />
                       <Stat label="Sent" v={c.sent_count} />
-                      <Stat label="Delivered" v={c.delivered_count} />
+                      <Stat label="Received" v={c.delivered_count} />
                       <Stat label="Opened" v={c.opened_count} tone={C.green} />
                       <Stat label="Clicked" v={c.clicked_count} tone={C.pinkDeep} />
                       <Stat label="Bounced" v={c.bounced_count} tone={C.red} />
@@ -407,6 +418,21 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                     {!occ.greetingOnly && <Action emoji="🧩" label={`Edit suggested services${occ.servicesCustom ? ' ✓' : ''}`} onClick={() => setSvc(true)} />}
                     {(chosenCamp.status === 'pending_approval' || chosenCamp.status === 'draft') && (
                       <>
+                        {aud === 'company' && (
+                          <div>
+                            <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, marginBottom: 6 }}>Send to which companies?</div>
+                            <select
+                              value={(chosenCamp.audience || 'corp:all').replace(/^corp:/, '')}
+                              onChange={(e) => onAct(() => api.prepareOccasion(occ.slug, true, e.target.value), 'Target updated.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))}
+                              style={input as any}
+                            >
+                              <option value="all">All companies ({data.corporate?.emailable ?? 0})</option>
+                              {Object.keys(data.corporateLabels ?? {}).filter((c) => (data.corporate?.byCategory?.[c]?.emailable ?? 0) > 0).map((c) => (
+                                <option key={c} value={c}>{data.corporateLabels[c]} ({data.corporate?.byCategory?.[c]?.emailable ?? 0})</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                         <Action emoji="✏️" label="Edit the text" onClick={() => onEdit(String(chosenCamp.id))} />
                         <Action emoji="🔄" label="Regenerate (I don’t like it)" onClick={() => onAct(() => api.regenerateCampaign(Number(chosenCamp.id)), 'Regenerated — preview it again.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
                         <Action emoji="✅" label="Approve & schedule" tone="green" disabled={!data.emailConfigured}
@@ -418,8 +444,19 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                   </>
                 ) : (
                   <>
+                    {aud === 'company' && (
+                      <div>
+                        <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, marginBottom: 6 }}>Which companies?</div>
+                        <select value={category} onChange={(e) => setCategory(e.target.value)} style={input as any}>
+                          <option value="all">All companies ({data.corporate?.emailable ?? 0})</option>
+                          {Object.keys(data.corporateLabels ?? {}).filter((c) => (data.corporate?.byCategory?.[c]?.emailable ?? 0) > 0).map((c) => (
+                            <option key={c} value={c}>{data.corporateLabels[c]} ({data.corporate?.byCategory?.[c]?.emailable ?? 0})</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     {!occ.greetingOnly && <Action emoji="🧩" label={`Add suggested services${occ.servicesCustom ? ' ✓' : ''}`} onClick={() => setSvc(true)} />}
-                    <Action emoji="✨" label="Prepare this draft" onClick={() => onAct(() => api.prepareOccasion(occ.slug, aud === 'company'), 'Draft prepared.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
+                    <Action emoji="✨" label="Prepare this draft" onClick={() => onAct(() => api.prepareOccasion(occ.slug, aud === 'company', aud === 'company' ? category : undefined), 'Draft prepared.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
                   </>
                 )}
               </div>

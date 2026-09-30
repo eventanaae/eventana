@@ -918,7 +918,12 @@ export async function sweepMarketingCalendar(): Promise<number> {
     const next = nextOccasionDate(o, now);
     if (!next) continue; // variable date not confirmed for an upcoming year
     const away = daysUntil(next.dateISO, now);
-    if (away > o.leadDays || away < o.sendDaysBefore) continue;
+    // Give the owner at least a MONTH's heads-up on selling occasions: prepare the
+    // draft (and fire the "ready to review" push) ~30 days out even if the
+    // occasion's own leadDays is shorter. The actual SEND still waits for
+    // sendDaysBefore, so nothing goes out early — she just gets time to review/send.
+    const lead = o.greetingOnly ? o.leadDays : Math.max(o.leadDays, 30);
+    if (away > lead || away < o.sendDaysBefore) continue;
     const scheduledFor = sendTime(next.dateISO, o.sendDaysBefore);
     const ov = await getOccasionOverrides(o.slug);
     // Consumer draft (to our customers) — skipped for corporate-only occasions.
@@ -947,7 +952,7 @@ export async function sweepMarketingCalendar(): Promise<number> {
  * Prepare ONE occasion's draft on demand (dashboard "Prepare now"), even outside
  * the lead window. Returns the campaign id, or the existing one if already made.
  */
-export async function prepareOccasionNow(slug: string, opts?: { corporate?: boolean }): Promise<{ id: string; created: boolean } | null> {
+export async function prepareOccasionNow(slug: string, opts?: { corporate?: boolean; category?: string }): Promise<{ id: string; created: boolean } | null> {
   const o = OCCASIONS.find((x) => x.slug === slug);
   if (!o) return null;
   const next = nextOccasionDate(o);
@@ -955,9 +960,23 @@ export async function prepareOccasionNow(slug: string, opts?: { corporate?: bool
   // Corporate draft when the occasion is corporate-only, OR the caller asked for
   // the company version (and it isn't a greeting-only day). Else the consumer draft.
   const corp = Boolean(o.corporateOnly) || (Boolean(opts?.corporate) && !o.greetingOnly);
+  // Optional company-category target (e.g. only schools for Teachers' Day). A
+  // clean lowercase word → `corp:<category>`; unknown/absent → all companies.
+  const cat = corp ? String(opts?.category ?? '').trim().toLowerCase().replace(/[^a-z_]/g, '') : '';
+  const corpAudience = cat && cat !== 'all' ? `corp:${cat}` : 'corp:all';
   const dedupeKey = corp ? `occasion|${o.slug}|${next.year}|corp` : `occasion|${o.slug}|${next.year}`;
   const existing = await pool.query<{ id: string }>(`SELECT id FROM email_campaigns WHERE dedupe_key = $1`, [dedupeKey]);
-  if (existing.rows[0]) return { id: String(existing.rows[0].id), created: false };
+  if (existing.rows[0]) {
+    // A draft already exists (often an auto-prepared corp:all). If the owner picked
+    // a category, RETARGET the still-editable draft to that segment.
+    if (corp && cat) {
+      await pool.query(
+        `UPDATE email_campaigns SET audience = $2 WHERE id = $1 AND status IN ('draft','pending_approval','scheduled')`,
+        [existing.rows[0].id, corpAudience],
+      ).catch(() => {});
+    }
+    return { id: String(existing.rows[0].id), created: false };
+  }
   const away = daysUntil(next.dateISO);
   // If it's too close to honour the normal pre-send lead, schedule for tomorrow 10:00 Dubai.
   const scheduledFor = away < o.sendDaysBefore ? sendTime(new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), 0) : sendTime(next.dateISO, o.sendDaysBefore);
@@ -967,7 +986,7 @@ export async function prepareOccasionNow(slug: string, opts?: { corporate?: bool
      VALUES ($1,$2,$3,'pending_approval',$4,'Eventana AI',$5,$6)
      RETURNING id`,
     corp
-      ? [`${o.copy.subject} — for your organisation`, buildCorporateBody(o, ov), 'corp:all', scheduledFor.toISOString(), 'occasion_corp', dedupeKey]
+      ? [`${o.copy.subject} — for your organisation`, buildCorporateBody(o, ov), corpAudience, scheduledFor.toISOString(), 'occasion_corp', dedupeKey]
       : [o.copy.subject, buildOccasionBody(o, ov), o.audience, scheduledFor.toISOString(), 'occasion', dedupeKey],
   );
   return { id: String(ins.rows[0].id), created: true };

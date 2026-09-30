@@ -6093,7 +6093,8 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post('/api/admin/marketing/calendar/:slug/prepare', async (request, reply) => {
     const slug = String((request.params as { slug: string }).slug);
     const corporate = Boolean((request.body as any)?.corporate);
-    const res = await prepareOccasionNow(slug, { corporate });
+    const category = (request.body as any)?.category ? String((request.body as any).category) : undefined;
+    const res = await prepareOccasionNow(slug, { corporate, category });
     if (!res) return reply.status(404).send({ error: 'unknown_occasion' });
     return res;
   });

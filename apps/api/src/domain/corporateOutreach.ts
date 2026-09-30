@@ -718,6 +718,7 @@ export function corporateAudienceWhere(segment: string): string {
 export async function corporateCounts(): Promise<{
   byCategory: Record<string, { total: number; emailable: number }>;
   total: number; emailable: number; optedOut: number;
+  contacted: number; replied: number; interested: number;
 }> {
   const { rows } = await pool.query<{ category: string; total: string; emailable: string }>(
     `SELECT category,
@@ -733,5 +734,16 @@ export async function corporateCounts(): Promise<{
     emailable += Number(r.emailable);
   }
   const opt = await pool.query<{ n: string }>(`SELECT count(*)::int n FROM corporate_leads WHERE email_opt_out = TRUE`);
-  return { byCategory, total, emailable, optedOut: Number(opt.rows[0].n) };
+  // Outreach outcomes — so the performance view can show "how many replied".
+  const outcomes = await pool.query<{ contacted: string; replied: string; interested: string }>(
+    `SELECT count(*) FILTER (WHERE first_contacted_at IS NOT NULL)::int AS contacted,
+            count(*) FILTER (WHERE replied_at IS NOT NULL)::int AS replied,
+            count(*) FILTER (WHERE status = 'interested')::int AS interested
+       FROM corporate_leads`,
+  ).catch(() => ({ rows: [{ contacted: '0', replied: '0', interested: '0' }] }));
+  const o = outcomes.rows[0];
+  return {
+    byCategory, total, emailable, optedOut: Number(opt.rows[0].n),
+    contacted: Number(o.contacted), replied: Number(o.replied), interested: Number(o.interested),
+  };
 }
