@@ -821,6 +821,55 @@ async function main() {
     })();
   }
 
+  // One-shot: remove ALL refunds on one order (no time window) — e.g. a test
+  // refund the owner wants un-counted. Reverses points, recomputes the receipt,
+  // restores order status to paid. Set DELETE_REFUND_FOR_ORDER=<orderId>, unset after.
+  if (process.env.DELETE_REFUND_FOR_ORDER) {
+    (async () => {
+      const oid = String(process.env.DELETE_REFUND_FOR_ORDER);
+      try {
+        const { pool } = await import('./db/pool.js');
+        const pts = await pool.query<{ customer_id: string; add_back: number }>(
+          `SELECT customer_id, COALESCE(SUM(-points),0)::int AS add_back FROM loyalty_transactions
+            WHERE order_id = $1 AND reason = 'Refund reversal' GROUP BY customer_id`, [oid]);
+        for (const r of pts.rows) if (r.customer_id && r.add_back > 0)
+          await pool.query(`UPDATE customers SET loyalty_points = loyalty_points + $2 WHERE id = $1`, [r.customer_id, r.add_back]);
+        await pool.query(`DELETE FROM loyalty_transactions WHERE order_id = $1 AND reason = 'Refund reversal'`, [oid]);
+        const del = await pool.query(`DELETE FROM refunds WHERE order_id = $1 RETURNING id`, [oid]);
+        await pool.query(
+          `UPDATE finance_receipts SET refunded_fils = COALESCE((SELECT SUM(amount_fils) FROM refunds WHERE order_id=$1),0),
+              refunded_items = COALESCE((SELECT jsonb_agg(jsonb_build_object('label',item_label,'amountFils',amount_fils,'reasonCategory',reason_category)) FROM refunds WHERE order_id=$1),'[]'::jsonb)
+            WHERE order_id = $1`, [oid]);
+        await pool.query(`UPDATE orders SET status='paid' WHERE id=$1 AND NOT EXISTS (SELECT 1 FROM refunds WHERE order_id=$1)`, [oid]);
+        console.log(`[del-refund] ${oid}: deleted ${del.rowCount} refund row(s), restored`);
+      } catch (e) { console.error('[del-refund] failed:', (e as Error).message); }
+    })();
+  }
+
+  // One-shot READ-ONLY diagnostic: the receipt↔order linkage gap. How many sales
+  // receipts have no/for a non-existent order_id, and how many of those can be
+  // SAFELY matched to exactly one order (same customer + same total). Set
+  // DIAG_LINK=true for one deploy, then unset.
+  if (String(process.env.DIAG_LINK ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const tot = await pool.query(`SELECT COUNT(*)::int c FROM finance_receipts`);
+        const nullo = await pool.query(`SELECT COUNT(*)::int c FROM finance_receipts WHERE order_id IS NULL OR order_id = ''`);
+        const orphan = await pool.query(`SELECT COUNT(*)::int c FROM finance_receipts r WHERE r.order_id IS NOT NULL AND r.order_id <> '' AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.id = r.order_id)`);
+        // Of the unlinked receipts, how many match EXACTLY ONE order by customer+total?
+        const matchable = await pool.query(
+          `SELECT COUNT(*)::int c FROM finance_receipts r
+            WHERE (r.order_id IS NULL OR r.order_id = '' OR NOT EXISTS (SELECT 1 FROM orders o WHERE o.id = r.order_id))
+              AND r.customer_id IS NOT NULL
+              AND (SELECT COUNT(*) FROM orders o WHERE o.customer_id = r.customer_id AND o.total_fils = r.total_fils) = 1`);
+        console.log(`[diag-link] receipts total=${tot.rows[0].c}; unlinked(null)=${nullo.rows[0].c}; orphan(order gone)=${orphan.rows[0].c}; safely-matchable(1 order by customer+total)=${matchable.rows[0].c}`);
+      } catch (e) {
+        console.error('[diag-link] failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
