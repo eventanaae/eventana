@@ -870,6 +870,37 @@ async function main() {
     })();
   }
 
+  // One-shot: link imported sales receipts to their order so EVERYTHING attaches
+  // (refund, add-on, edit, receipt reflection), not just refunds. Matches a
+  // receipt that has no valid order_id to EXACTLY ONE order with the same customer
+  // + same total (any ambiguity → skipped). LINK_RECEIPTS=dry logs proposals;
+  // LINK_RECEIPTS=apply performs the UPDATE. Read-only in dry mode.
+  if (process.env.LINK_RECEIPTS === 'dry' || process.env.LINK_RECEIPTS === 'apply') {
+    (async () => {
+      const apply = process.env.LINK_RECEIPTS === 'apply';
+      try {
+        const { pool } = await import('./db/pool.js');
+        const cand = await pool.query<{ id: string; number: string; customer_id: string; total_fils: string }>(
+          `SELECT r.id, r.number, r.customer_id, r.total_fils FROM finance_receipts r
+            WHERE r.customer_id IS NOT NULL
+              AND (r.order_id IS NULL OR r.order_id = '' OR NOT EXISTS (SELECT 1 FROM orders o WHERE o.id = r.order_id))`);
+        let linked = 0, ambiguous = 0, none = 0;
+        for (const r of cand.rows) {
+          const m = await pool.query<{ id: string }>(
+            `SELECT o.id FROM orders o WHERE o.customer_id = $1 AND o.total_fils::bigint = $2::bigint`,
+            [r.customer_id, r.total_fils]);
+          if (m.rowCount === 1) {
+            linked++;
+            if (apply) await pool.query(`UPDATE finance_receipts SET order_id = $2 WHERE id = $1`, [r.id, m.rows[0].id]);
+            else if (linked <= 20) console.log(`[link-receipts] EV-${r.number} → ${m.rows[0].id} (cust=${r.customer_id}, total=${r.total_fils})`);
+          } else if ((m.rowCount ?? 0) > 1) ambiguous++;
+          else none++;
+        }
+        console.log(`[link-receipts] ${apply ? 'APPLIED' : 'DRY'}: ${cand.rowCount} unlinked receipts → ${linked} ${apply ? 'linked' : 'matchable'}, ${ambiguous} ambiguous (skipped), ${none} no-match`);
+      } catch (e) { console.error('[link-receipts] failed:', (e as Error).message); }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
