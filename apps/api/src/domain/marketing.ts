@@ -97,15 +97,28 @@ export function customRecipients(audience: string): Array<{ id: string; email: s
 }
 
 export async function sendCampaign(campaignId: number): Promise<{ recipients: number; sent: number }> {
-  const { rows } = await pool.query(`SELECT * FROM email_campaigns WHERE id = $1`, [campaignId]);
-  const camp = rows[0];
-  if (!camp) throw new Error('campaign_not_found');
-  if (camp.status === 'sending' || camp.status === 'sent') {
-    return { recipients: camp.recipient_count, sent: camp.sent_count };
-  }
-  // Approval gate: a campaign can only be sent once approved (or scheduled,
-  // which is only ever set at approval time). Nothing sends without review.
-  if (camp.status !== 'approved' && camp.status !== 'scheduled') {
+  // Atomic CLAIM: compare-and-set the status to 'sending' in a single statement,
+  // and only from a sendable state ('approved'/'scheduled' — the retry route
+  // resets 'failed'/'sending' back to 'approved' before calling us). Two
+  // overlapping callers (scheduled sweep + owner clicking Send) can't both win —
+  // exactly one claims the row; the other gets no row back and aborts, so the
+  // whole audience is never emailed twice.
+  const claim = await pool.query(
+    `UPDATE email_campaigns SET status = 'sending'
+      WHERE id = $1 AND status IN ('approved','scheduled')
+      RETURNING *`,
+    [campaignId],
+  );
+  const camp = claim.rows[0];
+  if (!camp) {
+    // We didn't claim it: it's missing, already sending/sent (another caller got
+    // there first), or not approved. Report stored counts; never re-send.
+    const { rows } = await pool.query(`SELECT * FROM email_campaigns WHERE id = $1`, [campaignId]);
+    const existing = rows[0];
+    if (!existing) throw new Error('campaign_not_found');
+    if (existing.status === 'sending' || existing.status === 'sent') {
+      return { recipients: existing.recipient_count, sent: existing.sent_count };
+    }
     throw new Error('not_approved');
   }
 

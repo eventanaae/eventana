@@ -6105,7 +6105,10 @@ export async function adminRoutes(app: FastifyInstance) {
       subject: z.string().min(1).max(300).optional(),
       bodyHtml: z.string().min(1).optional(),
       audience: z.string().max(4000).refine(
-        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^corp:[a-z_]+$/.test(a) || /^custom:.+@.+/.test(a),
+        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a)
+          || a === 'corp:all'
+          || (/^corp:[a-z_]+$/.test(a) && a.slice('corp:'.length) in CORP_CATEGORY_LABELS)
+          || /^custom:.+@.+/.test(a),
         'invalid audience',
       ).optional(),
     });

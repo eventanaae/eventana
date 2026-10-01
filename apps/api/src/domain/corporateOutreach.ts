@@ -608,6 +608,13 @@ const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 const AUTO_RE = /(out of office|auto[\s-]?reply|automatic reply|automated response|do not reply|no[\s-]?reply|away from (my|the) (office|desk)|on (annual )?leave|on vacation|إجازة|رد تلقائي|رد آلي|خارج المكتب|سيتم الرد|الرد التلقائي)/i;
 // Signals of genuine interest (or a request to proceed) — EN + AR.
 const INTEREST_RE = /(interest|proposal|quotation|\bquote\b|budget|pricing|\bprice\b|package|send (us|me|it)|share (the|your)|details|brochure|profile|catalog|meeting|call us|schedule|arrange|book|kindly send|would like|we('| a)re keen|مهتم|مهتمين|عرض سعر|عرض\b|السعر|الأسعار|التفاصيل|الباقات|اجتماع|موعد|نبغى|نبي|نود|تواصل|ابعث|أرسل|ارسل|كتالوج|بروفايل)/i;
+// Free-mail domains say NOTHING about which company a person belongs to, so a
+// reply from one of these may only bind to a lead by exact address — never by a
+// substring domain/website match (which would attribute it to a random company).
+const FREE_MAIL = new Set([
+  'gmail.com', 'googlemail.com', 'hotmail.com', 'outlook.com', 'live.com',
+  'yahoo.com', 'icloud.com', 'me.com', 'aol.com',
+]);
 
 /**
  * Process an inbound reply FROM a company (fed by the mailbox reader once Google
@@ -622,18 +629,27 @@ export async function processCorporateReply(msg: {
   const from = (msg.fromEmail || '').trim().toLowerCase();
   if (!from || !from.includes('@')) return { matched: false };
   const domain = from.split('@')[1];
+  const isFreeMail = FREE_MAIL.has(domain);
 
   // Match by exact address first, then by the sender's domain (a colleague may
-  // reply from a different mailbox on the same company domain).
-  const found = await pool.query<{ id: string; name: string; email: string; status: string }>(
-    `SELECT id, name, email, status FROM corporate_leads
-      WHERE lower(email) = $1
-         OR lower(email) LIKE $2
-         OR lower(COALESCE(website,'')) LIKE $2
-      ORDER BY (lower(email) = $1) DESC
-      LIMIT 1`,
-    [from, `%${domain}%`],
-  ).catch(() => ({ rows: [] as { id: string; name: string; email: string; status: string }[] }));
+  // reply from a different mailbox on the same company domain) — but for a
+  // free-mail sender (gmail/hotmail/…) ONLY an exact address may bind, since the
+  // domain is shared by countless people and says nothing about the company.
+  type LeadRow = { id: string; name: string; email: string; status: string };
+  const found = isFreeMail
+    ? await pool.query<LeadRow>(
+        `SELECT id, name, email, status FROM corporate_leads WHERE lower(email) = $1 LIMIT 1`,
+        [from],
+      ).catch(() => ({ rows: [] as LeadRow[] }))
+    : await pool.query<LeadRow>(
+        `SELECT id, name, email, status FROM corporate_leads
+          WHERE lower(email) = $1
+             OR lower(email) LIKE $2
+             OR lower(COALESCE(website,'')) LIKE $2
+          ORDER BY (lower(email) = $1) DESC
+          LIMIT 1`,
+        [from, `%${domain}%`],
+      ).catch(() => ({ rows: [] as LeadRow[] }));
   const lead = found.rows[0];
   if (!lead) return { matched: false };
 
@@ -648,12 +664,15 @@ export async function processCorporateReply(msg: {
 
   // Does the reply hand us a better department email (procurement/events @ the
   // same company domain)? That's a strong "interested" signal.
+  const leadEmail = (lead.email || '').toLowerCase();
   const candidates = (body.match(EMAIL_RE) || []).map((e) => e.toLowerCase())
     .filter((e) => !e.endsWith('@eventanauae.com'));
   const better = candidates.find((e) => REPLY_PROC_RE.test(e) && e.split('@')[1] === domain)
-    || candidates.find((e) => e.split('@')[1] === domain && e !== lead.email.toLowerCase());
+    || candidates.find((e) => e.split('@')[1] === domain && e !== leadEmail);
   let emailUpdated = false;
-  if (better && better !== lead.email.toLowerCase()) {
+  // Only FILL a blank email from a reply — never OVERWRITE a stored address (a
+  // stranger's reply must not replace the company's known contact).
+  if (better && !leadEmail) {
     await pool.query(`UPDATE corporate_leads SET email = $2, updated_at = now() WHERE id = $1`, [lead.id, better]).catch(() => {});
     emailUpdated = true;
   }
@@ -707,9 +726,17 @@ export async function processCorporateReply(msg: {
 /** WHERE clause for an emailable corporate segment ('all' or a category). */
 export function corporateAudienceWhere(segment: string): string {
   const base = `email IS NOT NULL AND email <> '' AND email_opt_out = FALSE AND status <> 'not_interested'`;
-  const cat = segment.replace(/^corp:/, '');
-  if (cat && cat !== 'all' && cat in CORP_CATEGORY_LABELS) {
-    return `${base} AND category = '${cat}'`;
+  // 'corp:all' / 'corporate' (legacy) / '' all mean every company; 'corp:<cat>'
+  // targets one category.
+  const cat = segment === 'corporate' ? '' : segment.replace(/^corp:/, '');
+  if (cat && cat !== 'all') {
+    if (cat in CORP_CATEGORY_LABELS) {
+      return `${base} AND category = '${cat}'`;
+    }
+    // A named-but-unknown category must FAIL CLOSED — match nothing — never fall
+    // back to the unrestricted base clause (which would blast every company).
+    console.warn(`[corp-audience] unknown category '${cat}' — refusing to match all companies`);
+    return `${base} AND 1=0`;
   }
   return base;
 }

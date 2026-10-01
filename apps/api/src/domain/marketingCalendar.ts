@@ -18,6 +18,7 @@
  */
 import { pool } from '../db/pool.js';
 import type { Audience } from './marketing.js';
+import { CORP_CATEGORY_LABELS } from './corporateOutreach.js';
 
 export type OccasionType = 'commercial' | 'national' | 'islamic' | 'seasonal' | 'greeting' | 'awareness';
 
@@ -961,9 +962,12 @@ export async function prepareOccasionNow(slug: string, opts?: { corporate?: bool
   // the company version (and it isn't a greeting-only day). Else the consumer draft.
   const corp = Boolean(o.corporateOnly) || (Boolean(opts?.corporate) && !o.greetingOnly);
   // Optional company-category target (e.g. only schools for Teachers' Day). A
-  // clean lowercase word → `corp:<category>`; unknown/absent → all companies.
-  const cat = corp ? String(opts?.category ?? '').trim().toLowerCase().replace(/[^a-z_]/g, '') : '';
-  const corpAudience = cat && cat !== 'all' ? `corp:${cat}` : 'corp:all';
+  // clean lowercase word → `corp:<category>`; unknown/mistyped/absent → all
+  // companies (never store an invalid `corp:<cat>` that would later fail closed
+  // or silently blast everyone).
+  const catRaw = corp ? String(opts?.category ?? '').trim().toLowerCase().replace(/[^a-z_]/g, '') : '';
+  const cat = catRaw && catRaw !== 'all' && catRaw in CORP_CATEGORY_LABELS ? catRaw : '';
+  const corpAudience = cat ? `corp:${cat}` : 'corp:all';
   const dedupeKey = corp ? `occasion|${o.slug}|${next.year}|corp` : `occasion|${o.slug}|${next.year}`;
   const existing = await pool.query<{ id: string }>(`SELECT id FROM email_campaigns WHERE dedupe_key = $1`, [dedupeKey]);
   if (existing.rows[0]) {
