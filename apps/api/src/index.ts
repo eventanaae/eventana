@@ -795,6 +795,32 @@ async function main() {
     })();
   }
 
+  // One-shot: reflect an already-recorded refund onto an IMPORTED sales receipt
+  // that isn't linked to the refunded order (so the refund never attached to it).
+  // Set REFLECT_RECEIPT=<number>:<fils>:<label>:<reason> for one deploy, then unset.
+  // Display-only (net total + refunded item) — the money is already in the refunds
+  // ledger, so this never double-counts cash. Self-guards: only acts if the receipt
+  // currently shows no refund.
+  if (process.env.REFLECT_RECEIPT) {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const [num, filsS, label, reason] = String(process.env.REFLECT_RECEIPT).split(':');
+        const fils = Math.round(Number(filsS));
+        const item = JSON.stringify([{ label: label || 'Refunded item', amountFils: fils, reasonCategory: reason || 'missing_item' }]);
+        const r = await pool.query(
+          `UPDATE finance_receipts
+              SET refunded_fils = $2, refunded_items = $3::jsonb
+            WHERE number = $1 AND COALESCE(refunded_fils,0) = 0
+            RETURNING id, total_fils`,
+          [num, fils, item]);
+        console.log(`[reflect-receipt] EV-${num}: updated ${r.rowCount} row(s) (refunded ${fils}, net=${r.rows[0] ? Number(r.rows[0].total_fils) - fils : '?'})`);
+      } catch (e) {
+        console.error('[reflect-receipt] failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
