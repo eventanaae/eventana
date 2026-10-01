@@ -31,6 +31,9 @@ export interface AppliedDiscounts {
   promo: { code: string; amountFils: number } | null;
   creditFils: number;
   points: { used: number; amountFils: number } | null;
+  /** When stacking is off and a reward out-valued the Build-Your-Own 15%, the
+   *  caller must strip the BYO discount line (only one discount may apply). */
+  droppedByo: boolean;
 }
 
 function line(label: string, amountFils: number): QuoteLine {
@@ -46,6 +49,16 @@ export async function validatePromo(
   code: string,
   customerId: string | null,
   subtotalFils: number,
+  /**
+   * Base a PERCENT code is computed on — the PARTY value only (service/package
+   * lines + custom theme, less the BYO discount), EXCLUDING delivery and the
+   * urgent (rush) surcharge, matching how the engine applies the BYO discount.
+   * Defaults to subtotalFils for callers (e.g. the live promo preview) that
+   * don't separate it out. Fixed-amount codes and min-spend always use the full
+   * subtotal; the discount is still capped at the subtotal so it can't exceed
+   * what's payable.
+   */
+  percentBaseFils: number = subtotalFils,
 ): Promise<{ ok: true; amountFils: number; code: string; freeDelivery: boolean } | { ok: false; reason: string }> {
   const norm = code.trim().toUpperCase();
   if (!norm) return { ok: false, reason: 'Enter a code.' };
@@ -72,7 +85,7 @@ export async function validatePromo(
 
   const amountFils =
     p.kind === 'percent'
-      ? Math.min(subtotalFils, Math.round((subtotalFils * p.value) / 100))
+      ? Math.min(subtotalFils, Math.round((percentBaseFils * p.value) / 100))
       : Math.min(subtotalFils, p.value);
   // The win-back "come back" code also makes delivery free (owner's rule).
   return { ok: true, amountFils, code: norm, freeDelivery: p.campaign === 'winback' };
@@ -84,66 +97,150 @@ export async function validatePromo(
  */
 export async function computeDiscounts(
   db: Pool | PoolClient,
-  args: { customerId: string; subtotalFils: number; input: DiscountInput; deliveryFils?: number },
+  args: {
+    customerId: string;
+    subtotalFils: number;
+    input: DiscountInput;
+    deliveryFils?: number;
+    /** PARTY value a PERCENT promo is computed on (ex delivery, ex rush).
+     *  Defaults to subtotalFils. See validatePromo. */
+    percentBaseFils?: number;
+    /** When false, only the single highest-value discount applies — promo,
+     *  points, store credit and the Build-Your-Own 15% never stack. Default true
+     *  (callers that don't pass a rule keep the old stacking behaviour). */
+    allowStacking?: boolean;
+    /** The Build-Your-Own 15% already applied in the engine quote, so the
+     *  no-stacking comparison can weigh it against the rewards. */
+    byoDiscountFils?: number;
+  },
 ): Promise<AppliedDiscounts> {
-  const out: AppliedDiscounts = { lines: [], totalFils: 0, promo: null, creditFils: 0, points: null };
+  const out: AppliedDiscounts = { lines: [], totalFils: 0, promo: null, creditFils: 0, points: null, droppedByo: false };
   const { rows } = await db.query(
     `SELECT loyalty_points, referral_credit_fils FROM customers WHERE id = $1`,
     [args.customerId],
   );
   const cust = rows[0] ?? { loyalty_points: 0, referral_credit_fils: 0 };
+  const percentBase = args.percentBaseFils ?? args.subtotalFils;
 
   const room = () => Math.max(0, args.subtotalFils - out.totalFils - MIN_PAYABLE_FILS);
 
-  // 1) promo code
+  // Stacking allowed (default): apply promo → store credit → loyalty points, each
+  // capped so the order stays payable. This is the original behaviour.
+  if (args.allowStacking !== false) {
+    // 1) promo code
+    if (args.input.promoCode) {
+      const v = await validatePromo(db, args.input.promoCode, args.customerId, args.subtotalFils, percentBase);
+      if (v.ok && v.amountFils > 0) {
+        const amt = Math.min(v.amountFils, room());
+        if (amt > 0) {
+          out.promo = { code: v.code, amountFils: amt };
+          out.lines.push(line(`Promo ${v.code}`, amt));
+          out.totalFils += amt;
+        }
+      }
+      // The win-back code also waives delivery: an extra discount line equal to the
+      // delivery fee, on top of the AED 600. Capped by room() like every discount.
+      if (v.ok && v.freeDelivery && (args.deliveryFils ?? 0) > 0) {
+        const amt = Math.min(args.deliveryFils!, room());
+        if (amt > 0) {
+          out.lines.push(line('Free delivery', amt));
+          out.totalFils += amt;
+        }
+      }
+    }
+
+    // 2) store / referral credit
+    if (args.input.useCredit && cust.referral_credit_fils > 0) {
+      const amt = Math.min(cust.referral_credit_fils, room());
+      if (amt > 0) {
+        out.creditFils = amt;
+        out.lines.push(line('Eventana credit', amt));
+        out.totalFils += amt;
+      }
+    }
+
+    // 3) loyalty points
+    if (args.input.redeemPoints && cust.loyalty_points > 0) {
+      const maxByRoom = room();
+      const maxByPoints = cust.loyalty_points * REDEEM_FILS_PER_POINT;
+      const cap = Math.min(maxByPoints, maxByRoom);
+      // Spend only WHOLE points, and make the discount exactly equal what those
+      // points are worth. Flooring (not ceil) means an odd-fils room() cap can
+      // never charge the customer an extra point for value they didn't receive.
+      const used = Math.floor(cap / REDEEM_FILS_PER_POINT);
+      const amt = used * REDEEM_FILS_PER_POINT;
+      if (used > 0 && amt > 0) {
+        out.points = { used, amountFils: amt };
+        out.lines.push(line(`${used.toLocaleString('en-US')} points redeemed`, amt));
+        out.totalFils += amt;
+      }
+    }
+
+    return out;
+  }
+
+  // Stacking OFF: only ONE discount may apply — the single highest-value of the
+  // Build-Your-Own 15%, the promo code, loyalty points and store credit. Each
+  // reward's value is measured on its own against the full room, then compared;
+  // the winner is applied and everything else is left off. If a reward beats the
+  // BYO discount, we flag droppedByo so the caller removes the BYO line.
+  const byo = Math.max(0, args.byoDiscountFils ?? 0);
+  const fullRoom = Math.max(0, args.subtotalFils - MIN_PAYABLE_FILS);
+
+  // Promo candidate (+ its free-delivery waiver, which rides with the promo).
+  let promoCand: { code: string; amountFils: number; deliveryFils: number } | null = null;
   if (args.input.promoCode) {
-    const v = await validatePromo(db, args.input.promoCode, args.customerId, args.subtotalFils);
+    const v = await validatePromo(db, args.input.promoCode, args.customerId, args.subtotalFils, percentBase);
     if (v.ok && v.amountFils > 0) {
-      const amt = Math.min(v.amountFils, room());
-      if (amt > 0) {
-        out.promo = { code: v.code, amountFils: amt };
-        out.lines.push(line(`Promo ${v.code}`, amt));
-        out.totalFils += amt;
-      }
-    }
-    // The win-back code also waives delivery: an extra discount line equal to the
-    // delivery fee, on top of the AED 600. Capped by room() like every discount.
-    if (v.ok && v.freeDelivery && (args.deliveryFils ?? 0) > 0) {
-      const amt = Math.min(args.deliveryFils!, room());
-      if (amt > 0) {
-        out.lines.push(line('Free delivery', amt));
-        out.totalFils += amt;
-      }
+      const amt = Math.min(v.amountFils, fullRoom);
+      const del =
+        v.freeDelivery && (args.deliveryFils ?? 0) > 0
+          ? Math.min(args.deliveryFils!, Math.max(0, fullRoom - amt))
+          : 0;
+      if (amt > 0) promoCand = { code: v.code, amountFils: amt, deliveryFils: del };
     }
   }
 
-  // 2) store / referral credit
-  if (args.input.useCredit && cust.referral_credit_fils > 0) {
-    const amt = Math.min(cust.referral_credit_fils, room());
-    if (amt > 0) {
-      out.creditFils = amt;
-      out.lines.push(line('Eventana credit', amt));
-      out.totalFils += amt;
-    }
-  }
-
-  // 3) loyalty points
+  // Loyalty-points candidate (whole points only).
+  let pointsCand: { used: number; amountFils: number } | null = null;
   if (args.input.redeemPoints && cust.loyalty_points > 0) {
-    const maxByRoom = room();
-    const maxByPoints = cust.loyalty_points * REDEEM_FILS_PER_POINT;
-    const cap = Math.min(maxByPoints, maxByRoom);
-    // Spend only WHOLE points, and make the discount exactly equal what those
-    // points are worth. Flooring (not ceil) means an odd-fils room() cap can
-    // never charge the customer an extra point for value they didn't receive.
+    const cap = Math.min(cust.loyalty_points * REDEEM_FILS_PER_POINT, fullRoom);
     const used = Math.floor(cap / REDEEM_FILS_PER_POINT);
-    const amt = used * REDEEM_FILS_PER_POINT;
-    if (used > 0 && amt > 0) {
-      out.points = { used, amountFils: amt };
-      out.lines.push(line(`${used.toLocaleString('en-US')} points redeemed`, amt));
-      out.totalFils += amt;
-    }
+    if (used > 0) pointsCand = { used, amountFils: used * REDEEM_FILS_PER_POINT };
   }
 
+  // Store-credit candidate.
+  let creditCand = 0;
+  if (args.input.useCredit && cust.referral_credit_fils > 0) {
+    creditCand = Math.min(cust.referral_credit_fils, fullRoom);
+  }
+
+  const promoValue = promoCand ? promoCand.amountFils + promoCand.deliveryFils : 0;
+  const pointsValue = pointsCand ? pointsCand.amountFils : 0;
+  const best = Math.max(byo, promoValue, pointsValue, creditCand);
+
+  // BYO wins (or ties, or nothing applies): keep the BYO line, apply no reward.
+  if (best <= 0 || best === byo) {
+    return out;
+  }
+  if (promoCand && promoValue === best) {
+    out.promo = { code: promoCand.code, amountFils: promoCand.amountFils };
+    out.lines.push(line(`Promo ${promoCand.code}`, promoCand.amountFils));
+    out.totalFils += promoCand.amountFils;
+    if (promoCand.deliveryFils > 0) {
+      out.lines.push(line('Free delivery', promoCand.deliveryFils));
+      out.totalFils += promoCand.deliveryFils;
+    }
+  } else if (pointsCand && pointsValue === best) {
+    out.points = { used: pointsCand.used, amountFils: pointsCand.amountFils };
+    out.lines.push(line(`${pointsCand.used.toLocaleString('en-US')} points redeemed`, pointsCand.amountFils));
+    out.totalFils += pointsCand.amountFils;
+  } else if (creditCand === best) {
+    out.creditFils = creditCand;
+    out.lines.push(line('Eventana credit', creditCand));
+    out.totalFils += creditCand;
+  }
+  out.droppedByo = byo > 0 && out.totalFils > 0;
   return out;
 }
 

@@ -196,9 +196,32 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     throw new CheckoutError('Please sign in or enter your details to continue.', 'auth_required');
   }
 
+  // Idempotency: a resubmit carrying the same client key must never mint a second
+  // order (and so can never double-charge). The orders.idempotency_key UNIQUE index
+  // is the hard guard for the concurrent race (handled in the transaction .catch
+  // below); this is the fast, graceful path for a plain resubmit — point the caller
+  // back at the existing order to poll/resume instead of charging again.
+  if (req.idempotencyKey) {
+    const dupe = await pool.query<{ id: string }>(
+      `SELECT id FROM orders WHERE idempotency_key = $1`,
+      [req.idempotencyKey],
+    );
+    if (dupe.rows[0]) {
+      throw new CheckoutError('This checkout was already submitted.', 'duplicate_request', {
+        orderId: dupe.rows[0].id,
+        orderToken: orderViewToken(dupe.rows[0].id),
+      });
+    }
+  }
+
   // (1) The server recomputes everything. A total submitted by the
   // device is not read at all — it is not even a parameter here.
   const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: !!req.offerToken || isBnplProvider(req.provider) });
+
+  // The automatic Build-Your-Own 15% the engine just applied, captured BEFORE any
+  // offer/reward layering — so the no-stacking rule can weigh it against promo /
+  // points / credit (only one discount may apply when stacking is off).
+  const byoDiscountFils = serverQuote.discountUnlocked ? serverQuote.discountFils : 0;
 
   // A manual-order link layers the team's manual pieces (custom products, a
   // discount, a fixed delivery, a custom-theme charge) on top of the engine
@@ -244,13 +267,36 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
 
   // Apply promo / store credit / point redemption, server-validated. Recorded
   // on the cart so confirmation can consume them once (and only once) the
-  // payment actually lands.
+  // payment actually lands. A PERCENT promo is computed on the PARTY value only
+  // (total less delivery and the urgent/rush surcharge), matching the BYO
+  // discount; and the no-stacking rule is enforced here (see computeDiscounts).
+  const rushSurchargeFils = serverQuote.lines
+    .filter((l) => l.kind === 'surcharge')
+    .reduce((sum, l) => sum + l.amountFils, 0);
+  const percentBaseFils = Math.max(0, serverQuote.totalFils - serverQuote.deliveryFils - rushSurchargeFils);
   const applied = await computeDiscounts(pool, {
     customerId,
     subtotalFils: serverQuote.totalFils,
     input: req.discounts ?? {},
     deliveryFils: serverQuote.deliveryFils,
+    percentBaseFils,
+    allowStacking: cfg.rules.allowDiscountStacking,
+    byoDiscountFils,
   });
+  // No stacking + a reward out-valued the BYO 15%: remove the BYO discount line
+  // so only the single chosen discount applies. Done BEFORE the reward lines are
+  // pushed, while the BYO line is still the only null-ref discount in the quote.
+  if (applied.droppedByo && byoDiscountFils > 0) {
+    const i = serverQuote.lines.findIndex(
+      (l) => l.kind === 'discount' && l.refId === null && l.amountFils === -byoDiscountFils,
+    );
+    if (i >= 0) {
+      serverQuote.lines.splice(i, 1);
+      serverQuote.totalFils += byoDiscountFils;
+      serverQuote.discountFils -= byoDiscountFils;
+      serverQuote.discountUnlocked = false;
+    }
+  }
   if (applied.totalFils > 0) {
     serverQuote.lines.push(...applied.lines);
     serverQuote.discountFils += applied.totalFils;
@@ -314,6 +360,33 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     // customer who never pays isn't locked out of their own code. uses++ still
     // happens once, at confirm, so this reservation never inflates the counter.
     if (applied.promo) {
+      // Enforce the code's GLOBAL usage cap atomically, so a limited code can't be
+      // over-redeemed by many customers all checking out before any of them pays
+      // (max_uses was previously only read-checked at validate, and uses++ happens
+      // at confirm). Lock the code row FIRST — this serialises concurrent checkouts
+      // of the same code — then count how many redemptions are already held against
+      // it: committed, or reserved by a still-open order (abandoned reservations are
+      // swept after 2h). This customer's own reservation is excluded so a legit
+      // retry after an abandoned cart doesn't count twice.
+      const capRow = await db.query<{ max_uses: number | null }>(
+        `SELECT max_uses FROM promo_codes WHERE code = $1 FOR UPDATE`,
+        [applied.promo.code],
+      );
+      const maxUses = capRow.rows[0]?.max_uses ?? null;
+      if (maxUses != null) {
+        const held = await db.query<{ n: number }>(
+          `SELECT count(*)::int AS n
+             FROM promo_redemptions pr
+             LEFT JOIN orders o ON o.id = pr.order_id
+            WHERE pr.code = $1
+              AND pr.customer_id <> $2
+              AND COALESCE(o.status, 'paid') NOT IN ('failed', 'cancelled', 'expired')`,
+          [applied.promo.code, customerId],
+        );
+        if ((held.rows[0]?.n ?? 0) >= maxUses) {
+          throw new CheckoutError('This code has been fully redeemed.', 'promo_exhausted');
+        }
+      }
       const r = await db.query(
         `INSERT INTO promo_redemptions (code, customer_id, order_id, amount_fils)
          VALUES ($1,$2,$3,$4)
@@ -350,6 +423,12 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   }).catch((err) => {
     if (err instanceof ConflictError) {
       throw new CheckoutError(err.message, 'unavailable', { assets: err.assets });
+    }
+    // Concurrent duplicate submit: the orders.idempotency_key UNIQUE index fired,
+    // so another request already created this exact order. Surface it as an
+    // idempotent duplicate rather than a 500 — no second order, no second charge.
+    if (req.idempotencyKey && (err as { code?: string })?.code === '23505') {
+      throw new CheckoutError('This checkout was already submitted.', 'duplicate_request');
     }
     throw err;
   });
@@ -1055,6 +1134,45 @@ export async function createSessionForOrder(orderId: string): Promise<{
   if (config.providers.stripe.mode === 'disabled') {
     throw new CheckoutError('Card payment is not currently available.', 'unavailable');
   }
+
+  // A manual BOOKING pay-link reserves its equipment NOW, at payment time, exactly
+  // like an online checkout — so it can't double-book a castle/inflatable another
+  // booking already holds. (Add-on and invoice-balance pay-links carry no bookable
+  // cart and take no hold.) Taken here, not when the link was created, because a
+  // link can sit for days while a hold lives only minutes; confirmBooking then
+  // promotes these holds to firm reservations, and a payment that lands after the
+  // hold lapses is caught by the existing late-success guard in the webhook.
+  if (order.kind === 'booking') {
+    const bookingCart = order.cart as CartInput;
+    const eventDate = bookingCart?.eventDate;
+    const startTime = bookingCart?.startTime;
+    if (eventDate && startTime) {
+      const cfg = await loadConfig(pool, { fresh: true });
+      const requiredAssets = resolveRequiredAssets(bookingCart, cfg);
+      if (requiredAssets.length > 0) {
+        const endHour = eventEndHour(startTime, cfg.rules, 0, effectiveEventHours(bookingCart, cfg.rules));
+        await withTransaction(async (db) => {
+          // A repeat click on the same pay-link re-takes the hold with a fresh TTL;
+          // drop this order's own earlier 'held' rows first so it can't block itself.
+          await releaseHolds(db, orderId, 'manual pay-link retry');
+          await acquireHolds(db, {
+            orderId,
+            assetCodes: requiredAssets,
+            eventDate,
+            startTime,
+            endHour,
+            holdMinutes: cfg.rules.inventoryHoldMinutes,
+          });
+        }).catch((err) => {
+          if (err instanceof ConflictError) {
+            throw new CheckoutError(err.message, 'unavailable', { assets: err.assets });
+          }
+          throw err;
+        });
+      }
+    }
+  }
+
   const provider = getProvider('stripe');
   const customer = await loadCustomer(order.customer_id);
   const quote = order.quote as Quote;
