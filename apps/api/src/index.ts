@@ -901,6 +901,40 @@ async function main() {
     })();
   }
 
+  // One-shot READ-ONLY diagnostic: how many customer records are duplicates of
+  // the SAME person (the phone-format split), so a merge can be sized before any
+  // write. Set DIAG_MERGE=true for one deploy, then unset.
+  if (String(process.env.DIAG_MERGE ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        // Canonical phone = last 9 digits (drops 0/+971 prefixes). Group historical
+        // customers by it; any group of >1 is the same person split into dupes.
+        const byPhone = await pool.query<{ groups: string; extra: string }>(
+          `WITH g AS (
+             SELECT right(regexp_replace(COALESCE(phone,''),'[^0-9]','','g'),9) AS k, count(*) n
+               FROM historical_customers
+              WHERE COALESCE(phone,'') <> '' AND length(regexp_replace(COALESCE(phone,''),'[^0-9]','','g')) >= 9
+              GROUP BY 1 HAVING count(*) > 1)
+           SELECT count(*)::text groups, COALESCE(sum(n-1),0)::text extra FROM g`);
+        const byEmail = await pool.query<{ groups: string; extra: string }>(
+          `WITH g AS (
+             SELECT lower(btrim(email)) AS k, count(*) n FROM historical_customers
+              WHERE COALESCE(btrim(email),'') <> '' GROUP BY 1 HAVING count(*) > 1)
+           SELECT count(*)::text groups, COALESCE(sum(n-1),0)::text extra FROM g`);
+        const tot = await pool.query<{ c: string }>(`SELECT count(*)::text c FROM historical_customers`);
+        console.log(`[diag-merge] historical_customers total=${tot.rows[0].c}; phone-dupe groups=${byPhone.rows[0].groups} (extra rows=${byPhone.rows[0].extra}); email-dupe groups=${byEmail.rows[0].groups} (extra=${byEmail.rows[0].extra})`);
+        const sample = await pool.query<{ k: string; names: string[] }>(
+          `SELECT right(regexp_replace(COALESCE(phone,''),'[^0-9]','','g'),9) AS k,
+                  array_agg(DISTINCT full_name) AS names
+             FROM historical_customers
+            WHERE COALESCE(phone,'') <> '' AND length(regexp_replace(COALESCE(phone,''),'[^0-9]','','g')) >= 9
+            GROUP BY 1 HAVING count(*) > 1 LIMIT 8`);
+        for (const r of sample.rows) console.log(`[diag-merge] sample phone ...${r.k}: ${JSON.stringify(r.names)}`);
+      } catch (e) { console.error('[diag-merge] failed:', (e as Error).message); }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
