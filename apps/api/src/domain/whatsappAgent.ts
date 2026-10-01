@@ -202,7 +202,26 @@ export async function respondToLead(
     return send(msg.phone, ar ? GREETING_AR : GREETING_EN);
   }
 
-  if (mode === 'greet') return { replied: false, handoff: false };
+  // Greet mode never free-chats, but a commitment (booking confirmation) or a
+  // sensitive ask (refund / discount / price / deposit — English or Arabic)
+  // must STILL reach a human. Evaluate those handoffs here before stopping, so
+  // greet doesn't silently swallow them; anything else gets no reply.
+  if (mode === 'greet') {
+    if (result.confirmed) {
+      const out = await send(msg.phone, ar ? HANDOFF_AR : HANDOFF_EN);
+      await escalateToOwner(msg, 'booking confirmation');
+      return { ...out, handoff: true };
+    }
+    if (msg.text.trim()) {
+      const answer = await answerAssistant(msg.text);
+      if (answer.escalated) {
+        const out = await send(msg.phone, ar ? HANDOFF_AR : HANDOFF_EN);
+        await escalateToOwner(msg, ar ? 'طلب حسّاس (خصم/استرداد/سعر)' : 'sensitive request (refund/discount/price)');
+        return { ...out, handoff: true };
+      }
+    }
+    return { replied: false, handoff: false };
+  }
 
   // The date landing is worth acknowledging: it tells the customer we heard
   // the one detail everything else depends on.

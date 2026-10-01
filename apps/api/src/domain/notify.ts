@@ -23,6 +23,17 @@ import { toValidCustomerPhone } from './maintenance.js';
 import { orderViewToken } from './orders.js';
 import { imageToPdf } from './imagePdf.js';
 
+/**
+ * True only when a WhatsApp send failed because the TEMPLATE is missing / not
+ * approved (Meta error code 132001, "Template name does not exist..."). Used to
+ * decide whether the Arabic→English fallback is safe: on a transient failure
+ * (network / timeout / 429 rate limit / 5xx) the original message may already
+ * have reached Meta, so re-sending in another language would double it.
+ */
+function isTemplateMissing(error?: string): boolean {
+  return /132001|does not exist/i.test(error || '');
+}
+
 export interface EmailRow {
   id: number;
   template: string;
@@ -1084,7 +1095,12 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
       // English variant if the 'ar' template isn't approved, so a missing Arabic
       // template doesn't leave the customer with NO WhatsApp (retrying forever).
       let res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'ar', params: tpl.params, fromStaff: true });
-      if (!res.ok) {
+      // Fall back to English ONLY when the Arabic template is genuinely missing/
+      // not approved (Meta 132001 "does not exist"). On a transient failure
+      // (network / timeout / 429 rate limit) the Arabic message may already have
+      // reached Meta — resending in English would double the WhatsApp — so leave
+      // whatsapp_sent_at NULL and let the next sweep retry instead.
+      if (!res.ok && isTemplateMissing(res.error)) {
         res = await sendWhatsAppTemplate({ to, name: tpl.name, language: 'en', params: tpl.params, fromStaff: true });
       }
       if (res.ok) {
@@ -1145,7 +1161,12 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
       let ok = false;
       for (const a of attempts) {
         let res = await sendWhatsAppTemplate({ to, name: a.name, language: 'ar', params: a.params, fromStaff: true });
-        if (!res.ok) res = await sendWhatsAppTemplate({ to, name: a.name, language: 'en', params: a.params, fromStaff: true });
+        // Same guard as the reminder sweep: only drop to English when the Arabic
+        // template is missing/not approved, never on a transient error (which
+        // could double-send a message that already reached Meta).
+        if (!res.ok && isTemplateMissing(res.error)) {
+          res = await sendWhatsAppTemplate({ to, name: a.name, language: 'en', params: a.params, fromStaff: true });
+        }
         if (res.ok) { ok = true; break; }
       }
       if (ok) {
@@ -1425,7 +1446,11 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
   //      event/cancellation — a plain refund and a shop refund both land here) ----
   if (emailEnabled()) {
     const { rows } = await pool.query<any>(
-      `SELECT n.id, o.id AS order_id,
+      // DISTINCT ON (n.id): an order can have more than one linked finance
+      // receipt, and the LEFT JOIN would then return a row per receipt → two
+      // refund emails before sent_at stamps. Keep ONE row per notification,
+      // preferring the latest receipt (fr.created_at DESC, id DESC as tiebreak).
+      `SELECT DISTINCT ON (n.id) n.id, o.id AS order_id,
               (n.payload->>'amountFils')      AS amount_fils,
               (n.payload->>'reference')       AS reference,
               (n.payload->>'reasonCategory')  AS reason_category,
@@ -1443,7 +1468,8 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
         WHERE n.channel = 'email' AND n.template = 'refund_processed'
           AND n.sent_at IS NULL AND n.cancelled_at IS NULL
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
-        ORDER BY n.created_at LIMIT 100`,
+        ORDER BY n.id, fr.created_at DESC NULLS LAST, fr.id DESC NULLS LAST
+        LIMIT 100`,
     );
     for (const row of rows) {
       // Our fault (quality issue / missing item) → apology; customer's own

@@ -421,9 +421,14 @@ export async function eventRoutes(app: FastifyInstance) {
           WHERE event_id = $1 AND status IN ('held','reserved')`,
         [eventId],
       );
+      // Void everything still PENDING on ANY channel for this event. A reminder
+      // whose email already sent but whose whatsapp_sent_at is still NULL would
+      // otherwise fire a WhatsApp for a cancelled event — so cancel on either
+      // channel pending, not just sent_at IS NULL. (The cancellation_refund /
+      // driver rows are inserted AFTER this, so they are untouched.)
       await db.query(
         `UPDATE notifications SET cancelled_at = now()
-          WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL`,
+          WHERE event_id = $1 AND (sent_at IS NULL OR whatsapp_sent_at IS NULL) AND cancelled_at IS NULL`,
         [eventId],
       );
       // Tell the assigned driver the delivery is off (fresh row, not cancelled).

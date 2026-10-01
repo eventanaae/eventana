@@ -22,8 +22,13 @@ export interface AssistantAnswer {
   references: Array<{ kind: 'package' | 'service' | 'theme'; id: string; name: string }>;
 }
 
+// Sensitive asks must ALWAYS reach a human, never be auto-answered: refunds,
+// complaints, disputes, and anything about discount / price / deposit — in
+// English (loose, not just the old "discount for me" literal) AND Arabic, since
+// most customers write in Arabic (خصم/تخفيض = discount, سعر/السعر/كم السعر =
+// price, عربون/دفعة = deposit, استرداد/استرجاع/ارجاع/إرجاع = refund).
 const ESCALATE =
-  /refund|complain|complaint|dispute|money back|discount for me|special price|cheaper|price override|manager/i;
+  /refund|complain|complaint|dispute|money back|discount|cheaper|special price|price override|price|deposit|manager|استرداد|استرجاع|ارجاع|إرجاع|خصم|تخفيض|سعر|عربون|دفعة/i;
 
 export async function answerAssistant(
   question: string,

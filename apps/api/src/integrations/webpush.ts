@@ -98,7 +98,8 @@ export interface PushMessage { title: string; body: string; url?: string; tag?: 
 /**
  * Deliver a browser push to a staff member's devices (or, with no ownerId, every
  * staff subscription). Best-effort; prunes subscriptions the push service has
- * dropped (404/410). Never throws.
+ * dropped (404/410) or that the service rejects on VAPID auth (401/403 — a
+ * mis-set or rotated key). Never throws.
  */
 export async function sendWebPush(ownerType: 'staff' | 'customer', ownerId: string | null, msg: PushMessage): Promise<void> {
   if (!webPushEnabled()) return;
@@ -110,7 +111,19 @@ export async function sendWebPush(ownerType: 'staff' | 'customer', ownerId: stri
     for (const s of rows) {
       try {
         const status = await sendOne(s, msg);
-        if (status === 404 || status === 410) stale.push(s.endpoint);
+        if (status === 401 || status === 403) {
+          // VAPID auth rejected — usually a mis-set or rotated VAPID key. The
+          // subscription is bound to the old key and can never succeed again, so
+          // prune it; log loudly so a misconfigured key is visible, not silent.
+          console.error(`[webpush] VAPID auth rejected (${status}) for ${new URL(s.endpoint).origin} — check VAPID_PUBLIC_KEY/PRIVATE_KEY; pruning subscription`);
+          stale.push(s.endpoint);
+        } else if (status === 404 || status === 410) {
+          stale.push(s.endpoint); // subscription gone — the browser dropped it
+        } else if (status >= 400) {
+          // 400 (bad payload), 429 (rate limited), 5xx — don't prune (may be
+          // transient), but surface it instead of swallowing silently.
+          console.error(`[webpush] push not delivered (status ${status}) for ${new URL(s.endpoint).origin}`);
+        }
       } catch (err) {
         console.error('[webpush] send failed:', (err as Error).message);
       }

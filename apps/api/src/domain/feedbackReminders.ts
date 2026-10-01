@@ -69,11 +69,16 @@ export async function findFeedbackReminderDue(): Promise<FeedbackReminderCandida
         -- Cap at 4 reminders, one every 3 days.
         AND e.feedback_reminder_count < 4
         AND (e.feedback_reminded_at IS NULL OR e.feedback_reminded_at < now() - interval '3 days')
-        -- Don't stack on a feedback ask that still hasn't been e-mailed out.
+        -- Don't stack on a feedback ask still PENDING on either channel: a row
+        -- whose email already sent but whose WhatsApp hasn't (whatsapp_sent_at
+        -- NULL) must still block a new one, or the customer gets a double
+        -- WhatsApp. (A fully-delivered row — both stamped — no longer blocks, so
+        -- the 3-day reminder cadence still advances.)
         AND NOT EXISTS (
           SELECT 1 FROM notifications n
            WHERE n.event_id = e.id AND n.template = 'feedback_request'
-             AND n.channel = 'email' AND n.cancelled_at IS NULL AND n.sent_at IS NULL)
+             AND n.channel = 'email' AND n.cancelled_at IS NULL
+             AND (n.sent_at IS NULL OR n.whatsapp_sent_at IS NULL))
         -- Need at least one way to reach them.
         AND ((c.email IS NOT NULL AND btrim(c.email) <> '')
           OR (c.phone IS NOT NULL AND btrim(c.phone) <> ''))
