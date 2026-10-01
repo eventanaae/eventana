@@ -656,7 +656,10 @@ export function renderEmail(row: EmailRow): { subject: string; html: string } | 
         ['Refund Amount', refund],
         ['Refund Status', 'Processed'],
       ];
-      if (row.refund_reference) rows.push(['Refund Reference', String(row.refund_reference)]);
+      // 'manual' is our internal placeholder for a record-only refund (money
+      // returned by hand) — it means nothing to the customer, so never show it.
+      const refRef = String(row.refund_reference ?? '').trim();
+      if (refRef && refRef.toLowerCase() !== 'manual') rows.push(['Refund Reference', refRef]);
       return {
         subject: 'Your Eventana refund has been processed',
         html: shell({
@@ -723,8 +726,9 @@ export function renderWhatsApp(row: EmailRow): string | null {
     }
     case 'refund_processed': {
       const ref = row.order_ref || row.event_id;
+      const wref = String(row.refund_reference ?? '').trim();
       return `💸 Your Eventana refund has been processed.\n\n🔖 Order: ${ref}\n↩️ Amount: ${aed(row.refund_amount_fils)}` +
-        (row.refund_reference ? `\n📄 Reference: ${row.refund_reference}` : '') +
+        (wref && wref.toLowerCase() !== 'manual' ? `\n📄 Reference: ${wref}` : '') +
         `\n\nPlease allow ~7 business days for it to appear. 💛`;
     }
     default:
