@@ -1235,7 +1235,11 @@ function receiptView(doc: any) {
   // lines always reconcile to the net total (same rule as the email).
   const unmatchedRemoval = pool.filter((p: any) => !p.used).reduce((s: number, p: any) => s + p.amt, 0);
   const refundedFils = Math.max(Number(doc.refundedFils ?? 0) || 0, refs.reduce((s: number, r: any) => s + Number(r.amountFils), 0));
-  const shownDiscount = Number(doc.discount_fils || 0) + extraDiscount + unmatchedRemoval;
+  // Catch-all so the shown lines always reconcile to the net total even when the
+  // refund isn't fully itemised (legacy / partial rows) — fold any remainder not
+  // covered by removed lines into the discount. Normal cases are unchanged.
+  const matchedRemoval = pool.filter((p: any) => p.used).reduce((s: number, p: any) => s + p.amt, 0);
+  const shownDiscount = Number(doc.discount_fils || 0) + Math.max(extraDiscount + unmatchedRemoval, refundedFils - matchedRemoval);
   const shownSubtotal = items.reduce((s: number, l: any) => s + Number(l.amountFils || 0), 0);
   const shownTotal = Number(doc.netTotalFils ?? (Number(doc.total_fils) - refundedFils));
   return { items, isRefund: refundedFils > 0, refundedFils, shownDiscount, shownSubtotal, shownTotal };

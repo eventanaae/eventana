@@ -87,6 +87,17 @@ export async function refundOrderMoney(params: {
         const toRefund = Math.min(amountFils, Math.max(0, cap - already));
         if (toRefund <= 0) return { ok: false, error: 'nothing_to_refund' };
 
+        // Idempotency: a double-click / retry that lands an identical refund in
+        // the same breath is a safe no-op — never record or email it twice.
+        const dupM = (await db.query<{ id: string }>(
+          `SELECT id FROM refunds WHERE order_id=$1 AND amount_fils=$2 AND COALESCE(item_label,'')=COALESCE($3,'') AND created_at > now() - interval '60 seconds' LIMIT 1`,
+          [orderId, toRefund, itemLabel],
+        )).rows[0];
+        if (dupM) {
+          const status: 'refunded' | 'partially_refunded' = (already + toRefund) >= cap ? 'refunded' : 'partially_refunded';
+          return { ok: true, status, refundedFils: already + toRefund };
+        }
+
         await db.query(
           `INSERT INTO refunds (order_id, event_id, customer_id, amount_fils,
                                 reason_category, reason_note, event_cancelled,
@@ -108,6 +119,13 @@ export async function refundOrderMoney(params: {
               WHERE order_id = $1`,
             [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
           );
+          // Drop any still-unsent earlier refund email for this order so two
+          // refunds before the sweep don't email twice — the new row carries the
+          // cumulative receipt figures, so the latest single email is correct.
+          await db.query(
+            `UPDATE notifications SET cancelled_at = now() WHERE template='refund_processed' AND sent_at IS NULL AND cancelled_at IS NULL AND payload->>'orderId' = $1`,
+            [orderId],
+          );
           await db.query(
             `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
              VALUES ($1,'email','refund_processed', now(), $2)`,
@@ -119,9 +137,21 @@ export async function refundOrderMoney(params: {
             await db.query(`INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason) VALUES ($1,$2,$3,$4,'Refund reversal')`, [ord.customer_id, ord.event_id, orderId, -pointsM]);
             await db.query(`UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`, [ord.customer_id, pointsM]);
           }
+          // Settle any open cancellation so a "use policy amount" refund doesn't
+          // leave it pending forever (mirrors the provider branch).
+          await db.query(
+            `UPDATE cancellations SET refund_status='processed', processed_at=now(), refund_reference = COALESCE(refund_reference,'manual') WHERE order_id=$1 AND refund_status <> 'processed'`,
+            [orderId],
+          );
           if (params.cancelEvent && ord.event_id) {
             await db.query(`UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`, [orderId]).catch(() => {});
             await db.query(`UPDATE events SET phase = 'Cancelled', updated_at = now() WHERE id = $1`, [ord.event_id]).catch(() => {});
+            // A cancelled event must stop emailing the customer — drop its pending
+            // notifications (mirrors the provider branch's teardown).
+            await db.query(
+              `UPDATE notifications SET cancelled_at = now() WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL AND template NOT IN ('refund_processed')`,
+              [ord.event_id],
+            ).catch(() => {});
           }
         } catch {
           await db.query('ROLLBACK TO SAVEPOINT manual_refund_side');
@@ -158,6 +188,17 @@ export async function refundOrderMoney(params: {
           return { ok: true, status, refundedFils: alreadyRefunded };
         }
         return { ok: false, error: 'nothing_to_refund' };
+      }
+
+      // Idempotency: a double-click / retry that lands an identical refund in the
+      // same breath is a safe no-op — never move money, record, or email twice.
+      const dup = (await db.query<{ id: string }>(
+        `SELECT id FROM refunds WHERE order_id=$1 AND amount_fils=$2 AND COALESCE(item_label,'')=COALESCE($3,'') AND created_at > now() - interval '60 seconds' LIMIT 1`,
+        [orderId, toRefund, itemLabel],
+      )).rows[0];
+      if (dup) {
+        const status: 'refunded' | 'partially_refunded' = (alreadyRefunded + toRefund) >= cap ? 'refunded' : 'partially_refunded';
+        return { ok: true, status, refundedFils: alreadyRefunded + toRefund };
       }
 
       // Money moves here, under the lock.
@@ -249,6 +290,13 @@ export async function refundOrderMoney(params: {
       // The amount + reference travel in the payload so the sweep needs no join.
       // One order-keyed email row. The customer WhatsApp sweep sends off the SAME
       // row (stamping whatsapp_sent_at), deciding apology vs plain by reason.
+      // Drop any still-unsent earlier refund email for this order so two refunds
+      // before the sweep don't email twice — the new row carries the cumulative
+      // receipt figures, so the latest single email is correct.
+      await db.query(
+        `UPDATE notifications SET cancelled_at = now() WHERE template='refund_processed' AND sent_at IS NULL AND cancelled_at IS NULL AND payload->>'orderId' = $1`,
+        [orderId],
+      );
       await db.query(
         `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
          VALUES ($1,'email','refund_processed', now(), $2)`,

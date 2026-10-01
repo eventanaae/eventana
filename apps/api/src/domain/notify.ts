@@ -430,7 +430,14 @@ export function renderFinanceDocEmail(
   // top-up…) still has to come off somewhere, so fold it into the discount —
   // that guarantees the shown lines always reconcile to the net total.
   const unmatchedRemoval = removalPool.filter((p) => !p.used).reduce((s, p) => s + p.amt, 0);
-  const shownDiscount = Number(doc.discount_fils || 0) + extraDiscount + unmatchedRemoval;
+  // Catch-all so the shown lines ALWAYS reconcile to the net total, even when the
+  // refunded amount isn't fully itemised (a legacy / partial refund with empty or
+  // short refunded_items): fold any remainder not already covered by removed lines
+  // into the discount. Normal cases are unchanged — there refundedItems fully
+  // cover `refunded`, so `refunded - matchedRemoval` equals extraDiscount +
+  // unmatchedRemoval and the Math.max is a no-op.
+  const matchedRemoval = removalPool.filter((p) => p.used).reduce((s, p) => s + p.amt, 0);
+  const shownDiscount = Number(doc.discount_fils || 0) + Math.max(extraDiscount + unmatchedRemoval, refunded - matchedRemoval);
   if (shownDiscount > 0) lines.push({ label: 'Discount', quantity: 1, amountFils: -shownDiscount });
   if (Number(doc.shipping_fils) > 0) lines.push({ label: 'Shipping & delivery', quantity: 1, amountFils: Number(doc.shipping_fils) });
 
