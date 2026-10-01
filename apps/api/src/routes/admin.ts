@@ -36,7 +36,7 @@ import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign, campaignRecipients } from '../domain/marketing.js';
-import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign, learnFromCampaign } from '../domain/marketingCalendar.js';
+import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign, learnFromCampaign, classifyCampaignKind } from '../domain/marketingCalendar.js';
 import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS, resetCorporateLeads, processCorporateReply, buildSuggestedReply } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -5974,13 +5974,16 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(
         `SELECT id, subject, body_html, audience, status, scheduled_for, sent_at,
                 recipient_count, sent_count, delivered_count, opened_count, clicked_count, bounced_count,
-                created_at, created_by, approved_by, approved_at, rejection_reason, source
+                created_at, created_by, approved_by, approved_at, rejection_reason, source, dedupe_key
            FROM email_campaigns ORDER BY created_at DESC LIMIT 50`,
       ),
     ]);
     const corp = await corporateCounts().catch(() => ({ byCategory: {}, total: 0, emailable: 0, optedOut: 0 }));
     return {
-      emailConfigured: emailEnabled(), audiences: counts, campaigns: campaigns.rows,
+      emailConfigured: emailEnabled(), audiences: counts,
+      // `kind` lets the dashboard badge each campaign as a greeting vs an
+      // offer/discount vs a general promo (read-only, derived — no schema change).
+      campaigns: campaigns.rows.map((r) => ({ ...r, kind: classifyCampaignKind(r as any) })),
       corporate: corp, corporateLabels: CORP_CATEGORY_LABELS,
     };
   });

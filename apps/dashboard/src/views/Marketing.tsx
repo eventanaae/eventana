@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { api } from '../api';
-import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
+import { ACCENTS, Badge, Button, C, fredoka, Panel, SectionHeader, Spinner, StatCard } from '../ui';
 import { Empty } from './Today';
 
 const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> = {
@@ -20,6 +20,57 @@ function fmtDay(v?: string | null): string {
   if (!v) return '';
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+// ── Email TYPE: greeting vs offer/discount vs general promo ──────────────────
+// The owner's core ask: tell at a glance whether an email is a warm GREETING or
+// a MARKETING email that carries a DISCOUNT/OFFER.
+type Kind = 'greeting' | 'offer' | 'promo';
+const TYPE_META: Record<Kind, { label: string; tone: 'ok' | 'warn' | 'error' | 'info' | 'neutral' }> = {
+  greeting: { label: '🎉 Greeting', tone: 'info' },   // warm, no sales push
+  offer: { label: '💸 Offer', tone: 'warn' },         // carries a discount / offer
+  promo: { label: '📣 Promo', tone: 'neutral' },      // a sales pitch, no discount
+};
+function TypeBadge({ kind }: { kind: Kind }) {
+  const m = TYPE_META[kind];
+  return <Badge tone={m.tone}>{m.label}</Badge>;
+}
+/** Classify a stored campaign. Prefers the server's authoritative `kind`; falls
+ *  back to reading the body/subject so it still works if the flag is missing. */
+function campaignKind(c: any): Kind {
+  if (c?.kind === 'greeting' || c?.kind === 'offer' || c?.kind === 'promo') return c.kind;
+  const body = String(c?.body_html ?? '');
+  const hay = `${c?.subject ?? ''} ${body}`.toLowerCase();
+  if (/border:\s*2px dashed/i.test(body) || /special offer|your code/i.test(body)
+    || /\d+\s*%\s*off|aed\s*\d+\s*off|\bdiscount\b|\bvoucher\b|\bcoupon\b/i.test(hay)
+    || /خصم|قسيمة|كوبون/.test(hay)) return 'offer';
+  if (/what we can (bring|arrange)|why organisations choose|why eventana/i.test(body)) return 'promo';
+  return 'greeting';
+}
+/** Classify an occasion (calendar) row from its authoritative flags. */
+function occasionKind(o: any): Kind {
+  if (o?.greetingOnly) return 'greeting';
+  if (o?.offer && String(o.offer).trim()) return 'offer';
+  return 'promo';
+}
+/** A tiny key so the owner learns what each type badge means. */
+function TypeLegend() {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, background: C.pinkSoft, border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 14px' }}>
+      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: .4, color: C.muted2, textTransform: 'uppercase' }}>Email types</span>
+      <LegendItem kind="greeting" desc="a warm wish — no sales" />
+      <LegendItem kind="offer" desc="carries a discount / offer" />
+      <LegendItem kind="promo" desc="a pitch, no discount" />
+    </div>
+  );
+}
+function LegendItem({ kind, desc }: { kind: Kind; desc: string }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <TypeBadge kind={kind} />
+      <span style={{ fontSize: 11, fontWeight: 600, color: C.muted2 }}>{desc}</span>
+    </span>
+  );
 }
 export function Marketing() {
   const [data, setData] = useState<any>(null);
@@ -59,31 +110,112 @@ export function Marketing() {
   if (!data) return <Spinner />;
   const findFull = (id: string) => data.campaigns.find((x: any) => String(x.id) === String(id));
 
+  const campaigns: any[] = data.campaigns ?? [];
+  const sentCount = campaigns.filter((c) => c.status === 'sent').length;
+  const pendingCount = campaigns.filter((c) => c.status === 'pending_approval').length;
+  const recentCampaigns = campaigns.slice(0, 6);
+  const upcoming = (cal ?? []).filter((o: any) => !o.needsDateConfirm && o.dateISO).slice(0, 6);
+  const corp = data.corporate ?? {};
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {!data.emailConfigured && (
         <div style={{ background: '#fff7ec', border: '1px solid #f0d9a8', borderRadius: 12, padding: '12px 15px', fontSize: 12.5, fontWeight: 600, color: '#8a6d2f', lineHeight: 1.6 }}>
           ⚙ Sending isn’t connected yet — set <b>RESEND_API_KEY</b> and <b>EMAIL_FROM</b> to start sending.
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <Tile label="Customer emails" value={data.audiences.all} onClick={() => openFlow('new', 'customer', 2)} />
-        <Tile label="Company emails" value={data.corporate?.emailable ?? 0} onClick={() => openFlow('new', 'company', 2)} />
+      {/* At-a-glance numbers — each opens the matching tool. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
+        <StatCard label="Customer emails" value={data.audiences.all} icon="👨‍👩‍👧" accent={ACCENTS[0]} i={0} onClick={() => openFlow('new', 'customer', 2)} />
+        <StatCard label="Company emails" value={corp.emailable ?? 0} icon="🏢" accent={ACCENTS[1]} i={1} onClick={() => openFlow('new', 'company', 2)} />
+        <StatCard label="Awaiting review" value={pendingCount} icon="📝" accent={ACCENTS[3]} i={2} hint={pendingCount ? 'needs approval' : undefined} onClick={() => openFlow('existing')} />
+        <StatCard label="Sent" value={sentCount} icon="✅" accent={ACCENTS[2]} i={3} onClick={() => setPerf(true)} />
       </div>
 
-      <Panel title="Marketing">
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
-          What would you like to do? 🌸
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, background: C.greenSoft, border: `1px solid ${C.line}`, borderRadius: 10, padding: '9px 13px' }}>{msg}</div>}
+
+      {/* Create */}
+      <div>
+        <SectionHeader>Create a campaign</SectionHeader>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
           <Choice emoji="🆕" label="New campaign" sub="Write and send a fresh one" onClick={() => openFlow('new')} />
-          <Choice emoji="📅" label="Existing occasion" sub="Review a draft that’s ready" onClick={() => openFlow('existing')} />
-          <Choice emoji="🏢" label="Companies directory" sub={`${data.corporate?.total ?? 0} businesses`} onClick={() => setCompanies(true)} />
-          <Choice emoji="📊" label="Campaigns & performance" sub={`${data.campaigns.filter((c: any) => c.status === 'sent').length} sent`} onClick={() => setPerf(true)} />
+          <Choice emoji="📅" label="From an occasion" sub="Review a ready-made draft" onClick={() => openFlow('existing')} />
         </div>
-        {msg && <div style={{ fontSize: 12.5, fontWeight: 700, color: C.green, marginTop: 12 }}>{msg}</div>}
-      </Panel>
+      </div>
+
+      <TypeLegend />
+
+      {/* Upcoming occasions — see at a glance which are greetings vs offers. */}
+      <div>
+        <SectionHeader action={<button onClick={() => openFlow('existing')} style={linkBtn}>View all ›</button>}>Upcoming occasions</SectionHeader>
+        <Panel style={{ padding: 6 }}>
+          {!cal ? <Spinner /> : upcoming.length === 0 ? <div style={{ padding: 12 }}><Empty>No upcoming occasions to show.</Empty></div> : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {upcoming.map((o: any, i: number) => {
+                const draft = o.consumer ?? o.corporate;
+                return (
+                  <button key={o.slug} onClick={() => openFlow('existing')} style={{ ...rowBtn, borderTop: i ? `1px solid ${C.lineSoft}` : 'none' }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontWeight: 800, fontSize: 13.5, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.name}</span>
+                      <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, marginTop: 2 }}>
+                        📅 {fmtDay(o.dateISO)}{typeof o.daysAway === 'number' ? ` · ${o.daysAway === 0 ? 'today' : `in ${o.daysAway}d`}` : ''}
+                      </span>
+                    </span>
+                    <TypeBadge kind={occasionKind(o)} />
+                    {draft
+                      ? <Badge tone={STATUS_TONE[draft.status] ?? 'neutral'}>{String(draft.status).replace(/_/g, ' ')}</Badge>
+                      : <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>not prepared</span>}
+                    <span style={{ color: C.muted, fontSize: 17, fontWeight: 700 }}>›</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      {/* Recent campaigns */}
+      <div>
+        <SectionHeader action={<button onClick={() => setPerf(true)} style={linkBtn}>Performance ›</button>}>Recent campaigns</SectionHeader>
+        <Panel style={{ padding: 6 }}>
+          {recentCampaigns.length === 0 ? <div style={{ padding: 12 }}><Empty>No campaigns yet — create one above.</Empty></div> : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {recentCampaigns.map((c: any, i: number) => (
+                <button key={c.id} onClick={() => openPreview(Number(c.id))} style={{ ...rowBtn, alignItems: 'flex-start', borderTop: i ? `1px solid ${C.lineSoft}` : 'none' }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontWeight: 700, fontSize: 13, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 5 }}>
+                      <TypeBadge kind={campaignKind(c)} />
+                      {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
+                      <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
+                      {c.status === 'sent' && <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>{c.sent_count ?? 0} sent · {c.opened_count ?? 0} opened</span>}
+                    </span>
+                  </span>
+                  <span style={{ color: C.muted, fontSize: 17, fontWeight: 700, marginTop: 2 }}>›</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      {/* Companies (B2B) */}
+      <div>
+        <SectionHeader action={<button onClick={() => setCompanies(true)} style={linkBtn}>Manage ›</button>}>Companies (B2B)</SectionHeader>
+        <Panel>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Stat label="Total" v={corp.total ?? 0} />
+            <Stat label="Emailable" v={corp.emailable ?? 0} tone={C.ink} />
+            <Stat label="Contacted" v={corp.contacted ?? 0} />
+            <Stat label="Replied" v={corp.replied ?? 0} tone={C.green} />
+            <Stat label="Interested" v={corp.interested ?? 0} tone={C.pinkDeep} />
+          </div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginTop: 12 }}>
+            Businesses we can email — grown automatically each week from Google.
+          </div>
+        </Panel>
+      </div>
 
       {flowInit && (
         <MarketingFlow
@@ -139,6 +271,7 @@ export function Marketing() {
                 <div key={c.id} style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                    <TypeBadge kind={campaignKind(c)} />
                     {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
                     <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
                   </div>
@@ -399,6 +532,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                                       <span style={{ display: 'block', fontWeight: 700, fontSize: 13.5, color: C.ink }}>{o.name}</span>
                                       {o.dateISO && <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, marginTop: 2 }}>📅 {fmtDay(o.dateISO)}</span>}
                                     </span>
+                                    <TypeBadge kind={occasionKind(o)} />
                                     {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
                                     <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
                                   </button>
@@ -419,8 +553,9 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {chosenCamp ? (
                   <>
-                    <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12.5, color: C.muted, fontWeight: 600 }}>
                       Status: <Badge tone={STATUS_TONE[chosenCamp.status] ?? 'neutral'}>{String(chosenCamp.status).replace(/_/g, ' ')}</Badge>
+                      <TypeBadge kind={occasionKind(occ)} />
                     </div>
                     <Action emoji="👁" label="Preview the email" onClick={() => onPreview(Number(chosenCamp.id))} />
                     {!occ.greetingOnly && <Action emoji="🧩" label={`Edit suggested services${occ.servicesCustom ? ' ✓' : ''}`} onClick={() => setSvc(true)} />}
@@ -743,17 +878,6 @@ function Modal({ title, children, onClose, onSave, onBack, busy, saveLabel }: {
   );
 }
 
-function Tile({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
-  const style: CSSProperties = { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', textAlign: 'left', cursor: onClick ? 'pointer' : 'default', width: '100%' };
-  const inner = (
-    <>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 5 }}>{label}{onClick ? ' ›' : ''}</div>
-      <div style={{ ...fredoka(22), color: C.ink }}>{value}</div>
-    </>
-  );
-  return onClick ? <button onClick={onClick} style={style}>{inner}</button> : <div style={style}>{inner}</div>;
-}
-
 function htmlToText(html: string): string {
   return String(html || '')
     .replace(/<\s*br\s*\/?>/gi, '\n')
@@ -776,3 +900,7 @@ function textToHtml(text: string): string {
 
 const input: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, borderRadius: 10, padding: '10px 12px', fontSize: 13, fontWeight: 600, outline: 'none', background: '#fff', color: C.ink };
 const miniBtn: CSSProperties = { border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: C.ink };
+/** A small "View all ›" link used in section headers. */
+const linkBtn: CSSProperties = { border: 'none', background: 'none', color: C.pinkDeep, fontSize: 11.5, fontWeight: 800, cursor: 'pointer', padding: 0 };
+/** A tappable list row inside a padded Panel (upcoming occasions / recent campaigns). */
+const rowBtn: CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: 'pointer', background: 'none', border: 'none', borderRadius: 10, padding: '11px 10px', color: C.ink };

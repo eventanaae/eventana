@@ -610,6 +610,37 @@ export const OCCASIONS: Occasion[] = [
   },
 ];
 
+/**
+ * Classify a stored campaign as a warm GREETING, an email that carries a
+ * DISCOUNT/OFFER, or a general PROMO (a sales pitch with no explicit discount).
+ * The dashboard uses this to badge every campaign so the owner can tell, at a
+ * glance, a greeting from an offer. Prefers the authoritative `greetingOnly`
+ * flag for occasion campaigns; otherwise reads the subject/body for an offer
+ * banner or discount wording. Pure/read-only — no DB access.
+ */
+export type CampaignKind = 'greeting' | 'offer' | 'promo';
+export function classifyCampaignKind(
+  c: { source?: string | null; dedupe_key?: string | null; subject?: string | null; body_html?: string | null },
+): CampaignKind {
+  // Authoritative: a greeting-only occasion never carries a sales push or offer.
+  if (c.dedupe_key && (c.source === 'occasion' || c.source === 'occasion_corp')) {
+    const slug = String(c.dedupe_key).split('|')[1];
+    const o = OCCASIONS.find((x) => x.slug === slug);
+    if (o?.greetingOnly) return 'greeting';
+  }
+  const body = String(c.body_html ?? '');
+  const hay = `${c.subject ?? ''} ${body}`.toLowerCase();
+  const hasOffer =
+    /border:\s*2px dashed/i.test(body)          // the dashed SPECIAL OFFER / promo-code banner
+    || /special offer|your code/i.test(body)
+    || /\d+\s*%\s*off|aed\s*\d+\s*off|\bdiscount\b|\bvoucher\b|\bcoupon\b|\bpromo code\b/i.test(hay)
+    || /خصم|قسيمة|كوبون|كود الخصم/.test(hay);
+  if (hasOffer) return 'offer';
+  const hasPitch = /what we can (bring|arrange)|why organisations choose|why eventana/i.test(body);
+  if (hasPitch) return 'promo';
+  return 'greeting';
+}
+
 /** Resolve the next upcoming date for an occasion, from `from` (inclusive). */
 export function nextOccasionDate(o: Occasion, from = new Date()): { dateISO: string; year: number } | null {
   const todayISO = from.toISOString().slice(0, 10);
