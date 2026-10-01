@@ -10,7 +10,7 @@
  * surface it — the fields that matter are amount, merchant, date and type.
  */
 import { createHash } from 'node:crypto';
-import { pool } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
 import { pushToOwner } from '../integrations/push.js';
 import { uploadBytes } from '../integrations/cloudinary.js';
 
@@ -654,49 +654,67 @@ export async function approveBankTransaction(
   opts: { category?: string; vendor?: string | null; receiptUrl?: string | null; spentOn?: string | null; description?: string | null; paymentMethod?: string | null; amountFils?: number | null },
   actor: string,
 ): Promise<{ ok: boolean; reason?: string; expenseId?: string }> {
-  const { rows } = await pool.query<any>(`SELECT * FROM bank_transactions WHERE id = $1 LIMIT 1`, [id]);
-  const tx = rows[0];
-  if (!tx) return { ok: false, reason: 'not_found' };
-  if (tx.status !== 'pending') return { ok: false, reason: `already_${tx.status}` };
+  // EX3: claim + post atomically. Without a lock, two concurrent approvals both
+  // pass the pending check and both INSERT the expense (double money/double email).
+  // `SELECT … FOR UPDATE` serialises approvers on this row: the second waits for
+  // the first to COMMIT, then reads status='approved' and returns early. All the
+  // writes (expense INSERT + status flip) commit together or not at all.
+  let supplierToAdd: string | null = null;
+  const result = await withTransaction<{ ok: boolean; reason?: string; expenseId?: string }>(async (db) => {
+    const { rows } = await db.query<any>(`SELECT * FROM bank_transactions WHERE id = $1 LIMIT 1 FOR UPDATE`, [id]);
+    const tx = rows[0];
+    if (!tx) return { ok: false, reason: 'not_found' };
+    if (tx.status !== 'pending') return { ok: false, reason: `already_${tx.status}` };
 
-  // The amount can be corrected at approval (rows captured with amount 0 when it
-  // couldn't be read). A non-positive amount must never post as an expense.
-  const amountFils = Math.round(Number(opts.amountFils ?? tx.amount_fils) || 0);
-  if (amountFils <= 0) return { ok: false, reason: 'amount_required' };
+    // The amount can be corrected at approval (rows captured with amount 0 when it
+    // couldn't be read). A non-positive amount must never post as an expense.
+    const amountFils = Math.round(Number(opts.amountFils ?? tx.amount_fils) || 0);
+    if (amountFils <= 0) return { ok: false, reason: 'amount_required' };
 
-  const isSettlement = tx.source === 'tabby' || tx.source === 'tamara';
-  const isAnthropic = tx.source === 'anthropic' || String(tx.merchant ?? '').toLowerCase() === 'anthropic';
-  // For settlement fees, the raw_text starts with the readable fee breakdown.
-  const settlementDesc = (isSettlement || isAnthropic)
-    ? String(tx.raw_text ?? '').split('\n')[0].slice(0, 300)
-    : null;
-  const description = (opts.description ?? settlementDesc ?? tx.merchant ?? 'Bank transaction').toString().slice(0, 300);
-  const vendor = (opts.vendor ?? tx.merchant ?? '').toString().trim() || null;
-  // Vendor is MANDATORY on every expense (owner's rule). Block approval — on any
-  // screen — that would create a vendorless expense, so the approver must set one.
-  if (!vendor) return { ok: false, reason: 'vendor_required' };
-  const isFee = isSettlement || tx.source === 'stripe' || tx.source === 'ziina';
-  const defaultCategory = isFee ? 'Payments/Bank fees' : isAnthropic ? 'Dues and Subscriptions' : tx.kind === 'transfer' ? 'transfer' : 'general';
-  const category = (opts.category ?? defaultCategory).toString().slice(0, 80);
-  const paymentMethod = opts.paymentMethod ?? (isSettlement ? 'settlement' : tx.kind === 'transfer' ? 'bank_transfer' : 'card');
-  const spentOn = opts.spentOn ?? tx.posted_on ?? null;
-  const receiptUrl = opts.receiptUrl ?? tx.receipt_url ?? null;
+    const isSettlement = tx.source === 'tabby' || tx.source === 'tamara';
+    const isAnthropic = tx.source === 'anthropic' || String(tx.merchant ?? '').toLowerCase() === 'anthropic';
+    // For settlement fees, the raw_text starts with the readable fee breakdown.
+    const settlementDesc = (isSettlement || isAnthropic)
+      ? String(tx.raw_text ?? '').split('\n')[0].slice(0, 300)
+      : null;
+    const description = (opts.description ?? settlementDesc ?? tx.merchant ?? 'Bank transaction').toString().slice(0, 300);
+    const vendor = (opts.vendor ?? tx.merchant ?? '').toString().trim() || null;
+    // Vendor is MANDATORY on every expense (owner's rule). Block approval — on any
+    // screen — that would create a vendorless expense, so the approver must set one.
+    if (!vendor) return { ok: false, reason: 'vendor_required' };
+    const isFee = isSettlement || tx.source === 'stripe' || tx.source === 'ziina';
+    const defaultCategory = isFee ? 'Payments/Bank fees' : isAnthropic ? 'Dues and Subscriptions' : tx.kind === 'transfer' ? 'transfer' : 'general';
+    const category = (opts.category ?? defaultCategory).toString().slice(0, 80);
+    const paymentMethod = opts.paymentMethod ?? (isSettlement ? 'settlement' : tx.kind === 'transfer' ? 'bank_transfer' : 'card');
+    const spentOn = opts.spentOn ?? tx.posted_on ?? null;
+    const receiptUrl = opts.receiptUrl ?? tx.receipt_url ?? null;
 
-  const exp = await pool.query<{ id: string }>(
-    `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, receipt_url, payment_method, recorded_by, source)
-     VALUES ($1,$2,$3,$4,COALESCE($5::date, current_date),$6,$7,$8,'bank') RETURNING id`,
-    [category, description, amountFils, vendor, spentOn, receiptUrl, paymentMethod, actor],
-  );
-  const expenseId = String(exp.rows[0].id);
-  // If the amount was corrected at approval, reflect it on the bank row too.
-  if (amountFils !== Number(tx.amount_fils)) {
-    await pool.query(`UPDATE bank_transactions SET amount_fils = $2 WHERE id = $1`, [id, amountFils]).catch(() => {});
-  }
+    const exp = await db.query<{ id: string }>(
+      `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, receipt_url, payment_method, recorded_by, source)
+       VALUES ($1,$2,$3,$4,COALESCE($5::date, current_date),$6,$7,$8,'bank') RETURNING id`,
+      [category, description, amountFils, vendor, spentOn, receiptUrl, paymentMethod, actor],
+    );
+    const expenseId = String(exp.rows[0].id);
+    // If the amount was corrected at approval, reflect it on the bank row too.
+    if (amountFils !== Number(tx.amount_fils)) {
+      await db.query(`UPDATE bank_transactions SET amount_fils = $2 WHERE id = $1`, [id, amountFils]);
+    }
+
+    await db.query(
+      `UPDATE bank_transactions SET status='approved', expense_id=$2, receipt_url=COALESCE($3, receipt_url), decided_by=$4, decided_at=now() WHERE id=$1`,
+      [id, expenseId, receiptUrl, actor],
+    );
+    // Remember the supplier for the best-effort directory upsert AFTER commit (a
+    // failure there must not roll back a posted expense, nor poison this tx).
+    supplierToAdd = vendor;
+    return { ok: true, expenseId };
+  });
 
   // If the supplier chosen at approval isn't in our list yet, add it — so it's
-  // reusable and shows in the supplier autocomplete next time. Idempotent.
-  if (vendor && String(vendor).trim()) {
-    const name = String(vendor).trim().slice(0, 200);
+  // reusable and shows in the supplier autocomplete next time. Idempotent, and
+  // best-effort: outside the approval transaction so it can never undo the post.
+  if (result.ok && supplierToAdd && String(supplierToAdd).trim()) {
+    const name = String(supplierToAdd).trim().slice(0, 200);
     await pool.query(
       `INSERT INTO suppliers (name, created_by)
        SELECT $1, $2
@@ -705,11 +723,7 @@ export async function approveBankTransaction(
     ).catch(() => {});
   }
 
-  await pool.query(
-    `UPDATE bank_transactions SET status='approved', expense_id=$2, receipt_url=COALESCE($3, receipt_url), decided_by=$4, decided_at=now() WHERE id=$1`,
-    [id, expenseId, receiptUrl, actor],
-  );
-  return { ok: true, expenseId };
+  return result;
 }
 
 /** Ignore a pending transaction (OWNER-ONLY — enforced in the route). */

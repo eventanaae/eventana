@@ -97,12 +97,18 @@ async function bankAccounts(token: string): Promise<ZohoAccount[]> {
  *  money OUT of the account (withdrawal/payment) = "credit"; money IN = "debit".
  *  Verified on a real feed line (a 10 AED withdrawal came through as "credit"). */
 function isMoneyOut(t: any): boolean {
+  const tt = String(t.transaction_type ?? '').toLowerCase();
+  // EX1: an internal account-to-account transfer (Zoho 'transfer_fund', e.g.
+  // RAKBANK⇄Wio) is NOT a spend — the money leaves one of our accounts and lands
+  // in another. Queuing it as an expense wrongly cuts Cash on hand (the matching
+  // credit side into the other account is never ingested). Skip it on EITHER
+  // ledger direction so it can never post as a debit.
+  if (tt === 'transfer_fund') return false;
   const dc = String(t.debit_or_credit ?? '').toLowerCase();
   if (dc === 'credit') return true;  // money OUT of the bank account
   if (dc === 'debit') return false;  // money IN
-  const tt = String(t.transaction_type ?? '').toLowerCase();
   // Fallback for categorized types (feed lines are 'uncategorized', so rarely hit).
-  return ['expense', 'card_payment', 'owner_drawings', 'vendor_payment', 'transfer_fund'].includes(tt);
+  return ['expense', 'card_payment', 'owner_drawings', 'vendor_payment'].includes(tt);
 }
 
 export async function syncZohoBank(): Promise<void> {

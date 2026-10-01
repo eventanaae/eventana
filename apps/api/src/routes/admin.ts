@@ -2772,6 +2772,13 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.delete('/api/admin/expenses/:id', async (request) => {
     const id = Number((request.params as { id: string }).id);
+    // EX5: if this expense was posted from a bank-feed row, return that row to the
+    // Bank Inbox as pending BEFORE deleting. The FK ON DELETE SET NULL only nulls
+    // expense_id and leaves status='approved' with its dedup key intact — so a
+    // mistaken delete would otherwise lose the spend forever (never re-captured,
+    // never re-reviewable). Purely manual expenses (no linked bank row) are
+    // untouched: the WHERE matches nothing.
+    await pool.query(`UPDATE bank_transactions SET status='pending', expense_id=NULL WHERE expense_id = $1`, [id]);
     await pool.query(`DELETE FROM expenses WHERE id = $1`, [id]);
     return { deleted: true };
   });
