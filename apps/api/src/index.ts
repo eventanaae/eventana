@@ -769,6 +769,32 @@ async function main() {
     })();
   }
 
+  // One-shot READ-ONLY diagnostic: the real state of refunds (why the dashboard
+  // "Total refunded" shows 0 and whether a given order has a refund). Set
+  // DIAG_REFUNDS=true for one deploy, then unset.
+  if (String(process.env.DIAG_REFUNDS ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const tot = await pool.query(`SELECT COUNT(*)::int c, COALESCE(SUM(amount_fils),0)::bigint s, COUNT(*) FILTER (WHERE event_id IS NULL)::int nullev FROM refunds`);
+        console.log(`[diag-refunds] refunds table: ${tot.rows[0].c} rows, sum=${tot.rows[0].s} fils, ${tot.rows[0].nullev} with NULL event_id`);
+        const recent = await pool.query(
+          `SELECT order_id, event_id, amount_fils, reason_category, to_char(created_at,'YYYY-MM-DD HH24:MI') AS at FROM refunds ORDER BY created_at DESC LIMIT 10`);
+        for (const r of recent.rows as any[]) console.log(`[diag-refunds] ${r.at} · order=${r.order_id} · event=${r.event_id} · ${r.amount_fils} · ${r.reason_category}`);
+        // How the CEO dashboard counts it (JOIN events on event_id, by event_date this year):
+        const dash = await pool.query(
+          `SELECT COALESCE(SUM(r.amount_fils),0)::bigint v, COUNT(*)::int c FROM refunds r JOIN events e ON e.id = r.event_id
+            WHERE e.event_date >= date_trunc('year', CURRENT_DATE) AND e.event_date < date_trunc('year', CURRENT_DATE) + interval '1 year'`);
+        console.log(`[diag-refunds] CEO 'this year' (JOIN events by event_date): ${dash.rows[0].c} rows, ${dash.rows[0].v} fils`);
+        const o48 = await pool.query(`SELECT status FROM orders WHERE id='EVT-ORD-000048'`);
+        const r48 = await pool.query(`SELECT refunded_fils, total_fils FROM finance_receipts WHERE order_id='EVT-ORD-000048'`);
+        console.log(`[diag-refunds] EVT-ORD-000048: order status=${o48.rows[0]?.status}; receipt refunded_fils=${r48.rows[0]?.refunded_fils}, total=${r48.rows[0]?.total_fils}`);
+      } catch (e) {
+        console.error('[diag-refunds] failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
