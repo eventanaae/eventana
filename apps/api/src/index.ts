@@ -745,8 +745,8 @@ async function main() {
       try {
         const { pool } = await import('./db/pool.js');
         const r = await pool.query(
-          `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS d, e.phase,
-                  COALESCE(NULLIF(btrim(initcap(o.cart->>'eventFor')),''), c.name) AS name,
+          `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS d, e.phase, e.source AS src,
+                  MAX(COALESCE(NULLIF(btrim(initcap(o.cart->>'eventFor')),''), c.name)) AS evname,
                   COALESCE(array_agg(DISTINCT tm.name) FILTER (WHERE tm.name IS NOT NULL), '{}') AS crew
              FROM events e
              LEFT JOIN orders o ON o.id = e.order_id
@@ -756,12 +756,12 @@ async function main() {
             WHERE e.phase = 'Event Completed'
               AND e.event_date >= date_trunc('month', CURRENT_DATE)
               AND e.event_date <  date_trunc('month', CURRENT_DATE) + interval '1 month'
-            GROUP BY e.id, e.event_date, e.phase, name
+            GROUP BY e.id, e.event_date, e.phase, e.source
             ORDER BY e.event_date`,
         );
         console.log(`[diag-completed] this month: ${r.rowCount} completed event(s)`);
         for (const row of r.rows as any[]) {
-          console.log(`[diag-completed] ${row.d} · ${row.id} · "${row.name}" · crew: ${(row.crew || []).join(', ')}`);
+          console.log(`[diag-completed] ${row.d} · ${row.id} · src=${row.src} · "${row.evname}" · crew: ${(row.crew || []).join(', ')}`);
         }
       } catch (e) {
         console.error('[diag-completed] failed:', (e as Error).message);
