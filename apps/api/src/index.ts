@@ -737,6 +737,38 @@ async function main() {
     })();
   }
 
+  // One-shot READ-ONLY diagnostic: which events count as "Event Completed" THIS
+  // month (the points source) and who worked them. Set DIAG_COMPLETED=true for one
+  // deploy, then unset. Explains why the competition board shows points so early.
+  if (String(process.env.DIAG_COMPLETED ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const r = await pool.query(
+          `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS d, e.phase,
+                  COALESCE(NULLIF(btrim(initcap(o.cart->>'eventFor')),''), c.name) AS name,
+                  COALESCE(array_agg(DISTINCT tm.name) FILTER (WHERE tm.name IS NOT NULL), '{}') AS crew
+             FROM events e
+             LEFT JOIN orders o ON o.id = e.order_id
+             LEFT JOIN customers c ON c.id = e.customer_id
+             LEFT JOIN event_staff es ON es.event_id = e.id AND es.assignee_id IS NOT NULL
+             LEFT JOIN team_members tm ON tm.id = es.assignee_id
+            WHERE e.phase = 'Event Completed'
+              AND e.event_date >= date_trunc('month', CURRENT_DATE)
+              AND e.event_date <  date_trunc('month', CURRENT_DATE) + interval '1 month'
+            GROUP BY e.id, e.event_date, e.phase, name
+            ORDER BY e.event_date`,
+        );
+        console.log(`[diag-completed] this month: ${r.rowCount} completed event(s)`);
+        for (const row of r.rows as any[]) {
+          console.log(`[diag-completed] ${row.d} · ${row.id} · "${row.name}" · crew: ${(row.crew || []).join(', ')}`);
+        }
+      } catch (e) {
+        console.error('[diag-completed] failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
