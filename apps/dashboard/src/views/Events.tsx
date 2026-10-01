@@ -61,7 +61,7 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
     return (
       <div
         onClick={() => onOpenEvent(e.id)}
-        style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+        style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 14, padding: '13px 15px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'flex-start', boxShadow: C.shadow }}
       >
         <div style={{ width: 54, flex: 'none', textAlign: 'center', background: C.pinkSoft, borderRadius: 11, padding: '7px 0', color: C.pinkDeep }}>
           {wd && <div style={{ fontSize: 11, fontWeight: 700 }}>{wd}</div>}
@@ -69,17 +69,22 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           {mo && <div style={{ fontSize: 10.5, fontWeight: 700 }}>{mo}</div>}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
             <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</span>
+            {/* The order amount in a pink pill (same treatment as the Home cards),
+                not plain right-aligned text. */}
             {e.totalDisplay != null && (
-              <span style={{ fontWeight: 700, fontSize: 13, color: C.ink, whiteSpace: 'nowrap' }}>AED {e.totalDisplay}</span>
+              <span style={{ flex: 'none', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>AED {e.totalDisplay}</span>
             )}
           </div>
           {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
+          {/* Theme shown clearly on its own line (prominent, like the Home cards). */}
+          {e.theme_name && (
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {e.theme_name}</div>
+          )}
           <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
             <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.reference ?? e.id}</span> ·{' '}
             {timeRange12h(e.start_time, e.base_end_time)} · {e.emirate}
-            {e.theme_name ? ` · 🎨 ${e.theme_name}` : ''}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <Badge tone={e.phase === 'Cancelled' ? 'error' : e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
