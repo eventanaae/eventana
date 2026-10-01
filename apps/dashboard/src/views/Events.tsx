@@ -367,6 +367,30 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                           ))}
                         </div>
                       )}
+                      {(() => {
+                        // Reconcile the list to what the customer actually paid: the
+                        // order total includes delivery/setup (and the price-hidden
+                        // giveaways), which aren't itemised above — so show the gap +
+                        // the real total, matching "Payments & audit trail".
+                        const ordersTotal = (data.orders ?? []).reduce((sum: number, o: any) =>
+                          sum + (Number(o.total_fils) || Math.round(Number(String(o.totalDisplay ?? '0').replace(/[^\d.]/g, '')) * 100)), 0);
+                        if (ordersTotal <= 0) return null;
+                        const shownSum = main.filter((s: any) => !isGiveaway(s) && Number(s.amount_fils) > 0)
+                          .reduce((sum: number, x: any) => sum + Number(x.amount_fils), 0);
+                        const gap = ordersTotal - shownSum;
+                        return (
+                          <div style={{ marginTop: 6, borderTop: `1px solid ${C.line}`, paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {gap > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: C.muted }}>
+                                <span>🚚 Delivery &amp; extras</span><span>AED {money(gap)}</span>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, color: C.ink }}>
+                              <span>Total paid</span><span style={{ color: C.pinkDeep }}>AED {money(ordersTotal)}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
