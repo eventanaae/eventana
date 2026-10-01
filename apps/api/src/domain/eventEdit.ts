@@ -45,6 +45,7 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
     if (!ev) throw new EventEditError('Event not found.', 'not_found');
 
     // ── Time change → move the event window and its reserved holds ──────────
+    let timeChanged = false;
     if (patch.startTime || patch.endTime) {
       const newStart = patch.startTime ?? ev.start_time;
       const newEnd = patch.endTime ?? ev.base_end_time;
@@ -97,6 +98,9 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
           [eventId, win.startsAt, win.endsAt, asset.code],
         );
       }
+      // Did the window actually move? (An edit can send the same time, or only
+      // touch non-time fields.) Compared as the stored "HH:MM" strings.
+      timeChanged = newStart !== ev.start_time || newEnd !== ev.base_end_time;
       await db.query(`UPDATE events SET start_time = $2, base_end_time = $3 WHERE id = $1`, [eventId, newStart, newEnd]);
       // Move the still-unsent reminders (3-day / party-day / feedback) to the NEW
       // start moment — the customer reschedule path does this; the staff edit
@@ -216,11 +220,21 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       );
     }
 
-    return { ok: true as const, calendarAffected: Boolean(patch.startTime || patch.endTime || locationChanged) };
+    return { ok: true as const, calendarAffected: Boolean(patch.startTime || patch.endTime || locationChanged), timeChanged };
   });
 
   // Keep the shared team Google Calendar in step after a time/location edit
   // (best-effort, outside the transaction — same as the reschedule path).
   if (res.calendarAffected) void syncEventToCalendar(eventId);
+  // The event window actually moved: re-run staffing so crew/driver double-booking
+  // conflicts are re-evaluated for the NEW time and stale ones clear — mirroring
+  // the customer reschedule path. Best-effort, outside the transaction, so a slow
+  // engine never blocks the edit; only fired on a REAL time change (not a
+  // phone/name/theme-only edit).
+  if (res.timeChanged) {
+    void import('./staffing.js')
+      .then(({ assignStaffForEvent }) => assignStaffForEvent(eventId))
+      .catch((e) => console.error('[staffing] staff edit re-assign failed:', (e as Error).message));
+  }
   return { ok: true };
 }

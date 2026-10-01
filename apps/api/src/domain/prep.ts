@@ -378,7 +378,11 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
 
     // If this key already had people before the rebuild, KEEP them (this is how
     // a manual assignee fill survives a regenerate); otherwise auto-assign fairly.
-    const preserved = prevAssigneeMap.get(t.key) ?? [];
+    // BUT drop any prior assignee who is on the NEW date's day-off (same off/
+    // offDesign filter the auto branch uses) so they fall through to auto-assign /
+    // a gap alert instead of being kept on a day they're off.
+    const offSet = t.category === 'design' ? offDesign : off;
+    const preserved = (prevAssigneeMap.get(t.key) ?? []).filter((m) => !offSet.has(m));
     if (preserved.length) {
       for (const m of preserved) {
         await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, m]);
@@ -387,7 +391,6 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
     } else {
       // Fair assignment: qualified, not on day-off, lowest workload first. Assign
       // as many distinct people as the task needs (two-person tasks get two).
-      const offSet = t.category === 'design' ? offDesign : off;
       const cands = staff
         .filter((s) => s.skills.has(t.skill) && !offSet.has(s.id))
         .sort((a, b) => (workload.get(a.id) ?? 0) - (workload.get(b.id) ?? 0));

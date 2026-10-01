@@ -1562,7 +1562,7 @@ export async function adminRoutes(app: FastifyInstance) {
             await pool.query(
               `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
                SELECT $1, v.ch, 'feedback_request', now(), $2::jsonb
-                 FROM (VALUES ('email'),('whatsapp')) v(ch)
+                 FROM (VALUES ('email')) v(ch)
                 WHERE NOT EXISTS (
                   SELECT 1 FROM notifications n
                    WHERE n.event_id = $1 AND n.template = 'feedback_request' AND n.channel = v.ch AND n.cancelled_at IS NULL)`,

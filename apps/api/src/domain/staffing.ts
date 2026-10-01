@@ -281,9 +281,14 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   );
   for (const rm of removed.rows) {
     let n = Number(rm.n) || 0;
-    for (const r of reqs) {
+    // Subtract OPTIONAL slots before required ones: order this role's matching
+    // reqs so those whose reason reads "…(optional)…" come first, so a one-tap
+    // remove drops the optional backdrop helper rather than a required slot.
+    const matching = reqs
+      .filter((r) => r.role === rm.role)
+      .sort((a, b) => (/optional/i.test(a.reason) ? 0 : 1) - (/optional/i.test(b.reason) ? 0 : 1));
+    for (const r of matching) {
       if (n <= 0) break;
-      if (r.role !== rm.role) continue;
       const take = Math.min(r.count, n);
       r.count -= take;
       n -= take;
