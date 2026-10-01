@@ -1923,6 +1923,15 @@ export async function adminRoutes(app: FastifyInstance) {
     return buildStaffPayReport(month && /^\d{4}-\d{2}-\d{2}$/.test(month) ? month : undefined);
   });
 
+  // Who's booked in the FUTURE (part-timers + deliveries) with their phones, so
+  // the owner can reach them before the event (owner/manager).
+  app.get('/api/admin/staff-upcoming', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const { buildUpcomingStaff } = await import('../domain/staffPayReport.js');
+    return buildUpcomingStaff();
+  });
+
   // Record a monthly payment to a part-timer/driver + (gated) WhatsApp them.
   app.post('/api/admin/staff-pay/mark', async (request, reply) => {
     const staff = (request as any).staff as { role?: string; name?: string };

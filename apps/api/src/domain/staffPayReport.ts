@@ -180,6 +180,99 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
   return { month: monthStr, monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers, deliveryTotalDisplay: formatAed(deliveryTotal), driverPayouts };
 }
 
+export type UpcomingStaff = {
+  partTimers: Array<{ name: string; role: string; job: string; priceFils: number; phone: string | null; eventDate: string; eventRef: string; eventName: string | null }>;
+  drivers: Array<{ driverName: string; phone: string | null; emirate: string; truck: string | null; priceFils: number | null; eventDate: string; eventRef: string | null; eventName: string | null }>;
+};
+
+/**
+ * Who's booked in the FUTURE (so the owner can reach them before the event):
+ * upcoming clown / face-paint part-timers, and upcoming driver deliveries — each
+ * with the person's phone. Mirrors the monthly report's joins/filters but inverts
+ * the date window to tomorrow-onwards, with no month bounds.
+ */
+export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
+  // Phone maps — same sources as the monthly report.
+  const [ptPhones, drPhones] = await Promise.all([
+    pool.query<{ name_norm: string; phone: string | null }>(`SELECT name_norm, phone FROM part_timers WHERE active`),
+    pool.query<{ name_norm: string; phone: string | null }>(`SELECT lower(name) AS name_norm, phone FROM drivers WHERE active`),
+  ]);
+  const ptPhone = new Map(ptPhones.rows.map((r) => [r.name_norm, r.phone]));
+  const drPhone = new Map(drPhones.rows.map((r) => [r.name_norm, r.phone]));
+
+  // A friendly event name (guest-of-honour or customer) + booking reference —
+  // same derivation as the staff event brief (EV-<receipt number>, else event id).
+  const EV_REF = `(SELECT fr.number FROM finance_receipts fr
+                    WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
+                    ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1)`;
+  const EV_NAME = `COALESCE(NULLIF(btrim(initcap(o.cart->>'eventFor')), ''), c.name)`;
+
+  // Upcoming part-timer engagements (clown / face paint), tomorrow onwards.
+  const pt = await pool.query<{ name: string; role: string; emirate: string | null; date: string; event_id: string; event_name: string | null; receipt_number: string | null }>(
+    `SELECT btrim(es.part_time_name) AS name, es.role, e.emirate,
+            to_char(e.event_date,'YYYY-MM-DD') AS date,
+            e.id AS event_id, ${EV_NAME} AS event_name, ${EV_REF} AS receipt_number
+       FROM event_staff es JOIN events e ON e.id = es.event_id
+       LEFT JOIN orders o ON o.id = e.order_id
+       LEFT JOIN customers c ON c.id = e.customer_id
+      WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
+        AND es.role IN ('clown', 'acrobat_clown', 'face_painting')
+        AND e.phase IS DISTINCT FROM 'Cancelled'
+        AND e.event_date > CURRENT_DATE
+      ORDER BY e.event_date, btrim(es.part_time_name)`,
+  );
+  const partTimers = pt.rows.map((r) => {
+    const { job, fils } = jobOf(r.role);
+    return { name: r.name, role: r.role, job, priceFils: fils, phone: ptPhone.get(r.name.toLowerCase()) ?? null,
+      eventDate: r.date, eventRef: r.receipt_number ? `EV-${r.receipt_number}` : r.event_id, eventName: (r.event_name ?? '').trim() || null };
+  });
+
+  // Upcoming deliveries — event-assigned drivers (excluding salaried own-van Shan)
+  // plus any owner-set truck/price, and future manual deliveries.
+  const [evd, man] = await Promise.all([
+    pool.query<{ event_id: string; name: string; emirate: string | null; date: string; truck: string | null; price_fils: string | null; price_manual: boolean | null; event_name: string | null; receipt_number: string | null }>(
+      `SELECT e.id AS event_id, COALESCE(tm.name, btrim(es.part_time_name), 'Driver') AS name,
+              e.emirate, to_char(e.event_date,'YYYY-MM-DD') AS date,
+              d.truck, d.price_fils, d.price_manual,
+              ${EV_NAME} AS event_name, ${EV_REF} AS receipt_number
+         FROM event_staff es JOIN events e ON e.id = es.event_id
+         LEFT JOIN team_members tm ON tm.id = es.assignee_id
+         LEFT JOIN deliveries d ON d.event_id = e.id
+         LEFT JOIN orders o ON o.id = e.order_id
+         LEFT JOIN customers c ON c.id = e.customer_id
+        WHERE es.role IN ('driver','pt_driver')
+          AND (es.role = 'pt_driver' OR es.assignee_id IS NULL OR lower(tm.name) <> 'shan')
+          AND e.phase IS DISTINCT FROM 'Cancelled'
+          AND e.event_date > CURRENT_DATE
+        ORDER BY e.event_date`,
+    ),
+    pool.query<{ id: string; date: string; driver_name: string | null; emirate: string | null; truck: string | null; price_fils: string | null; price_manual: boolean | null }>(
+      `SELECT id, to_char(del_date,'YYYY-MM-DD') AS date, driver_name, emirate, truck, price_fils, price_manual
+         FROM deliveries
+        WHERE event_id IS NULL
+          AND del_date > CURRENT_DATE
+        ORDER BY del_date`,
+    ),
+  ]);
+
+  const priceOf = (truck: string | null, emirate: string | null, override: string | null, manual: boolean | null): number | null =>
+    (manual && override != null) ? Number(override) : deliveryPriceFils(truck, emirate);
+
+  const drivers = [
+    ...evd.rows.map((r) => ({
+      driverName: r.name, phone: drPhone.get(r.name.toLowerCase()) ?? null, emirate: r.emirate || '—', truck: r.truck,
+      priceFils: priceOf(r.truck, r.emirate, r.price_fils, r.price_manual), eventDate: r.date,
+      eventRef: r.receipt_number ? `EV-${r.receipt_number}` : r.event_id, eventName: (r.event_name ?? '').trim() || null,
+    })),
+    ...man.rows.map((r) => ({
+      driverName: r.driver_name || 'External driver', phone: drPhone.get((r.driver_name ?? '').toLowerCase()) ?? null, emirate: r.emirate || '—', truck: r.truck,
+      priceFils: priceOf(r.truck, r.emirate, r.price_fils, r.price_manual), eventDate: r.date, eventRef: null, eventName: null,
+    })),
+  ].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+
+  return { partTimers, drivers };
+}
+
 /**
  * Record a monthly payment to a part-timer or driver, and (if WhatsApp is on and
  * the template approved) message them their orders + total for the month. Returns

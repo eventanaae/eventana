@@ -43,19 +43,87 @@ function PayButton({ kind, name, suggestedFils, month, paid, paidDisplay, onPaid
   );
 }
 
+// Step a 'YYYY-MM' month string back/forward by `delta` months.
+function stepMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, (m - 1) + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+const jobEmoji = (role: string) => role === 'face_painting' ? '🎨' : '🤡';
+
 export function StaffPay() {
+  const curMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const [month, setMonth] = useState<string>(curMonth);
   const [data, setData] = useState<any>(null);
-  const reload = () => api.staffPayReport().then(setData).catch(() => setData({ partTimers: [], drivers: [] }));
-  useEffect(() => { reload(); }, []);
+  const [upcoming, setUpcoming] = useState<any>(null);
+  const reload = (m: string = month) => api.staffPayReport(`${m}-01`).then(setData).catch(() => setData({ partTimers: [], drivers: [] }));
+  useEffect(() => { reload(month); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { api.staffUpcoming().then(setUpcoming).catch(() => setUpcoming({ partTimers: [], drivers: [] })); }, []);
+  const goMonth = (delta: number) => { const m = stepMonth(month, delta); if (m > curMonth) return; setMonth(m); reload(m); };
   if (!data) return <Spinner />;
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  const navBtn = (disabled: boolean) => ({ border: `1px solid ${C.line}`, background: disabled ? '#F6EDF2' : '#fff', color: disabled ? C.muted2 : C.pinkDeep, borderRadius: 9, padding: '4px 11px', fontSize: 14, fontWeight: 800, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1 } as const);
+  const atCurrent = month >= curMonth;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
         <div style={{ ...fredoka(20) }}>🤡🚐 Part-timers & Drivers</div>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, marginTop: 2 }}>{data.monthLabel} · emailed to you & Marsha on the 1st</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          <button onClick={() => goMonth(-1)} style={navBtn(false)} title="Previous month">◀</button>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted }}>{data.monthLabel} · emailed to you & Marsha on the 1st</div>
+          <button disabled={atCurrent} onClick={() => goMonth(1)} style={navBtn(atCurrent)} title="Next month">▶</button>
+        </div>
       </div>
+
+      <Panel title="⏭️ Upcoming">
+        {!upcoming ? <Spinner /> : ((upcoming.partTimers?.length ?? 0) === 0 && (upcoming.drivers?.length ?? 0) === 0) ? (
+          <Empty>No part-timers or deliveries scheduled ahead yet.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {(upcoming.partTimers?.length ?? 0) > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: C.muted2, marginBottom: 6 }}>🤡 Part-timers coming up</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {upcoming.partTimers.map((p: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>{p.name}</div>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 2 }}>
+                          {jobEmoji(p.role)} {p.job} · AED {Math.round(p.priceFils / 100)} · {fmtDate(p.eventDate)} · {p.eventName || p.eventRef}
+                        </div>
+                      </div>
+                      {p.phone
+                        ? <a href={`tel:${p.phone}`} style={{ fontSize: 12.5, fontWeight: 800, color: C.pinkDeep, textDecoration: 'none', whiteSpace: 'nowrap' }}>📞 {p.phone}</a>
+                        : <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2, whiteSpace: 'nowrap' }}>no phone ⚠️</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(upcoming.drivers?.length ?? 0) > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: C.muted2, marginBottom: 6 }}>🚐 Deliveries coming up</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {upcoming.drivers.map((d: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>{d.driverName}</div>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 2 }}>
+                          {d.truck ? `${d.truck === 'small' ? '🚐 Small' : '🚛 Big'} truck · ` : ''}📍 {d.emirate} · {fmtDate(d.eventDate)}{d.eventName || d.eventRef ? ` · ${d.eventName || d.eventRef}` : ''}
+                        </div>
+                      </div>
+                      {d.phone
+                        ? <a href={`tel:${d.phone}`} style={{ fontSize: 12.5, fontWeight: 800, color: C.pinkDeep, textDecoration: 'none', whiteSpace: 'nowrap' }}>📞 {d.phone}</a>
+                        : <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2, whiteSpace: 'nowrap' }}>no phone ⚠️</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Panel>
 
       <Panel title="🤡 Part-timers" action={<Badge tone="info">total {data.partTimerTotalDisplay ?? '—'}</Badge>}>
         {(!data.partTimers || data.partTimers.length === 0) ? (
