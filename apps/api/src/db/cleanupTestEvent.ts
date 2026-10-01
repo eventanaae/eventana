@@ -1,17 +1,46 @@
 /**
- * Fully delete ONE event and everything attached to it (owner-requested cleanup
- * of a test booking). Gated by DELETE_EVENT=<eventId>. Deletes child rows first
- * (notifications, staffing, services, tasks, prep, designs, ratings, tips, holds,
- * messages), then the linked receipt/invoice, the event, its order + payments,
- * and finally the test customer if it has no other events.
+ * Fully delete an event and everything attached to it (owner-requested cleanup
+ * of test bookings). Two gates:
+ *   • DELETE_EVENT=<id>[,<id>…]  — delete these specific event(s).
+ *   • DELETE_TEST_EVENTS=true    — find & delete every TEST booking (customer or
+ *     guest-of-honour name like "Tabby Qa"/"Tamara Qa" — the payment-gateway QA
+ *     bookings) so their fake points/receipts vanish.
+ * Deletes child rows first (notifications, staffing, services, tasks, prep,
+ * designs, ratings, tips, holds, messages), reverses loyalty points, then the
+ * linked receipt/invoice, the event, its order + payments, and finally the test
+ * customer if it has no other events.
  */
 import { pool } from './pool.js';
 
 const P = (s: string) => console.log(`[del-event] ${s}`);
 
 export async function cleanupTestEventFromEnv(): Promise<void> {
-  const eventId = String(process.env.DELETE_EVENT ?? '').trim();
-  if (!eventId) return;
+  const ids: string[] = [];
+  const explicit = String(process.env.DELETE_EVENT ?? '').trim();
+  if (explicit) ids.push(...explicit.split(',').map((s) => s.trim()).filter(Boolean));
+  // Auto-find test bookings by the known QA customer / guest-of-honour names.
+  if (String(process.env.DELETE_TEST_EVENTS ?? '').toLowerCase() === 'true') {
+    try {
+      const found = await pool.query<{ id: string }>(
+        `SELECT DISTINCT e.id FROM events e
+           LEFT JOIN customers c ON c.id = e.customer_id
+           LEFT JOIN orders o ON o.id = e.order_id
+          WHERE lower(COALESCE(c.name,'')) LIKE '%tabby qa%'
+             OR lower(COALESCE(c.name,'')) LIKE '%tamara qa%'
+             OR lower(COALESCE(o.cart->>'eventFor','')) LIKE '%tabby qa%'
+             OR lower(COALESCE(o.cart->>'eventFor','')) LIKE '%tamara qa%'`,
+      );
+      for (const r of found.rows) if (!ids.includes(r.id)) ids.push(r.id);
+      P(`test-booking scan: found ${found.rowCount} (${found.rows.map((r) => r.id).join(', ') || 'none'})`);
+    } catch (e) { P(`test-booking scan failed: ${(e as Error).message.slice(0, 60)}`); }
+  }
+  if (!ids.length) return;
+  P(`deleting ${ids.length} event(s): ${ids.join(', ')}`);
+  for (const eventId of ids) await deleteOneEvent(eventId);
+  P('ALL DONE');
+}
+
+async function deleteOneEvent(eventId: string): Promise<void> {
   try {
     const info = await pool.query(
       `SELECT e.order_id, e.customer_id, c.name FROM events e
