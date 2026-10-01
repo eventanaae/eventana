@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { CELEBRATION_TYPES } from '@eventana/shared';
 import { api } from '../api';
-import { Button, C, Panel, Spinner, fredoka, money } from '../ui';
+import { Badge, Button, C, Panel, Spinner, fredoka, money } from '../ui';
 import { NewOrder } from './NewOrder';
 
 /**
@@ -311,6 +311,8 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
   const [addon, setAddon] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [sel, setSel] = useState<any>(null);
+  const [refundPick, setRefundPick] = useState(false);
+  const [refundTarget, setRefundTarget] = useState<any>(null);
   const [q, setQ] = useState('');
   const load = () => api.finReceipts().then(setData).catch(() => setData({ receipts: [] }));
   useEffect(() => { load(); }, []);
@@ -352,6 +354,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
         <Button onClick={() => setNewOrder(true)}>+ New order</Button>
         <Button tone="ghost" onClick={() => setAddon(true)}>+ Add-on</Button>
         <Button tone="ghost" onClick={() => setCreating(true)}>+ New manual receipt</Button>
+        <Button tone="danger" onClick={() => setRefundPick(true)} style={{ gridColumn: '1 / -1' }}>↩ Refund</Button>
       </div>
       {data.totalDisplay != null && (
         <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 6 }}>
@@ -455,6 +458,22 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
       )}
       {addon && <AddonFlow onClose={() => setAddon(false)} />}
       {sel && <DocDetail doc={sel} kind="receipt" isOwner={isOwner} onClose={() => setSel(null)} onChanged={load} />}
+      {refundPick && (
+        <RefundPicker
+          receipts={data.receipts ?? []}
+          onPick={(r) => { setRefundTarget(r); setRefundPick(false); }}
+          onClose={() => setRefundPick(false)}
+        />
+      )}
+      {refundTarget && refundTarget.order_id && (
+        <RefundDialog
+          orderId={refundTarget.order_id}
+          lineItems={refundTarget.lineItems ?? []}
+          customerName={refundTarget.customer_name}
+          onDone={() => load()}
+          onClose={() => setRefundTarget(null)}
+        />
+      )}
     </Panel>
   );
 }
@@ -1096,11 +1115,210 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
 }
 
 // ── Detail view (tap a row): full document + Print / Email / Edit / Copy / Delete
+// A refund, driven by WHAT HAPPENED — the SAME reason-driven flow as the event
+// drawer's Refund panel (Events.tsx). A cancelled / missing item is removed from
+// the receipt; a quality / other refund is taken off as a discount. The money is
+// always returned by hand — this only records the refund and emails the customer
+// the updated receipt. Reused by the receipt modal and the top-of-page picker.
+function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
+  orderId: string;
+  lineItems: any[];
+  customerName?: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [category, setCategory] = useState<'customer_cancellation' | 'missing_item' | 'quality_issue' | 'other'>('customer_cancellation');
+  const [item, setItem] = useState('');
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [cancelEvent, setCancelEvent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const needsItem = category === 'customer_cancellation' || category === 'missing_item';
+  const items = (lineItems ?? []).filter((l: any) => Number(l.amountFils) > 0);
+
+  const submit = async () => {
+    const amt = Number(amount);
+    if (!amt) return;
+    if (needsItem && !item) return;
+    // A clear confirmation BEFORE anything happens — amount, item and reason —
+    // so a stray tap can't quietly refund a customer, and a reminder that the
+    // money is always returned by hand. Mirrors Events.tsx exactly.
+    const reasonLabels: Record<string, string> = {
+      customer_cancellation: 'Customer requested cancellation',
+      quality_issue: 'Quality issue',
+      missing_item: 'Missing item or service',
+      other: 'Other',
+    };
+    const lines = [
+      `Refund AED ${amt.toLocaleString()} on ${orderId}?`,
+      '',
+      `• For: ${item || 'no specific item (free amount)'}`,
+      `• Reason: ${reasonLabels[category] || category}${note.trim() ? ` — ${note.trim()}` : ''}`,
+    ];
+    if (cancelEvent) lines.push('• The EVENT will also be CANCELLED (reservations released, emails stopped).');
+    lines.push('', 'This only RECORDS the refund and emails the customer — you return the money by hand. Confirm ONLY after you have actually sent the money back.');
+    if (!window.confirm(lines.join('\n'))) return;
+    setBusy(true); setMsg(null);
+    try {
+      const res = await api.refund(orderId, Math.round(amt * 100), {
+        reasonCategory: category,
+        reason: note.trim() || undefined,
+        cancelEvent,
+        itemLabel: item || undefined,
+      });
+      const apology = category === 'quality_issue' || category === 'missing_item';
+      setMsg(`Refund recorded — order is now ${res.status}.${res.eventCancelled ? ' Event cancelled.' : ''} The customer has been ${apology ? 'sent an apology + the updated receipt' : 'emailed the updated receipt'}.`);
+      setDone(true);
+      onDone();
+    } catch (e: any) {
+      setMsg(e?.message || 'Could not record the refund.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Refund" onClose={onClose}>
+      {done ? (
+        <div style={{ textAlign: 'center', padding: '8px 4px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.green, lineHeight: 1.6, marginBottom: 14 }}>{msg}</div>
+          <Button onClick={onClose} style={{ width: '100%' }}>Done</Button>
+        </div>
+      ) : (
+        <>
+          {customerName && <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, marginBottom: 2 }}>{customerName}</div>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Order {orderId}</span>
+            <Badge tone="warn">Records only — pay by hand</Badge>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
+            First pick <b>what happened</b>. A <b>cancelled</b> or <b>missing</b> item is removed from the
+            receipt; a <b>quality</b> refund is taken off as a discount. <b>You return the money by hand</b> —
+            this records the refund and emails the customer the updated receipt. A confirmation shows the
+            amount, item and reason before anything happens.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* 1) What happened — this drives everything below. */}
+            <select
+              value={category}
+              onChange={(e) => { setCategory(e.target.value as any); setItem(''); setAmount(''); }}
+              style={input}
+            >
+              <option value="customer_cancellation">Customer cancelled an item → remove it</option>
+              <option value="missing_item">Missing item or service → remove it</option>
+              <option value="quality_issue">Quality issue → take it off as a discount</option>
+              <option value="other">Other → take it off as a discount</option>
+            </select>
+
+            {needsItem ? (
+              // Remove a specific item — pick it, the amount fills automatically.
+              <select
+                value={item}
+                onChange={(e) => {
+                  const label = e.target.value;
+                  setItem(label);
+                  const li = items.find((l: any) => String(l.name) === label);
+                  setAmount(li ? String((Number(li.amountFils) || 0) / 100) : '');
+                }}
+                style={input}
+              >
+                <option value="">Choose the item to remove…</option>
+                {items.map((l: any, i: number) => (
+                  <option key={i} value={String(l.name)}>
+                    {l.name} — AED {(Number(l.amountFils) / 100).toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              // Quality / other → a free amount taken off as a discount.
+              <input
+                placeholder="Amount to take off as a discount (AED)"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                style={input}
+              />
+            )}
+
+            {item && needsItem && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
+                Removing <b>{item}</b> — AED {Number(amount || 0).toLocaleString()} back to the customer.
+              </div>
+            )}
+
+            <input
+              placeholder="Note (optional — the specifics)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              style={input}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: cancelEvent ? C.red : C.muted2, cursor: 'pointer' }}>
+              <input type="checkbox" checked={cancelEvent} onChange={(e) => setCancelEvent(e.target.checked)} />
+              Cancel the event too (releases reservations, stops emails, moves it to Cancelled)
+            </label>
+            <Button
+              tone="danger"
+              disabled={busy || !amount || (needsItem && !item)}
+              onClick={submit}
+            >
+              {busy ? '…' : '↩ Refund'}
+            </Button>
+            {msg && !done && <div style={{ fontWeight: 700, fontSize: 12.5, color: C.red }}>{msg}</div>}
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+// Top-of-page picker: find the sale to refund (search by name / EV-number /
+// mobile), then hand its order id + line items to the RefundDialog. Imported
+// receipts with no linked order can't be refunded here, so they're disabled.
+function RefundPicker({ receipts, onPick, onClose }: { receipts: any[]; onPick: (r: any) => void; onClose: () => void }) {
+  const [q, setQ] = useState('');
+  const s = q.trim().toLowerCase();
+  const list = (receipts ?? [])
+    .filter((r: any) => !s || `${r.customer_name ?? ''} ${r.number ?? ''} ${r.customer_phone ?? ''}`.toLowerCase().includes(s))
+    .slice(0, 60);
+  return (
+    <Modal title="Refund — pick the booking" onClose={onClose}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
+        Pick the sale to refund. You return the money by hand — the next step records the refund and emails the customer the updated receipt.
+      </div>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Search by name, EV-number, or mobile…" style={{ ...input, marginBottom: 10 }} autoFocus />
+      <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+        {list.map((r: any) => {
+          const linked = !!r.order_id;
+          return (
+            <button
+              key={r.id}
+              disabled={!linked}
+              onClick={() => { if (linked) onPick(r); }}
+              style={{ ...rowBtn, cursor: linked ? 'pointer' : 'not-allowed', opacity: linked ? 1 : 0.55 }}
+            >
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.customer_name}</span>
+                <span style={{ fontSize: 11, color: C.muted }}>EV-{r.number}{linked ? '' : ' · not linked to an order yet'}</span>
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: C.muted2, whiteSpace: 'nowrap', marginLeft: 8 }}>AED {r.totalDisplay}</span>
+            </button>
+          );
+        })}
+        {list.length === 0 && <div style={{ fontSize: 12.5, color: C.muted, padding: 10 }}>No matching receipts.</div>}
+      </div>
+    </Modal>
+  );
+}
+
 function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind: 'invoice' | 'receipt'; onClose: () => void; onChanged: () => void; isOwner?: boolean }) {
   const [mode, setMode] = useState<'view' | 'edit' | 'copy'>('view');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [addon, setAddon] = useState(false);
+  const [refund, setRefund] = useState(false);
+  const refundedRef = useRef(false);
   const [payAmt, setPayAmt] = useState('');
 
   const toInitial = () => ({
@@ -1209,10 +1427,29 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         <Button tone="ghost" onClick={() => setMode('edit')}>✏️ Edit</Button>
         <Button tone="ghost" onClick={() => setMode('copy')}>⧉ Copy</Button>
         {kind === 'receipt' && <Button tone="ghost" onClick={() => setAddon(true)}>➕ Add-on</Button>}
+        {kind === 'receipt' && (
+          doc.order_id ? (
+            <Button tone="danger" onClick={() => setRefund(true)}>↩ Refund</Button>
+          ) : (
+            <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}>
+              <Button tone="danger" disabled>↩ Refund</Button>
+              <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 600, maxWidth: 160, lineHeight: 1.3 }}>this imported receipt isn't linked to an order yet</span>
+            </span>
+          )
+        )}
         <Button tone="danger" onClick={del}>🗑 Delete</Button>
       </div>
       {msg && <div style={{ marginTop: 10, fontWeight: 700, fontSize: 12.5, color: msg.startsWith('✓') ? C.green : C.red }}>{msg}</div>}
       {addon && <AddonFlow onClose={() => setAddon(false)} />}
+      {refund && doc.order_id && (
+        <RefundDialog
+          orderId={doc.order_id}
+          lineItems={doc.lineItems ?? []}
+          customerName={doc.customer_name}
+          onDone={() => { refundedRef.current = true; onChanged(); }}
+          onClose={() => { setRefund(false); if (refundedRef.current) onClose(); }}
+        />
+      )}
     </Modal>
   );
 }
