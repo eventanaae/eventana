@@ -69,7 +69,7 @@ export function ShopOrderDrawer({ orderId, role, onClose }: { orderId: string; r
                       <Badge tone="neutral">Refunded</Badge>
                     ) : (
                       <Button tone="danger" disabled={busy} onClick={async () => {
-                        if (!window.confirm(`Refund AED ${d.totalDisplay} to ${d.customer?.name}? This returns the money via the payment provider and can't be undone.`)) return;
+                        if (!window.confirm(`Refund AED ${d.totalDisplay} to ${d.customer?.name}?\n\nThis only RECORDS the refund and emails the customer — you return the money by hand. Confirm ONLY after you have actually sent the money back.`)) return;
                         setBusy(true); setMsg(null);
                         try { const r = await api.refund(d.id, d.totalFils, { reasonCategory: 'other', reason: 'Shop order refund' }); setMsg({ text: `Refund recorded — order is now ${r.status}. The customer has been emailed. 💸`, ok: true }); await load(); }
                         catch (err: any) { setMsg({ text: err?.message ?? 'Refund failed', ok: false }); } finally { setBusy(false); }

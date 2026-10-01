@@ -791,7 +791,8 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
                   A refund is <b>not</b> a cancellation. Refund a completed party for a quality issue or a
                   missing item without cancelling it — or tick “Cancel the event too” when the whole booking
-                  is off. The status comes from the provider’s response, and the customer is emailed automatically.
+                  is off. <b>You return the money by hand</b> — this records the refund and emails the customer. A
+                  confirmation shows the amount, item and reason before anything happens.
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {/* Pick an ordered item → its price fills the amount, and the
@@ -848,10 +849,30 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                       tone="danger"
                       disabled={!refundAmount}
                       onClick={async () => {
+                        const amt = Number(refundAmount);
+                        if (!amt) return;
+                        // A clear confirmation BEFORE anything happens — the amount,
+                        // what it's for, and the reason — so a stray tap can't quietly
+                        // refund a customer (and the money is always returned by hand).
+                        const reasonLabels: Record<string, string> = {
+                          customer_cancellation: 'Customer requested cancellation',
+                          quality_issue: 'Quality issue',
+                          missing_item: 'Missing item or service',
+                          other: 'Other',
+                        };
+                        const lines = [
+                          `Refund AED ${amt.toLocaleString()} on ${data.event.order_id}?`,
+                          '',
+                          `• For: ${refundItem || 'no specific item (free amount)'}`,
+                          `• Reason: ${reasonLabels[refundCategory] || refundCategory}${refundReason.trim() ? ` — ${refundReason.trim()}` : ''}`,
+                        ];
+                        if (refundCancelEvent) lines.push('• The EVENT will also be CANCELLED (reservations released, emails stopped).');
+                        lines.push('', 'This only RECORDS the refund and emails the customer — you return the money by hand. Confirm ONLY after you have actually sent the money back.');
+                        if (!window.confirm(lines.join('\n'))) return;
                         try {
                           const res = await api.refund(
                             data.event.order_id,
-                            Math.round(Number(refundAmount) * 100),
+                            Math.round(amt * 100),
                             { reasonCategory: refundCategory, reason: refundReason.trim() || undefined, cancelEvent: refundCancelEvent, itemLabel: refundItem || undefined },
                           );
                           const apology = refundCategory === 'quality_issue' || refundCategory === 'missing_item';
