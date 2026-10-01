@@ -3756,9 +3756,13 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query(
         // ACTUAL money refunded (the refunds ledger), not the policy figure frozen
         // at cancellation time — so "Total refunded" matches what really went out.
+        // Counted by the REFUND's own date, and a LEFT JOIN to events so refunds on
+        // imported / shop / converted orders (which carry NO event_id) are STILL
+        // counted — the old INNER JOIN silently dropped every one of them, making
+        // "Total refunded" read AED 0 even when real money was returned.
         `SELECT COALESCE(SUM(r.amount_fils),0) v, COUNT(*) c FROM refunds r
-           JOIN events e ON e.id = r.event_id
-          WHERE e.event_date >= $1 AND e.event_date < $2 ${F}`,
+           LEFT JOIN events e ON e.id = r.event_id
+          WHERE r.created_at >= $1 AND r.created_at < $2 ${F}`,
         params,
       ),
       pool.query(
