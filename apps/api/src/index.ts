@@ -679,6 +679,41 @@ async function main() {
     })();
   }
 
+  // One-shot (env-gated) RE-RECORD of a corrected partial refund, reusing the
+  // tested record-only refund path (books + points + status), but WITHOUT the
+  // customer email — the owner sends one clarification herself so the customer
+  // isn't double-emailed. Set REDO_REFUND_ORDER=<id>, REDO_REFUND_FILS=<fils>,
+  // optional REDO_REFUND_LABEL, for one deploy, then unset.
+  if (process.env.REDO_REFUND_ORDER && process.env.REDO_REFUND_FILS) {
+    (async () => {
+      const oid = String(process.env.REDO_REFUND_ORDER);
+      const fils = Math.round(Number(process.env.REDO_REFUND_FILS));
+      const label = (process.env.REDO_REFUND_LABEL || 'Tables & Chairs').trim();
+      try {
+        const { pool } = await import('./db/pool.js');
+        // Idempotency guard: skip if this exact refund was already recorded recently.
+        const dup = await pool.query(
+          `SELECT 1 FROM refunds WHERE order_id = $1 AND amount_fils = $2 AND created_at > now() - interval '45 minutes' LIMIT 1`,
+          [oid, fils]);
+        if ((dup.rowCount ?? 0) > 0) { console.log(`[redo-refund] ${oid}: ${fils} fils already recorded — skip`); return; }
+        const { refundOrderMoney } = await import('./domain/refund.js');
+        const r = await refundOrderMoney({
+          orderId: oid, amountFils: fils, recordOnly: true,
+          reasonCategory: 'other', itemLabel: label, createdBy: 'owner',
+          reason: `Partial refund — ${label}`,
+        });
+        // Suppress the auto refund email this just queued; the owner messages the customer.
+        const supp = await pool.query(
+          `UPDATE notifications SET cancelled_at = now()
+            WHERE template = 'refund_processed' AND sent_at IS NULL AND cancelled_at IS NULL
+              AND payload->>'orderId' = $1 AND created_at > now() - interval '5 minutes' RETURNING id`, [oid]);
+        console.log(`[redo-refund] ${oid}: ${JSON.stringify(r)}; suppressed ${supp.rowCount} auto email(s)`);
+      } catch (e) {
+        console.error('[redo-refund] failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
