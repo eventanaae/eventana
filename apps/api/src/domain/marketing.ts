@@ -3,7 +3,7 @@
  * unsubscribe tokens. Sending goes through the Resend adapter, which is a
  * no-op until a key is configured.
  */
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, renderCampaignHtml, sendEmail } from '../integrations/email.js';
@@ -27,7 +27,10 @@ export function unsubToken(customerId: string | number): string {
 }
 export function verifyUnsub(customerId: string | number, token: string): boolean {
   const expected = unsubToken(customerId);
-  return token.length === expected.length && token === expected;
+  // Length-guard first (timingSafeEqual throws on unequal-length buffers), then
+  // compare in constant time so a forged token can't be refined byte-by-byte.
+  if (token.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(token), Buffer.from(expected));
 }
 
 /** WHERE clause selecting an opted-in audience. */

@@ -2216,12 +2216,13 @@ export async function adminRoutes(app: FastifyInstance) {
     // A disciplinary warning is recorded per month. When affects_points it wipes
     // that month's competition points (and the points bonus); otherwise it is
     // documented on the file only (owner exception). Tips/commission unaffected.
-    const warnRes = await pool.query(`SELECT member_id, reason, affects_points FROM staff_warnings WHERE ym = $1`, [monthStr]);
-    const warnMap = new Map<string, { reason: string | null; affectsPoints: boolean }>(
+    const warnRes = await pool.query(`SELECT member_id, reason, affects_points, COALESCE(salary_deduction_pct, 0) AS salary_deduction_pct FROM staff_warnings WHERE ym = $1`, [monthStr]);
+    const warnMap = new Map<string, { reason: string | null; affectsPoints: boolean; deductionPct: number }>(
       // Only an EXPLICIT affects_points=true wipes the month's points. A false
       // (owner exception) or an unset/NULL must NOT wipe — otherwise a missing
-      // flag silently zeroes someone's earnings.
-      (warnRes.rows as any[]).map((r) => [r.member_id, { reason: r.reason ?? null, affectsPoints: r.affects_points === true }]),
+      // flag silently zeroes someone's earnings. salary_deduction_pct is a separate
+      // lever: a % cut off the earned bonus (applied below), independent of points.
+      (warnRes.rows as any[]).map((r) => [r.member_id, { reason: r.reason ?? null, affectsPoints: r.affects_points === true, deductionPct: Math.min(100, Math.max(0, Number(r.salary_deduction_pct) || 0)) }]),
     );
     // AED 100 = 1 step; 100 points = AED 10 above the 600 target.
     const rules = { targetPoints: TARGET_POINTS, pointsToAed10: 100, eventPoints: EVENT_POINTS, fiveStarPoints: FIVE_STAR_POINTS, glamPoints: GLAM_POINTS, valuePointsPerAed: 0.5, commissionRate: 2, commissionMinAed: 20000 };
@@ -2279,7 +2280,14 @@ export async function adminRoutes(app: FastifyInstance) {
       // Marsha earns a 2% corporate commission INSTEAD of the field-crew points
       // bonus — so her points bonus is zeroed, not added on top of the commission.
       const isMarsha = String(r.name).toLowerCase() === 'marsha';
-      const bonusFils = isMarsha ? 0 : Math.max(0, points - TARGET_POINTS) * (STEP_FILS / POINTS_PER_STEP);
+      const grossBonusFils = isMarsha ? 0 : Math.max(0, points - TARGET_POINTS) * (STEP_FILS / POINTS_PER_STEP);
+      // A disciplinary warning's salary_deduction_pct reduces the earned bonus for
+      // that month by its percentage (only when a warning exists). Applied to the
+      // bonus the company pays — never to tips (the customer's money), commission,
+      // or the raw points. No warning ⇒ deductionPct 0 ⇒ no change.
+      const deductionPct = warn?.deductionPct ?? 0;
+      const deductionFils = Math.round(grossBonusFils * (deductionPct / 100));
+      const bonusFils = grossBonusFils - deductionFils;
       const commissionFils = isMarsha ? marshaCommissionFils : 0;
       const earningsFils = bonusFils + tipsFils + commissionFils;
       return {
@@ -2300,6 +2308,7 @@ export async function adminRoutes(app: FastifyInstance) {
         warned, warnReason, pointsWiped,
         targetPct,
         bonusFils, bonusDisplay: formatAed(bonusFils),
+        salaryDeductionPct: deductionPct, deductionFils, deductionDisplay: formatAed(deductionFils),
         isMarsha,
         commissionFils, commissionDisplay: formatAed(commissionFils),
         corporateInvoices: isMarsha ? marshaInvoices : 0,
@@ -5090,7 +5099,13 @@ export async function adminRoutes(app: FastifyInstance) {
        dayOffSet, d.weeklyDayOff ?? null, birthdaySet, phoneSet],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
-    return rows[0];
+    // Never leak auth credentials or they'd ride back on a profile save: RETURNING *
+    // includes the login access_token (a valid credential) and password_hash. Strip
+    // both, mirroring the /team LIST response shape.
+    const out = rows[0] as any;
+    delete out.access_token;
+    delete out.password_hash;
+    return out;
   });
 
   /* ------------------- Disciplinary warnings ------------------------------ */

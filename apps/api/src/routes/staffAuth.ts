@@ -58,9 +58,17 @@ export async function staffAuthRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0];
     if (!/^\/api\/staff\/(login|forgot|set-password)$/.test(path)) return;
+    // Key on an IP the client CANNOT forge. The FIRST x-forwarded-for hop is
+    // attacker-supplied — rotating it per request defeated this limiter — so take
+    // the LAST hop (the value our own edge, Render/Cloudflare, appends) and prefer
+    // cf-connecting-ip (set by Cloudflare, un-spoofable when present). Tradeoff: if
+    // several trusted proxies sit in front, the last hop can be a shared edge IP, so
+    // the limit then throttles more coarsely — which fails safe (never looser).
+    const xff = String(request.headers['x-forwarded-for'] ?? '')
+      .split(',').map((s) => s.trim()).filter(Boolean);
     const ip =
       (request.headers['cf-connecting-ip'] as string | undefined) ||
-      ((request.headers['x-forwarded-for'] as string | undefined) ?? '').split(',')[0].trim() ||
+      xff[xff.length - 1] ||
       request.ip;
     const key = `${ip}:${path}`;
     const now = Date.now();

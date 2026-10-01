@@ -98,7 +98,7 @@ export async function leaveBalance(memberId: string): Promise<LeaveBalance> {
   const onScheme = !!m && !isLeaveExcluded(m.name);
   const startDate = m?.employment_start_date ? String(m.employment_start_date).slice(0, 10) : null;
   const endDate = m?.employment_end_date ? String(m.employment_end_date).slice(0, 10) : null;
-  const accrued = onScheme && startDate ? accruedDays(startDate, new Date(), endDate, cfg) : 0;
+  const rawAccrued = onScheme && startDate ? accruedDays(startDate, new Date(), endDate, cfg) : 0;
   // Leave used before the system existed (owner backfill). Folded into "used"
   // so the live balance reflects reality for long-serving staff.
   const openingUsed = Number(m?.opening_used ?? 0);
@@ -111,6 +111,13 @@ export async function leaveBalance(memberId: string): Promise<LeaveBalance> {
   );
   const used = Number(agg.rows[0].used) + openingUsed;
   const pending = Number(agg.rows[0].pending);
+  // Cap the running balance at one full annual entitlement. The raw accrual is
+  // pro-rata from the employment start date for the member's whole tenure, so with
+  // no leave-year reset in the system it would otherwise climb 30→60→90… without
+  // limit. Capping accrued at (used + entitlement) bounds the AVAILABLE balance
+  // (accrued − used) at the entitlement while still crediting back leave already
+  // taken, so taking leave frees room rather than permanently lowering the ceiling.
+  const accrued = Math.min(rawAccrued, used + cfg.annualEntitlementDays);
   const remaining = Math.round((accrued - used - pending) * 10) / 10;
   return { onScheme, startDate, endDate, entitlement: cfg.annualEntitlementDays, accrualPerMonth: cfg.accrualPerMonth, accrued, used, pending, remaining };
 }
@@ -201,12 +208,29 @@ export async function decideLeaveRequest(
 
 /** An employee cancels their own request; frees the day-off if it was approved. */
 export async function cancelLeaveRequest(id: number, memberId: string): Promise<{ ok: boolean; reason?: string }> {
-  const { rows } = await pool.query(`SELECT status FROM leave_requests WHERE id = $1 AND member_id = $2`, [id, memberId]);
+  const { rows } = await pool.query(
+    `SELECT status, to_char(start_date,'YYYY-MM-DD') AS start_date FROM leave_requests WHERE id = $1 AND member_id = $2`,
+    [id, memberId],
+  );
   const req = rows[0];
   if (!req) return { ok: false, reason: 'Request not found.' };
   if (req.status === 'cancelled') return { ok: true };
   if (req.status === 'rejected') return { ok: false, reason: 'A rejected request can’t be cancelled.' };
+  // Self-service cancel is only for a still-pending request. An APPROVED leave has
+  // already freed a day-off on the calendar and been counted against the balance —
+  // reversing that is a manager action, otherwise anyone could silently reclaim an
+  // approved (even ongoing) leave. Direct them to the manager instead.
+  if (req.status === 'approved') {
+    return { ok: false, reason: 'This leave is already approved — ask your manager to cancel it.' };
+  }
+  // Never cancel a leave that has already started (guards a pending row whose start
+  // date has since passed).
+  const today = new Date().toISOString().slice(0, 10);
+  if (toDate(req.start_date) < toDate(today)) {
+    return { ok: false, reason: 'This leave has already started — it can’t be cancelled.' };
+  }
   await pool.query(`UPDATE leave_requests SET status = 'cancelled' WHERE id = $1`, [id]);
+  // Pending requests have no linked day-off, but keep this defensive (no-op then).
   await pool.query(`DELETE FROM staff_days_off WHERE leave_request_id = $1`, [id]);
   return { ok: true };
 }
