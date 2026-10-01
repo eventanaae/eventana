@@ -5481,6 +5481,10 @@ export async function adminRoutes(app: FastifyInstance) {
       cancelEvent: parsed.data.cancelEvent,
       itemLabel,
       createdBy: String((request as any).staff?.name ?? 'staff'),
+      // The team returns the customer's money themselves (bank transfer) for every
+      // booking — so record the refund + receipt + email only, never auto-reverse
+      // at the provider (which would double-refund).
+      recordOnly: true,
     });
     if (!r.ok) {
       const code = r.error === 'not_found' ? 404

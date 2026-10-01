@@ -45,6 +45,11 @@ export async function refundOrderMoney(params: {
   /** Who triggered it: a staff name, 'customer', or 'system'. */
   createdBy?: string;
   source?: string;
+  /** Record-only: the team returns the money to the customer by hand (bank
+   *  transfer), so NEVER reverse at the payment provider — just record the refund,
+   *  reflect it on the receipt, email the customer and reverse points. Used by the
+   *  manual Refund button for every payment method (card, Tabby, cash alike). */
+  recordOnly?: boolean;
 }): Promise<RefundResult> {
   const { orderId, amountFils, reason } = params;
   const reasonCategory: RefundReasonCategory = params.reasonCategory ?? 'other';
@@ -64,9 +69,10 @@ export async function refundOrderMoney(params: {
         [orderId],
       );
       const payment = rows[0];
-      if (!payment) {
-        // No provider payment on this order (cash, manual/offer, or an imported
-        // historical booking). We can't reverse money at a provider, but the owner
+      if (params.recordOnly || !payment) {
+        // Either the team refunds by hand for every booking (recordOnly), or there
+        // is no provider payment on this order (cash, manual/offer, or an imported
+        // historical booking). We never reverse money at a provider, but the owner
         // still needs to RECORD the refund (she compensates another way): track it,
         // reflect it on the receipt, email the customer, and reverse loyalty points.
         const ord = (await db.query<{ total_fils: number; event_id: string | null; customer_id: string | null }>(
