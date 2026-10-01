@@ -244,7 +244,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 'min(680px, 100vw)', maxWidth: '100vw', background: C.bg, height: '100vh', overflowY: 'auto', padding: 18 }}
+        style={{ width: 'min(680px, 100vw)', maxWidth: '100vw', background: C.bg, height: '100dvh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', padding: 18, paddingBottom: 'calc(120px + env(safe-area-inset-bottom))' }}
       >
         {!data ? (
           <Spinner />

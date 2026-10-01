@@ -24,7 +24,7 @@ export function ShopOrderDrawer({ orderId, role, onClose }: { orderId: string; r
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.4)', zIndex: 20, display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(600px, 100vw)', background: C.bg, height: '100vh', overflowY: 'auto', padding: 18 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(600px, 100vw)', background: C.bg, height: '100dvh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', padding: 18, paddingBottom: 'calc(120px + env(safe-area-inset-bottom))' }}>
         {!d ? <Spinner /> : d.error ? (
           <Panel><div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>Couldn’t load this order.</div></Panel>
         ) : (
