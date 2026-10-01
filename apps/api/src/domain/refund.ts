@@ -64,7 +64,64 @@ export async function refundOrderMoney(params: {
         [orderId],
       );
       const payment = rows[0];
-      if (!payment) return { ok: false, error: 'not_found' };
+      if (!payment) {
+        // No provider payment on this order (cash, manual/offer, or an imported
+        // historical booking). We can't reverse money at a provider, but the owner
+        // still needs to RECORD the refund (she compensates another way): track it,
+        // reflect it on the receipt, email the customer, and reverse loyalty points.
+        const ord = (await db.query<{ total_fils: number; event_id: string | null; customer_id: string | null }>(
+          `SELECT total_fils, event_id, customer_id FROM orders WHERE id = $1 FOR UPDATE`,
+          [orderId],
+        )).rows[0];
+        if (!ord) return { ok: false, error: 'not_found' };
+        const cap = Number(ord.total_fils);
+        const already = Number((await db.query<{ s: string }>(
+          `SELECT COALESCE(SUM(amount_fils),0)::bigint AS s FROM refunds WHERE order_id = $1`, [orderId],
+        )).rows[0].s);
+        const toRefund = Math.min(amountFils, Math.max(0, cap - already));
+        if (toRefund <= 0) return { ok: false, error: 'nothing_to_refund' };
+
+        await db.query(
+          `INSERT INTO refunds (order_id, event_id, customer_id, amount_fils,
+                                reason_category, reason_note, event_cancelled,
+                                provider_reference, created_by, item_label)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',$8,$9)`,
+          [orderId, ord.event_id, ord.customer_id, toRefund, reasonCategory, reason, !!params.cancelEvent, createdBy, itemLabel],
+        );
+        const status: 'refunded' | 'partially_refunded' = (already + toRefund) >= cap ? 'refunded' : 'partially_refunded';
+        await db.query(`UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`, [orderId, orderStatusFor(status)]).catch(() => {});
+
+        // Side-effects (receipt reflection, email, points, optional cancel) in a
+        // savepoint so a failure here can never undo the recorded refund above.
+        await db.query('SAVEPOINT manual_refund_side');
+        try {
+          await db.query(
+            `UPDATE finance_receipts
+                SET refunded_fils = refunded_fils + $2,
+                    refunded_items = refunded_items || $3::jsonb
+              WHERE order_id = $1`,
+            [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
+          );
+          await db.query(
+            `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+             VALUES ($1,'email','refund_processed', now(), $2)`,
+            [ord.event_id ?? null, JSON.stringify({ orderId, amountFils: toRefund, reference: 'manual', reasonCategory, itemLabel })],
+          );
+          const cfgM = await loadConfig();
+          const pointsM = Math.floor((toRefund / 100) * cfgM.rules.loyaltyPointsPerAed);
+          if (pointsM > 0 && ord.customer_id) {
+            await db.query(`INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason) VALUES ($1,$2,$3,$4,'Refund reversal')`, [ord.customer_id, ord.event_id, orderId, -pointsM]);
+            await db.query(`UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`, [ord.customer_id, pointsM]);
+          }
+          if (params.cancelEvent && ord.event_id) {
+            await db.query(`UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`, [orderId]).catch(() => {});
+            await db.query(`UPDATE events SET phase = 'Cancelled', updated_at = now() WHERE id = $1`, [ord.event_id]).catch(() => {});
+          }
+        } catch {
+          await db.query('ROLLBACK TO SAVEPOINT manual_refund_side');
+        }
+        return { ok: true, status, refundedFils: already + toRefund };
+      }
       if (!payment.provider_payment_id) return { ok: false, error: 'no_provider_payment' };
       if (payment.status !== 'paid' && payment.status !== 'captured' && payment.status !== 'partially_refunded') {
         return { ok: false, error: 'not_refundable' };
