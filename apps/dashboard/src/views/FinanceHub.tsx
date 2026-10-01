@@ -1146,12 +1146,17 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
   if (mode === 'copy') return <DocForm kind={kind} initial={toInitial()} isOwner={isOwner} onClose={() => setMode('view')} onSaved={() => { onChanged(); onClose(); }} />;
 
   const paid = kind === 'receipt' || doc.status === 'paid';
+  const rv = receiptView(doc);
+  const headTotal = kind === 'receipt' && rv.isRefund ? money(rv.shownTotal) : doc.totalDisplay;
+  const headStatus = kind === 'receipt' && rv.isRefund
+    ? (rv.shownTotal > 0 ? 'PARTIALLY REFUNDED' : 'REFUNDED')
+    : (paid ? 'PAID' : (doc.status || 'SENT').toUpperCase());
   return (
     <Modal title={kind === 'receipt' ? 'Sales receipt' : 'Invoice'} onClose={onClose}>
       <div style={{ background: paid ? `linear-gradient(135deg,${C.mint},#3fb8ad)` : `linear-gradient(135deg,${C.pink},${C.pinkDeep})`, color: '#fff', borderRadius: 16, padding: '18px 20px', textAlign: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.95 }}>{doc.customer_name}</div>
-        <div style={{ ...fredoka(30), marginTop: 2 }}>AED {doc.totalDisplay}</div>
-        <div style={{ fontWeight: 800, letterSpacing: '1px', marginTop: 4, fontSize: 12 }}>{paid ? 'PAID' : (doc.status || 'SENT').toUpperCase()}</div>
+        <div style={{ ...fredoka(30), marginTop: 2 }}>AED {headTotal}</div>
+        <div style={{ fontWeight: 800, letterSpacing: '1px', marginTop: 4, fontSize: 12 }}>{headStatus}</div>
       </div>
       <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 700, marginBottom: 4 }}>
         {kind === 'receipt' ? `SALES RECEIPT · EV-${doc.number}` : `INVOICE #${doc.number}`} · {fmtDate(doc.date ?? doc.issue_date)}
@@ -1164,18 +1169,18 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
           {doc.theme && <Row label="Theme" value={doc.theme} />}
         </div>
       )}
-      <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px', margin: '8px 0 4px' }}>{(doc.lineItems ?? []).length} ITEM(S)</div>
-      {(doc.lineItems ?? []).map((l: any, i: number) => (
+      <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px', margin: '8px 0 4px' }}>{rv.items.length} ITEM(S)</div>
+      {rv.items.map((l: any, i: number) => (
         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
           <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{l.name}</div>{l.description && String(l.description).trim() && <div style={{ fontSize: 11.5, color: C.muted2, whiteSpace: 'pre-wrap', lineHeight: 1.5, marginTop: 2 }}>{l.description}</div>}<div style={{ fontSize: 11, color: C.muted }}>{l.qty} × AED {money(l.priceFils)}</div></div>
           <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>AED {l.amountDisplay}</div>
         </div>
       ))}
       <div style={{ marginTop: 10 }}>
-        <Row label="Subtotal" value={`AED ${money(doc.subtotal_fils)}`} />
-        {doc.discount_fils > 0 && <Row label="Discount" value={`− AED ${money(doc.discount_fils)}`} />}
+        <Row label="Subtotal" value={`AED ${money(kind === 'receipt' && rv.isRefund ? rv.shownSubtotal : doc.subtotal_fils)}`} />
+        {(kind === 'receipt' && rv.isRefund ? rv.shownDiscount : doc.discount_fils) > 0 && <Row label="Discount" value={`− AED ${money(kind === 'receipt' && rv.isRefund ? rv.shownDiscount : doc.discount_fils)}`} />}
         {doc.shipping_fils > 0 && <Row label="Shipping" value={`AED ${money(doc.shipping_fils)}`} />}
-        <Row label={<b>Total</b>} value={<b style={{ ...fredoka(15), color: C.pinkDeep }}>AED {doc.totalDisplay}</b>} />
+        <Row label={<b>Total</b>} value={<b style={{ ...fredoka(15), color: C.pinkDeep }}>AED {kind === 'receipt' && rv.isRefund ? money(rv.shownTotal) : doc.totalDisplay}</b>} />
       </div>
       {kind === 'invoice' && doc.status !== 'paid' && (
         <div style={{ marginTop: 14, padding: '12px 14px', background: C.pinkSoft, borderRadius: 12 }}>
@@ -1212,9 +1217,41 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
   );
 }
 
+// How a receipt is shown once money has been refunded, per the owner's rule:
+// a cancelled / missing item is REMOVED from the receipt; a quality refund is
+// folded into the Discount (summed with any discount already there). The bottom
+// line becomes the net total. Mirrors the customer-facing refund email exactly.
+function receiptView(doc: any) {
+  const refs = (Array.isArray(doc.refundedItems) ? doc.refundedItems : []).filter((r: any) => Number(r.amountFils) > 0);
+  const isRemoval = (r: any) => r.reasonCategory === 'customer_cancellation' || r.reasonCategory === 'missing_item';
+  const pool = refs.filter(isRemoval).map((r: any) => ({ label: String(r.label ?? '').trim().toLowerCase(), amt: Number(r.amountFils), used: false }));
+  const extraDiscount = refs.filter((r: any) => !isRemoval(r)).reduce((s: number, r: any) => s + Number(r.amountFils), 0);
+  const items = (doc.lineItems ?? []).filter((l: any) => {
+    const m = pool.find((p: any) => !p.used && p.label === String(l.name).trim().toLowerCase() && p.amt === Number(l.amountFils));
+    if (m) { m.used = true; return false; }
+    return true;
+  });
+  // A removal that matched no line is folded into the discount, so the shown
+  // lines always reconcile to the net total (same rule as the email).
+  const unmatchedRemoval = pool.filter((p: any) => !p.used).reduce((s: number, p: any) => s + p.amt, 0);
+  const refundedFils = Math.max(Number(doc.refundedFils ?? 0) || 0, refs.reduce((s: number, r: any) => s + Number(r.amountFils), 0));
+  const shownDiscount = Number(doc.discount_fils || 0) + extraDiscount + unmatchedRemoval;
+  const shownSubtotal = items.reduce((s: number, l: any) => s + Number(l.amountFils || 0), 0);
+  const shownTotal = Number(doc.netTotalFils ?? (Number(doc.total_fils) - refundedFils));
+  return { items, isRefund: refundedFils > 0, refundedFils, shownDiscount, shownSubtotal, shownTotal };
+}
+
 function docHtml(doc: any, kind: 'invoice' | 'receipt') {
   const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
-  const rows = (doc.lineItems ?? []).map((l: any) => {
+  // On a receipt, reflect any refund (removed item / added discount / net total).
+  const rv = kind === 'receipt' ? receiptView(doc) : null;
+  const refunding = !!(rv && rv.isRefund);
+  const itemsOut = refunding ? rv!.items : (doc.lineItems ?? []);
+  const subtotalOut = refunding ? rv!.shownSubtotal : Number(doc.subtotal_fils);
+  const discountOut = refunding ? rv!.shownDiscount : Number(doc.discount_fils);
+  const totalOut = rv && rv.isRefund ? money(rv.shownTotal) : doc.totalDisplay;
+  const headLabel = rv && rv.isRefund ? (rv.shownTotal > 0 ? 'PARTIALLY REFUNDED' : 'REFUNDED') : 'PAID';
+  const rows = itemsOut.map((l: any) => {
     const desc = l.description && String(l.description).trim() ? `<br><span style="color:#666;font-size:12px;line-height:1.5">${esc(String(l.description).trim()).replace(/\n/g, '<br>')}</span>` : '';
     return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${esc(l.name)}${desc}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`;
   }).join('');
@@ -1222,8 +1259,8 @@ function docHtml(doc: any, kind: 'invoice' | 'receipt') {
     <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:18px;padding:22px;text-align:center;margin-bottom:20px">
       <div style="font-size:22px;font-weight:800">Eventana</div>
       <div style="font-size:13px;opacity:.9">${kind === 'receipt' ? `Sales Receipt · EV-${esc(doc.number)}` : `Invoice · #${esc(doc.number)}`}</div>
-      <div style="font-size:30px;font-weight:800;margin-top:8px">AED ${doc.totalDisplay}</div>
-      ${kind === 'receipt' ? '<div style="margin-top:4px;font-weight:800;letter-spacing:1px">PAID</div>' : ''}
+      <div style="font-size:30px;font-weight:800;margin-top:8px">AED ${totalOut}</div>
+      ${kind === 'receipt' ? `<div style="margin-top:4px;font-weight:800;letter-spacing:1px">${headLabel}</div>` : ''}
     </div>
     <div style="font-size:14px;margin-bottom:12px"><b>${esc(doc.customer_name)}</b><br><span style="color:#999">${fmtDate(doc.date ?? doc.issue_date)}</span></div>
     ${doc.event_for || doc.theme || doc.age ? `<table style="width:100%;font-size:13px;margin-bottom:12px">
@@ -1233,10 +1270,10 @@ function docHtml(doc: any, kind: 'invoice' | 'receipt') {
     </table>` : ''}
     <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>
     <table style="width:100%;margin-top:12px;font-size:14px">
-      <tr><td style="color:#777">Subtotal</td><td style="text-align:right">AED ${money(doc.subtotal_fils)}</td></tr>
-      ${doc.discount_fils > 0 ? `<tr><td style="color:#777">Discount</td><td style="text-align:right">− AED ${money(doc.discount_fils)}</td></tr>` : ''}
+      <tr><td style="color:#777">Subtotal</td><td style="text-align:right">AED ${money(subtotalOut)}</td></tr>
+      ${discountOut > 0 ? `<tr><td style="color:#777">Discount</td><td style="text-align:right">− AED ${money(discountOut)}</td></tr>` : ''}
       ${doc.shipping_fils > 0 ? `<tr><td style="color:#777">Shipping</td><td style="text-align:right">AED ${money(doc.shipping_fils)}</td></tr>` : ''}
-      <tr><td style="font-weight:800;padding-top:8px">Total</td><td style="text-align:right;font-weight:800;color:#E94F9C;padding-top:8px">AED ${doc.totalDisplay}</td></tr>
+      <tr><td style="font-weight:800;padding-top:8px">Total</td><td style="text-align:right;font-weight:800;color:#E94F9C;padding-top:8px">AED ${totalOut}</td></tr>
     </table>
     <div style="margin-top:24px;color:#bbb;font-size:12px;text-align:center">Thank you for choosing Eventana 🎉</div>
   </body></html>`;

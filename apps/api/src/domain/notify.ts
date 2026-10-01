@@ -387,7 +387,7 @@ export function renderFinanceDocEmail(
     event_for?: string | null; theme?: string | null; age?: string | null; event_time?: string | null;
     date_tbd?: boolean; paid_with?: string | null;
     refundedFils?: number; netTotalFils?: number;
-    refundedItems?: Array<{ label?: string | null; amountFils?: number }>;
+    refundedItems?: Array<{ label?: string | null; amountFils?: number; reasonCategory?: string | null }>;
   },
   kind: 'receipt' | 'invoice',
   // When set, the receipt is re-sent as a REFUND email: 'apology' for a quality
@@ -396,13 +396,43 @@ export function renderFinanceDocEmail(
   opts: { refundMode?: 'apology' | 'confirmation' } = {},
 ): { subject: string; html: string } {
   const first = cap(String(doc.customer_name ?? 'there').trim().split(/\s+/)[0] || 'there');
-  const lines = (doc.lineItems ?? []).map((l) => ({ label: l.name, quantity: Number(l.qty), amountFils: Math.round(Number(l.qty) * Number(l.priceFils)) }));
-  if (Number(doc.discount_fils) > 0) lines.push({ label: 'Discount', quantity: 1, amountFils: -Number(doc.discount_fils) });
-  if (Number(doc.shipping_fils) > 0) lines.push({ label: 'Shipping & delivery', quantity: 1, amountFils: Number(doc.shipping_fils) });
 
-  const refunded = Number(doc.refundedFils ?? 0) || 0;
-  const isRefund = !!opts.refundMode && refunded > 0;
+  // How a refund is SHOWN on the receipt, per the owner's rule:
+  //  • a cancelled or missing item is REMOVED from the receipt entirely;
+  //  • a quality refund keeps the items and is folded into the Discount
+  //    (summed with any discount that was already there).
+  const refundedItems = (doc.refundedItems ?? []).filter((r) => Number(r.amountFils) > 0);
+  // Take the refunded total from whichever source is present, so the folded
+  // lines and the bottom total can never diverge (a caller may pass items,
+  // the stored fils, or both). A refund is ALWAYS reflected whoever re-emails
+  // the receipt; only the apology/confirmation WORDING needs the refundMode.
+  const refunded = Math.max(Number(doc.refundedFils ?? 0) || 0, refundedItems.reduce((s, r) => s + Number(r.amountFils), 0));
+  const hasRefund = refunded > 0;
+  const isRefund = !!opts.refundMode && hasRefund;
   const apology = opts.refundMode === 'apology';
+  const netTotal = Number(doc.netTotalFils ?? (Number(doc.total_fils) - refunded));
+
+  const isRemoval = (r: { reasonCategory?: string | null }) =>
+    r.reasonCategory === 'customer_cancellation' || r.reasonCategory === 'missing_item';
+  const removalPool = refundedItems.filter(isRemoval)
+    .map((r) => ({ label: String(r.label ?? '').trim().toLowerCase(), amt: Number(r.amountFils), used: false }));
+  const extraDiscount = refundedItems.filter((r) => !isRemoval(r)).reduce((s, r) => s + Number(r.amountFils), 0);
+
+  const lines = (doc.lineItems ?? [])
+    .map((l) => ({ label: l.name, quantity: Number(l.qty), amountFils: Math.round(Number(l.qty) * Number(l.priceFils)) }))
+    .filter((line) => {
+      // Drop a line that was cancelled/returned (match by name + exact amount).
+      const m = removalPool.find((p) => !p.used && p.label === String(line.label).trim().toLowerCase() && p.amt === line.amountFils);
+      if (m) { m.used = true; return false; }
+      return true;
+    });
+  // A removal that didn't match any line (name/amount drift, qty>1, a partial
+  // top-up…) still has to come off somewhere, so fold it into the discount —
+  // that guarantees the shown lines always reconcile to the net total.
+  const unmatchedRemoval = removalPool.filter((p) => !p.used).reduce((s, p) => s + p.amt, 0);
+  const shownDiscount = Number(doc.discount_fils || 0) + extraDiscount + unmatchedRemoval;
+  if (shownDiscount > 0) lines.push({ label: 'Discount', quantity: 1, amountFils: -shownDiscount });
+  if (Number(doc.shipping_fils) > 0) lines.push({ label: 'Shipping & delivery', quantity: 1, amountFils: Number(doc.shipping_fils) });
 
   const detailRows: Array<[string, string]> = [
     // A sales receipt IS the customer's booking reference, shown as EV-<number>
@@ -416,24 +446,12 @@ export function renderFinanceDocEmail(
   if (doc.theme) detailRows.push(['Theme', String(doc.theme)]);
   if (kind === 'receipt') {
     if (doc.paid_with) detailRows.push(['Paid with', String(doc.paid_with)]);
-    detailRows.push(['Status', isRefund ? 'Refunded ↩︎' : 'Paid ✓']);
+    detailRows.push(['Status', hasRefund ? (netTotal > 0 ? 'Partially refunded ↩︎' : 'Refunded ↩︎') : 'Paid ✓']);
   } else if (doc.due_date) detailRows.push(['Payment due', longDate(doc.due_date)]);
 
-  // The refunded items shown as green minus lines under the receipt, plus the
-  // new net total the customer effectively paid.
-  const refundLines = (doc.refundedItems ?? [])
-    .filter((r) => Number(r.amountFils) > 0)
-    .map((r) => ({ label: `Refunded — ${r.label && String(r.label).trim() ? String(r.label).trim() : 'item'}`, quantity: 1, amountFils: -Number(r.amountFils) }));
-  // The refund section: the refunded item(s) as green minus lines, and the
-  // table's own bold bottom row is the NET total the customer effectively paid.
-  const netTotal = Number(doc.netTotalFils ?? (Number(doc.total_fils) - refunded));
-  const refundBlock = isRefund
-    ? `<div style="margin:16px 0 4px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${MUTED}">Refund</div>` +
-      invoiceTable(
-        refundLines.length ? refundLines : [{ label: 'Refunded', quantity: 1, amountFils: -refunded }],
-        netTotal,
-      )
-    : '';
+  // The refund is already folded into the receipt above (removed line or added
+  // discount), so the receipt's own bold bottom row is the new net total — there
+  // is no separate "Refunded" block any more.
 
   const intro = isRefund
     ? (apology
@@ -446,8 +464,7 @@ export function renderFinanceDocEmail(
     `<p style="margin:0 0 8px;font-size:15px;line-height:1.6">${intro}</p>` +
     detailCard(detailRows) +
     `<div style="margin:20px 0 4px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${MUTED}">${kind === 'receipt' ? 'Receipt' : 'Invoice'}</div>` +
-    invoiceTable(lines, Number(doc.total_fils)) +
-    refundBlock +
+    invoiceTable(lines, hasRefund ? netTotal : Number(doc.total_fils)) +
     (isRefund ? `<p style="margin:16px 0 0;color:${MUTED};font-size:13px;line-height:1.6">Your refund may take approximately <b>7 business days</b> to appear, depending on your bank or payment provider.</p>` : '') +
     (doc.message ? `<p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:${INK}">${doc.message}</p>` : '') +
     termsNote();

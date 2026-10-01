@@ -789,51 +789,61 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
               {!moneyHidden && (
               <Panel title="Refund">
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
-                  A refund is <b>not</b> a cancellation. Refund a completed party for a quality issue or a
-                  missing item without cancelling it — or tick “Cancel the event too” when the whole booking
-                  is off. <b>You return the money by hand</b> — this records the refund and emails the customer. A
-                  confirmation shows the amount, item and reason before anything happens.
+                  First pick <b>what happened</b>. A <b>cancelled</b> or <b>missing</b> item is removed from the
+                  receipt; a <b>quality</b> refund is taken off as a discount. <b>You return the money by hand</b> —
+                  this records it and emails the customer the updated receipt. A confirmation shows the amount,
+                  item and reason before anything happens.
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Pick an ordered item → its price fills the amount, and the
-                      receipt shows that exact line as refunded. */}
+                  {/* 1) What happened — this drives everything below. */}
                   <select
-                    value={refundItem}
-                    onChange={(e) => {
-                      const label = e.target.value;
-                      setRefundItem(label);
-                      const svc = (data.services || []).find((s: any) => String(s.label) === label);
-                      if (svc) setRefundAmount(String((Number(svc.amount_fils) || 0) / 100));
-                    }}
+                    value={refundCategory}
+                    onChange={(e) => { setRefundCategory(e.target.value as any); setRefundItem(''); setRefundAmount(''); }}
                     style={{ ...inputStyle, width: '100%' }}
                   >
-                    <option value="">Refund a specific item… (optional — or type an amount)</option>
-                    {(data.services || [])
-                      .filter((s: any) => Number(s.amount_fils) > 0 && s.source !== 'package_item')
-                      .map((s: any) => (
-                        <option key={s.id} value={String(s.label)}>
-                          {s.label} — AED {(Number(s.amount_fils) / 100).toLocaleString()}
-                        </option>
-                      ))}
+                    <option value="customer_cancellation">Customer cancelled an item → remove it</option>
+                    <option value="missing_item">Missing item or service → remove it</option>
+                    <option value="quality_issue">Quality issue → take it off as a discount</option>
+                    <option value="other">Other → take it off as a discount</option>
                   </select>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+
+                  {(refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') ? (
+                    // Remove a specific item — pick it, the amount fills automatically.
+                    <select
+                      value={refundItem}
+                      onChange={(e) => {
+                        const label = e.target.value;
+                        setRefundItem(label);
+                        const svc = (data.services || []).find((s: any) => String(s.label) === label);
+                        setRefundAmount(svc ? String((Number(svc.amount_fils) || 0) / 100) : '');
+                      }}
+                      style={{ ...inputStyle, width: '100%' }}
+                    >
+                      <option value="">Choose the item to remove…</option>
+                      {(data.services || [])
+                        .filter((s: any) => Number(s.amount_fils) > 0 && s.source !== 'package_item')
+                        .map((s: any) => (
+                          <option key={s.id} value={String(s.label)}>
+                            {s.label} — AED {(Number(s.amount_fils) / 100).toLocaleString()}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    // Quality / other → a free amount taken off as a discount.
                     <input
-                      placeholder="Amount in AED"
+                      placeholder="Amount to take off as a discount (AED)"
                       value={refundAmount}
                       onChange={(e) => setRefundAmount(e.target.value.replace(/[^\d.]/g, ''))}
-                      style={{ ...inputStyle, width: 140, flex: 'none' }}
+                      style={inputStyle}
                     />
-                    <select
-                      value={refundCategory}
-                      onChange={(e) => setRefundCategory(e.target.value as any)}
-                      style={{ ...inputStyle, flex: 1, minWidth: 200 }}
-                    >
-                      <option value="customer_cancellation">Customer requested cancellation</option>
-                      <option value="quality_issue">Quality issue</option>
-                      <option value="missing_item">Missing item or service</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
+                  )}
+
+                  {refundItem && (refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
+                      Removing <b>{refundItem}</b> — AED {Number(refundAmount || 0).toLocaleString()} back to the customer.
+                    </div>
+                  )}
+
                   <input
                     placeholder="Note (optional — the specifics)"
                     value={refundReason}
@@ -847,10 +857,12 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   <div>
                     <Button
                       tone="danger"
-                      disabled={!refundAmount}
+                      disabled={!refundAmount || ((refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') && !refundItem)}
                       onClick={async () => {
                         const amt = Number(refundAmount);
                         if (!amt) return;
+                        const needsItem = refundCategory === 'customer_cancellation' || refundCategory === 'missing_item';
+                        if (needsItem && !refundItem) return;
                         // A clear confirmation BEFORE anything happens — the amount,
                         // what it's for, and the reason — so a stray tap can't quietly
                         // refund a customer (and the money is always returned by hand).
