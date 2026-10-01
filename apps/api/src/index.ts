@@ -714,6 +714,29 @@ async function main() {
     })();
   }
 
+  // One-shot READ-ONLY diagnostic: why does an event's "Booked services" sum differ
+  // from the order/receipt total? Logs the event_services lines + the order total +
+  // the receipt breakdown. Set DIAG_ORDER=<order id> for one deploy, then unset.
+  if (process.env.DIAG_ORDER) {
+    (async () => {
+      const oid = String(process.env.DIAG_ORDER);
+      try {
+        const { pool } = await import('./db/pool.js');
+        const ord = (await pool.query(`SELECT id, status, total_fils, event_id FROM orders WHERE id = $1`, [oid])).rows[0];
+        const evId = ord?.event_id ?? (await pool.query(`SELECT id FROM events WHERE order_id = $1`, [oid])).rows[0]?.id ?? null;
+        const svc = evId ? (await pool.query(`SELECT label, quantity, amount_fils, source, service_id FROM event_services WHERE event_id = $1 ORDER BY id`, [evId])).rows : [];
+        const rc = (await pool.query(`SELECT number, subtotal_fils, discount_fils, shipping_fils, total_fils, refunded_fils, line_items FROM finance_receipts WHERE order_id = $1`, [oid])).rows[0];
+        const svcSum = svc.reduce((s: number, r: any) => s + Number(r.amount_fils || 0), 0);
+        console.log(`[diag-order] ${oid}: order.total=${ord?.total_fils} status=${ord?.status} event=${evId}`);
+        console.log(`[diag-order] ${oid}: event_services (sum=${svcSum}) =`, JSON.stringify(svc));
+        console.log(`[diag-order] ${oid}: receipt ${rc?.number} subtotal=${rc?.subtotal_fils} discount=${rc?.discount_fils} shipping=${rc?.shipping_fils} total=${rc?.total_fils} refunded=${rc?.refunded_fils}`);
+        console.log(`[diag-order] ${oid}: receipt.line_items =`, JSON.stringify(rc?.line_items));
+      } catch (e) {
+        console.error('[diag-order] failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.

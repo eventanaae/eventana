@@ -1285,7 +1285,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const [services, tasks, team, holds, messages, photos, orders, payments, rating, tips, designs, gallery] =
       await Promise.all([
-      pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
+      pool.query(`SELECT es.*, s.category_id FROM event_services es LEFT JOIN services s ON s.id = es.service_id WHERE es.event_id = $1 ORDER BY es.id`, [eventId]),
       pool.query(`SELECT * FROM event_tasks WHERE event_id = $1 ORDER BY department, id`, [eventId]),
       // The crew for THIS event, read live from the actual assignments
       // (event_staff) — internal assignees AND confirmed part-timer names — so

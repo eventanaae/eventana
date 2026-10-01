@@ -333,6 +333,11 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   const included = all.filter((s) => s.source === 'package_item');
                   const main = all.filter((s) => s.source !== 'package_item');
                   const pkgLabel = main.find((s) => s.source === 'booking' && Number(s.amount_fils) > 0 && !/delivery/i.test(s.label))?.label ?? 'the package';
+                  // Giveaways are keepsakes handed to guests — the team never needs
+                  // their price, and converted/imported lines store an unreliable
+                  // per-piece figure here, so we always hide the AED on giveaway
+                  // lines (by catalogue category or a name match). Name & qty stay.
+                  const isGiveaway = (s: any) => s.category_id === 'giveaways' || /give\s?aways?/i.test(String(s.label ?? ''));
                   const row = (s: any) => (
                     <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -340,7 +345,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>×{s.quantity} · {s.source}</div>
                       </div>
                       <span style={{ fontWeight: 700, fontSize: 12.5, color: C.ink, whiteSpace: 'nowrap' }}>
-                        {Number(s.amount_fils) > 0 ? `AED ${money(Number(s.amount_fils))}` : '—'}
+                        {isGiveaway(s) || !(Number(s.amount_fils) > 0) ? '—' : `AED ${money(Number(s.amount_fils))}`}
                       </span>
                     </div>
                   );
