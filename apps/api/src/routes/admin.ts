@@ -74,8 +74,13 @@ async function cancelEvent(eventId: string, reason: string) {
     );
     // Stop anything scheduled for an event that is not happening (this also
     // suppresses an unsent driver_new_order — driver rows carry sent_at NULL).
+    // Void a row still PENDING on ANY channel: a reminder whose email already
+    // sent but whose whatsapp_sent_at is still NULL would otherwise fire a
+    // WhatsApp for a cancelled event. (The driver / cancellation rows below are
+    // inserted AFTER this, so they are untouched.)
     await db.query(
-      `UPDATE notifications SET cancelled_at = now() WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL`,
+      `UPDATE notifications SET cancelled_at = now()
+        WHERE event_id = $1 AND (sent_at IS NULL OR whatsapp_sent_at IS NULL) AND cancelled_at IS NULL`,
       [eventId],
     );
     // Tell the assigned driver the delivery is off (fresh row, not cancelled).
@@ -1498,12 +1503,31 @@ export async function adminRoutes(app: FastifyInstance) {
     // Cancelled is terminal. Advancing a cancelled event back onto the
     // normal timeline would re-open purchases and live tracking for an
     // event that is not happening; use the cancel/reinstate route.
-    const { rows: current } = await pool.query(`SELECT phase FROM events WHERE id = $1`, [eventId]);
+    const { rows: current } = await pool.query(`SELECT phase, date_tbd, event_date FROM events WHERE id = $1`, [eventId]);
     if (!current[0]) return reply.status(404).send({ error: 'not_found' });
     if (isCancelled(current[0].phase)) {
       return reply.status(409).send({
         error: 'event_cancelled',
         message: 'This event is cancelled. Reinstate it before advancing its status.',
+      });
+    }
+    // Ordering guard. A dateless / to-be-scheduled event has no day yet, so it
+    // can't have "started" or "completed" — block advancing it there until a
+    // date is set. And "Event Completed" is terminal for the live timeline:
+    // regressing it re-opens tracking and the review ask, so forbid moving it
+    // back to an earlier phase.
+    const target = parsed.data.phase;
+    const dateless = current[0].date_tbd === true || current[0].event_date == null;
+    if (dateless && (target === 'Party Started' || target === 'Event Completed')) {
+      return reply.status(409).send({
+        error: 'event_undated',
+        message: 'Set the event date before marking it started or completed.',
+      });
+    }
+    if (current[0].phase === 'Event Completed' && target !== 'Event Completed') {
+      return reply.status(409).send({
+        error: 'event_completed',
+        message: 'This event is completed and can no longer be moved to an earlier status.',
       });
     }
 
@@ -1549,7 +1573,18 @@ export async function adminRoutes(app: FastifyInstance) {
       // schedule. Pull any pending feedback rows to now; if none were scheduled
       // (e.g. an older booking), create both channels now. The delivery sweep
       // then sends them; WhatsApp goes only once its template is enabled.
-      if (ev.phase === 'Event Completed') {
+      // Only pull/fire feedback for an event whose date is today or past — the
+      // same guard the in-app popup uses. A future-dated event marked complete
+      // early leaves its feedback_request scheduled (event date + 1 day) rather
+      // than emailing the customer before the party has happened. A dateless /
+      // TBD event is treated as not-yet-due.
+      const feedbackDue = ev.phase === 'Event Completed' && (await pool.query(
+        `SELECT (event_date IS NOT NULL AND NOT COALESCE(date_tbd, false)
+                 AND event_date <= (now() AT TIME ZONE 'Asia/Dubai')::date) AS due
+           FROM events WHERE id = $1`,
+        [eventId],
+      )).rows[0]?.due === true;
+      if (feedbackDue) {
         try {
           const pulled = await pool.query(
             `UPDATE notifications SET scheduled_for = now()
@@ -1825,6 +1860,37 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!rows[0]) {
       return reply.status(409).send({ error: 'not_cancelled', message: 'This event is not cancelled.' });
     }
+    // Re-enqueue the lifecycle notifications that cancel had voided — otherwise a
+    // reinstated booking gets no confirmation / 3-day / event-day / feedback.
+    // Reuses the same scheduling the booking/confirm path uses: fire the
+    // confirmation (and re-tell the driver) now, and (re)schedule the
+    // date-relative reminders only when their moment is still in the future. A
+    // dateless / TBD event (eventStart NULL) gets only the confirmation + driver
+    // order. The NOT EXISTS keeps it idempotent (a double-reinstate, or rows that
+    // were never cancelled, won't create a second active copy); the previously
+    // cancelled rows carry cancelled_at, so they don't block re-creation.
+    {
+      const rev = rows[0] as any;
+      const eventStart = (!rev.date_tbd && rev.event_date)
+        ? `${eventDateYMD(rev.event_date)}T${rev.start_time}:00+04:00`
+        : null;
+      await pool.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         SELECT $1, channel, template, sched, $2::jsonb FROM (VALUES
+           ('email','booking_confirmation', now()),
+           ('email','three_day_reminder', ($3::timestamptz - interval '3 days')),
+           ('email','event_day', ($3::timestamptz - interval '4 hours')),
+           ('email','feedback_request', ($3::timestamptz + interval '1 day')),
+           ('driver','driver_new_order', now())
+         ) v(channel,template,sched)
+         WHERE (v.sched > now() OR v.template IN ('booking_confirmation','driver_new_order'))
+           AND NOT EXISTS (
+             SELECT 1 FROM notifications n
+              WHERE n.event_id = $1 AND n.template = v.template
+                AND n.cancelled_at IS NULL AND n.sent_at IS NULL)`,
+        [eventId, JSON.stringify({ orderId: rev.order_id, eventId }), eventStart],
+      );
+    }
     // Re-reserve the inventory this event released on cancel — but only what's
     // still free at its window (another booking may have taken a slot meanwhile).
     const { rows: held } = await pool.query(
@@ -2049,11 +2115,28 @@ export async function adminRoutes(app: FastifyInstance) {
     // that (setup/testing/migration) ever counts. Pre-launch months → empty range.
     const start = flooredStart(`${monthStr}-01`);
 
+    // Credit only REAL participation. A completed event must have an actual
+    // staffing roster (an event_staff assignee) — NOT just the "first 3 active
+    // members" placeholder that checkout seeds into event_team — before it earns
+    // anyone points. The real staffing path keeps event_team mirrored to the
+    // event_staff assignees, so after rostering event_team already equals the
+    // real crew; the only events this EXISTS excludes are the never-rostered,
+    // placeholder-only ones (the "10/10/10" phantom credits). Kept on the
+    // event_team basis (rather than switching to event_staff) because event_team
+    // is one row per (event, member) — a raw event_staff join would double-count
+    // the duplicate leader row against the duplicate-free glam query.
+    const REAL_ROSTER = `EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = e.id AND es.assignee_id IS NOT NULL)`;
+    // Never let migrated past parties or obvious test/demo bookings inflate
+    // points (same basis as the repeat-rate metric).
+    const REAL_EVENT = `e.source IS DISTINCT FROM 'quickbooks_import' AND COALESCE(c.name,'') !~* '(test|demo)'`;
+
     const { rows } = await pool.query(
       `SELECT tm.id, tm.name, tm.role, tm.color, tm.access_level,
          (SELECT COUNT(*) FROM event_team et JOIN events e ON e.id = et.event_id
+            LEFT JOIN customers c ON c.id = e.customer_id
             WHERE et.member_id = tm.id AND e.phase = 'Event Completed'
-              AND e.event_date >= $1 AND e.event_date < $2) AS events_done,
+              AND e.event_date >= $1 AND e.event_date < $2
+              AND ${REAL_ROSTER} AND ${REAL_EVENT}) AS events_done,
          (SELECT COALESCE(SUM(t.amount_fils),0) FROM tips t JOIN events e ON e.id = t.event_id
             WHERE t.member_id = tm.id AND t.status = 'paid'
               AND e.event_date >= $1 AND e.event_date < $2) AS tips_fils,
@@ -2063,17 +2146,23 @@ export async function adminRoutes(app: FastifyInstance) {
          (SELECT COALESCE(ROUND(AVG(r.stars)::numeric,2),0) FROM event_ratings r
             JOIN event_team et ON et.event_id = r.event_id
             JOIN events e ON e.id = r.event_id
-            WHERE et.member_id = tm.id AND e.event_date >= $1 AND e.event_date < $2) AS avg_rating,
+            LEFT JOIN customers c ON c.id = e.customer_id
+            WHERE et.member_id = tm.id AND e.event_date >= $1 AND e.event_date < $2
+              AND ${REAL_ROSTER} AND ${REAL_EVENT}) AS avg_rating,
          (SELECT COUNT(*) FROM event_ratings r
             JOIN event_team et ON et.event_id = r.event_id
             JOIN events e ON e.id = r.event_id
+            LEFT JOIN customers c ON c.id = e.customer_id
             WHERE et.member_id = tm.id AND r.stars = 5
-              AND e.event_date >= $1 AND e.event_date < $2) AS five_stars,
+              AND e.event_date >= $1 AND e.event_date < $2
+              AND ${REAL_ROSTER} AND ${REAL_EVENT}) AS five_stars,
          (SELECT COUNT(*) FROM event_ratings r
             JOIN event_team et ON et.event_id = r.event_id
             JOIN events e ON e.id = r.event_id
+            LEFT JOIN customers c ON c.id = e.customer_id
             WHERE et.member_id = tm.id
-              AND e.event_date >= $1 AND e.event_date < $2) AS ratings_count
+              AND e.event_date >= $1 AND e.event_date < $2
+              AND ${REAL_ROSTER} AND ${REAL_EVENT}) AS ratings_count
        FROM team_members tm
        WHERE tm.active AND lower(tm.name) NOT IN ('shan','sheem')
        ORDER BY tips_fils DESC, events_done DESC, tm.name`,
@@ -2103,8 +2192,10 @@ export async function adminRoutes(app: FastifyInstance) {
          JOIN event_staff gs ON gs.event_id = e.id
               AND (gs.source ILIKE '%glam%' OR gs.role ILIKE '%glam%')
          JOIN event_staff crew ON crew.event_id = e.id AND crew.assignee_id IS NOT NULL
+         LEFT JOIN customers c ON c.id = e.customer_id
         WHERE e.phase='Event Completed'
           AND e.event_date >= $1 AND e.event_date < $2
+          AND ${REAL_EVENT}
         GROUP BY crew.assignee_id`,
       [start, endStr],
     );
@@ -2141,12 +2232,25 @@ export async function adminRoutes(app: FastifyInstance) {
     // Marsha's corporate deals are MANUAL invoices OR sales the owner tagged to
     // her (never website orders). Count both, each worth ≥ AED 20,000, this month.
     const commRes = await pool.query(
+      // De-dupe: one real deal must count once. A deal recorded as an invoice AND
+      // its payment receipt (both tagged to Marsha) was counted twice — so drop
+      // the invoice when a matching tagged receipt exists (same customer + amount,
+      // this month); the receipt counts it. An invoice with no receipt yet (a
+      // live receivable) still counts on its own.
       `SELECT COALESCE(SUM(gross),0)::bigint gross, COUNT(*)::int n FROM (
-         SELECT total_fils AS gross FROM finance_invoices
-           WHERE lower(commission_rep)='marsha' AND total_fils >= $3 AND issue_date >= $1 AND issue_date < $2
+         SELECT i.total_fils AS gross FROM finance_invoices i
+           WHERE lower(i.commission_rep)='marsha' AND i.total_fils >= $3
+             AND i.issue_date >= $1 AND i.issue_date < $2
+             AND NOT EXISTS (
+               SELECT 1 FROM finance_receipts r
+                WHERE lower(r.commission_rep)='marsha'
+                  AND r.total_fils = i.total_fils
+                  AND lower(r.customer_name) = lower(i.customer_name)
+                  AND r.date >= $1 AND r.date < $2)
          UNION ALL
-         SELECT total_fils AS gross FROM finance_receipts
-           WHERE lower(commission_rep)='marsha' AND total_fils >= $3 AND date >= $1 AND date < $2
+         SELECT r.total_fils AS gross FROM finance_receipts r
+           WHERE lower(r.commission_rep)='marsha' AND r.total_fils >= $3
+             AND r.date >= $1 AND r.date < $2
        ) x`,
       [start, endStr, COMMISSION_MIN],
     );
