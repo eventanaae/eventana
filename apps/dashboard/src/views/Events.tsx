@@ -949,6 +949,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
   const [names, setNames] = useState<Record<string, string>>({});
   const [openOverride, setOpenOverride] = useState<string | null>(null);
   const [manual, setManual] = useState<any[]>([]);
+  const [removed, setRemoved] = useState<any[]>([]);
   // Drivers roster — suggested names for a driver slot's part-timer box, so the
   // right person (with a WhatsApp number on file) is picked, not retyped.
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -957,16 +958,18 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
   const isDriverSlot = (role: string) => role === 'driver' || role === 'pt_driver';
 
   const load = async () => {
-    const [p, m, c] = await Promise.all([
+    const [p, m, c, rm] = await Promise.all([
       api.staffingPlan(eventId).catch(() => []),
       api.staffingRequirements(eventId).catch(() => []),
       // Availability is per-event and live — reload it every time the plan
       // changes so an edit to the team or the event time is reflected at once.
       api.staffingCrew(eventId).catch(() => []),
+      api.staffingRemoved(eventId).catch(() => []),
     ]);
     setPlan(p);
     setManual(m);
     setCrew(c);
+    setRemoved(rm);
     // Also refresh the parent drawer's "Team for this event" summary, which reads
     // event.team separately — otherwise a manual pick / re-assign here wouldn't
     // show up there until the whole drawer is reopened.
@@ -1115,6 +1118,17 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                     )}
                   </div>
                 )}
+                {/* Suppress this auto-planned role (e.g. an optional Helper this
+                    party doesn't need). Restorable from the "Removed" chips below. */}
+                <div style={{ marginTop: 4 }}>
+                  <button
+                    disabled={busy}
+                    onClick={async () => { setBusy(true); try { await api.removeStaffRole(eventId, s.role); await load(); } finally { setBusy(false); } }}
+                    style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                  >
+                    ✕ remove
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -1142,6 +1156,20 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                 <button key={m.role} onClick={() => addRole(m.role, -1)}
                   style={{ border: `1px solid ${C.line}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                   {(ROLE_LABEL[m.role] ?? m.role)} × {m.count} · remove one
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Auto-planned roles the owner suppressed — one tap restores a slot. */}
+          {removed.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: C.muted, letterSpacing: '.3px' }}>REMOVED</span>
+              {removed.map((r) => (
+                <button key={r.role}
+                  disabled={busy}
+                  onClick={async () => { setBusy(true); try { await api.restoreStaffRole(eventId, r.role); await load(); } finally { setBusy(false); } }}
+                  style={{ border: `1px dashed ${C.line}`, background: 'transparent', color: C.muted, borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  {(ROLE_LABEL[r.role] ?? r.role)}{r.n > 1 ? ` × ${r.n}` : ''} · restore
                 </button>
               ))}
             </div>

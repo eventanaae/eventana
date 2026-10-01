@@ -1437,6 +1437,16 @@ CREATE TABLE IF NOT EXISTS event_manual_staff (
   PRIMARY KEY (event_id, role)
 );
 
+-- Auto-planned staffing slots the owner chose to SUPPRESS for an event — e.g. an
+-- optional "Helper" the engine added that this party doesn't need. `n` = how many
+-- of that role to remove from the plan (auto + manual). Restorable (row cleared).
+CREATE TABLE IF NOT EXISTS event_removed_staff (
+  event_id  TEXT NOT NULL,
+  role      TEXT NOT NULL,
+  n         INT  NOT NULL DEFAULT 1,
+  PRIMARY KEY (event_id, role)
+);
+
 -- Pre-event preparation tasks (INTERNAL ONLY — never shown to the customer).
 -- Auto-generated from a confirmed order's package/services/theme, fair-assigned
 -- to qualified staff. Design tasks (Marsha) gate the physical prep that follows.

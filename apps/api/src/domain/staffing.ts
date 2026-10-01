@@ -249,7 +249,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
       services.push({ serviceId: row.service_id ?? '', name: svc?.name ?? label, categoryId: (svc as any)?.categoryId, isInflatable: (svc as any)?.isInflatable, isFoodStation: (svc as any)?.isFoodStation, quantity: Number(row.quantity) || 1, fromPackage: false });
     }
   }
-  const reqs = computeRequirements({ packageName, services, customTheme: !!ev.custom_theme });
+  let reqs = computeRequirements({ packageName, services, customTheme: !!ev.custom_theme });
   // Manual requirements the owner/manager added for this event (e.g. a custom
   // offer the engine can't read) are layered on top of whatever we derived.
   const manual = await pool.query<{ role: string; count: number }>(
@@ -269,6 +269,27 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
       ...(partTimeOnly ? { partTimeOnly: true } : {}),
     });
   }
+
+  // Roles the owner chose to suppress for this event (e.g. an optional Helper the
+  // engine added but this party doesn't need). Applied AFTER the manual layer so
+  // it reduces auto + manual alike. Each removed {role, n} knocks `n` off the
+  // matching req entries (there can be several for one role), dropping any that
+  // hit zero. Restorable — clearing the row brings the slot straight back.
+  const removed = await pool.query<{ role: string; n: number }>(
+    `SELECT role, n FROM event_removed_staff WHERE event_id = $1`,
+    [eventId],
+  );
+  for (const rm of removed.rows) {
+    let n = Number(rm.n) || 0;
+    for (const r of reqs) {
+      if (n <= 0) break;
+      if (r.role !== rm.role) continue;
+      const take = Math.min(r.count, n);
+      r.count -= take;
+      n -= take;
+    }
+  }
+  reqs = reqs.filter((r) => r.count > 0);
 
   // Internal staff + skills + current workload.
   const staffRows = await pool.query(
@@ -706,6 +727,26 @@ export async function setManualRequirement(eventId: string, role: string, count:
 /** The manual requirements currently set for an event. */
 export async function getManualRequirements(eventId: string) {
   const { rows } = await pool.query(`SELECT role, count FROM event_manual_staff WHERE event_id = $1 ORDER BY role`, [eventId]);
+  return rows;
+}
+
+/** Suppress `n` of a role from an event's plan (0 clears it), then re-run the plan. */
+export async function setRemovedStaff(eventId: string, role: string, n: number) {
+  if (n <= 0) {
+    await pool.query(`DELETE FROM event_removed_staff WHERE event_id = $1 AND role = $2`, [eventId, role]);
+  } else {
+    await pool.query(
+      `INSERT INTO event_removed_staff (event_id, role, n) VALUES ($1,$2,$3)
+       ON CONFLICT (event_id, role) DO UPDATE SET n = EXCLUDED.n`,
+      [eventId, role, n],
+    );
+  }
+  return assignStaffForEvent(eventId);
+}
+
+/** The suppressed roles currently set for an event. */
+export async function getRemovedStaff(eventId: string) {
+  const { rows } = await pool.query(`SELECT role, n FROM event_removed_staff WHERE event_id = $1 ORDER BY role`, [eventId]);
   return rows;
 }
 

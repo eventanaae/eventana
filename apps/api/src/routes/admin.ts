@@ -870,6 +870,33 @@ export async function adminRoutes(app: FastifyInstance) {
     if (!plan) return reply.status(404).send({ error: 'not_found' });
     return plan;
   });
+  // Suppress an auto-planned role the owner doesn't want (e.g. an optional Helper).
+  // Each call removes one more of that role; restore clears the suppression. Kept
+  // under /staffing so the Manager+Owner gate above applies, like the other routes.
+  app.get('/api/admin/staffing/:eventId/removed', async (request) => {
+    const { getRemovedStaff } = await import('../domain/staffing.js');
+    return getRemovedStaff((request.params as { eventId: string }).eventId);
+  });
+  app.post('/api/admin/staffing/:eventId/remove', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const { role } = (request.body ?? {}) as { role?: string };
+    if (!role) return reply.status(400).send({ error: 'invalid_role' });
+    const { getRemovedStaff, setRemovedStaff } = await import('../domain/staffing.js');
+    const current = await getRemovedStaff(eventId);
+    const currentN = Number(current.find((r: any) => r.role === role)?.n ?? 0);
+    const plan = await setRemovedStaff(eventId, role, currentN + 1);
+    if (!plan) return reply.status(404).send({ error: 'not_found' });
+    return plan;
+  });
+  app.post('/api/admin/staffing/:eventId/restore', async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const { role } = (request.body ?? {}) as { role?: string };
+    if (!role) return reply.status(400).send({ error: 'invalid_role' });
+    const { setRemovedStaff } = await import('../domain/staffing.js');
+    const plan = await setRemovedStaff(eventId, role, 0);
+    if (!plan) return reply.status(404).send({ error: 'not_found' });
+    return plan;
+  });
   // Confirm a part-timer's name for an open slot → status "Confirmed – [Name]".
   app.post('/api/admin/staffing/slot/:slotId/confirm', async (request, reply) => {
     const { slotId } = request.params as { slotId: string };

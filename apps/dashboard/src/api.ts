@@ -287,6 +287,11 @@ export const api = {
   staffingRequirements: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}/requirements`),
   setStaffingRequirement: (eventId: string, role: string, count: number) =>
     request<any[]>(`/api/admin/staffing/${eventId}/requirements`, { method: 'POST', body: JSON.stringify({ role, count }) }),
+  staffingRemoved: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}/removed`),
+  removeStaffRole: (eventId: string, role: string) =>
+    request<any[]>(`/api/admin/staffing/${eventId}/remove`, { method: 'POST', body: JSON.stringify({ role }) }),
+  restoreStaffRole: (eventId: string, role: string) =>
+    request<any[]>(`/api/admin/staffing/${eventId}/restore`, { method: 'POST', body: JSON.stringify({ role }) }),
   confirmPartTime: (slotId: string, name: string, loc?: { eventId?: string; role?: string; slot?: number }) =>
     request<any[]>(`/api/admin/staffing/slot/${slotId}/confirm`, { method: 'POST', body: JSON.stringify({ name, ...loc }) }),
   overrideSlot: (slotId: string, assigneeId: string, loc?: { eventId?: string; role?: string; slot?: number }) =>
