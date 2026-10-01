@@ -639,6 +639,46 @@ async function main() {
 
   startReconciliation();
 
+  // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
+  // customer email/WhatsApp for that order AND reverse the recorded refund
+  // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
+  // deploy, then unset it.
+  if (process.env.UNDO_REFUND_ORDER) {
+    (async () => {
+      const oid = String(process.env.UNDO_REFUND_ORDER);
+      try {
+        const { pool } = await import('./db/pool.js');
+        const canc = await pool.query(
+          `UPDATE notifications SET cancelled_at = now()
+            WHERE template = 'refund_processed' AND sent_at IS NULL AND cancelled_at IS NULL
+              AND payload->>'orderId' = $1 RETURNING id`, [oid]);
+        // Give back the loyalty points the refund had deducted, then drop those rows.
+        const pts = await pool.query<{ customer_id: string; add_back: number }>(
+          `SELECT customer_id, COALESCE(SUM(-points),0)::int AS add_back
+             FROM loyalty_transactions
+            WHERE order_id = $1 AND reason = 'Refund reversal' AND created_at > now() - interval '6 hours'
+            GROUP BY customer_id`, [oid]);
+        for (const r of pts.rows) {
+          if (r.customer_id && r.add_back > 0) {
+            await pool.query(`UPDATE customers SET loyalty_points = loyalty_points + $2 WHERE id = $1`, [r.customer_id, r.add_back]);
+          }
+        }
+        await pool.query(`DELETE FROM loyalty_transactions WHERE order_id = $1 AND reason = 'Refund reversal' AND created_at > now() - interval '6 hours'`, [oid]);
+        const del = await pool.query(`DELETE FROM refunds WHERE order_id = $1 AND created_at > now() - interval '6 hours' RETURNING id`, [oid]);
+        // Rebuild the receipt's refund totals from whatever refunds remain.
+        await pool.query(
+          `UPDATE finance_receipts SET
+              refunded_fils = COALESCE((SELECT SUM(amount_fils) FROM refunds WHERE order_id = $1), 0),
+              refunded_items = COALESCE((SELECT jsonb_agg(jsonb_build_object('label', item_label, 'amountFils', amount_fils, 'reasonCategory', reason_category)) FROM refunds WHERE order_id = $1), '[]'::jsonb)
+            WHERE order_id = $1`, [oid]);
+        await pool.query(`UPDATE orders SET status = 'paid' WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM refunds WHERE order_id = $1)`, [oid]);
+        console.log(`[undo-refund] ${oid}: cancelled ${canc.rowCount} pending emails, deleted ${del.rowCount} refund rows`);
+      } catch (e) {
+        console.error('[undo-refund] failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
