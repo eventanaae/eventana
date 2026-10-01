@@ -3734,8 +3734,22 @@ export async function adminRoutes(app: FastifyInstance) {
         params,
       ),
       pool.query(
+        // Repeat rate over REAL customers only. Three bugs fixed:
+        //  · NULL customer_id used to collapse EVERY unattributed event into one
+        //    bogus "customer" that (having many events) always counted as a repeat
+        //    and skewed the whole ratio — excluded now.
+        //  · quickbooks_import events are migrated past parties; counting them would
+        //    inflate repeats for the historical book — excluded.
+        //  · obvious test/demo accounts (by name) are dropped.
         `SELECT COUNT(*) FILTER (WHERE n > 1) AS repeats, COUNT(*) AS total
-           FROM (SELECT customer_id, COUNT(*) n FROM events WHERE phase <> 'Cancelled' GROUP BY customer_id) s`,
+           FROM (SELECT e.customer_id, COUNT(*) n
+                   FROM events e
+                   LEFT JOIN customers c ON c.id = e.customer_id
+                  WHERE e.phase <> 'Cancelled'
+                    AND e.customer_id IS NOT NULL
+                    AND e.source IS DISTINCT FROM 'quickbooks_import'
+                    AND COALESCE(c.name,'') !~* '(test|demo)'
+                  GROUP BY e.customer_id) s`,
       ),
       pool.query(
         // "Expected in" must be money that is genuinely likely to arrive — a
@@ -3748,9 +3762,16 @@ export async function adminRoutes(app: FastifyInstance) {
             AND source = 'manual'
             AND created_at > now() - interval '10 days'`,
       ),
-      pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2`, [from, to]),
+      // All-source expenses (INCLUDING quickbooks). Was source<>'quickbooks'; made
+      // symmetric because the revenue side counts all-source receipts too, so Net
+      // Profit = all receipts − all expenses over one window (owner's instruction).
+      // This feeds the legacy profit scalar; the rendered period P&L already used
+      // all-source expenses (periodExpRow).
+      pool.query(`SELECT COALESCE(SUM(amount_fils),0) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2`, [from, to]),
+      // byCategory breakdown, kept on the same all-source basis so it sums to the
+      // all-source expense total above.
       pool.query(
-        `SELECT category, SUM(amount_fils) v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+        `SELECT category, SUM(amount_fils) v FROM expenses WHERE spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
         [from, to],
       ),
       pool.query(
@@ -3760,6 +3781,9 @@ export async function adminRoutes(app: FastifyInstance) {
         // imported / shop / converted orders (which carry NO event_id) are STILL
         // counted — the old INNER JOIN silently dropped every one of them, making
         // "Total refunded" read AED 0 even when real money was returned.
+        // The window is the SAME [from,to] as the revenue it nets against (by the
+        // refund's created_at), so Net Profit = receipts − these refunds − expenses
+        // over one consistent window.
         `SELECT COALESCE(SUM(r.amount_fils),0) v, COUNT(*) c FROM refunds r
            LEFT JOIN events e ON e.id = r.event_id
           WHERE r.created_at >= $1 AND r.created_at < $2 ${F}`,
@@ -3777,7 +3801,6 @@ export async function adminRoutes(app: FastifyInstance) {
     const cancelledRows = rows.filter((r) => r.cancelled);
     const revenue = confirmed.reduce((s, r) => s + Number(r.revenue_fils), 0);
     const bookings = confirmed.length;
-    const aov = bookings > 0 ? Math.round(revenue / bookings) : 0;
 
     // Group helper → sorted [{key,label,bookings,revenueFils}].
     const groupBy = (keyFn: (r: any) => string, labelFn?: (r: any) => string) => {
@@ -3934,6 +3957,11 @@ export async function adminRoutes(app: FastifyInstance) {
                    WHERE pt.status NOT IN ('completed') AND pt.due_date < current_date AND e.phase<>'Cancelled' AND e.event_date>=current_date`),
       pool.query(`SELECT COUNT(*)::int n FROM events WHERE phase<>'Cancelled' AND event_date>=current_date AND event_date<=current_date + interval '7 days'`),
       pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD')`),
+      // Top customers by paid order value. 'converted' orders ARE included here on
+      // purpose: unlike evRevSub, a converted booking order carries its real receipt
+      // total (not AED 0) and there is exactly one order per sale (converted parties
+      // have one booking order; app bookings have their own), so each sale is counted
+      // once at its real value — bookings and revenue stay on the one orders basis.
       pool.query(`SELECT c.name, SUM(o.total_fils)::bigint v, COUNT(*)::int n
                     FROM orders o JOIN customers c ON c.id=o.customer_id
                    WHERE o.status IN ('paid','partially_refunded') AND o.kind IN ('booking','addon')
@@ -4027,10 +4055,27 @@ export async function adminRoutes(app: FastifyInstance) {
           ORDER BY y.year`,
       ).catch(() => ({ rows: [] as any[] })),
     ]);
-    const periodIncomeFils = Number(periodRevRow.rows[0].v);
+    // ── Owner's Net Profit definition (the money cards the CEO view renders) ──
+    // Revenue = ALL paid receipts in the period (every source: app, shop, manual,
+    // converted AND quickbooks; past AND future), by the receipt's own `date`,
+    // NET of refunds (the refunds ledger, by refund date, SAME [from,to] window —
+    // `refundFils` above). Expenses = ALL expenses in the period (every source
+    // incl. quickbooks — periodExpRow is already all-source), same window. This is
+    // the symmetric all-source basis the owner asked for; unpaid invoices are
+    // receivables, not money, so they stay excluded. Refunds are subtracted exactly
+    // ONCE (here) — the Refunds panel below only re-displays the same figure.
+    // NOTE: the period P&L is full-ledger and ignores the emirate/type/package
+    // filters, while refundFils respects them; so ONLY under such a filter is the
+    // refund subtraction filter-scoped against full-ledger income. The default
+    // (unfiltered) view — what the owner reads — is exact.
+    const periodGrossIncomeFils = Number(periodRevRow.rows[0].v);
     const periodSalesCount = Number(periodRevRow.rows[0].c);
+    const periodIncomeFils = periodGrossIncomeFils - refundFils; // net paid revenue
     const periodExpenseFils = Number(periodExpRow.rows[0].v);
-    const periodNetFils = periodIncomeFils - periodExpenseFils;
+    const periodNetFils = periodIncomeFils - periodExpenseFils;  // net profit
+    // AOV on the paid-receipts basis (net revenue ÷ receipts), so the legacy
+    // aov field stops mixing event-revenue with a receipt count.
+    const periodAovFils = periodSalesCount > 0 ? Math.round(periodIncomeFils / periodSalesCount) : 0;
     const periodExpenseBySupplier = periodExpVendorRows.rows.map((r) => ({ category: r.category, amountFils: Number(r.v), amountDisplay: formatAed(Number(r.v)) }));
     const yearsPnl = yearsPnlRows.rows.map((r) => {
       const rev = Number(r.revenue_fils), exp = Number(r.expenses_fils), net = rev - exp;
@@ -4067,6 +4112,11 @@ export async function adminRoutes(app: FastifyInstance) {
                 COALESCE(SUM(${evRevSub}), 0)::bigint AS revenue
            FROM events e
           WHERE e.phase <> 'Cancelled' AND e.source IS DISTINCT FROM 'quickbooks_import'
+            -- Exclude 'converted' events too: evRevSub drops their order revenue
+            -- (the money lives in the receipt), so counting them as bookings here
+            -- produced a booking with AED 0 revenue. Dropping them keeps bookings
+            -- and revenue on the same (converted-excluded) basis.
+            AND e.source IS DISTINCT FROM 'converted'
             AND e.event_date >= $1 AND e.event_date < $2
           GROUP BY 1`,
         [from, to],
@@ -4217,10 +4267,15 @@ export async function adminRoutes(app: FastifyInstance) {
       business,
       cash, cancelReasons, opsHealth, birthdays, topCustomers, forecast, alerts,
       pipeline, funnel,
-      collectedFils: revenue, collectedDisplay: formatAed(revenue),
+      // Legacy money fields (not rendered by the CEO view, which reads the period*
+      // block below). Repointed to the SAME paid-receipts net basis so the payload
+      // never carries a second, event-basis "revenue"/"profit" that contradicts the
+      // headline. `bookings`/`confirmed` stay the live confirmed-event count (a
+      // separate operational metric, not a money figure).
+      collectedFils: periodIncomeFils, collectedDisplay: formatAed(periodIncomeFils),
       filters: { emirate: q.emirate ?? null, eventType: q.eventType ?? null, packageId: q.packageId ?? null },
-      revenueFils: revenue, revenueDisplay: formatAed(revenue),
-      bookings, aovFils: aov, aovDisplay: formatAed(aov),
+      revenueFils: periodIncomeFils, revenueDisplay: formatAed(periodIncomeFils),
+      bookings, aovFils: periodAovFils, aovDisplay: formatAed(periodAovFils),
       confirmed: bookings, cancelled: cancelledCount, cancelRatePct,
       refundFils, refundDisplay: formatAed(refundFils),
       refundQualityFils, refundQualityDisplay: formatAed(refundQualityFils),
@@ -4236,9 +4291,12 @@ export async function adminRoutes(app: FastifyInstance) {
       yearsPnl,
       byEmirateFull,
       byThemeFull,
-      expensesFils: expenses, expensesDisplay: formatAed(expenses),
-      profitFils: profit, profitDisplay: formatAed(Math.abs(profit)), profitNegative: profit < 0,
-      marginPct: revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0,
+      // Legacy expense/profit/margin — repointed to the all-source period P&L (net
+      // of refunds) so they agree with the rendered Net Profit card, not the old
+      // event-basis figure.
+      expensesFils: periodExpenseFils, expensesDisplay: formatAed(periodExpenseFils),
+      profitFils: periodNetFils, profitDisplay: formatAed(Math.abs(periodNetFils)), profitNegative: periodNetFils < 0,
+      marginPct: periodIncomeFils > 0 ? Math.round((periodNetFils / periodIncomeFils) * 1000) / 10 : 0,
       outstandingFils: Number(outstandingRow.rows[0].v), outstandingDisplay: formatAed(Number(outstandingRow.rows[0].v)), outstandingCount: Number(outstandingRow.rows[0].c),
       revenueChangePct, bookingsChangePct,
       prevRevenueFils: prevRevenue, prevBookings,
