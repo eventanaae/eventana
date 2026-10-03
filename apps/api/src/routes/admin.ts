@@ -3843,7 +3843,13 @@ export async function adminRoutes(app: FastifyInstance) {
            FROM events e
            LEFT JOIN packages p ON p.id = e.package_id
            LEFT JOIN themes th  ON th.id = e.theme_id
-          WHERE e.event_date >= $1 AND e.event_date < $2 ${F}`,
+          WHERE e.event_date >= $1 AND e.event_date < $2
+            -- Exclude 'converted' events from the range analytics: evRevSub drops
+            -- their order revenue (the money is on the receipt), so counting them
+            -- here produced bookings with AED 0 that deflated AOV and padded the
+            -- byEmirate/type/package/theme tables. byEmirateFull already excludes
+            -- them; this keeps the range block on the same basis.
+            AND e.source IS DISTINCT FROM 'converted' ${F}`,
         params,
       ),
       pool.query(
@@ -3904,7 +3910,8 @@ export async function adminRoutes(app: FastifyInstance) {
       ),
       pool.query(
         `SELECT COALESCE(SUM(${evRevSub}),0) revenue, COUNT(*) bookings
-           FROM events e WHERE e.phase <> 'Cancelled' AND e.event_date >= $1 AND e.event_date < $2 ${F}`,
+           FROM events e WHERE e.phase <> 'Cancelled' AND e.source IS DISTINCT FROM 'converted'
+             AND e.event_date >= $1 AND e.event_date < $2 ${F}`,
         [prevFrom, prevTo, ...fVals],
       ),
     ]);
@@ -4163,7 +4170,7 @@ export async function adminRoutes(app: FastifyInstance) {
         `SELECT y.year, COALESCE(r.revenue_fils,0)::bigint revenue_fils, COALESCE(e.expenses_fils,0)::bigint expenses_fils
            FROM ( SELECT DISTINCT extract(year FROM txn_date)::int year FROM historical_orders WHERE txn_date IS NOT NULL
                   UNION SELECT year FROM expense_years ) y
-           LEFT JOIN ( SELECT extract(year FROM txn_date)::int year, SUM(total_fils) revenue_fils FROM historical_orders WHERE txn_date IS NOT NULL GROUP BY 1 ) r ON r.year = y.year
+           LEFT JOIN ( SELECT extract(year FROM txn_date)::int year, SUM(total_fils) revenue_fils FROM historical_orders WHERE txn_date IS NOT NULL AND COALESCE(txn_type,'') <> 'Payment' GROUP BY 1 ) r ON r.year = y.year
            LEFT JOIN expense_years e ON e.year = y.year
           ORDER BY y.year`,
       ).catch(() => ({ rows: [] as any[] })),
