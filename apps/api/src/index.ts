@@ -935,6 +935,79 @@ async function main() {
     })();
   }
 
+  // One-shot customer de-dup: merge historical_customers that share the SAME
+  // email (the safe dupe class — a shared email is almost certainly one person;
+  // phone-only dupes are left alone because a family can share a number). For
+  // each email group we keep the lowest id as canonical, repoint its receipts +
+  // invoices onto it, backfill any blank contact field on the canonical from the
+  // dupes, then delete the dupe rows. MERGE_CUSTOMERS=dry logs the plan only;
+  // MERGE_CUSTOMERS=apply performs it in one transaction. Unset after.
+  {
+    const mcMode = String(process.env.MERGE_CUSTOMERS ?? '').toLowerCase();
+    if (mcMode === 'dry' || mcMode === 'apply') {
+      (async () => {
+        const { pool } = await import('./db/pool.js');
+        const client = await pool.connect();
+        try {
+          type HC = { id: string; full_name: string; phone: string | null; phone_alt: string | null; email: string | null; emirate: string | null; bill_address: string | null; ship_address: string | null };
+          // All historical customers that share a (case-insensitive, trimmed)
+          // non-empty email with at least one other row.
+          const dupes = await client.query<HC>(
+            `SELECT id::text, full_name, phone, phone_alt, email, emirate, bill_address, ship_address
+               FROM historical_customers
+              WHERE lower(btrim(email)) IN (
+                      SELECT lower(btrim(email)) FROM historical_customers
+                       WHERE COALESCE(btrim(email),'') <> ''
+                       GROUP BY 1 HAVING count(*) > 1)
+              ORDER BY lower(btrim(email)), id`);
+          const groups = new Map<string, HC[]>();
+          for (const r of dupes.rows) {
+            const k = (r.email || '').trim().toLowerCase();
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k)!.push(r);
+          }
+          console.log(`[merge-customers] mode=${mcMode} email-dupe groups=${groups.size} rows=${dupes.rows.length}`);
+          const firstNonEmpty = (vals: (string | null)[]) => { for (const v of vals) if (v && String(v).trim() !== '') return String(v).trim(); return null; };
+          if (mcMode === 'apply') await client.query('BEGIN');
+          let mergedGroups = 0, movedRcpt = 0, movedInv = 0, deleted = 0;
+          for (const [k, rows] of groups) {
+            const canonical = rows[0];               // lowest id (earliest import)
+            const dupeIds = rows.slice(1).map((r) => r.id);
+            if (dupeIds.length === 0) continue;
+            // What would move, for the log.
+            const rc = await client.query<{ c: string }>(`SELECT count(*)::text c FROM finance_receipts WHERE customer_id = ANY($1::bigint[])`, [dupeIds]);
+            const iv = await client.query<{ c: string }>(`SELECT count(*)::text c FROM finance_invoices WHERE customer_id = ANY($1::bigint[])`, [dupeIds]);
+            console.log(`[merge-customers] email=${k} keep id=${canonical.id} "${canonical.full_name}"; merge ids=[${dupeIds.join(',')}] names=${JSON.stringify(rows.slice(1).map((r) => r.full_name))} receipts=${rc.rows[0].c} invoices=${iv.rows[0].c}`);
+            if (mcMode !== 'apply') continue;
+            // Repoint finance docs onto the canonical, then backfill blanks.
+            const rU = await client.query(`UPDATE finance_receipts SET customer_id=$1 WHERE customer_id = ANY($2::bigint[])`, [canonical.id, dupeIds]);
+            const iU = await client.query(`UPDATE finance_invoices SET customer_id=$1 WHERE customer_id = ANY($2::bigint[])`, [canonical.id, dupeIds]);
+            movedRcpt += rU.rowCount ?? 0; movedInv += iU.rowCount ?? 0;
+            await client.query(
+              `UPDATE historical_customers SET phone=$2, phone_alt=$3, emirate=$4, bill_address=$5, ship_address=$6 WHERE id=$1`,
+              [canonical.id,
+               firstNonEmpty(rows.map((r) => r.phone)),
+               firstNonEmpty(rows.map((r) => r.phone_alt)),
+               firstNonEmpty(rows.map((r) => r.emirate)),
+               firstNonEmpty(rows.map((r) => r.bill_address)),
+               firstNonEmpty(rows.map((r) => r.ship_address))]);
+            const dU = await client.query(`DELETE FROM historical_customers WHERE id = ANY($1::bigint[])`, [dupeIds]);
+            deleted += dU.rowCount ?? 0; mergedGroups++;
+          }
+          if (mcMode === 'apply') {
+            await client.query('COMMIT');
+            console.log(`[merge-customers] DONE groups=${mergedGroups} receiptsMoved=${movedRcpt} invoicesMoved=${movedInv} rowsDeleted=${deleted}`);
+          } else {
+            console.log('[merge-customers] DRY RUN — nothing written. Set MERGE_CUSTOMERS=apply to perform.');
+          }
+        } catch (e) {
+          try { if (mcMode === 'apply') await client.query('ROLLBACK'); } catch {}
+          console.error('[merge-customers] failed:', (e as Error).message);
+        } finally { client.release(); }
+      })();
+    }
+  }
+
   // Warm the WhatsApp auto-reply mode from the settings table so the very first
   // inbound message after a deploy honours the owner's dashboard choice rather
   // than the env default. Best-effort — agentMode() self-refreshes anyway.
