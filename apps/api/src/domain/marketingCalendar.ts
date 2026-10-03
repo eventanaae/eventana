@@ -726,8 +726,17 @@ export function occasionWhenLine(o: Occasion): string {
   return `<p style="margin:0 0 14px;font-weight:700;color:#E94F9C">📅 ${o.name} is on ${d}.</p>`;
 }
 
+/** A learned/custom body was saved with a given year's "📅 … is on <date>" line
+ *  baked in. Swap any such line for the occasion's CURRENT date at build time, so
+ *  an owner-edited body re-used next year never shows last year's date. If the
+ *  owner removed the line, nothing matches and the body is returned unchanged. */
+function refreshOccasionDate(html: string, o: Occasion): string {
+  const fresh = occasionWhenLine(o);
+  return html.replace(/<p[^>]*>📅[\s\S]*?<\/p>/, () => fresh);
+}
+
 export function buildOccasionBody(o: Occasion, ov?: OccasionOverride): string {
-  if (ov?.customConsumer) return ov.customConsumer; // learned from the owner's edit
+  if (ov?.customConsumer) return refreshOccasionDate(ov.customConsumer, o); // learned from the owner's edit
   const heading = `<p style="font-size:19px;font-weight:800;margin:0 0 12px;color:#3B3641">${o.copy.heading}</p>`;
   const greet = `<p style="margin:0 0 14px">Hi {{name}},</p>`;
   const intro = `<p style="margin:0 0 14px">${ov?.intro || o.copy.intro}</p>`;
@@ -755,7 +764,7 @@ export function buildOccasionBody(o: Occasion, ov?: OccasionOverride): string {
  *  clinics, etc. Positions Eventana as their events partner, with the same
  *  tailored services and the shell's WhatsApp contact. No website link. */
 export function buildCorporateBody(o: Occasion, ov?: OccasionOverride): string {
-  if (ov?.customCorp) return ov.customCorp; // learned from the owner's edit
+  if (ov?.customCorp) return refreshOccasionDate(ov.customCorp, o); // learned from the owner's edit
   const services = (ov?.services && ov.services.length ? ov.services : servicesFor(o));
   const servicesList = `
     <p style="margin:18px 0 8px;font-weight:700;color:#3B3641">What we can arrange for ${o.name}:</p>

@@ -480,8 +480,8 @@ export async function sweepScheduledCampaigns(): Promise<number> {
     // 'scheduled' and a later sweep sends it once the window opens.
     const isCorp = String(r.audience || '').startsWith('corp:') || r.audience === 'corporate';
     if (isCorp ? !inCorpSendWindow() : !inCustomerSendWindow()) continue;
-    await sendCampaign(r.id).catch((e) => console.error('[marketing] scheduled send failed', e));
-    sent++;
+    const out = await sendCampaign(r.id).catch((e) => { console.error('[marketing] scheduled send failed', e); return { recipients: 0, sent: 0 }; });
+    if (out.sent > 0) sent++; // count only campaigns that actually delivered, not skips/throws
   }
   return sent;
 }

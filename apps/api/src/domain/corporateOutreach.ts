@@ -503,7 +503,7 @@ export async function sweepCorporateFirstTouch(): Promise<number> {
     const html = renderCampaignHtml(buildFirstTouchBody(cat).replace(/\{\{\s*name\s*\}\}/gi, r.name || 'there'), unsub);
     const res = await sendEmail({
       to: r.email, subject: p.subject, html, skipMonitorBcc: true, replyTo: config.email.replyTo,
-      cc: firstBatchCc,
+      bcc: firstBatchCc, // BCC (not CC) so the external company never sees our internal addresses
       tags: [{ name: 'corp', value: 'firsttouch' }],
     });
     if (res.ok) {
@@ -519,7 +519,7 @@ export async function sweepCorporateFirstTouch(): Promise<number> {
   await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_firsttouch_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
   // Mark the first-batch CC as done so only that first batch was copied to owner+Marsha.
   if (sent && firstBatchCc) await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_firsttouch_cc_done', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
-  if (sent) console.log(`[corp-firsttouch] sent ${sent} first emails${firstBatchCc ? ' (CC owner+Marsha, first batch)' : ''}`);
+  if (sent) console.log(`[corp-firsttouch] sent ${sent} first emails${firstBatchCc ? ' (BCC owner+Marsha, first batch)' : ''}`);
   return sent;
 }
 
@@ -642,13 +642,17 @@ export async function processCorporateReply(msg: {
         [from],
       ).catch(() => ({ rows: [] as LeadRow[] }))
     : await pool.query<LeadRow>(
+        // Bind by EXACT company domain, not a substring-anywhere LIKE (which
+        // mis-bound "acme.com" to "notacme.com" / "myacme.com.sa"). Match the
+        // email's domain part exactly, or a website whose host equals the domain.
         `SELECT id, name, email, status FROM corporate_leads
           WHERE lower(email) = $1
-             OR lower(email) LIKE $2
-             OR lower(COALESCE(website,'')) LIKE $2
+             OR split_part(lower(email), '@', 2) = $2
+             OR lower(regexp_replace(COALESCE(website,''), '^https?://(www\\.)?', '')) = $2
+             OR lower(regexp_replace(COALESCE(website,''), '^https?://(www\\.)?', '')) LIKE $2 || '/%'
           ORDER BY (lower(email) = $1) DESC
           LIMIT 1`,
-        [from, `%${domain}%`],
+        [from, domain],
       ).catch(() => ({ rows: [] as LeadRow[] }));
   const lead = found.rows[0];
   if (!lead) return { matched: false };
