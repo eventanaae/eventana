@@ -49,11 +49,13 @@ export function GoogleReviews() {
       // leaving the reply unposted with no feedback.
       if (res.ok) load();
       else alert(`Couldn't post the reply: ${res.error || 'please reconnect Google and try again.'}`);
-    } finally { setBusy(null); }
+    } catch { alert("Couldn't post the reply — check your connection and try again."); } finally { setBusy(null); }
   };
   const skip = async (id: string) => {
     setBusy(id);
-    try { await api.googleReviewSkip(id); load(); } finally { setBusy(null); }
+    try { await api.googleReviewSkip(id); load(); }
+    catch { alert("Couldn't skip this review — check your connection and try again."); }
+    finally { setBusy(null); }
   };
 
   if (reviews === null || status === null) return <Spinner />;

@@ -212,6 +212,8 @@ function AgentControl({
   const [knowledge, setKnowledge] = useState<string | null>(null);
   const [savingK, setSavingK] = useState(false);
   const [savedK, setSavedK] = useState(false);
+  const [errK, setErrK] = useState(false);
+  const [modeErr, setModeErr] = useState(false);
   const info = MODE_INFO[mode] ?? MODE_INFO.off;
 
   useEffect(() => {
@@ -221,22 +223,22 @@ function AgentControl({
 
   const saveKnowledge = async () => {
     if (knowledge == null) return;
-    setSavingK(true); setSavedK(false);
+    setSavingK(true); setSavedK(false); setErrK(false);
     try {
       await api.saveWhatsappKnowledge(knowledge);
       setSavedK(true);
       setTimeout(() => setSavedK(false), 2500);
-    } catch { /* ignore */ } finally { setSavingK(false); }
+    } catch { setErrK(true); } finally { setSavingK(false); }
   };
 
   const setMode = async (m: 'off' | 'greet' | 'full') => {
     if (m === mode) return;
-    setBusy(m);
+    setBusy(m); setModeErr(false);
     try {
       await api.setWhatsappAgentMode(m);
       onChanged(m);
     } catch {
-      /* the poll will re-sync the real state */
+      setModeErr(true); // surface it — don't rely on the 60s poll to quietly revert
     } finally {
       setBusy(null);
     }
@@ -291,6 +293,11 @@ function AgentControl({
           ))}
         </div>
       )}
+      {isOwner && modeErr && (
+        <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: C.pinkDeep }}>
+          Couldn't change the mode — check your connection and try again.
+        </div>
+      )}
 
       {/* Test the reply quality — never sends anything to a customer. */}
       <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
@@ -340,6 +347,7 @@ function AgentControl({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
             <Button onClick={saveKnowledge} disabled={savingK || knowledge == null}>{savingK ? 'Saving…' : 'Save'}</Button>
             {savedK && <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>Saved ✓ — test a reply above to see it.</span>}
+            {errK && <span style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep }}>Couldn't save — please try again.</span>}
           </div>
         </div>
       )}

@@ -32,6 +32,7 @@ export function Settings({ role }: { role?: string }) {
   const [moneyText, setMoneyText] = useState<Record<string, string>>({});
   const [zoneDraft, setZoneDraft] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<string | null>(null);
+  const [zoneBusy, setZoneBusy] = useState<string | null>(null);
 
   const load = () =>
     api.settings().then((d) => {
@@ -157,10 +158,24 @@ export function Settings({ role }: { role?: string }) {
                 </Button>
                 <Button
                   tone="ghost"
+                  disabled={zoneBusy === z.emirate}
                   style={{ padding: '9px 14px', fontSize: 11.5 }}
-                  onClick={async () => { await api.saveZone(z.emirate, { available: !z.available }); load(); }}
+                  onClick={async () => {
+                    // Stopping a zone blocks ALL checkout for that emirate — confirm first
+                    // so a stray tap can't quietly take an emirate offline.
+                    if (z.available && !window.confirm(`Stop delivery to ${z.zoneName}? Customers in this emirate won't be able to check out until you Start it again.`)) return;
+                    setZoneBusy(z.emirate);
+                    try {
+                      await api.saveZone(z.emirate, { available: !z.available });
+                      setSaved(`${z.zoneName} is now ${z.available ? 'stopped (checkout closed)' : 'open for checkout'}.`);
+                      load();
+                      setTimeout(() => setSaved(null), 4000);
+                    } catch {
+                      setSaved(`Couldn't update ${z.zoneName} — please try again.`);
+                    } finally { setZoneBusy(null); }
+                  }}
                 >
-                  {z.available ? 'Stop' : 'Start'}
+                  {zoneBusy === z.emirate ? '…' : z.available ? 'Stop' : 'Start'}
                 </Button>
               </div>
             </div>

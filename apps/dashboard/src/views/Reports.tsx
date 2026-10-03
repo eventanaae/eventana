@@ -39,26 +39,30 @@ function KV({ k, v, tone }: { k: string; v: React.ReactNode; tone?: string }) {
 
 function Reconcile() {
   const [d, setD] = useState<Record<string, any>>({});
-  const load = (s: string) => api.auditReport(s).then((r) => setD((p) => ({ ...p, [s]: r }))).catch(() => {});
+  const [err, setErr] = useState<Record<string, boolean>>({});
+  const load = (s: string) => api.auditReport(s)
+    .then((r) => { setD((p) => ({ ...p, [s]: r })); setErr((p) => ({ ...p, [s]: false })); })
+    .catch(() => setErr((p) => ({ ...p, [s]: true }))); // show an error, don't spin forever
   useEffect(() => { ['payment_methods', 'phones', 'dup_customers'].forEach(load); }, []);
   const pm = d.payment_methods, ph = d.phones, dup = d.dup_customers;
+  const errLine = <div style={{ color: C.pinkDeep, fontWeight: 700, fontSize: 12.5 }}>Couldn't load this report — please refresh.</div>;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Panel title="Payment method coverage">
-        {!pm ? <Spinner /> : (<>
+        {err.payment_methods ? errLine : !pm ? <Spinner /> : (<>
           {(pm.receiptsByMethod || []).map((r: any, i: number) => <KV key={i} k={`${r.method} · ${r.source}`} v={`${r.n} · AED ${r.display}`} />)}
           <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>{pm.note}</div>
         </>)}
       </Panel>
       <Panel title="Phone number health (+9715XXXXXXXX)">
-        {!ph ? <Spinner /> : (<>
+        {err.phones ? errLine : !ph ? <Spinner /> : (<>
           <KV k="Live customers — valid" v={`${ph.liveCustomers?.valid_e164} valid · ${ph.liveCustomers?.other_review} review`} />
           <KV k="QuickBooks — valid" v={`${ph.historicalCustomers?.valid_e164} valid · ${ph.historicalCustomers?.other_review} review · ${ph.historicalCustomers?.empty} empty`} />
           <KV k="Alternate numbers — valid" v={`${ph.historicalAlt?.valid_e164} valid`} />
         </>)}
       </Panel>
       <Panel title="Possible duplicate customers">
-        {!dup ? <Spinner /> : dup.rows?.length === 0 ? <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>None.</div> : (<>
+        {err.dup_customers ? errLine : !dup ? <Spinner /> : dup.rows?.length === 0 ? <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>None.</div> : (<>
           {dup.rows.map((r: any, i: number) => <KV key={i} k={`…${r.tail} (${r.n})`} v={<span style={{ fontSize: 11, fontWeight: 600, color: C.muted2 }}>{(r.who || []).slice(0, 3).join(', ')}{r.who?.length > 3 ? '…' : ''}</span>} />)}
           <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>{dup.note}</div>
         </>)}
@@ -158,7 +162,15 @@ function Tools() {
   const [msg, setMsg] = useState<string | null>(null);
   const run = async (name: string, fn: () => Promise<any>) => {
     setBusy(name); setMsg(null);
-    try { const r = await fn(); setMsg(`${name}: ${JSON.stringify(r).slice(0, 200)}`); }
+    const fmt = (r: any): string => {
+      if (r == null) return 'done';
+      if (typeof r === 'object') {
+        const parts = Object.entries(r).filter(([, v]) => v == null || typeof v !== 'object').map(([k, v]) => `${k}: ${v}`);
+        if (parts.length) return parts.join(' · ');
+      }
+      return String(JSON.stringify(r)).slice(0, 200);
+    };
+    try { const r = await fn(); setMsg(`${name}: ${fmt(r)}`); }
     catch (e: any) { setMsg(`${name} failed: ${e?.message}`); } finally { setBusy(null); }
   };
   const btn = (name: string, label: string, fn: () => Promise<any>, note: string) => (
