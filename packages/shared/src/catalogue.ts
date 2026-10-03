@@ -489,6 +489,7 @@ export const CELEBRATION_TYPES = [
   { id: 'baby' as const, label: 'Baby Shower', sub: 'Sweet celebration setups', gradient: G('#BDEBE4', '#FDE0EE'), route: 'build' as const },
   { id: 'gender' as const, label: 'Gender Reveal', sub: 'The big pink-or-blue moment', gradient: G('#F9C6DC', '#BDEBE4'), route: 'build' as const },
   { id: 'adult' as const, label: 'Adult Birthday', sub: 'Elegant grown-up parties', gradient: G('#D9B8E8', '#B8C4E8'), route: 'build' as const },
+  { id: 'corporate' as const, label: 'Corporate Event', sub: 'Company & office celebrations', gradient: G('#B8C4E8', '#BDEBE4'), route: 'build' as const },
   { id: 'customc' as const, label: 'Custom Celebration', sub: 'Anything you can imagine', gradient: G('#F7C948', '#F9C6DC'), route: 'build' as const },
 ];
 
@@ -513,6 +514,7 @@ export const MISSING_SERVICE_NOTES: Partial<Record<CelebrationType, string>> = {
   baby: 'Baby Shower Decoration, Welcome Stand & Guest Activities',
   gender: 'Voting Stand, Reveal Experience & Boy/Girl Characters',
   adult: 'Elegant Decoration & F&B Stations',
+  corporate: 'Branded Backdrop & Stage, Setup, Catering & Activity Stations',
 };
 
 export const BRAND = {

@@ -7,6 +7,7 @@ export type CelebrationType =
   | 'baby'
   | 'gender'
   | 'adult'
+  | 'corporate'
   | 'customc';
 
 export type Emirate =

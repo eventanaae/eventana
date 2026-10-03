@@ -1104,9 +1104,11 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         </div>
       ) : null) : null}
 
-      {/* Celebration type — so a manual booking is not always a kids birthday.
-          Carried onto the operational event when a receipt is converted. */}
-      <Field label="Celebration type">
+      {/* Type of event — so a manual booking is not always a kids birthday.
+          Carried onto the operational event when a receipt is converted. On an
+          invoice (often corporate) it reads "Type of event"; on a receipt it
+          stays "Celebration type". */}
+      <Field label={kind === 'invoice' ? 'Type of event' : 'Celebration type'}>
         <select value={celebrationType} onChange={(e) => setCelebrationType(e.target.value)} style={input}>
           {CELEBRATION_TYPES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
