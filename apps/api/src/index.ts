@@ -960,9 +960,18 @@ async function main() {
                        WHERE COALESCE(btrim(email),'') <> ''
                        GROUP BY 1 HAVING count(*) > 1)
               ORDER BY lower(btrim(email)), id`);
+          // Emails whose two rows are NOT the same person (different orgs, or
+          // different first names likely sharing one inbox) — never auto-merge
+          // these; the owner decides them by hand.
+          const SKIP_EMAILS = new Set([
+            'rea63@georgetown.edu',            // Georgetown University vs هيئة تنمية المجتمع (two orgs)
+            'zakiya.hassan.1988@gmail.com',    // Reem Allanjawi vs Zakiya Hassan (different people)
+            'aishadxb440@gmail.com',           // Aysha Ayoub vs Alia Ayoob (different first names)
+          ]);
           const groups = new Map<string, HC[]>();
           for (const r of dupes.rows) {
             const k = (r.email || '').trim().toLowerCase();
+            if (SKIP_EMAILS.has(k)) continue;
             if (!groups.has(k)) groups.set(k, []);
             groups.get(k)!.push(r);
           }
