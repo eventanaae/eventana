@@ -980,6 +980,10 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   const [pickItem, setPickItem] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // In-progress text for each row's editable unit price (keyed by row index), so
+  // typing a decimal like "150." isn't reformatted away mid-entry. Reset whenever
+  // the row set changes (a removal shifts indices) so values re-sync to priceFils.
+  const [priceText, setPriceText] = useState<Record<number, string>>({});
 
   const discountFils = Math.round((Number(discount.replace(/,/g, '')) || 0) * 100);
   const shippingFils = Math.round((Number(shipping.replace(/,/g, '')) || 0) * 100);
@@ -1009,7 +1013,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   };
 
   return (
-    <Modal title={kind === 'invoice' ? 'New invoice' : 'New sales receipt'} onClose={onClose} onSave={save} busy={busy} err={err} saveLabel={kind === 'invoice' ? 'Save & send' : 'Save'}>
+    <Modal title={editId ? (kind === 'invoice' ? 'Edit invoice' : 'Edit sales receipt') : (kind === 'invoice' ? 'New invoice' : 'New sales receipt')} onClose={onClose} onSave={save} busy={busy} err={err} saveLabel={kind === 'invoice' ? 'Save & send' : 'Save'}>
       {/* Customer */}
       <button onClick={() => setPickCustomer(true)} style={pickRow}>
         <span style={{ color: customer ? C.ink : C.muted, fontWeight: 700 }}>{customer ? customer.name : 'Select or add a customer'}</span>
@@ -1023,11 +1027,35 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{l.name}</div>
-              <div style={{ fontSize: 11, color: C.muted }}>{l.qty} × AED {money(l.priceFils)}</div>
+              {/* Quantity × editable unit price — change either and the line amount
+                  (and the document total) updates. Edit a price straight here even
+                  after the item was added to the receipt / invoice. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <input
+                  value={String(l.qty)}
+                  inputMode="numeric"
+                  aria-label="Quantity"
+                  onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, qty: Number(e.target.value.replace(/[^\d]/g, '')) || 0 } : x))}
+                  style={{ ...input, width: 46, marginBottom: 0, padding: '5px 7px', textAlign: 'center' }}
+                />
+                <span style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>× AED</span>
+                <input
+                  value={priceText[i] ?? (l.priceFils ? String(l.priceFils / 100) : '')}
+                  inputMode="decimal"
+                  aria-label="Unit price in AED"
+                  placeholder="0"
+                  onChange={(e) => {
+                    const t = e.target.value.replace(/[^\d.]/g, '');
+                    setPriceText((p) => ({ ...p, [i]: t }));
+                    const fils = Math.round((Number(t) || 0) * 100);
+                    setItems((a) => a.map((x, j) => j === i ? { ...x, priceFils: fils } : x));
+                  }}
+                  style={{ ...input, width: 88, marginBottom: 0, padding: '5px 7px' }}
+                />
+              </div>
             </div>
-            <input value={String(l.qty)} inputMode="numeric" onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, qty: Number(e.target.value.replace(/[^\d]/g, '')) || 0 } : x))} style={{ ...input, width: 52, marginBottom: 0, padding: '6px 8px' }} />
             <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink, width: 92, textAlign: 'right' }}>AED {money(Math.round(l.qty * l.priceFils))}</div>
-            <button onClick={() => setItems((a) => a.filter((_, j) => j !== i))} style={{ ...linkBtn, color: C.red }}>✕</button>
+            <button onClick={() => { setItems((a) => a.filter((_, j) => j !== i)); setPriceText({}); }} style={{ ...linkBtn, color: C.red }}>✕</button>
           </div>
           <textarea
             value={l.description ?? ''}
