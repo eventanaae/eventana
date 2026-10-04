@@ -683,6 +683,28 @@ async function main() {
     })();
   }
 
+  // One-shot: set the two entry-date-less 2023 receipts' booking day = event day
+  // (owner's call), then log how booking vs event dates line up across ALL receipts.
+  // Set QB_BOOKDATE_STATS=true for one deploy, then unset.
+  if (String(process.env.QB_BOOKDATE_STATS ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        await pool.query(`UPDATE finance_receipts SET booked_on = date WHERE number IN ('1100','1101')`);
+        const { rows } = await pool.query<{ total: string; with_booked: string; same_day: string; before_ev: string; after_ev: string; blank: string }>(
+          `SELECT count(*)::text total,
+                  count(*) FILTER (WHERE booked_on IS NOT NULL)::text with_booked,
+                  count(*) FILTER (WHERE booked_on = date)::text same_day,
+                  count(*) FILTER (WHERE booked_on < date)::text before_ev,
+                  count(*) FILTER (WHERE booked_on > date)::text after_ev,
+                  count(*) FILTER (WHERE booked_on IS NULL)::text blank
+             FROM finance_receipts`);
+        const r = rows[0];
+        console.log(`[bookdate-stats] total=${r.total} | withBookingDate=${r.with_booked} | SAME day (booking=event)=${r.same_day} | booked BEFORE event=${r.before_ev} | booked AFTER event=${r.after_ev} | blank=${r.blank}`);
+      } catch (e) { console.error('[bookdate-stats] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
