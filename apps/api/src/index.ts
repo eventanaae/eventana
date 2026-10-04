@@ -705,6 +705,25 @@ async function main() {
     })();
   }
 
+  // One-shot: diagnose the "booked AFTER event" receipts (impossible in reality) —
+  // break them down by EVENT year + show the create-vs-update gap on a sample, to
+  // confirm they're old bulk-entry artifacts. QB_AFTER_STATS=true, then unset.
+  if (String(process.env.QB_AFTER_STATS ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const byYear = await pool.query<{ y: string; n: string }>(
+          `SELECT extract(year from date)::text y, count(*)::text n
+             FROM finance_receipts WHERE booked_on > date GROUP BY 1 ORDER BY 1`);
+        console.log('[after-stats] booked-after-event by EVENT year:');
+        for (const r of byYear.rows) console.log(`[after-stats]   ${r.y}: ${r.n}`);
+        const recent = await pool.query<{ n: string }>(
+          `SELECT count(*)::text n FROM finance_receipts WHERE booked_on > date AND date >= '2025-01-01'`);
+        console.log(`[after-stats] booked-after-event in 2025+ (should be ~0 if it's just old data): ${recent.rows[0].n}`);
+      } catch (e) { console.error('[after-stats] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
