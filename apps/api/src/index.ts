@@ -743,6 +743,19 @@ async function main() {
     })();
   }
 
+  // One-shot: email a month's finance report NOW with the current (booking-date)
+  // calculation. Set SEND_FINANCE_REPORT=YYYY-MM for one deploy, then unset.
+  if (/^\d{4}-\d{2}$/.test(String(process.env.SEND_FINANCE_REPORT ?? ''))) {
+    (async () => {
+      try {
+        const month = String(process.env.SEND_FINANCE_REPORT);
+        const { sendReport } = await import('./domain/financeReport.js');
+        const r = await sendReport(month);
+        console.log(`[finance-report] ${month} → recipients=${r.recipients} sent=${r.sent}`);
+      } catch (e) { console.error('[finance-report] send failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
