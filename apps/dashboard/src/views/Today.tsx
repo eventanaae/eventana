@@ -57,12 +57,12 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
       ? "No parties today — a good day to get ahead 💐"
       : "Let's fill the calendar with celebrations 🎈";
 
-  // 🎃 Light, seasonal Halloween dress-up — only in the last week of October, so
-  // it feels special, not permanent. The brand stays pink; we just warm the hero
-  // with a soft pumpkin/purple wash and a floating pumpkin. Shown on everyone's
-  // home — the team's especially.
+  // 🎃 Light, seasonal Halloween dress-up — runs through the whole of October
+  // (owner's call: show it now, take it down at month end) and clears itself on
+  // 1 Nov. The brand stays pink; we just warm the hero with a soft pumpkin/purple
+  // wash and a floating pumpkin. Shown on everyone's home — the team's especially.
   const nowD = new Date();
-  const halloween = nowD.getMonth() === 9 && nowD.getDate() >= 24 && nowD.getDate() <= 31;
+  const halloween = nowD.getMonth() === 9; // October (0-indexed)
   const heroBg = halloween
     ? 'linear-gradient(130deg,#FFE9D6 0%,#F7C9A6 44%,#E7D2F2 100%)'
     : C.gradHero;
