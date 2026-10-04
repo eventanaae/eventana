@@ -293,13 +293,15 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
           message: `Bookings must be made at least ${rules.minLeadHours} hours before the event. Please choose a later date.`,
         });
       } else if (hoursToEvent < rules.urgentWindowHours) {
-        // Rush fee is on the physical setup value: exclude delivery, the BYO
-        // discount line, and digital deliverables (which carry no rush fee).
+        // Rush fee is on the NET physical setup value: exclude delivery and digital
+        // deliverables (which carry no rush fee), but KEEP the BYO discount line
+        // (it's negative) so the surcharge is charged on the party value AFTER the
+        // discount — excluding it billed the rush on the pre-discount gross and
+        // overcharged a rushed Build-Your-Own booking.
         const partyNetFils = lines
           .filter(
             (l) =>
               l.kind !== 'delivery' &&
-              l.kind !== 'discount' &&
               !(l.refId && DIGITAL_SERVICE_IDS.has(l.refId)),
           )
           .reduce((sum, l) => sum + l.amountFils, 0);
