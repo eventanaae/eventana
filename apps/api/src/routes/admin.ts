@@ -4001,17 +4001,21 @@ export async function adminRoutes(app: FastifyInstance) {
     const byPackage = withDisplay(groupBy((r) => r.package_id ?? 'none', (r) => r.package_name ?? 'Build Your Own / à la carte'));
     const byTheme = withDisplay(groupBy((r) => r.theme_id ?? 'none', (r) => r.theme_name ?? 'No theme / custom'));
 
-    // Monthly trend across the range (bookings + revenue by event_date month).
-    const monthMap = new Map<string, { month: string; bookings: number; revenueFils: number }>();
-    for (const r of confirmed) {
-      const cur = monthMap.get(r.ym) ?? { month: r.ym, bookings: 0, revenueFils: 0 };
-      cur.bookings += 1;
-      cur.revenueFils += Number(r.revenue_fils);
-      monthMap.set(r.ym, cur);
-    }
-    const trend = [...monthMap.values()]
-      .sort((a, b) => a.month.localeCompare(b.month))
-      .map((t) => ({ ...t, revenueDisplay: formatAed(t.revenueFils) }));
+    // Monthly revenue by BOOKING month (money-in) — owner's rule: the monthly
+    // revenue trend is counted by booked_on (the day money came in), from the
+    // receipts ledger, NOT by the event/party month. Bookings = receipts booked
+    // that month. (The per-dimension breakdowns above stay event-based activity.)
+    const trendRows = (await pool.query<{ m: string; v: string; n: string }>(
+      `SELECT to_char(COALESCE(booked_on, date),'YYYY-MM') m,
+              COALESCE(SUM(total_fils),0)::bigint v, count(*)::text n
+         FROM finance_receipts
+        WHERE COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2
+        GROUP BY 1 ORDER BY 1`,
+      [from, to],
+    ).catch(() => ({ rows: [] as { m: string; v: string; n: string }[] }))).rows;
+    const trend = trendRows.map((t) => ({
+      month: t.m, bookings: Number(t.n), revenueFils: Number(t.v), revenueDisplay: formatAed(Number(t.v)),
+    }));
 
     // Forward-looking pipeline (upcoming confirmed events + booked revenue) and
     // the WhatsApp sales funnel — global business health, not range-filtered.
