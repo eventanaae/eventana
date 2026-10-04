@@ -499,6 +499,31 @@ export async function qbBookingDatesFromEnv(): Promise<void> {
   catch (err) { console.error('[qb-bookdate] failed:', (err as Error).message); }
 }
 
+/**
+ * List the RECENT (2025+) receipts whose QuickBooks entry date is AFTER the event
+ * date — i.e. recorded late, so their booking date needs owner review. (These were
+ * capped to the event date; this re-identifies them from QuickBooks by name.)
+ * Boot: QB_AFTER_LIST=true.
+ */
+export async function qbLateEntriesFromEnv(): Promise<void> {
+  if (String(process.env.QB_AFTER_LIST ?? '').toLowerCase() !== 'true') return;
+  const log = (m: string) => console.log(`[qb-late] ${m}`);
+  try {
+    if (!quickbooksConfigured()) { log('QuickBooks not configured'); return; }
+    const byDoc = await fetchDocEntryDates(log);
+    const rows = (await pool.query<{ number: string; customer_name: string; d: string }>(
+      `SELECT number, customer_name, to_char(date,'YYYY-MM-DD') d
+         FROM finance_receipts WHERE source='quickbooks' AND date >= '2025-01-01' ORDER BY date`,
+    )).rows;
+    let n = 0;
+    for (const r of rows) {
+      const e = byDoc.get(String(r.number).trim());
+      if (e && e > r.d) { n++; log(`EV-${r.number} | ${r.customer_name} | event ${r.d} | entered ${e}`); }
+    }
+    log(`END — ${n} recent (2025+) late-entered receipt(s)`);
+  } catch (err) { console.error('[qb-late] failed:', (err as Error).message); }
+}
+
 /** Boot entry: QB_METHODS=preview logs only; =apply writes the methods. */
 export async function qbMethodsFromEnv(): Promise<void> {
   const mode = String(process.env.QB_METHODS ?? '').toLowerCase();

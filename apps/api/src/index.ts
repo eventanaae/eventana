@@ -506,6 +506,8 @@ async function main() {
     // real entry date (QB_BOOKDATE=preview logs; =apply writes). Event date kept.
     const { qbBookingDatesFromEnv } = await import('./domain/quickbooks.js');
     await qbBookingDatesFromEnv().catch((err) => console.error('[qb-bookdate] failed:', err));
+    const { qbLateEntriesFromEnv } = await import('./domain/quickbooks.js');
+    await qbLateEntriesFromEnv().catch((err) => console.error('[qb-late] failed:', err));
     // Store the team's WhatsApp numbers so the staff WhatsApp mirror can reach
     // them (SET_STAFF_PHONES=true). Idempotent; sends nothing.
     const { setStaffPhonesFromEnv } = await import('./db/setStaffPhones.js');
