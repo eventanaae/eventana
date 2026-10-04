@@ -41,11 +41,11 @@ async function returnSpentTenders(
 ): Promise<void> {
   if (!customerId || ratio <= 0) return;
   const r = Math.min(1, ratio);
-  const spent = Number((await db.query<{ s: string }>(
+  const spent = Number((await db.query(
     `SELECT COALESCE(-SUM(points),0)::bigint s FROM loyalty_transactions
       WHERE order_id = $1 AND points < 0 AND reason = 'Points redeemed at checkout'`, [orderId],
   )).rows[0].s);
-  const cartRow = (await db.query<{ cart: any }>(`SELECT cart FROM orders WHERE id = $1`, [orderId])).rows[0];
+  const cartRow = (await db.query(`SELECT cart FROM orders WHERE id = $1`, [orderId])).rows[0];
   const creditUsed = Number((cartRow?.cart as any)?.appliedDiscounts?.creditFils ?? 0);
   const restorePoints = Math.floor(spent * r);
   const restoreCredit = Math.floor(creditUsed * r);
