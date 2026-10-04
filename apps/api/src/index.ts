@@ -834,17 +834,55 @@ async function main() {
           console.log(`[diag-event] ${e.id} | cust=${e.cid} ${e.name} | phone=${e.phone ?? '—'} | email=${e.email ?? '—'} | event=${e.d} | type=${e.ct} | custHas ${cnt.rows[0]?.ev} events, ${cnt.rows[0]?.rc} receipts(by name)`);
         }
         if (find) {
+          const digits = find.replace(/\D/g, '');
           const cand = await pool.query<{ id: string; name: string; phone: string | null; email: string | null; ev: string }>(
             `SELECT c.id, c.name, c.phone, c.email,
                     (SELECT count(*) FROM events WHERE customer_id = c.id)::text ev
                FROM customers c
-              WHERE c.name ILIKE '%' || $1 || '%' OR replace(c.phone,' ','') LIKE '%' || $2 || '%'
-              ORDER BY c.name LIMIT 10`, [find, find.replace(/\D/g, '')]);
+              WHERE c.name ILIKE '%' || $1 || '%'
+                 OR ($2 <> '' AND replace(c.phone,' ','') LIKE '%' || $2 || '%')
+              ORDER BY c.name LIMIT 10`, [find, digits]);
           console.log(`[diag-event] candidate "${find}": ${cand.rowCount}`);
           for (const c of cand.rows) console.log(`[diag-event] CAND cust=${c.id} ${c.name} | phone=${c.phone ?? '—'} | email=${c.email ?? '—'} | ${c.ev} events`);
         }
         console.log('[diag-event] END');
       } catch (e) { console.error('[diag-event] failed:', (e as Error).message); }
+    })();
+  }
+
+  // One-shot: correct an event booked under the wrong customer. Renames that
+  // event's customer row (name + phone) and updates the matching receipt's
+  // denormalised name, so the event, its title and the WhatsApp/feedback number
+  // all point to the real person. SAFE ONLY for a one-off customer row (confirm
+  // with DIAG_EVENT first that it owns just this one event). The event title
+  // (e.g. "<name>'s Adult Birthday") derives from the customer, so it follows.
+  // FIX_EVENT_ID=<EV-id> FIX_EVENT_NAME=<correct name> FIX_EVENT_PHONE=<+9715…>.
+  if (process.env.FIX_EVENT_ID && process.env.FIX_EVENT_NAME) {
+    (async () => {
+      const evId = String(process.env.FIX_EVENT_ID).trim();
+      const name = String(process.env.FIX_EVENT_NAME).trim();
+      const phone = String(process.env.FIX_EVENT_PHONE ?? '').replace(/[^\d+]/g, '');
+      try {
+        const { pool } = await import('./db/pool.js');
+        const ev = await pool.query<{ customer_id: string; order_id: string; old: string }>(
+          `SELECT e.customer_id, e.order_id, c.name old
+             FROM events e JOIN customers c ON c.id = e.customer_id WHERE e.id = $1`, [evId]);
+        const row = ev.rows[0];
+        if (!row) { console.log(`[fix-event] ${evId} not found`); console.log('[fix-event] END'); return; }
+        // Guard: refuse if this customer row owns more than this one event (a
+        // rename would then corrupt someone else's booking) — repoint by hand.
+        const n = await pool.query<{ c: string }>(`SELECT count(*)::text c FROM events WHERE customer_id = $1`, [row.customer_id]);
+        if (Number(n.rows[0]?.c ?? 0) > 1) {
+          console.log(`[fix-event] ABORT: customer ${row.customer_id} owns ${n.rows[0]?.c} events — not a one-off, repoint manually`);
+          console.log('[fix-event] END'); return;
+        }
+        const u1 = await pool.query(
+          `UPDATE customers SET name = $2${phone ? ', phone = $3' : ''} WHERE id = $1`,
+          phone ? [row.customer_id, name, phone] : [row.customer_id, name]);
+        const u2 = await pool.query(`UPDATE finance_receipts SET customer_name = $2 WHERE order_id = $1`, [row.order_id, name]);
+        console.log(`[fix-event] ${evId}: customer "${row.old}" → "${name}"${phone ? ` (phone ${phone})` : ''}; customers updated=${u1.rowCount}, receipts updated=${u2.rowCount}`);
+        console.log('[fix-event] END');
+      } catch (e) { console.error('[fix-event] failed:', (e as Error).message); }
     })();
   }
 
