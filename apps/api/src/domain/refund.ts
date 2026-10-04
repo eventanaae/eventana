@@ -30,6 +30,38 @@ export interface RefundResult {
  */
 export type RefundReasonCategory = 'customer_cancellation' | 'quality_issue' | 'missing_item' | 'other';
 
+/** On a CANCELLATION refund, RETURN to the customer the loyalty points and store
+ *  credit they SPENT on the booking, pro-rated by the fraction of the order being
+ *  refunded (ratio = thisRefund / orderTotal). The owner's policy is "same ratio":
+ *  an 80% refund returns 80% of what they spent. The EARNED-points reversal is a
+ *  separate step the caller already does. No-op for a non-cancellation refund
+ *  (e.g. a quality refund on an attended party) or when nothing was spent. */
+async function returnSpentTenders(
+  db: any, orderId: string, eventId: string | null, customerId: string | null, ratio: number,
+): Promise<void> {
+  if (!customerId || ratio <= 0) return;
+  const r = Math.min(1, ratio);
+  const spent = Number((await db.query<{ s: string }>(
+    `SELECT COALESCE(-SUM(points),0)::bigint s FROM loyalty_transactions
+      WHERE order_id = $1 AND points < 0 AND reason = 'Points redeemed at checkout'`, [orderId],
+  )).rows[0].s);
+  const cartRow = (await db.query<{ cart: any }>(`SELECT cart FROM orders WHERE id = $1`, [orderId])).rows[0];
+  const creditUsed = Number((cartRow?.cart as any)?.appliedDiscounts?.creditFils ?? 0);
+  const restorePoints = Math.floor(spent * r);
+  const restoreCredit = Math.floor(creditUsed * r);
+  if (restorePoints > 0) {
+    await db.query(
+      `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
+       VALUES ($1,$2,$3,$4,'Points returned — booking cancelled')`,
+      [customerId, eventId, orderId, restorePoints],
+    );
+    await db.query(`UPDATE customers SET loyalty_points = loyalty_points + $2 WHERE id = $1`, [customerId, restorePoints]);
+  }
+  if (restoreCredit > 0) {
+    await db.query(`UPDATE customers SET referral_credit_fils = referral_credit_fils + $2 WHERE id = $1`, [customerId, restoreCredit]);
+  }
+}
+
 export async function refundOrderMoney(params: {
   orderId: string;
   amountFils: number;
@@ -143,6 +175,10 @@ export async function refundOrderMoney(params: {
             `UPDATE cancellations SET refund_status='processed', processed_at=now(), refund_reference = COALESCE(refund_reference,'manual') WHERE order_id=$1 AND refund_status <> 'processed'`,
             [orderId],
           );
+          if (params.cancelEvent) {
+            // Return the points / store credit spent on this booking (pro-rated).
+            await returnSpentTenders(db, orderId, ord.event_id ?? null, ord.customer_id ?? null, cap > 0 ? toRefund / cap : 0);
+          }
           if (params.cancelEvent && ord.event_id) {
             await db.query(`UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`, [orderId]).catch(() => {});
             await db.query(`UPDATE events SET phase = 'Cancelled', updated_at = now() WHERE id = $1`, [ord.event_id]).catch(() => {});
@@ -319,6 +355,8 @@ export async function refundOrderMoney(params: {
       // completed party can be (partly) refunded for a quality issue without
       // being cancelled. Only tear the event down when the caller says so.
       if (params.cancelEvent) {
+        // Return the points / store credit spent on this booking (pro-rated).
+        await returnSpentTenders(db, orderId, payment.event_id ?? null, payment.customer_id ?? null, cap > 0 ? toRefund / cap : 0);
         await db.query(`UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`, [orderId]);
         if (payment.event_id) {
           await db.query(

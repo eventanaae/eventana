@@ -62,6 +62,9 @@ async function cancelEvent(eventId: string, reason: string) {
     );
     const ev = rows[0];
     if (!ev) return null;
+    // Already cancelled → do nothing more. Without this bail a second cancel would
+    // re-fire the driver/ops rows and DOUBLE the loyalty reversal below.
+    if (isCancelled(ev.phase)) return { ...ev, refundInfo: null };
 
     await db.query(
       `UPDATE events SET phase = 'Cancelled', eta = NULL, cancelled_at = now(), cancellation_reason = $2 WHERE id = $1`,
@@ -116,6 +119,9 @@ async function cancelEvent(eventId: string, reason: string) {
          VALUES ($1,'email','cancellation_refund', now(), $2)`,
         [eventId, JSON.stringify({ orderId: ev.oid })],
       );
+      // (Loyalty: the earned-points reversal and the return of spent points /
+      // store credit happen when this cancellation's refund is PROCESSED by
+      // refundOrderMoney — one place, so it can't double-reverse.)
       refundInfo = { orderId: ev.oid, refundFils: b.refundFils, refundStatus };
     } else {
       // Nothing was paid — a plain cancellation note.

@@ -388,7 +388,7 @@ export async function eventRoutes(app: FastifyInstance) {
 
     const result = await withTransaction(async (db) => {
       const { rows } = await db.query(
-        `SELECT e.*, o.id AS order_id, o.status AS order_status, o.total_fils, o.quote, o.cart
+        `SELECT e.*, o.id AS order_id, o.status AS order_status, o.total_fils, o.quote
            FROM events e JOIN orders o ON o.id = e.order_id
           WHERE e.id = $1 AND e.customer_id = $2
           FOR UPDATE OF e`,
@@ -431,52 +431,9 @@ export async function eventRoutes(app: FastifyInstance) {
           WHERE event_id = $1 AND (sent_at IS NULL OR whatsapp_sent_at IS NULL) AND cancelled_at IS NULL`,
         [eventId],
       );
-      // Loyalty: reverse the points EARNED on this booking and return the points /
-      // store credit SPENT on it — both PRO-RATED by the refund ratio (owner policy
-      // "same ratio": the customer keeps the share tied to the amount Eventana
-      // retains). Runs once — the already-cancelled guard above blocks a repeat.
-      {
-        const ratio = b.totalPaidFils > 0 ? b.refundFils / b.totalPaidFils : 0;
-        if (ratio > 0) {
-          const led = await db.query<{ earned: string; spent: string }>(
-            `SELECT COALESCE( SUM(points) FILTER (WHERE points > 0 AND reason = 'Booking confirmed'), 0)::bigint earned,
-                    COALESCE(-SUM(points) FILTER (WHERE points < 0 AND reason = 'Points redeemed at checkout'), 0)::bigint spent
-               FROM loyalty_transactions WHERE order_id = $1`,
-            [ev.order_id],
-          );
-          const reverseEarned = Math.floor(Number(led.rows[0].earned) * ratio);
-          const restorePoints = Math.floor(Number(led.rows[0].spent) * ratio);
-          const creditUsed = Number((ev.cart as any)?.appliedDiscounts?.creditFils ?? 0);
-          const restoreCredit = Math.floor(creditUsed * ratio);
-          if (reverseEarned > 0) {
-            await db.query(
-              `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
-               VALUES ($1,$2,$3,$4,'Points reversed — booking cancelled')`,
-              [customerId, eventId, ev.order_id, -reverseEarned],
-            );
-          }
-          if (restorePoints > 0) {
-            await db.query(
-              `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
-               VALUES ($1,$2,$3,$4,'Points returned — booking cancelled')`,
-              [customerId, eventId, ev.order_id, restorePoints],
-            );
-          }
-          const netPoints = restorePoints - reverseEarned;
-          if (netPoints !== 0) {
-            await db.query(
-              `UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points + $2) WHERE id = $1`,
-              [customerId, netPoints],
-            );
-          }
-          if (restoreCredit > 0) {
-            await db.query(
-              `UPDATE customers SET referral_credit_fils = referral_credit_fils + $2 WHERE id = $1`,
-              [customerId, restoreCredit],
-            );
-          }
-        }
-      }
+      // (Loyalty points EARNED are reversed, and points / store credit SPENT are
+      // returned, when the refund is PROCESSED — see refundOrderMoney. Doing it
+      // here too would double-reverse the earned points.)
       // Tell the assigned driver the delivery is off (fresh row, not cancelled).
       await db.query(
         `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
