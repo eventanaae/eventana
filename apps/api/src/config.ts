@@ -310,6 +310,16 @@ export const config = {
     testEventCode: env.META_TEST_EVENT_CODE ?? null,
     /** Graph API version the CAPI endpoint is called on. */
     graphVersion: env.META_GRAPH_VERSION ?? 'v21.0',
+    /**
+     * Reading AD PERFORMANCE (spend/results per ad) from the Marketing API —
+     * separate from CAPI (which only SENDS events). The ad account is Eventana's
+     * (act_638060898452533); the read token needs `ads_read`. We try a dedicated
+     * META_ADS_READ_TOKEN first, then fall back to the CAPI token (which works only
+     * if its system user also has ads_read on the ad account). Absent/unauthorised
+     * → ad-insights features are a silent no-op and the expenses-based spend stands.
+     */
+    adAccountId: (env.META_AD_ACCOUNT_ID ?? '638060898452533').replace(/^act_/, ''),
+    adsReadToken: env.META_ADS_READ_TOKEN ?? env.META_CAPI_ACCESS_TOKEN ?? null,
   },
 
   /**

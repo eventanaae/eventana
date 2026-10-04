@@ -652,6 +652,22 @@ async function main() {
     })();
   }
 
+  // One-shot: test whether the configured Meta token can READ ad performance
+  // (ads_read) on the ad account. Set META_ADS_TEST=true for one deploy to log the
+  // result, then unset. Tells us if the existing CAPI token works or a dedicated
+  // ads_read token is needed — without exposing the token.
+  if (String(process.env.META_ADS_TEST ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { metaAdsEnabled, fetchAdSummary } = await import('./integrations/metaAds.js');
+        if (!metaAdsEnabled()) { console.log('[meta-ads] TEST: no token/account configured'); return; }
+        const s = await fetchAdSummary('this_month');
+        if (!s) { console.log('[meta-ads] TEST: FAILED — token likely lacks ads_read (see the error line above)'); return; }
+        console.log(`[meta-ads] TEST OK: ${s.ads} ads, spend AED ${s.spendAed}, ${s.conversations} conversations; top: ${s.top.map((a) => `${a.ad}=AED${a.spendAed}/${a.conversations}`).join(' · ')}`);
+      } catch (e) { console.error('[meta-ads] TEST crashed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
