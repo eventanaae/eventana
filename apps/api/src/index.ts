@@ -825,10 +825,13 @@ async function main() {
             WHERE c.name ILIKE '%' || $1 || '%' ORDER BY e.event_date`, [wrong]);
         console.log(`[diag-event] events under "${wrong}": ${evs.rowCount}`);
         for (const e of evs.rows) {
+          // NB: events.customer_id is TEXT (customers.id); finance_receipts.customer_id
+          // is BIGINT (historical_customers.id) — can't compare the two, so count
+          // this customer's events by id and their receipts by matching name.
           const cnt = await pool.query<{ ev: string; rc: string }>(
             `SELECT (SELECT count(*) FROM events WHERE customer_id = $1)::text ev,
-                    (SELECT count(*) FROM finance_receipts WHERE customer_id = $1)::text rc`, [e.cid]);
-          console.log(`[diag-event] ${e.id} | cust=${e.cid} ${e.name} | phone=${e.phone ?? '—'} | email=${e.email ?? '—'} | event=${e.d} | type=${e.ct} | custHas ${cnt.rows[0]?.ev} events, ${cnt.rows[0]?.rc} receipts`);
+                    (SELECT count(*) FROM finance_receipts WHERE customer_name ILIKE $2)::text rc`, [e.cid, e.name]);
+          console.log(`[diag-event] ${e.id} | cust=${e.cid} ${e.name} | phone=${e.phone ?? '—'} | email=${e.email ?? '—'} | event=${e.d} | type=${e.ct} | custHas ${cnt.rows[0]?.ev} events, ${cnt.rows[0]?.rc} receipts(by name)`);
         }
         if (find) {
           const cand = await pool.query<{ id: string; name: string; phone: string | null; email: string | null; ev: string }>(
