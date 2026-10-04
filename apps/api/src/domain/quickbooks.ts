@@ -511,14 +511,15 @@ export async function qbLateEntriesFromEnv(): Promise<void> {
   try {
     if (!quickbooksConfigured()) { log('QuickBooks not configured'); return; }
     const byDoc = await fetchDocEntryDates(log);
-    const rows = (await pool.query<{ number: string; customer_name: string; d: string }>(
-      `SELECT number, customer_name, to_char(date,'YYYY-MM-DD') d
-         FROM finance_receipts WHERE source='quickbooks' AND date >= '2025-01-01' ORDER BY date`,
+    const rows = (await pool.query<{ number: string; customer_name: string; d: string; phone: string | null; alt: string | null }>(
+      `SELECT r.number, r.customer_name, to_char(r.date,'YYYY-MM-DD') d, hc.phone, hc.phone_alt alt
+         FROM finance_receipts r LEFT JOIN historical_customers hc ON hc.id = r.customer_id
+        WHERE r.source='quickbooks' AND r.date >= '2025-01-01' ORDER BY r.date`,
     )).rows;
     let n = 0;
     for (const r of rows) {
       const e = byDoc.get(String(r.number).trim());
-      if (e && e > r.d) { n++; log(`EV-${r.number} | ${r.customer_name} | event ${r.d} | entered ${e}`); }
+      if (e && e > r.d) { n++; log(`EV-${r.number} | ${r.customer_name} | event ${r.d} | entered ${e} | phone ${r.phone ?? r.alt ?? '—'}`); }
     }
     log(`END — ${n} recent (2025+) late-entered receipt(s)`);
   } catch (err) { console.error('[qb-late] failed:', (err as Error).message); }
