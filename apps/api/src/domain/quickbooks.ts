@@ -463,10 +463,20 @@ export async function syncReceiptBookingDates(apply: boolean): Promise<{ qbRecei
     `SELECT number, to_char(date,'YYYY-MM-DD') d, to_char(booked_on,'YYYY-MM-DD') booked
        FROM finance_receipts WHERE source='quickbooks'`,
   );
-  let matched = 0, updated = 0, shown = 0;
+  let matched = 0, updated = 0, shown = 0, cleared = 0;
   for (const r of nums.rows) {
     const entry = byDoc.get(String(r.number).trim());
-    if (!entry) continue;
+    if (!entry) {
+      // No real entry date in QuickBooks → booking date is UNKNOWN. Clear any value
+      // (the first backfill had temporarily set it to the event date) so we never
+      // pass off the event/import day as a booking date (owner's rule).
+      console.log(`[qb-bookdate]   NO ENTRY DATE → #${r.number} · event ${r.d ?? '—'} (booking date left blank)`);
+      if (apply) {
+        const res = await pool.query(`UPDATE finance_receipts SET booked_on = NULL WHERE number = $1 AND booked_on IS NOT NULL`, [r.number]);
+        cleared += res.rowCount ?? 0;
+      }
+      continue;
+    }
     matched++;
     if (shown < 10) { console.log(`[qb-bookdate]   #${r.number}: event ${r.d ?? '—'} → booked ${entry}`); shown++; }
     if (apply) {
@@ -477,7 +487,7 @@ export async function syncReceiptBookingDates(apply: boolean): Promise<{ qbRecei
       updated += res.rowCount ?? 0;
     }
   }
-  log(`QB receipts: ${nums.rowCount} · matched entry date: ${matched} · ${apply ? `updated: ${updated}` : '(preview — nothing written)'}`);
+  log(`QB receipts: ${nums.rowCount} · matched entry date: ${matched} · ${apply ? `updated: ${updated} · cleared(no date): ${cleared}` : '(preview — nothing written)'}`);
   return { qbReceipts: nums.rowCount ?? 0, matched, updated };
 }
 
