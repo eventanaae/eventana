@@ -807,6 +807,44 @@ async function main() {
     })();
   }
 
+  // One-shot diag: inspect an event booked under the wrong customer. Dumps the
+  // matching events (by customer name) with the customer id/phone/email, how many
+  // events + receipts that customer row owns (so we know if a rename is safe or a
+  // repoint is needed), and any candidate correct customer by name/phone.
+  // DIAG_EVENT_NAME=<wrong name>  DIAG_EVENT_FIND=<correct name or phone digits>.
+  if (process.env.DIAG_EVENT_NAME) {
+    (async () => {
+      const wrong = String(process.env.DIAG_EVENT_NAME);
+      const find = String(process.env.DIAG_EVENT_FIND ?? '').trim();
+      try {
+        const { pool } = await import('./db/pool.js');
+        const evs = await pool.query<{ id: string; cid: string; name: string; phone: string | null; email: string | null; d: string; ct: string }>(
+          `SELECT e.id, e.customer_id cid, c.name, c.phone, c.email,
+                  to_char(e.event_date,'YYYY-MM-DD') d, e.celebration_type ct
+             FROM events e JOIN customers c ON c.id = e.customer_id
+            WHERE c.name ILIKE '%' || $1 || '%' ORDER BY e.event_date`, [wrong]);
+        console.log(`[diag-event] events under "${wrong}": ${evs.rowCount}`);
+        for (const e of evs.rows) {
+          const cnt = await pool.query<{ ev: string; rc: string }>(
+            `SELECT (SELECT count(*) FROM events WHERE customer_id = $1)::text ev,
+                    (SELECT count(*) FROM finance_receipts WHERE customer_id = $1)::text rc`, [e.cid]);
+          console.log(`[diag-event] ${e.id} | cust=${e.cid} ${e.name} | phone=${e.phone ?? '—'} | email=${e.email ?? '—'} | event=${e.d} | type=${e.ct} | custHas ${cnt.rows[0]?.ev} events, ${cnt.rows[0]?.rc} receipts`);
+        }
+        if (find) {
+          const cand = await pool.query<{ id: string; name: string; phone: string | null; email: string | null; ev: string }>(
+            `SELECT c.id, c.name, c.phone, c.email,
+                    (SELECT count(*) FROM events WHERE customer_id = c.id)::text ev
+               FROM customers c
+              WHERE c.name ILIKE '%' || $1 || '%' OR replace(c.phone,' ','') LIKE '%' || $2 || '%'
+              ORDER BY c.name LIMIT 10`, [find, find.replace(/\D/g, '')]);
+          console.log(`[diag-event] candidate "${find}": ${cand.rowCount}`);
+          for (const c of cand.rows) console.log(`[diag-event] CAND cust=${c.id} ${c.name} | phone=${c.phone ?? '—'} | email=${c.email ?? '—'} | ${c.ev} events`);
+        }
+        console.log('[diag-event] END');
+      } catch (e) { console.error('[diag-event] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: re-plan every upcoming, non-cancelled event under the CURRENT
   // staffing mode. With the mode defaulting to 'manual', this opens the slots on
   // events that were auto-staffed before, so the whole upcoming calendar switches
