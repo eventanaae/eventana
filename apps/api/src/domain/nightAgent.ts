@@ -65,17 +65,28 @@ async function gatherSnapshot() {
     one(`SELECT COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts WHERE date >= date_trunc('month', current_date)`),
   ]);
 
+  const adSpendFils = Number(adSpend?.v ?? 0);
+  const revMonthFils = Number(revMonth?.v ?? 0);
   return {
-    last24h: {
+    // Marketing & ADS first — this is the owner's main focus.
+    marketing: {
+      adSpendThisMonthAed: AED(adSpendFils),
+      revenueThisMonthAed: AED(revMonthFils),
+      roughReturnPerAed: adSpendFils > 0 ? Math.round((revMonthFils / adSpendFils) * 10) / 10 : null,
+      newLeads24h: Number(leads?.n ?? 0),
+      abandonedCarts: Number(abandoned?.n ?? 0),
+      abandonedValueAed: AED(abandoned?.v),
+      note: 'الإيراد الشهري مب كله من الإعلانات — استخدميه كمؤشر عام للعائد مقابل الصرف، لا تنسبي كل المبيعات للإعلانات.',
+    },
+    sales24h: {
       newSales: Number(sales?.n ?? 0), newSalesAed: AED(sales?.v),
       refunds: Number(refunds?.n ?? 0), refundsAed: AED(refunds?.v),
-      newLeads: Number(leads?.n ?? 0),
       newRatings: Number(ratings?.n ?? 0), avgRating: ratings?.avg ?? null, lowRatings: Number(ratings?.low ?? 0),
     },
     attention: {
-      abandonedCarts: Number(abandoned?.n ?? 0), abandonedValueAed: AED(abandoned?.v),
       understaffedEvents: Number(understaffed?.n ?? 0),
       atRiskPrepEvents: Number(atRisk?.n ?? 0),
+      abandonedCarts: Number(abandoned?.n ?? 0),
     },
     ahead: {
       eventsNext7Days: Number(upcoming?.n ?? 0),
@@ -83,40 +94,40 @@ async function gatherSnapshot() {
         ? { date: nextEvent.d, time: nextEvent.start_time, type: nextEvent.celebration_type, theme: nextEvent.theme, customer: nextEvent.customer, emirate: nextEvent.emirate }
         : null,
     },
-    money: {
-      cashOnHandAed: cash?.cashOnHandFils != null ? AED(cash.cashOnHandFils) : null,
-      adSpendThisMonthAed: AED(adSpend?.v),
-      revenueThisMonthAed: AED(revMonth?.v),
-    },
+    cashOnHandAed: cash?.cashOnHandFils != null ? AED(cash.cashOnHandFils) : null,
   };
 }
 
 /** A plain fixed-format Arabic brief — the fallback when Claude isn't configured,
  *  so the owner always gets her morning summary even without the AI layer. */
 function plainBrief(s: Awaited<ReturnType<typeof gatherSnapshot>>): string {
-  const L: string[] = ['☀️ صباح الخير! هذا ملخص إيفنتانا لآخر ٢٤ ساعة:', ''];
-  L.push(`• مبيعات جديدة: ${s.last24h.newSales} (AED ${s.last24h.newSalesAed})`);
-  if (s.last24h.refunds) L.push(`• استرجاعات: ${s.last24h.refunds} (AED ${s.last24h.refundsAed})`);
-  if (s.last24h.newLeads) L.push(`• عملاء محتملين جدد (واتساب): ${s.last24h.newLeads}`);
-  if (s.last24h.newRatings) L.push(`• تقييمات جديدة: ${s.last24h.newRatings} (متوسط ${s.last24h.avgRating ?? '—'}${s.last24h.lowRatings ? ` · ${s.last24h.lowRatings} منخفضة` : ''})`);
-  L.push('', 'يحتاج انتباهچ:');
+  const m = s.marketing;
+  const L: string[] = ['☀️ صباح الخير شيم! هذا ملخّص إيفنتانا:', '', '📣 التسويق والإعلانات'];
+  L.push(`• صرف الإعلانات هالشهر: AED ${m.adSpendThisMonthAed} · إيراد الشهر: AED ${m.revenueThisMonthAed}${m.roughReturnPerAed != null ? ` (كل درهم صرف ≈ ${m.roughReturnPerAed} درهم مبيعات)` : ''}`);
+  L.push(`• عملاء محتملين جدد (واتساب) آخر ٢٤س: ${m.newLeads24h}`);
+  if (m.abandonedCarts) L.push(`• ${m.abandonedCarts} سلة متروكة (AED ${m.abandonedValueAed}) — فرصة متابعة/إعلان استهداف`);
+  L.push('', '💰 المبيعات (آخر ٢٤ ساعة)');
+  L.push(`• مبيعات: ${s.sales24h.newSales} (AED ${s.sales24h.newSalesAed})`);
+  if (s.sales24h.refunds) L.push(`• استرجاعات: ${s.sales24h.refunds} (AED ${s.sales24h.refundsAed})`);
+  if (s.sales24h.newRatings) L.push(`• تقييمات: ${s.sales24h.newRatings} (متوسط ${s.sales24h.avgRating ?? '—'}${s.sales24h.lowRatings ? ` · ${s.sales24h.lowRatings} منخفضة` : ''})`);
+  L.push('', '⚠️ يحتاج انتباهچ اليوم');
   if (s.attention.understaffedEvents) L.push(`• ${s.attention.understaffedEvents} إيفينت ناقص طاقم`);
   if (s.attention.atRiskPrepEvents) L.push(`• ${s.attention.atRiskPrepEvents} إيفينت تجهيزه متأخّر`);
-  if (s.attention.abandonedCarts) L.push(`• ${s.attention.abandonedCarts} سلة متروكة (AED ${s.attention.abandonedValueAed}) — ممكن متابعة`);
+  if (s.attention.abandonedCarts) L.push(`• ${s.attention.abandonedCarts} سلة متروكة تنتظر متابعة`);
   if (!s.attention.understaffedEvents && !s.attention.atRiskPrepEvents && !s.attention.abandonedCarts) L.push('• كل شي تمام ✅');
-  L.push('', `الأسبوع الجاي: ${s.ahead.eventsNext7Days} إيفينت.`);
+  L.push('', `📅 الأسبوع الجاي: ${s.ahead.eventsNext7Days} إيفينت.`);
   if (s.ahead.nextEvent) L.push(`الجاي: ${s.ahead.nextEvent.customer ?? ''} · ${s.ahead.nextEvent.date} ${s.ahead.nextEvent.time ?? ''} · ${s.ahead.nextEvent.theme ?? s.ahead.nextEvent.type ?? ''}`);
-  if (s.money.cashOnHandAed != null) L.push('', `الكاش: AED ${s.money.cashOnHandAed} · إعلانات الشهر: AED ${s.money.adSpendThisMonthAed} · إيراد الشهر: AED ${s.money.revenueThisMonthAed}`);
+  if (s.cashOnHandAed != null) L.push('', `💵 الكاش: AED ${s.cashOnHandAed}`);
   return L.join('\n');
 }
 
-const SYSTEM = `أنتِ "كلوديا" — مديرة العمليات والتسويق الذكية لشركة إيفنتانا (تنسيق حفلات أطفال في الإمارات). تكتبين للمالكة (شيمة) ملخّص صباحي قصير بالعربي الخليجي الدافئ، بناءً على لقطة بيانات من آخر ٢٤ ساعة والأسبوع الجاي.
-القواعد:
-- ابدئي بتحية صباحية قصيرة.
-- ٣ أقسام مختصرة: (١) وش صار، (٢) وش يحتاج انتباهها اليوم — مرتّبة بالأهم أول، (٣) توصية أو اثنتين عملية وواضحة.
-- استخدمي الأرقام الحقيقية من اللقطة فقط. لا تخترعين أرقام. لو ما في شي يحتاج انتباه، قوليها بوضوح.
-- قصيرة: حدود ١٢٠ كلمة. نقاط مختصرة. بدون مقدّمات طويلة. المبالغ بالدرهم.
-- نبرة زميلة شاطرة تساعدها، مب تقرير جامد.`;
+const SYSTEM = `أنتِ "كلوديا" — مديرة التسويق والإعلانات والعمليات الذكية لشركة إيفنتانا (تنسيق حفلات أطفال في الإمارات). تكتبين للمالكة "شيم" ملخّص صباحي قصير بالعربي الخليجي الدافئ من لقطة بيانات (آخر ٢٤ ساعة + الأسبوع الجاي).
+القواعد المهمة:
+- ناديها باسمها "شيم" (مب شيمة).
+- **ابدئي دايماً بقسم "📣 التسويق والإعلانات" — هذا تركيز شيم الأساسي**: صرف الإعلانات هالشهر، العائد التقريبي مقابل الصرف، العملاء المحتملين الجدد، والسلال المتروكة كفرصة استهداف/متابعة. لا تنسبي كل المبيعات للإعلانات — العائد مؤشر عام فقط.
+- بعدها أقسام قصيرة: 💰 المبيعات (آخر ٢٤س)، ⚠️ يحتاج انتباهچ اليوم (الأهم أول)، 📅 الأسبوع الجاي، 💡 توصية تسويقية عملية واحدة أو اثنتين.
+- استخدمي الأرقام الحقيقية من اللقطة فقط، لا تخترعين. لو ما في شي يحتاج انتباه قوليها بوضوح.
+- قصيرة ومرتّبة بعناوين الأقسام ونقاط. حدود ١٣٠ كلمة. المبالغ بالدرهم. نبرة زميلة شاطرة، مب تقرير جامد.`;
 
 /** Build the brief text (Claude when available, else the fixed format). */
 async function composeBrief(s: Awaited<ReturnType<typeof gatherSnapshot>>): Promise<string> {
@@ -164,17 +175,44 @@ async function deliverBrief(date: string): Promise<void> {
   ).catch(() => ({ rows: [] as { id: string; email: string | null }[] }));
 
   const title = '☀️ ملخّص إيفنتانا الصباحي';
+  const DASH = 'https://ops.eventanauae.com';
+  const CEO_LINK = `${DASH}/?view=ceo`;
+
+  // SHORT push teaser (not the whole brief — a long notification is unreadable),
+  // and a tap target that deep-links straight to the CEO dashboard.
+  const m = snapshot.marketing;
+  const attCount = snapshot.attention.understaffedEvents + snapshot.attention.atRiskPrepEvents + snapshot.attention.abandonedCarts;
+  const teaser = `صباح الخير شيم 🌸 إعلانات الشهر AED ${m.adSpendThisMonthAed} · ${m.newLeads24h} عميل جديد · مبيعات أمس ${snapshot.sales24h.newSales}${attCount ? ` · ⚠️ ${attCount} يحتاج انتباهچ` : ''}. افتحي للتفاصيل 👇`;
   for (const o of owners.rows) {
-    await pushToOwner('staff', o.id, title, brief.length > 400 ? brief.slice(0, 390) + '…' : brief, { view: 'ceo' }).catch(() => {});
+    await pushToOwner('staff', o.id, title, teaser, { url: CEO_LINK }).catch(() => {});
   }
+
   if (emailEnabled()) {
-    const html = `<div style="font-family:'Quicksand',Arial,sans-serif;max-width:560px;margin:0 auto;color:#3B3641">
-      <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;margin-bottom:16px">
-        <div style="font-size:20px;font-weight:800">☀️ ملخّص إيفنتانا الصباحي</div>
-        <div style="font-size:12px;opacity:.9;margin-top:2px">من كلوديا — مديرتچ الذكية</div>
+    const esc = (t: string) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
+    // Render the brief as clean sections: a line that starts with an emoji becomes
+    // a heading chip, bullets become spaced rows — nicer than one grey text blob.
+    const body = brief.split('\n').map((raw) => {
+      const line = raw.trim();
+      if (!line) return '<div style="height:10px"></div>';
+      if (/^(📣|💰|⚠️|📅|💡|💵|☀️)/.test(line)) {
+        return `<div style="font-size:15px;font-weight:800;color:#E94F9C;margin:16px 0 6px">${esc(line)}</div>`;
+      }
+      const txt = line.replace(/^[•\-]\s*/, '');
+      return `<div style="font-size:14.5px;line-height:1.7;color:#3B3641;font-weight:600;padding:3px 0 3px 14px;position:relative"><span style="position:absolute;right:0;color:#F06CA8">•</span>${esc(txt)}</div>`;
+    }).join('');
+    const html = `<div style="background:#FDF2F7;padding:24px 12px;font-family:'Quicksand',Arial,sans-serif">
+      <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 30px rgba(233,79,156,.12)">
+        <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;padding:22px 24px;text-align:center">
+          <div style="font-size:21px;font-weight:800;letter-spacing:.3px">☀️ صباح الخير شيم</div>
+          <div style="font-size:12.5px;opacity:.92;margin-top:3px">ملخّصچ اليومي من كلوديا — مديرة التسويق الذكية</div>
+        </div>
+        <div style="padding:20px 24px;direction:rtl;text-align:right">${body}
+          <div style="text-align:center;margin-top:22px">
+            <a href="${CEO_LINK}" style="display:inline-block;background:#E94F9C;color:#fff;text-decoration:none;font-weight:800;font-size:14px;padding:12px 26px;border-radius:999px">افتحي لوحة الأعمال ←</a>
+          </div>
+        </div>
+        <div style="padding:12px;color:#c9a9bb;font-size:11.5px;text-align:center;background:#fff">إيفنتانا · تقرير تلقائي يومي — ترسله كلوديا كل صباح</div>
       </div>
-      <div style="white-space:pre-wrap;font-size:15px;line-height:1.8;font-weight:600;direction:rtl;text-align:right">${brief.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string))}</div>
-      <div style="margin-top:18px;color:#bbb;font-size:12px;text-align:center">إيفنتانا · تقرير تلقائي يومي</div>
     </div>`;
     const seen = new Set<string>();
     for (const o of owners.rows) {
