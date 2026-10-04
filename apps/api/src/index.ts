@@ -862,6 +862,10 @@ async function main() {
       const evId = String(process.env.FIX_EVENT_ID).trim();
       const name = String(process.env.FIX_EVENT_NAME).trim();
       const phone = String(process.env.FIX_EVENT_PHONE ?? '').replace(/[^\d+]/g, '');
+      // Explicit OLD name for the receipt fallback — needed because the customer
+      // row may already be renamed from a previous run, so reading its current
+      // name wouldn't match the still-old receipt. FIX_EVENT_OLD=<old name>.
+      const oldName = String(process.env.FIX_EVENT_OLD ?? '').trim();
       try {
         const { pool } = await import('./db/pool.js');
         const ev = await pool.query<{ customer_id: string; order_id: string; old: string }>(
@@ -879,7 +883,15 @@ async function main() {
         const u1 = await pool.query(
           `UPDATE customers SET name = $2${phone ? ', phone = $3' : ''} WHERE id = $1`,
           phone ? [row.customer_id, name, phone] : [row.customer_id, name]);
-        const u2 = await pool.query(`UPDATE finance_receipts SET customer_name = $2 WHERE order_id = $1`, [row.order_id, name]);
+        let u2 = await pool.query(`UPDATE finance_receipts SET customer_name = $2 WHERE order_id = $1`, [row.order_id, name]);
+        // Some receipts aren't keyed by this event's order_id (imported/converted
+        // rows carry no/other order_id). Fall back to the OLD name — safe here only
+        // because DIAG confirmed exactly one receipt under it.
+        const fallbackName = oldName || row.old;
+        if (!u2.rowCount && fallbackName) {
+          u2 = await pool.query(`UPDATE finance_receipts SET customer_name = $2 WHERE customer_name ILIKE $1`, [fallbackName, name]);
+          console.log(`[fix-event] receipt not linked by order_id — matched by old name "${fallbackName}" instead`);
+        }
         console.log(`[fix-event] ${evId}: customer "${row.old}" → "${name}"${phone ? ` (phone ${phone})` : ''}; customers updated=${u1.rowCount}, receipts updated=${u2.rowCount}`);
         console.log('[fix-event] END');
       } catch (e) { console.error('[fix-event] failed:', (e as Error).message); }
