@@ -639,19 +639,6 @@ async function main() {
 
   startReconciliation();
 
-  // One-shot: send the owner a LIVE sample of the overnight AI brief now (ignores
-  // the morning window + daily throttle), so she can see it immediately. Set
-  // NIGHT_AGENT_NOW=true for one deploy, then unset it.
-  if (String(process.env.NIGHT_AGENT_NOW ?? '').toLowerCase() === 'true') {
-    (async () => {
-      try {
-        const { runNightBriefNow } = await import('./domain/nightAgent.js');
-        await runNightBriefNow();
-        console.log('[night-agent] on-demand sample brief sent');
-      } catch (e) { console.error('[night-agent] sample failed:', (e as Error).message); }
-    })();
-  }
-
   // One-shot: test whether the configured Meta token can READ ad performance
   // (ads_read) on the ad account. Set META_ADS_TEST=true for one deploy to log the
   // result, then unset. Tells us if the existing CAPI token works or a dedicated
