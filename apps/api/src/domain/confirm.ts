@@ -467,6 +467,23 @@ export async function confirmBooking(
   // Scheduled communications. A cancellation cancels these rather than
   // letting them fire for an event that is no longer happening.
   const eventStart = `${cart.eventDate}T${startTime}:00+04:00`;
+  // Keep every scheduled customer message inside civil hours (08:00–21:00 Dubai):
+  // "4 hours before" an early-morning party used to fire a ~05:00 reminder. If a
+  // computed time lands before 08:00 it's moved to 20:00 the evening before; after
+  // 21:00 it's moved to 20:00 that same evening. Dubai is a fixed UTC+4 (no DST).
+  const DUBAI_MS = 4 * 3_600_000;
+  const civil = (ms: number): string => {
+    const local = new Date(ms + DUBAI_MS); // Dubai wall-clock carried in UTC fields
+    const h = local.getUTCHours();
+    if (h >= 8 && h <= 21) return new Date(ms).toISOString();
+    if (h < 8) local.setUTCDate(local.getUTCDate() - 1); // too early → the evening before
+    local.setUTCHours(20, 0, 0, 0);
+    return new Date(local.getTime() - DUBAI_MS).toISOString();
+  };
+  const startMs = Date.parse(eventStart);
+  const threeDayAt = civil(startMs - 3 * 86_400_000);
+  const eventDayAt = civil(startMs - 4 * 3_600_000);
+  const feedbackAt = civil(startMs + 86_400_000);
   await db.query(
     // Never schedule a reminder whose moment has already passed (a same-day /
     // near booking must not get a late "3 days to go"). booking_confirmation and
@@ -474,13 +491,13 @@ export async function confirmBooking(
     `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
      SELECT $1, channel, template, sched, $2::jsonb FROM (VALUES
        ('email','booking_confirmation', now()),
-       ('email','three_day_reminder', ($3::timestamptz - interval '3 days')),
-       ('email','event_day', ($3::timestamptz - interval '4 hours')),
-       ('email','feedback_request', ($3::timestamptz + interval '1 day')),
+       ('email','three_day_reminder', $3::timestamptz),
+       ('email','event_day', $4::timestamptz),
+       ('email','feedback_request', $5::timestamptz),
        ('driver','driver_new_order', now())
      ) v(channel,template,sched)
      WHERE v.sched > now() OR v.template IN ('booking_confirmation','driver_new_order')`,
-    [eventId, JSON.stringify({ orderId: order.id, eventId }), eventStart],
+    [eventId, JSON.stringify({ orderId: order.id, eventId }), threeDayAt, eventDayAt, feedbackAt],
   );
 
   // Loyalty is awarded on the amount actually paid.
