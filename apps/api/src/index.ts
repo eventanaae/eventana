@@ -724,6 +724,25 @@ async function main() {
     })();
   }
 
+  // One-shot: a booking can't happen AFTER its event — cap every such receipt's
+  // booking date at the event date (owner's choice). QB_CAP_AFTER=true, then unset.
+  if (String(process.env.QB_CAP_AFTER ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const res = await pool.query(`UPDATE finance_receipts SET booked_on = date WHERE booked_on IS NOT NULL AND booked_on > date`);
+        const { rows } = await pool.query<{ same: string; before: string; after: string; blank: string; total: string }>(
+          `SELECT count(*) FILTER (WHERE booked_on = date)::text same,
+                  count(*) FILTER (WHERE booked_on < date)::text before,
+                  count(*) FILTER (WHERE booked_on > date)::text after,
+                  count(*) FILTER (WHERE booked_on IS NULL)::text blank,
+                  count(*)::text total FROM finance_receipts`);
+        const r = rows[0];
+        console.log(`[cap-after] capped ${res.rowCount} receipt(s) to event date. Now: total=${r.total} same=${r.same} before=${r.before} after=${r.after} blank=${r.blank}`);
+      } catch (e) { console.error('[cap-after] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
