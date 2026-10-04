@@ -2960,8 +2960,14 @@ export async function adminRoutes(app: FastifyInstance) {
             AND (COALESCE(category,'') ~* '(advertis|marketing|meta|facebook|instagram|snapchat|tiktok|google ads|\\yads\\y)')`,
         [start, end],
       ).catch(() => ({ rows: [{ v: '0' }] })),
+      // Bookings are counted by WHEN THE BOOKING WAS MADE (created_at = money-in /
+      // booking date), NOT by the event date — this month's ad spend produces this
+      // month's BOOKINGS (often for future parties), so ROAS and cost-per-booking
+      // must match ad spend to bookings made in the same month. (finance_receipts.date
+      // holds the EVENT date, which is the wrong basis for ad performance.)
       pool.query<{ n: number; v: string }>(
-        `SELECT count(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts WHERE date >= $1 AND date < $2`,
+        `SELECT count(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts
+          WHERE created_at >= $1::date AND created_at < $2::date`,
         [start, end],
       ).catch(() => ({ rows: [{ n: 0, v: '0' }] })),
     ]);
