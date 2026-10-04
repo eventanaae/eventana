@@ -381,6 +381,13 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ syncZohoBank }) => syncZohoBank())
     .catch((err) => console.error('[zoho-sync] failed:', err));
 
+  // Eventana's overnight AI agent ("كلوديا"): once each morning it reads the whole
+  // business and sends the owner a short, smart Arabic brief (push + e-mail).
+  // Throttled to once/day in a morning window; advisory only (never acts).
+  await import('./nightAgent.js')
+    .then(({ sweepNightBrief }) => sweepNightBrief())
+    .catch((err) => console.error('[night-agent] failed:', err));
+
   return report;
 }
 

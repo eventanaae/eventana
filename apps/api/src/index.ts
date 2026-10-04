@@ -639,6 +639,19 @@ async function main() {
 
   startReconciliation();
 
+  // One-shot: send the owner a LIVE sample of the overnight AI brief now (ignores
+  // the morning window + daily throttle), so she can see it immediately. Set
+  // NIGHT_AGENT_NOW=true for one deploy, then unset it.
+  if (String(process.env.NIGHT_AGENT_NOW ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { runNightBriefNow } = await import('./domain/nightAgent.js');
+        await runNightBriefNow();
+        console.log('[night-agent] on-demand sample brief sent');
+      } catch (e) { console.error('[night-agent] sample failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
