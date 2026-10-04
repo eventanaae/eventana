@@ -265,6 +265,8 @@ export const api = {
   assignStaff: (eventId: string) => request<any>(`/api/admin/staffing/assign/${eventId}`, { method: 'POST' }),
   staffingPlan: (eventId: string) => request<any[]>(`/api/admin/staffing/${eventId}`),
   assignAllStaff: () => request<any>('/api/admin/staffing/assign-all', { method: 'POST' }),
+  staffingMode: () => request<{ mode: 'auto' | 'manual' }>('/api/admin/staffing-mode'),
+  setStaffingMode: (mode: 'auto' | 'manual') => request<{ mode: 'auto' | 'manual'; replanned: number }>('/api/admin/staffing-mode', { method: 'POST', body: JSON.stringify({ mode }) }),
   staffingCrew: (eventId?: string) => request<any[]>(`/api/admin/staffing-crew${eventId ? `?eventId=${eventId}` : ''}`),
   drivers: () => request<any[]>('/api/admin/drivers'),
   // Pre-event preparation (internal only)

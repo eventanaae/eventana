@@ -51,6 +51,36 @@ export const ONSITE_LEADERS = ['Jane', 'Dindo'];
 export const LEADER_PRIORITY = ['Shan', 'Jane', 'Dindo', 'Diana', 'Gloria', 'Marsha'];
 const firstNameLc = (n: string | null | undefined) => (n ?? '').trim().split(/\s+/)[0].toLowerCase();
 
+/**
+ * Staffing mode (owner-controlled, settings key 'staffing_mode'):
+ *   • 'manual'  — the planner works out WHAT each event needs (the role slots) but
+ *     leaves every slot OPEN for the owner/Marsha to fill by hand, choosing an
+ *     employee or a part-timer per slot. This is the owner's default (2026-10-05):
+ *     "شيل سالفة السستم يختار موظفين — انا او مارشا نختار".
+ *   • 'auto'    — the original smart engine auto-picks internal staff by skill,
+ *     fairness and conflicts; the owner can still override any slot.
+ * Falls back to 'manual' if the setting is missing or the DB is unreachable.
+ */
+export async function getStaffingMode(): Promise<'auto' | 'manual'> {
+  try {
+    const r = await pool.query<{ value: any }>(`SELECT value FROM settings WHERE key = 'staffing_mode'`);
+    const raw = String(r.rows[0]?.value ?? '').replace(/"/g, '').toLowerCase();
+    return raw === 'auto' ? 'auto' : 'manual';
+  } catch {
+    return 'manual';
+  }
+}
+
+export async function setStaffingMode(mode: 'auto' | 'manual', updatedBy: string): Promise<'auto' | 'manual'> {
+  const value = mode === 'auto' ? 'auto' : 'manual';
+  await pool.query(
+    `INSERT INTO settings (key, value, updated_by) VALUES ('staffing_mode', $1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [JSON.stringify(value), updatedBy],
+  );
+  return value;
+}
+
 /** Seed the internal roster + skills. Idempotent; safe to run on every boot. */
 export async function seedStaffSkills(): Promise<void> {
   for (const [name, skills] of Object.entries(STAFF_SKILLS)) {
@@ -228,6 +258,12 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   const ev = evRes.rows[0];
   if (!ev) return null;
 
+  // Owner's choice: in 'manual' mode we still compute the role requirements (so
+  // the event shows exactly which slots it needs), but we DON'T auto-pick any
+  // internal staff — every fillable slot is left open for the owner/Marsha to
+  // assign an employee OR a part-timer by hand. See getStaffingMode.
+  const staffingMode = await getStaffingMode();
+
   const cfg = await loadConfig();
   const isPkgLabel = (s: string) => /\b(gold|golden|silver|bronze|summer)\b/i.test(s) && /package|birthday|splash|silver|bronze|gold/i.test(s);
   // Prefer the structured cart; fall back to the booked line items (event_services)
@@ -392,6 +428,14 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   const assigned: AssignedSlot[] = [];
   for (const s of slots) {
     if (s.partTimeOnly) { assigned.push({ role: s.role, slot: s.slot, reason: s.reason, source: s.source, status: 'part_time_required' }); continue; }
+    // MANUAL mode: leave the slot open (no auto-assignee) so the owner/Marsha
+    // picks an employee or a part-timer themselves. 'to_confirm' = "needs you to
+    // choose"; the dashboard shows both the employee picker and the type-a-
+    // part-timer box for this status.
+    if (staffingMode === 'manual') {
+      assigned.push({ role: s.role, slot: s.slot, reason: s.reason, source: s.source, status: 'to_confirm', needsDesign: s.needsDesign });
+      continue;
+    }
     const cands = staff
       // The driver runs multiple deliveries a day, so same-date booking doesn't
       // make him unavailable; every other role is exclusive per date. A skilled
@@ -529,9 +573,12 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   const preservedKeys = new Set(preserved.map((p) => `${p.role}:${p.slot}`));
   const openShortages = assigned.filter((a) => a.status !== 'assigned' && !preservedKeys.has(`${a.role}:${a.slot}`));
   const shortages = openShortages.length;
-  // Raise a single ops alert for the Owner/Manager when we can't fully staff
-  // internally (part-time / prep needed). Not repeated if one already stands.
-  if (shortages > 0) {
+  // In MANUAL mode every slot is deliberately left open for the owner/Marsha to
+  // fill, so the "we couldn't auto-staff this" alert + WhatsApp would fire for
+  // EVERY event — pure noise. Skip it: the open slots are visible on the event
+  // itself and they work through them on purpose. (A stale auto-mode alert is
+  // still cleared below.)
+  if (shortages > 0 && staffingMode !== 'manual') {
     const ins = await pool.query(
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
        SELECT $1,'ops_alert','staffing_required', now(), $2
@@ -551,7 +598,8 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
       })();
     }
   } else {
-    // Fully staffed now — clear any stale staffing alert.
+    // Fully staffed now, OR manual mode (where open slots aren't an "alert") —
+    // clear any stale staffing alert left from auto mode.
     await pool.query(`DELETE FROM notifications WHERE template = 'staffing_required' AND event_id = $1`, [eventId]).catch(() => {});
   }
   return { eventId, assigned, leader, shortages, staffingIncomplete: shortages > 0 };

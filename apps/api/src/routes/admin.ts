@@ -848,6 +848,31 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     return { assigned: results.length, results };
   });
+  // Staffing mode: 'auto' (system picks the crew) vs 'manual' (owner/Marsha pick
+  // every slot by hand). GET reads it; POST sets it AND re-plans every upcoming
+  // event so the change takes effect immediately (auto→manual opens the slots,
+  // manual→auto fills them). Owner/Manager only.
+  app.get('/api/admin/staffing-mode', async () => {
+    const { getStaffingMode } = await import('../domain/staffing.js');
+    return { mode: await getStaffingMode() };
+  });
+  app.post('/api/admin/staffing-mode', async (request, reply) => {
+    const actor = (request as any).staff as { name?: string; role?: string } | undefined;
+    if (!actor || !['owner', 'manager'].includes(String(actor.role))) {
+      return reply.status(403).send({ error: 'forbidden' });
+    }
+    const { mode } = (request.body ?? {}) as { mode?: string };
+    if (mode !== 'auto' && mode !== 'manual') return reply.status(400).send({ error: 'invalid_mode' });
+    const { setStaffingMode } = await import('../domain/staffing.js');
+    const saved = await setStaffingMode(mode, actor.name || 'owner');
+    // Re-plan every upcoming event under the new mode.
+    const { rows } = await pool.query(
+      `SELECT id FROM events WHERE phase <> 'Cancelled' AND event_date >= CURRENT_DATE ORDER BY event_date`,
+    );
+    let replanned = 0;
+    for (const r of rows) { if (await assignStaffForEvent(r.id)) replanned++; }
+    return { mode: saved, replanned };
+  });
   // The drivers roster (Shan + freelance own-car / van drivers) — for the driver
   // slot's picker. Names feed the part-timer input; the number lets WhatsApp
   // reach whoever is assigned.

@@ -988,8 +988,22 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
   // right person (with a WhatsApp number on file) is picked, not retyped.
   const [drivers, setDrivers] = useState<any[]>([]);
   const [partTimers, setPartTimers] = useState<string[]>([]);
-  useEffect(() => { api.drivers().then(setDrivers).catch(() => {}); api.partTimerNames().then((r) => setPartTimers(r?.names ?? [])).catch(() => {}); }, []);
+  // Staffing mode (owner-controlled): 'manual' = owner/Marsha pick each slot by
+  // hand (the default now); 'auto' = the engine picks the crew automatically.
+  const [staffMode, setStaffMode] = useState<'auto' | 'manual' | null>(null);
+  const [modeBusy, setModeBusy] = useState(false);
+  useEffect(() => {
+    api.drivers().then(setDrivers).catch(() => {});
+    api.partTimerNames().then((r) => setPartTimers(r?.names ?? [])).catch(() => {});
+    api.staffingMode().then((r) => setStaffMode(r.mode)).catch(() => {});
+  }, []);
   const isDriverSlot = (role: string) => role === 'driver' || role === 'pt_driver';
+  const toggleMode = async () => {
+    const next = staffMode === 'auto' ? 'manual' : 'auto';
+    setModeBusy(true);
+    try { const r = await api.setStaffingMode(next); setStaffMode(r.mode); await load(); }
+    finally { setModeBusy(false); }
+  };
 
   const load = async () => {
     const [p, m, c, rm] = await Promise.all([
@@ -1036,7 +1050,27 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
   return (
     <Panel
       title="Team assignment 🎭"
-      action={<Button tone="ghost" onClick={reassign}>{busy ? 'Assigning…' : 'Re-assign'}</Button>}
+      action={
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {staffMode && (
+            <button
+              onClick={toggleMode}
+              disabled={modeBusy}
+              title={staffMode === 'manual'
+                ? 'You pick the crew for every slot. Tap to let the system auto-pick instead.'
+                : 'The system picks the crew automatically. Tap to pick every slot yourself.'}
+              style={{
+                border: `1px solid ${C.lineSoft}`, background: staffMode === 'manual' ? '#FDEFF6' : '#EAF7EE',
+                color: staffMode === 'manual' ? C.pink ?? '#E94F9C' : (C.green ?? '#1a9e55'),
+                borderRadius: 999, padding: '5px 11px', fontSize: 11, fontWeight: 800, cursor: 'pointer',
+              }}
+            >
+              {modeBusy ? '…' : staffMode === 'manual' ? '✋ Manual picking' : '🤖 Auto picking'}
+            </button>
+          )}
+          <Button tone="ghost" onClick={reassign}>{busy ? 'Assigning…' : 'Re-assign'}</Button>
+        </div>
+      }
     >
       {plan === null ? (
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Loading the crew…</div>
@@ -1059,9 +1093,15 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
             {partTimers.map((n) => <option key={n} value={n} />)}
           </datalist>
           {open > 0 && (
-            <div style={{ background: '#fdecea', color: C.red, borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, letterSpacing: '.3px' }}>
-              ⚠ ACTION REQUIRED — {open} slot{open > 1 ? 's' : ''} need{open > 1 ? '' : 's'} a part-timer
-            </div>
+            staffMode === 'manual' ? (
+              <div style={{ background: '#FDEFF6', color: C.pink ?? '#E94F9C', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, letterSpacing: '.3px' }}>
+                ✋ Pick the crew — {open} slot{open > 1 ? 's' : ''} to fill. Choose an employee or type a part-timer for each.
+              </div>
+            ) : (
+              <div style={{ background: '#fdecea', color: C.red, borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, letterSpacing: '.3px' }}>
+                ⚠ ACTION REQUIRED — {open} slot{open > 1 ? 's' : ''} need{open > 1 ? '' : 's'} a part-timer
+              </div>
+            )
           )}
 
           {/* The Event Leader is NOT shown or edited here — it is derived
@@ -1084,7 +1124,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                   {filled && <Badge tone="ok">{s.assignee_name ?? 'Assigned'}</Badge>}
                   {confirmed && <Badge tone="ok">{s.part_time_name}{isDriverSlot(s.role) ? '' : ' · part-timer'}</Badge>}
                   {needsPart && <Badge tone="error">{isDriverSlot(s.role) ? 'Driver needed' : 'Part-time required'}</Badge>}
-                  {needsPrep && <Badge tone="warn">Confirm internal</Badge>}
+                  {needsPrep && <Badge tone="warn">{staffMode === 'manual' ? 'Pick crew' : 'Confirm internal'}</Badge>}
                 </div>
 
                 {(needsPart) && (
@@ -1145,9 +1185,11 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                     ) : (
                       <button
                         onClick={() => setOpenOverride(s.id)}
-                        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                        style={{ background: 'none', border: 'none', color: (needsPrep && staffMode === 'manual') ? (C.pink ?? '#E94F9C') : C.muted, fontSize: 11, fontWeight: (needsPrep && staffMode === 'manual') ? 800 : 700, cursor: 'pointer', padding: 0 }}
                       >
-                        ✎ Assign internal / part-timer instead
+                        {(filled || confirmed)
+                          ? '✎ Change crew (employee or part-timer)'
+                          : '✎ Choose crew — employee or part-timer'}
                       </button>
                     )}
                   </div>

@@ -807,6 +807,27 @@ async function main() {
     })();
   }
 
+  // One-shot: re-plan every upcoming, non-cancelled event under the CURRENT
+  // staffing mode. With the mode defaulting to 'manual', this opens the slots on
+  // events that were auto-staffed before, so the whole upcoming calendar switches
+  // to owner/Marsha hand-picking. Confirmed part-timers are preserved.
+  // REPLAN_UPCOMING=true for one deploy, then unset.
+  if (String(process.env.REPLAN_UPCOMING ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const { assignStaffForEvent, getStaffingMode } = await import('./domain/staffing.js');
+        const mode = await getStaffingMode();
+        const { rows } = await pool.query<{ id: string }>(
+          `SELECT id FROM events WHERE phase <> 'Cancelled' AND event_date >= CURRENT_DATE ORDER BY event_date`);
+        let ok = 0;
+        for (const r of rows) { try { await assignStaffForEvent(r.id); ok++; } catch { /* skip one */ } }
+        console.log(`[replan-upcoming] mode=${mode} — re-planned ${ok}/${rows.length} upcoming event(s)`);
+        console.log('[replan-upcoming] END');
+      } catch (e) { console.error('[replan-upcoming] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot diag: why a customer got the feedback EMAIL but not the WhatsApp.
   // Dumps their customer record (email/phone) + every feedback_request row with
   // its sent_at / whatsapp_sent_at / cancelled_at. DIAG_FEEDBACK_NAME=<name>.
@@ -838,6 +859,37 @@ async function main() {
         }
         console.log('[diag-feedback] END');
       } catch (e) { console.error('[diag-feedback] failed:', (e as Error).message); }
+    })();
+  }
+
+  // One-shot: save a customer's phone (by email) and RE-ARM a specific
+  // feedback_request WhatsApp that was marked handled only because there was no
+  // number on file — so it re-sends on the next sweep, like every other
+  // customer. FIX_FEEDBACK_EMAIL=<email> FIX_FEEDBACK_PHONE=<+9715…>
+  // FIX_FEEDBACK_EVENT=<EV-id>. All three for one deploy, then unset.
+  if (process.env.FIX_FEEDBACK_EMAIL && process.env.FIX_FEEDBACK_PHONE) {
+    (async () => {
+      const email = String(process.env.FIX_FEEDBACK_EMAIL).trim().toLowerCase();
+      const phone = String(process.env.FIX_FEEDBACK_PHONE).replace(/[^\d+]/g, '');
+      const evId = String(process.env.FIX_FEEDBACK_EVENT ?? '').trim();
+      try {
+        const { pool } = await import('./db/pool.js');
+        const c = await pool.query(`UPDATE customers SET phone = $2 WHERE lower(email) = $1 RETURNING id, name`, [email, phone]);
+        console.log(`[fix-feedback] set phone on ${c.rowCount} customer(s) for ${email} → ${phone}`);
+        const h = await pool.query(`UPDATE historical_customers SET phone = $2 WHERE lower(email) = $1 AND (phone IS NULL OR phone = '')`, [email, phone]).catch(() => ({ rowCount: 0 }));
+        if (h.rowCount) console.log(`[fix-feedback] also set phone on ${h.rowCount} historical_customers row(s)`);
+        if (evId) {
+          // Re-arm the WhatsApp ONLY (email already went out: sent_at stays set, so
+          // the email sweep won't re-send). The WhatsApp sweep picks whatsapp_sent_at
+          // IS NULL and now has a valid number to send to.
+          const n = await pool.query(
+            `UPDATE notifications SET whatsapp_sent_at = NULL
+              WHERE event_id = $1 AND template = 'feedback_request' AND cancelled_at IS NULL
+              RETURNING id`, [evId]);
+          console.log(`[fix-feedback] re-armed feedback WhatsApp on ${n.rowCount} row(s) for ${evId} (sends next sweep, 10:00–20:00 Dubai)`);
+        }
+        console.log('[fix-feedback] END');
+      } catch (e) { console.error('[fix-feedback] failed:', (e as Error).message); }
     })();
   }
 

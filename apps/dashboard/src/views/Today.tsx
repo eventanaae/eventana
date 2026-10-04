@@ -57,16 +57,32 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
       ? "No parties today — a good day to get ahead 💐"
       : "Let's fill the calendar with celebrations 🎈";
 
+  // 🎃 Light, seasonal Halloween dress-up — only in the last week of October, so
+  // it feels special, not permanent. The brand stays pink; we just warm the hero
+  // with a soft pumpkin/purple wash and a floating pumpkin. Shown on everyone's
+  // home — the team's especially.
+  const nowD = new Date();
+  const halloween = nowD.getMonth() === 9 && nowD.getDate() >= 24 && nowD.getDate() <= 31;
+  const heroBg = halloween
+    ? 'linear-gradient(130deg,#FFE9D6 0%,#F7C9A6 44%,#E7D2F2 100%)'
+    : C.gradHero;
+  const heroBar = halloween
+    ? 'linear-gradient(90deg,#F7A94A,#F0813C,#9B6AD1,#F0813C,#F7A94A)'
+    : C.rainbow;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Greeting hero */}
-      <div className="pop-in" style={{ position: 'relative', overflow: 'hidden', borderRadius: 24, background: C.gradHero, boxShadow: C.shadowLg }}>
-        <div style={{ height: 6, background: C.rainbow }} />
-        <div style={{ position: 'absolute', right: 14, top: 20, fontSize: 62, animation: 'floaty 4s ease-in-out infinite', filter: 'drop-shadow(0 8px 14px rgba(233,79,156,.2))' }}>🎉</div>
-        <div style={{ padding: '18px 20px 20px' }}>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: C.pinkDeep }}>{dateLine}</div>
-          <div style={{ ...fredoka(26), marginTop: 6, maxWidth: '78%' }}>{partOfDay}, {first} <span style={{ display: 'inline-block', animation: 'floaty 3s ease-in-out infinite' }}>👋</span></div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#96637c', marginTop: 6, maxWidth: '86%', lineHeight: 1.5 }}>{line}</div>
+      <div className="pop-in" style={{ position: 'relative', overflow: 'hidden', borderRadius: 24, background: heroBg, boxShadow: C.shadowLg }}>
+        <div style={{ height: 6, background: heroBar }} />
+        {halloween && (
+          <div aria-hidden style={{ position: 'absolute', left: 16, top: 14, fontSize: 15, letterSpacing: 6, opacity: 0.8 }}>🦇 🕸️ 👻</div>
+        )}
+        <div style={{ position: 'absolute', right: 14, top: 20, fontSize: 62, animation: 'floaty 4s ease-in-out infinite', filter: halloween ? 'drop-shadow(0 8px 14px rgba(155,106,209,.28))' : 'drop-shadow(0 8px 14px rgba(233,79,156,.2))' }}>{halloween ? '🎃' : '🎉'}</div>
+        <div style={{ padding: halloween ? '26px 20px 20px' : '18px 20px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: halloween ? '#C56A1E' : C.pinkDeep }}>{dateLine}</div>
+          <div style={{ ...fredoka(26), marginTop: 6, maxWidth: '78%' }}>{partOfDay}, {first} <span style={{ display: 'inline-block', animation: 'floaty 3s ease-in-out infinite' }}>{halloween ? '🎃' : '👋'}</span></div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: halloween ? '#8a5a2e' : '#96637c', marginTop: 6, maxWidth: '86%', lineHeight: 1.5 }}>{halloween ? 'Happy Halloween, team! 🧡 ' : ''}{line}</div>
         </div>
       </div>
 
