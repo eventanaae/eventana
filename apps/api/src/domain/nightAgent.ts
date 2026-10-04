@@ -62,21 +62,26 @@ async function gatherSnapshot() {
     one(`SELECT COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
           WHERE spent_on >= date_trunc('month', current_date)
             AND (COALESCE(category,'') ~* '(advertis|marketing|meta|facebook|instagram|snapchat|tiktok|google ads|\\yads\\y)')`),
-    one(`SELECT COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts WHERE date >= date_trunc('month', current_date)`),
+    one(`SELECT COALESCE(SUM(total_fils),0)::bigint v, count(*)::int n FROM finance_receipts WHERE date >= date_trunc('month', current_date)`),
   ]);
 
   const adSpendFils = Number(adSpend?.v ?? 0);
   const revMonthFils = Number(revMonth?.v ?? 0);
+  const monthBookings = Number(revMonth?.n ?? 0);
   return {
-    // Marketing & ADS first — this is the owner's main focus.
+    // Marketing & ADS first — this is the owner's main focus, AND every single
+    // Eventana booking comes from Instagram ads, so revenue IS ad-driven: ROAS and
+    // cost-per-booking are real KPIs here, not loose estimates.
     marketing: {
       adSpendThisMonthAed: AED(adSpendFils),
       revenueThisMonthAed: AED(revMonthFils),
-      roughReturnPerAed: adSpendFils > 0 ? Math.round((revMonthFils / adSpendFils) * 10) / 10 : null,
+      bookingsThisMonth: monthBookings,
+      roasPerAed: adSpendFils > 0 ? Math.round((revMonthFils / adSpendFils) * 10) / 10 : null,
+      costPerBookingAed: monthBookings > 0 ? AED(Math.round(adSpendFils / monthBookings)) : null,
       newLeads24h: Number(leads?.n ?? 0),
       abandonedCarts: Number(abandoned?.n ?? 0),
       abandonedValueAed: AED(abandoned?.v),
-      note: 'الإيراد الشهري مب كله من الإعلانات — استخدميه كمؤشر عام للعائد مقابل الصرف، لا تنسبي كل المبيعات للإعلانات.',
+      fact: 'كل حجوزات إيفنتانا تجي من إعلانات إنستغرام بدون استثناء — فالمبيعات والإيراد نتيجة مباشرة للإعلانات.',
     },
     sales24h: {
       newSales: Number(sales?.n ?? 0), newSalesAed: AED(sales?.v),
@@ -102,10 +107,11 @@ async function gatherSnapshot() {
  *  so the owner always gets her morning summary even without the AI layer. */
 function plainBrief(s: Awaited<ReturnType<typeof gatherSnapshot>>): string {
   const m = s.marketing;
-  const L: string[] = ['☀️ صباح الخير شيم! هذا ملخّص إيفنتانا:', '', '📣 التسويق والإعلانات'];
-  L.push(`• صرف الإعلانات هالشهر: AED ${m.adSpendThisMonthAed} · إيراد الشهر: AED ${m.revenueThisMonthAed}${m.roughReturnPerAed != null ? ` (كل درهم صرف ≈ ${m.roughReturnPerAed} درهم مبيعات)` : ''}`);
-  L.push(`• عملاء محتملين جدد (واتساب) آخر ٢٤س: ${m.newLeads24h}`);
-  if (m.abandonedCarts) L.push(`• ${m.abandonedCarts} سلة متروكة (AED ${m.abandonedValueAed}) — فرصة متابعة/إعلان استهداف`);
+  const L: string[] = ['☀️ صباح الخير شيم! هذا ملخّص إيفنتانا:', '', '📣 التسويق والإعلانات', '(كل حجوزاتنا من إعلانات إنستغرام)'];
+  L.push(`• صرف الإعلانات هالشهر: AED ${m.adSpendThisMonthAed} · إيراد الشهر: AED ${m.revenueThisMonthAed}`);
+  if (m.roasPerAed != null) L.push(`• العائد: كل درهم إعلان رجّع ${m.roasPerAed} درهم${m.costPerBookingAed != null ? ` · تكلفة الحجز الواحد ≈ AED ${m.costPerBookingAed}` : ''}`);
+  L.push(`• الحجوزات هالشهر: ${m.bookingsThisMonth} · عملاء محتملين جدد آخر ٢٤س: ${m.newLeads24h}`);
+  if (m.abandonedCarts) L.push(`• ${m.abandonedCarts} سلة متروكة (AED ${m.abandonedValueAed}) — فرصة إعلان استهداف/متابعة`);
   L.push('', '💰 المبيعات (آخر ٢٤ ساعة)');
   L.push(`• مبيعات: ${s.sales24h.newSales} (AED ${s.sales24h.newSalesAed})`);
   if (s.sales24h.refunds) L.push(`• استرجاعات: ${s.sales24h.refunds} (AED ${s.sales24h.refundsAed})`);
@@ -124,7 +130,8 @@ function plainBrief(s: Awaited<ReturnType<typeof gatherSnapshot>>): string {
 const SYSTEM = `أنتِ "كلوديا" — مديرة التسويق والإعلانات والعمليات الذكية لشركة إيفنتانا (تنسيق حفلات أطفال في الإمارات). تكتبين للمالكة "شيم" ملخّص صباحي قصير بالعربي الخليجي الدافئ من لقطة بيانات (آخر ٢٤ ساعة + الأسبوع الجاي).
 القواعد المهمة:
 - ناديها باسمها "شيم" (مب شيمة).
-- **ابدئي دايماً بقسم "📣 التسويق والإعلانات" — هذا تركيز شيم الأساسي**: صرف الإعلانات هالشهر، العائد التقريبي مقابل الصرف، العملاء المحتملين الجدد، والسلال المتروكة كفرصة استهداف/متابعة. لا تنسبي كل المبيعات للإعلانات — العائد مؤشر عام فقط.
+- **حقيقة مهمة: كل حجوزات إيفنتانا تجي من إعلانات إنستغرام بدون استثناء** — فالمبيعات والإيراد نتيجة مباشرة للإعلانات. اعتبري العائد (ROAS = الإيراد ÷ صرف الإعلان) وتكلفة الحجز الواحد مقاييس حقيقية، وتكلّمي عنها بثقة.
+- **ابدئي دايماً بقسم "📣 التسويق والإعلانات" — هذا تركيز شيم الأساسي**: صرف الإعلانات هالشهر، العائد (ROAS) وتكلفة الحجز الواحد، الحجوزات والعملاء الجدد كنتيجة للإعلانات، والسلال المتروكة كفرصة استهداف/متابعة.
 - بعدها أقسام قصيرة: 💰 المبيعات (آخر ٢٤س)، ⚠️ يحتاج انتباهچ اليوم (الأهم أول)، 📅 الأسبوع الجاي، 💡 توصية تسويقية عملية واحدة أو اثنتين.
 - استخدمي الأرقام الحقيقية من اللقطة فقط، لا تخترعين. لو ما في شي يحتاج انتباه قوليها بوضوح.
 - قصيرة ومرتّبة بعناوين الأقسام ونقاط. حدود ١٣٠ كلمة. المبالغ بالدرهم. نبرة زميلة شاطرة، مب تقرير جامد.`;
