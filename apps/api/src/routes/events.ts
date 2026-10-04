@@ -571,7 +571,7 @@ export async function eventRoutes(app: FastifyInstance) {
     // the private contact/address/card details.
     const fullView = !!customerId && customerId === event.customer_id;
 
-    const [services, team, staffing, messages, designs, tasks, rating, payment] = await Promise.all([
+    const [services, team, staffing, messages, designs, tasks, rating, payment, addonPaid] = await Promise.all([
       pool.query(`SELECT * FROM event_services WHERE event_id = $1 ORDER BY id`, [eventId]),
       pool.query(
         `SELECT m.id, m.name, m.role, m.color FROM event_team et
@@ -603,7 +603,16 @@ export async function eventRoutes(app: FastifyInstance) {
           ORDER BY created_at DESC LIMIT 1`,
         [event.order_id],
       ),
+      // Paid add-ons bought AFTER the original booking (their own orders, tied to
+      // this event). They grow the sales receipt but NOT events.total_fils, so the
+      // customer's booking view must fold them in or the total reads short.
+      pool.query(
+        `SELECT COALESCE(SUM(total_fils),0)::bigint v FROM orders
+          WHERE event_id = $1 AND kind = 'addon' AND status IN ('paid','partially_refunded')`,
+        [eventId],
+      ),
     ]);
+    const addonPaidFils = Number((addonPaid.rows[0] as any)?.v ?? 0);
 
     const serviceIds = services.rows.map((s) => s.service_id).filter(Boolean) as string[];
     const bookedServices = serviceIds
@@ -733,8 +742,9 @@ export async function eventRoutes(app: FastifyInstance) {
         const q = (event.quote as any) || {};
         const delivery = Number(q.deliveryFils ?? 0);
         const discount = Number(q.discountFils ?? 0);
-        const total = Number(event.total_fils);
-        const items = Array.isArray(q.lines)
+        // Grand total = original booking + everything paid for as add-ons since.
+        const total = Number(event.total_fils) + addonPaidFils;
+        const baseItems = Array.isArray(q.lines)
           ? q.lines
               .filter((l: any) => l.kind !== 'discount' && l.kind !== 'delivery')
               .map((l: any) => ({
@@ -744,6 +754,17 @@ export async function eventRoutes(app: FastifyInstance) {
                 amountDisplay: formatAed(Number(l.amountFils)),
               }))
           : [];
+        // Add-on lines bought after booking (event_services source='addon'), so the
+        // customer sees WHAT the extra charge was for, not just a bigger number.
+        const addonItems = services.rows
+          .filter((s: any) => s.source === 'addon' && Number(s.amount_fils) > 0)
+          .map((s: any) => ({
+            label: s.label,
+            quantity: s.quantity,
+            amountFils: Number(s.amount_fils),
+            amountDisplay: formatAed(Number(s.amount_fils)),
+          }));
+        const items = [...baseItems, ...addonItems];
         const subtotal = items.reduce((s: number, l: any) => s + l.amountFils, 0);
         return {
           items,
@@ -778,7 +799,7 @@ export async function eventRoutes(app: FastifyInstance) {
             };
           })()
         : null,
-      totalDisplay: formatAed(Number(event.total_fils)),
+      totalDisplay: formatAed(Number(event.total_fils) + addonPaidFils),
       orderStatus: event.order_status,
       services: services.rows.map((s) => ({
         id: s.id,

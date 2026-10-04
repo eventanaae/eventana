@@ -797,7 +797,9 @@ export async function togglePrepChecklist(taskId: string, index: number, done: b
 
 /** Owner/Manager override: set the exact assignees for a task. */
 export async function setPrepAssignees(taskId: string, memberIds: string[], actor: string) {
-  const { rows } = await pool.query<{ event_id: string; title: string }>(`SELECT event_id, title FROM prep_tasks WHERE id=$1`, [taskId]);
+  const { rows } = await pool.query<{ event_id: string; title: string; d: string | null }>(
+    `SELECT pt.event_id, pt.title, to_char(e.event_date,'YYYY-MM-DD') d
+       FROM prep_tasks pt LEFT JOIN events e ON e.id = pt.event_id WHERE pt.id=$1`, [taskId]);
   const t = rows[0];
   if (!t) return null;
   await pool.query(`DELETE FROM prep_task_staff WHERE task_id=$1`, [taskId]);
@@ -805,6 +807,9 @@ export async function setPrepAssignees(taskId: string, memberIds: string[], acto
     await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, m]);
   }
   await logTask(taskId, t.event_id, 'reassigned', `${t.title} → ${memberIds.length} assignee(s)`, actor);
+  // Re-evaluate the "prep needs assigning" alert so a manual reassignment that
+  // fills (or empties) a task's roster updates the bell/home brief immediately.
+  await refreshPrepAssignmentAlert(t.event_id, t.d ?? '');
   return { eventId: t.event_id };
 }
 
