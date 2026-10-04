@@ -158,7 +158,19 @@ export async function syncZohoBank(): Promise<void> {
       for (const t of list) {
         const date = String(t.date ?? '').slice(0, 10);
         if (date && date < floor) { hitFloor = true; break; } // sorted desc → older ones follow
-        if (!isMoneyOut(t)) continue;
+        if (!isMoneyOut(t)) {
+          // Don't silently drop a line we couldn't classify: when Zoho gives no
+          // debit/credit flag AND an uncategorized type, isMoneyOut returns false
+          // and the line is skipped — if that was a genuine debit it'd vanish. Log
+          // it so a real spend missing from the Inbox can be traced and added.
+          const dc = String(t.debit_or_credit ?? '').toLowerCase();
+          const tt2 = String(t.transaction_type ?? '').toLowerCase();
+          if (!dc && tt2 !== 'transfer_fund') {
+            console.warn('[zoho-sync] skipped unclassified line (no debit/credit flag) — check in Zoho:',
+              JSON.stringify({ id: t.transaction_id, amount: t.amount, type: t.transaction_type, date }));
+          }
+          continue;
+        }
         const amt = Number(t.amount ?? 0);
         const amountFils = Math.round(Math.abs(amt) * 100);
         if (amountFils <= 0) continue;

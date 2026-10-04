@@ -2890,9 +2890,13 @@ export async function adminRoutes(app: FastifyInstance) {
     // expense_id and leaves status='approved' with its dedup key intact — so a
     // mistaken delete would otherwise lose the spend forever (never re-captured,
     // never re-reviewable). Purely manual expenses (no linked bank row) are
-    // untouched: the WHERE matches nothing.
-    await pool.query(`UPDATE bank_transactions SET status='pending', expense_id=NULL WHERE expense_id = $1`, [id]);
-    await pool.query(`DELETE FROM expenses WHERE id = $1`, [id]);
+    // untouched: the WHERE matches nothing. Both writes run in ONE transaction so
+    // a failure between them can't leave the expense deleted while its bank row is
+    // stuck 'approved' (spend lost) — or vice-versa.
+    await withTransaction(async (db) => {
+      await db.query(`UPDATE bank_transactions SET status='pending', expense_id=NULL WHERE expense_id = $1`, [id]);
+      await db.query(`DELETE FROM expenses WHERE id = $1`, [id]);
+    });
     return { deleted: true };
   });
 

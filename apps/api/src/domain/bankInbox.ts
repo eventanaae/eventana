@@ -166,6 +166,23 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
   if (dup.rows[0]) return { id: String(dup.rows[0].id), duplicate: true };
 
   const p = parseRakbankAlert(subject, body);
+  // Money IN (inward transfer / deposit / refund to our account) is NOT an expense
+  // — never queue it for approval. (The Zoho feed already skips the money-in side.)
+  if (p?.direction === 'credit') return null;
+  // Cross-source de-dup: the Zoho bank feed is the authoritative capture of every
+  // bank debit. If this SAME debit (amount + date, ±2 days) already arrived via
+  // Zoho, don't create a second pending row from the RAKBANK alert — that was the
+  // double-expense. The alert defers to Zoho (which reconciles RAKBANK + Wio).
+  if ((p?.amountFils ?? 0) > 0) {
+    const near = await pool.query<{ id: string }>(
+      `SELECT id FROM bank_transactions
+         WHERE source = 'zoho' AND direction = 'debit' AND status <> 'ignored'
+           AND amount_fils = $1
+           AND posted_on BETWEEN ($2::date - 2) AND ($2::date + 2)
+         LIMIT 1`,
+      [p!.amountFils, p?.postedOn ?? dubaiToday()]);
+    if (near.rows[0]) return { id: String(near.rows[0].id), duplicate: true };
+  }
   const ins = await pool.query<{ id: string }>(
     `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending') RETURNING id`,
@@ -507,8 +524,17 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
       if (!llm.isTransaction) return null; // statement / OTP / marketing / pending-only
       direction = llm.direction ?? 'debit';
       kind = 'purchase';
-      const rate = (llm.currency ?? 'AED').toUpperCase() === 'USD' ? AED_PER_USD : 1;
-      amountFils = llm.amount != null ? Math.round(llm.amount * rate * 100) : 0;
+      // Only AED (1:1) and USD (fixed peg) convert automatically. ANY other
+      // currency must NOT be booked at rate 1 (that records the raw foreign number
+      // as AED) — leave the amount at 0 (approval is blocked until a real AED
+      // amount is entered) and flag it for review.
+      const cur = (llm.currency ?? 'AED').toUpperCase();
+      const rate = cur === 'USD' ? AED_PER_USD : cur === 'AED' ? 1 : null;
+      amountFils = (rate != null && llm.amount != null) ? Math.round(llm.amount * rate * 100) : 0;
+      if (rate == null) {
+        needsReview = true;
+        settlementNote = `⚠️ NEEDS REVIEW — amount is in ${cur}; convert it to AED and set the amount before approving.`;
+      }
       if (llm.merchant) merchant = llm.merchant;
       if (llm.date) postedOn = llm.date;
       if (!llm.confident) {
@@ -665,6 +691,9 @@ export async function approveBankTransaction(
     const tx = rows[0];
     if (!tx) return { ok: false, reason: 'not_found' };
     if (tx.status !== 'pending') return { ok: false, reason: `already_${tx.status}` };
+    // Money IN is never an expense — refuse to post a credit as spend, whatever
+    // source queued it (guards against a mis-ingested inward transfer / deposit).
+    if (String(tx.direction) === 'credit') return { ok: false, reason: 'not_an_expense' };
 
     // The amount can be corrected at approval (rows captured with amount 0 when it
     // couldn't be read). A non-positive amount must never post as an expense.
