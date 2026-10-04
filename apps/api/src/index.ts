@@ -756,6 +756,31 @@ async function main() {
     })();
   }
 
+  // One-shot: dump a month's receipts both ways (booking basis vs event basis) so
+  // the owner can verify the total + count. Set MONTH_STATS=YYYY-MM, then unset.
+  if (/^\d{4}-\d{2}$/.test(String(process.env.MONTH_STATS ?? ''))) {
+    (async () => {
+      try {
+        const m = String(process.env.MONTH_STATS);
+        const { pool } = await import('./db/pool.js');
+        const start = `${m}-01`;
+        const end = (() => { const [y, mo] = m.split('-').map(Number); return new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10); })();
+        const agg = await pool.query<{ k: string; n: string; v: string }>(
+          `SELECT 'booking' k, count(*)::text n, COALESCE(SUM(total_fils),0)::text v FROM finance_receipts WHERE COALESCE(booked_on,date) >= $1 AND COALESCE(booked_on,date) < $2
+           UNION ALL
+           SELECT 'event' k, count(*)::text, COALESCE(SUM(total_fils),0)::text FROM finance_receipts WHERE date >= $1 AND date < $2`,
+          [start, end]);
+        for (const r of agg.rows) console.log(`[month-stats ${m}] basis=${r.k}: orders=${r.n} total=AED ${(Number(r.v)/100).toLocaleString('en-US')}`);
+        const list = await pool.query<{ number: string; cust: string; v: string; ev: string | null; bk: string | null }>(
+          `SELECT number, customer_name cust, total_fils v, to_char(date,'YYYY-MM-DD') ev, to_char(booked_on,'YYYY-MM-DD') bk
+             FROM finance_receipts WHERE COALESCE(booked_on,date) >= $1 AND COALESCE(booked_on,date) < $2
+            ORDER BY booked_on`, [start, end]);
+        for (const r of list.rows) console.log(`[month-stats ${m}] EV-${r.number} | ${r.cust} | AED ${(Number(r.v)/100).toLocaleString('en-US')} | event ${r.ev ?? '—'} | booked ${r.bk ?? '—'}`);
+        console.log(`[month-stats ${m}] END (${list.rows.length} rows)`);
+      } catch (e) { console.error('[month-stats] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
