@@ -784,27 +784,26 @@ async function main() {
     })();
   }
 
-  // One-shot: reset booking date = event date for EVERY receipt EXCEPT the current
-  // season (events Sep–Dec 2026), whose real booking dates we'll fill from WhatsApp.
-  // Then log the season list (with phone) to build the review page. SEASON_RESET=true.
-  if (String(process.env.SEASON_RESET ?? '').toLowerCase() === 'true') {
+  // One-shot: owner's final call (2026-10-05) — revert EVERY existing receipt's
+  // booking date back to its event date, so the historical accounts match the
+  // old baseline exactly and nothing crosses a month. The "new method" (stamp the
+  // real booking day) then only applies going FORWARD, to bookings captured from
+  // now on for the new 2026 financial year. FULL_RESET_EVENTDATE=true for one
+  // deploy, then unset.
+  if (String(process.env.FULL_RESET_EVENTDATE ?? '').toLowerCase() === 'true') {
     (async () => {
       try {
         const { pool } = await import('./db/pool.js');
         const r = await pool.query(
           `UPDATE finance_receipts SET booked_on = date
-            WHERE NOT (date >= '2026-09-01' AND date < '2027-01-01')
-              AND booked_on IS DISTINCT FROM date`);
-        console.log(`[season-reset] reset ${r.rowCount} receipt(s) to event date (all except Sep–Dec 2026)`);
-        const season = await pool.query<{ number: string; cust: string; ev: string | null; bk: string | null; src: string | null; phone: string | null; alt: string | null }>(
-          `SELECT r.number, r.customer_name cust, to_char(r.date,'YYYY-MM-DD') ev, to_char(r.booked_on,'YYYY-MM-DD') bk,
-                  r.source src, hc.phone, hc.phone_alt alt
-             FROM finance_receipts r LEFT JOIN historical_customers hc ON hc.id = r.customer_id
-            WHERE r.date >= '2026-09-01' AND r.date < '2027-01-01' ORDER BY r.date`);
-        console.log(`[season-reset] SEASON events (Sep–Dec 2026): ${season.rowCount}`);
-        for (const s of season.rows) console.log(`[season] EV-${s.number} | ${s.cust} | ${s.src} | event ${s.ev} | booked ${s.bk ?? '—'} | phone ${s.phone ?? s.alt ?? '—'}`);
-        console.log('[season] END');
-      } catch (e) { console.error('[season-reset] failed:', (e as Error).message); }
+            WHERE booked_on IS DISTINCT FROM date`);
+        console.log(`[full-reset] reset ${r.rowCount} receipt(s): booked_on = event date (all receipts)`);
+        const chk = await pool.query<{ mismatch: string; total: string }>(
+          `SELECT COUNT(*) FILTER (WHERE booked_on IS DISTINCT FROM date)::text mismatch,
+                  COUNT(*)::text total FROM finance_receipts`);
+        console.log(`[full-reset] verify: ${chk.rows[0]?.mismatch} still differ out of ${chk.rows[0]?.total} total`);
+        console.log('[full-reset] END');
+      } catch (e) { console.error('[full-reset] failed:', (e as Error).message); }
     })();
   }
 
