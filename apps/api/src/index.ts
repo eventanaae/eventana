@@ -666,17 +666,18 @@ async function main() {
     (async () => {
       try {
         const { pool } = await import('./db/pool.js');
-        const { rows } = await pool.query<{ number: string; customer_name: string; ev: string | null; booked: string | null }>(
-          `SELECT number, customer_name,
+        const { rows } = await pool.query<{ number: string; customer_name: string; src: string | null; ev: string | null; booked: string | null }>(
+          `SELECT number, customer_name, source src,
                   to_char(date,'YYYY-MM-DD') ev, to_char(booked_on,'YYYY-MM-DD') booked
              FROM finance_receipts
             WHERE date >= date_trunc('year', current_date)
               AND source IS DISTINCT FROM 'quickbooks'
-            ORDER BY date`,
+            ORDER BY (source <> 'app'), booked_on`,
         );
-        console.log(`[year-bookings] ${rows.length} booking(s) this year — ref | customer | event_date | booked_on`);
+        const needCheck = rows.filter((r) => r.src !== 'app').length;
+        console.log(`[year-bookings] ${rows.length} booking(s) this year (${needCheck} not online-checkout → booking date needs owner confirm) — ref | customer | source | event_date | booked_on | RELIABLE?`);
         for (const r of rows) {
-          console.log(`[year-bookings] EV-${r.number} | ${r.customer_name} | ${r.ev ?? '—'} | ${r.booked ?? '—'}`);
+          console.log(`[year-bookings] EV-${r.number} | ${r.customer_name} | ${r.src ?? '—'} | ${r.ev ?? '—'} | ${r.booked ?? '—'} | ${r.src === 'app' ? 'online✓' : 'CONFIRM'}`);
         }
         console.log('[year-bookings] END');
       } catch (e) { console.error('[year-bookings] failed:', (e as Error).message); }
