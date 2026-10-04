@@ -807,6 +807,40 @@ async function main() {
     })();
   }
 
+  // One-shot diag: why a customer got the feedback EMAIL but not the WhatsApp.
+  // Dumps their customer record (email/phone) + every feedback_request row with
+  // its sent_at / whatsapp_sent_at / cancelled_at. DIAG_FEEDBACK_NAME=<name>.
+  if (process.env.DIAG_FEEDBACK_NAME) {
+    (async () => {
+      const q = String(process.env.DIAG_FEEDBACK_NAME);
+      try {
+        const { pool } = await import('./db/pool.js');
+        const rows = await pool.query<{
+          event_id: string; name: string; email: string | null; phone: string | null;
+          event_date: string | null; template: string | null; channel: string | null;
+          scheduled_for: string | null; sent_at: string | null; wa_at: string | null; canc: string | null;
+        }>(
+          `SELECT e.id AS event_id, c.name, c.email, c.phone,
+                  to_char(e.event_date,'YYYY-MM-DD') AS event_date,
+                  n.template, n.channel,
+                  to_char(n.scheduled_for,'YYYY-MM-DD HH24:MI') AS scheduled_for,
+                  to_char(n.sent_at,'YYYY-MM-DD HH24:MI') AS sent_at,
+                  to_char(n.whatsapp_sent_at,'YYYY-MM-DD HH24:MI') AS wa_at,
+                  to_char(n.cancelled_at,'YYYY-MM-DD HH24:MI') AS canc
+             FROM events e
+             JOIN customers c ON c.id = e.customer_id
+             LEFT JOIN notifications n ON n.event_id = e.id AND n.template = 'feedback_request'
+            WHERE c.name ILIKE '%' || $1 || '%'
+            ORDER BY e.event_date`, [q]);
+        console.log(`[diag-feedback] "${q}" → ${rows.rowCount} row(s)`);
+        for (const r of rows.rows) {
+          console.log(`[diag-feedback] ${r.event_id} | ${r.name} | email=${r.email ?? '—'} | phone=${r.phone ?? '—'} | event=${r.event_date} | tpl=${r.template ?? 'NONE'} ch=${r.channel ?? '-'} | sched=${r.scheduled_for ?? '-'} | emailSent=${r.sent_at ?? '-'} | waSent=${r.wa_at ?? '-'} | cancelled=${r.canc ?? '-'}`);
+        }
+        console.log('[diag-feedback] END');
+      } catch (e) { console.error('[diag-feedback] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
