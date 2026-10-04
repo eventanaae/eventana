@@ -1335,6 +1335,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS finance_receipts_order_idx
 -- (re-)emailed receipt and the dashboard show what was returned and the net.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS refunded_fils BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS refunded_items JSONB NOT NULL DEFAULT '[]';
+-- BOOKING date (the day the customer actually booked / paid) — DISTINCT from `date`,
+-- which for a live sale holds the EVENT (party) date. booked_on is the money-in date
+-- and is the basis for all financial + ad calculations; `date` stays the event date
+-- that drives the calendar/operations. Backfill once: a reconciled historical row's
+-- `date` already is its sale date; every other row's booking day is its creation day.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS booked_on DATE;
+UPDATE finance_receipts SET booked_on = CASE WHEN source = 'quickbooks' THEN date ELSE created_at::date END WHERE booked_on IS NULL;
+CREATE INDEX IF NOT EXISTS finance_receipts_booked_on_idx ON finance_receipts (booked_on DESC);
 
 -- Manual-order "offers": the team picks the products/package/add-ons only, and
 -- the customer opens a unique link, fills in ALL their own details on the normal

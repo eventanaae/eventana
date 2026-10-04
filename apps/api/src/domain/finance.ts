@@ -315,6 +315,9 @@ type DocInput = {
   // The celebration type id (CELEBRATION_TYPES) carried onto the converted event,
   // so a manual booking is not always a kids birthday. Defaults to 'kids'.
   celebrationType?: string | null;
+  // The day the customer BOOKED/paid (money-in) — distinct from the event date.
+  // Basis for all money + ad calculations. Defaults to today when omitted.
+  bookedOn?: string | null;
 };
 
 export async function createInvoice(d: DocInput & { dueDate?: string | null; issueDate?: string | null; status?: string; commissionRep?: string | null }) {
@@ -416,9 +419,9 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   const number = await nextReceiptNumber();
   const { rows } = await pool.query(
-    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, date_tbd, commission_rep, location_note, celebration_type)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
-    [number, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null, d.addressNote ?? null, d.celebrationType ?? 'kids'],
+    `INSERT INTO finance_receipts (number, customer_id, customer_name, date, booked_on, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, date_tbd, commission_rep, location_note, celebration_type)
+     VALUES ($1,$2,$3,COALESCE($4,current_date),COALESCE($20::date,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
+    [number, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null, d.addressNote ?? null, d.celebrationType ?? 'kids', d.bookedOn ?? null],
   );
   // An upcoming sale becomes an operational event automatically, so it shows on
   // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.
@@ -537,9 +540,9 @@ export async function recordSaleFromOrder(
 
     await db.query(
       `INSERT INTO finance_receipts
-         (number, customer_id, customer_name, date, line_items, subtotal_fils, discount_fils,
+         (number, customer_id, customer_name, date, booked_on, line_items, subtotal_fils, discount_fils,
           shipping_fils, total_fils, paid_with, source, order_id, event_for, theme, age)
-       VALUES ($1,$2,$3,COALESCE($4::date,current_date),$5,$6,$7,$8,$9,$15,$10,$11,$12,$13,$14)
+       VALUES ($1,$2,$3,COALESCE($4::date,current_date),current_date,$5,$6,$7,$8,$9,$15,$10,$11,$12,$13,$14)
        ON CONFLICT (order_id) WHERE order_id IS NOT NULL DO NOTHING`,
       [
         number, financeCustomerId, customerName, cart.eventDate ?? null, JSON.stringify(items),
@@ -1251,6 +1254,9 @@ function decorateReceipt(r: any) {
     refundedFils, refundedDisplay: formatAed(refundedFils),
     refundedItems: Array.isArray(r.refunded_items) ? r.refunded_items : [],
     netTotalFils: netTotal, netTotalDisplay: formatAed(netTotal),
+    // Two distinct dates: `date` = the EVENT (party) day; booked_on = the day the
+    // customer booked/paid (money-in) — the basis for all money + ad calculations.
+    bookedOn: r.booked_on ?? null,
   };
 }
 

@@ -655,6 +655,30 @@ async function main() {
     })();
   }
 
+  // One-shot: list THIS YEAR's live bookings (reference, customer, EVENT date,
+  // current booked_on) so the owner can have Marsha fill in the real BOOKING date
+  // per booking. Set LIST_YEAR_BOOKINGS=true for one deploy, read the logs, unset.
+  if (String(process.env.LIST_YEAR_BOOKINGS ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const { rows } = await pool.query<{ number: string; customer_name: string; ev: string | null; booked: string | null }>(
+          `SELECT number, customer_name,
+                  to_char(date,'YYYY-MM-DD') ev, to_char(booked_on,'YYYY-MM-DD') booked
+             FROM finance_receipts
+            WHERE date >= date_trunc('year', current_date)
+              AND source IS DISTINCT FROM 'quickbooks'
+            ORDER BY date`,
+        );
+        console.log(`[year-bookings] ${rows.length} booking(s) this year — ref | customer | event_date | booked_on`);
+        for (const r of rows) {
+          console.log(`[year-bookings] EV-${r.number} | ${r.customer_name} | ${r.ev ?? '—'} | ${r.booked ?? '—'}`);
+        }
+        console.log('[year-bookings] END');
+      } catch (e) { console.error('[year-bookings] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (env-gated) UNDO of a mistaken manual refund: cancel the unsent
   // customer email/WhatsApp for that order AND reverse the recorded refund
   // (receipt, points, order status). Set UNDO_REFUND_ORDER=<order id> for one
