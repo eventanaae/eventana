@@ -358,6 +358,7 @@ function AgentControl({
 export function Leads({ role }: { role?: string }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [funnel, setFunnel] = useState<Funnel | null>(null);
+  const [adPerf, setAdPerf] = useState<any>(null);
   const [agentMode, setAgentMode] = useState<string>('off');
   const [connected, setConnected] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -413,6 +414,7 @@ export function Leads({ role }: { role?: string }) {
         })
         .catch(() => live && setLeads([]));
       api.whatsappFunnel().then((f) => live && setFunnel(f)).catch(() => {});
+      api.adPerformance().then((a) => live && setAdPerf(a)).catch(() => {});
     };
     load();
     const t = setInterval(load, 60_000);
@@ -424,6 +426,19 @@ export function Leads({ role }: { role?: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Instagram ads → bookings. Every Eventana booking comes from IG ads, so the
+          month's ad spend ÷ real bookings is the true cost per booking + ROAS. */}
+      {adPerf && (
+        <div style={{ background: 'linear-gradient(135deg,#FDE0EE,#E0ECFF)', border: `1px solid ${C.line}`, borderRadius: 16, padding: '14px 16px' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: C.pinkDeep, marginBottom: 10 }}>📣 إعلانات إنستغرام هذا الشهر <span style={{ color: C.muted2, fontWeight: 600 }}>— كل حجوزاتنا منها</span></div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Stat label="صرف الإعلانات" value={`AED ${adPerf.adSpendDisplay}`} />
+            <Stat label="حجوزات" value={adPerf.bookings} />
+            <Stat label="تكلفة الحجز" value={adPerf.costPerBookingDisplay ? `AED ${adPerf.costPerBookingDisplay}` : '—'} />
+            <Stat label="العائد (ROAS)" value={adPerf.roas != null ? `${adPerf.roas}×` : '—'} />
+          </div>
+        </div>
+      )}
       {/* The number the ad account cannot produce: chats that became parties. */}
       {funnel && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

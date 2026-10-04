@@ -2941,6 +2941,45 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true, id: res.id };
   });
 
+  /**
+   * Ad performance for the Leads page. EVERY Eventana booking comes from Instagram
+   * ads (owner's standing fact), so revenue is fully ad-attributable: this ties the
+   * month's ad spend to the real booking count → cost-per-booking and ROAS.
+   * Manager + Owner. ?month=YYYY-MM (default current month).
+   */
+  app.get('/api/admin/ad-performance', async (request) => {
+    const q = request.query as { month?: string };
+    const now = new Date();
+    const month = /^\d{4}-\d{2}$/.test(q.month ?? '') ? q.month! : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const start = `${month}-01`;
+    const end = (() => { const [y, mo] = month.split('-').map(Number); const d = new Date(Date.UTC(y, mo, 1)); return d.toISOString().slice(0, 10); })();
+    const [spendR, bookR] = await Promise.all([
+      pool.query<{ v: string }>(
+        `SELECT COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
+          WHERE spent_on >= $1 AND spent_on < $2
+            AND (COALESCE(category,'') ~* '(advertis|marketing|meta|facebook|instagram|snapchat|tiktok|google ads|\\yads\\y)')`,
+        [start, end],
+      ).catch(() => ({ rows: [{ v: '0' }] })),
+      pool.query<{ n: number; v: string }>(
+        `SELECT count(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts WHERE date >= $1 AND date < $2`,
+        [start, end],
+      ).catch(() => ({ rows: [{ n: 0, v: '0' }] })),
+    ]);
+    const adSpendFils = Number(spendR.rows[0].v);
+    const bookings = Number(bookR.rows[0].n);
+    const revenueFils = Number(bookR.rows[0].v);
+    const costPerBookingFils = bookings > 0 ? Math.round(adSpendFils / bookings) : null;
+    const roas = adSpendFils > 0 ? Math.round((revenueFils / adSpendFils) * 10) / 10 : null;
+    return {
+      month,
+      adSpendFils, adSpendDisplay: formatAed(adSpendFils),
+      bookings,
+      revenueFils, revenueDisplay: formatAed(revenueFils),
+      costPerBookingFils, costPerBookingDisplay: costPerBookingFils != null ? formatAed(costPerBookingFils) : null,
+      roas,
+    };
+  });
+
   /** Attach/replace a receipt on a pending bank transaction (before approval). */
   app.post('/api/admin/bank-transactions/:id/receipt', async (request, reply) => {
     const id = String((request.params as { id: string }).id);

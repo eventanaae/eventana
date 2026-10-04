@@ -302,6 +302,7 @@ export const api = {
   whatsappLeads: (status?: string) =>
     request<any>(`/api/admin/whatsapp/leads${status && status !== 'all' ? `?status=${status}` : ''}`),
   whatsappFunnel: () => request<any>('/api/admin/whatsapp/funnel'),
+  adPerformance: (month?: string) => request<any>(`/api/admin/ad-performance${month ? `?month=${month}` : ''}`),
   whatsappMessages: (phone: string) =>
     request<any>(`/api/admin/whatsapp/leads/${encodeURIComponent(phone)}/messages`),
   whatsappReply: (phone: string, body: string) =>
