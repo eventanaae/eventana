@@ -5,6 +5,21 @@ import { api } from '../api';
 import { Badge, Button, C, Panel, Spinner, fredoka, money } from '../ui';
 import { NewOrder } from './NewOrder';
 
+/** Parse a user-typed money string into fils, tolerating Arabic-Indic digits
+ *  (٠-٩ / ۰-۹) and the Arabic decimal/thousands marks. Our team types on an
+ *  Arabic keyboard, and a plain Number() cast turned "٤٠٫٦٠" into NaN — so a
+ *  manual expense (and edited prices / discounts) silently refused to save. */
+const toAsciiDigits = (s: string): string =>
+  String(s ?? '')
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/٫/g, '.')
+    .replace(/٬/g, '');
+const parseAedFils = (s: string): number => {
+  const n = Number(toAsciiDigits(s).replace(/[,\s]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+};
+
 /**
  * The dashboard's finance hub — a lean, QuickBooks-style set of tools:
  *   Accounting · Sales & Get Paid (Invoices + Sales receipts) · Expenses.
@@ -656,7 +671,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   const tag = (s?: string) => s === 'tabby' ? 'Tabby' : s === 'tamara' ? 'Tamara' : s === 'rakbank' ? 'RAKBANK' : s === 'wio' ? 'Wio' : s === 'manual' ? 'Manual' : null;
 
   async function addManual() {
-    const fils = Math.round((Number(String(mAmt).replace(/,/g, '')) || 0) * 100);
+    const fils = parseAedFils(mAmt);
     if (fils <= 0) { setErr('Enter an amount.'); return; }
     setBusy('manual'); setErr(null);
     try {
@@ -674,7 +689,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
     const v = (vendor[r.id] ?? r.merchant ?? '').trim();
     if (!v) { setErr('Please enter a vendor before approving — vendor is required on every expense.'); return; }
     // Amount: use the typed amount for rows captured at 0, else the row's amount.
-    const typed = Math.round((Number((amt[r.id] ?? '').replace(/,/g, '')) || 0) * 100);
+    const typed = parseAedFils(amt[r.id] ?? '');
     const amountFils = typed > 0 ? typed : Number(r.amount_fils);
     if (!(amountFils > 0)) { setErr('Please enter the amount before approving.'); return; }
     setBusy(r.id); setErr(null);
@@ -817,7 +832,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
   };
   const save = async () => {
     if (!supplier.trim()) { setErr('Vendor is required — pick or type a vendor.'); return; }
-    const fils = Math.round((Number(amount.replace(/,/g, '')) || 0) * 100);
+    const fils = parseAedFils(amount);
     if (fils <= 0) { setErr('Enter an amount.'); return; }
     setBusy(true); setErr(null);
     try {
@@ -910,7 +925,7 @@ function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose:
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const save = async () => {
-    const fils = Math.round((Number(amount.replace(/,/g, '')) || 0) * 100);
+    const fils = parseAedFils(amount);
     if (fils <= 0) { setErr('Enter an amount.'); return; }
     if (!vendor.trim()) { setErr('Vendor is required — every expense must have a vendor.'); return; }
     setBusy(true); setErr(null);
@@ -985,8 +1000,8 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   // the row set changes (a removal shifts indices) so values re-sync to priceFils.
   const [priceText, setPriceText] = useState<Record<number, string>>({});
 
-  const discountFils = Math.round((Number(discount.replace(/,/g, '')) || 0) * 100);
-  const shippingFils = Math.round((Number(shipping.replace(/,/g, '')) || 0) * 100);
+  const discountFils = parseAedFils(discount);
+  const shippingFils = parseAedFils(shipping);
   const subtotal = items.reduce((s, l) => s + Math.round(l.qty * l.priceFils), 0);
   const total = subtotal - discountFils + shippingFils;
 
@@ -1045,7 +1060,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
                   aria-label="Unit price in AED"
                   placeholder="0"
                   onChange={(e) => {
-                    const t = e.target.value.replace(/[^\d.]/g, '');
+                    const t = toAsciiDigits(e.target.value).replace(/[^\d.]/g, '');
                     setPriceText((p) => ({ ...p, [i]: t }));
                     const fils = Math.round((Number(t) || 0) * 100);
                     setItems((a) => a.map((x, j) => j === i ? { ...x, priceFils: fils } : x));
@@ -1438,7 +1453,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <input value={payAmt} inputMode="decimal" onChange={(e) => setPayAmt(e.target.value)} placeholder="Amount just paid (AED)" style={{ ...input, marginBottom: 0 }} />
             <Button disabled={busy} onClick={async () => {
-              const add = Math.round((Number(payAmt.replace(/,/g, '')) || 0) * 100);
+              const add = parseAedFils(payAmt);
               if (add <= 0) return;
               setBusy(true);
               try { await api.finInvoicePayment(doc.id, (doc.amount_paid_fils || 0) + add); setPayAmt(''); onChanged(); onClose(); }
@@ -1626,7 +1641,7 @@ function ItemPicker({ onPick, onClose }: { onPick: (it: { name: string; priceFil
       </Field>
       <Button disabled={saving} onClick={async () => {
         const name = custom.name.trim(); if (!name) return;
-        const priceFils = Math.round((Number(custom.price.replace(/,/g, '')) || 0) * 100);
+        const priceFils = parseAedFils(custom.price);
         const description = custom.description.trim();
         setSaving(true);
         try { await api.finCreateItem(name, priceFils, description || undefined); } catch { /* still add the line even if save fails */ }
