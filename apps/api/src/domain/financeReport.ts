@@ -40,10 +40,11 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
   const endStr = end.toISOString().slice(0, 10);
 
   const [rev, exp, byCat, tips, orders, items, emirates] = await Promise.all([
-    // Revenue = every sale recorded that month (QuickBooks history + new sales),
-    // so a past month reports its true income, not just newly-created orders.
+    // Revenue = every sale BOOKED that month (money-in), by booked_on — owner's
+    // rule: the month's income is what the customer booked/paid that month, not the
+    // month the party happens. COALESCE keeps any row without a booking date.
     pool.query(
-      `SELECT COALESCE(SUM(total_fils),0) v FROM finance_receipts WHERE date >= $1 AND date < $2`,
+      `SELECT COALESCE(SUM(total_fils),0) v FROM finance_receipts WHERE COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2`,
       [start, endStr],
     ),
     // Expenses = every expense spent that month (QuickBooks history INCLUDED —
@@ -69,14 +70,14 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
     // a shop / printed-goods order (the owner wants the total order count, not a
     // split). Same source as revenue, so the two always agree.
     pool.query(
-      `SELECT COUNT(*) v FROM finance_receipts WHERE date >= $1 AND date < $2`,
+      `SELECT COUNT(*) v FROM finance_receipts WHERE COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2`,
       [start, endStr],
     ),
     // Top 5 most-requested items that month, by how many receipts contain them.
     pool.query(
       `SELECT btrim(li->>'name') AS name, COUNT(*) n
          FROM finance_receipts r, LATERAL jsonb_array_elements(r.line_items) li
-        WHERE r.date >= $1 AND r.date < $2 AND COALESCE(btrim(li->>'name'),'') <> ''
+        WHERE COALESCE(r.booked_on, r.date) >= $1 AND COALESCE(r.booked_on, r.date) < $2 AND COALESCE(btrim(li->>'name'),'') <> ''
         GROUP BY 1 ORDER BY n DESC, name LIMIT 5`,
       [start, endStr],
     ),
@@ -88,7 +89,7 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
            FROM finance_receipts r
            LEFT JOIN historical_customers hc ON hc.id = r.customer_id
            LEFT JOIN events ev ON ev.id = r.event_id
-          WHERE r.date >= $1 AND r.date < $2
+          WHERE COALESCE(r.booked_on, r.date) >= $1 AND COALESCE(r.booked_on, r.date) < $2
        ) s WHERE emirate IS NOT NULL
         GROUP BY emirate ORDER BY n DESC LIMIT 3`,
       [start, endStr],

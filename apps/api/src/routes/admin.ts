@@ -2253,11 +2253,11 @@ export async function adminRoutes(app: FastifyInstance) {
                 WHERE lower(r.commission_rep)='marsha'
                   AND r.total_fils = i.total_fils
                   AND lower(r.customer_name) = lower(i.customer_name)
-                  AND r.date >= $1 AND r.date < $2)
+                  AND COALESCE(r.booked_on, r.date) >= $1 AND COALESCE(r.booked_on, r.date) < $2)
          UNION ALL
          SELECT r.total_fils AS gross FROM finance_receipts r
            WHERE lower(r.commission_rep)='marsha' AND r.total_fils >= $3
-             AND r.date >= $1 AND r.date < $2
+             AND COALESCE(r.booked_on, r.date) >= $1 AND COALESCE(r.booked_on, r.date) < $2
        ) x`,
       [start, endStr, COMMISSION_MIN],
     );
@@ -2966,8 +2966,11 @@ export async function adminRoutes(app: FastifyInstance) {
       // must match ad spend to bookings made in the same month. (finance_receipts.date
       // holds the EVENT date, which is the wrong basis for ad performance.)
       pool.query<{ n: number; v: string }>(
+        // Bookings by the BOOKING date (booked_on) — the real booking day; fall back
+        // to created_at only if it's somehow missing. Matches ad spend (by month) to
+        // the bookings that month's ads produced.
         `SELECT count(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts
-          WHERE created_at >= $1::date AND created_at < $2::date`,
+          WHERE COALESCE(booked_on, created_at::date) >= $1::date AND COALESCE(booked_on, created_at::date) < $2::date`,
         [start, end],
       ).catch(() => ({ rows: [{ n: 0, v: '0' }] })),
     ]);
@@ -4152,7 +4155,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // coverage end — auto-detected from the data), so it updates daily and never
     // double-counts the migrated rows.
     const [qbRevCutR, qbExpCutR] = await Promise.all([
-      pool.query<{ d: string | null }>(`SELECT MAX(date) d FROM finance_receipts WHERE source = 'quickbooks'`).catch(() => ({ rows: [{ d: null }] })),
+      pool.query<{ d: string | null }>(`SELECT MAX(COALESCE(booked_on, date)) d FROM finance_receipts WHERE source = 'quickbooks'`).catch(() => ({ rows: [{ d: null }] })),
       pool.query<{ d: string | null }>(`SELECT MAX(spent_on) d FROM expenses WHERE source = 'quickbooks'`).catch(() => ({ rows: [{ d: null }] })),
     ]);
     const [liveRevR, liveExpR] = await Promise.all([
@@ -4163,7 +4166,9 @@ export async function adminRoutes(app: FastifyInstance) {
       // year would double-count; a zero add is the safe failure.
       pool.query<{ v: string }>(
         `SELECT COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts
-          WHERE source <> 'quickbooks' AND date >= $1 AND date < $2 AND date > $3::date`,
+          WHERE source <> 'quickbooks'
+            AND COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2
+            AND COALESCE(booked_on, date) > $3::date`,
         [yearStartS, yearEndS, qbRevCutR.rows[0].d],
       ).catch(() => ({ rows: [{ v: '0' }] })),
       pool.query<{ v: string }>(
@@ -4200,8 +4205,11 @@ export async function adminRoutes(app: FastifyInstance) {
       // rows are our reviewed, reconciled data (no dedup split needed — a cutoff
       // split broke on future-dated QB invoices), so we simply sum every receipt.
       pool.query<{ v: string; c: number }>(
+        // Income is counted by the BOOKING date (money-in), not the event date —
+        // owner's rule: booked_on drives all money calculations. COALESCE keeps any
+        // row with no booking date from being dropped.
         `SELECT COALESCE(SUM(total_fils),0)::bigint v, COUNT(*)::int c FROM finance_receipts
-          WHERE date >= $1 AND date < $2`,
+          WHERE COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2`,
         [from, to],
       ).catch(() => ({ rows: [{ v: '0', c: 0 }] })),
       pool.query<{ v: string }>(
@@ -4318,7 +4326,7 @@ export async function adminRoutes(app: FastifyInstance) {
       pool.query<{ theme: string; bookings: number; revenue: string }>(
         `SELECT btrim(theme) AS theme, COUNT(*)::int AS bookings, COALESCE(SUM(total_fils),0)::bigint AS revenue
            FROM finance_receipts
-          WHERE source <> 'quickbooks' AND date >= $1 AND date < $2 AND COALESCE(btrim(theme),'') <> ''
+          WHERE source <> 'quickbooks' AND COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2 AND COALESCE(btrim(theme),'') <> ''
           GROUP BY 1`,
         [from, to],
       ).catch(() => ({ rows: [] as any[] })),
