@@ -502,6 +502,10 @@ async function main() {
     // (QB_METHODS=preview logs what it finds; =apply writes finance_receipts.paid_with).
     const { qbMethodsFromEnv } = await import('./domain/quickbooks.js');
     await qbMethodsFromEnv().catch((err) => console.error('[qb-methods] failed:', err));
+    // Set the BOOKING date (booked_on) on QuickBooks receipts from each document's
+    // real entry date (QB_BOOKDATE=preview logs; =apply writes). Event date kept.
+    const { qbBookingDatesFromEnv } = await import('./domain/quickbooks.js');
+    await qbBookingDatesFromEnv().catch((err) => console.error('[qb-bookdate] failed:', err));
     // Store the team's WhatsApp numbers so the staff WhatsApp mirror can reach
     // them (SET_STAFF_PHONES=true). Idempotent; sends nothing.
     const { setStaffPhonesFromEnv } = await import('./db/setStaffPhones.js');

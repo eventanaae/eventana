@@ -423,6 +423,72 @@ export async function syncReceiptPaymentMethods(): Promise<{ updated: number; ma
   return { updated, matched };
 }
 
+/**
+ * The real ENTRY date (QuickBooks MetaData.CreateTime) for every sales document —
+ * i.e. the day the sale was recorded in QuickBooks, which is the closest thing we
+ * have to the BOOKING date (distinct from DocNumber's TxnDate, which Eventana used
+ * for the EVENT/party date). Returns DocNumber → 'YYYY-MM-DD'.
+ */
+async function fetchDocEntryDates(log: (m: string) => void): Promise<Map<string, string>> {
+  const byDoc = new Map<string, string>();
+  const pull = async (entity: 'SalesReceipt' | 'Invoice') => {
+    for (let pos = 1; ; pos += 100) {
+      const q = await qbQuery(`select * from ${entity} startposition ${pos} maxresults 100`);
+      const rows: any[] = q[entity] ?? [];
+      for (const r of rows) {
+        const doc = String(r.DocNumber ?? '').trim();
+        const created = r?.MetaData?.CreateTime;
+        if (doc && created) byDoc.set(doc, String(created).slice(0, 10));
+      }
+      if (rows.length < 100) break;
+    }
+  };
+  await pull('SalesReceipt');
+  await pull('Invoice');
+  log(`entry (create) dates for ${byDoc.size} QuickBooks documents`);
+  return byDoc;
+}
+
+/**
+ * Set finance_receipts.booked_on (the BOOKING date) from each QuickBooks document's
+ * real entry date, matched by DocNumber. Event date (`date`) is left untouched. In
+ * preview mode nothing is written. A receipt with no matching QuickBooks entry date
+ * is LEFT UNTOUCHED — never guessed, never set to the import day (owner's rule).
+ */
+export async function syncReceiptBookingDates(apply: boolean): Promise<{ qbReceipts: number; matched: number; updated: number }> {
+  const log = (m: string) => console.log(`[qb-bookdate] ${m}`);
+  if (!quickbooksConfigured()) { log('QuickBooks not configured — skipping.'); return { qbReceipts: 0, matched: 0, updated: 0 }; }
+  const byDoc = await fetchDocEntryDates(log);
+  const nums = await pool.query<{ number: string; d: string | null; booked: string | null }>(
+    `SELECT number, to_char(date,'YYYY-MM-DD') d, to_char(booked_on,'YYYY-MM-DD') booked
+       FROM finance_receipts WHERE source='quickbooks'`,
+  );
+  let matched = 0, updated = 0, shown = 0;
+  for (const r of nums.rows) {
+    const entry = byDoc.get(String(r.number).trim());
+    if (!entry) continue;
+    matched++;
+    if (shown < 10) { console.log(`[qb-bookdate]   #${r.number}: event ${r.d ?? '—'} → booked ${entry}`); shown++; }
+    if (apply) {
+      const res = await pool.query(
+        `UPDATE finance_receipts SET booked_on = $2::date WHERE number = $1 AND booked_on IS DISTINCT FROM $2::date`,
+        [r.number, entry],
+      );
+      updated += res.rowCount ?? 0;
+    }
+  }
+  log(`QB receipts: ${nums.rowCount} · matched entry date: ${matched} · ${apply ? `updated: ${updated}` : '(preview — nothing written)'}`);
+  return { qbReceipts: nums.rowCount ?? 0, matched, updated };
+}
+
+/** Boot entry: QB_BOOKDATE=preview logs the entry dates; =apply writes booked_on. */
+export async function qbBookingDatesFromEnv(): Promise<void> {
+  const mode = String(process.env.QB_BOOKDATE ?? '').toLowerCase();
+  if (mode !== 'preview' && mode !== 'apply') return;
+  try { await syncReceiptBookingDates(mode === 'apply'); }
+  catch (err) { console.error('[qb-bookdate] failed:', (err as Error).message); }
+}
+
 /** Boot entry: QB_METHODS=preview logs only; =apply writes the methods. */
 export async function qbMethodsFromEnv(): Promise<void> {
   const mode = String(process.env.QB_METHODS ?? '').toLowerCase();
