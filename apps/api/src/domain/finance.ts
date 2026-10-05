@@ -164,36 +164,7 @@ export async function updateCustomer(
       RETURNING id, full_name, phone, phone_alt, email, emirate`,
     [id, d.fullName ? titleCaseName(d.fullName) : '', d.phone ?? null, d.backupPhone ?? null, d.email ?? null, d.emirate ?? null],
   );
-  const saved = rows[0] ?? null;
-  // The CRM edits historical_customers, but a live EVENT's "Booked by" name reads
-  // from the separate `customers` (CUST-…) table, matched only by phone. Without
-  // this, a rename here never reached the customer's booked event (the owner's
-  // "I edited the name but the event didn't update" bug). Propagate a name change
-  // to the matching customers row(s) + their receipts, by normalised phone — but
-  // ONLY for a real, specific number (≥9 digits, not a 00000000-style placeholder)
-  // so a shared/blank phone can't rename unrelated people.
-  if (saved && d.fullName && d.fullName.trim()) {
-    const digits = String(saved.phone ?? '').replace(/\D/g, '');
-    const placeholder = /^(\d)\1*$/.test(digits); // all-same-digit, e.g. 00000000
-    if (digits.length >= 9 && !placeholder) {
-      const nm = titleCaseName(d.fullName);
-      await pool.query(
-        `UPDATE customers SET name = $1
-          WHERE regexp_replace(COALESCE(phone,''),'\\D','','g') = $2 AND name IS DISTINCT FROM $1`,
-        [nm, digits],
-      ).catch(() => {});
-      // Mirror onto any live events' receipts for those customers (denormalised name).
-      await pool.query(
-        `UPDATE finance_receipts fr SET customer_name = $1
-           FROM events e
-          WHERE e.order_id = fr.order_id
-            AND e.customer_id IN (SELECT id FROM customers WHERE regexp_replace(COALESCE(phone,''),'\\D','','g') = $2)
-            AND fr.customer_name IS DISTINCT FROM $1`,
-        [nm, digits],
-      ).catch(() => {});
-    }
-  }
-  return saved;
+  return rows[0] ?? null;
 }
 
 /**
@@ -1150,6 +1121,17 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
       `UPDATE orders SET cart = jsonb_set(COALESCE(cart, '{}'::jsonb), '{eventFor}', to_jsonb($2::text))
         WHERE id = (SELECT order_id FROM events WHERE id = $1)`,
       [saved.event_id, d.eventFor ?? ''],
+    ).catch(() => {});
+  }
+  // Receipt → event: keep the event's "Booked by" name (customers.name, shown live
+  // on the event) in step with the receipt's customer name. The receipt is the
+  // single place to fix it — editing it auto-reflects on the event, so there's no
+  // separate name field on the event (owner's standing rule). Precise: by event_id.
+  if (saved?.event_id && d.customerName && d.customerName.trim()) {
+    await pool.query(
+      `UPDATE customers SET name = $2
+        WHERE id = (SELECT customer_id FROM events WHERE id = $1) AND name IS DISTINCT FROM $2`,
+      [saved.event_id, titleCaseName(d.customerName)],
     ).catch(() => {});
   }
   // Keep the linked event's celebration type in step with the receipt, so the

@@ -26,7 +26,6 @@ export type EventPatch = {
   endTime?: string;          // "HH:MM" (24h)
   emirate?: string;
   eventFor?: string | null;  // guest-of-honour / baby name (lives in the order cart)
-  customerName?: string | null; // the "Booked by" customer name (customers.name)
   themeId?: string | null;   // catalogue theme id (also mirrored to the cart)
   customThemeName?: string;  // a free-typed theme when none in the catalogue fit
   locationNote?: string | null; // free-text address / Google Maps link
@@ -123,29 +122,6 @@ export async function staffUpdateEvent(eventId: string, patch: EventPatch): Prom
       if (patch.email !== undefined) {
         await db.query(`UPDATE customers SET email = $2 WHERE id = $1`,
           [ev.customer_id, (patch.email ?? '').trim() || null]);
-      }
-    }
-
-    // ── "Booked by" customer name (customers.name) ──────────────────────────
-    // The event's Booked-by reads customers.name live; let the team fix it here.
-    // Also keep the CRM master (historical_customers) in step by matching phone,
-    // so the name is consistent both ways (mirror of finance.updateCustomer).
-    if (patch.customerName !== undefined) {
-      const nm = (patch.customerName ?? '').trim();
-      if (nm) {
-        const titled = titleCaseName(nm);
-        await db.query(`UPDATE customers SET name = $2 WHERE id = $1`, [ev.customer_id, titled]);
-        await db.query(`UPDATE finance_receipts SET customer_name = $2 WHERE order_id = $1`, [ev.order_id, titled]).catch(() => {});
-        // Sync the CRM row by this customer's normalised phone (real numbers only).
-        await db.query(
-          `UPDATE historical_customers SET full_name = $1
-            WHERE regexp_replace(COALESCE(phone,''),'\\D','','g') =
-                  (SELECT regexp_replace(COALESCE(phone,''),'\\D','','g') FROM customers WHERE id = $2)
-              AND length(regexp_replace(COALESCE(phone,''),'\\D','','g')) >= 9
-              AND regexp_replace(COALESCE(phone,''),'\\D','','g') !~ '^(.)\\1*$'
-              AND full_name IS DISTINCT FROM $1`,
-          [titled, ev.customer_id],
-        ).catch(() => {});
       }
     }
 
