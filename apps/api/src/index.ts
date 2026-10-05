@@ -826,7 +826,8 @@ async function main() {
         const leave = await pool.query<{ s: string; e: string; st: string }>(
           `SELECT to_char(start_date,'YYYY-MM-DD') s, to_char(end_date,'YYYY-MM-DD') e, status st
              FROM staff_days_off WHERE member_id = $1 AND status = 'approved'
-               AND start_date <= ($2||'-31')::date AND end_date >= ($2||'-01')::date ORDER BY start_date`, [mem.id, month]);
+               AND start_date <= (($2||'-01')::date + interval '1 month' - interval '1 day')
+               AND end_date >= ($2||'-01')::date ORDER BY start_date`, [mem.id, month]);
         for (const l of leave.rows) console.log(`[worked-off] approved leave: ${l.s} → ${l.e}`);
         const evs = await pool.query<{ id: string; d: string; wd: number; role: string; cust: string; onLeave: boolean }>(
           `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') d, extract(dow from e.event_date)::int wd,
