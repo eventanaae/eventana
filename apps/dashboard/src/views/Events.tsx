@@ -1270,6 +1270,7 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
   const [open, setOpen] = useState(false);
   const [themes, setThemes] = useState<Array<{ id: string; name: string }>>([]);
   const [eventFor, setEventFor] = useState(event.eventFor ?? '');
+  const [customerName, setCustomerName] = useState(event.customer ?? '');
   const [emirate, setEmirate] = useState(event.emirate ?? '');
   // Two separate location fields: a dedicated villa / place name (free text) and
   // an optional map pin (coordinates or a Google Maps link). A legacy note that
@@ -1314,6 +1315,7 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
       else if (!map) { patch.mapLat = 0; patch.mapLng = 0; } // cleared
     }
     if ((eventFor ?? '') !== (event.eventFor ?? '')) patch.eventFor = eventFor.trim() || null;
+    if ((customerName ?? '') !== (event.customer ?? '') && customerName.trim()) patch.customerName = customerName.trim();
     if ((phone ?? '') !== (event.phone ?? '') && phone.trim()) patch.phone = phone.trim();
     if ((backupPhone ?? '') !== (event.backup_phone ?? '')) patch.backupPhone = backupPhone.trim() || null;
     if ((email ?? '') !== (event.email ?? '')) patch.email = email.trim() || null;
@@ -1339,7 +1341,7 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
     >
       {!open ? (
         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, lineHeight: 1.5 }}>
-          Change the time, phone numbers, location, guest-of-honour name or theme. A time change re-checks equipment availability.
+          Change the customer (booked-by) name, time, phone numbers, location, guest-of-honour name or theme. A time change re-checks equipment availability.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1373,6 +1375,10 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
             <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, lineHeight: 1.4 }}>
               Sets the exact pin for the map &amp; driver directions. Leave blank if you only have the villa/place name above.
             </span>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={editLbl}>👤 Booked by (customer name)</span>
+            <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputStyle} placeholder="e.g. Moza Mohammed" />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <span style={editLbl}>Guest of honour (baby name)</span>

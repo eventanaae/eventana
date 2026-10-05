@@ -164,7 +164,36 @@ export async function updateCustomer(
       RETURNING id, full_name, phone, phone_alt, email, emirate`,
     [id, d.fullName ? titleCaseName(d.fullName) : '', d.phone ?? null, d.backupPhone ?? null, d.email ?? null, d.emirate ?? null],
   );
-  return rows[0] ?? null;
+  const saved = rows[0] ?? null;
+  // The CRM edits historical_customers, but a live EVENT's "Booked by" name reads
+  // from the separate `customers` (CUST-…) table, matched only by phone. Without
+  // this, a rename here never reached the customer's booked event (the owner's
+  // "I edited the name but the event didn't update" bug). Propagate a name change
+  // to the matching customers row(s) + their receipts, by normalised phone — but
+  // ONLY for a real, specific number (≥9 digits, not a 00000000-style placeholder)
+  // so a shared/blank phone can't rename unrelated people.
+  if (saved && d.fullName && d.fullName.trim()) {
+    const digits = String(saved.phone ?? '').replace(/\D/g, '');
+    const placeholder = /^(\d)\1*$/.test(digits); // all-same-digit, e.g. 00000000
+    if (digits.length >= 9 && !placeholder) {
+      const nm = titleCaseName(d.fullName);
+      await pool.query(
+        `UPDATE customers SET name = $1
+          WHERE regexp_replace(COALESCE(phone,''),'\\D','','g') = $2 AND name IS DISTINCT FROM $1`,
+        [nm, digits],
+      ).catch(() => {});
+      // Mirror onto any live events' receipts for those customers (denormalised name).
+      await pool.query(
+        `UPDATE finance_receipts fr SET customer_name = $1
+           FROM events e
+          WHERE e.order_id = fr.order_id
+            AND e.customer_id IN (SELECT id FROM customers WHERE regexp_replace(COALESCE(phone,''),'\\D','','g') = $2)
+            AND fr.customer_name IS DISTINCT FROM $1`,
+        [nm, digits],
+      ).catch(() => {});
+    }
+  }
+  return saved;
 }
 
 /**

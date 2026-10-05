@@ -1971,6 +1971,7 @@ export async function adminRoutes(app: FastifyInstance) {
       endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
       emirate: z.string().min(1).max(40).optional(),
       eventFor: z.string().max(120).nullable().optional(),
+      customerName: z.string().max(200).nullable().optional(),
       themeId: z.string().min(1).max(80).nullable().optional(),
       customThemeName: z.string().max(120).optional(),
       // Exact location: a free-text address / Google Maps link the team can set
