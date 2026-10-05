@@ -829,6 +829,12 @@ async function main() {
                AND start_date <= (($2||'-01')::date + interval '1 month' - interval '1 day')
                AND end_date >= ($2||'-01')::date ORDER BY start_date`, [mem.id, month]);
         for (const l of leave.rows) console.log(`[worked-off] approved leave: ${l.s} → ${l.e}`);
+        // Day-off change history — tells us what the weekly day off WAS back then.
+        const changes = await pool.query<{ rd: number; st: string; sub: string; dec: string | null }>(
+          `SELECT requested_day rd, status st, to_char(submitted_at,'YYYY-MM-DD') sub, to_char(decided_at,'YYYY-MM-DD') dec
+             FROM day_off_change_requests WHERE member_id = $1 ORDER BY submitted_at`, [mem.id]);
+        console.log(`[worked-off] day-off change requests: ${changes.rowCount}`);
+        for (const ch of changes.rows) console.log(`[worked-off] change → ${WD[ch.rd]} | ${ch.st} | submitted ${ch.sub} | decided ${ch.dec ?? '-'}`);
         const evs = await pool.query<{ id: string; d: string; wd: number; role: string; cust: string; onLeave: boolean }>(
           `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') d, extract(dow from e.event_date)::int wd,
                   es.role, c.name cust,
