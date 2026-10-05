@@ -850,6 +850,34 @@ async function main() {
     })();
   }
 
+  // One-shot diag: the "Booked by" name on an event comes from customers.name
+  // (TEXT CUST-… table), but the Customers/CRM tab edits historical_customers
+  // (BIGINT). Dump both for a given phone/name so we can see the stale event name
+  // vs the corrected CRM name. DIAG_BOOKEDBY=<phone digits or name>.
+  if (process.env.DIAG_BOOKEDBY) {
+    (async () => {
+      const q = String(process.env.DIAG_BOOKEDBY).trim();
+      const digits = q.replace(/\D/g, '');
+      try {
+        const { pool } = await import('./db/pool.js');
+        const evs = await pool.query<{ id: string; cid: string; nm: string; ph: string | null; d: string }>(
+          `SELECT e.id, e.customer_id cid, c.name nm, c.phone ph, to_char(e.event_date,'YYYY-MM-DD') d
+             FROM events e JOIN customers c ON c.id = e.customer_id
+            WHERE ($2 <> '' AND regexp_replace(COALESCE(c.phone,''),'\\D','','g') LIKE '%'||$2||'%')
+               OR c.name ILIKE '%'||$1||'%' ORDER BY e.event_date`, [q, digits]);
+        console.log(`[diag-bookedby] events (customers table): ${evs.rowCount}`);
+        for (const e of evs.rows) console.log(`[diag-bookedby] EVENT ${e.id} | custRow=${e.cid} name="${e.nm}" phone=${e.ph ?? '—'} | date=${e.d}`);
+        const hc = await pool.query<{ id: string; fn: string; ph: string | null; alt: string | null; em: string | null }>(
+          `SELECT id::text, full_name fn, phone ph, phone_alt alt, email em FROM historical_customers
+            WHERE ($2 <> '' AND regexp_replace(COALESCE(phone,''),'\\D','','g') LIKE '%'||$2||'%')
+               OR full_name ILIKE '%'||$1||'%' ORDER BY id LIMIT 10`, [q, digits]);
+        console.log(`[diag-bookedby] CRM rows (historical_customers): ${hc.rowCount}`);
+        for (const h of hc.rows) console.log(`[diag-bookedby] CRM hc=${h.id} full_name="${h.fn}" phone=${h.ph ?? '—'} alt=${h.alt ?? '—'} email=${h.em ?? '—'}`);
+        console.log('[diag-bookedby] END');
+      } catch (e) { console.error('[diag-bookedby] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: correct an event booked under the wrong customer. Renames that
   // event's customer row (name + phone) and updates the matching receipt's
   // denormalised name, so the event, its title and the WhatsApp/feedback number
