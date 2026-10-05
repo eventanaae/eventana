@@ -807,6 +807,48 @@ async function main() {
     })();
   }
 
+  // One-shot diag: did a team member work on a day they were OFF? Lists that
+  // member's assigned events in a month and flags any whose date is their weekly
+  // day off OR inside an approved leave range. DIAG_WORKED_OFF=<name>
+  // DIAG_WORKED_MONTH=YYYY-MM (defaults to 2026-09).
+  if (process.env.DIAG_WORKED_OFF) {
+    (async () => {
+      const name = String(process.env.DIAG_WORKED_OFF).trim();
+      const month = String(process.env.DIAG_WORKED_MONTH ?? '2026-09').trim();
+      const WD = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      try {
+        const { pool } = await import('./db/pool.js');
+        const m = await pool.query<{ id: string; nm: string; wdo: number | null }>(
+          `SELECT id, name nm, weekly_day_off wdo FROM team_members WHERE name ILIKE '%'||$1||'%' AND active ORDER BY name LIMIT 1`, [name]);
+        const mem = m.rows[0];
+        if (!mem) { console.log(`[worked-off] no active member matching "${name}"`); console.log('[worked-off] END'); return; }
+        console.log(`[worked-off] ${mem.nm} (id=${mem.id}) weekly day off = ${mem.wdo == null ? 'none' : WD[mem.wdo]}`);
+        const leave = await pool.query<{ s: string; e: string; st: string }>(
+          `SELECT to_char(start_date,'YYYY-MM-DD') s, to_char(end_date,'YYYY-MM-DD') e, status st
+             FROM staff_days_off WHERE member_id = $1 AND status = 'approved'
+               AND start_date <= ($2||'-31')::date AND end_date >= ($2||'-01')::date ORDER BY start_date`, [mem.id, month]);
+        for (const l of leave.rows) console.log(`[worked-off] approved leave: ${l.s} → ${l.e}`);
+        const evs = await pool.query<{ id: string; d: string; wd: number; role: string; cust: string; onLeave: boolean }>(
+          `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') d, extract(dow from e.event_date)::int wd,
+                  es.role, c.name cust,
+                  EXISTS (SELECT 1 FROM staff_days_off o WHERE o.member_id = $1 AND o.status='approved'
+                            AND o.start_date <= e.event_date AND o.end_date >= e.event_date) AS "onLeave"
+             FROM event_staff es JOIN events e ON e.id = es.event_id
+             JOIN customers c ON c.id = e.customer_id
+            WHERE es.assignee_id = $1 AND e.phase <> 'Cancelled'
+              AND to_char(e.event_date,'YYYY-MM') = $2
+            ORDER BY e.event_date`, [mem.id, month]);
+        console.log(`[worked-off] ${mem.nm} assigned to ${evs.rowCount} event(s) in ${month}:`);
+        for (const e of evs.rows) {
+          const isWeeklyOff = mem.wdo != null && e.wd === mem.wdo;
+          const flag = e.onLeave ? '⚠️ ON APPROVED LEAVE' : isWeeklyOff ? '⚠️ WEEKLY DAY OFF' : 'ok';
+          console.log(`[worked-off] ${e.d} (${WD[e.wd]}) | ${e.id} | ${e.cust} | role=${e.role} | ${flag}`);
+        }
+        console.log('[worked-off] END');
+      } catch (e) { console.error('[worked-off] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot diag: inspect an event booked under the wrong customer. Dumps the
   // matching events (by customer name) with the customer id/phone/email, how many
   // events + receipts that customer row owns (so we know if a rename is safe or a
