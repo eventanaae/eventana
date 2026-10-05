@@ -57,40 +57,67 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
       ? "No parties today — a good day to get ahead 💐"
       : "Let's fill the calendar with celebrations 🎈";
 
-  // 🍂 Light seasonal dress-up for the team's home, cleared automatically on 1 Nov:
-  //   • ALL of October → a warm autumn "Happy October" look (no Halloween wording).
-  //   • The Halloween days (29–31 Oct) → the spooky pumpkin/bats look + "Halloween".
-  // The brand stays pink; we just warm the hero and swap the greeting.
+  // 🍂🎄🎆 Light seasonal dress-up for the team's home, each cleared automatically
+  // when its window passes. The brand stays pink; we just warm the hero, swap the
+  // floating emoji and prefix the greeting. Windows (Dubai local date):
+  //   • New Year  : 30 Dec – 2 Jan  → gold/sky sparkle + "Happy New Year"
+  //   • Christmas : 24 – 26 Dec      → red/green + "Merry Christmas"
+  //   • Halloween : 29 – 31 Oct      → pumpkin/bats + "Happy Halloween"
+  //   • October   : all of October   → warm autumn + "Happy October" (no Halloween word)
+  // (New Year is checked before Christmas so 30–31 Dec reads as New Year.)
   const nowD = new Date();
-  const october = nowD.getMonth() === 9; // October (0-indexed)
-  const halloween = october && nowD.getDate() >= 29; // the actual Halloween days
-  const heroBg = halloween
-    ? 'linear-gradient(130deg,#FFE4CE 0%,#F5B98A 44%,#D9C2EC 100%)'   // pumpkin → dusk purple
-    : october
-      ? 'linear-gradient(130deg,#FFF0DC 0%,#FBD9AE 55%,#F7C7A0 100%)' // warm autumn amber
-      : C.gradHero;
-  const heroBar = halloween
-    ? 'linear-gradient(90deg,#F7A94A,#F0813C,#9B6AD1,#F0813C,#F7A94A)'
-    : october
-      ? 'linear-gradient(90deg,#F7C948,#F0A64A,#E88B3C,#F0A64A,#F7C948)'
-      : C.rainbow;
-  const heroEmoji = halloween ? '🎃' : october ? '🍂' : '🎉';
-  const eyebrowColor = halloween ? '#C56A1E' : october ? '#B9772A' : C.pinkDeep;
-  const bodyColor = halloween ? '#8a5a2e' : october ? '#956a38' : '#96637c';
-  const greetPrefix = halloween ? 'Happy Halloween, team! 🧡 ' : october ? 'Happy October! 🍂 ' : '';
+  const mo = nowD.getMonth(); // 0=Jan … 11=Dec
+  const dy = nowD.getDate();
+  type Season = { bg: string; bar: string; emoji: string; eyebrow: string; body: string; greet: string; accent?: string; waveEmoji?: string };
+  let season: Season | null = null;
+  if ((mo === 11 && dy >= 30) || (mo === 0 && dy <= 2)) {
+    season = { // New Year
+      bg: 'linear-gradient(130deg,#FFF3D6 0%,#E9D9F2 55%,#CFE0F7 100%)',
+      bar: 'linear-gradient(90deg,#F7C948,#9B6AD1,#6FC7EA,#F7C948)',
+      emoji: '🎆', waveEmoji: '🥂', eyebrow: '#9A7B1E', body: '#6b5f8a',
+      greet: 'Happy New Year, team! 🎉 ', accent: '✨ 🎇 ✨',
+    };
+  } else if (mo === 11 && dy >= 24 && dy <= 26) {
+    season = { // Christmas
+      bg: 'linear-gradient(130deg,#FCE3E0 0%,#E8C7A0 50%,#CFE6CF 100%)',
+      bar: 'linear-gradient(90deg,#D8463C,#2E9E5B,#D8463C)',
+      emoji: '🎄', waveEmoji: '🎅', eyebrow: '#B23A2E', body: '#6a7a5a',
+      greet: 'Merry Christmas, team! 🎄 ', accent: '🎄 ✨ ❄️',
+    };
+  } else if (mo === 9 && dy >= 29) {
+    season = { // Halloween
+      bg: 'linear-gradient(130deg,#FFE4CE 0%,#F5B98A 44%,#D9C2EC 100%)',
+      bar: 'linear-gradient(90deg,#F7A94A,#F0813C,#9B6AD1,#F0813C,#F7A94A)',
+      emoji: '🎃', waveEmoji: '🎃', eyebrow: '#C56A1E', body: '#8a5a2e',
+      greet: 'Happy Halloween, team! 🧡 ', accent: '🦇 🕸️ 👻',
+    };
+  } else if (mo === 9) {
+    season = { // October (general)
+      bg: 'linear-gradient(130deg,#FFF0DC 0%,#FBD9AE 55%,#F7C7A0 100%)',
+      bar: 'linear-gradient(90deg,#F7C948,#F0A64A,#E88B3C,#F0A64A,#F7C948)',
+      emoji: '🍂', eyebrow: '#B9772A', body: '#956a38', greet: 'Happy October! 🍂 ',
+    };
+  }
+  const heroBg = season?.bg ?? C.gradHero;
+  const heroBar = season?.bar ?? C.rainbow;
+  const heroEmoji = season?.emoji ?? '🎉';
+  const eyebrowColor = season?.eyebrow ?? C.pinkDeep;
+  const bodyColor = season?.body ?? '#96637c';
+  const greetPrefix = season?.greet ?? '';
+  const waveEmoji = season?.waveEmoji ?? '👋';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Greeting hero */}
       <div className="pop-in" style={{ position: 'relative', overflow: 'hidden', borderRadius: 24, background: heroBg, boxShadow: C.shadowLg }}>
         <div style={{ height: 6, background: heroBar }} />
-        {halloween && (
-          <div aria-hidden style={{ position: 'absolute', left: 16, top: 14, fontSize: 15, letterSpacing: 6, opacity: 0.8 }}>🦇 🕸️ 👻</div>
+        {season?.accent && (
+          <div aria-hidden style={{ position: 'absolute', left: 16, top: 14, fontSize: 15, letterSpacing: 6, opacity: 0.8 }}>{season.accent}</div>
         )}
-        <div style={{ position: 'absolute', right: 14, top: 20, fontSize: 62, animation: 'floaty 4s ease-in-out infinite', filter: halloween ? 'drop-shadow(0 8px 14px rgba(155,106,209,.28))' : october ? 'drop-shadow(0 8px 14px rgba(240,140,60,.22))' : 'drop-shadow(0 8px 14px rgba(233,79,156,.2))' }}>{heroEmoji}</div>
-        <div style={{ padding: halloween ? '26px 20px 20px' : '18px 20px 20px' }}>
+        <div style={{ position: 'absolute', right: 14, top: 20, fontSize: 62, animation: 'floaty 4s ease-in-out infinite', filter: 'drop-shadow(0 8px 14px rgba(120,90,160,.22))' }}>{heroEmoji}</div>
+        <div style={{ padding: season?.accent ? '26px 20px 20px' : '18px 20px 20px' }}>
           <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: eyebrowColor }}>{dateLine}</div>
-          <div style={{ ...fredoka(26), marginTop: 6, maxWidth: '78%' }}>{partOfDay}, {first} <span style={{ display: 'inline-block', animation: 'floaty 3s ease-in-out infinite' }}>{halloween ? '🎃' : '👋'}</span></div>
+          <div style={{ ...fredoka(26), marginTop: 6, maxWidth: '78%' }}>{partOfDay}, {first} <span style={{ display: 'inline-block', animation: 'floaty 3s ease-in-out infinite' }}>{waveEmoji}</span></div>
           <div style={{ fontSize: 13, fontWeight: 600, color: bodyColor, marginTop: 6, maxWidth: '86%', lineHeight: 1.5 }}>{greetPrefix}{line}</div>
         </div>
       </div>
