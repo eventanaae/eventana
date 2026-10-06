@@ -12,7 +12,7 @@ import { ACCENTS, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner
  */
 export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { onOpenEvent: (id: string) => void; onOpenShop?: (id: string) => void; onGoto: (v: View) => void; staffName?: string; role?: string }) {
   const [data, setData] = useState<any>(null);
-  const [brief, setBrief] = useState<{ birthdays: string[]; offToday: string[]; alerts: Array<{ level: string; icon: string; text: string }> } | null>(null);
+  const [brief, setBrief] = useState<any>(null);
 
   const load = () => api.today().then(setData);
   useEffect(() => {
@@ -122,33 +122,63 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         </div>
       </div>
 
-      {/* ☀️ Your morning brief — birthdays, who's off, and what needs attention */}
-      {canBrief && brief && (brief.birthdays.length > 0 || brief.offToday.length > 0 || brief.alerts.length > 0) && (
-        <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
-          <div style={{ height: 5, background: `linear-gradient(90deg,${C.pinkDeep},${C.pink})` }} />
-          <div style={{ padding: '14px 18px' }}>
-            <div style={{ ...fredoka(15), marginBottom: 10 }}>☀️ Your morning brief</div>
-            {brief.birthdays.length > 0 && (
-              <div style={{ background: C.pinkSoft, color: C.pinkDeep, borderRadius: 12, padding: '10px 13px', fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
-                🎂 Birthday today: {brief.birthdays.join(', ')} — wish them a happy birthday!
-              </div>
-            )}
-            {brief.offToday.length > 0 && (
-              <div style={{ background: C.greenSoft, color: C.ink, borderRadius: 12, padding: '10px 13px', fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
-                🌴 Off today: {brief.offToday.join(', ')}
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {brief.alerts.map((a, i) => (
-                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', background: a.level === 'high' ? C.redSoft : C.greenSoft, borderRadius: 12, padding: '9px 12px' }}>
-                  <span style={{ fontSize: 15, flex: 'none' }}>{a.icon}</span>
-                  <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: C.ink, lineHeight: 1.45 }}>{a.text}</span>
+      {/* ☀️ Your morning brief — the CEO pulse: occasions, leads, money, ads */}
+      {canBrief && brief?.pulse && (() => {
+        const p = brief.pulse;
+        const Tile = ({ icon, value, label, sub, fg, bg }: { icon: string; value: string; label: string; sub?: string; fg: string; bg: string }) => (
+          <div style={{ background: bg, borderRadius: 14, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: fg, opacity: 0.85 }}>{icon} {label}</div>
+            <div style={{ ...fredoka(21), color: fg, lineHeight: 1.15 }}>{value}</div>
+            {sub && <div style={{ fontSize: 10.5, fontWeight: 700, color: fg, opacity: 0.7 }}>{sub}</div>}
+          </div>
+        );
+        return (
+          <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: C.shadow, overflow: 'hidden' }}>
+            <div style={{ height: 5, background: `linear-gradient(90deg,${C.pinkDeep},${C.pink})` }} />
+            <div style={{ padding: '14px 16px' }}>
+              <div style={{ ...fredoka(15), marginBottom: 11 }}>☀️ Your morning brief</div>
+
+              {/* Occasions — today's day + countdown to the next celebration */}
+              {(p.occasionToday || p.nextOccasion) && (
+                <div style={{ background: 'linear-gradient(120deg,#FFF3D6,#F0E9FB)', borderRadius: 13, padding: '10px 13px', marginBottom: 9, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {p.occasionToday && (
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#9A6A1E' }}>🌍 Today is {p.occasionToday.name}{p.occasionToday.nameAr ? ` · ${p.occasionToday.nameAr}` : ''}</div>
+                  )}
+                  {p.nextOccasion && (
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#7C5BB8' }}>
+                      🎉 {p.nextOccasion.days === 0 ? 'Today' : `${p.nextOccasion.days} day${p.nextOccasion.days > 1 ? 's' : ''}`} to {p.nextOccasion.name} — a good time to plan a campaign
+                    </div>
+                  )}
                 </div>
-              ))}
+              )}
+
+              {/* Birthday (rare, warm) */}
+              {brief.birthdays?.length > 0 && (
+                <div style={{ background: C.pinkSoft, color: C.pinkDeep, borderRadius: 12, padding: '9px 12px', fontSize: 12.5, fontWeight: 700, marginBottom: 9 }}>
+                  🎂 Birthday today: {brief.birthdays.join(', ')} — wish them a happy birthday!
+                </div>
+              )}
+
+              {/* Business pulse tiles */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <Tile icon="💬" label="Leads today" value={String(p.leadsToday)} sub={`${p.leadsWeek} this week`} fg="#2E90BE" bg={C.skySoft} />
+                <Tile icon="💰" label="Booked today" value={p.bookingsTodayAed} sub={`${p.bookingsToday} booking${p.bookingsToday === 1 ? '' : 's'}`} fg={C.mintDeep} bg={C.mintSoft} />
+                <Tile icon="📣" label={p.adsTodayAed ? 'Ads today' : 'Ads this month'} value={p.adsTodayAed ?? p.adsMonthAed} sub={p.adsTodayAed ? `${p.adsMonthAed} this month` : 'recorded spend'} fg="#E4703F" bg={C.peachSoft} />
+                {p.awaitingCount > 0 && (
+                  <Tile icon="⏳" label="Awaiting payment" value={p.awaitingAed} sub={`${p.awaitingCount} pay-link${p.awaitingCount === 1 ? '' : 's'}`} fg={C.red} bg={C.redSoft} />
+                )}
+              </div>
+
+              {/* All bookings come from Instagram ads — so this ratio is real. */}
+              {p.adsTodayAed && p.bookingsToday > 0 && (
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, marginTop: 8, textAlign: 'center' }}>
+                  Every booking comes from Instagram ads — watch today's spend against today's bookings.
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Quick actions — only the ones this role can actually open */}
       {(() => {

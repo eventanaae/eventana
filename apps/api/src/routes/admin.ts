@@ -36,7 +36,7 @@ import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign, campaignRecipients } from '../domain/marketing.js';
-import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign, learnFromCampaign, classifyCampaignKind } from '../domain/marketingCalendar.js';
+import { marketingCalendar, prepareOccasionNow, saveOccasionSettings, regenerateOneOccasion, regenerateCampaign, learnFromCampaign, classifyCampaignKind, OCCASIONS, nextOccasionDate } from '../domain/marketingCalendar.js';
 import { corporateCounts, collectCorporateLeads, categorizeFromTypes, CORP_CATEGORY_LABELS, resetCorporateLeads, processCorporateReply, buildSuggestedReply } from '../domain/corporateOutreach.js';
 import { sendReport } from '../domain/financeReport.js';
 import { signUpload, uploadsEnabled } from '../integrations/cloudinary.js';
@@ -5899,35 +5899,61 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/morning-brief', async (request) => {
     const staff = (request as any).staff as { role?: string };
     const isMgr = staff.role === 'owner' || staff.role === 'manager';
-    if (!isMgr) return { birthdays: [], offToday: [], alerts: [] };
-    const { offTodayNames } = await import('../domain/dayOff.js');
-    const [bdays, offNames, evToday, atRisk, unpaid, unassignedPrep] = await Promise.all([
+    if (!isMgr) return { pulse: null, birthdays: [], alerts: [] };
+    // ── CEO pulse: what the owner actually wants at a glance each morning —
+    // today's occasion + countdown to the next one (marketing hooks), today's
+    // leads, today's money in, and ad spend. (Replaces the old ops-noise brief:
+    // who's-off / prep-assign / at-risk, per the owner 2026-10-06.)
+    const [bdays, leads, money, ads, awaiting] = await Promise.all([
       pool.query(`SELECT name FROM team_members WHERE active AND birthday IS NOT NULL AND to_char(birthday,'MM-DD')=to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD') ORDER BY name`),
-      offTodayNames(),
-      pool.query(`SELECT COUNT(*)::int n FROM events WHERE phase<>'Cancelled' AND event_date=CURRENT_DATE`),
-      pool.query(`SELECT COUNT(DISTINCT e.id)::int n FROM events e
-                   WHERE e.phase<>'Cancelled' AND e.event_date BETWEEN CURRENT_DATE AND CURRENT_DATE+3
-                     AND EXISTS (SELECT 1 FROM prep_tasks pt WHERE pt.event_id=e.id AND pt.status<>'completed')`),
+      pool.query(`SELECT
+          COUNT(*) FILTER (WHERE (first_message_at AT TIME ZONE 'Asia/Dubai')::date = (now() AT TIME ZONE 'Asia/Dubai')::date)::int today,
+          COUNT(*) FILTER (WHERE first_message_at > now() - interval '7 days')::int week
+        FROM whatsapp_leads`),
+      pool.query(`SELECT COUNT(*)::int n, COALESCE(SUM(total_fils),0)::bigint v
+        FROM finance_receipts
+        WHERE COALESCE(booked_on, date) = (now() AT TIME ZONE 'Asia/Dubai')::date`),
+      pool.query(`SELECT
+          COALESCE(SUM(amount_fils) FILTER (WHERE spent_on = (now() AT TIME ZONE 'Asia/Dubai')::date),0)::bigint today,
+          COALESCE(SUM(amount_fils) FILTER (WHERE spent_on >= date_trunc('month',(now() AT TIME ZONE 'Asia/Dubai')::date)),0)::bigint month
+        FROM expenses
+        WHERE category ILIKE '%market%' OR category ILIKE '%advert%' OR category ILIKE '%ads%'`),
       pool.query(`SELECT COUNT(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM orders
-                   WHERE status IN ('awaiting_payment','processing','needs_review') AND source='manual' AND created_at > now() - interval '10 days'`),
-      // Prep the system couldn't assign — needs a human to pick who does it.
-      pool.query(`SELECT COUNT(*)::int n FROM prep_tasks pt JOIN events e ON e.id=pt.event_id
-                   WHERE pt.status<>'completed' AND e.phase<>'Cancelled' AND e.event_date>=CURRENT_DATE
-                     AND NOT EXISTS (SELECT 1 FROM prep_task_staff pts WHERE pts.task_id=pt.id)`),
+                   WHERE status IN ('awaiting_payment','processing','needs_review') AND source='manual' AND created_at > now() - interval '30 days'`),
     ]);
-    const alerts: Array<{ level: string; icon: string; text: string }> = [];
-    const evN = Number(evToday.rows[0].n);
-    if (evN > 0) alerts.push({ level: 'info', icon: '🎉', text: `${evN} event${evN > 1 ? 's' : ''} today — let's make ${evN > 1 ? 'them' : 'it'} magical!` });
-    const unN = Number(unassignedPrep.rows[0].n);
-    if (unN > 0) alerts.push({ level: 'high', icon: '🙋', text: `${unN} prep task${unN > 1 ? 's' : ''} need someone assigned — open the event and pick who does ${unN > 1 ? 'them' : 'it'}.` });
-    const arN = Number(atRisk.rows[0].n);
-    if (arN > 0) alerts.push({ level: 'high', icon: '🧰', text: `${arN} upcoming event${arN > 1 ? 's' : ''} within 3 days aren't fully prepared yet.` });
-    const upN = Number(unpaid.rows[0].n);
-    if (upN > 0) alerts.push({ level: 'high', icon: '💰', text: `AED ${formatAed(Number(unpaid.rows[0].v))} across ${upN} pay-link${upN > 1 ? 's' : ''} still awaiting payment.` });
+    // Occasions — today's (any kind, incl. international/awareness days) + the
+    // next real celebration milestone (skip corporate-only awareness days).
+    const dubaiNow = new Date(Date.now() + 4 * 3600 * 1000); // UAE is UTC+4, no DST
+    const todayISO = dubaiNow.toISOString().slice(0, 10);
+    const dayDiff = (iso: string) =>
+      Math.round((Date.parse(iso + 'T00:00:00Z') - Date.parse(todayISO + 'T00:00:00Z')) / 86_400_000);
+    let occasionToday: { name: string; nameAr: string | null } | null = null;
+    const upcoming: Array<{ name: string; nameAr: string | null; dateISO: string; days: number }> = [];
+    for (const o of OCCASIONS) {
+      const nd = nextOccasionDate(o, dubaiNow);
+      if (!nd) continue;
+      const d = dayDiff(nd.dateISO);
+      if (d === 0 && !occasionToday) occasionToday = { name: o.name, nameAr: (o as any).nameAr ?? null };
+      else if (d > 0 && !(o as any).corporateOnly) upcoming.push({ name: o.name, nameAr: (o as any).nameAr ?? null, dateISO: nd.dateISO, days: d });
+    }
+    upcoming.sort((a, b) => a.days - b.days);
+    const adsToday = Number(ads.rows[0].today);
+    const adsMonth = Number(ads.rows[0].month);
     return {
+      pulse: {
+        occasionToday,
+        nextOccasion: upcoming[0] ?? null,
+        leadsToday: Number(leads.rows[0].today),
+        leadsWeek: Number(leads.rows[0].week),
+        bookingsToday: Number(money.rows[0].n),
+        bookingsTodayAed: formatAed(Number(money.rows[0].v)),
+        adsTodayAed: adsToday > 0 ? formatAed(adsToday) : null,
+        adsMonthAed: formatAed(adsMonth),
+        awaitingCount: Number(awaiting.rows[0].n),
+        awaitingAed: formatAed(Number(awaiting.rows[0].v)),
+      },
       birthdays: bdays.rows.map((r) => r.name),
-      offToday: offNames,
-      alerts,
+      alerts: [],
     };
   });
 
