@@ -849,7 +849,9 @@ async function main() {
           const reliable = how === 'QB-entry' || how === 'online-checkout';
           console.log(`[season-bk] ${r.evid ?? ('#'+r.number)} | ${r.name} | event ${r.ev} | src=${src || '—'} | nowBooked=${r.booked ?? '—'} | computed=${computed ?? '—'} | ${how}`);
           if (!reliable) confirm.push(`${r.evid ?? ('#'+r.number)} (${r.name}): event ${r.ev}, best-guess ${computed ?? '—'}`);
-          if (apply && computed) {
+          // Only auto-write RELIABLE dates (QuickBooks entry / online checkout).
+          // Typed dashboard/manual guesses wait for the owner's real dates.
+          if (apply && computed && reliable) {
             await pool.query(`UPDATE finance_receipts SET booked_on = $2::date WHERE number = $1`, [r.number, computed]);
             applied++;
           }
