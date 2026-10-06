@@ -842,6 +842,28 @@ async function main() {
     })();
   }
 
+  // One-shot: fix EV-2026-0215 — rename the customer to "Maryam Albloshi" (shows
+  // on the event's "Booked by" + the receipt) and set her booking date to 1 Sep
+  // (owner 2026-10-07). FIX_MARYAM_0215=true.
+  if (String(process.env.FIX_MARYAM_0215 ?? '').toLowerCase() === 'true') {
+    (async () => {
+      const EVID = 'EV-2026-0215', NAME = 'Maryam Albloshi', BOOKED = '2026-09-01';
+      try {
+        const { pool } = await import('./db/pool.js');
+        const ev = await pool.query<{ cid: string; oid: string }>(
+          `SELECT customer_id cid, order_id oid FROM events WHERE id = $1`, [EVID]);
+        const row = ev.rows[0];
+        if (!row) { console.log(`[fix-maryam] ${EVID} not found`); console.log('[fix-maryam] END'); return; }
+        const u1 = await pool.query(`UPDATE customers SET name = $2 WHERE id = $1`, [row.cid, NAME]);
+        const u2 = await pool.query(
+          `UPDATE finance_receipts SET customer_name = $2, booked_on = $3::date
+            WHERE event_id = $1 OR order_id = $4`, [EVID, NAME, BOOKED, row.oid]);
+        console.log(`[fix-maryam] ${EVID} → "${NAME}", booked ${BOOKED}; customers=${u1.rowCount}, receipts=${u2.rowCount}`);
+        console.log('[fix-maryam] END');
+      } catch (e) { console.error('[fix-maryam] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot VERIFY: after setting the season booking dates, cross-check the
   // Oct–Dec 2026 bookings — list each with its final booked_on, show how the money
   // distributes by BOOKING month, the per-month report view, and flag anything
