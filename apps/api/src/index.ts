@@ -807,6 +807,61 @@ async function main() {
     })();
   }
 
+  // One-shot: review (and optionally apply) the REAL booking date for every
+  // Oct–Dec 2026 event — owner's plan (2026-10-06) to switch financial reports to
+  // booking date from 1 Oct. Best source per row: QuickBooks entry date (QB), the
+  // online-checkout timestamp (app/shop), or the typed date (dashboard/manual =
+  // needs owner confirmation). REVIEW_SEASON_BOOKDATES=preview|apply.
+  if (process.env.REVIEW_SEASON_BOOKDATES) {
+    (async () => {
+      const apply = String(process.env.REVIEW_SEASON_BOOKDATES).toLowerCase() === 'apply';
+      try {
+        const { pool } = await import('./db/pool.js');
+        let qbMap = new Map<string, string>();
+        try {
+          const { fetchDocEntryDates } = await import('./domain/quickbooks.js');
+          qbMap = await fetchDocEntryDates((m) => console.log(`[season-bk] ${m}`));
+        } catch (e) { console.log(`[season-bk] QB entry dates unavailable: ${(e as Error).message}`); }
+        const rows = (await pool.query<{ number: string; name: string; src: string | null; ev: string; booked: string | null; made: string | null; evid: string | null }>(
+          `SELECT r.number, r.customer_name name, r.source src,
+                  to_char(r.date,'YYYY-MM-DD') ev,
+                  to_char(r.booked_on,'YYYY-MM-DD') booked,
+                  to_char(r.created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') made,
+                  e.id evid
+             FROM finance_receipts r
+             LEFT JOIN events e ON e.id = r.event_id
+            WHERE r.date >= '2026-10-01' AND r.date < '2027-01-01'
+            ORDER BY r.date`)).rows;
+        console.log(`[season-bk] ${apply ? 'APPLY' : 'PREVIEW'} — ${rows.length} Oct–Dec 2026 receipt(s)`);
+        const online = new Set(['app', 'shop', 'webhook', 'online', 'customer', 'checkout']);
+        let applied = 0; const confirm: string[] = [];
+        for (const r of rows) {
+          const src = String(r.src ?? '').toLowerCase();
+          let computed: string | null = null; let how = '';
+          if (src === 'quickbooks') {
+            computed = qbMap.get(String(r.number).trim()) ?? null;
+            how = computed ? 'QB-entry' : 'UNKNOWN(needs owner)';
+          } else if (online.has(src)) {
+            computed = r.made; how = 'online-checkout';
+          } else {
+            computed = r.made; how = 'TYPED(confirm?)';
+          }
+          const reliable = how === 'QB-entry' || how === 'online-checkout';
+          console.log(`[season-bk] ${r.evid ?? ('#'+r.number)} | ${r.name} | event ${r.ev} | src=${src || '—'} | nowBooked=${r.booked ?? '—'} | computed=${computed ?? '—'} | ${how}`);
+          if (!reliable) confirm.push(`${r.evid ?? ('#'+r.number)} (${r.name}): event ${r.ev}, best-guess ${computed ?? '—'}`);
+          if (apply && computed) {
+            await pool.query(`UPDATE finance_receipts SET booked_on = $2::date WHERE number = $1`, [r.number, computed]);
+            applied++;
+          }
+        }
+        console.log(`[season-bk] ${apply ? `applied booked_on to ${applied} receipt(s)` : 'preview only, no writes'}`);
+        console.log(`[season-bk] NEEDS OWNER CONFIRMATION (${confirm.length}): typed/unknown booking dates`);
+        for (const c of confirm) console.log(`[season-bk] CONFIRM ${c}`);
+        console.log('[season-bk] END');
+      } catch (e) { console.error('[season-bk] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot diag: did a team member work on a day they were OFF? Lists that
   // member's assigned events in a month and flags any whose date is their weekly
   // day off OR inside an approved leave range. DIAG_WORKED_OFF=<name>

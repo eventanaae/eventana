@@ -429,7 +429,7 @@ export async function syncReceiptPaymentMethods(): Promise<{ updated: number; ma
  * have to the BOOKING date (distinct from DocNumber's TxnDate, which Eventana used
  * for the EVENT/party date). Returns DocNumber → 'YYYY-MM-DD'.
  */
-async function fetchDocEntryDates(log: (m: string) => void): Promise<Map<string, string>> {
+export async function fetchDocEntryDates(log: (m: string) => void): Promise<Map<string, string>> {
   const byDoc = new Map<string, string>();
   const pull = async (entity: 'SalesReceipt' | 'Invoice') => {
     for (let pos = 1; ; pos += 100) {
