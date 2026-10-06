@@ -807,6 +807,41 @@ async function main() {
     })();
   }
 
+  // One-shot: apply the owner's confirmed September 2026 booking dates (returned
+  // 2026-10-07; EV-2026-0215 left blank — still unknown). Also dumps that blank
+  // one's customer email so she can identify her. APPLY_SEPT_BOOKDATES=true.
+  if (String(process.env.APPLY_SEPT_BOOKDATES ?? '').toLowerCase() === 'true') {
+    (async () => {
+      const PAIRS: Array<[string, string]> = [
+        ['1746', '2026-09-24'], ['EV-2026-0203', '2026-08-27'], ['EV-2026-0206', '2026-09-04'],
+        ['EV-2026-0210', '2026-09-05'], ['EV-2026-0211', '2026-09-06'], ['EV-2026-0254', '2026-09-07'],
+        ['EV-2026-0257', '2026-09-09'], ['EV-2026-0260', '2026-09-16'], ['EV-2026-0263', '2026-09-20'],
+        ['EV-2026-0269', '2026-09-24'],
+      ];
+      try {
+        const { pool } = await import('./db/pool.js');
+        let ok = 0; const misses: string[] = [];
+        for (const [ref, d] of PAIRS) {
+          const q = ref.startsWith('EV-')
+            ? { sql: `UPDATE finance_receipts SET booked_on = $2::date WHERE event_id = $1 OR order_id = (SELECT order_id FROM events WHERE id = $1)`, p: [ref, d] }
+            : { sql: `UPDATE finance_receipts SET booked_on = $2::date WHERE number = $1`, p: [ref, d] };
+          const r = await pool.query(q.sql, q.p);
+          if (r.rowCount) ok++; else misses.push(ref);
+          console.log(`[sept-bookdates] ${ref} → ${d} (${r.rowCount} row)`);
+        }
+        console.log(`[sept-bookdates] done: ${ok}/${PAIRS.length} applied${misses.length ? `; NO MATCH: ${misses.join(', ')}` : ''}`);
+        // The still-blank one — show her email/phone so the owner can identify her.
+        const m = await pool.query<{ name: string; email: string | null; phone: string | null; ev: string }>(
+          `SELECT c.name, c.email, c.phone, to_char(e.event_date,'YYYY-MM-DD') ev
+             FROM events e JOIN customers c ON c.id = e.customer_id WHERE e.id = 'EV-2026-0215'`);
+        const row = m.rows[0];
+        if (row) console.log(`[sept-bookdates] EV-2026-0215 = ${row.name} | email=${row.email ?? '—'} | phone=${row.phone ?? '—'} | event ${row.ev}`);
+        else console.log('[sept-bookdates] EV-2026-0215 not found');
+        console.log('[sept-bookdates] END');
+      } catch (e) { console.error('[sept-bookdates] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot VERIFY: after setting the season booking dates, cross-check the
   // Oct–Dec 2026 bookings — list each with its final booked_on, show how the money
   // distributes by BOOKING month, the per-month report view, and flag anything
