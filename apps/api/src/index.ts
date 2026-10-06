@@ -807,6 +807,46 @@ async function main() {
     })();
   }
 
+  // One-shot VERIFY: after setting the season booking dates, cross-check the
+  // Oct–Dec 2026 bookings — list each with its final booked_on, show how the money
+  // distributes by BOOKING month, the per-month report view, and flag anything
+  // still unset/suspicious. VERIFY_SEASON=true.
+  if (String(process.env.VERIFY_SEASON ?? '').toLowerCase() === 'true') {
+    (async () => {
+      const aed = (fils: number) => `AED ${(Number(fils) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+      try {
+        const { pool } = await import('./db/pool.js');
+        // A) The 25 season receipts (events Oct–Dec 2026), final dates.
+        const rows = (await pool.query<{ evid: string | null; number: string; name: string; src: string | null; ev: string; bk: string | null; total: string }>(
+          `SELECT e.id evid, r.number, r.customer_name name, r.source src,
+                  to_char(r.date,'YYYY-MM-DD') ev, to_char(r.booked_on,'YYYY-MM-DD') bk, r.total_fils::text total
+             FROM finance_receipts r LEFT JOIN events e ON e.id = r.event_id
+            WHERE r.date >= '2026-10-01' AND r.date < '2027-01-01' ORDER BY r.booked_on NULLS FIRST, r.date`)).rows;
+        console.log(`[verify] ${rows.length} season receipts (events Oct–Dec 2026):`);
+        for (const r of rows) {
+          const flag = !r.bk ? ' ⚠️BLANK' : (r.bk === r.ev && String(r.src).toLowerCase() !== 'app' ? ' ⚠️=event-date' : '');
+          console.log(`[verify] ${r.evid ?? ('#'+r.number)} | ${r.name} | event ${r.ev} | booked ${r.bk ?? '—'} | ${aed(Number(r.total))} | ${r.src}${flag}`);
+        }
+        // B) Season money distributed by BOOKING month (where it now lands).
+        const byBk = (await pool.query<{ m: string; n: string; v: string }>(
+          `SELECT to_char(booked_on,'YYYY-MM') m, count(*)::text n, COALESCE(SUM(total_fils),0)::text v
+             FROM finance_receipts WHERE date >= '2026-10-01' AND date < '2027-01-01'
+            GROUP BY 1 ORDER BY 1`)).rows;
+        console.log('[verify] — season money by BOOKING month —');
+        for (const b of byBk) console.log(`[verify] booked ${b.m}: ${b.n} booking(s), ${aed(Number(b.v))}`);
+        // C) The report view: EVERY receipt by booking month, Sep–Dec 2026.
+        const rep = (await pool.query<{ m: string; n: string; v: string }>(
+          `SELECT to_char(COALESCE(booked_on,date),'YYYY-MM') m, count(*)::text n, COALESCE(SUM(total_fils),0)::text v
+             FROM finance_receipts
+            WHERE COALESCE(booked_on,date) >= '2026-09-01' AND COALESCE(booked_on,date) < '2027-01-01'
+            GROUP BY 1 ORDER BY 1`)).rows;
+        console.log('[verify] — REPORT (all receipts by booking month) —');
+        for (const b of rep) console.log(`[verify] ${b.m}: ${b.n} receipt(s), ${aed(Number(b.v))}`);
+        console.log('[verify] END');
+      } catch (e) { console.error('[verify] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: apply the owner's confirmed real booking dates for the 21 manually-
   // entered Oct–Dec 2026 events (she returned these 2026-10-06). Matches the
   // receipt by event_id OR the event's order_id. APPLY_OWNER_BOOKDATES=true.
