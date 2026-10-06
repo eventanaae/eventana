@@ -871,24 +871,26 @@ async function main() {
   if (String(process.env.VERIFY_SEASON ?? '').toLowerCase() === 'true') {
     (async () => {
       const aed = (fils: number) => `AED ${(Number(fils) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+      const from = String(process.env.REVIEW_FROM ?? '2026-10-01');
+      const to = String(process.env.REVIEW_TO ?? '2027-01-01');
       try {
         const { pool } = await import('./db/pool.js');
-        // A) The 25 season receipts (events Oct–Dec 2026), final dates.
+        // A) The season receipts (events in [from,to)), final dates.
         const rows = (await pool.query<{ evid: string | null; number: string; name: string; src: string | null; ev: string; bk: string | null; total: string }>(
           `SELECT e.id evid, r.number, r.customer_name name, r.source src,
                   to_char(r.date,'YYYY-MM-DD') ev, to_char(r.booked_on,'YYYY-MM-DD') bk, r.total_fils::text total
              FROM finance_receipts r LEFT JOIN events e ON e.id = r.event_id
-            WHERE r.date >= '2026-10-01' AND r.date < '2027-01-01' ORDER BY r.booked_on NULLS FIRST, r.date`)).rows;
-        console.log(`[verify] ${rows.length} season receipts (events Oct–Dec 2026):`);
+            WHERE r.date >= $1::date AND r.date < $2::date ORDER BY r.booked_on NULLS FIRST, r.date`, [from, to])).rows;
+        console.log(`[verify] ${rows.length} receipts (events in [${from}, ${to})):`);
         for (const r of rows) {
           const flag = !r.bk ? ' ⚠️BLANK' : (r.bk === r.ev && String(r.src).toLowerCase() !== 'app' ? ' ⚠️=event-date' : '');
           console.log(`[verify] ${r.evid ?? ('#'+r.number)} | ${r.name} | event ${r.ev} | booked ${r.bk ?? '—'} | ${aed(Number(r.total))} | ${r.src}${flag}`);
         }
-        // B) Season money distributed by BOOKING month (where it now lands).
+        // B) Money distributed by BOOKING month (where it now lands).
         const byBk = (await pool.query<{ m: string; n: string; v: string }>(
           `SELECT to_char(booked_on,'YYYY-MM') m, count(*)::text n, COALESCE(SUM(total_fils),0)::text v
-             FROM finance_receipts WHERE date >= '2026-10-01' AND date < '2027-01-01'
-            GROUP BY 1 ORDER BY 1`)).rows;
+             FROM finance_receipts WHERE date >= $1::date AND date < $2::date
+            GROUP BY 1 ORDER BY 1`, [from, to])).rows;
         console.log('[verify] — season money by BOOKING month —');
         for (const b of byBk) console.log(`[verify] booked ${b.m}: ${b.n} booking(s), ${aed(Number(b.v))}`);
         // C) The report view: EVERY receipt by booking month, Sep–Dec 2026.
