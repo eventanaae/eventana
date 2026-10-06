@@ -886,6 +886,9 @@ async function main() {
   if (process.env.REVIEW_SEASON_BOOKDATES) {
     (async () => {
       const apply = String(process.env.REVIEW_SEASON_BOOKDATES).toLowerCase() === 'apply';
+      // Default range = Oct–Dec 2026; override with REVIEW_FROM / REVIEW_TO (ISO).
+      const from = String(process.env.REVIEW_FROM ?? '2026-10-01');
+      const to = String(process.env.REVIEW_TO ?? '2027-01-01');
       try {
         const { pool } = await import('./db/pool.js');
         let qbMap = new Map<string, string>();
@@ -901,9 +904,9 @@ async function main() {
                   e.id evid
              FROM finance_receipts r
              LEFT JOIN events e ON e.id = r.event_id
-            WHERE r.date >= '2026-10-01' AND r.date < '2027-01-01'
-            ORDER BY r.date`)).rows;
-        console.log(`[season-bk] ${apply ? 'APPLY' : 'PREVIEW'} — ${rows.length} Oct–Dec 2026 receipt(s)`);
+            WHERE r.date >= $1::date AND r.date < $2::date
+            ORDER BY r.date`, [from, to])).rows;
+        console.log(`[season-bk] ${apply ? 'APPLY' : 'PREVIEW'} — ${rows.length} receipt(s) in [${from}, ${to})`);
         const online = new Set(['app', 'shop', 'webhook', 'online', 'customer', 'checkout']);
         let applied = 0; const confirm: string[] = [];
         for (const r of rows) {
