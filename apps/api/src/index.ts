@@ -807,6 +807,37 @@ async function main() {
     })();
   }
 
+  // One-shot: apply the owner's confirmed real booking dates for the 21 manually-
+  // entered Oct–Dec 2026 events (she returned these 2026-10-06). Matches the
+  // receipt by event_id OR the event's order_id. APPLY_OWNER_BOOKDATES=true.
+  if (String(process.env.APPLY_OWNER_BOOKDATES ?? '').toLowerCase() === 'true') {
+    (async () => {
+      const PAIRS: Array<[string, string]> = [
+        ['EV-2026-0274', '2026-10-03'], ['EV-2026-0282', '2026-10-05'], ['EV-2026-0278', '2026-10-05'],
+        ['EV-2026-0275', '2026-10-05'], ['EV-2026-0277', '2026-10-03'], ['EV-2026-0281', '2026-10-05'],
+        ['EV-2026-0279', '2026-10-05'], ['EV-2026-0280', '2026-10-05'], ['EV-2026-0276', '2026-10-05'],
+        ['EV-2026-0255', '2026-09-07'], ['EV-2026-0256', '2026-09-08'], ['EV-2026-0258', '2026-09-10'],
+        ['EV-2026-0259', '2026-09-15'], ['EV-2026-0262', '2026-09-16'], ['EV-2026-0261', '2026-09-16'],
+        ['EV-2026-0264', '2026-09-21'], ['EV-2026-0265', '2026-09-21'], ['EV-2026-0272', '2026-09-28'],
+        ['EV-2026-0271', '2026-09-28'], ['EV-2026-0273', '2026-10-02'], ['EV-2026-0207', '2026-09-04'],
+      ];
+      try {
+        const { pool } = await import('./db/pool.js');
+        let ok = 0; const misses: string[] = [];
+        for (const [evid, d] of PAIRS) {
+          const r = await pool.query(
+            `UPDATE finance_receipts SET booked_on = $2::date
+              WHERE event_id = $1 OR order_id = (SELECT order_id FROM events WHERE id = $1)`,
+            [evid, d]);
+          if (r.rowCount) ok++; else misses.push(evid);
+          console.log(`[owner-bookdates] ${evid} → ${d} (${r.rowCount} row)`);
+        }
+        console.log(`[owner-bookdates] done: ${ok}/${PAIRS.length} applied${misses.length ? `; NO MATCH: ${misses.join(', ')}` : ''}`);
+        console.log('[owner-bookdates] END');
+      } catch (e) { console.error('[owner-bookdates] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: review (and optionally apply) the REAL booking date for every
   // Oct–Dec 2026 event — owner's plan (2026-10-06) to switch financial reports to
   // booking date from 1 Oct. Best source per row: QuickBooks entry date (QB), the
