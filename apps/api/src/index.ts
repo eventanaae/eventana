@@ -864,6 +864,28 @@ async function main() {
     })();
   }
 
+  // One-shot: set Aisha Ali Alqubaisi (EV-2026-0204) booking date = 28 Aug, and
+  // dump Salama (#1721) email/phone so the owner can identify her. AUG_FIX=true.
+  if (String(process.env.AUG_FIX ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const a = await pool.query(
+          `UPDATE finance_receipts SET booked_on = '2026-08-28'::date
+            WHERE event_id = 'EV-2026-0204' OR order_id = (SELECT order_id FROM events WHERE id = 'EV-2026-0204')`);
+        console.log(`[aug-fix] Aisha EV-2026-0204 → 2026-08-28 (${a.rowCount} row)`);
+        const s = await pool.query<{ nm: string; cid: string | null; email: string | null; phone: string | null; alt: string | null }>(
+          `SELECT r.customer_name nm, r.customer_id::text cid, hc.email, hc.phone, hc.phone_alt alt
+             FROM finance_receipts r LEFT JOIN historical_customers hc ON hc.id = r.customer_id
+            WHERE r.number = '1721'`);
+        const row = s.rows[0];
+        if (row) console.log(`[aug-fix] #1721 = ${row.nm} | cid=${row.cid ?? '—'} | email=${row.email ?? '—'} | phone=${row.phone ?? row.alt ?? '—'}`);
+        else console.log('[aug-fix] #1721 not found');
+        console.log('[aug-fix] END');
+      } catch (e) { console.error('[aug-fix] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot VERIFY: after setting the season booking dates, cross-check the
   // Oct–Dec 2026 bookings — list each with its final booked_on, show how the money
   // distributes by BOOKING month, the per-month report view, and flag anything
