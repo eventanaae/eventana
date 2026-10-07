@@ -886,27 +886,50 @@ async function main() {
     })();
   }
 
-  // One-shot (reusable): rename an exact label to "Eventana Exclusive Package"
-  // everywhere it appears — finance_receipts line_items (key 'name'),
-  // event_services.label, services.name, historical_orders.product.
-  // UNIFY_EXCL="<exact old label>".
+  // One-shot (reusable): rename exact label(s) to "Eventana Exclusive Package"
+  // everywhere — finance_receipts line_items (key 'name'), event_services.label,
+  // services.name, historical_orders.product. UNIFY_EXCL="label1;label2;…".
   if (process.env.UNIFY_EXCL) {
     (async () => {
-      const from = String(process.env.UNIFY_EXCL).trim();
+      const labels = String(process.env.UNIFY_EXCL).split(';').map((s) => s.trim()).filter(Boolean);
       const N = 'Eventana Exclusive Package';
       try {
         const { pool } = await import('./db/pool.js');
-        const u1 = await pool.query(`UPDATE services SET name=$2 WHERE name ILIKE $1`, [from, N]);
-        const u2 = await pool.query(
-          `UPDATE finance_receipts SET line_items = (
-              SELECT jsonb_agg(CASE WHEN li->>'name' ILIKE $1 THEN jsonb_set(li,'{name}',to_jsonb($2::text)) ELSE li END)
-                FROM jsonb_array_elements(line_items) li)
-            WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(line_items) li WHERE li->>'name' ILIKE $1)`, [from, N]);
-        const u3 = await pool.query(`UPDATE event_services SET label=$2 WHERE label ILIKE $1`, [from, N]);
-        const u4 = await pool.query(`UPDATE historical_orders SET product=$2 WHERE product ILIKE $1`, [from, N]);
-        console.log(`[unify-excl] "${from}" → "${N}": services=${u1.rowCount}, receipts=${u2.rowCount}, event_services=${u3.rowCount}, historical=${u4.rowCount}`);
+        for (const from of labels) {
+          const u1 = await pool.query(`UPDATE services SET name=$2 WHERE name ILIKE $1`, [from, N]);
+          const u2 = await pool.query(
+            `UPDATE finance_receipts SET line_items = (
+                SELECT jsonb_agg(CASE WHEN li->>'name' ILIKE $1 THEN jsonb_set(li,'{name}',to_jsonb($2::text)) ELSE li END)
+                  FROM jsonb_array_elements(line_items) li)
+              WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(line_items) li WHERE li->>'name' ILIKE $1)`, [from, N]);
+          const u3 = await pool.query(`UPDATE event_services SET label=$2 WHERE label ILIKE $1`, [from, N]);
+          const u4 = await pool.query(`UPDATE historical_orders SET product=$2 WHERE product ILIKE $1`, [from, N]);
+          console.log(`[unify-excl] "${from}" → services=${u1.rowCount}, receipts=${u2.rowCount}, event_services=${u3.rowCount}, historical=${u4.rowCount}`);
+        }
         console.log('[unify-excl] END');
       } catch (e) { console.error('[unify-excl] failed:', (e as Error).message); }
+    })();
+  }
+
+  // One-shot: list ALL distinct "offer"/package-ish labels (receipts + historical)
+  // so the owner can confirm which ones are the Exclusive package. SCAN_OFFERS=true.
+  if (String(process.env.SCAN_OFFERS ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const rc = (await pool.query<{ nm: string; n: string }>(
+          `SELECT li->>'name' nm, count(*)::text n FROM finance_receipts, jsonb_array_elements(line_items) li
+            WHERE li->>'name' ILIKE '%offer%' OR li->>'name' ILIKE '%package%' OR li->>'name' ILIKE '%باقة%'
+            GROUP BY 1 ORDER BY 2 DESC`)).rows;
+        console.log(`[scan-offers] receipt labels: ${rc.length}`);
+        for (const r of rc) console.log(`[scan-offers] RCPT "${r.nm}" ×${r.n}`);
+        const ho = (await pool.query<{ p: string; n: string }>(
+          `SELECT product p, count(*)::text n FROM historical_orders
+            WHERE product ILIKE '%offer%' OR product ILIKE '%package%' GROUP BY 1 ORDER BY 2 DESC`)).rows;
+        console.log(`[scan-offers] historical products: ${ho.length}`);
+        for (const r of ho) console.log(`[scan-offers] HIST "${r.p}" ×${r.n}`);
+        console.log('[scan-offers] END');
+      } catch (e) { console.error('[scan-offers] failed:', (e as Error).message); }
     })();
   }
 
