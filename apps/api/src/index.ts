@@ -1752,7 +1752,7 @@ async function main() {
         // 'customer' / 'system'). Newest first.
         const twoW = await pool.query(
           `SELECT to_char(r.created_at,'YYYY-MM-DD HH24:MI') AS at,
-                  COALESCE(c.name, r.customer_id, '—') AS customer,
+                  COALESCE(c.name, r.customer_id, '—') AS customer, r.customer_id,
                   r.amount_fils, r.reason_category, COALESCE(r.reason_note,'') AS note,
                   COALESCE(NULLIF(btrim(r.item_label),''),'(whole amount)') AS item,
                   COALESCE(NULLIF(btrim(r.created_by),''),'—') AS by,
@@ -1765,6 +1765,24 @@ async function main() {
         console.log(`[diag-refunds] ===== LAST 14 DAYS: ${twoW.rowCount} refund(s), total ${aed(sum)} =====`);
         for (const r of twoW.rows as any[]) {
           console.log(`[diag-refunds] ${r.at} · ${r.customer} · ${aed(r.amount_fils)} · ${r.reason_category}${r.note ? ` ("${r.note}")` : ''} · item: ${r.item} · BY: ${r.by}${r.event_cancelled ? ' · EVENT CANCELLED' : ''} · order=${r.order_id} event=${r.event_id ?? '—'}`);
+          // Did the refund REFLECT on a sales receipt? Check by order_id, then by
+          // customer (imported orders often have no receipt linked by order_id).
+          const byOrder = await pool.query(
+            `SELECT number, total_fils, COALESCE(refunded_fils,0) AS refunded_fils,
+                    jsonb_array_length(COALESCE(refunded_items,'[]'::jsonb)) AS nitems
+               FROM finance_receipts WHERE order_id = $1`, [r.order_id]);
+          if (byOrder.rowCount) {
+            const fr = byOrder.rows[0] as any;
+            console.log(`[diag-refunds]   ↳ receipt (by order) EV-${fr.number}: total ${aed(fr.total_fils)}, refunded ${aed(fr.refunded_fils)}, net ${aed(Number(fr.total_fils) - Number(fr.refunded_fils))}, refunded-items=${fr.nitems}`);
+          } else {
+            console.log(`[diag-refunds]   ↳ NO receipt linked by order_id=${r.order_id}. Receipts for this customer:`);
+            const byCust = await pool.query(
+              `SELECT number, total_fils, COALESCE(refunded_fils,0) AS refunded_fils,
+                      jsonb_array_length(COALESCE(refunded_items,'[]'::jsonb)) AS nitems, customer_name
+                 FROM finance_receipts WHERE customer_id = $1 OR lower(customer_name) = lower($2)
+                 ORDER BY id DESC LIMIT 5`, [r.customer_id ?? '', r.customer]);
+            for (const fr of byCust.rows as any[]) console.log(`[diag-refunds]     · EV-${fr.number} (${fr.customer_name}): total ${aed(fr.total_fils)}, refunded ${aed(fr.refunded_fils)}, net ${aed(Number(fr.total_fils) - Number(fr.refunded_fils))}, refunded-items=${fr.nitems}`);
+          }
         }
         // Who-did-it tally for the window.
         const byWho = await pool.query(
