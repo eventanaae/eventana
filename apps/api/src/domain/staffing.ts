@@ -285,7 +285,11 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
       services.push({ serviceId: row.service_id ?? '', name: svc?.name ?? label, categoryId: (svc as any)?.categoryId, isInflatable: (svc as any)?.isInflatable, isFoodStation: (svc as any)?.isFoodStation, quantity: Number(row.quantity) || 1, fromPackage: false });
     }
   }
-  let reqs = computeRequirements({ packageName, services, customTheme: !!ev.custom_theme });
+  // In MANUAL mode the owner adds every role herself (owner: "شيل بيك كرو — انا
+  // بروحي بضيف واحد واحد"), so we DON'T auto-derive role requirements from the
+  // package/services — the event starts with no crew slots and only the roles she
+  // adds manually appear. Auto mode still derives them.
+  let reqs = staffingMode === 'manual' ? [] : computeRequirements({ packageName, services, customTheme: !!ev.custom_theme });
   // Manual requirements the owner/manager added for this event (e.g. a custom
   // offer the engine can't read) are layered on top of whatever we derived.
   const manual = await pool.query<{ role: string; count: number }>(

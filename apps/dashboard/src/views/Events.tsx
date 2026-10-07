@@ -1219,8 +1219,9 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
             );
           })}
           <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 2 }}>
-            Internal crew is assigned automatically by skill, availability and fairness. The customer
-            never sees “part-time” — only confirmed names or “to be confirmed”.
+            {staffMode === 'manual'
+              ? 'You pick the crew for each event — add a role, then choose an employee or type a part-timer. The customer never sees “part-time” — only confirmed names or “to be confirmed”.'
+              : 'Internal crew is assigned automatically by skill, availability and fairness. The customer never sees “part-time” — only confirmed names or “to be confirmed”.'}
           </div>
         </div>
       )}
