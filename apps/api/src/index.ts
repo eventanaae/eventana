@@ -886,6 +886,24 @@ async function main() {
     })();
   }
 
+  // One-shot: rename the existing "Carnival Offer" service (= 3499 Offer / Carnaval
+  // Package, AED 3500) to "Eventana Exclusive Package", and remove the duplicate
+  // 'exclusive' packages row I mistakenly created. EXCLUSIVE_RENAME=true.
+  if (String(process.env.EXCLUSIVE_RENAME ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        await pool.query(`DELETE FROM package_items WHERE package_id='exclusive'`);
+        const d = await pool.query(`DELETE FROM packages WHERE id='exclusive'`);
+        console.log(`[excl-rename] removed duplicate 'exclusive' package row (${d.rowCount})`);
+        const u = await pool.query(
+          `UPDATE services SET name='Eventana Exclusive Package' WHERE id='carnival-offer-c6p1'`);
+        console.log(`[excl-rename] "Carnival Offer" → "Eventana Exclusive Package" (${u.rowCount} row)`);
+        console.log('[excl-rename] END');
+      } catch (e) { console.error('[excl-rename] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: find the EXISTING ~3500 package (Marsha's "Carnaval"/Exclusive) so we
   // can RENAME it rather than add a duplicate, and remove the duplicate 'exclusive'
   // row I mistakenly created. FIND_PKG=true (lists only); FIND_PKG=delete-dup also
