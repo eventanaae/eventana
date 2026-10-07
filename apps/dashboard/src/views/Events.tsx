@@ -356,23 +356,38 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   // it's clear they're part of the package — not separate purchases.
                   const included = all.filter((s) => s.source === 'package_item');
                   const main = all.filter((s) => s.source !== 'package_item');
+                  // Item lists for "packages" that were created as ad-hoc services
+                  // (so they carry no package_item rows) — shown so the team knows
+                  // what to prepare. Keyed by lower-cased label.
+                  const SERVICE_PACKAGE_ITEMS: Record<string, string[]> = {
+                    'eventana exclusive package': ['Bouncy Castle 4x4m', 'Main Balloon Stand', 'Welcoming Stand', '2 Clowns', 'Popcorn Station', 'Cotton Candy Station', 'Tables & Chairs (20 kids)', '10 Giveaways', 'Music Speaker'],
+                  };
+                  const extraItems = (label: string): string[] =>
+                    included.length === 0 ? (SERVICE_PACKAGE_ITEMS[String(label ?? '').trim().toLowerCase()] ?? []) : [];
                   const pkgLabel = main.find((s) => s.source === 'booking' && Number(s.amount_fils) > 0 && !/delivery/i.test(s.label))?.label ?? 'the package';
                   // Giveaways are keepsakes handed to guests — the team never needs
                   // their price, and converted/imported lines store an unreliable
                   // per-piece figure here, so we always hide the AED on giveaway
                   // lines (by catalogue category or a name match). Name & qty stay.
-                  const isGiveaway = (s: any) => s.category_id === 'giveaways' || /give\s?aways?/i.test(String(s.label ?? ''));
-                  const row = (s: any) => (
-                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                  // The team view never shows money — just what was booked + its
+                  // items, so they know exactly what to prepare (owner's rule).
+                  const row = (s: any) => {
+                    const items = extraItems(s.label);
+                    return (
+                      <div key={s.id} style={{ padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
                         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{s.label}</div>
-                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>×{s.quantity} · {s.source}</div>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>×{s.quantity}</div>
+                        {items.length > 0 && (
+                          <div style={{ marginTop: 6, borderLeft: `2px solid ${C.line}`, paddingLeft: 12 }}>
+                            <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.3px', textTransform: 'uppercase', marginBottom: 2 }}>🎁 Included</div>
+                            {items.map((it) => (
+                              <div key={it} style={{ fontSize: 12, fontWeight: 600, color: C.ink, padding: '3px 0' }}>• {it}</div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <span style={{ fontWeight: 700, fontSize: 12.5, color: C.ink, whiteSpace: 'nowrap' }}>
-                        {isGiveaway(s) || !(Number(s.amount_fils) > 0) ? '—' : `AED ${money(Number(s.amount_fils))}`}
-                      </span>
-                    </div>
-                  );
+                    );
+                  };
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {main.map(row)}
@@ -391,30 +406,6 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                           ))}
                         </div>
                       )}
-                      {(() => {
-                        // Reconcile the list to what the customer actually paid: the
-                        // order total includes delivery/setup (and the price-hidden
-                        // giveaways), which aren't itemised above — so show the gap +
-                        // the real total, matching "Payments & audit trail".
-                        const ordersTotal = (data.orders ?? []).reduce((sum: number, o: any) =>
-                          sum + (Number(o.total_fils) || Math.round(Number(String(o.totalDisplay ?? '0').replace(/[^\d.]/g, '')) * 100)), 0);
-                        if (ordersTotal <= 0) return null;
-                        const shownSum = main.filter((s: any) => !isGiveaway(s) && Number(s.amount_fils) > 0)
-                          .reduce((sum: number, x: any) => sum + Number(x.amount_fils), 0);
-                        const gap = ordersTotal - shownSum;
-                        return (
-                          <div style={{ marginTop: 6, borderTop: `1px solid ${C.line}`, paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {gap > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, color: C.muted }}>
-                                <span>🚚 Delivery &amp; extras</span><span>AED {money(gap)}</span>
-                              </div>
-                            )}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 800, color: C.ink }}>
-                              <span>Total paid</span><span style={{ color: C.pinkDeep }}>AED {money(ordersTotal)}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
                     </div>
                   );
                 })()}
