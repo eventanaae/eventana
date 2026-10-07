@@ -1820,7 +1820,51 @@ async function main() {
   // Display-only (net total + refunded item) — the money is already in the refunds
   // ledger, so this never double-counts cash. Self-guards: only acts if the receipt
   // currently shows no refund.
-  if (process.env.REFLECT_RECEIPT) {
+  if (process.env.REFLECT_RECEIPT && String(process.env.REFLECT_RECEIPT).toLowerCase() === 'all') {
+    // RECONCILE ALL (owner 2026-10-07): set EVERY sales receipt's refunded total +
+    // items to match the refunds ledger, resolving the receipt by order_id OR via
+    // the event the order created (converted/imported orders have no receipt linked
+    // by order_id). Idempotent SET (not +=): safe to run repeatedly, never double
+    // counts, and only touches rows that are actually out of sync. This repairs
+    // past refunds that reduced Cash on hand but never showed on the receipt.
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const aed = (f: number) => (Number(f) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 });
+        const res = await pool.query(
+          `WITH agg AS (
+             SELECT order_id, SUM(amount_fils)::bigint AS total,
+                    jsonb_agg(jsonb_build_object(
+                      'label', item_label, 'amountFils', amount_fils,
+                      'reasonCategory', reason_category,
+                      'at', to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+                    ) ORDER BY created_at) AS items
+               FROM refunds GROUP BY order_id
+           )
+           UPDATE finance_receipts fr
+              SET refunded_fils = agg.total, refunded_items = agg.items
+             FROM agg
+            WHERE (fr.order_id = agg.order_id
+                   OR fr.event_id IN (SELECT id FROM events WHERE order_id = agg.order_id))
+              AND (COALESCE(fr.refunded_fils,0) <> agg.total
+                   OR COALESCE(jsonb_array_length(fr.refunded_items),0) <> jsonb_array_length(agg.items))
+            RETURNING fr.number, fr.refunded_fils, fr.total_fils`);
+        console.log(`[reflect-all] reconciled ${res.rowCount} receipt(s) to the refunds ledger`);
+        for (const r of res.rows as any[]) console.log(`[reflect-all]   EV-${r.number}: refunded ${aed(r.refunded_fils)}, net ${aed(Number(r.total_fils) - Number(r.refunded_fils))}`);
+        const orphan = await pool.query(
+          `SELECT DISTINCT rf.order_id, COALESCE(SUM(rf.amount_fils) OVER (PARTITION BY rf.order_id),0)::bigint AS amt
+             FROM refunds rf
+            WHERE NOT EXISTS (
+              SELECT 1 FROM finance_receipts fr
+               WHERE fr.order_id = rf.order_id
+                  OR fr.event_id IN (SELECT id FROM events WHERE order_id = rf.order_id))`);
+        console.log(`[reflect-all] orders with refunds but NO receipt at all: ${orphan.rowCount}`);
+        for (const o of orphan.rows as any[]) console.log(`[reflect-all]   orphan order=${o.order_id} (${aed(o.amt)})`);
+      } catch (e) {
+        console.error('[reflect-all] failed:', (e as Error).message);
+      }
+    })();
+  } else if (process.env.REFLECT_RECEIPT) {
     (async () => {
       try {
         const { pool } = await import('./db/pool.js');

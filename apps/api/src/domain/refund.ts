@@ -148,7 +148,8 @@ export async function refundOrderMoney(params: {
             `UPDATE finance_receipts
                 SET refunded_fils = refunded_fils + $2,
                     refunded_items = refunded_items || $3::jsonb
-              WHERE order_id = $1`,
+              WHERE order_id = $1
+                 OR event_id IN (SELECT id FROM events WHERE order_id = $1)`,
             [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
           );
           // Drop any still-unsent earlier refund email for this order so two
@@ -289,11 +290,15 @@ export async function refundOrderMoney(params: {
       await db.query('SAVEPOINT refund_side_effects');
       try {
         // Reflect the refund on the order's sales receipt (returned item + new net).
+        // Imported/converted orders have no receipt linked by order_id — their
+        // receipt is linked to the EVENT the order created, so also resolve via
+        // events.order_id → finance_receipts.event_id (owner 2026-10-07).
         await db.query(
           `UPDATE finance_receipts
               SET refunded_fils = refunded_fils + $2,
                   refunded_items = refunded_items || $3::jsonb
-            WHERE order_id = $1`,
+            WHERE order_id = $1
+               OR event_id IN (SELECT id FROM events WHERE order_id = $1)`,
           [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
         );
 
