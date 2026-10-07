@@ -1687,7 +1687,7 @@ async function main() {
   // One-shot READ-ONLY diagnostic: why does an event's "Booked services" sum differ
   // from the order/receipt total? Logs the event_services lines + the order total +
   // the receipt breakdown. Set DIAG_ORDER=<order id> for one deploy, then unset.
-  if (process.env.DIAG_ORDER) {
+  if (process.env.DIAG_ORDER && String(process.env.DIAG_ORDER).toLowerCase() !== 'tbd') {
     (async () => {
       const oid = String(process.env.DIAG_ORDER);
       try {
@@ -1709,8 +1709,9 @@ async function main() {
 
   // One-shot READ-ONLY diagnostic (#22 + #27). TBD events (no confirmed date) and
   // the booking/money date set on each, plus the real campaign status spread so we
-  // can see how many were actually SENT. Set DIAG_TBD=true for one deploy, unset.
-  if (String(process.env.DIAG_TBD ?? '').toLowerCase() === 'true') {
+  // can see how many were actually SENT. Reuses the existing DIAG_ORDER key with the
+  // value "tbd" (the env has hit its 300-var cap, so no NEW keys). Unset after.
+  if (String(process.env.DIAG_ORDER ?? '').toLowerCase() === 'tbd') {
     (async () => {
       try {
         const { pool } = await import('./db/pool.js');
