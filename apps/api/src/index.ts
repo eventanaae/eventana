@@ -1989,6 +1989,10 @@ async function main() {
             // prep_tasks.event_id has no FK/cascade, so delete prep rows too or they orphan.
             await del(`prep_task_staff:${ev}`, `DELETE FROM prep_task_staff WHERE task_id IN (SELECT id FROM prep_tasks WHERE event_id = $1)`, [ev]);
             await del(`prep_tasks:${ev}`, `DELETE FROM prep_tasks WHERE event_id = $1`, [ev]);
+            // Manual-staffing overlay + event-keyed ops alerts (also no FK cascade).
+            await del(`event_manual_staff:${ev}`, `DELETE FROM event_manual_staff WHERE event_id = $1`, [ev]);
+            await del(`event_removed_staff:${ev}`, `DELETE FROM event_removed_staff WHERE event_id = $1`, [ev]);
+            await del(`notif_ev:${ev}`, `UPDATE notifications SET cancelled_at = now() WHERE (event_id = $1 OR payload->>'eventId' = $1) AND sent_at IS NULL AND cancelled_at IS NULL`, [ev]);
           }
           await del('events', `DELETE FROM events WHERE order_id = $1`, [oid]);
           await del('notifications', `UPDATE notifications SET cancelled_at = now() WHERE payload->>'orderId' = $1 AND sent_at IS NULL AND cancelled_at IS NULL`, [oid]);

@@ -1183,11 +1183,22 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   }
   // If this edit moved the event's date or time, re-align its pending reminder
   // emails to the new schedule — otherwise event_day/3-day/feedback fire on the
-  // stale date (same fix as reschedule, via the receipt-edit path).
+  // stale date (same fix as reschedule, via the receipt-edit path). Also re-run
+  // staffing (so crew/driver conflicts are re-checked against the NEW date and a
+  // driver update goes out) and (re)enqueue the reminder set — exactly like the
+  // reschedule route; previously a receipt-driven date move left a stale crew plan
+  // pinned to the old date's availability. All idempotent, fire-and-forget.
   if (saved?.event_id && (d.date !== undefined || d.eventTime !== undefined || d.dateTbd !== undefined)) {
+    const evId = saved.event_id;
     await import('./lifecycle.js')
-      .then(({ reAlignPendingNotifications }) => reAlignPendingNotifications(saved.event_id))
+      .then(({ reAlignPendingNotifications }) => reAlignPendingNotifications(evId))
       .catch((e) => console.error('[finance] re-align notifications failed:', (e as Error).message));
+    void import('./lifecycle.js')
+      .then(({ enqueueBookingLifecycle }) => enqueueBookingLifecycle(evId))
+      .catch(() => {});
+    void import('./staffing.js')
+      .then(({ assignStaffForEvent }) => assignStaffForEvent(evId))
+      .catch((e) => console.error('[finance] receipt-edit re-staff failed:', (e as Error).message));
   }
   // A receipt edit may add/remove/change a paid service — mirror it onto the
   // linked event's booked services and regenerate prep so nothing the customer

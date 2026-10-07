@@ -292,6 +292,14 @@ export async function eventRoutes(app: FastifyInstance) {
       void import('../domain/prep.js')
         .then(({ generatePrepTasks }) => generatePrepTasks(eventId))
         .catch((e) => console.error('[prep] reschedule re-generate failed:', (e as Error).message));
+      // rescheduleEvent re-aligns EXISTING active reminders, but a booking made
+      // <3 days out never had a 3-day row, and a reminder briefly in the past was
+      // cancelled — neither resurrects on a move to a far-future date. Idempotently
+      // (re)create the lifecycle set so the customer still gets "3 days to go"
+      // (NOT EXISTS skips any reminder already active, so no duplicate).
+      void import('../domain/lifecycle.js')
+        .then(({ enqueueBookingLifecycle }) => enqueueBookingLifecycle(eventId))
+        .catch((e) => console.error('[lifecycle] reschedule re-enqueue failed:', (e as Error).message));
       return { ok: true, ...r };
     } catch (err) {
       if (err instanceof RescheduleError) {
