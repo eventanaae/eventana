@@ -202,8 +202,12 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   // below); this is the fast, graceful path for a plain resubmit — point the caller
   // back at the existing order to poll/resume instead of charging again.
   if (req.idempotencyKey) {
+    // Only a still-live order blocks a resubmit. A previous attempt that FAILED
+    // (session-creation error → status 'failed', holds already released) must not
+    // trap a genuine retry on the same key at a dead order — skip terminal ones so
+    // the customer can rebook.
     const dupe = await pool.query<{ id: string }>(
-      `SELECT id FROM orders WHERE idempotency_key = $1`,
+      `SELECT id FROM orders WHERE idempotency_key = $1 AND status NOT IN ('failed','cancelled','refunded')`,
       [req.idempotencyKey],
     );
     if (dupe.rows[0]) {

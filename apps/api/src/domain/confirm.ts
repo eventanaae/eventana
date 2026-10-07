@@ -720,6 +720,37 @@ async function applyAddonOrder(db: PoolClient, order: any, rules: PricingRules):
         WHERE event_id = $1 AND status = 'reserved'`,
       [eventId, String(extraHours)],
     );
+    // The longer window can now overlap ANOTHER booking that holds the same asset
+    // (e.g. a single bouncy castle) in the gained hour. We can't refuse a PAID
+    // add-on, but we must never SILENTLY double-book — flag any asset now over its
+    // unit count for the owner to resolve (move a booking / source another unit).
+    const conflicts = await db.query<{ asset_code: string }>(
+      `SELECT h.asset_code
+         FROM inventory_holds h JOIN inventory_assets a ON a.code = h.asset_code
+        WHERE h.event_id = $1 AND h.status = 'reserved'
+        GROUP BY h.asset_code, a.units
+       HAVING (SELECT count(*) FROM inventory_holds o
+                WHERE o.asset_code = h.asset_code
+                  AND o.event_id IS DISTINCT FROM $1
+                  AND o.status IN ('held','reserved')
+                  AND (o.expires_at IS NULL OR o.expires_at > now())
+                  AND o.starts_at < max(h.ends_at) AND o.ends_at > min(h.starts_at)) >= a.units`,
+      [eventId],
+    );
+    if (conflicts.rowCount) {
+      const codes = conflicts.rows.map((r) => r.asset_code);
+      await db.query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         VALUES ($1,'ops_alert','inventory_conflict', now(), $2)`,
+        [eventId, JSON.stringify({ eventId, assets: codes, note: 'Extended hours now overlap another booking for the same asset — resolve the double-booking.' })],
+      ).catch(() => {});
+      console.error(`[addon] extended hours on ${eventId} over-book asset(s): ${codes.join(', ')}`);
+      try {
+        const { pushToOwner } = await import('../integrations/push.js');
+        const mgrs = await db.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`);
+        for (const m of mgrs.rows) void pushToOwner('staff', m.id, '⚠️ Asset double-booked', `Extended hours on an event overlap another booking (${codes.join(', ')}). Resolve it.`, { eventId }).catch(() => {});
+      } catch { /* non-fatal */ }
+    }
     await db.query(
       `INSERT INTO event_tasks (event_id, department, title)
        VALUES ($1,'operations',$2), ($1,'logistics',$3)`,
