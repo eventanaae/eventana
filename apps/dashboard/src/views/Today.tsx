@@ -443,27 +443,34 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
   const theme = themeOf(e);
   // Headline = guest of honour + celebration type (e.g. "Youssef's Kids Birthday").
   const headline = eventTitle(e);
-  const timePlace = [e.start_time ? to12h(e.start_time) : '', e.emirate].filter(Boolean).join(' · ');
+  const timeOnly = e.start_time ? to12h(e.start_time) : '';
   return (
-    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
+    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
       <div style={{ width: 54, flex: 'none', textAlign: 'center', background: C.pinkSoft, borderRadius: 11, padding: '6px 0', color: C.pinkDeep }}>
         <div style={{ fontSize: 11, fontWeight: 700 }}>{db.wd}</div>
         <div style={{ fontSize: 19, fontWeight: 800, lineHeight: 1.05 }}>{db.day}</div>
         {db.mo && <div style={{ fontSize: 10.5, fontWeight: 700 }}>{db.mo}</div>}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headline}</div>
-        {theme && <div style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {theme}</div>}
-        {timePlace && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{timePlace}</div>}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 800, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headline}</div>
+          {/* Emirate in the pill on the right (same as the Events page). */}
+          {e.emirate && (
+            <span style={{ flex: 'none', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>📍 {e.emirate}</span>
+          )}
+        </div>
+        {theme && <div style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>🎨 {theme}</div>}
+        {timeOnly && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 1 }}>{timeOnly}</div>}
+        {/* The order (package or services) below, in a bubble — same as Events. */}
+        {(e.package_name || e.ordered_services) && (
+          <div style={{ marginTop: 5 }}>
+            <span style={{ display: 'inline-block', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'top', fontSize: 11, fontWeight: 800, color: C.mintDeep, background: C.mintSoft, borderRadius: 20, padding: '4px 10px' }}>
+              {e.package_name ? `📦 ${e.package_name}` : `🛍️ ${e.ordered_services}`}
+            </span>
+          </div>
+        )}
       </div>
-      {/* What they booked, as a pink pill on the right (same place for every card):
-          the package if there is one, otherwise the services they ordered. */}
-      {(e.package_name || e.ordered_services) && (
-        <span style={{ flex: 'none', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>
-          {e.package_name ? `📦 ${e.package_name}` : `🛍️ ${e.ordered_services}`}
-        </span>
-      )}
-      <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
+      <span style={{ color: C.muted, fontWeight: 800, marginTop: 2 }}>›</span>
     </div>
   );
 }

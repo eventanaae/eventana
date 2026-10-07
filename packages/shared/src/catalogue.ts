@@ -369,6 +369,27 @@ export const PACKAGES: PackageDefinition[] = [
 
 export const PACKAGE_BY_ID = new Map(PACKAGES.map((p) => [p.id, p]));
 
+/** Item lists for "packages" that exist only as ad-hoc services (no package row),
+ *  so their contents can still be shown on receipts + to the team. By name. */
+export const SERVICE_PACKAGE_ITEMS: Record<string, string[]> = {
+  'eventana exclusive package': [
+    'Bouncy Castle 4x4m', 'Main Balloon Stand', 'Welcoming Stand', '2 Clowns',
+    'Popcorn Station', 'Cotton Candy Station', 'Tables & Chairs (20 kids)',
+    '10 Giveaways', 'Music Speaker',
+  ],
+};
+
+/** The item names included in a package/service, matched by its display label.
+ *  Real catalogue packages resolve from PACKAGES; ad-hoc service "packages"
+ *  (e.g. Eventana Exclusive) resolve from SERVICE_PACKAGE_ITEMS. [] if none. */
+export function packageItemNames(label: string | null | undefined): string[] {
+  const key = String(label ?? '').trim().toLowerCase();
+  if (!key) return [];
+  const pkg = PACKAGES.find((p) => p.name.trim().toLowerCase() === key);
+  if (pkg) return pkg.items.map((i) => i.name);
+  return SERVICE_PACKAGE_ITEMS[key] ?? [];
+}
+
 /** Package items whose food station can take extra servings after booking. */
 export const PACKAGE_ITEM_TO_SERVICE: Array<[string, string]> = [
   ['Cotton Candy', 'cotton'],
