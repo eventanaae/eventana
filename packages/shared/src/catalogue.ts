@@ -377,6 +377,18 @@ export const SERVICE_PACKAGE_ITEMS: Record<string, string[]> = {
     'Popcorn (40 kids)', 'Cotton Candy (40 kids)', 'Tables & Chairs Theme Setup',
     '10 Giveaways', 'Music Speaker',
   ],
+  // Seasonal — sold as a line item ("Summer Splash Package"), not a catalogue
+  // package row. Contents per owner; naming aligned to the standard wording.
+  'summer splash package': [
+    'Large Water Slide (Blue)', 'Slush & Popcorn Combo Station',
+    'Main Balloon Backdrop', '1 Cake Stand', 'Tables & Chairs Theme Setup',
+    '2 Clowns', 'Music Speaker',
+  ],
+  'splash summer package': [
+    'Large Water Slide (Blue)', 'Slush & Popcorn Combo Station',
+    'Main Balloon Backdrop', '1 Cake Stand', 'Tables & Chairs Theme Setup',
+    '2 Clowns', 'Music Speaker',
+  ],
 };
 
 /** The item names included in a package/service, matched by its display label.
