@@ -232,6 +232,11 @@ export const SERVICE_BY_ID = new Map(SERVICES.map((s) => [s.id, s]));
 
 const item = (name: string, detail: string, assets: string[] = []) => ({ name, detail, assets });
 
+/** The breakdown shown under every "Themed Tables & Chairs for 20 Kids" line
+ *  (receipts, team view, products, website) — owner's wording, one source. */
+export const TABLES_DETAIL =
+  'Includes customized placemats, plates, themed spoons & forks, a themed water bottle, and a centerpiece balloon.';
+
 export const PACKAGES: PackageDefinition[] = [
   {
     id: 'golden',
@@ -251,7 +256,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('Popcorn (40 kids)', 'Freshly popped popcorn for up to 40 kids.', ['popcorn-cart']),
       item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
       item('3 Backdrops', 'Three balloon backdrops in your theme colours.'),
-      item('Themed Tables & Chairs for 20 Kids', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
+      item('Themed Tables & Chairs for 20 Kids', TABLES_DETAIL),
       item('10 Giveaways', 'A drawing tablet for every guest — handed out during the party games, a keepsake to take home.'),
       item('Music Speaker', 'A party speaker for your playlist.'),
       item('3 Cake Stands', 'Three themed cake display stands.'),
@@ -277,7 +282,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('2 Cake Stands', 'Two themed cake display stands.'),
       item('10 Game Prizes', 'Ten prizes for the party games.'),
       item('Music Speaker', 'A party speaker for your playlist.'),
-      item('Themed Tables & Chairs for 20 Kids', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
+      item('Themed Tables & Chairs for 20 Kids', TABLES_DETAIL),
     ],
   },
   {
@@ -299,7 +304,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('2 Cake Stands', 'Two themed cake display stands.'),
       item('10 Giveaways', 'A drawing tablet for every guest — handed out during the party games, a keepsake to take home.'),
       item('Music Speaker', 'A party speaker for your playlist.'),
-      item('Themed Tables & Chairs for 20 Kids', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
+      item('Themed Tables & Chairs for 20 Kids', TABLES_DETAIL),
     ],
   },
   {
@@ -345,7 +350,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('10 Game Prizes', 'Ten prizes for the party games.'),
       item('Music Speaker', 'A party speaker for your playlist.'),
       item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
-      item('Themed Tables & Chairs for 20 Kids', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
+      item('Themed Tables & Chairs for 20 Kids', TABLES_DETAIL),
     ],
   },
   {
@@ -400,6 +405,17 @@ export function packageItemNames(label: string | null | undefined): string[] {
   const pkg = PACKAGES.find((p) => p.name.trim().toLowerCase() === key);
   if (pkg) return pkg.items.map((i) => i.name);
   return SERVICE_PACKAGE_ITEMS[key] ?? [];
+}
+
+/** One-line breakdown shown under specific package items wherever contents are
+ *  listed (receipts, team view, products). Keyed by item name. Works for both
+ *  real packages and ad-hoc service "packages" (Exclusive / Summer Splash). */
+export const PACKAGE_ITEM_DETAILS: Record<string, string> = {
+  'themed tables & chairs for 20 kids': TABLES_DETAIL,
+};
+export function packageItemDetail(name: string | null | undefined): string | null {
+  const key = String(name ?? '').trim().toLowerCase();
+  return key ? (PACKAGE_ITEM_DETAILS[key] ?? null) : null;
 }
 
 /** Package items whose food station can take extra servings after booking. */

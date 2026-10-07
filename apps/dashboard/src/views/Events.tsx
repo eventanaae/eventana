@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { eventDateYMD, timeRange12h } from '@eventana/shared';
+import { eventDateYMD, timeRange12h, packageItemNames, packageItemDetail } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty, eventTitle } from './Today';
@@ -358,12 +358,9 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   const main = all.filter((s) => s.source !== 'package_item');
                   // Item lists for "packages" that were created as ad-hoc services
                   // (so they carry no package_item rows) — shown so the team knows
-                  // what to prepare. Keyed by lower-cased label.
-                  const SERVICE_PACKAGE_ITEMS: Record<string, string[]> = {
-                    'eventana exclusive package': ['Bouncy Castle 4x4m', 'Main Balloon Stand', 'Welcoming Stand', '2 Clowns', 'Popcorn Station', 'Cotton Candy Station', 'Tables & Chairs (20 kids)', '10 Giveaways', 'Music Speaker'],
-                  };
+                  // what to prepare. Resolved from the shared catalogue (one source).
                   const extraItems = (label: string): string[] =>
-                    included.length === 0 ? (SERVICE_PACKAGE_ITEMS[String(label ?? '').trim().toLowerCase()] ?? []) : [];
+                    included.length === 0 ? packageItemNames(label) : [];
                   const pkgLabel = main.find((s) => s.source === 'booking' && Number(s.amount_fils) > 0 && !/delivery/i.test(s.label))?.label ?? 'the package';
                   // Giveaways are keepsakes handed to guests — the team never needs
                   // their price, and converted/imported lines store an unreliable
@@ -380,9 +377,15 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         {items.length > 0 && (
                           <div style={{ marginTop: 6, borderLeft: `2px solid ${C.line}`, paddingLeft: 12 }}>
                             <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.3px', textTransform: 'uppercase', marginBottom: 2 }}>🎁 Included</div>
-                            {items.map((it) => (
-                              <div key={it} style={{ fontSize: 12, fontWeight: 600, color: C.ink, padding: '3px 0' }}>• {it}</div>
-                            ))}
+                            {items.map((it) => {
+                              const d = packageItemDetail(it);
+                              return (
+                                <div key={it} style={{ padding: '3px 0' }}>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: C.ink }}>• {it}</div>
+                                  {d && <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginLeft: 10, lineHeight: 1.45 }}>{d}</div>}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -396,14 +399,20 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                           <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.3px', textTransform: 'uppercase', marginBottom: 2 }}>
                             🎁 Included in {pkgLabel}
                           </div>
-                          {included.map((s) => (
-                            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-                              <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: C.ink }}>
-                                {s.label}{Number(s.quantity) > 1 ? ` ×${s.quantity}` : ''}
-                              </span>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>included</span>
-                            </div>
-                          ))}
+                          {included.map((s) => {
+                            const d = packageItemDetail(s.label);
+                            return (
+                              <div key={s.id} style={{ padding: '5px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: C.ink }}>
+                                    {s.label}{Number(s.quantity) > 1 ? ` ×${s.quantity}` : ''}
+                                  </span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>included</span>
+                                </div>
+                                {d && <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 1, lineHeight: 1.45 }}>{d}</div>}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

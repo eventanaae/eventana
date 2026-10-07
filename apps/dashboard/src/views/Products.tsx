@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { packageItemDetail } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
 
@@ -90,10 +91,17 @@ function CatalogList({ items, onEdit }: { items: any[]; onEdit: (item: any) => v
               <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
             </div>
             {contents.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, padding: '0 4px 11px' }}>
-                {contents.map((name, i) => (
-                  <span key={i} style={{ fontSize: 11, fontWeight: 600, color: C.muted2, background: C.mintSoft, borderRadius: 7, padding: '3px 8px' }}>{name}</span>
-                ))}
+              <div style={{ padding: '0 4px 11px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {contents.map((name, i) => {
+                    const d = packageItemDetail(name);
+                    return <span key={i} title={d ?? undefined} style={{ fontSize: 11, fontWeight: 600, color: C.muted2, background: C.mintSoft, borderRadius: 7, padding: '3px 8px' }}>{name}</span>;
+                  })}
+                </div>
+                {contents.map((name) => {
+                  const d = packageItemDetail(name);
+                  return d ? <div key={name} style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 5, lineHeight: 1.45 }}><b style={{ color: C.muted2 }}>{name}:</b> {d}</div> : null;
+                })}
               </div>
             )}
           </div>

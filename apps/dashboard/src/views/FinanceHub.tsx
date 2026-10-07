@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { CELEBRATION_TYPES, packageItemNames } from '@eventana/shared';
+import { CELEBRATION_TYPES, packageItemNames, packageItemDetail } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, Panel, Spinner, fredoka, money } from '../ui';
 import { NewOrder } from './NewOrder';
@@ -1443,7 +1443,15 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
               {/* Package contents, so the customer sees exactly what's included. */}
               {pkgItems.length > 0 && (
                 <div style={{ fontSize: 11.5, color: C.muted2, lineHeight: 1.6, marginTop: 3 }}>
-                  {pkgItems.map((it) => <div key={it}>• {it}</div>)}
+                  {pkgItems.map((it) => {
+                    const d = packageItemDetail(it);
+                    return (
+                      <div key={it}>
+                        • {it}
+                        {d && <div style={{ fontSize: 10.5, color: C.muted, marginLeft: 10, lineHeight: 1.45 }}>{d}</div>}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{l.qty} × AED {money(l.priceFils)}</div>
@@ -1554,7 +1562,7 @@ function docHtml(doc: any, kind: 'invoice' | 'receipt') {
     const desc = l.description && String(l.description).trim() ? `<br><span style="color:#666;font-size:12px;line-height:1.5">${esc(String(l.description).trim()).replace(/\n/g, '<br>')}</span>` : '';
     // Package contents listed under the package line so the customer sees what's in it.
     const pkgItems = packageItemNames(l.name);
-    const incl = pkgItems.length ? `<br><span style="color:#666;font-size:12px;line-height:1.6">${pkgItems.map((it) => '• ' + esc(it)).join('<br>')}</span>` : '';
+    const incl = pkgItems.length ? `<br><span style="color:#666;font-size:12px;line-height:1.6">${pkgItems.map((it) => { const d = packageItemDetail(it); return '• ' + esc(it) + (d ? `<br><span style="color:#999;font-size:11px;margin-left:12px">${esc(d)}</span>` : ''); }).join('<br>')}</span>` : '';
     return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${esc(l.name)}${desc}${incl}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`;
   }).join('');
   return `<!doctype html><html><head><meta charset="utf8"><title>Eventana ${kind} ${esc(doc.number)}</title></head><body style="font-family:Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
