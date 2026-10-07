@@ -886,6 +886,50 @@ async function main() {
     })();
   }
 
+  // One-shot: scan EVERYWHERE the "3499 Offer" / "Carnival/Carnaval Offer" package
+  // appears — services.name, receipt line_items (key is 'name'), event_services.label
+  // — so we rename them all to "Eventana Exclusive Package". SCAN_EXCL=true (list);
+  // SCAN_EXCL=apply also renames all matches.
+  if (process.env.SCAN_EXCL) {
+    (async () => {
+      const apply = String(process.env.SCAN_EXCL).toLowerCase() === 'apply';
+      try {
+        const { pool } = await import('./db/pool.js');
+        const sv = (await pool.query<{ id: string; name: string; price: string }>(
+          `SELECT id, name, (price_fils/100)::text price FROM services
+            WHERE name ILIKE ANY (ARRAY['%3499%','%carnaval%','%carnival%'])`)).rows;
+        console.log(`[scan-excl] services: ${sv.length}`);
+        for (const s of sv) console.log(`[scan-excl] SVC ${s.id} | "${s.name}" | AED ${s.price}`);
+        const rc = (await pool.query<{ nm: string; n: string }>(
+          `SELECT li->>'name' nm, count(*)::text n
+             FROM finance_receipts, jsonb_array_elements(line_items) li
+            WHERE li->>'name' ILIKE ANY (ARRAY['%3499%','%carnaval%','%carnival%'])
+            GROUP BY 1 ORDER BY 2 DESC`)).rows;
+        console.log(`[scan-excl] receipt line-item names: ${rc.length}`);
+        for (const r of rc) console.log(`[scan-excl] RCPT "${r.nm}" ×${r.n}`);
+        const es = (await pool.query<{ label: string; n: string }>(
+          `SELECT label, count(*)::text n FROM event_services
+            WHERE label ILIKE ANY (ARRAY['%3499%','%carnaval%','%carnival%']) GROUP BY 1 ORDER BY 2 DESC`)).rows;
+        console.log(`[scan-excl] event_services labels: ${es.length}`);
+        for (const r of es) console.log(`[scan-excl] EVSVC "${r.label}" ×${r.n}`);
+        if (apply) {
+          const N = 'Eventana Exclusive Package';
+          const u1 = await pool.query(`UPDATE services SET name=$1 WHERE name ILIKE ANY (ARRAY['%3499%','%carnaval%','%carnival%'])`, [N]);
+          const u2 = await pool.query(
+            `UPDATE finance_receipts SET line_items = (
+                SELECT jsonb_agg(CASE WHEN li->>'name' ILIKE ANY (ARRAY['%3499%','%carnaval%','%carnival%'])
+                                      THEN jsonb_set(li,'{name}',to_jsonb($1::text)) ELSE li END)
+                  FROM jsonb_array_elements(line_items) li)
+              WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(line_items) li
+                             WHERE li->>'name' ILIKE ANY (ARRAY['%3499%','%carnaval%','%carnival%']))`, [N]);
+          const u3 = await pool.query(`UPDATE event_services SET label=$1 WHERE label ILIKE ANY (ARRAY['%3499%','%carnaval%','%carnival%'])`, [N]);
+          console.log(`[scan-excl] APPLIED: services=${u1.rowCount}, receipts=${u2.rowCount}, event_services=${u3.rowCount}`);
+        }
+        console.log('[scan-excl] END');
+      } catch (e) { console.error('[scan-excl] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: rename the existing "Carnival Offer" service (= 3499 Offer / Carnaval
   // Package, AED 3500) to "Eventana Exclusive Package", and remove the duplicate
   // 'exclusive' packages row I mistakenly created. EXCLUSIVE_RENAME=true.
