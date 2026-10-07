@@ -430,14 +430,13 @@ export async function confirmBooking(
     );
   }
 
-  // Assign whoever is free. Real rostering belongs to the dashboard; this
-  // gives operations a starting crew rather than an empty event.
-  await db.query(
-    `INSERT INTO event_team (event_id, member_id)
-     SELECT $1, id FROM team_members WHERE active ORDER BY id LIMIT 3
-     ON CONFLICT DO NOTHING`,
-    [eventId],
-  );
+  // Crew is assigned MANUALLY now (owner/Marsha fill each slot) — see the
+  // staffing memory. A new booking therefore starts with an EMPTY crew; the real
+  // roster flows from event_staff into event_team via syncEventTeam on each
+  // assignment (and syncAllEventTeams on boot). The old "first 3 active members"
+  // placeholder is removed: it showed 3 random people every new event in their
+  // "My jobs"/shopping list and was the source of the phantom credits the KPI
+  // already had to guard against (REAL_ROSTER). (owner 2026-10-07)
 
   await confirmHolds(db, order.id, eventId);
 
