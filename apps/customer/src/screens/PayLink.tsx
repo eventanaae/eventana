@@ -68,7 +68,10 @@ export function PayLink({
   }, [orderId, token]);
 
   const isAddon = data?.kind === 'addon';
-  const nameOk = fullName.trim().split(/\s+/).filter(Boolean).length >= 2;
+  // A single name is fine ("Noor") — matches the main booking flow. Requiring two
+  // words silently disabled Pay for legitimate single-name customers (often
+  // prefilled from the team record) with no hint why. Just need something to call them.
+  const nameOk = fullName.trim().length >= 2;
   const phoneOk = Boolean(uaeMobile(phone));
   const emailOk = /.+@.+\..+/.test(email.trim());
   const ready = isAddon

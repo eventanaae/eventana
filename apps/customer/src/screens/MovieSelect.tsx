@@ -107,7 +107,10 @@ export function MovieSelect({ draft, update, go, t }: ScreenProps) {
           <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginBottom: 7 }}>{t('movie.typeOwn')}</div>
           <input
             value={customVal}
-            onChange={(e) => update({ movie: e.target.value || null })}
+            // Cap at 60 — the server's cartSchema rejects a longer movie title, which
+            // otherwise only surfaced as a generic error at the Pay step.
+            maxLength={60}
+            onChange={(e) => update({ movie: e.target.value.slice(0, 60) || null })}
             placeholder={t('movie.typePlaceholder')}
             style={{
               width: '100%', border: `1.5px solid ${customVal ? C.pink : C.pinkLine}`, borderRadius: 14,

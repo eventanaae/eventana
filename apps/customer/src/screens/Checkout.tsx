@@ -234,21 +234,24 @@ export function Checkout({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.packageId, JSON.stringify(draft.services)]);
 
-  // Make sure a valid, enabled payment method is selected. A saved draft can
-  // carry a stale provider (e.g. a disabled BNPL default) that would fail at
-  // checkout — snap to the first live method instead.
+  // Keep the ACTUAL provider (what pay() sends) aligned with the VISIBLE payment
+  // radio (payChoice). A saved draft defaults provider to 'tabby', but the radio
+  // defaults to Apple Pay — so a customer who accepts the pre-selected Apple Pay
+  // and just taps Pay, without ever tapping a row, used to be sent into Tabby's
+  // pay-in-4 (wrong rail, and the BNPL-excluded discount made the total disagree
+  // too). Derive provider from payChoice the same way tapping a row does
+  // (card/Apple Pay → the Stripe wallet rail; Tabby/Tamara → themselves), and
+  // fall back to a live wallet if the chosen method isn't currently enabled.
   useEffect(() => {
     const pms = catalogue.paymentMethods;
-    if (pms.length && !pms.some((p) => p.name === draft.provider)) {
-      // Snap to the SAME method the card/Apple-Pay rail shows selected (Stripe
-      // preferred), not just pms[0] — otherwise, if a non-Stripe method is listed
-      // first, accepting the pre-selected wallet without tapping sends the wrong
-      // provider. Mirrors `walletName` below.
-      const preferred = pms.find((p) => p.name === 'stripe')?.name ?? pms[0].name;
-      update({ provider: preferred });
-    }
+    if (!pms.length) return;
+    const want = (payChoice === 'tabby' || payChoice === 'tamara') ? payChoice : walletName;
+    const live = pms.some((p) => p.name === want)
+      ? want
+      : (pms.find((p) => p.name === 'stripe')?.name ?? pms[0].name);
+    if (live && live !== draft.provider) update({ provider: live });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogue.paymentMethods, draft.provider]);
+  }, [payChoice, catalogue.paymentMethods, draft.provider]);
 
   // Load the customer's rewards balance once signed in (for credit + points).
   useEffect(() => {
