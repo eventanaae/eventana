@@ -1400,7 +1400,10 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
     } catch { setMsg('Could not send.'); } finally { setBusy(false); }
   };
   const del = async () => {
-    if (!confirm('Delete this document?')) return;
+    const warn = kind === 'receipt'
+      ? 'Delete this receipt? If this sale has no event (a standalone sale), its order and any refund are removed too, so nothing is left behind. This cannot be undone.'
+      : 'Delete this invoice? This cannot be undone.';
+    if (!confirm(warn)) return;
     if (kind === 'receipt') await api.finDeleteReceipt(doc.id); else await api.finDeleteInvoice(doc.id);
     onChanged(); onClose();
   };
