@@ -886,6 +886,29 @@ async function main() {
     })();
   }
 
+  // One-shot: look up what an old offer/package included — its historical_orders
+  // rows (customer, date, total, memo) + any matching service with its detail.
+  // OFFER_LOOKUP="<name>".
+  if (process.env.OFFER_LOOKUP) {
+    (async () => {
+      const q = String(process.env.OFFER_LOOKUP).trim();
+      const aed = (f: any) => `AED ${(Number(f) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+      try {
+        const { pool } = await import('./db/pool.js');
+        const ho = (await pool.query<{ cust: string; d: string; tot: string; memo: string | null }>(
+          `SELECT customer_name cust, to_char(txn_date,'YYYY-MM-DD') d, total_fils tot, memo
+             FROM historical_orders WHERE product ILIKE $1 ORDER BY txn_date`, [`%${q}%`])).rows;
+        console.log(`[offer-lookup] "${q}" historical rows: ${ho.length}`);
+        for (const r of ho) console.log(`[offer-lookup] ${r.d} | ${r.cust} | ${aed(r.tot)} | memo: ${r.memo ?? '—'}`);
+        const sv = (await pool.query<{ id: string; name: string; detail: string | null; price: string }>(
+          `SELECT id, name, detail, (price_fils/100)::text price FROM services WHERE name ILIKE $1`, [`%${q}%`])).rows;
+        console.log(`[offer-lookup] matching services: ${sv.length}`);
+        for (const s of sv) console.log(`[offer-lookup] SVC "${s.name}" AED ${s.price} | ${s.detail ?? '—'}`);
+        console.log('[offer-lookup] END');
+      } catch (e) { console.error('[offer-lookup] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: scan OLD (historical/QuickBooks) orders for the Exclusive package —
   // by name keyword and by ~3499/3500 order totals — so we see every old booking.
   // HIST_SCAN=true.
