@@ -19,10 +19,12 @@ const MARSHA_EMAIL = 'marsha@eventanauae.com';
 
 const CLOWN_FILS = 20000;      // AED 200
 const FACEPAINT_FILS = 35000;  // AED 350
+const BALLOON_FILS = 35000;    // AED 350 (part-time balloon artist, owner rate)
 
 function jobOf(role: string): { job: string; fils: number } {
   if (role === 'face_painting') return { job: 'Face painting', fils: FACEPAINT_FILS };
   if (role === 'clown' || role === 'acrobat_clown') return { job: 'Clown', fils: CLOWN_FILS };
+  if (role === 'balloon_artist' || role === 'balloon_twisting') return { job: 'Balloon artist', fils: BALLOON_FILS };
   return { job: role.replace(/_/g, ' '), fils: 0 };
 }
 
@@ -77,8 +79,8 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
        FROM event_staff es JOIN events e ON e.id = es.event_id
       WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
         -- Only the paid entertainer roles belong in this tracker (clown / face
-        -- paint); part-time drivers show under Deliveries, not here.
-        AND es.role IN ('clown', 'acrobat_clown', 'face_painting')
+        -- paint / balloon artist); part-time drivers show under Deliveries.
+        AND es.role IN ('clown', 'acrobat_clown', 'face_painting', 'balloon_artist', 'balloon_twisting')
         AND e.phase IS DISTINCT FROM 'Cancelled'
         AND e.event_date >= date_trunc('month', $1::date)
         AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
@@ -216,7 +218,7 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
        LEFT JOIN orders o ON o.id = e.order_id
        LEFT JOIN customers c ON c.id = e.customer_id
       WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
-        AND es.role IN ('clown', 'acrobat_clown', 'face_painting')
+        AND es.role IN ('clown', 'acrobat_clown', 'face_painting', 'balloon_artist', 'balloon_twisting')
         AND e.phase IS DISTINCT FROM 'Cancelled'
         AND e.event_date > CURRENT_DATE
       ORDER BY e.event_date, btrim(es.part_time_name)`,

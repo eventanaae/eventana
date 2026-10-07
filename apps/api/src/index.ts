@@ -886,6 +886,33 @@ async function main() {
     })();
   }
 
+  // One-shot: Dindo's leave (4–30 Sep + 2–6 Oct 2026) + pay him as a PART-TIME
+  // balloon artist (AED 350) for the 3 events he worked during that leave
+  // (4/12/26 Sep). DINDO_FIX=true.
+  if (String(process.env.DINDO_FIX ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        await pool.query(
+          `DELETE FROM staff_days_off WHERE member_id='tm-dindo'
+             AND ((start_date='2026-09-04' AND end_date='2026-09-30')
+               OR (start_date='2026-10-02' AND end_date='2026-10-06'))`);
+        await pool.query(
+          `INSERT INTO staff_days_off (member_id, start_date, end_date, reason, status) VALUES
+             ('tm-dindo','2026-09-04','2026-09-30','Annual leave','approved'),
+             ('tm-dindo','2026-10-02','2026-10-06','Annual leave','approved')`);
+        console.log('[dindo-fix] leave set: 4–30 Sep + 2–6 Oct');
+        for (const ev of ['EV-2026-0205', 'EV-2026-0203', 'EV-2026-0211']) {
+          const r = await pool.query(
+            `UPDATE event_staff SET part_time_name='Dindo', assignee_id=NULL, status='confirmed'
+              WHERE event_id=$1 AND role='balloon_artist'`, [ev]);
+          console.log(`[dindo-fix] ${ev} balloon_artist → part-time Dindo (${r.rowCount} row)`);
+        }
+        console.log('[dindo-fix] END');
+      } catch (e) { console.error('[dindo-fix] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot (reusable): set booking date(s) for specific receipts. Format:
   // SET_BOOKED="<ref>=<YYYY-MM-DD>;<ref>=<YYYY-MM-DD>" where ref is an EV id or a
   // receipt number. Matches by event_id/order_id for EV ids, by number otherwise.
