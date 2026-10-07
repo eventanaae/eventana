@@ -4198,7 +4198,19 @@ export async function adminRoutes(app: FastifyInstance) {
                    WHERE o.status IN ('paid','partially_refunded') AND o.kind IN ('booking','addon')
                    GROUP BY c.id,c.name ORDER BY v DESC LIMIT 5`),
       pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>=$1 AND e.event_date<=$2`, [yearStartS, todayS]),
-      pool.query(`SELECT COALESCE(SUM(${evRevSub}),0) v FROM events e WHERE e.phase<>'Cancelled' AND e.event_date>$1 AND e.event_date<$2`, [todayS, yearEndS]),
+      // Booked-future revenue for the year-end forecast = money already LOCKED IN
+      // for parties happening between today and year-end. Count it from the
+      // receipts ledger (by the event's party date), net of refunds, so it
+      // INCLUDES converted/imported bookings — evRevSub deliberately drops
+      // 'converted' orders (their money is on the receipt, AED 0 on the order), so
+      // summing evRevSub here silently dropped every future converted party from
+      // the forecast floor. finance_receipts by event_id already merges add-ons.
+      pool.query(
+        `SELECT COALESCE(SUM(fr.total_fils - COALESCE(fr.refunded_fils,0)),0) v
+           FROM finance_receipts fr JOIN events e ON e.id = fr.event_id
+          WHERE e.phase<>'Cancelled' AND e.event_date>$1 AND e.event_date<$2`,
+        [todayS, yearEndS],
+      ),
     ]);
 
     // ── Headline "This year" from ACTUAL data (owner's requirement) ──────────
