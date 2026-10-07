@@ -144,8 +144,6 @@ export function Marketing() {
         </div>
       </div>
 
-      <TypeLegend />
-
       {/* Upcoming occasions — see at a glance which are greetings vs offers. */}
       <div>
         <SectionHeader action={<button onClick={() => openFlow('existing')} style={linkBtn}>View all ›</button>}>Upcoming occasions</SectionHeader>

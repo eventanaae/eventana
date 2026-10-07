@@ -1248,13 +1248,19 @@ export async function adminRoutes(app: FastifyInstance) {
               e.celebration_type, e.custom_theme, th.name AS theme_name, o.cart,
               c.name AS customer, c.phone, o.id AS order_id,
               o.status AS order_status, o.total_fils,
+              p.name AS package_name, svc.names AS ordered_services,
               (SELECT fr.number FROM finance_receipts fr
                 WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
                 ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number
          FROM events e
          JOIN customers c ON c.id = e.customer_id
          JOIN orders o ON o.id = e.order_id
+         LEFT JOIN packages p ON p.id = e.package_id
          LEFT JOIN themes th ON th.id = e.theme_id
+         LEFT JOIN LATERAL (
+           SELECT string_agg(es.label, ', ' ORDER BY es.id) AS names
+             FROM event_services es WHERE es.event_id = e.id AND es.source <> 'package_item'
+         ) svc ON TRUE
         WHERE ($1::text IS NULL OR o.status = $1)
           AND ($2::text IS NULL OR EXISTS (
                 SELECT 1 FROM event_team et WHERE et.event_id = e.id AND et.member_id = $2))

@@ -78,6 +78,15 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
             )}
           </div>
           {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
+          {/* What they booked — package or ordered services — in a bubble, same as
+              the Home cards, so the team sees the order at a glance. */}
+          {(e.package_name || e.ordered_services) && (
+            <div style={{ marginTop: 5 }}>
+              <span style={{ display: 'inline-block', maxWidth: '100%', fontSize: 11, fontWeight: 800, color: C.mintDeep, background: C.mintSoft, borderRadius: 20, padding: '4px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                {e.package_name ? `📦 ${e.package_name}` : `🛍️ ${e.ordered_services}`}
+              </span>
+            </div>
+          )}
           {/* Theme shown clearly on its own line (prominent, like the Home cards). */}
           {e.theme_name && (
             <div style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎨 {e.theme_name}</div>
