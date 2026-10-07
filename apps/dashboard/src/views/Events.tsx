@@ -95,10 +95,20 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
             <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.reference ?? e.id}</span> ·{' '}
             {timeRange12h(e.start_time, e.base_end_time)} · {e.emirate}
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <Badge tone={e.phase === 'Cancelled' ? 'error' : e.phase === 'Event Completed' ? 'neutral' : 'info'}>{e.phase}</Badge>
-            <Badge tone={e.order_status === 'paid' ? 'ok' : e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
-          </div>
+          {/* Only surface a status badge when something is OFF — a normal
+              "Booking Confirmed" + "paid" is the default and just clutters the
+              card (owner: it's surely paid). Cancelled / unpaid / needs-review
+              still show so nothing important is hidden. */}
+          {(e.phase === 'Cancelled' || e.phase === 'Event Completed' || e.order_status !== 'paid') && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(e.phase === 'Cancelled' || e.phase === 'Event Completed') && (
+                <Badge tone={e.phase === 'Cancelled' ? 'error' : 'neutral'}>{e.phase}</Badge>
+              )}
+              {e.order_status !== 'paid' && (
+                <Badge tone={e.order_status === 'needs_review' ? 'error' : 'warn'}>{e.order_status}</Badge>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
