@@ -55,11 +55,17 @@ const MADE_TO_ORDER_LEAD_HOURS = 14 * 24;
 export function effectiveEventHours(
   cart: { packageId: string | null; services: Array<{ serviceId: string; quantity: number }> },
   rules: PricingRules,
+  // The LIVE services map (ctx.services). A service created/edited at runtime isn't
+  // in the static seed SERVICE_BY_ID, so without this a runtime-added inflatable/
+  // machine/backdrop would be treated as 4h and its asset reserved for a window 2h
+  // too short → another booking could grab it in the gap. Falls back to the seed map.
+  services?: Map<string, { categoryId: string }>,
 ): number {
   if (cart.packageId) return rules.standardEventHours;
+  const lookup = services ?? (SERVICE_BY_ID as unknown as Map<string, { categoryId: string }>);
   const needsLong = cart.services.some((line) => {
     if (line.quantity <= 0) return false;
-    const svc = SERVICE_BY_ID.get(line.serviceId);
+    const svc = lookup.get(line.serviceId);
     return svc ? SIX_HOUR_CATEGORIES.has(svc.categoryId) : false;
   });
   return needsLong ? 6 : rules.standardEventHours;
@@ -355,7 +361,7 @@ export function quote(cart: CartInput, ctx: PricingContext): Quote {
 
   // Time: 4-hour event (6 for Build-Your-Own with decor/inflatables/machines)
   // that must finish by midnight.
-  const baseHours = effectiveEventHours(cart, rules);
+  const baseHours = effectiveEventHours(cart, rules, ctx.services);
   if (!cart.eventDate) {
     problems.push({ code: 'missing_date', message: 'Choose your event date.' });
   }

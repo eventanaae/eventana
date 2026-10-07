@@ -226,7 +226,10 @@ export function Checkout({
       packageId: draft.packageId ?? null,
       services: Object.entries(draft.services).map(([serviceId, quantity]) => ({ serviceId, quantity: Number(quantity) })),
     };
-    const hrs = effectiveEventHours(cart, catalogue.rules as any);
+    // Pass the live catalogue services so a runtime-created 6h-category service
+    // reflects the right party length here too (not the static seed's 4h).
+    const svcMap = new Map((catalogue.services ?? []).map((s: any) => [s.id, s]));
+    const hrs = effectiveEventHours(cart, catalogue.rules as any, svcMap);
     api.startTimes(hrs).then(setTimes).catch(() => setTimes([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.packageId, JSON.stringify(draft.services)]);

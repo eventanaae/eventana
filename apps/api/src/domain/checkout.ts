@@ -133,7 +133,7 @@ export async function previewQuote(cart: CartInput, offerToken?: string | null, 
       assets,
       cart.eventDate,
       cart.startTime,
-      eventEndHour(cart.startTime, cfg.rules, 0, effectiveEventHours(cart, cfg.rules)),
+      eventEndHour(cart.startTime, cfg.rules, 0, effectiveEventHours(cart, cfg.rules, cfg.services)),
     );
   }
 
@@ -321,7 +321,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     throw new CheckoutError('This payment method is not currently available.', 'unavailable');
   }
   const provider = getProvider(req.provider);
-  const endHour = eventEndHour(cart.startTime!, cfg.rules, 0, effectiveEventHours(cart, cfg.rules));
+  const endHour = eventEndHour(cart.startTime!, cfg.rules, 0, effectiveEventHours(cart, cfg.rules, cfg.services));
   const requiredAssets = resolveRequiredAssets(cart, cfg);
 
   // (2)(3)(4) availability, hold and order in ONE transaction.
@@ -1157,7 +1157,7 @@ export async function createSessionForOrder(orderId: string): Promise<{
       const cfg = await loadConfig(pool, { fresh: true });
       const requiredAssets = resolveRequiredAssets(bookingCart, cfg);
       if (requiredAssets.length > 0) {
-        const endHour = eventEndHour(startTime, cfg.rules, 0, effectiveEventHours(bookingCart, cfg.rules));
+        const endHour = eventEndHour(startTime, cfg.rules, 0, effectiveEventHours(bookingCart, cfg.rules, cfg.services));
         await withTransaction(async (db) => {
           // A repeat click on the same pay-link re-takes the hold with a fresh TTL;
           // drop this order's own earlier 'held' rows first so it can't block itself.

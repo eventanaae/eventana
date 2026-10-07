@@ -213,6 +213,7 @@ export async function processDelivery(
         rules: cfg.rules,
         serviceIsInflatable: (id) => cfg.services.get(id)?.isInflatable ?? false,
         serviceIsFoodStation: (id) => cfg.services.get(id)?.isFoodStation ?? false,
+        services: cfg.services,
       });
       confirmedEventId = confirmed.eventId;
       newBooking = confirmed.created;

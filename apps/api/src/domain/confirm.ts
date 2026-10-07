@@ -77,6 +77,9 @@ export async function confirmBooking(
     rules: PricingRules;
     serviceIsInflatable: (id: string) => boolean;
     serviceIsFoodStation: (id: string) => boolean;
+    // Live services map so effectiveEventHours sees runtime-created services (a
+    // runtime 6h-category service must get a 6h window, not the static map's 4h).
+    services?: Map<string, { categoryId: string }>;
   },
 ): Promise<ConfirmResult> {
   const { rows: orderRows } = await db.query(
@@ -264,7 +267,7 @@ export async function confirmBooking(
 
   const eventId = await nextEventId(db);
   const startTime = cart.startTime!;
-  const endHour = eventEndHour(startTime, args.rules, 0, effectiveEventHours(cart, args.rules));
+  const endHour = eventEndHour(startTime, args.rules, 0, effectiveEventHours(cart, args.rules, args.services));
 
   await db.query(
     `INSERT INTO events
