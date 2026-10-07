@@ -574,6 +574,16 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
         -- overstate Cash on Hand. Skip them.
         AND o.source IS DISTINCT FROM 'converted'
         AND NOT EXISTS (SELECT 1 FROM finance_receipts r WHERE r.order_id = o.id)
+        -- An ADD-ON is merged into its event's EXISTING receipt (no receipt under
+        -- the add-on's own order_id), so the NOT EXISTS above doesn't see it and
+        -- backfill would post the add-on total a SECOND time, overstating Cash on
+        -- Hand. Skip any add-on whose event already carries a receipt (merged); a
+        -- genuinely un-posted add-on would have a receipt under its own id and was
+        -- already excluded above.
+        AND NOT (o.kind = 'addon' AND o.event_id IS NOT NULL AND EXISTS (
+          SELECT 1 FROM finance_receipts r
+           WHERE r.event_id = o.event_id
+              OR r.order_id = (SELECT e.order_id FROM events e WHERE e.id = o.event_id)))
       ORDER BY o.created_at`,
   );
   let posted = 0;

@@ -1069,7 +1069,7 @@ export async function createEventAddonLink(req: {
 }): Promise<{ orderId: string; token: string; totalFils: number; totalDisplay: string; payUrl: string }> {
   const cfg = await loadConfig(pool, { fresh: true });
   const { rows } = await pool.query(
-    `SELECT id, customer_id, celebration_type FROM events WHERE id = $1`,
+    `SELECT id, customer_id, celebration_type, children_count FROM events WHERE id = $1`,
     [req.eventId],
   );
   const ev = rows[0];
@@ -1084,7 +1084,10 @@ export async function createEventAddonLink(req: {
       themeId: null,
       customTheme: false,
       startTime: '17:00',
-      childrenCount: 15,
+      // Use the event's REAL guest count so a per-child activity (e.g. Slime) added
+      // to a 30-kid party is billed for 30, not a hardcoded 15 (which the 20-floor
+      // silently flattened to 20 — undercharging bigger parties).
+      childrenCount: Number(ev.children_count) || 0,
     } as unknown as CheckoutRequest['cart'],
     { ...toPricingContext(cfg), nowMs: Date.now() },
   );

@@ -483,6 +483,15 @@ export async function refreshPrepAssignmentAlert(eventId: string, date: string):
        HAVING count(pts.member_id) < pt.people_needed
         ORDER BY count(pts.member_id), pt.title`,
       [eventId]);
+    // Was there already an open alert for this event? generatePrepTasks runs on
+    // every reschedule / add-on / receipt-service-sync / receipt edit, so if we
+    // pushed every time the SAME unchanged gap exists we'd spam owner phones. Only
+    // PUSH when the alert is NEW (none was open before) — the bell row is still
+    // refreshed each time so Home stays accurate. Mirrors the staffing alert.
+    const prior = await pool.query(
+      `SELECT 1 FROM notifications WHERE channel='ops_alert' AND template='prep_unassigned'
+        AND (payload->>'eventId') = $1 AND cancelled_at IS NULL LIMIT 1`, [eventId]).catch(() => ({ rowCount: 0 }));
+    const alertExisted = (prior.rowCount ?? 0) > 0;
     // Always clear the prior open alert first — if nothing's outstanding now, the
     // event drops off the bell/home brief automatically.
     await pool.query(
@@ -495,6 +504,7 @@ export async function refreshPrepAssignmentAlert(eventId: string, date: string):
       `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
        VALUES ($1,'ops_alert','prep_unassigned', now(), $2)`,
       [eventId, JSON.stringify({ eventId, date, titles: titles.slice(0, 8), count: titles.length })]).catch(() => {});
+    if (alertExisted) return; // already flagged — refresh the bell row silently, don't re-push
     const { pushToOwner } = await import('../integrations/push.js');
     const mgrs = await pool.query<{ id: string }>(
       `SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`);

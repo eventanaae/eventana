@@ -92,7 +92,7 @@ export async function refundOrderMoney(params: {
   try {
     return await withTransaction(async (db) => {
       const { rows } = await db.query(
-        `SELECT p.*, o.total_fils, o.event_id, o.customer_id
+        `SELECT p.*, o.total_fils, o.event_id, o.customer_id, o.kind AS order_kind
            FROM payments p JOIN orders o ON o.id = p.order_id
           WHERE p.order_id = $1
           ORDER BY (p.status IN ('paid','captured','partially_refunded')) DESC, p.created_at DESC
@@ -107,8 +107,8 @@ export async function refundOrderMoney(params: {
         // historical booking). We never reverse money at a provider, but the owner
         // still needs to RECORD the refund (she compensates another way): track it,
         // reflect it on the receipt, email the customer, and reverse loyalty points.
-        const ord = (await db.query<{ total_fils: number; event_id: string | null; customer_id: string | null }>(
-          `SELECT total_fils, event_id, customer_id FROM orders WHERE id = $1 FOR UPDATE`,
+        const ord = (await db.query<{ total_fils: number; event_id: string | null; customer_id: string | null; kind: string }>(
+          `SELECT total_fils, event_id, customer_id, kind FROM orders WHERE id = $1 FOR UPDATE`,
           [orderId],
         )).rows[0];
         if (!ord) return { ok: false, error: 'not_found' };
@@ -165,7 +165,10 @@ export async function refundOrderMoney(params: {
             [ord.event_id ?? null, JSON.stringify({ orderId, amountFils: toRefund, reference: 'manual', reasonCategory, itemLabel })],
           );
           const cfgM = await loadConfig();
-          const pointsM = Math.floor((toRefund / 100) * cfgM.rules.loyaltyPointsPerAed);
+          // Only bookings earn loyalty points (confirm.ts awards on kind='booking'
+          // only), so only a booking refund reverses them — reversing on an add-on/
+          // shop/invoice refund would erode points the customer earned elsewhere.
+          const pointsM = ord.kind === 'booking' ? Math.floor((toRefund / 100) * cfgM.rules.loyaltyPointsPerAed) : 0;
           if (pointsM > 0 && ord.customer_id) {
             await db.query(`INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason) VALUES ($1,$2,$3,$4,'Refund reversal')`, [ord.customer_id, ord.event_id, orderId, -pointsM]);
             await db.query(`UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`, [ord.customer_id, pointsM]);
@@ -182,7 +185,18 @@ export async function refundOrderMoney(params: {
           }
           if (params.cancelEvent && ord.event_id) {
             await db.query(`UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`, [orderId]).catch(() => {});
-            await db.query(`UPDATE events SET phase = 'Cancelled', updated_at = now() WHERE id = $1`, [ord.event_id]).catch(() => {});
+            // NB: events has NO updated_at column — writing it threw and the
+            // per-statement catch swallowed it, so the record-only "refund + cancel"
+            // (the owner's cancel button → recordOnly) NEVER actually cancelled the
+            // event (it stayed live, got auto-completed + a feedback email). Mirror
+            // the provider branch exactly: set phase + cancelled_at + reason.
+            await db.query(
+              `UPDATE events SET phase = 'Cancelled', eta = NULL,
+                      cancelled_at = COALESCE(cancelled_at, now()),
+                      cancellation_reason = COALESCE(cancellation_reason, $2)
+                WHERE id = $1`,
+              [ord.event_id, `Refunded & cancelled — ${reason}`],
+            ).catch(() => {});
             // A cancelled event must stop emailing the customer — drop its pending
             // notifications (mirrors the provider branch's teardown).
             await db.query(
@@ -210,7 +224,15 @@ export async function refundOrderMoney(params: {
       // otherwise silently swallow while our books counted both.
       const pre = await provider.retrievePayment(payment.provider_payment_id).catch(() => null);
       const dbRefunded = Number(payment.refunded_fils);
-      const alreadyRefunded = Math.max(dbRefunded, Number(pre?.refundedFils ?? 0));
+      // ALSO count everything already recorded in the refunds ledger for this order
+      // — a by-hand (record-only) refund writes a refunds row but NOT payments
+      // .refunded_fils, so without this a later cancellation would refund the full
+      // amount AGAIN at the provider and pay the customer twice. The ledger is the
+      // most complete source (both branches insert a refunds row).
+      const recordedRefunds = Number((await db.query<{ s: string }>(
+        `SELECT COALESCE(SUM(amount_fils),0)::bigint s FROM refunds WHERE order_id = $1`, [orderId],
+      )).rows[0].s);
+      const alreadyRefunded = Math.max(dbRefunded, Number(pre?.refundedFils ?? 0), recordedRefunds);
       const toRefund = Math.min(amountFils, cap - alreadyRefunded);
 
       if (toRefund <= 0) {
@@ -344,9 +366,10 @@ export async function refundOrderMoney(params: {
         [payment.event_id ?? null, JSON.stringify({ orderId, amountFils: toRefund, reference: verified.providerStatus ?? null, reasonCategory, itemLabel })],
       );
 
-      // Reverse the loyalty points the booking earned, proportionally.
+      // Reverse the loyalty points the booking earned, proportionally. Only a
+      // BOOKING earns points (confirm.ts), so only a booking refund reverses them.
       const cfg = await loadConfig();
-      const points = Math.floor((toRefund / 100) * cfg.rules.loyaltyPointsPerAed);
+      const points = payment.order_kind === 'booking' ? Math.floor((toRefund / 100) * cfg.rules.loyaltyPointsPerAed) : 0;
       if (points > 0) {
         await db.query(
           `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
