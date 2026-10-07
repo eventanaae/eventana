@@ -1707,6 +1707,37 @@ async function main() {
     })();
   }
 
+  // One-shot READ-ONLY diagnostic (#22 + #27). TBD events (no confirmed date) and
+  // the booking/money date set on each, plus the real campaign status spread so we
+  // can see how many were actually SENT. Set DIAG_TBD=true for one deploy, unset.
+  if (String(process.env.DIAG_TBD ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        // #27 — campaign statuses across ALL campaigns, and the latest tried sends.
+        const cs = await pool.query(`SELECT status, COUNT(*)::int c FROM email_campaigns GROUP BY status ORDER BY c DESC`);
+        console.log(`[diag-tbd] campaign statuses: ${(cs.rows as any[]).map((r) => `${r.status}=${r.c}`).join(', ') || '(none)'}`);
+        const sent = await pool.query(`SELECT to_char(COALESCE(sent_at,created_at),'YYYY-MM-DD') d, status, COALESCE(sent_count,0) sc, subject
+                                         FROM email_campaigns WHERE status IN ('sent','sending','failed')
+                                        ORDER BY COALESCE(sent_at,created_at) DESC LIMIT 10`);
+        for (const r of sent.rows as any[]) console.log(`[diag-tbd]   campaign ${r.d} · ${r.status} · sent=${r.sc} · "${String(r.subject).slice(0, 44)}"`);
+        // #22 — TBD events + the booking (money) date on their receipt.
+        const tbd = await pool.query(
+          `SELECT e.id, e.date_tbd, to_char(e.event_date,'YYYY-MM-DD') ed, e.phase,
+                  to_char(e.created_at,'YYYY-MM-DD') created,
+                  fr.number, to_char(fr.booked_on,'YYYY-MM-DD') booked_on, to_char(fr.date,'YYYY-MM-DD') rdate
+             FROM events e
+             LEFT JOIN finance_receipts fr ON fr.event_id = e.id
+            WHERE COALESCE(e.date_tbd,false) = true OR e.event_date IS NULL
+            ORDER BY e.created_at DESC`);
+        console.log(`[diag-tbd] TBD events: ${tbd.rowCount}`);
+        for (const r of tbd.rows as any[]) console.log(`[diag-tbd]   ${r.id} phase=${r.phase} tbd=${r.date_tbd} eventDate=${r.ed ?? '—'} created=${r.created} · EV-${r.number ?? '—'} booked_on=${r.booked_on ?? '—'} receiptDate=${r.rdate ?? '—'}`);
+      } catch (e) {
+        console.error('[diag-tbd] failed:', (e as Error).message);
+      }
+    })();
+  }
+
   // One-shot READ-ONLY diagnostic: which events count as "Event Completed" THIS
   // month (the points source) and who worked them. Set DIAG_COMPLETED=true for one
   // deploy, then unset. Explains why the competition board shows points so early.
