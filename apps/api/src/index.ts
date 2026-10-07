@@ -1779,8 +1779,8 @@ async function main() {
             const byCust = await pool.query(
               `SELECT number, total_fils, COALESCE(refunded_fils,0) AS refunded_fils,
                       jsonb_array_length(COALESCE(refunded_items,'[]'::jsonb)) AS nitems, customer_name
-                 FROM finance_receipts WHERE customer_id = $1 OR lower(customer_name) = lower($2)
-                 ORDER BY id DESC LIMIT 5`, [r.customer_id ?? '', r.customer]);
+                 FROM finance_receipts WHERE lower(customer_name) = lower($1)
+                 ORDER BY id DESC LIMIT 5`, [r.customer]);
             for (const fr of byCust.rows as any[]) console.log(`[diag-refunds]     · EV-${fr.number} (${fr.customer_name}): total ${aed(fr.total_fils)}, refunded ${aed(fr.refunded_fils)}, net ${aed(Number(fr.total_fils) - Number(fr.refunded_fils))}, refunded-items=${fr.nitems}`);
           }
         }
