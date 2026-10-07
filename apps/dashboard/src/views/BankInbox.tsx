@@ -19,6 +19,7 @@ export function BankInbox({ role }: { role?: string }) {
   const [rows, setRows] = useState<any[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [cat, setCat] = useState<Record<string, string>>({});
+  const [note, setNote] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
 
   const load = (t: Tab) => {
@@ -39,7 +40,7 @@ export function BankInbox({ role }: { role?: string }) {
   async function approve(row: any) {
     setBusy(row.id); setErr(null);
     try {
-      await api.bankTxApprove(row.id, { category: cat[row.id] || (row.kind === 'transfer' ? 'transfer' : 'general') });
+      await api.bankTxApprove(row.id, { category: cat[row.id] || (row.kind === 'transfer' ? 'transfer' : 'general'), note: note[row.id]?.trim() || undefined });
       setRows((rs) => rs?.filter((r) => r.id !== row.id) ?? rs);
     } catch (e: any) { setErr(e?.message || 'تعذّر الاعتماد'); } finally { setBusy(null); }
   }
@@ -107,6 +108,13 @@ export function BankInbox({ role }: { role?: string }) {
                     </label>
                     {r.receipt_url && <a href={r.receipt_url} target="_blank" rel="noopener" style={{ fontSize: 12.5, color: C.pinkDeep, fontWeight: 600 }}>عرض الإيصال ↗</a>}
                   </div>
+                  {/* Optional note saved with the expense/receipt. */}
+                  <input
+                    value={note[r.id] ?? ''}
+                    onChange={(e) => setNote((n) => ({ ...n, [r.id]: e.target.value }))}
+                    placeholder="📝 ملاحظة اختيارية (تنحفظ مع الإيصال)"
+                    style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, padding: '8px 11px', borderRadius: 10, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, marginTop: 10 }}
+                  />
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     <Button onClick={() => approve(r)} disabled={busy === r.id || !r.receipt_url}>
                       {busy === r.id ? '...' : '✅ اعتماد'}

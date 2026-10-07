@@ -720,6 +720,8 @@ CREATE TABLE IF NOT EXISTS expenses (
 );
 -- How the expense was paid (cash | card | bank_transfer | cheque | other).
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method TEXT;
+-- Optional free-text note the approver adds (saved with the expense/receipt).
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS note TEXT;
 -- Provenance. 'manual' (owner via Add Expense) counts toward the live profit
 -- picture; 'quickbooks' rows are pulled from the QB ledger for their receipt
 -- images + itemised history — they are ALREADY inside the imported P&L
