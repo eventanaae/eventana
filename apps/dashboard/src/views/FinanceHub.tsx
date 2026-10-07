@@ -1501,16 +1501,26 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         <div style={{ fontWeight: 800, letterSpacing: '1px', marginTop: 4, fontSize: 12 }}>{headStatus}</div>
       </div>
       <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 700, marginBottom: 4 }}>
-        {kind === 'receipt' ? `SALES RECEIPT · EV-${doc.number}` : `INVOICE #${doc.number}`} · {fmtDate(doc.date ?? doc.issue_date)}
+        {kind === 'receipt' ? `SALES RECEIPT · EV-${doc.number}` : `INVOICE #${doc.number}`} · {doc.date_tbd ? 'Event date TBD' : fmtDate(doc.date ?? doc.issue_date)}{kind === 'receipt' && !doc.date_tbd ? ' (event)' : ''}
       </div>
       {kind === 'receipt' && <div style={{ fontSize: 12, color: C.muted2, marginBottom: 10 }}>Deposit to: <b style={{ color: C.ink }}>Cash on hand</b></div>}
-      {(doc.event_for || doc.age || doc.theme) && (
-        <div style={{ marginBottom: 6 }}>
-          {doc.event_for && <Row label="Celebration for" value={doc.event_for} />}
-          {doc.age && <Row label="Age" value={String(doc.age)} />}
-          {doc.theme && <Row label="Theme" value={doc.theme} />}
-        </div>
-      )}
+      {(() => {
+        // Show BOTH dates: the party (event) date is in the header above; add the
+        // booking date (booked_on = when the money came in) when it differs, so the
+        // receipt makes clear a party booked months ahead was paid earlier.
+        const bk = doc.bookedOn ? String(doc.bookedOn).slice(0, 10) : '';
+        const ev = doc.date ? String(doc.date).slice(0, 10) : '';
+        const showBooked = kind === 'receipt' && bk && bk !== ev;
+        if (!(doc.event_for || doc.age || doc.theme || showBooked)) return null;
+        return (
+          <div style={{ marginBottom: 6 }}>
+            {showBooked && <Row label="Booked on" value={fmtDate(doc.bookedOn)} />}
+            {doc.event_for && <Row label="Celebration for" value={doc.event_for} />}
+            {doc.age && <Row label="Age" value={String(doc.age)} />}
+            {doc.theme && <Row label="Theme" value={doc.theme} />}
+          </div>
+        );
+      })()}
       <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px', margin: '8px 0 4px' }}>{rv.items.length} ITEM(S)</div>
       {rv.items.map((l: any, i: number) => {
         const pkgItems = packageItemNames(l.name);
@@ -1651,7 +1661,7 @@ function docHtml(doc: any, kind: 'invoice' | 'receipt') {
       <div style="font-size:30px;font-weight:800;margin-top:8px">AED ${totalOut}</div>
       ${kind === 'receipt' ? `<div style="margin-top:4px;font-weight:800;letter-spacing:1px">${headLabel}</div>` : ''}
     </div>
-    <div style="font-size:14px;margin-bottom:12px"><b>${esc(doc.customer_name)}</b><br><span style="color:#999">${fmtDate(doc.date ?? doc.issue_date)}</span></div>
+    <div style="font-size:14px;margin-bottom:12px"><b>${esc(doc.customer_name)}</b><br><span style="color:#999">${kind === 'receipt' ? (doc.date_tbd ? 'Event: TBD' : 'Event: ' + fmtDate(doc.date)) : fmtDate(doc.date ?? doc.issue_date)}${(kind === 'receipt' && doc.bookedOn && String(doc.bookedOn).slice(0, 10) !== String(doc.date ?? '').slice(0, 10)) ? ' · Booked ' + fmtDate(doc.bookedOn) : ''}</span></div>
     ${doc.event_for || doc.theme || doc.age ? `<table style="width:100%;font-size:13px;margin-bottom:12px">
       ${doc.event_for ? `<tr><td style="color:#999;padding:2px 0">Celebration for</td><td style="text-align:right;font-weight:700">${esc(doc.event_for)}</td></tr>` : ''}
       ${doc.age ? `<tr><td style="color:#999;padding:2px 0">Age</td><td style="text-align:right;font-weight:700">${esc(doc.age)}</td></tr>` : ''}

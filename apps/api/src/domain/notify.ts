@@ -456,8 +456,14 @@ export function renderFinanceDocEmail(
     // A sales receipt IS the customer's booking reference, shown as EV-<number>
     // everywhere (dashboard, emails, app). An invoice keeps its plain #<number>.
     [kind === 'receipt' ? 'Reference' : 'Invoice no.', kind === 'receipt' ? `EV-${doc.number}` : `#${doc.number}`],
-    ['Date', doc.date_tbd ? 'To be confirmed' : longDate(doc.date ?? doc.issue_date)],
+    [kind === 'receipt' ? 'Event date' : 'Date', doc.date_tbd ? 'To be confirmed' : longDate(doc.date ?? doc.issue_date)],
   ];
+  // On a receipt, also show the booking date (when the money came in) when it
+  // differs from the party date — a booking made months ahead was paid earlier.
+  if (kind === 'receipt') {
+    const bk = (doc.bookedOn ?? doc.booked_on) || null;
+    if (bk && String(bk).slice(0, 10) !== String(doc.date ?? '').slice(0, 10)) detailRows.push(['Booked on', longDate(bk)]);
+  }
   if (doc.event_time) detailRows.push(['Time', time12(String(doc.event_time))]);
   if (doc.event_for) detailRows.push(['Celebration for', String(doc.event_for)]);
   if (doc.age) detailRows.push(['Age', String(doc.age)]);
@@ -1460,6 +1466,7 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
               fr.discount_fils AS r_discount, fr.shipping_fils AS r_shipping, fr.total_fils AS r_total,
               fr.paid_with AS r_paid_with, fr.event_for AS r_event_for, fr.theme AS r_theme,
               fr.age AS r_age, fr.event_time AS r_event_time, fr.date AS r_date, fr.date_tbd AS r_date_tbd,
+              fr.booked_on AS r_booked_on,
               fr.refunded_fils AS r_refunded, fr.refunded_items AS r_refunded_items
          FROM notifications n
          JOIN orders o    ON o.id = (n.payload->>'orderId')
@@ -1482,7 +1489,7 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
         const refunded = Number(row.r_refunded ?? 0) || 0;
         msg = renderFinanceDocEmail({
           number: String(row.r_number), customer_name: row.customer_name,
-          date: row.r_date, date_tbd: row.r_date_tbd,
+          date: row.r_date, date_tbd: row.r_date_tbd, booked_on: row.r_booked_on,
           lineItems: Array.isArray(row.r_line_items) ? row.r_line_items : [],
           discount_fils: Number(row.r_discount ?? 0), shipping_fils: Number(row.r_shipping ?? 0),
           total_fils: total, paid_with: row.r_paid_with,

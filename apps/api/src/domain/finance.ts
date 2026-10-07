@@ -1248,7 +1248,14 @@ export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
     return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${escapeHtml(l.name)}${desc}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`;
   }).join('');
   const title = kind === 'receipt' ? 'Sales Receipt' : 'Invoice';
-  const dateStr = doc.date_tbd ? 'To be confirmed' : String(doc.date ?? doc.issue_date ?? '').slice(0, 10);
+  // Show BOTH dates on a receipt: the party (event) date, and the booking date
+  // (booked_on = when the money came in) when it differs — a party booked months
+  // ahead was paid earlier, and the receipt should make that clear.
+  const bookedRaw = (doc.bookedOn ?? doc.booked_on) || null;
+  const evStr = doc.date_tbd ? 'To be confirmed' : String(doc.date ?? doc.issue_date ?? '').slice(0, 10);
+  const bookedStr = (kind === 'receipt' && bookedRaw && String(bookedRaw).slice(0, 10) !== String(doc.date ?? '').slice(0, 10))
+    ? ` · Booked ${String(bookedRaw).slice(0, 10)}` : '';
+  const dateStr = `${kind === 'receipt' && !doc.date_tbd ? 'Event: ' : ''}${evStr}${bookedStr}`;
   return `<!doctype html><html><body style="font-family:'Quicksand',Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
     <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:18px;padding:22px 24px;text-align:center;margin-bottom:20px">
       <div style="font-size:22px;font-weight:800;letter-spacing:.5px">Eventana</div>
