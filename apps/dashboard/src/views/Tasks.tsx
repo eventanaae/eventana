@@ -191,7 +191,7 @@ function MyTasks() {
   const openCount = tasks.filter((t) => t.status !== 'completed').length;
 
   // 🛒 The missing items assigned to me, still to buy — grouped by emirate/location.
-  const shopping = items.filter((m) => String(m.assigned_to ?? '') === String(myId) && m.status !== 'received' && m.status !== 'cancelled');
+  const shopping = items.filter((m) => String(m.assigned_to ?? '') === String(myId) && m.status !== 'received' && m.status !== 'cancelled' && m.status !== 'rejected');
   const shopGroups = new Map<string, any[]>();
   for (const m of shopping) { const k = (m.location ?? '').trim() || 'No location set'; (shopGroups.get(k) ?? shopGroups.set(k, []).get(k)!).push(m); }
 

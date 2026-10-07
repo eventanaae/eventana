@@ -61,7 +61,7 @@ function Shopping() {
   if (!items) return <Spinner />;
 
   // Only the items assigned to me, still to buy.
-  const mine = items.filter((m) => String(m.assigned_to ?? '') === String(myId) && m.status !== 'received' && m.status !== 'cancelled');
+  const mine = items.filter((m) => String(m.assigned_to ?? '') === String(myId) && m.status !== 'received' && m.status !== 'cancelled' && m.status !== 'rejected');
   if (mine.length === 0) return <Empty>Nothing to buy right now — you're all caught up 🛒</Empty>;
 
   // Group by emirate / location, then keep supplier visible on each item.

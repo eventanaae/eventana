@@ -1986,6 +1986,9 @@ async function main() {
             await del(`event_tasks:${ev}`, `DELETE FROM event_tasks WHERE event_id = $1`, [ev]);
             await del(`event_team:${ev}`, `DELETE FROM event_team WHERE event_id = $1`, [ev]);
             await del(`event_services:${ev}`, `DELETE FROM event_services WHERE event_id = $1`, [ev]);
+            // prep_tasks.event_id has no FK/cascade, so delete prep rows too or they orphan.
+            await del(`prep_task_staff:${ev}`, `DELETE FROM prep_task_staff WHERE task_id IN (SELECT id FROM prep_tasks WHERE event_id = $1)`, [ev]);
+            await del(`prep_tasks:${ev}`, `DELETE FROM prep_tasks WHERE event_id = $1`, [ev]);
           }
           await del('events', `DELETE FROM events WHERE order_id = $1`, [oid]);
           await del('notifications', `UPDATE notifications SET cancelled_at = now() WHERE payload->>'orderId' = $1 AND sent_at IS NULL AND cancelled_at IS NULL`, [oid]);

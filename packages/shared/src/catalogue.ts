@@ -407,6 +407,15 @@ export function packageItemNames(label: string | null | undefined): string[] {
   return SERVICE_PACKAGE_ITEMS[key] ?? [];
 }
 
+/** Items for an AD-HOC service "package" ONLY (from SERVICE_PACKAGE_ITEMS) —
+ *  excludes real catalogue packages, whose items already come from package_items
+ *  rows. Used by the event drawer so a real package AND an ad-hoc service package
+ *  on the same event each show their contents (no duplication, none hidden). */
+export function servicePackageItemNames(label: string | null | undefined): string[] {
+  const key = String(label ?? '').trim().toLowerCase();
+  return key ? (SERVICE_PACKAGE_ITEMS[key] ?? []) : [];
+}
+
 /** One-line breakdown shown under specific package items wherever contents are
  *  listed (receipts, team view, products). Keyed by item name. Works for both
  *  real packages and ad-hoc service "packages" (Exclusive / Summer Splash). */

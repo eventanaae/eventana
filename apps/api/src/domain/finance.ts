@@ -1046,47 +1046,44 @@ export async function listReceipts(role?: string) {
 }
 
 export async function deleteReceipt(id: number) {
-  // Tombstone the number first so the QuickBooks re-import never re-creates it.
-  await pool.query(
-    `INSERT INTO finance_deleted_docs (number, doc_type)
-       SELECT number, 'receipt' FROM finance_receipts WHERE id = $1
-     ON CONFLICT (number, doc_type) DO NOTHING`,
-    [id],
-  );
-  // What order does this receipt belong to? Deleting only the receipt row would
-  // leave the order and any refunds behind — an orphan refund keeps subtracting
-  // from Cash on hand even though the sale is gone. So when the receipt's order
-  // has NO event (a defunct standalone sale, e.g. a digital invitation), tear the
-  // whole thing down: order + refunds + payments + loyalty. We NEVER touch an
-  // order that has an event — a live booking is managed from the event, not here
-  // (owner 2026-10-07: "delete it from the app").
-  const r = (await pool.query<{ order_id: string | null }>(
-    `SELECT order_id FROM finance_receipts WHERE id = $1`, [id],
-  )).rows[0];
-  await pool.query(`DELETE FROM finance_receipts WHERE id = $1`, [id]);
-  const oid = (r?.order_id ?? '').trim();
-  if (oid) {
-    const hasEvent = (await pool.query(`SELECT 1 FROM events WHERE order_id = $1 LIMIT 1`, [oid])).rowCount;
-    if (!hasEvent) {
-      await withTransaction(async (db) => {
-        const del = async (sql: string) => {
-          await db.query('SAVEPOINT s');
-          try { await db.query(sql, [oid]); await db.query('RELEASE SAVEPOINT s'); }
-          catch { await db.query('ROLLBACK TO SAVEPOINT s'); } // table/column absent → skip
-        };
-        await del(`DELETE FROM payment_events WHERE order_id = $1`);
-        await del(`DELETE FROM payments WHERE order_id = $1`);
-        await del(`DELETE FROM refunds WHERE order_id = $1`);
-        await del(`DELETE FROM loyalty_transactions WHERE order_id = $1`);
-        await del(`DELETE FROM promo_redemptions WHERE order_id = $1`);
-        await del(`DELETE FROM cancellations WHERE order_id = $1`);
-        await del(`DELETE FROM inventory_holds WHERE order_id = $1`);
-        await del(`DELETE FROM event_services WHERE order_id = $1`);
-        await db.query(`UPDATE notifications SET cancelled_at = now() WHERE payload->>'orderId' = $1 AND sent_at IS NULL AND cancelled_at IS NULL`, [oid]).catch(() => {});
-        await del(`DELETE FROM orders WHERE id = $1`);
-      });
-    }
-  }
+  // Deleting only the receipt row would leave the order and any refunds behind —
+  // an orphan refund keeps subtracting from Cash on hand even though the sale is
+  // gone. So when the receipt's order has NO event (a defunct standalone sale,
+  // e.g. a digital invitation), tear the whole thing down: order + refunds +
+  // payments + loyalty. We NEVER touch an order that has an event — a live booking
+  // is managed from the event, not here (owner 2026-10-07: "delete it from the app").
+  //
+  // EVERYTHING runs in ONE transaction (tombstone + receipt delete + teardown) so
+  // it's atomic: either the whole sale is removed or nothing is — a crash can never
+  // leave the receipt gone but the refund still subtracting from cash. The deletes
+  // are plain (not savepoint-swallowed): a genuine failure aborts and rolls back,
+  // rather than silently orphaning a refund.
+  await withTransaction(async (db) => {
+    await db.query(
+      `INSERT INTO finance_deleted_docs (number, doc_type)
+         SELECT number, 'receipt' FROM finance_receipts WHERE id = $1
+       ON CONFLICT (number, doc_type) DO NOTHING`,
+      [id],
+    );
+    const r = (await db.query<{ order_id: string | null }>(
+      `SELECT order_id FROM finance_receipts WHERE id = $1`, [id],
+    )).rows[0];
+    await db.query(`DELETE FROM finance_receipts WHERE id = $1`, [id]);
+    const oid = (r?.order_id ?? '').trim();
+    if (!oid) return;
+    const hasEvent = (await db.query(`SELECT 1 FROM events WHERE order_id = $1 LIMIT 1`, [oid])).rowCount;
+    if (hasEvent) return; // live booking — leave the order/event alone
+    await db.query(`DELETE FROM payment_events WHERE order_id = $1`, [oid]);
+    await db.query(`DELETE FROM payments WHERE order_id = $1`, [oid]);
+    await db.query(`DELETE FROM refunds WHERE order_id = $1`, [oid]);
+    await db.query(`DELETE FROM loyalty_transactions WHERE order_id = $1`, [oid]);
+    await db.query(`DELETE FROM promo_redemptions WHERE order_id = $1`, [oid]);
+    await db.query(`DELETE FROM cancellations WHERE order_id = $1`, [oid]);
+    await db.query(`DELETE FROM inventory_holds WHERE order_id = $1`, [oid]);
+    await db.query(`DELETE FROM event_services WHERE order_id = $1`, [oid]);
+    await db.query(`UPDATE notifications SET cancelled_at = now() WHERE payload->>'orderId' = $1 AND sent_at IS NULL AND cancelled_at IS NULL`, [oid]);
+    await db.query(`DELETE FROM orders WHERE id = $1`, [oid]);
+  });
   return { deleted: true };
 }
 

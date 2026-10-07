@@ -98,9 +98,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
              WHERE lower(mi.item) = lower(c.name)
                AND (mi.status IN ('requested','ordered')
                     -- and don't recreate for 3 days after it was RECEIVED (time to
-                    -- key the restock) or CANCELLED (owner chose to ignore it),
-                    -- anchored to when it was actioned, not when it was created.
-                    OR (mi.status IN ('received','cancelled')
+                    -- key the restock), CANCELLED (owner chose to ignore it), or
+                    -- REJECTED (owner says it's available / not missing) — anchored
+                    -- to when it was actioned, not when it was created.
+                    OR (mi.status IN ('received','cancelled','rejected')
                         AND COALESCE(mi.actioned_at, mi.created_at) > now() - interval '3 days')))`,
     )
     .catch(() => {});

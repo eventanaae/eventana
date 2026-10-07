@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { eventDateYMD, timeRange12h, packageItemNames, packageItemDetail } from '@eventana/shared';
+import { eventDateYMD, timeRange12h, packageItemDetail, servicePackageItemNames } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty, eventTitle } from './Today';
@@ -358,9 +358,10 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   const main = all.filter((s) => s.source !== 'package_item');
                   // Item lists for "packages" that were created as ad-hoc services
                   // (so they carry no package_item rows) — shown so the team knows
-                  // what to prepare. Resolved from the shared catalogue (one source).
-                  const extraItems = (label: string): string[] =>
-                    included.length === 0 ? packageItemNames(label) : [];
+                  // what to prepare. Uses the AD-HOC-only resolver so a real package
+                  // (shown via `included`) and an ad-hoc service package on the same
+                  // event each show their contents, with no duplication.
+                  const extraItems = (label: string): string[] => servicePackageItemNames(label);
                   const pkgLabel = main.find((s) => s.source === 'booking' && Number(s.amount_fils) > 0 && !/delivery/i.test(s.label))?.label ?? 'the package';
                   // Giveaways are keepsakes handed to guests — the team never needs
                   // their price, and converted/imported lines store an unreliable

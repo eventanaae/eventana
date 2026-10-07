@@ -45,7 +45,7 @@ async function markSent(template: string, payload: Record<string, unknown> = {})
 async function currentList(): Promise<{ text: string; count: number }> {
   const { rows } = await pool.query<{ item: string; quantity: number; supplier: string | null }>(
     `SELECT item, quantity, supplier FROM missing_items
-      WHERE status NOT IN ('received','cancelled') ORDER BY created_at`,
+      WHERE status NOT IN ('received','cancelled','rejected') ORDER BY created_at`,
   );
   const text = rows.length
     ? rows.map((m) => `• ${m.item}${m.quantity > 1 ? ` ×${m.quantity}` : ''}${m.supplier ? ` (${m.supplier})` : ''}`).join('\n')
@@ -98,7 +98,7 @@ export async function sweepDriverShoppingList(): Promise<number> {
 
   const { rows: items } = await pool.query<{ item: string; quantity: number; supplier: string | null; location: string | null }>(
     `SELECT item, quantity, supplier, location FROM missing_items
-      WHERE status NOT IN ('received','cancelled')
+      WHERE status NOT IN ('received','cancelled','rejected')
       ORDER BY supplier NULLS LAST, location NULLS LAST, created_at`,
   );
   if (items.length === 0) return 0;
