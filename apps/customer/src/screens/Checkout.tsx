@@ -485,6 +485,13 @@ export function Checkout({
           value={draft.eventFor}
           onChange={(v) => update({ eventFor: v })}
         />
+        {/* Guest of honour's age — asked only here on checkout (owner 2026-10-07). */}
+        <Field
+          placeholder={t('checkout.age')}
+          value={draft.ageBand ?? ''}
+          onChange={(v) => update({ ageBand: v })}
+          style={{ marginTop: 10 }}
+        />
         {themeName && (
           <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 700, color: C.pinkDeep }}>
             🎨 {themeName}
