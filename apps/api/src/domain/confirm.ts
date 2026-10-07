@@ -593,6 +593,26 @@ export async function confirmBooking(
     [order.id, eventId],
   );
 
+  // Alert the owner + managers on their phones that a new booking landed. The
+  // booking branch previously scheduled only the CUSTOMER's emails + the driver
+  // order — nobody on the team got pinged, so new bookings arrived silently
+  // (owner's report, #15). Fire-and-forget: a push must never fail a booking.
+  try {
+    const { pushToOwner } = await import('../integrations/push.js');
+    const mgrs = await db.query<{ id: string }>(
+      `SELECT id FROM team_members WHERE active AND access_level IN ('owner','manager')`,
+    );
+    const firstLine = quote.lines.find((l) => l.kind !== 'discount');
+    const what = (firstLine?.label ?? 'New booking').slice(0, 60);
+    const who = String((cart as unknown as { eventFor?: string }).eventFor ?? '').trim();
+    const body = `${who ? `${who}'s party — ` : ''}${what} · ${cart.eventDate}`;
+    for (const m of mgrs.rows) {
+      void pushToOwner('staff', m.id, '🎉 New booking!', body, { eventId }).catch(() => {});
+    }
+  } catch (e) {
+    console.error('[confirm] new-booking push failed (non-fatal):', (e as Error).message);
+  }
+
   return { eventId, created: true };
 }
 
