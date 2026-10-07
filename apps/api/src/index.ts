@@ -902,7 +902,8 @@ async function main() {
         ['New Bronze Package', 'Bronze Birthday Package'],
         ['Bronze Kids Package', 'Bronze Birthday Package'],
         ['New  Bronze Pakage', 'Bronze Birthday Package'],
-        ['Summer Package', 'Summer Party'],
+        ['Summer Package', 'Summer Birthday Package'],
+        ['Summer Party', 'Summer Birthday Package'],
         ['3500 Offer', 'Eventana Exclusive Package'],
         ['Marwa Rateb Package', 'Eventana Exclusive Package'],
         ['Marwa Rateb Pakage', 'Eventana Exclusive Package'],
@@ -919,6 +920,10 @@ async function main() {
           const u3 = await pool.query(`UPDATE event_services SET label=$2 WHERE label ILIKE $1`, [from, N]);
           const u4 = await pool.query(`UPDATE historical_orders SET product=$2 WHERE product ILIKE $1`, [from, N]);
           console.log(`[unify-excl] "${from}" → "${N}": services=${u1.rowCount}, receipts=${u2.rowCount}, event_services=${u3.rowCount}, historical=${u4.rowCount}`);
+        }
+        if (raw.toUpperCase() === 'MAP') {
+          const p = await pool.query(`UPDATE packages SET name='Summer Birthday Package' WHERE id='summer'`);
+          console.log(`[unify-excl] packages row summer → Summer Birthday Package (${p.rowCount})`);
         }
         // After unifying, list ALL remaining offer/package-ish labels so the owner
         // can spot any other Exclusive variant still to merge.

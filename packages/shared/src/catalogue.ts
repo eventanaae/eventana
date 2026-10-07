@@ -327,7 +327,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'summer',
-    name: 'Summer Party',
+    name: 'Summer Birthday Package',
     priceFils: aed(4999),
     capacity: 'Up to 40 kids',
     durationHours: 4,
