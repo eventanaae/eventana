@@ -577,25 +577,40 @@ export function OffTodayPanel({ list }: { list: any[] }) {
 
 function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [data, setData] = useState<any>(null);
-  const load = () => api.alerts().then(setData).catch(() => setData(null));
+  const [staffing, setStaffing] = useState<any[]>([]);
+  const load = () => {
+    api.alerts().then(setData).catch(() => setData(null));
+    // Staffing is MANUAL by default, so an untouched event has no crew at all —
+    // this endpoint lists EVERY upcoming event with nobody assigned yet (not just
+    // ones with open slots), so the owner sees the full to-staff list. (#12)
+    api.needsStaffing().then(setStaffing).catch(() => setStaffing([]));
+  };
   useEffect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t); }, []);
   if (!data || data.scoped) return null;
-  const gaps = data.staffingGaps ?? [];
   const leave = data.pendingLeave ?? [];
   const rowS: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: `1px solid ${C.lineSoft}` };
   return (
     <>
       <OffTodayPanel list={data.offToday ?? []} />
-      {gaps.length > 0 && (
-        <Panel title="🎭 Staffing — action required">
-          {gaps.map((s: any) => (
-            <div key={s.event_id} style={{ ...rowS, cursor: 'pointer' }} onClick={() => onOpenEvent(s.event_id)}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.red, flex: 'none' }} />
-              <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 96 }}>{new Date(s.event_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>{s.emirate} · {to12h(s.start_time)} · {(s.roles ?? []).join(', ').replace(/_/g, ' ')}</span>
-              <span style={{ fontSize: 11.5, fontWeight: 800, color: C.red }}>{s.open} to confirm</span>
-            </div>
-          ))}
+      {staffing.length > 0 && (
+        <Panel title={`🎭 Needs staffing · ${staffing.length}`}>
+          {staffing.map((s: any) => {
+            const noCrew = s.open === 0;
+            const meta = [s.emirate, s.startTime ? to12h(s.startTime) : null].filter(Boolean).join(' · ');
+            return (
+              <div key={s.eventId} style={{ ...rowS, alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => onOpenEvent(s.eventId)}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: noCrew ? '#c98a2b' : C.red, flex: 'none', marginTop: 4 }} />
+                <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 88, flex: 'none' }}>{new Date(s.date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.customer || celebrationName(s.celebrationType)}</div>
+                  {meta && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{meta}</div>}
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: noCrew ? '#c98a2b' : C.red, flex: 'none', whiteSpace: 'nowrap' }}>
+                  {noCrew ? 'No crew yet' : `${s.open} to confirm`}
+                </span>
+              </div>
+            );
+          })}
         </Panel>
       )}
       {leave.length > 0 && (

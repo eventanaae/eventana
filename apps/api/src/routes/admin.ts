@@ -5975,6 +5975,49 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /**
+   * Home "needs staffing" list: upcoming, non-cancelled events that still have
+   * nobody on the crew (no confirmed assignment) OR have open slots the owner
+   * added but hasn't filled. Since staffing is MANUAL by default, an untouched
+   * event has zero crew — those are exactly the ones the owner must fill, so we
+   * surface them here. Manager/owner only. (Owner 2026-10-07, queue #12.)
+   */
+  app.get('/api/admin/needs-staffing', async (request) => {
+    const staff = (request as any).staff as { role?: string };
+    if (!(staff.role === 'owner' || staff.role === 'manager')) return [];
+    const { rows } = await pool.query(
+      `SELECT e.id AS event_id, to_char(e.event_date,'YYYY-MM-DD') AS date,
+              e.start_time, e.emirate, e.celebration_type,
+              c.name AS customer, p.name AS package,
+              count(*) FILTER (WHERE es.status IN ('assigned','confirmed'))::int AS assigned,
+              count(*) FILTER (WHERE es.status IN ('part_time_required','to_confirm'))::int AS open,
+              array_agg(DISTINCT es.role) FILTER (WHERE es.status IN ('part_time_required','to_confirm')) AS open_roles
+         FROM events e
+         LEFT JOIN customers c ON c.id = e.customer_id
+         LEFT JOIN packages p ON p.id = e.package_id
+         LEFT JOIN event_staff es ON es.event_id = e.id
+        WHERE e.phase <> 'Cancelled'
+          AND e.event_date >= (now() AT TIME ZONE 'Asia/Dubai')::date
+        GROUP BY e.id, e.event_date, e.start_time, e.emirate, e.celebration_type, c.name, p.name
+       HAVING count(*) FILTER (WHERE es.status IN ('assigned','confirmed')) = 0
+           OR count(*) FILTER (WHERE es.status IN ('part_time_required','to_confirm')) > 0
+        ORDER BY e.event_date, e.start_time
+        LIMIT 50`,
+    );
+    return rows.map((r: any) => ({
+      eventId: r.event_id,
+      date: r.date,
+      startTime: r.start_time,
+      emirate: r.emirate,
+      celebrationType: r.celebration_type,
+      customer: r.customer ?? '',
+      package: r.package ?? null,
+      assigned: Number(r.assigned),
+      open: Number(r.open),
+      openRoles: ((r.open_roles ?? []) as string[]).filter(Boolean),
+    }));
+  });
+
+  /**
    * Notification bell feed: one unified, newest-first stream of things worth a
    * person's attention, each linking to the order/event it's about. Owner and
    * manager see the whole business; an employee sees only what touches them

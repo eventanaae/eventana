@@ -382,6 +382,7 @@ export const api = {
     request<any>(`/api/admin/events/${id}/chat`, { method: 'POST', body: JSON.stringify({ open }) }),
 
   morningBrief: () => request<{ birthdays: string[]; offToday: string[]; alerts: Array<{ level: string; icon: string; text: string }> }>('/api/admin/morning-brief'),
+  needsStaffing: () => request<Array<{ eventId: string; date: string; startTime: string | null; emirate: string | null; celebrationType: string | null; customer: string; package: string | null; assigned: number; open: number; openRoles: string[] }>>('/api/admin/needs-staffing'),
 
   webFunnel: () => request<{
     visitors: number; visitorsLast30: number; totalVisits: number;
