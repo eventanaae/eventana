@@ -1792,6 +1792,14 @@ async function main() {
                  FROM finance_receipts WHERE lower(customer_name) = lower($1)
                  ORDER BY id DESC LIMIT 5`, [r.customer]);
             for (const fr of byCust.rows as any[]) console.log(`[diag-refunds]     (by name) EV-${fr.number} (${fr.customer_name}): order_id=${fr.order_id ?? '—'} event_id=${fr.event_id ?? '—'} total ${aed(fr.total_fils)}, refunded ${aed(fr.refunded_fils)}, items=${fr.nitems}`);
+            // Resolve the event that THIS order created (events.order_id), then the
+            // receipt by that event_id — the real join for converted/imported orders.
+            const ev = await pool.query(`SELECT id, order_id FROM events WHERE order_id = $1`, [r.order_id]);
+            for (const e of ev.rows as any[]) {
+              const frByEv = await pool.query(`SELECT number, COALESCE(refunded_fils,0) AS rf FROM finance_receipts WHERE event_id = $1`, [e.id]);
+              console.log(`[diag-refunds]     RESOLVE: order→event ${e.id}; receipt-by-that-event: ${(frByEv.rows as any[]).map((x) => `EV-${x.number}(refunded ${aed(x.rf)})`).join(', ') || 'none'}`);
+            }
+            if (!ev.rowCount) console.log(`[diag-refunds]     RESOLVE: no event has order_id=${r.order_id}`);
           }
         }
         // Who-did-it tally for the window.
