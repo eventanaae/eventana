@@ -999,6 +999,11 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
   // typing a decimal like "150." isn't reformatted away mid-entry. Reset whenever
   // the row set changes (a removal shifts indices) so values re-sync to priceFils.
   const [priceText, setPriceText] = useState<Record<number, string>>({});
+  // A NEW sales receipt is created through a short step-by-step wizard (owner's
+  // request #17 — the single long form was too much). Editing, and invoices,
+  // keep the single form. 0 Customer · 1 Items · 2 Party · 3 Review.
+  const wizard = kind === 'receipt' && !editId;
+  const [step, setStep] = useState(0);
 
   const discountFils = parseAedFils(discount);
   const shippingFils = parseAedFils(shipping);
@@ -1027,6 +1032,129 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
   };
 
+  // Shared pieces so the wizard and the single form never drift apart.
+  const itemsEditor = (
+    <>
+      <div style={{ margin: '10px 0 4px', fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px' }}>ITEMS</div>
+      {items.map((l, i) => (
+        <div key={i} style={{ padding: '7px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{l.name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <input value={String(l.qty)} inputMode="numeric" aria-label="Quantity"
+                  onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, qty: Number(e.target.value.replace(/[^\d]/g, '')) || 0 } : x))}
+                  style={{ ...input, width: 46, marginBottom: 0, padding: '5px 7px', textAlign: 'center' }} />
+                <span style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>× AED</span>
+                <input value={priceText[i] ?? (l.priceFils ? String(l.priceFils / 100) : '')} inputMode="decimal" aria-label="Unit price in AED" placeholder="0"
+                  onChange={(e) => { const t = toAsciiDigits(e.target.value).replace(/[^\d.]/g, ''); setPriceText((p) => ({ ...p, [i]: t })); const fils = Math.round((Number(t) || 0) * 100); setItems((a) => a.map((x, j) => j === i ? { ...x, priceFils: fils } : x)); }}
+                  style={{ ...input, width: 88, marginBottom: 0, padding: '5px 7px' }} />
+              </div>
+            </div>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink, width: 92, textAlign: 'right' }}>AED {money(Math.round(l.qty * l.priceFils))}</div>
+            <button onClick={() => { setItems((a) => a.filter((_, j) => j !== i)); setPriceText({}); }} style={{ ...linkBtn, color: C.red }}>✕</button>
+          </div>
+          <textarea value={l.description ?? ''} onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
+            placeholder="What's included / description (shows on the customer's invoice)…" rows={2}
+            style={{ ...input, marginTop: 6, marginBottom: 0, padding: '7px 10px', fontSize: 12, fontWeight: 600, resize: 'vertical', width: '100%', boxSizing: 'border-box' }} />
+        </div>
+      ))}
+      <button onClick={() => setPickItem(true)} style={{ ...linkBtn, color: C.pinkDeep, marginTop: 8, fontWeight: 800 }}>+ Add product or service</button>
+    </>
+  );
+  const totalsBox = (
+    <div style={{ marginTop: 8, padding: '10px 12px', background: C.pinkSoft, borderRadius: 12 }}>
+      <Row label="Subtotal" value={`AED ${money(subtotal)}`} />
+      {discountFils > 0 && <Row label="Discount" value={`− AED ${money(discountFils)}`} />}
+      {shippingFils > 0 && <Row label="Shipping" value={`AED ${money(shippingFils)}`} />}
+      <div style={{ height: 1, background: C.line, margin: '6px 0' }} />
+      <Row label={<b>Total</b>} value={<b style={{ ...fredoka(16), color: C.pinkDeep }}>AED {money(total)}</b>} />
+    </div>
+  );
+  const pickers = (
+    <>
+      {pickCustomer && <CustomerPicker onPick={(c) => { setCustomer(c); setPickCustomer(false); }} onClose={() => setPickCustomer(false)} />}
+      {pickItem && <ItemPicker onPick={(it) => { setItems((a) => [...a, { name: it.name, qty: 1, priceFils: it.priceFils, description: it.description ?? '' }]); setPickItem(false); }} onClose={() => setPickItem(false)} />}
+    </>
+  );
+
+  if (wizard) {
+    const titles = ['Customer', 'Items', 'Party', 'Review'];
+    const valid = step === 0 ? !!customer : step === 1 ? items.length > 0 : step === 2 ? (dateTbd || !!date) : true;
+    const stepMsg = step === 0 ? 'Choose a customer first.' : step === 1 ? 'Add at least one item.' : 'Set the event date, or tick “date not decided yet”.';
+    const next = () => { if (!valid) { setErr(stepMsg); return; } setErr(null); if (step < 3) setStep(step + 1); else save(); };
+    return (
+      <Modal title={`New receipt · ${step + 1} of 4`} onClose={onClose} onSave={next} busy={busy} err={err} saveLabel={step < 3 ? 'Next →' : '✓ Create receipt'}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          {titles.map((t, i) => (
+            <div key={t} style={{ flex: 1 }}>
+              <div style={{ height: 4, borderRadius: 4, background: i <= step ? C.pinkDeep : C.line }} />
+              <div style={{ fontSize: 10, fontWeight: 800, textAlign: 'center', marginTop: 5, color: i === step ? C.pinkDeep : C.muted }}>{t}</div>
+            </div>
+          ))}
+        </div>
+        {step > 0 && <button onClick={() => { setErr(null); setStep(step - 1); }} style={{ ...linkBtn, color: C.muted, marginBottom: 8, fontWeight: 800 }}>‹ Back</button>}
+
+        {step === 0 && (
+          <>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Who is this receipt for?</div>
+            <button onClick={() => setPickCustomer(true)} style={pickRow}>
+              <span style={{ color: customer ? C.ink : C.muted, fontWeight: 700 }}>{customer ? customer.name : 'Select or add a customer'}</span>
+              <span style={{ color: C.pinkDeep, fontWeight: 800 }}>›</span>
+            </button>
+          </>
+        )}
+
+        {step === 1 && itemsEditor}
+
+        {step === 2 && (
+          <>
+            <Field label="Celebration type">
+              <select value={celebrationType} onChange={(e) => setCelebrationType(e.target.value)} style={input}>
+                {CELEBRATION_TYPES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <Field label="Event date"><input type="date" value={dateTbd ? '' : date} disabled={dateTbd} onChange={(e) => setDate(e.target.value)} style={{ ...input, opacity: dateTbd ? 0.5 : 1 }} /></Field>
+              <Field label="Event time"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} style={input} /></Field>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0 6px', fontSize: 12.5, fontWeight: 700, color: C.ink, cursor: 'pointer' }}>
+              <input type="checkbox" checked={dateTbd} onChange={(e) => setDateTbd(e.target.checked)} />
+              Date not decided yet (TBD — no reminders until a date is set)
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <Field label="Baby / celebrant name"><input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={input} placeholder="e.g. Sara" /></Field>
+              <Field label="Age"><input value={age} onChange={(e) => setAge(e.target.value)} style={input} placeholder="e.g. 3" /></Field>
+              <Field label="Theme"><input value={theme} onChange={(e) => setTheme(e.target.value)} style={input} placeholder="e.g. Mermaid" /></Field>
+            </div>
+            <Field label="Villa / building / place name (delivery address)"><input value={addressNote} onChange={(e) => setAddressNote(e.target.value)} style={input} placeholder="e.g. Villa 24, Al Falah St" maxLength={300} /></Field>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <Field label="Discount (AED)"><input value={discount} inputMode="decimal" onChange={(e) => setDiscount(e.target.value)} style={input} placeholder="0" /></Field>
+              <Field label="Shipping (AED)"><input value={shipping} inputMode="decimal" onChange={(e) => setShipping(e.target.value)} style={input} placeholder="0" /></Field>
+            </div>
+            <Field label="Payment method">
+              <select value={paidWith} onChange={(e) => setPaidWith(e.target.value)} style={input}>
+                {['Tabby', 'Tamara', 'Debit'].map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </Field>
+            <Field label="Message to customer (optional)"><input value={message} onChange={(e) => setMessage(e.target.value)} style={input} /></Field>
+            {totalsBox}
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+              {customer?.name ?? '—'} · {items.length} item{items.length === 1 ? '' : 's'} · {dateTbd ? 'date TBD' : (date || 'no date')}
+            </div>
+          </>
+        )}
+
+        {pickers}
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={editId ? (kind === 'invoice' ? 'Edit invoice' : 'Edit sales receipt') : (kind === 'invoice' ? 'New invoice' : 'New sales receipt')} onClose={onClose} onSave={save} busy={busy} err={err} saveLabel={kind === 'invoice' ? 'Save & send' : 'Save'}>
       {/* Customer */}
@@ -1036,52 +1164,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
       </button>
 
       {/* Items */}
-      <div style={{ margin: '10px 0 4px', fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px' }}>ITEMS</div>
-      {items.map((l, i) => (
-        <div key={i} style={{ padding: '7px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{l.name}</div>
-              {/* Quantity × editable unit price — change either and the line amount
-                  (and the document total) updates. Edit a price straight here even
-                  after the item was added to the receipt / invoice. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                <input
-                  value={String(l.qty)}
-                  inputMode="numeric"
-                  aria-label="Quantity"
-                  onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, qty: Number(e.target.value.replace(/[^\d]/g, '')) || 0 } : x))}
-                  style={{ ...input, width: 46, marginBottom: 0, padding: '5px 7px', textAlign: 'center' }}
-                />
-                <span style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>× AED</span>
-                <input
-                  value={priceText[i] ?? (l.priceFils ? String(l.priceFils / 100) : '')}
-                  inputMode="decimal"
-                  aria-label="Unit price in AED"
-                  placeholder="0"
-                  onChange={(e) => {
-                    const t = toAsciiDigits(e.target.value).replace(/[^\d.]/g, '');
-                    setPriceText((p) => ({ ...p, [i]: t }));
-                    const fils = Math.round((Number(t) || 0) * 100);
-                    setItems((a) => a.map((x, j) => j === i ? { ...x, priceFils: fils } : x));
-                  }}
-                  style={{ ...input, width: 88, marginBottom: 0, padding: '5px 7px' }}
-                />
-              </div>
-            </div>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink, width: 92, textAlign: 'right' }}>AED {money(Math.round(l.qty * l.priceFils))}</div>
-            <button onClick={() => { setItems((a) => a.filter((_, j) => j !== i)); setPriceText({}); }} style={{ ...linkBtn, color: C.red }}>✕</button>
-          </div>
-          <textarea
-            value={l.description ?? ''}
-            onChange={(e) => setItems((a) => a.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
-            placeholder="What's included / description (shows on the customer's invoice)…"
-            rows={2}
-            style={{ ...input, marginTop: 6, marginBottom: 0, padding: '7px 10px', fontSize: 12, fontWeight: 600, resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
-          />
-        </div>
-      ))}
-      <button onClick={() => setPickItem(true)} style={{ ...linkBtn, color: C.pinkDeep, marginTop: 8, fontWeight: 800 }}>+ Add product or service</button>
+      {itemsEditor}
 
       {/* Amounts */}
       <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -1137,13 +1220,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
       </div>
       <Field label="Villa / building / place name (delivery address)"><input value={addressNote} onChange={(e) => setAddressNote(e.target.value)} style={input} placeholder="e.g. Villa 24, Al Falah St" maxLength={300} /></Field>
 
-      <div style={{ marginTop: 8, padding: '10px 12px', background: C.pinkSoft, borderRadius: 12 }}>
-        <Row label="Subtotal" value={`AED ${money(subtotal)}`} />
-        {discountFils > 0 && <Row label="Discount" value={`− AED ${money(discountFils)}`} />}
-        {shippingFils > 0 && <Row label="Shipping" value={`AED ${money(shippingFils)}`} />}
-        <div style={{ height: 1, background: C.line, margin: '6px 0' }} />
-        <Row label={<b>Total</b>} value={<b style={{ ...fredoka(16), color: C.pinkDeep }}>AED {money(total)}</b>} />
-      </div>
+      {totalsBox}
       <Field label="Message to customer (optional)"><input value={message} onChange={(e) => setMessage(e.target.value)} style={input} /></Field>
       {kind === 'receipt' && (
         <Field label="Payment method">
@@ -1153,8 +1230,7 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
         </Field>
       )}
 
-      {pickCustomer && <CustomerPicker onPick={(c) => { setCustomer(c); setPickCustomer(false); }} onClose={() => setPickCustomer(false)} />}
-      {pickItem && <ItemPicker onPick={(it) => { setItems((a) => [...a, { name: it.name, qty: 1, priceFils: it.priceFils, description: it.description ?? '' }]); setPickItem(false); }} onClose={() => setPickItem(false)} />}
+      {pickers}
     </Modal>
   );
 }
