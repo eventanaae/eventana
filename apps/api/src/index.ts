@@ -906,30 +906,21 @@ async function main() {
           const u4 = await pool.query(`UPDATE historical_orders SET product=$2 WHERE product ILIKE $1`, [from, N]);
           console.log(`[unify-excl] "${from}" → services=${u1.rowCount}, receipts=${u2.rowCount}, event_services=${u3.rowCount}, historical=${u4.rowCount}`);
         }
-        console.log('[unify-excl] END');
-      } catch (e) { console.error('[unify-excl] failed:', (e as Error).message); }
-    })();
-  }
-
-  // One-shot: list ALL distinct "offer"/package-ish labels (receipts + historical)
-  // so the owner can confirm which ones are the Exclusive package. SCAN_OFFERS=true.
-  if (String(process.env.SCAN_OFFERS ?? '').toLowerCase() === 'true') {
-    (async () => {
-      try {
-        const { pool } = await import('./db/pool.js');
+        // After unifying, list ALL remaining offer/package-ish labels so the owner
+        // can spot any other Exclusive variant still to merge.
         const rc = (await pool.query<{ nm: string; n: string }>(
           `SELECT li->>'name' nm, count(*)::text n FROM finance_receipts, jsonb_array_elements(line_items) li
-            WHERE li->>'name' ILIKE '%offer%' OR li->>'name' ILIKE '%package%' OR li->>'name' ILIKE '%باقة%'
+            WHERE li->>'name' ILIKE '%offer%' OR li->>'name' ILIKE '%package%'
             GROUP BY 1 ORDER BY 2 DESC`)).rows;
-        console.log(`[scan-offers] receipt labels: ${rc.length}`);
-        for (const r of rc) console.log(`[scan-offers] RCPT "${r.nm}" ×${r.n}`);
+        console.log(`[unify-excl] remaining receipt offer/package labels: ${rc.length}`);
+        for (const r of rc) console.log(`[unify-excl] RCPT "${r.nm}" ×${r.n}`);
         const ho = (await pool.query<{ p: string; n: string }>(
           `SELECT product p, count(*)::text n FROM historical_orders
             WHERE product ILIKE '%offer%' OR product ILIKE '%package%' GROUP BY 1 ORDER BY 2 DESC`)).rows;
-        console.log(`[scan-offers] historical products: ${ho.length}`);
-        for (const r of ho) console.log(`[scan-offers] HIST "${r.p}" ×${r.n}`);
-        console.log('[scan-offers] END');
-      } catch (e) { console.error('[scan-offers] failed:', (e as Error).message); }
+        console.log(`[unify-excl] remaining historical offer/package products: ${ho.length}`);
+        for (const r of ho) console.log(`[unify-excl] HIST "${r.p}" ×${r.n}`);
+        console.log('[unify-excl] END');
+      } catch (e) { console.error('[unify-excl] failed:', (e as Error).message); }
     })();
   }
 
