@@ -905,6 +905,9 @@ async function main() {
         ['Summer Package', 'Summer Birthday Package'],
         ['Summer Party', 'Summer Birthday Package'],
         ['3500 Offer', 'Eventana Exclusive Package'],
+        ['3499 Offer', 'Eventana Exclusive Package'],
+        ['Carnival Offer', 'Eventana Exclusive Package'],
+        ['Carnaval Offer', 'Eventana Exclusive Package'],
         ['Marwa Rateb Package', 'Eventana Exclusive Package'],
         ['Marwa Rateb Pakage', 'Eventana Exclusive Package'],
       ] : raw.split(';').map((s) => s.trim()).filter(Boolean).map((from) => [from, 'Eventana Exclusive Package'] as [string, string]);
