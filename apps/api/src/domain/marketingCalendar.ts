@@ -872,6 +872,12 @@ export async function regenerateOneOccasion(slug: string): Promise<number> {
   const o = OCCASIONS.find((x) => x.slug === slug);
   if (!o) return 0;
   const ov = await getOccasionOverrides(slug);
+  // The owner just edited this occasion's services/intro/offer. A previously
+  // learned custom body is now STALE — buildOccasionBody returns a custom body
+  // verbatim and ignores services, so reusing it would hide the edit (the #26
+  // bug: "edit services → preview doesn't change"). Rebuild FRESH from the
+  // template + new overrides, exactly like the manual Regenerate.
+  const fresh: OccasionOverride = { ...ov, customConsumer: undefined, customCorp: undefined };
   const { rows } = await pool.query<{ id: string; dedupe_key: string }>(
     `SELECT id, dedupe_key FROM email_campaigns
       WHERE source IN ('occasion','occasion_corp') AND status IN ('draft','pending_approval','scheduled')
@@ -882,10 +888,12 @@ export async function regenerateOneOccasion(slug: string): Promise<number> {
   for (const r of rows) {
     const isCorp = r.dedupe_key.endsWith('|corp');
     const subject = isCorp ? `${o.copy.subject} — for your organisation` : o.copy.subject;
-    const body = isCorp ? buildCorporateBody(o, ov) : buildOccasionBody(o, ov);
+    const body = isCorp ? buildCorporateBody(o, fresh) : buildOccasionBody(o, fresh);
     await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1`, [r.id, subject, body]);
     n++;
   }
+  // Drop the stale learned bodies so later previews/sends use the fresh copy too.
+  await pool.query(`UPDATE occasion_settings SET custom_body_consumer = NULL, custom_body_corp = NULL WHERE slug = $1`, [slug]).catch(() => {});
   return n;
 }
 
