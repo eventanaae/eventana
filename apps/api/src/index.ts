@@ -886,24 +886,33 @@ async function main() {
     })();
   }
 
-  // One-shot: create the "Eventana Exclusive Package" row in the packages table
-  // (AED 3500). Its item list is synced from catalogue.ts (package_items) on boot.
-  // ADD_EXCLUSIVE=true.
-  if (String(process.env.ADD_EXCLUSIVE ?? '').toLowerCase() === 'true') {
+  // One-shot: find the EXISTING ~3500 package (Marsha's "Carnaval"/Exclusive) so we
+  // can RENAME it rather than add a duplicate, and remove the duplicate 'exclusive'
+  // row I mistakenly created. FIND_PKG=true (lists only); FIND_PKG=delete-dup also
+  // removes the 'exclusive' id I added.
+  if (process.env.FIND_PKG) {
     (async () => {
+      const mode = String(process.env.FIND_PKG).toLowerCase();
       try {
         const { pool } = await import('./db/pool.js');
-        const r = await pool.query(
-          `INSERT INTO packages (id, name, price_fils, capacity, duration_hours, tag, gradient, has_castle_choice, active)
-           VALUES ('exclusive','Eventana Exclusive Package',350000,'Up to 20 kids',4,'EXCLUSIVE','linear-gradient(135deg,#F7C948,#E94F9C)',true,true)
-           ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, price_fils=EXCLUDED.price_fils,
-             capacity=EXCLUDED.capacity, duration_hours=EXCLUDED.duration_hours, tag=EXCLUDED.tag,
-             gradient=EXCLUDED.gradient, has_castle_choice=EXCLUDED.has_castle_choice, active=true`);
-        console.log(`[add-exclusive] packages row upserted (${r.rowCount})`);
-        const it = await pool.query<{ c: string }>(`SELECT count(*)::text c FROM package_items WHERE package_id='exclusive'`);
-        console.log(`[add-exclusive] package_items for exclusive: ${it.rows[0]?.c}`);
-        console.log('[add-exclusive] END');
-      } catch (e) { console.error('[add-exclusive] failed:', (e as Error).message); }
+        const pk = (await pool.query<{ id: string; name: string; price: string; active: boolean }>(
+          `SELECT id, name, (price_fils/100)::text price, active FROM packages ORDER BY price_fils DESC`)).rows;
+        console.log(`[find-pkg] packages table: ${pk.length}`);
+        for (const p of pk) console.log(`[find-pkg] PKG id=${p.id} | "${p.name}" | AED ${p.price} | active=${p.active}`);
+        const sv = (await pool.query<{ id: string; name: string; price: string; active: boolean }>(
+          `SELECT id, name, (price_fils/100)::text price, active FROM services
+            WHERE name ILIKE ANY (ARRAY['%carnaval%','%carnival%','%exclusive%','%ultra%','%package%','%باقة%'])
+               OR price_fils BETWEEN 340000 AND 360000
+            ORDER BY price_fils DESC`)).rows;
+        console.log(`[find-pkg] candidate services: ${sv.length}`);
+        for (const s of sv) console.log(`[find-pkg] SVC id=${s.id} | "${s.name}" | AED ${s.price} | active=${s.active}`);
+        if (mode === 'delete-dup') {
+          await pool.query(`DELETE FROM package_items WHERE package_id='exclusive'`);
+          const d = await pool.query(`DELETE FROM packages WHERE id='exclusive'`);
+          console.log(`[find-pkg] removed duplicate 'exclusive' packages row (${d.rowCount})`);
+        }
+        console.log('[find-pkg] END');
+      } catch (e) { console.error('[find-pkg] failed:', (e as Error).message); }
     })();
   }
 
