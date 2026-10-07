@@ -374,7 +374,7 @@ export const PACKAGE_BY_ID = new Map(PACKAGES.map((p) => [p.id, p]));
 export const SERVICE_PACKAGE_ITEMS: Record<string, string[]> = {
   'eventana exclusive package': [
     'Bouncy Castle 4x4m', 'Main Balloon Stand', 'Welcoming Stand', '2 Clowns',
-    'Popcorn Station', 'Cotton Candy Station', 'Tables & Chairs (20 kids)',
+    'Popcorn (40 kids)', 'Cotton Candy (40 kids)', 'Tables & Chairs (20 kids)',
     '10 Giveaways', 'Music Speaker',
   ],
 };
