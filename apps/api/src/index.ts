@@ -891,11 +891,25 @@ async function main() {
   // services.name, historical_orders.product. UNIFY_EXCL="label1;label2;…".
   if (process.env.UNIFY_EXCL) {
     (async () => {
-      const labels = String(process.env.UNIFY_EXCL).split(';').map((s) => s.trim()).filter(Boolean);
-      const N = 'Eventana Exclusive Package';
+      const raw = String(process.env.UNIFY_EXCL).trim();
+      // Full owner-confirmed package-name unification map (2026-10-07). Each old
+      // label → the canonical package name, across receipts/events/services/history.
+      const MAP: Array<[string, string]> = raw.toUpperCase() === 'MAP' ? [
+        ['New Golden Package', 'Golden Birthday Package'],
+        ['Golden Kids Package', 'Golden Birthday Package'],
+        ['New Silver Package', 'Silver Birthday Package'],
+        ['Silver Kids Package', 'Silver Birthday Package'],
+        ['New Bronze Package', 'Bronze Birthday Package'],
+        ['Bronze Kids Package', 'Bronze Birthday Package'],
+        ['New  Bronze Pakage', 'Bronze Birthday Package'],
+        ['Summer Package', 'Summer Party'],
+        ['3500 Offer', 'Eventana Exclusive Package'],
+        ['Marwa Rateb Package', 'Eventana Exclusive Package'],
+        ['Marwa Rateb Pakage', 'Eventana Exclusive Package'],
+      ] : raw.split(';').map((s) => s.trim()).filter(Boolean).map((from) => [from, 'Eventana Exclusive Package'] as [string, string]);
       try {
         const { pool } = await import('./db/pool.js');
-        for (const from of labels) {
+        for (const [from, N] of MAP) {
           const u1 = await pool.query(`UPDATE services SET name=$2 WHERE name ILIKE $1`, [from, N]);
           const u2 = await pool.query(
             `UPDATE finance_receipts SET line_items = (
@@ -904,7 +918,7 @@ async function main() {
               WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(line_items) li WHERE li->>'name' ILIKE $1)`, [from, N]);
           const u3 = await pool.query(`UPDATE event_services SET label=$2 WHERE label ILIKE $1`, [from, N]);
           const u4 = await pool.query(`UPDATE historical_orders SET product=$2 WHERE product ILIKE $1`, [from, N]);
-          console.log(`[unify-excl] "${from}" → services=${u1.rowCount}, receipts=${u2.rowCount}, event_services=${u3.rowCount}, historical=${u4.rowCount}`);
+          console.log(`[unify-excl] "${from}" → "${N}": services=${u1.rowCount}, receipts=${u2.rowCount}, event_services=${u3.rowCount}, historical=${u4.rowCount}`);
         }
         // After unifying, list ALL remaining offer/package-ish labels so the owner
         // can spot any other Exclusive variant still to merge.
