@@ -1775,13 +1775,23 @@ async function main() {
             const fr = byOrder.rows[0] as any;
             console.log(`[diag-refunds]   ↳ receipt (by order) EV-${fr.number}: total ${aed(fr.total_fils)}, refunded ${aed(fr.refunded_fils)}, net ${aed(Number(fr.total_fils) - Number(fr.refunded_fils))}, refunded-items=${fr.nitems}`);
           } else {
-            console.log(`[diag-refunds]   ↳ NO receipt linked by order_id=${r.order_id}. Receipts for this customer:`);
+            const ord = await pool.query(`SELECT event_id, source, status FROM orders WHERE id = $1`, [r.order_id]);
+            const o = ord.rows[0] as any;
+            console.log(`[diag-refunds]   ↳ NO receipt by order_id=${r.order_id}. order.event_id=${o?.event_id ?? '—'} source=${o?.source ?? '—'} status=${o?.status ?? '—'}`);
+            if (o?.event_id) {
+              const byEv = await pool.query(
+                `SELECT number, order_id, total_fils, COALESCE(refunded_fils,0) AS refunded_fils,
+                        jsonb_array_length(COALESCE(refunded_items,'[]'::jsonb)) AS nitems
+                   FROM finance_receipts WHERE event_id = $1`, [o.event_id]);
+              for (const fr of byEv.rows as any[]) console.log(`[diag-refunds]     (by event_id) EV-${fr.number}: order_id=${fr.order_id ?? '—'}, total ${aed(fr.total_fils)}, refunded ${aed(fr.refunded_fils)}, items=${fr.nitems}`);
+              if (!byEv.rowCount) console.log(`[diag-refunds]     (by event_id) none`);
+            }
             const byCust = await pool.query(
-              `SELECT number, total_fils, COALESCE(refunded_fils,0) AS refunded_fils,
+              `SELECT number, order_id, event_id, total_fils, COALESCE(refunded_fils,0) AS refunded_fils,
                       jsonb_array_length(COALESCE(refunded_items,'[]'::jsonb)) AS nitems, customer_name
                  FROM finance_receipts WHERE lower(customer_name) = lower($1)
                  ORDER BY id DESC LIMIT 5`, [r.customer]);
-            for (const fr of byCust.rows as any[]) console.log(`[diag-refunds]     · EV-${fr.number} (${fr.customer_name}): total ${aed(fr.total_fils)}, refunded ${aed(fr.refunded_fils)}, net ${aed(Number(fr.total_fils) - Number(fr.refunded_fils))}, refunded-items=${fr.nitems}`);
+            for (const fr of byCust.rows as any[]) console.log(`[diag-refunds]     (by name) EV-${fr.number} (${fr.customer_name}): order_id=${fr.order_id ?? '—'} event_id=${fr.event_id ?? '—'} total ${aed(fr.total_fils)}, refunded ${aed(fr.refunded_fils)}, items=${fr.nitems}`);
           }
         }
         // Who-did-it tally for the window.
