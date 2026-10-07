@@ -886,6 +886,33 @@ async function main() {
     })();
   }
 
+  // One-shot: scan OLD (historical/QuickBooks) orders for the Exclusive package —
+  // by name keyword and by ~3499/3500 order totals — so we see every old booking.
+  // HIST_SCAN=true.
+  if (String(process.env.HIST_SCAN ?? '').toLowerCase() === 'true') {
+    (async () => {
+      const aed = (f: any) => `AED ${(Number(f) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+      try {
+        const { pool } = await import('./db/pool.js');
+        const byName = (await pool.query<{ product: string; n: string; tot: string }>(
+          `SELECT product, count(*)::text n, COALESCE(SUM(total_fils),0)::text tot
+             FROM historical_orders
+            WHERE product ILIKE ANY (ARRAY['%carnaval%','%carnival%','%3499%','%exclusive%','%offer%'])
+            GROUP BY product ORDER BY 2 DESC`)).rows;
+        console.log(`[hist-scan] historical products matching keywords: ${byName.length}`);
+        for (const r of byName) console.log(`[hist-scan] NAME "${r.product}" ×${r.n} | ${aed(r.tot)}`);
+        const byPrice = (await pool.query<{ product: string; n: string }>(
+          `SELECT COALESCE(product,'(no product)') product, count(*)::text n
+             FROM historical_orders
+            WHERE total_fils BETWEEN 349000 AND 350500
+            GROUP BY 1 ORDER BY 2 DESC`)).rows;
+        console.log(`[hist-scan] historical orders with total ≈3499/3500: products:`);
+        for (const r of byPrice) console.log(`[hist-scan] ~3500 product "${r.product}" ×${r.n}`);
+        console.log('[hist-scan] END');
+      } catch (e) { console.error('[hist-scan] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: who booked the Eventana Exclusive Package — list + count + total.
   // EXCL_LIST=true.
   if (String(process.env.EXCL_LIST ?? '').toLowerCase() === 'true') {
