@@ -886,6 +886,31 @@ async function main() {
     })();
   }
 
+  // One-shot: who booked the Eventana Exclusive Package — list + count + total.
+  // EXCL_LIST=true.
+  if (String(process.env.EXCL_LIST ?? '').toLowerCase() === 'true') {
+    (async () => {
+      const aed = (f: any) => `AED ${(Number(f) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+      try {
+        const { pool } = await import('./db/pool.js');
+        const rows = (await pool.query<{ number: string; name: string; ev: string | null; bk: string | null; amt: string }>(
+          `SELECT r.number, r.customer_name name, to_char(r.date,'YYYY-MM-DD') ev,
+                  to_char(r.booked_on,'YYYY-MM-DD') bk,
+                  COALESCE((SELECT SUM((li->>'priceFils')::numeric * COALESCE((li->>'qty')::numeric,1))
+                            FROM jsonb_array_elements(r.line_items) li
+                           WHERE li->>'name' ILIKE 'Eventana Exclusive%'),0)::text amt
+             FROM finance_receipts r
+            WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(r.line_items) li WHERE li->>'name' ILIKE 'Eventana Exclusive%')
+            ORDER BY r.date`)).rows;
+        let total = 0;
+        console.log(`[excl-list] bookings with Eventana Exclusive Package: ${rows.length}`);
+        for (const r of rows) { total += Number(r.amt); console.log(`[excl-list] #${r.number} | ${r.name} | event ${r.ev} | booked ${r.bk ?? '—'} | ${aed(r.amt)}`); }
+        console.log(`[excl-list] TOTAL package value: ${aed(total)}`);
+        console.log('[excl-list] END');
+      } catch (e) { console.error('[excl-list] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: scan EVERYWHERE the "3499 Offer" / "Carnival/Carnaval Offer" package
   // appears — services.name, receipt line_items (key is 'name'), event_services.label
   // — so we rename them all to "Eventana Exclusive Package". SCAN_EXCL=true (list);
