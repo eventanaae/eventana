@@ -76,17 +76,29 @@ function CatalogList({ items, onEdit }: { items: any[]; onEdit: (item: any) => v
   if (items.length === 0) return <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>Nothing here yet.</div>;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {items.map((it) => (
-        <div key={it.id} onClick={() => onEdit(it)} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 4px', borderBottom: `1px solid ${C.lineSoft}`, cursor: 'pointer', opacity: it.active ? 1 : 0.5 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{it.name}</div>
-            {it.category && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{it.category}</div>}
+      {items.map((it) => {
+        const contents: string[] = Array.isArray(it.items) ? it.items : [];
+        return (
+          <div key={it.id} style={{ borderBottom: `1px solid ${C.lineSoft}`, opacity: it.active ? 1 : 0.5 }}>
+            <div onClick={() => onEdit(it)} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 4px 7px', cursor: 'pointer' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{it.name}</div>
+                {it.category && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{it.category}</div>}
+              </div>
+              {!it.active && <Badge tone="neutral">Hidden</Badge>}
+              <div style={{ ...fredoka(14), color: C.pinkDeep, whiteSpace: 'nowrap' }}>AED {it.priceDisplay}</div>
+              <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
+            </div>
+            {contents.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, padding: '0 4px 11px' }}>
+                {contents.map((name, i) => (
+                  <span key={i} style={{ fontSize: 11, fontWeight: 600, color: C.muted2, background: C.mintSoft, borderRadius: 7, padding: '3px 8px' }}>{name}</span>
+                ))}
+              </div>
+            )}
           </div>
-          {!it.active && <Badge tone="neutral">Hidden</Badge>}
-          <div style={{ ...fredoka(14), color: C.pinkDeep, whiteSpace: 'nowrap' }}>AED {it.priceDisplay}</div>
-          <span style={{ color: C.muted, fontWeight: 800 }}>›</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

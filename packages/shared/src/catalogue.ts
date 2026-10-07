@@ -243,7 +243,7 @@ export const PACKAGES: PackageDefinition[] = [
     gradient: G('#F9C6DC', '#F7C948'),
     hasCastleChoice: true,
     items: [
-      item('3 Entertainers', 'Three entertainers running dance, games and activities all party long.'),
+      item('3 Clowns', 'Three clowns running dance, games and activities all party long.'),
       item('Bouncy Castle 4x4m', 'A 4×4 m bouncy castle, max 10 kids per ride, in your chosen colour.', ['castle-lime']),
       item('Bubbles House 4x4m', 'Eventana’s single Bubbles House, max 10 kids per ride.', ['bubble-house']),
       item('Face Painting (40 kids)', 'Kid-safe face painting for up to 40 children.'),
@@ -268,7 +268,7 @@ export const PACKAGES: PackageDefinition[] = [
     hasCastleChoice: false,
     items: [
       item('Ball Pool Slide 4x4m', 'A 4×4 m ball pool slide, max 10 kids per ride.', ['ball-pool-slide']),
-      item('2 Entertainers', 'Two entertainers running dance, games and activities all party long.'),
+      item('2 Clowns', 'Two clowns running dance, games and activities all party long.'),
       item('Face Painting (40 kids)', 'Kid-safe face painting for up to 40 children.'),
       item('Cotton Candy (40 kids)', 'Fresh, fluffy cotton candy for up to 40 kids.', ['cotton-cart']),
       item('Popcorn (40 kids)', 'Freshly popped popcorn for up to 40 kids.', ['popcorn-cart']),
@@ -291,7 +291,7 @@ export const PACKAGES: PackageDefinition[] = [
     hasCastleChoice: false,
     items: [
       item('Instant Photography (10 prints)', 'Ten instant prints of candid party moments, handed over on the spot.'),
-      item('2 Entertainers', 'Two entertainers running dance, games and activities all party long.'),
+      item('2 Clowns', 'Two clowns running dance, games and activities all party long.'),
       item('Cotton Candy (40 kids)', 'Fresh, fluffy cotton candy for up to 40 kids.', ['cotton-cart']),
       item('Popcorn (40 kids)', 'Freshly popped popcorn for up to 40 kids.', ['popcorn-cart']),
       item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
@@ -339,7 +339,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('Foam Machine', 'Clouds of soft, bubbly foam the kids can dance and play in.', ['foam-machine']),
       item('Ice Cream (40 kids)', 'Cool, sweet scoops for up to 40 kids.', ['icecream-cart']),
       item('Cotton Candy (40 kids)', 'Fresh, fluffy cotton candy for up to 40 kids.', ['cotton-cart']),
-      item('3 Entertainers', 'Three entertainers running dance, games and activities all party long.'),
+      item('3 Clowns', 'Three clowns running dance, games and activities all party long.'),
       item('2 Backdrops', 'Two balloon backdrops in your theme colours.'),
       item('1 Cake Stand', 'A themed cake display stand.'),
       item('10 Game Prizes', 'Ten prizes for the party games.'),
@@ -374,7 +374,7 @@ export const PACKAGE_BY_ID = new Map(PACKAGES.map((p) => [p.id, p]));
 export const SERVICE_PACKAGE_ITEMS: Record<string, string[]> = {
   'eventana exclusive package': [
     'Bouncy Castle 4x4m', 'Main Balloon Stand', 'Welcoming Stand', '2 Clowns',
-    'Popcorn (40 kids)', 'Cotton Candy (40 kids)', 'Tables & Chairs (20 kids)',
+    'Popcorn (40 kids)', 'Cotton Candy (40 kids)', 'Tables & Chairs Theme Setup',
     '10 Giveaways', 'Music Speaker',
   ],
 };

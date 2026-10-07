@@ -7,7 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { formatAed, isCancelled, celebrationLabel, computeRefund, eventDateYMD } from '@eventana/shared';
+import { formatAed, isCancelled, celebrationLabel, computeRefund, eventDateYMD, packageItemNames } from '@eventana/shared';
 import { refundOrderMoney } from '../domain/refund.js';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
@@ -5685,16 +5685,26 @@ export async function adminRoutes(app: FastifyInstance) {
    * here (below) flows straight to the customer app.
    */
   app.get('/api/admin/catalog', async () => {
-    const [pkgs, svcs] = await Promise.all([
+    const [pkgs, svcs, items] = await Promise.all([
       pool.query(`SELECT id, name, price_fils, active FROM packages ORDER BY price_fils DESC`),
       pool.query(`SELECT s.id, s.name, s.price_fils, s.active, s.category_id, c.name AS category
                     FROM services s LEFT JOIN service_categories c ON c.id = s.category_id
                    ORDER BY c.sort_order NULLS LAST, s.name`),
+      pool.query(`SELECT package_id, name FROM package_items ORDER BY package_id, sort_order`),
     ]);
+    // What's-included lists so the owner can see each package's contents here.
+    const itemsByPkg = new Map<string, string[]>();
+    for (const r of items.rows as Array<{ package_id: string; name: string }>) {
+      const arr = itemsByPkg.get(r.package_id) ?? [];
+      arr.push(r.name);
+      itemsByPkg.set(r.package_id, arr);
+    }
     const map = (r: any) => ({ id: r.id, name: r.name, priceFils: Number(r.price_fils), priceDisplay: formatAed(Number(r.price_fils)), active: r.active });
     return {
-      packages: pkgs.rows.map(map),
-      services: svcs.rows.map((r) => ({ ...map(r), category: r.category ?? null })),
+      packages: pkgs.rows.map((r) => ({ ...map(r), items: itemsByPkg.get(r.id) ?? [] })),
+      // Most services have no sub-items; ad-hoc "packages" sold as a service
+      // (e.g. Eventana Exclusive) resolve their contents by name.
+      services: svcs.rows.map((r) => ({ ...map(r), category: r.category ?? null, items: packageItemNames(r.name) })),
     };
   });
 
