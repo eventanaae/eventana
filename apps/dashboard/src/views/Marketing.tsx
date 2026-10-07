@@ -751,6 +751,19 @@ function ServicesModal({ occasion, onClose, onSave, busy }: {
         <Field label="Customer offer (optional — customers only)">
           <input value={offer} onChange={(e) => setOffer(e.target.value)} style={input} placeholder="e.g. 10% off this week 🎉" />
         </Field>
+        {/* A big, obvious Save — the header "Save" link is easy to miss on a phone,
+            so people edited then tapped Back and lost it. This saves AND rebuilds
+            the email so the new services show up right away (then preview it). */}
+        <button
+          onClick={() => onSave({ services, intro, offer })}
+          disabled={busy}
+          style={{ marginTop: 4, width: '100%', border: 'none', borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 800, cursor: busy ? 'default' : 'pointer', background: busy ? C.line : C.pinkDeep, color: '#fff' }}
+        >
+          {busy ? 'Saving…' : '💾 Save — update the email'}
+        </button>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textAlign: 'center' }}>
+          After saving, tap “Preview the email” to see your services in it.
+        </div>
       </div>
     </Modal>
   );
