@@ -251,7 +251,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('Popcorn (40 kids)', 'Freshly popped popcorn for up to 40 kids.', ['popcorn-cart']),
       item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
       item('3 Backdrops', 'Three balloon backdrops in your theme colours.'),
-      item('Tables & Chairs Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
+      item('Tables & Chairs for 20 Kids Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
       item('10 Giveaways', 'A drawing tablet for every guest — handed out during the party games, a keepsake to take home.'),
       item('Music Speaker', 'A party speaker for your playlist.'),
       item('3 Cake Stands', 'Three themed cake display stands.'),
@@ -277,7 +277,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('2 Cake Stands', 'Two themed cake display stands.'),
       item('10 Game Prizes', 'Ten prizes for the party games.'),
       item('Music Speaker', 'A party speaker for your playlist.'),
-      item('Tables & Chairs Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
+      item('Tables & Chairs for 20 Kids Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
     ],
   },
   {
@@ -299,7 +299,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('2 Cake Stands', 'Two themed cake display stands.'),
       item('10 Giveaways', 'A drawing tablet for every guest — handed out during the party games, a keepsake to take home.'),
       item('Music Speaker', 'A party speaker for your playlist.'),
-      item('Tables & Chairs Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
+      item('Tables & Chairs for 20 Kids Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
     ],
   },
   {
@@ -345,7 +345,7 @@ export const PACKAGES: PackageDefinition[] = [
       item('10 Game Prizes', 'Ten prizes for the party games.'),
       item('Music Speaker', 'A party speaker for your playlist.'),
       item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
-      item('Tables & Chairs Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
+      item('Tables & Chairs for 20 Kids Theme Setup', 'Each seat includes a customized placemat with your child’s name and party theme, card holder, water bottle with customized label, plates, wooden spoon & fork, and a balloon centerpiece.'),
     ],
   },
   {
@@ -374,19 +374,19 @@ export const PACKAGE_BY_ID = new Map(PACKAGES.map((p) => [p.id, p]));
 export const SERVICE_PACKAGE_ITEMS: Record<string, string[]> = {
   'eventana exclusive package': [
     'Bouncy Castle 4x4m', 'Main Balloon Stand', 'Welcoming Stand', '2 Clowns',
-    'Popcorn (40 kids)', 'Cotton Candy (40 kids)', 'Tables & Chairs Theme Setup',
+    'Popcorn (40 kids)', 'Cotton Candy (40 kids)', 'Tables & Chairs for 20 Kids Theme Setup',
     '10 Giveaways', 'Music Speaker',
   ],
   // Seasonal — sold as a line item ("Summer Splash Package"), not a catalogue
   // package row. Contents per owner; naming aligned to the standard wording.
   'summer splash package': [
     'Large Water Slide (Blue)', 'Slush & Popcorn Combo Station',
-    'Main Balloon Backdrop', '1 Cake Stand', 'Tables & Chairs Theme Setup',
+    'Main Balloon Backdrop', '1 Cake Stand', 'Tables & Chairs for 20 Kids Theme Setup',
     '2 Clowns', 'Music Speaker',
   ],
   'splash summer package': [
     'Large Water Slide (Blue)', 'Slush & Popcorn Combo Station',
-    'Main Balloon Backdrop', '1 Cake Stand', 'Tables & Chairs Theme Setup',
+    'Main Balloon Backdrop', '1 Cake Stand', 'Tables & Chairs for 20 Kids Theme Setup',
     '2 Clowns', 'Music Speaker',
   ],
 };
