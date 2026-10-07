@@ -12,6 +12,7 @@ import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { logAudit } from '../domain/auditLog.js';
+import { clientIp } from '../util/clientIp.js';
 import { pushToOwner } from '../integrations/push.js';
 import {
   hashPassword, verifyPassword, issueStaffSession,
@@ -58,18 +59,10 @@ export async function staffAuthRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0];
     if (!/^\/api\/staff\/(login|forgot|set-password)$/.test(path)) return;
-    // Key on an IP the client CANNOT forge. The FIRST x-forwarded-for hop is
-    // attacker-supplied — rotating it per request defeated this limiter — so take
-    // the LAST hop (the value our own edge, Render/Cloudflare, appends) and prefer
-    // cf-connecting-ip (set by Cloudflare, un-spoofable when present). Tradeoff: if
-    // several trusted proxies sit in front, the last hop can be a shared edge IP, so
-    // the limit then throttles more coarsely — which fails safe (never looser).
-    const xff = String(request.headers['x-forwarded-for'] ?? '')
-      .split(',').map((s) => s.trim()).filter(Boolean);
-    const ip =
-      (request.headers['cf-connecting-ip'] as string | undefined) ||
-      xff[xff.length - 1] ||
-      request.ip;
+    // Key on an IP the client CANNOT forge: cf-connecting-ip is trusted only when
+    // the request actually transited Cloudflare (the real peer is a Cloudflare IP),
+    // else the un-forgeable last XFF hop / socket IP. See util/clientIp.
+    const ip = clientIp(request);
     const key = `${ip}:${path}`;
     const now = Date.now();
     let b = rlBuckets.get(key);
