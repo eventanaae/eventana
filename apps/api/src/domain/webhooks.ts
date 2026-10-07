@@ -241,6 +241,31 @@ export async function processDelivery(
     return 'accepted' as const;
   });
 
+  // (5b) A success that applyPaymentStatus REJECTED (outcome 'ignored') for an
+  // order already in a terminal failed/cancelled state is a real late success on
+  // the same provider payment id (a provider retry). For orders that HELD
+  // inventory, the holds guard (5) above already flagged it — their released
+  // hold rows make holdsStillValid false. But a HOLD-LESS order (tip / shop /
+  // invoice payment) has no holds, so it passes guard (5) and would otherwise be
+  // charged at the provider with NO sale posted and nobody told. Surface it.
+  // Fires at most once: an identical repeat delivery is deduped at the webhook
+  // door (ON CONFLICT on provider+payment_id+status), so it never re-enters here.
+  if (outcome === 'ignored' && isSuccess) {
+    const { rows } = await pool
+      .query<{ status: string }>(`SELECT status FROM orders WHERE id = $1`, [payment.order_id])
+      .catch(() => ({ rows: [] as { status: string }[] }));
+    if (rows[0] && (rows[0].status === 'failed' || rows[0].status === 'cancelled')) {
+      await flagForReview(
+        pool,
+        payment.order_id,
+        'Payment succeeded at the provider AFTER the order was marked failed/cancelled (a late retry on the same payment id). The customer was charged but the sale did not post — refund the customer or re-book manually.',
+        provider.name,
+      );
+      await finish(deliveryId, 'late_success');
+      return { outcome: 'late_success' };
+    }
+  }
+
   // Mirror the confirmed booking into the shared team Google Calendar. Done
   // after the transaction commits so a slow/failed network call can never
   // roll back a paid booking; it's a silent no-op when calendar sync is off.

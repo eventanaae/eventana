@@ -382,6 +382,15 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ syncZohoBank }) => syncZohoBank())
     .catch((err) => console.error('[zoho-sync] failed:', err));
 
+  // Auto-heal missing sales: re-post any paid order whose finance receipt failed
+  // to insert inline (recordSaleFromOrder rolls its savepoint back on error and
+  // raises a 'sale_post_failed' ops alert, but the money must still reach the
+  // books without waiting for a human to run the admin backfill). Idempotent
+  // (ON CONFLICT on order_id) and a cheap no-op when nothing is missing.
+  await import('./finance.js')
+    .then(({ backfillMissingSales }) => backfillMissingSales())
+    .catch((err) => console.error('[sale-backfill] failed:', err));
+
   return report;
 }
 

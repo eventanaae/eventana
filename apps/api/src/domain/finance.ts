@@ -551,10 +551,24 @@ export async function recordSaleFromOrder(
       ],
     );
     await db.query('RELEASE SAVEPOINT fin_sale');
-  } catch {
+  } catch (err) {
     // A finance failure must never abort a paid booking — roll back just this
-    // sale and let the confirmation carry on.
+    // sale and let the confirmation carry on. But it must NOT be silent: the
+    // money came in and the sale isn't on the books, so log it and raise a
+    // deduped ops alert. The reconcile sweep's backfillMissingSales will re-post
+    // it automatically on the next pass; this alert is the human-visible signal
+    // in the meantime. Best-effort — a secondary failure here still can't abort
+    // the booking (the savepoint rollback already kept the outer txn usable).
+    console.error(`[finance] recordSaleFromOrder failed for order ${order.id}:`, (err as Error).message);
     await db.query('ROLLBACK TO SAVEPOINT fin_sale').catch(() => {});
+    await db
+      .query(
+        `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+         SELECT NULL, 'ops_alert', 'sale_post_failed', now(), $1
+          WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE template = 'sale_post_failed' AND payload->>'orderId' = $2)`,
+        [JSON.stringify({ orderId: order.id }), order.id],
+      )
+      .catch(() => {});
   }
 }
 
