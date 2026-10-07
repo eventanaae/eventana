@@ -886,6 +886,30 @@ async function main() {
     })();
   }
 
+  // One-shot (reusable): rename an exact label to "Eventana Exclusive Package"
+  // everywhere it appears — finance_receipts line_items (key 'name'),
+  // event_services.label, services.name, historical_orders.product.
+  // UNIFY_EXCL="<exact old label>".
+  if (process.env.UNIFY_EXCL) {
+    (async () => {
+      const from = String(process.env.UNIFY_EXCL).trim();
+      const N = 'Eventana Exclusive Package';
+      try {
+        const { pool } = await import('./db/pool.js');
+        const u1 = await pool.query(`UPDATE services SET name=$2 WHERE name ILIKE $1`, [from, N]);
+        const u2 = await pool.query(
+          `UPDATE finance_receipts SET line_items = (
+              SELECT jsonb_agg(CASE WHEN li->>'name' ILIKE $1 THEN jsonb_set(li,'{name}',to_jsonb($2::text)) ELSE li END)
+                FROM jsonb_array_elements(line_items) li)
+            WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(line_items) li WHERE li->>'name' ILIKE $1)`, [from, N]);
+        const u3 = await pool.query(`UPDATE event_services SET label=$2 WHERE label ILIKE $1`, [from, N]);
+        const u4 = await pool.query(`UPDATE historical_orders SET product=$2 WHERE product ILIKE $1`, [from, N]);
+        console.log(`[unify-excl] "${from}" → "${N}": services=${u1.rowCount}, receipts=${u2.rowCount}, event_services=${u3.rowCount}, historical=${u4.rowCount}`);
+        console.log('[unify-excl] END');
+      } catch (e) { console.error('[unify-excl] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: look up what an old offer/package included — its historical_orders
   // rows (customer, date, total, memo) + any matching service with its detail.
   // OFFER_LOOKUP="<name>".
