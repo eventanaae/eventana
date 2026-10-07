@@ -437,10 +437,10 @@ export const api = {
     request<any>(`/api/admin/events/${eventId}/photos/${photoId}`, { method: 'DELETE' }),
   reportMissing: (body: Record<string, unknown>) =>
     request<any>('/api/admin/missing-items', { method: 'POST', body: JSON.stringify(body) }),
-  setMissingStatus: (id: number, status: string) =>
+  setMissingStatus: (id: number, status: string, note?: string) =>
     request<any>(`/api/admin/missing-items/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(note !== undefined ? { status, note } : { status }),
     }),
   // Assign a missing item to a team member (memberId null = unassign).
   assignMissing: (id: number, memberId: string | null) =>

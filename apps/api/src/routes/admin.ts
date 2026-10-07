@@ -6120,7 +6120,7 @@ export async function adminRoutes(app: FastifyInstance) {
                      ORDER BY e.event_date LIMIT 10`, [staff.id]),
         pool.query(`SELECT mi.id, mi.item, mi.quantity, mi.event_id, mi.created_at
                       FROM missing_items mi JOIN event_team et ON et.event_id=mi.event_id
-                     WHERE et.member_id=$1 AND mi.status <> 'cancelled' AND mi.created_at > now() - interval '21 days'
+                     WHERE et.member_id=$1 AND mi.status NOT IN ('cancelled','rejected') AND mi.created_at > now() - interval '21 days'
                      ORDER BY mi.created_at DESC LIMIT 15`, [staff.id]),
       ]);
       for (const b of newBookings.rows) items.push({ id: `nb-${b.id}`, level: 'info', icon: '🎉', title: 'New event assigned to you', text: `${b.customer}${b.package ? ` · ${b.package}` : ''}`, eventId: b.id, at: b.created_at });
@@ -7319,7 +7319,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const staff = (request as any).staff as { id?: string; name?: string; role?: string };
     const role = staff?.role;
     const { id } = request.params as { id: string };
-    const schema = z.object({ status: z.enum(['requested', 'ordered', 'received', 'cancelled']) });
+    // 'rejected' = not actually missing (it's available / a false report); the
+    // owner writes a short note saying so, kept on the item so everyone sees why.
+    const schema = z.object({ status: z.enum(['requested', 'ordered', 'received', 'cancelled', 'rejected']), note: z.string().max(300).optional() });
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     // Owner/manager can act on any item; anyone else only on an item assigned to them.
@@ -7331,8 +7333,8 @@ export async function adminRoutes(app: FastifyInstance) {
       }
     }
     const { rows } = await pool.query(
-      `UPDATE missing_items SET status = $2, actioned_at = now() WHERE id = $1 RETURNING *`,
-      [id, p.data.status],
+      `UPDATE missing_items SET status = $2, actioned_at = now(), note = COALESCE($3, note) WHERE id = $1 RETURNING *`,
+      [id, p.data.status, p.data.note?.trim() || null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     // Close the loop: record the action so the team sees it was handled.

@@ -131,7 +131,7 @@ export function Inventory({ role }: { role?: string }) {
                       </a>
                     )}
                   </div>
-                  <Badge tone={m.status === 'requested' ? 'error' : m.status === 'ordered' ? 'warn' : 'ok'}>{m.status}</Badge>
+                  <Badge tone={m.status === 'requested' ? 'error' : m.status === 'ordered' ? 'warn' : 'ok'}>{m.status === 'rejected' ? '✋ not missing' : m.status}</Badge>
                 </div>
                 {/* Owner/manager act on any item; the person it's assigned to gets
                     the same buttons. Everyone else just sees the status. */}
@@ -152,6 +152,9 @@ export function Inventory({ role }: { role?: string }) {
                     {m.status !== 'ordered' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'ordered'); load(); }}>🛒 Ordered</Button>}
                     <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'received'); load(); }}>✓ Received</Button>
                     <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { if (!window.confirm(`Cancel the request for "${m.name ?? 'this item'}"?`)) return; await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>
+                    {/* Reject = not actually missing (it's available / a false report). Writes
+                        a note saying so, and stays visible so nobody re-reports it. */}
+                    {m.status !== 'rejected' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { const note = window.prompt('Reject this report — it is available / not actually missing. Write a short note:', m.note || 'Available — not actually missing'); if (note === null) return; await api.setMissingStatus(m.id, 'rejected', note.trim() || 'Not missing — available'); load(); }}>✋ Reject (available)</Button>}
                     {/* Optional photo — a reference of what's needed, or proof it was bought. */}
                     <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, borderRadius: 10, padding: '6px 11px', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
                       📷 {m.photo_url ? 'Change photo' : 'Add photo'}
