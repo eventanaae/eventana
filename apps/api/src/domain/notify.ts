@@ -396,7 +396,7 @@ export function renderFinanceDocEmail(
     lineItems?: Array<{ name: string; qty: number; priceFils: number }>;
     discount_fils?: number; shipping_fils?: number; total_fils: number; message?: string | null;
     event_for?: string | null; theme?: string | null; age?: string | null; event_time?: string | null;
-    date_tbd?: boolean; paid_with?: string | null;
+    date_tbd?: boolean; paid_with?: string | null; booked_on?: unknown; bookedOn?: unknown;
     refundedFils?: number; netTotalFils?: number;
     refundedItems?: Array<{ label?: string | null; amountFils?: number; reasonCategory?: string | null }>;
   },
