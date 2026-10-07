@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { CELEBRATION_TYPES } from '@eventana/shared';
+import { CELEBRATION_TYPES, packageItemNames } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, Panel, Spinner, fredoka, money } from '../ui';
 import { NewOrder } from './NewOrder';
@@ -1433,12 +1433,25 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         </div>
       )}
       <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '.4px', margin: '8px 0 4px' }}>{rv.items.length} ITEM(S)</div>
-      {rv.items.map((l: any, i: number) => (
-        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
-          <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{l.name}</div>{l.description && String(l.description).trim() && <div style={{ fontSize: 11.5, color: C.muted2, whiteSpace: 'pre-wrap', lineHeight: 1.5, marginTop: 2 }}>{l.description}</div>}<div style={{ fontSize: 11, color: C.muted }}>{l.qty} × AED {money(l.priceFils)}</div></div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>AED {l.amountDisplay}</div>
-        </div>
-      ))}
+      {rv.items.map((l: any, i: number) => {
+        const pkgItems = packageItemNames(l.name);
+        return (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{l.name}</div>
+              {l.description && String(l.description).trim() && <div style={{ fontSize: 11.5, color: C.muted2, whiteSpace: 'pre-wrap', lineHeight: 1.5, marginTop: 2 }}>{l.description}</div>}
+              {/* Package contents, so the customer sees exactly what's included. */}
+              {pkgItems.length > 0 && (
+                <div style={{ fontSize: 11.5, color: C.muted2, lineHeight: 1.6, marginTop: 3 }}>
+                  {pkgItems.map((it) => <div key={it}>• {it}</div>)}
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{l.qty} × AED {money(l.priceFils)}</div>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>AED {l.amountDisplay}</div>
+          </div>
+        );
+      })}
       <div style={{ marginTop: 10 }}>
         <Row label="Subtotal" value={`AED ${money(kind === 'receipt' && rv.isRefund ? rv.shownSubtotal : doc.subtotal_fils)}`} />
         {(kind === 'receipt' && rv.isRefund ? rv.shownDiscount : doc.discount_fils) > 0 && <Row label="Discount" value={`− AED ${money(kind === 'receipt' && rv.isRefund ? rv.shownDiscount : doc.discount_fils)}`} />}
@@ -1539,7 +1552,10 @@ function docHtml(doc: any, kind: 'invoice' | 'receipt') {
   const headLabel = rv && rv.isRefund ? (rv.shownTotal > 0 ? 'PARTIALLY REFUNDED' : 'REFUNDED') : 'PAID';
   const rows = itemsOut.map((l: any) => {
     const desc = l.description && String(l.description).trim() ? `<br><span style="color:#666;font-size:12px;line-height:1.5">${esc(String(l.description).trim()).replace(/\n/g, '<br>')}</span>` : '';
-    return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${esc(l.name)}${desc}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`;
+    // Package contents listed under the package line so the customer sees what's in it.
+    const pkgItems = packageItemNames(l.name);
+    const incl = pkgItems.length ? `<br><span style="color:#666;font-size:12px;line-height:1.6">${pkgItems.map((it) => '• ' + esc(it)).join('<br>')}</span>` : '';
+    return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${esc(l.name)}${desc}${incl}<br><span style="color:#999;font-size:12px">${l.qty} × AED ${money(l.priceFils)}</span></td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700">AED ${l.amountDisplay}</td></tr>`;
   }).join('');
   return `<!doctype html><html><head><meta charset="utf8"><title>Eventana ${kind} ${esc(doc.number)}</title></head><body style="font-family:Arial,sans-serif;color:#3B3641;max-width:560px;margin:0 auto;padding:24px">
     <div style="background:linear-gradient(135deg,#F06CA8,#E94F9C);color:#fff;border-radius:18px;padding:22px;text-align:center;margin-bottom:20px">
