@@ -365,6 +365,27 @@ export const PACKAGES: PackageDefinition[] = [
       item('10 Bean Bags + Tables + Lights', 'Ten black bean bags with tables and lights for a cosy cinema corner.'),
     ],
   },
+  {
+    id: 'exclusive',
+    name: 'Eventana Exclusive Package',
+    priceFils: aed(3500),
+    capacity: 'Up to 20 kids',
+    durationHours: 4,
+    tag: 'EXCLUSIVE',
+    gradient: G('#F7C948', '#E94F9C'),
+    hasCastleChoice: true,
+    items: [
+      item('Bouncy Castle 4x4m', 'A 4×4 m bouncy castle, max 10 kids per ride, in your chosen colour.', ['castle-lime']),
+      item('Main Balloon Stand', 'Your main balloon backdrop/stand in your chosen theme colours — small size.'),
+      item('Welcoming Stand', 'A themed welcome sign at your party entrance.'),
+      item('2 Clowns', 'Two entertainers (clowns) running dance, games and activities all party long.'),
+      item('Popcorn Station', 'Freshly popped popcorn served throughout your event.', ['popcorn-cart']),
+      item('Cotton Candy Station', 'Fresh, fluffy cotton candy spun to order.', ['cotton-cart']),
+      item('Tables & Chairs (20 kids)', 'Themed tables and chairs seating for up to 20 kids.'),
+      item('10 Giveaways', 'Ten kids giveaways, handed out during the party — a keepsake to take home.'),
+      item('Music Speaker', 'A party speaker for your playlist.'),
+    ],
+  },
 ];
 
 export const PACKAGE_BY_ID = new Map(PACKAGES.map((p) => [p.id, p]));

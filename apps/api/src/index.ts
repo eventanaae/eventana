@@ -886,6 +886,27 @@ async function main() {
     })();
   }
 
+  // One-shot: create the "Eventana Exclusive Package" row in the packages table
+  // (AED 3500). Its item list is synced from catalogue.ts (package_items) on boot.
+  // ADD_EXCLUSIVE=true.
+  if (String(process.env.ADD_EXCLUSIVE ?? '').toLowerCase() === 'true') {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const r = await pool.query(
+          `INSERT INTO packages (id, name, price_fils, capacity, duration_hours, tag, gradient, has_castle_choice, active)
+           VALUES ('exclusive','Eventana Exclusive Package',350000,'Up to 20 kids',4,'EXCLUSIVE','linear-gradient(135deg,#F7C948,#E94F9C)',true,true)
+           ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, price_fils=EXCLUDED.price_fils,
+             capacity=EXCLUDED.capacity, duration_hours=EXCLUDED.duration_hours, tag=EXCLUDED.tag,
+             gradient=EXCLUDED.gradient, has_castle_choice=EXCLUDED.has_castle_choice, active=true`);
+        console.log(`[add-exclusive] packages row upserted (${r.rowCount})`);
+        const it = await pool.query<{ c: string }>(`SELECT count(*)::text c FROM package_items WHERE package_id='exclusive'`);
+        console.log(`[add-exclusive] package_items for exclusive: ${it.rows[0]?.c}`);
+        console.log('[add-exclusive] END');
+      } catch (e) { console.error('[add-exclusive] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: rename the 5 packages in the packages table (catalogue.ts holds the
   // same names for the item sync) + dump the distinct package-ish labels used in
   // old receipts' line_items, so we can plan the old-receipt name unification.
