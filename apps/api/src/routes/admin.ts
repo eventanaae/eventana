@@ -5931,8 +5931,8 @@ export async function adminRoutes(app: FastifyInstance) {
         FROM finance_receipts
         WHERE COALESCE(booked_on, date) = (now() AT TIME ZONE 'Asia/Dubai')::date`),
       pool.query(`SELECT
-          COALESCE(SUM(amount_fils) FILTER (WHERE spent_on = (now() AT TIME ZONE 'Asia/Dubai')::date),0)::bigint today,
-          COALESCE(SUM(amount_fils) FILTER (WHERE spent_on >= date_trunc('month',(now() AT TIME ZONE 'Asia/Dubai')::date)),0)::bigint month
+          COALESCE(SUM(amount_fils) FILTER (WHERE spent_on = (now() AT TIME ZONE 'Asia/Dubai')::date),0)::bigint AS today,
+          COALESCE(SUM(amount_fils) FILTER (WHERE spent_on >= date_trunc('month',(now() AT TIME ZONE 'Asia/Dubai')::date)),0)::bigint AS mtd
         FROM expenses
         WHERE category ILIKE '%market%' OR category ILIKE '%advert%' OR category ILIKE '%ads%'`),
       pool.query(`SELECT COUNT(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM orders
@@ -5955,7 +5955,7 @@ export async function adminRoutes(app: FastifyInstance) {
     }
     upcoming.sort((a, b) => a.days - b.days);
     const adsToday = Number(ads.rows[0].today);
-    const adsMonth = Number(ads.rows[0].month);
+    const adsMonth = Number(ads.rows[0].mtd);
     return {
       pulse: {
         occasionToday,
