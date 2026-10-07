@@ -437,6 +437,9 @@ async function main() {
       // immediately (stale-only ⇒ never clobbers a manual edit).
       const { regenerateOccasionDrafts } = await import('./domain/marketingCalendar.js');
       await regenerateOccasionDrafts().catch((err) => console.error('[marketing] boot regen failed:', err));
+      // Recover campaigns left stuck 'sending' by a prior restart mid-send (#27).
+      const { recoverStuckSends } = await import('./domain/marketing.js');
+      await recoverStuckSends().catch((err) => console.error('[marketing] stuck-send recovery failed:', err));
       // Remove zero-amount pending bank rows (non-transaction emails mis-captured).
       await pool.query(`DELETE FROM bank_transactions WHERE status = 'pending' AND (amount_fils IS NULL OR amount_fils <= 0)`).catch(() => {});
       // Remove junk payment-provider rows that leaked into the services catalogue

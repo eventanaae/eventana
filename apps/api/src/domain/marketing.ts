@@ -99,6 +99,21 @@ export function customRecipients(audience: string): Array<{ id: string; email: s
   return out;
 }
 
+/**
+ * A campaign send runs IN-PROCESS (the loop in sendCampaign). A deploy or crash
+ * kills it mid-flight, leaving the campaign stuck at status='sending' forever
+ * (0 or partially sent) — it then shows as "in progress" and the Sent count looks
+ * wrong. Called on boot: at startup no send can be running, so any 'sending' row
+ * is orphaned → reset it to 'failed' so the owner can simply Retry it. (#27)
+ */
+export async function recoverStuckSends(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE email_campaigns SET status = 'failed' WHERE status = 'sending'`,
+  ).catch(() => ({ rowCount: 0 }));
+  if (rowCount) console.log(`[marketing] recovered ${rowCount} stuck 'sending' campaign(s) → failed (retryable)`);
+  return rowCount ?? 0;
+}
+
 export async function sendCampaign(campaignId: number): Promise<{ recipients: number; sent: number }> {
   // Atomic CLAIM: compare-and-set the status to 'sending' in a single statement,
   // and only from a sendable state ('approved'/'scheduled' — the retry route
