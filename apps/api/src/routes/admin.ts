@@ -2026,6 +2026,16 @@ export async function adminRoutes(app: FastifyInstance) {
     return buildStaffPayReport(month && /^\d{4}-\d{2}-\d{2}$/.test(month) ? month : undefined);
   });
 
+  // Unpaid dues carried over from previous months — so money owed never
+  // disappears when the month rolls over (owner's rule, #14). Owner/manager.
+  app.get('/api/admin/staff-pay-outstanding', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
+    const before = (request.query as { before?: string })?.before;
+    const { buildOutstandingStaffPay } = await import('../domain/staffPayReport.js');
+    return buildOutstandingStaffPay(before && /^\d{4}-\d{2}$/.test(before) ? `${before}-01` : undefined);
+  });
+
   // Who's booked in the FUTURE (part-timers + deliveries) with their phones, so
   // the owner can reach them before the event (owner/manager).
   app.get('/api/admin/staff-upcoming', async (request, reply) => {

@@ -419,6 +419,7 @@ export const api = {
   missingItems: () => request<any[]>('/api/admin/missing-items'),
   supplierNames: () => request<{ names: string[] }>('/api/admin/supplier-names'),
   staffPayReport: (month?: string) => request<any>(`/api/admin/staff-pay-report${month ? `?month=${month}` : ''}`),
+  staffPayOutstanding: (before?: string) => request<any[]>(`/api/admin/staff-pay-outstanding${before ? `?before=${before}` : ''}`),
   staffUpcoming: () => request<any>('/api/admin/staff-upcoming'),
   partTimerNames: () => request<{ names: string[] }>('/api/admin/part-timer-names'),
   setEventDelivery: (eventId: string, patch: { truck?: 'small' | 'big'; priceFils?: number | null }) =>

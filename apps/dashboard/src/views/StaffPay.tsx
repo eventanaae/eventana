@@ -56,8 +56,12 @@ export function StaffPay() {
   const [month, setMonth] = useState<string>(curMonth);
   const [data, setData] = useState<any>(null);
   const [upcoming, setUpcoming] = useState<any>(null);
+  const [outstanding, setOutstanding] = useState<any[] | null>(null);
   const reload = (m: string = month) => api.staffPayReport(`${m}-01`).then(setData).catch(() => setData({ partTimers: [], drivers: [] }));
-  useEffect(() => { reload(month); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Unpaid dues carried over from previous months (relative to the real current
+  // month) — stays until paid so money owed never disappears (#14).
+  const reloadOutstanding = () => api.staffPayOutstanding(curMonth).then(setOutstanding).catch(() => setOutstanding([]));
+  useEffect(() => { reload(month); reloadOutstanding(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { api.staffUpcoming().then(setUpcoming).catch(() => setUpcoming({ partTimers: [], drivers: [] })); }, []);
   const goMonth = (delta: number) => { const m = stepMonth(month, delta); if (m > curMonth) return; setMonth(m); reload(m); };
   if (!data) return <Spinner />;
@@ -75,6 +79,41 @@ export function StaffPay() {
           <button disabled={atCurrent} onClick={() => goMonth(1)} style={navBtn(atCurrent)} title="Next month">▶</button>
         </div>
       </div>
+
+      {outstanding && outstanding.length > 0 && (
+        <Panel title="⚠️ Outstanding — unpaid from previous months">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {outstanding.map((grp: any) => (
+              <div key={grp.month}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: C.muted2, marginBottom: 6 }}>{grp.monthLabel}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {grp.partTimers.map((p: any) => (
+                    <div key={`pt-${p.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>🤡 {p.name}{p.phone ? '' : ' ⚠️'}</div>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 2 }}>{p.entries.length} job{p.entries.length > 1 ? 's' : ''}</div>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{p.totalDisplay}</span>
+                      <PayButton kind="part_timer" name={p.name} suggestedFils={p.totalFils} month={grp.month} paid={false} paidDisplay={null} onPaid={() => { reloadOutstanding(); reload(); }} />
+                    </div>
+                  ))}
+                  {grp.driverPayouts.map((d: any) => (
+                    <div key={`dr-${d.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>🚐 {d.name}{d.phone ? '' : ' ⚠️'}</div>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 2 }}>{d.count} trip{d.count > 1 ? 's' : ''} · {d.type}</div>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{d.suggestedDisplay}</span>
+                      <PayButton kind="driver" name={d.name} suggestedFils={d.suggestedFils} month={grp.month} paid={false} paidDisplay={null} onPaid={() => { reloadOutstanding(); reload(); }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 10 }}>These stay here until you mark them paid — nothing owed disappears when the month changes.</div>
+        </Panel>
+      )}
 
       <Panel title="⏭️ Upcoming">
         {!upcoming ? <Spinner /> : ((upcoming.partTimers?.length ?? 0) === 0 && (upcoming.drivers?.length ?? 0) === 0) ? (

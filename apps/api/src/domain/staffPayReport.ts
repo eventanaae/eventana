@@ -182,6 +182,49 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
   return { month: monthStr, monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers, deliveryTotalDisplay: formatAed(deliveryTotal), driverPayouts };
 }
 
+export type OutstandingStaffPay = Array<{
+  month: string;
+  monthLabel: string;
+  partTimers: StaffPayReport['partTimers'];
+  driverPayouts: StaffPayReport['driverPayouts'];
+}>;
+
+/**
+ * Unpaid part-timer/driver dues carried over from BEFORE the given month, so the
+ * tracker never lets money owed disappear just because the month rolled over —
+ * it stays visible until it's marked paid (owner's rule, queue #14). Only months
+ * that actually had activity are rebuilt, so this is cheap in practice.
+ */
+export async function buildOutstandingStaffPay(beforeMonthISO?: string): Promise<OutstandingStaffPay> {
+  const before = (beforeMonthISO ?? new Date().toISOString().slice(0, 10)).slice(0, 7); // YYYY-MM
+  const FLOOR = '2026-09-01'; // the tracker's start — nothing meaningful before this
+  const { rows } = await pool.query<{ m: string }>(
+    `SELECT DISTINCT to_char(date_trunc('month', d),'YYYY-MM') AS m
+       FROM (
+         SELECT e.event_date AS d
+           FROM event_staff es JOIN events e ON e.id = es.event_id
+          WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
+            AND es.role IN ('clown','acrobat_clown','face_painting','balloon_artist','balloon_twisting','driver','pt_driver')
+            AND e.phase IS DISTINCT FROM 'Cancelled' AND e.event_date <= CURRENT_DATE
+         UNION ALL
+         SELECT del_date AS d FROM deliveries
+       ) x
+      WHERE d >= $1::date AND d < date_trunc('month', ($2 || '-01')::date)
+      ORDER BY m`,
+    [FLOOR, before],
+  );
+  const out: OutstandingStaffPay = [];
+  for (const { m } of rows) {
+    const rep = await buildStaffPayReport(`${m}-01`);
+    const partTimers = rep.partTimers.filter((p) => !p.paid && p.totalFils > 0);
+    const driverPayouts = rep.driverPayouts.filter((d) => !d.paid && d.suggestedFils > 0);
+    if (partTimers.length || driverPayouts.length) {
+      out.push({ month: m, monthLabel: rep.monthLabel, partTimers, driverPayouts });
+    }
+  }
+  return out;
+}
+
 export type UpcomingStaff = {
   partTimers: Array<{ name: string; role: string; job: string; priceFils: number; phone: string | null; eventDate: string; eventRef: string; eventName: string | null }>;
   drivers: Array<{ driverName: string; phone: string | null; emirate: string; truck: string | null; priceFils: number | null; eventDate: string; eventRef: string | null; eventName: string | null }>;
