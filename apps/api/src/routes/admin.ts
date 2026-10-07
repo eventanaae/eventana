@@ -6345,7 +6345,7 @@ export async function adminRoutes(app: FastifyInstance) {
   /* ---------------------------- Email marketing --------------------------- */
 
   app.get('/api/admin/marketing', async () => {
-    const [counts, campaigns] = await Promise.all([
+    const [counts, campaigns, statusCountRows] = await Promise.all([
       audienceCounts(),
       pool.query(
         `SELECT id, subject, body_html, audience, status, scheduled_for, sent_at,
@@ -6353,13 +6353,20 @@ export async function adminRoutes(app: FastifyInstance) {
                 created_at, created_by, approved_by, approved_at, rejection_reason, source, dedupe_key
            FROM email_campaigns ORDER BY created_at DESC LIMIT 50`,
       ),
+      // Accurate counts across ALL campaigns — the list above is capped at 50, so
+      // the dashboard must not derive "Sent" etc. by filtering it (older sent
+      // campaigns fall off the list and get undercounted). #27.
+      pool.query(`SELECT status, COUNT(*)::int c FROM email_campaigns GROUP BY status`),
     ]);
     const corp = await corporateCounts().catch(() => ({ byCategory: {}, total: 0, emailable: 0, optedOut: 0 }));
+    const statusCounts: Record<string, number> = {};
+    for (const r of statusCountRows.rows as Array<{ status: string; c: number }>) statusCounts[r.status] = Number(r.c);
     return {
       emailConfigured: emailEnabled(), audiences: counts,
       // `kind` lets the dashboard badge each campaign as a greeting vs an
       // offer/discount vs a general promo (read-only, derived — no schema change).
       campaigns: campaigns.rows.map((r) => ({ ...r, kind: classifyCampaignKind(r as any) })),
+      statusCounts,
       corporate: corp, corporateLabels: CORP_CATEGORY_LABELS,
     };
   });

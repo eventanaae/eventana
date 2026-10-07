@@ -111,8 +111,11 @@ export function Marketing() {
   const findFull = (id: string) => data.campaigns.find((x: any) => String(x.id) === String(id));
 
   const campaigns: any[] = data.campaigns ?? [];
-  const sentCount = campaigns.filter((c) => c.status === 'sent').length;
-  const pendingCount = campaigns.filter((c) => c.status === 'pending_approval').length;
+  // Use the DB-wide status counts (the list is capped at 50, so filtering it
+  // undercounts once enough drafts pile up). Fall back to the list if absent. #27
+  const sc: Record<string, number> | undefined = data.statusCounts;
+  const sentCount = sc ? (sc.sent ?? 0) : campaigns.filter((c) => c.status === 'sent').length;
+  const pendingCount = sc ? (sc.pending_approval ?? 0) : campaigns.filter((c) => c.status === 'pending_approval').length;
   const recentCampaigns = campaigns.slice(0, 6);
   const upcoming = (cal ?? []).filter((o: any) => !o.needsDateConfirm && o.dateISO).slice(0, 6);
   const corp = data.corporate ?? {};
