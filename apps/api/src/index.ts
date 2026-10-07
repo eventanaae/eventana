@@ -886,6 +886,35 @@ async function main() {
     })();
   }
 
+  // One-shot: rename the 5 packages in the packages table (catalogue.ts holds the
+  // same names for the item sync) + dump the distinct package-ish labels used in
+  // old receipts' line_items, so we can plan the old-receipt name unification.
+  // RENAME_PACKAGES=true.
+  if (String(process.env.RENAME_PACKAGES ?? '').toLowerCase() === 'true') {
+    (async () => {
+      const MAP: Array<[string, string]> = [
+        ['golden', 'Golden Birthday Package'], ['silver', 'Silver Birthday Package'],
+        ['bronze', 'Bronze Birthday Package'], ['spa', 'Spa Birthday Package'],
+        ['movie', 'Movie Night Package'],
+      ];
+      try {
+        const { pool } = await import('./db/pool.js');
+        for (const [id, name] of MAP) {
+          const r = await pool.query(`UPDATE packages SET name = $2 WHERE id = $1`, [id, name]);
+          console.log(`[rename-pkg] ${id} → "${name}" (${r.rowCount} row)`);
+        }
+        const labels = (await pool.query<{ label: string; n: string }>(
+          `SELECT li->>'label' label, count(*)::text n
+             FROM finance_receipts, jsonb_array_elements(line_items) li
+            WHERE li->>'label' ILIKE ANY (ARRAY['%birthday%','%spa%','%movie%','%summer%','%carnaval%','%carnival%','%exclusive%','%package%'])
+            GROUP BY 1 ORDER BY 2 DESC`)).rows;
+        console.log(`[rename-pkg] package-ish labels in old receipts: ${labels.length}`);
+        for (const l of labels) console.log(`[rename-pkg] "${l.label}" ×${l.n}`);
+        console.log('[rename-pkg] END');
+      } catch (e) { console.error('[rename-pkg] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot report: refunds in the last 14 days (who/what/why) + last month's
   // salary payments (recorded as expenses, category 'salaries'). REVIEW_REFUND_SALARY=true.
   if (String(process.env.REVIEW_REFUND_SALARY ?? '').toLowerCase() === 'true') {

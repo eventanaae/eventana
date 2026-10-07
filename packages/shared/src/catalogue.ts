@@ -235,7 +235,7 @@ const item = (name: string, detail: string, assets: string[] = []) => ({ name, d
 export const PACKAGES: PackageDefinition[] = [
   {
     id: 'golden',
-    name: 'Golden Birthday',
+    name: 'Golden Birthday Package',
     priceFils: aed(5999),
     capacity: 'Up to 40 kids',
     durationHours: 4,
@@ -259,7 +259,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'silver',
-    name: 'Silver Birthday',
+    name: 'Silver Birthday Package',
     priceFils: aed(4799),
     capacity: 'Up to 40 kids',
     durationHours: 4,
@@ -282,7 +282,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'bronze',
-    name: 'Bronze Birthday',
+    name: 'Bronze Birthday Package',
     priceFils: aed(3599),
     capacity: 'Up to 40 kids',
     durationHours: 4,
@@ -304,7 +304,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'spa',
-    name: 'Spa Party',
+    name: 'Spa Birthday Package',
     priceFils: aed(5999),
     capacity: 'Up to 20 kids',
     durationHours: 4,
@@ -350,7 +350,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'movie',
-    name: 'Movie Night',
+    name: 'Movie Night Package',
     priceFils: aed(2199),
     capacity: 'Up to 40 kids',
     durationHours: 4,
