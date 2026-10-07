@@ -587,6 +587,12 @@ CREATE INDEX IF NOT EXISTS notifications_pending_idx
 -- Customer-facing rows are also delivered over WhatsApp (in parallel to email);
 -- this stamps the WhatsApp send independently so each channel retries on its own.
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS whatsapp_sent_at TIMESTAMPTZ;
+-- The WhatsApp sweep scans rows whose EMAIL already sent (sent_at set) but whose
+-- WhatsApp is still pending (whatsapp_sent_at IS NULL) — those fail the predicate
+-- of notifications_pending_idx above, so this partial index keeps that sweep from
+-- seq-scanning the table as it grows. (Defined after the column it references.)
+CREATE INDEX IF NOT EXISTS notifications_wa_pending_idx
+  ON notifications (scheduled_for) WHERE whatsapp_sent_at IS NULL AND cancelled_at IS NULL;
 
 -- ── Cancellations & refunds ──────────────────────────────────────────────
 -- One row per cancelled order. The refund amount is computed on the server
