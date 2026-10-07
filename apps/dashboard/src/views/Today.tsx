@@ -254,7 +254,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         return (
           <Panel className="rise-in" style={{ ['--i' as any]: 5 } as any} title={`Upcoming · ${totalUpcoming} event${totalUpcoming === 1 ? '' : 's'}`}
             action={<span onClick={() => onGoto('schedule')} className="tap" style={{ fontSize: 12, fontWeight: 800, color: C.pinkDeep, cursor: 'pointer' }}>See all ›</span>}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {combined.map((it, idx) => it.shop
                 ? <ShopRow key={`s-${it.id}`} o={(it as any).o} onOpen={() => onOpenShop?.(it.id)} />
                 : <EventRow key={it.id} e={(it as any).e} label={when((it as any).e)} accentIdx={idx} onOpen={() => onOpenEvent(it.id)} />)}
@@ -359,7 +359,7 @@ export function FeedbackCard({ r, onOpen }: { r: any; onOpen?: () => void }) {
 /** A shop order row in the Upcoming list — light purple, clickable. */
 function ShopRow({ o, onOpen }: { o: any; onOpen: () => void }) {
   return (
-    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
+    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', padding: '13px 15px', borderRadius: 14, background: '#fff', border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
       <span style={{ width: 34, height: 34, borderRadius: 11, background: 'linear-gradient(135deg,#E7D6F7,#D6C2F0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: 'none' }}>🛍️</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#6B4E9E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.customer}</div>
@@ -445,7 +445,7 @@ function EventRow({ e, label, onOpen, accentIdx = 0 }: { e: any; label: string; 
   const headline = eventTitle(e);
   const timeOnly = e.start_time ? to12h(e.start_time) : '';
   return (
-    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', padding: '8px 4px', borderRadius: 12 }}>
+    <div onClick={onOpen} className="tap" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', padding: '13px 15px', borderRadius: 14, background: '#fff', border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
       <div style={{ width: 54, flex: 'none', textAlign: 'center', background: C.pinkSoft, borderRadius: 11, padding: '6px 0', color: C.pinkDeep }}>
         <div style={{ fontSize: 11, fontWeight: 700 }}>{db.wd}</div>
         <div style={{ fontSize: 19, fontWeight: 800, lineHeight: 1.05 }}>{db.day}</div>
