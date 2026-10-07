@@ -886,6 +886,37 @@ async function main() {
     })();
   }
 
+  // One-shot report: refunds in the last 14 days (who/what/why) + last month's
+  // salary payments (recorded as expenses, category 'salaries'). REVIEW_REFUND_SALARY=true.
+  if (String(process.env.REVIEW_REFUND_SALARY ?? '').toLowerCase() === 'true') {
+    (async () => {
+      const aed = (f: any) => `AED ${(Number(f) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+      try {
+        const { pool } = await import('./db/pool.js');
+        const rf = (await pool.query<{ when: string; oid: string; amt: string; cat: string; note: string | null; by: string | null; name: string | null }>(
+          `SELECT to_char(r.created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') when, r.order_id oid,
+                  r.amount_fils amt, r.reason_category cat, r.reason_note note, r.created_by by,
+                  c.name
+             FROM refunds r
+             LEFT JOIN events e ON e.order_id = r.order_id
+             LEFT JOIN customers c ON c.id = e.customer_id
+            WHERE r.created_at >= now() - interval '14 days'
+            ORDER BY r.created_at DESC`)).rows;
+        console.log(`[review-rf] REFUNDS last 14 days: ${rf.length}`);
+        for (const r of rf) console.log(`[review-rf] ${r.when} | ${r.name ?? r.oid} | ${aed(r.amt)} | ${r.cat}${r.note ? ' — '+r.note : ''} | by ${r.by ?? '—'}`);
+        const sal = (await pool.query<{ d: string; desc: string; amt: string; vendor: string | null; by: string | null; pm: string | null }>(
+          `SELECT to_char(spent_on,'YYYY-MM-DD') d, description desc, amount_fils amt, vendor, recorded_by by, payment_method pm
+             FROM expenses
+            WHERE category ILIKE '%salar%' AND spent_on >= '2026-09-01' AND spent_on < '2026-10-01'
+            ORDER BY spent_on`)).rows;
+        const salTotal = sal.reduce((s, r) => s + Number(r.amt), 0);
+        console.log(`[review-rf] SALARIES recorded for September: ${sal.length} (total ${aed(salTotal)})`);
+        for (const r of sal) console.log(`[review-rf] ${r.d} | ${r.desc}${r.vendor ? ' / '+r.vendor : ''} | ${aed(r.amt)} | ${r.pm ?? '—'} | by ${r.by ?? '—'}`);
+        console.log('[review-rf] END');
+      } catch (e) { console.error('[review-rf] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot: Dindo's leave (4–30 Sep + 2–6 Oct 2026) + pay him as a PART-TIME
   // balloon artist (AED 350) for the 3 events he worked during that leave
   // (4/12/26 Sep). DINDO_FIX=true.
