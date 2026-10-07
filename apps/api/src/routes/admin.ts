@@ -3134,13 +3134,17 @@ export async function adminRoutes(app: FastifyInstance) {
   // so the sum is net revenue.)
   app.get('/api/admin/import/revenue-by-year', async () => {
     const { rows } = await pool.query(
+      // Exclude 'Payment' rows: QuickBooks records a payment against an invoice as
+      // its own historical_orders row carrying the amount, so summing both the
+      // invoice line AND its payment double-counts the money. Every other revenue
+      // path (CEO yearsPnl, byEmirate/byTheme, themeSheet) already excludes it.
       `SELECT extract(year FROM txn_date)::int AS year,
               count(DISTINCT doc_number)::int AS invoices,
               count(*)::int AS lines,
               coalesce(sum(total_fils),0)::bigint AS revenue_fils,
               coalesce(-sum(discount_fils),0)::bigint AS discount_fils
          FROM historical_orders
-        WHERE txn_date IS NOT NULL
+        WHERE txn_date IS NOT NULL AND COALESCE(txn_type,'') <> 'Payment'
         GROUP BY 1 ORDER BY 1`,
     );
     return rows.map((r) => ({
@@ -3187,8 +3191,11 @@ export async function adminRoutes(app: FastifyInstance) {
                 UNION SELECT year FROM expense_years
               ) y
          LEFT JOIN (
+                -- Exclude 'Payment' rows: a payment against an invoice is its own
+                -- historical_orders row carrying the amount, so summing both the
+                -- invoice line and its payment double-counts. Matches every other path.
                 SELECT extract(year FROM txn_date)::int AS year, sum(total_fils) AS revenue_fils
-                  FROM historical_orders WHERE txn_date IS NOT NULL GROUP BY 1
+                  FROM historical_orders WHERE txn_date IS NOT NULL AND COALESCE(txn_type,'') <> 'Payment' GROUP BY 1
               ) r ON r.year = y.year
          LEFT JOIN expense_years e ON e.year = y.year
         ORDER BY y.year`,

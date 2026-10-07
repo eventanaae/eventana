@@ -39,12 +39,20 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
   end.setUTCMonth(end.getUTCMonth() + 1);
   const endStr = end.toISOString().slice(0, 10);
 
-  const [rev, exp, byCat, tips, orders, items, emirates] = await Promise.all([
-    // Revenue = every sale BOOKED that month (money-in), by booked_on — owner's
+  const [rev, refundRow, exp, byCat, tips, orders, items, emirates] = await Promise.all([
+    // Gross sales = every sale BOOKED that month (money-in), by booked_on — owner's
     // rule: the month's income is what the customer booked/paid that month, not the
     // month the party happens. COALESCE keeps any row without a booking date.
     pool.query(
       `SELECT COALESCE(SUM(total_fils),0) v FROM finance_receipts WHERE COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2`,
+      [start, endStr],
+    ),
+    // Refunds that LEFT the account this month, by the refund's own date (created_at).
+    // Subtracted from gross sales so the "Total amount" is net revenue — the SAME
+    // method the CEO tab uses (receipts by booking date − refunds ledger by refund
+    // date), so the monthly email and the dashboard always agree.
+    pool.query(
+      `SELECT COALESCE(SUM(amount_fils),0) v FROM refunds WHERE created_at >= $1 AND created_at < $2`,
       [start, endStr],
     ),
     // Expenses = every expense spent that month (QuickBooks history INCLUDED —
@@ -96,7 +104,7 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
     ),
   ]);
 
-  const revenue = Number(rev.rows[0].v);
+  const revenue = Number(rev.rows[0].v) - Number(refundRow.rows[0].v); // net of refunds
   const expenses = Number(exp.rows[0].v);
   const profit = revenue - expenses;
   return {
