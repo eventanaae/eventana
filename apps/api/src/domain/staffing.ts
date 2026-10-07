@@ -623,6 +623,18 @@ export async function syncAllEventTeams(): Promise<{ synced: number }> {
       WHERE EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = et.event_id AND es.assignee_id IS NOT NULL)
         AND NOT EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = et.event_id AND es.assignee_id = et.member_id)`,
   ).catch(() => {});
+  // Also clear leftover "first 3 members" placeholder crew from UPCOMING,
+  // un-completed events that were NEVER rostered (no event_staff assignee at all)
+  // — manual mode starts a booking with an empty crew, and event_team should only
+  // ever hold real event_staff assignees. Scoped to upcoming + not-completed so
+  // historical COMPLETED events (which drive the points KPI) are never touched.
+  await pool.query(
+    `DELETE FROM event_team et USING events e
+      WHERE e.id = et.event_id
+        AND e.event_date >= (now() AT TIME ZONE 'Asia/Dubai')::date
+        AND e.phase NOT IN ('Event Completed','Cancelled')
+        AND NOT EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = et.event_id AND es.assignee_id = et.member_id)`,
+  ).catch(() => {});
   const r = await pool.query(
     `INSERT INTO event_team (event_id, member_id)
      SELECT DISTINCT event_id, assignee_id FROM event_staff WHERE assignee_id IS NOT NULL
