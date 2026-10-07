@@ -71,10 +71,10 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
             <span style={{ ...fredoka(14), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eventTitle(e)}</span>
-            {/* The order amount in a pink pill (same treatment as the Home cards),
-                not plain right-aligned text. */}
-            {e.totalDisplay != null && (
-              <span style={{ flex: 'none', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>AED {e.totalDisplay}</span>
+            {/* The emirate in a pink pill on the right (owner prefers the location
+                over the amount here). */}
+            {e.emirate && (
+              <span style={{ flex: 'none', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 800, color: C.pinkDeep, background: C.pinkSoft, borderRadius: 20, padding: '4px 10px' }}>📍 {e.emirate}</span>
             )}
           </div>
           {e.eventFor && <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, marginTop: 1 }}>by {e.customer}</div>}
@@ -93,7 +93,7 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
           )}
           <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
             <span style={{ fontFamily: 'ui-monospace, monospace' }}>{e.reference ?? e.id}</span> ·{' '}
-            {timeRange12h(e.start_time, e.base_end_time)} · {e.emirate}
+            {timeRange12h(e.start_time, e.base_end_time)}
           </div>
           {/* Only surface a status badge when something is OFF — a normal
               "Booking Confirmed" + "paid" is the default and just clutters the
