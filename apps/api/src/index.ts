@@ -886,6 +886,28 @@ async function main() {
     })();
   }
 
+  // One-shot (reusable): set booking date(s) for specific receipts. Format:
+  // SET_BOOKED="<ref>=<YYYY-MM-DD>;<ref>=<YYYY-MM-DD>" where ref is an EV id or a
+  // receipt number. Matches by event_id/order_id for EV ids, by number otherwise.
+  if (process.env.SET_BOOKED) {
+    (async () => {
+      try {
+        const { pool } = await import('./db/pool.js');
+        const pairs = String(process.env.SET_BOOKED).split(';').map((s) => s.trim()).filter(Boolean);
+        for (const p of pairs) {
+          const [ref, date] = p.split('=').map((x) => x.trim());
+          if (!ref || !date) { console.log(`[set-booked] skip "${p}"`); continue; }
+          const q = ref.startsWith('EV-')
+            ? { sql: `UPDATE finance_receipts SET booked_on = $2::date WHERE event_id = $1 OR order_id = (SELECT order_id FROM events WHERE id = $1)`, v: [ref, date] }
+            : { sql: `UPDATE finance_receipts SET booked_on = $2::date WHERE number = $1`, v: [ref, date] };
+          const r = await pool.query(q.sql, q.v);
+          console.log(`[set-booked] ${ref} → ${date} (${r.rowCount} row)`);
+        }
+        console.log('[set-booked] END');
+      } catch (e) { console.error('[set-booked] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot VERIFY: after setting the season booking dates, cross-check the
   // Oct–Dec 2026 bookings — list each with its final booked_on, show how the money
   // distributes by BOOKING month, the per-month report view, and flag anything
