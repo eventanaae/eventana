@@ -1909,6 +1909,59 @@ async function main() {
     })();
   }
 
+  // One-shot: HARD-DELETE one order and everything attached to it (refund, payment,
+  // sales receipt, event + its crew/tasks/services, loyalty, promo/cancellation
+  // rows). Owner-requested removal of a defunct order. Snapshots the full rows to
+  // the logs FIRST (so it can be recreated if needed), then deletes in ONE
+  // transaction; each table delete is savepoint-guarded so an absent table/column
+  // is skipped, not fatal. Set DELETE_ORDER_FULL=<orderId> for one deploy, unset.
+  if (process.env.DELETE_ORDER_FULL) {
+    (async () => {
+      const oid = String(process.env.DELETE_ORDER_FULL);
+      try {
+        const { pool, withTransaction } = await import('./db/pool.js');
+        // Recovery snapshot — the whole rows, so nothing is lost beyond recovery.
+        for (const [label, sql] of [
+          ['order', `SELECT * FROM orders WHERE id = $1`],
+          ['receipt', `SELECT * FROM finance_receipts WHERE order_id = $1`],
+          ['refunds', `SELECT * FROM refunds WHERE order_id = $1`],
+          ['payments', `SELECT * FROM payments WHERE order_id = $1`],
+        ] as const) {
+          const r = await pool.query(sql, [oid]).catch(() => ({ rows: ['(read failed)'] }));
+          console.log(`[del-order] SNAPSHOT ${oid} ${label}: ${JSON.stringify(r.rows)}`);
+        }
+        await withTransaction(async (db) => {
+          const evIds = (await db.query<{ id: string }>(`SELECT id FROM events WHERE order_id = $1`, [oid])).rows.map((r) => r.id);
+          const counts: Record<string, number> = {};
+          const del = async (t: string, sql: string, p: any[]) => {
+            await db.query('SAVEPOINT s');
+            try { const r = await db.query(sql, p); counts[t] = r.rowCount ?? 0; await db.query('RELEASE SAVEPOINT s'); }
+            catch { await db.query('ROLLBACK TO SAVEPOINT s'); counts[t] = -1; } // table/column absent → skip
+          };
+          await del('payment_events', `DELETE FROM payment_events WHERE order_id = $1`, [oid]);
+          await del('payments', `DELETE FROM payments WHERE order_id = $1`, [oid]);
+          await del('refunds', `DELETE FROM refunds WHERE order_id = $1`, [oid]);
+          await del('loyalty_transactions', `DELETE FROM loyalty_transactions WHERE order_id = $1`, [oid]);
+          await del('promo_redemptions', `DELETE FROM promo_redemptions WHERE order_id = $1`, [oid]);
+          await del('cancellations', `DELETE FROM cancellations WHERE order_id = $1`, [oid]);
+          await del('inventory_holds', `DELETE FROM inventory_holds WHERE order_id = $1`, [oid]);
+          await del('event_services_by_order', `DELETE FROM event_services WHERE order_id = $1`, [oid]);
+          for (const ev of evIds) {
+            await del(`event_staff:${ev}`, `DELETE FROM event_staff WHERE event_id = $1`, [ev]);
+            await del(`event_tasks:${ev}`, `DELETE FROM event_tasks WHERE event_id = $1`, [ev]);
+            await del(`event_team:${ev}`, `DELETE FROM event_team WHERE event_id = $1`, [ev]);
+            await del(`event_services:${ev}`, `DELETE FROM event_services WHERE event_id = $1`, [ev]);
+          }
+          await del('events', `DELETE FROM events WHERE order_id = $1`, [oid]);
+          await del('notifications', `UPDATE notifications SET cancelled_at = now() WHERE payload->>'orderId' = $1 AND sent_at IS NULL AND cancelled_at IS NULL`, [oid]);
+          await del('finance_receipts', `DELETE FROM finance_receipts WHERE order_id = $1`, [oid]);
+          await del('orders', `DELETE FROM orders WHERE id = $1`, [oid]);
+          console.log(`[del-order] ${oid} DELETED: ${JSON.stringify(counts)}`);
+        });
+      } catch (e) { console.error('[del-order] failed:', (e as Error).message); }
+    })();
+  }
+
   // One-shot READ-ONLY diagnostic: the receipt↔order linkage gap. How many sales
   // receipts have no/for a non-existent order_id, and how many of those can be
   // SAFELY matched to exactly one order (same customer + same total). Set
