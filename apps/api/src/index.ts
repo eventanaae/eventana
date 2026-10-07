@@ -1746,19 +1746,32 @@ async function main() {
     (async () => {
       try {
         const { pool } = await import('./db/pool.js');
-        const tot = await pool.query(`SELECT COUNT(*)::int c, COALESCE(SUM(amount_fils),0)::bigint s, COUNT(*) FILTER (WHERE event_id IS NULL)::int nullev FROM refunds`);
-        console.log(`[diag-refunds] refunds table: ${tot.rows[0].c} rows, sum=${tot.rows[0].s} fils, ${tot.rows[0].nullev} with NULL event_id`);
-        const recent = await pool.query(
-          `SELECT order_id, event_id, amount_fils, reason_category, to_char(created_at,'YYYY-MM-DD HH24:MI') AS at FROM refunds ORDER BY created_at DESC LIMIT 10`);
-        for (const r of recent.rows as any[]) console.log(`[diag-refunds] ${r.at} · order=${r.order_id} · event=${r.event_id} · ${r.amount_fils} · ${r.reason_category}`);
-        // How the CEO dashboard counts it (JOIN events on event_id, by event_date this year):
-        const dash = await pool.query(
-          `SELECT COALESCE(SUM(r.amount_fils),0)::bigint v, COUNT(*)::int c FROM refunds r JOIN events e ON e.id = r.event_id
-            WHERE e.event_date >= date_trunc('year', CURRENT_DATE) AND e.event_date < date_trunc('year', CURRENT_DATE) + interval '1 year'`);
-        console.log(`[diag-refunds] CEO 'this year' (JOIN events by event_date): ${dash.rows[0].c} rows, ${dash.rows[0].v} fils`);
-        const o48 = await pool.query(`SELECT status FROM orders WHERE id='EVT-ORD-000048'`);
-        const r48 = await pool.query(`SELECT refunded_fils, total_fils FROM finance_receipts WHERE order_id='EVT-ORD-000048'`);
-        console.log(`[diag-refunds] EVT-ORD-000048: order status=${o48.rows[0]?.status}; receipt refunded_fils=${r48.rows[0]?.refunded_fils}, total=${r48.rows[0]?.total_fils}`);
+        const aed = (f: number) => `AED ${(Number(f) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+        // #16 — every refund in the last 14 days: who (customer), what (amount +
+        // item), why (reason + note), and WHO DID IT (created_by: staff name /
+        // 'customer' / 'system'). Newest first.
+        const twoW = await pool.query(
+          `SELECT to_char(r.created_at,'YYYY-MM-DD HH24:MI') AS at,
+                  COALESCE(c.name, r.customer_id, '—') AS customer,
+                  r.amount_fils, r.reason_category, COALESCE(r.reason_note,'') AS note,
+                  COALESCE(NULLIF(btrim(r.item_label),''),'(whole amount)') AS item,
+                  COALESCE(NULLIF(btrim(r.created_by),''),'—') AS by,
+                  r.order_id, r.event_id, r.event_cancelled
+             FROM refunds r
+             LEFT JOIN customers c ON c.id = r.customer_id
+            WHERE r.created_at >= now() - interval '14 days'
+            ORDER BY r.created_at DESC`);
+        const sum = (twoW.rows as any[]).reduce((a, r) => a + Number(r.amount_fils), 0);
+        console.log(`[diag-refunds] ===== LAST 14 DAYS: ${twoW.rowCount} refund(s), total ${aed(sum)} =====`);
+        for (const r of twoW.rows as any[]) {
+          console.log(`[diag-refunds] ${r.at} · ${r.customer} · ${aed(r.amount_fils)} · ${r.reason_category}${r.note ? ` ("${r.note}")` : ''} · item: ${r.item} · BY: ${r.by}${r.event_cancelled ? ' · EVENT CANCELLED' : ''} · order=${r.order_id} event=${r.event_id ?? '—'}`);
+        }
+        // Who-did-it tally for the window.
+        const byWho = await pool.query(
+          `SELECT COALESCE(NULLIF(btrim(created_by),''),'—') AS by, COUNT(*)::int c, COALESCE(SUM(amount_fils),0)::bigint s
+             FROM refunds WHERE created_at >= now() - interval '14 days'
+            GROUP BY 1 ORDER BY s DESC`);
+        for (const w of byWho.rows as any[]) console.log(`[diag-refunds] by ${w.by}: ${w.c} refund(s), ${aed(w.s)}`);
       } catch (e) {
         console.error('[diag-refunds] failed:', (e as Error).message);
       }
