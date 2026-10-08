@@ -46,7 +46,10 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
     update({
       celebrationType: id,
       celebrationTypeChosen: true,
-      buildAnswered: draft.celebrationType === id ? draft.buildAnswered : false,
+      // Picking a celebration here IS the intake's only question (age moved to
+      // checkout), so mark it answered and go straight into Build/Explore —
+      // never bounce the customer back to a "what are you celebrating?" re-ask.
+      buildAnswered: true,
       packageId: null,
       services: {},
       themeId: null,
@@ -78,7 +81,7 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
         style={{
           background: 'linear-gradient(135deg,#FDE0EE 0%,#F9C6DC 55%,#BDEBE4 130%)',
           borderRadius: 26,
-          padding: '28px 24px',
+          padding: '24px 24px 22px',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -88,10 +91,10 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
         <div style={{ position: 'relative', fontFamily: "'Sacramento', cursive", fontSize: 24, color: C.pinkDeep, lineHeight: 1 }}>
           {t('home.brand')}
         </div>
-        <div style={{ position: 'relative', ...fredoka(27), lineHeight: 1.15, marginTop: 4 }}>
+        <div style={{ position: 'relative', ...fredoka(27), lineHeight: 1.2, marginTop: 7 }}>
           {t('home.hero')}
         </div>
-        <div style={{ position: 'relative', fontSize: 12.5, fontWeight: 600, color: '#8b7d84', margin: '8px 0 18px' }}>
+        <div style={{ position: 'relative', fontSize: 12.5, fontWeight: 600, color: '#8b7d84', lineHeight: 1.55, marginTop: 9 }}>
           {t('home.heroSub')}
         </div>
       </div>

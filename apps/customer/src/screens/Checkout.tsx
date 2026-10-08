@@ -440,10 +440,10 @@ export function Checkout({
   const goNext = () => { if (step < 6 && canAdvance) { setStep(step + 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
   const goStepBack = () => { if (step > 1) { setStep(step - 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
   const stepTitles = lang === 'ar'
-    ? ['شو اسم بطل الحفلة؟ 🎈', 'وين بتكون الحفلة؟ 📍', 'متى موعد الحفلة؟ 🗓️', 'معلومات التواصل 💬', 'تبين تضيفين شي لحفلتك؟ ✨', 'باقي تفاصيل بسيطة ونجهّز كل شي على ذوقك 💛']
+    ? ['شو اسم صاحب المناسبة؟ 🎈', 'وين بتكون الحفلة؟ 📍', 'متى موعد الحفلة؟ 🗓️', 'معلومات التواصل 💬', 'تبين تضيفين شي لحفلتك؟ ✨', 'باقي تفاصيل بسيطة ونجهّز كل شي على ذوقك 💛']
     : ["Who's the star of the party? 🎈", "Where's the party? 📍", 'When is the party? 🗓️', 'Your contact details 💬', 'Want to add anything to your party? ✨', "A few last details, then you're set 💛"];
   const stepSubs = lang === 'ar'
-    ? ['خلّنا نكمل تفاصيل حفلتج ✨', 'نحسب التوصيل لج تلقائياً 💛', '', '', '', '']
+    ? ['باقي بس كم تفصيل ونكمّل حجزج! ✨', 'نحسب التوصيل لج تلقائياً 💛', '', '', '', '']
     : ["Let's set up your celebration ✨", "We'll work out delivery for you 💛", '', '', '', ''];
 
   return (
@@ -509,11 +509,11 @@ export function Checkout({
       {/* --------- optional inspiration photos → shown to the team --------- */}
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 13.5 }}>
-          {lang === 'ar' ? 'صور إلهام لحفلتك (اختياري)' : 'Inspiration photos (optional)'}
+          {lang === 'ar' ? 'صور للإلهام (اختياري)' : 'Inspiration photos (optional)'}
         </div>
         <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, margin: '4px 0 12px', lineHeight: 1.5 }}>
           {lang === 'ar'
-            ? 'عندك صورة للي تتخيلينه؟ ارفعيها ونجهّز على ذوقك 💛'
+            ? 'عندج صورة أو فكرة في بالج؟ ارفعيها ونرتّب لج شي على ذوقج! 💕'
             : "Have a look in mind? Upload it and we'll match it 💛"}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
