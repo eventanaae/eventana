@@ -93,7 +93,7 @@ const TEMPLATES: Template[] = [
   { key: 'prep_ice_cream', title: 'Ice Cream Machine — clean & ready', category: 'physical', skill: 'ice_cream_machine', people: 1,
     when: (c) => c.has('icecream') },
   { key: 'prep_slide_balls', title: 'Wave Slide — clean the balls', category: 'physical', skill: 'slide_balls', people: 1,
-    when: (c) => c.has('amwaj') || c.has('bluewater') },
+    when: (c) => c.has('amwaj') },
   { key: 'prep_speaker', title: 'Music Speaker — charged & ready', category: 'physical', skill: 'speaker', people: 1,
     when: (c) => c.isDesignPackage || c.has('speaker') },
   { key: 'prep_entertainer', title: 'Entertainer costume — clean & ironed', category: 'physical', skill: 'entertainer_costume', people: 1,

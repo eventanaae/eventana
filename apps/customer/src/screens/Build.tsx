@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet, durationKey } from '../ui';
+import { catName, catNote, svcName, svcDesc } from '../serviceAr';
 
 /** Kiosk colours the customer can pick for food & games stations. Soft pastel
  *  tones matched to the printed station-label artwork the owner supplied. */
@@ -21,8 +22,9 @@ const MASCOT_OPTIONS = ['Cocomelon', 'Stitch', 'Masha', 'Unicorn'];
  *  the STATION_COLORS palette above. */
 const GLAM_SKINS = ['fair', 'tan'];
 
-export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
+export function Build({ catalogue, draft, update, quote, go, t, lang }: ScreenProps) {
   const [detail, setDetail] = useState<Catalogue['services'][number] | null>(null);
+  const ar = lang === 'ar';
 
   const evLabel =
     catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType)?.label ?? 'Celebration';
@@ -95,9 +97,9 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
             if (items.length === 0) return null;
             return (
               <div key={cat.id}>
-                <div style={fredoka(16)}>{cat.name}</div>
+                <div style={fredoka(16)}>{catName(cat.id, cat.name, ar)}</div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '2px 0 10px', lineHeight: 1.5 }}>
-                  {cat.note}
+                  {catNote(cat.id, cat.note, ar)}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
                   {items.map((s) => {
@@ -128,12 +130,12 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                           style={{ width: 52, height: 52, borderRadius: 15, background: s.gradient, flex: 'none', cursor: 'pointer' }}
                         />
                         <div onClick={() => setDetail(s)} style={{ flex: 1, cursor: 'pointer', minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{svcName(s.id, s.name, ar)}</div>
                           <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, margin: '1px 0 3px' }}>
-                            {s.shortDescription}
+                            {svcDesc(s.id, s.shortDescription, ar)}
                           </div>
                           <div style={{ fontWeight: 700, fontSize: 13, color: C.pinkDeep }}>
-                            AED {money(s.priceFils)}
+                            {t('common.aed')} {money(s.priceFils)}
                             {unitNote && (
                               <span style={{ fontWeight: 600, fontSize: 10, color: C.faint }}> · {unitNote}</span>
                             )}
@@ -214,12 +216,12 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
           <>
             <div style={{ height: 160, background: detail.gradient, borderRadius: '28px 28px 0 0' }} />
             <div style={{ padding: '18px 24px 0' }}>
-              <div style={fredoka(21)}>{detail.name}</div>
+              <div style={fredoka(21)}>{svcName(detail.id, detail.name, ar)}</div>
               <div style={{ fontWeight: 700, fontSize: 15, color: C.pinkDeep, marginTop: 4 }}>
-                AED {money(detail.priceFils)}
+                {t('common.aed')} {money(detail.priceFils)}
               </div>
               <div style={{ fontSize: 13, fontWeight: 600, color: C.muted2, marginTop: 8, lineHeight: 1.55 }}>
-                {detail.detail ?? detail.shortDescription}
+                {svcDesc(detail.id, detail.detail ?? detail.shortDescription, ar)}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
                 {detail.isInflatable && (
@@ -320,7 +322,7 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                   update({ glamDolls: dolls.map((d, idx) => (idx === i ? { ...d, ...patch } : d)) });
                 return (
                   <div style={{ marginTop: 16 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 9 }}>How many dolls?</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 9 }}>{ar ? 'كم دمية؟' : 'How many dolls?'}</div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       {[1, 2].map((n) => (
                         <button
@@ -333,14 +335,14 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                             background: qty === n ? C.pinkSoft : '#fff', color: qty === n ? C.pinkDeep : C.ink,
                           }}
                         >
-                          {n} {n === 1 ? 'doll' : 'dolls'}
+                          {ar ? `${n} ${n === 1 ? 'دمية' : 'دمى'}` : `${n} ${n === 1 ? 'doll' : 'dolls'}`}
                         </button>
                       ))}
                     </div>
                     {dolls.map((d, i) => (
                       <div key={i} style={{ marginTop: 14, padding: 12, borderRadius: 14, border: `1px solid ${C.pinkLine}`, background: C.pinkSoft }}>
-                        <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 8 }}>Doll {i + 1}</div>
-                        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>Skin tone</div>
+                        <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 8 }}>{ar ? `الدمية ${i + 1}` : `Doll ${i + 1}`}</div>
+                        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>{ar ? 'لون البشرة' : 'Skin tone'}</div>
                         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                           {GLAM_SKINS.map((sk) => {
                             const active = d.skin === sk;
@@ -356,12 +358,12 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                                   boxShadow: active ? `0 0 0 2px ${C.pink} inset` : 'none',
                                 }}
                               >
-                                {sk}
+                                {ar ? (sk === 'fair' ? 'فاتح' : 'حنطي') : sk}
                               </button>
                             );
                           })}
                         </div>
-                        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>Dress colour</div>
+                        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>{ar ? 'لون الفستان' : 'Dress colour'}</div>
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                           {STATION_COLORS.map((c) => {
                             const active = d.dress === c.id;
@@ -418,7 +420,7 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
                         : missingMascot
                           ? t('build.pickMascotFirst')
                           : missingGlam
-                            ? 'Choose each doll first'
+                            ? (ar ? 'اختاري كل دمية أولاً' : 'Choose each doll first')
                             : (missingColor || missingCastle)
                               ? t('build.pickColorFirst')
                               : t('build.addToParty')}

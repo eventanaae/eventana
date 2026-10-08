@@ -8,6 +8,7 @@ import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPre
 import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
 import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
+import { svcName } from '../serviceAr';
 import { TermsSheet } from './Terms';
 import { uaeMobile } from './ShopCheckout';
 
@@ -788,7 +789,7 @@ export function Checkout({
                 <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 12, background: s.gradient, flex: 'none' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{svcName(s.id, s.name, lang === 'ar')}</div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep }}>{t('common.aed')} {money(s.priceFils)}</div>
                   </div>
                   <button
