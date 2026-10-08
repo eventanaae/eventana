@@ -251,8 +251,9 @@ export function Profile({
         </div>
       )}
 
-      <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, fontWeight: 600, color: C.faint }}>
-        @eventana.uae · +971 56 450 0777
+      <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, fontWeight: 600, color: C.faint, lineHeight: 1.7 }}>
+        @eventana.uae · +971 56 450 0777<br />
+        hello@eventanauae.com
       </div>
 
       {showAuth && (
