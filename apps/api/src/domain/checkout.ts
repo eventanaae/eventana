@@ -788,36 +788,48 @@ export async function startAddonCheckout(args: {
   const customer = await loadCustomer(args.customerId);
   const paymentId = randomUUID();
 
-  const session = await provider.createSession({
-    orderId,
-    amountFils: addonQuote.totalFils,
-    currency: 'AED',
-    customer,
-    items: addonQuote.lines.map((l) => ({
-      title: l.label,
-      quantity: l.quantity,
-      unitPriceFils: l.unitFils,
-      referenceId: l.refId,
-      category: 'events',
-    })),
-    shippingFils: 0,
-    discountFils: 0,
-    city: event.emirate,
-    address: String((event.address as any)?.area ?? ''),
-    lang: args.lang ?? 'en',
-    ...payReturnUrls(orderId),
-    orderHistory: await loadOrderHistory(args.customerId),
-  });
+  // If the provider call throws, the order was already committed above — mark it
+  // failed (and release any holds) so it isn't stranded in awaiting_payment with
+  // no payment row (reconcile's chase needs a provider_payment_id). Mirrors
+  // startCheckout / startShopCheckout.
+  let session: Awaited<ReturnType<typeof provider.createSession>>;
+  try {
+    session = await provider.createSession({
+      orderId,
+      amountFils: addonQuote.totalFils,
+      currency: 'AED',
+      customer,
+      items: addonQuote.lines.map((l) => ({
+        title: l.label,
+        quantity: l.quantity,
+        unitPriceFils: l.unitFils,
+        referenceId: l.refId,
+        category: 'events',
+      })),
+      shippingFils: 0,
+      discountFils: 0,
+      city: event.emirate,
+      address: String((event.address as any)?.area ?? ''),
+      lang: args.lang ?? 'en',
+      ...payReturnUrls(orderId),
+      orderHistory: await loadOrderHistory(args.customerId),
+    });
 
-  await createPayment(pool, {
-    id: paymentId,
-    orderId,
-    provider: provider.name,
-    amountFils: addonQuote.totalFils,
-    providerPaymentId: session.providerPaymentId || null,
-    checkoutUrl: session.checkoutUrl,
-    raw: session.raw,
-  });
+    await createPayment(pool, {
+      id: paymentId,
+      orderId,
+      provider: provider.name,
+      amountFils: addonQuote.totalFils,
+      providerPaymentId: session.providerPaymentId || null,
+      checkoutUrl: session.checkoutUrl,
+      raw: session.raw,
+    });
+  } catch (err) {
+    await releaseHolds(pool, orderId, 'addon session creation failed').catch(() => {});
+    await pool.query(`UPDATE orders SET status = 'failed', updated_at = now() WHERE id = $1`, [orderId]).catch(() => {});
+    if (err instanceof CheckoutError) throw err;
+    throw new CheckoutError('We could not start the payment. Please try again.', 'unavailable');
+  }
 
   return {
     orderId,
@@ -901,32 +913,41 @@ export async function startTipCheckout(args: {
 
   const customer = await loadCustomer(args.customerId);
   const paymentId = randomUUID();
-  const session = await provider.createSession({
-    orderId,
-    amountFils: args.amountFils,
-    currency: 'AED',
-    customer,
-    items: [
-      { title: 'Crew tip', quantity: 1, unitPriceFils: args.amountFils, referenceId: 'crew_tip', category: 'events' },
-    ],
-    shippingFils: 0,
-    discountFils: 0,
-    city: event.emirate,
-    address: String((event.address as any)?.area ?? ''),
-    lang: args.lang ?? 'en',
-    ...payReturnUrls(orderId),
-    orderHistory: await loadOrderHistory(args.customerId),
-  });
+  // Provider call can throw — mark the committed order failed so it isn't
+  // stranded in awaiting_payment with no payment row (mirrors startCheckout).
+  let session: Awaited<ReturnType<typeof provider.createSession>>;
+  try {
+    session = await provider.createSession({
+      orderId,
+      amountFils: args.amountFils,
+      currency: 'AED',
+      customer,
+      items: [
+        { title: 'Crew tip', quantity: 1, unitPriceFils: args.amountFils, referenceId: 'crew_tip', category: 'events' },
+      ],
+      shippingFils: 0,
+      discountFils: 0,
+      city: event.emirate,
+      address: String((event.address as any)?.area ?? ''),
+      lang: args.lang ?? 'en',
+      ...payReturnUrls(orderId),
+      orderHistory: await loadOrderHistory(args.customerId),
+    });
 
-  await createPayment(pool, {
-    id: paymentId,
-    orderId,
-    provider: provider.name,
-    amountFils: args.amountFils,
-    providerPaymentId: session.providerPaymentId || null,
-    checkoutUrl: session.checkoutUrl,
-    raw: session.raw,
-  });
+    await createPayment(pool, {
+      id: paymentId,
+      orderId,
+      provider: provider.name,
+      amountFils: args.amountFils,
+      providerPaymentId: session.providerPaymentId || null,
+      checkoutUrl: session.checkoutUrl,
+      raw: session.raw,
+    });
+  } catch (err) {
+    await pool.query(`UPDATE orders SET status = 'failed', updated_at = now() WHERE id = $1`, [orderId]).catch(() => {});
+    if (err instanceof CheckoutError) throw err;
+    throw new CheckoutError('We could not start the payment. Please try again.', 'unavailable');
+  }
 
   return {
     orderId,
