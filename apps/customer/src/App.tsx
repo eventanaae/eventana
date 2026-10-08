@@ -836,17 +836,20 @@ function Frame({ children, lang = 'en', setLang }: { children: React.ReactNode; 
           radial-gradient(900px 520px at 100% 100%, #FCEFE1 0%, rgba(252,239,225,0) 55%),
           linear-gradient(155deg,#FBEAF2 0%,#FBF3EA 100%);}
         .ev-brand{display:none;}
-        @media (min-width:980px){.ev-brand{display:flex;}}
-        @media (min-width:760px){.ev-frame{width:390px !important;height:844px !important;border-radius:36px !important;
-          box-shadow:0 24px 70px rgba(214,49,127,.20),0 4px 14px rgba(59,54,65,.10) !important;}}
+        @media (min-width:900px){.ev-brand{display:flex;}}
+        /* Desktop/laptop: a larger app panel (not a tiny phone) — fills most of
+           the window height, with a lighter radius so it reads as an app, not a
+           phone device. */
+        @media (min-width:760px){.ev-frame{width:460px !important;height:min(960px,94vh) !important;border-radius:30px !important;
+          box-shadow:0 30px 80px rgba(214,49,127,.22),0 6px 18px rgba(59,54,65,.12) !important;}}
       `}</style>
-      <div className="ev-brand" style={{ flexDirection: 'column', maxWidth: 360, padding: 24 }}>
-        <div style={{ fontFamily: "'Sacramento', cursive", fontSize: 46, color: C.pinkDeep, lineHeight: 1 }}>Eventana</div>
-        <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 4, textTransform: 'uppercase', color: C.pink, marginTop: 2 }}>Events</div>
-        <div style={{ fontSize: 27, fontWeight: 800, color: C.ink, lineHeight: 1.25, marginTop: 22 }}>
+      <div className="ev-brand" style={{ flexDirection: 'column', maxWidth: 430, padding: 24 }}>
+        <div style={{ fontFamily: "'Sacramento', cursive", fontSize: 58, color: C.pinkDeep, lineHeight: 1 }}>Eventana</div>
+        <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 5, textTransform: 'uppercase', color: C.pink, marginTop: 2 }}>Events</div>
+        <div style={{ fontSize: 34, fontWeight: 800, color: C.ink, lineHeight: 1.22, marginTop: 24 }}>
           {lang === 'ar' ? 'حفلات لا تُنسى، جاهزة عند بابك 🎈' : 'Unforgettable parties, delivered to your door 🎈'}
         </div>
-        <div style={{ fontSize: 15, fontWeight: 600, color: C.muted, lineHeight: 1.7, marginTop: 12 }}>
+        <div style={{ fontSize: 16.5, fontWeight: 600, color: C.muted, lineHeight: 1.7, marginTop: 14 }}>
           {lang === 'ar'
             ? 'اختاري باقتك والثيم، وشوفي السعر كامل قبل ما تدفعين — والباقي علينا.'
             : 'Pick your package and theme, see the full price before you pay — and leave the rest to us.'}
