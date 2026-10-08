@@ -876,7 +876,10 @@ export async function adminRoutes(app: FastifyInstance) {
   // The drivers roster (Shan + freelance own-car / van drivers) — for the driver
   // slot's picker. Names feed the part-timer input; the number lets WhatsApp
   // reach whoever is assigned.
-  app.get('/api/admin/drivers', async () => {
+  app.get('/api/admin/drivers', async (request, reply) => {
+    // Driver roster (staff PII) → owner/manager only (feeds the staffing UI).
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const { rows } = await pool.query(
       `SELECT id, name, kind, (phone IS NOT NULL) AS has_phone FROM drivers WHERE active ORDER BY (kind <> 'main'), name`,
     );
@@ -2012,7 +2015,10 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // Known part-timer names (for the staffing name picker) — so a part-timer is
   // picked with the exact roster name (keeps phone + payout matching reliable).
-  app.get('/api/admin/part-timer-names', async () => {
+  app.get('/api/admin/part-timer-names', async (request, reply) => {
+    // Part-timer roster (staff PII) → owner/manager only (feeds the staffing UI).
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const { rows } = await pool.query<{ name: string }>(`SELECT name FROM part_timers WHERE active ORDER BY name`);
     return { names: rows.map((r) => r.name) };
   });
@@ -2131,7 +2137,10 @@ export async function adminRoutes(app: FastifyInstance) {
    * after switching calendar sync on. Pushes every event from yesterday
    * onward; each upsert is idempotent, so it's safe to run again.
    */
-  app.post('/api/admin/calendar/resync', async (_request, reply) => {
+  app.post('/api/admin/calendar/resync', async (request, reply) => {
+    // Full calendar resync is heavy → owner/manager only (abuse/DoS guard).
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     if (!calendarEnabled()) {
       return reply
         .status(409)
@@ -3381,7 +3390,10 @@ export async function adminRoutes(app: FastifyInstance) {
   // Supplier NAMES only, ordered by how often we buy from them (most-used first),
   // for the "report a missing item" supplier picker. Names only — no money — so
   // it's safe for any staff member (not just owner/manager).
-  app.get('/api/admin/supplier-names', async () => {
+  app.get('/api/admin/supplier-names', async (request, reply) => {
+    // Vendor/spend directory → owner/manager only (sibling /suppliers is gated).
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     // Distinct expense vendors ranked by how many times they appear (= how often
     // we buy from them), plus any saved-directory supplier not already there.
     const vend = await pool.query<{ name: string; n: string }>(
@@ -5486,7 +5498,10 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /** Roster overlay for a month: days off + birthdays, for the calendar. */
-  app.get('/api/admin/team-schedule', async (request) => {
+  app.get('/api/admin/team-schedule', async (request, reply) => {
+    // Other staff's birthdays + leave reasons → owner/manager only.
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const q = request.query as { month?: string };
     const now = new Date();
     const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
@@ -5663,6 +5678,10 @@ export async function adminRoutes(app: FastifyInstance) {
   /** Create a NEW product/service (was missing — the app could only edit/toggle
    *  existing ones, so items never migrated from QuickBooks couldn't be added). */
   app.post('/api/admin/services', async (request, reply) => {
+    // Catalogue mutation → owner/manager only (the preHandler's `/services/:id`
+    // rule gates PATCH but misses the collection-level create).
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const schema = z.object({
       name: z.string().min(1).max(120),
       priceFils: z.number().int().min(0),
