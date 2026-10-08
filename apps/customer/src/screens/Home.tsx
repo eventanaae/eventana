@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, SectionTitle, wasPriceFils } from '../ui';
 
-export function Home({ catalogue, draft, shopCart, update, go, customerName, t }: ScreenProps) {
+export function Home({ catalogue, draft, shopCart, update, go, customerName, t, lang }: ScreenProps) {
   const hour = new Date().getHours();
 
   // Welcome-discount pop-up: show once per visitor (remembered in localStorage),
@@ -160,8 +160,8 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t }
           >
             <div style={{ height: 56, background: ev.gradient }} />
             <div style={{ padding: '9px 12px 11px' }}>
-              <div style={{ fontWeight: 700, fontSize: 12.5 }}>{ev.label}</div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 2 }}>{ev.sub}</div>
+              <div style={{ fontWeight: 700, fontSize: 12.5 }}>{lang === 'ar' ? (ev.labelAr ?? ev.label) : ev.label}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 2 }}>{lang === 'ar' ? (ev.subAr ?? ev.sub) : ev.sub}</div>
             </div>
           </div>
         ))}

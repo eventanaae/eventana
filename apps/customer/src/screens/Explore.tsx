@@ -4,10 +4,10 @@ import { C, fredoka, money, Notice, wasPriceFils } from '../ui';
 /** Owner-chosen package order (cheapest tier first, then specials). */
 const PKG_SORT = ['bronze', 'silver', 'golden', 'summer', 'spa', 'movie'];
 
-export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps) {
+export function Explore({ catalogue, draft, update, go, t, social, lang }: ScreenProps) {
   const isKids = draft.celebrationType === 'kids';
-  const evLabel =
-    catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType)?.label ?? 'Celebration';
+  const evType = catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType);
+  const evLabel = (lang === 'ar' ? (evType?.labelAr ?? evType?.label) : evType?.label) ?? 'Celebration';
   const kidsThemes = (() => {
     const k = catalogue.themes.filter((t) => t.celebrationType === 'kids');
     return k.length ? k : catalogue.themes;
@@ -46,7 +46,7 @@ export function Explore({ catalogue, draft, update, go, t, social }: ScreenProps
                 borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap',
               }}
             >
-              {ev.label}
+              {lang === 'ar' ? (ev.labelAr ?? ev.label) : ev.label}
             </button>
           );
         })}

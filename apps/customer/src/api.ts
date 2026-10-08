@@ -112,7 +112,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export interface Catalogue {
-  celebrationTypes: Array<{ id: string; label: string; sub: string; gradient: string; route: 'explore' | 'build' }>;
+  celebrationTypes: Array<{ id: string; label: string; sub: string; labelAr?: string; subAr?: string; gradient: string; route: 'explore' | 'build' }>;
   categories: Array<{ id: string; name: string; note: string; celebrationTypes: string[]; sortOrder: number }>;
   services: Array<{
     id: string; name: string; categoryId: string; priceFils: number;

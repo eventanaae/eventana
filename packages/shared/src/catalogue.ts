@@ -541,14 +541,14 @@ export const THEMES: ThemeDefinition[] = [
 /* ------------------------------------------------------------------ */
 
 export const CELEBRATION_TYPES = [
-  { id: 'kids' as const, label: 'Kids Birthday', sub: 'Packages, themes & entertainment', gradient: G('#F9C6DC', '#F7C948'), route: 'explore' as const },
-  { id: 'graduation' as const, label: 'Graduation Party', sub: 'School, uni & adult grads', gradient: G('#B8C4E8', '#F7C948'), route: 'build' as const },
-  { id: 'bride' as const, label: 'Bride to Be', sub: 'Bridal showers & setups', gradient: G('#FDE0EE', '#D9B8E8'), route: 'build' as const },
-  { id: 'baby' as const, label: 'Baby Shower', sub: 'Sweet celebration setups', gradient: G('#BDEBE4', '#FDE0EE'), route: 'build' as const },
-  { id: 'gender' as const, label: 'Gender Reveal', sub: 'The big pink-or-blue moment', gradient: G('#F9C6DC', '#BDEBE4'), route: 'build' as const },
-  { id: 'adult' as const, label: 'Adult Birthday', sub: 'Elegant grown-up parties', gradient: G('#D9B8E8', '#B8C4E8'), route: 'build' as const },
-  { id: 'corporate' as const, label: 'Corporate Event', sub: 'Company & office celebrations', gradient: G('#B8C4E8', '#BDEBE4'), route: 'build' as const },
-  { id: 'customc' as const, label: 'Custom Celebration', sub: 'Anything you can imagine', gradient: G('#F7C948', '#F9C6DC'), route: 'build' as const },
+  { id: 'kids' as const, label: 'Kids Birthday', sub: 'Packages, themes & entertainment', labelAr: 'أعياد ميلاد الأطفال', subAr: 'باقات وثيمات وفعاليات للأطفال', gradient: G('#F9C6DC', '#F7C948'), route: 'explore' as const },
+  { id: 'graduation' as const, label: 'Graduation Party', sub: 'School, uni & adult grads', labelAr: 'حفلات التخرج', subAr: 'احتفلوا بنجاحكم بأحلى ترتيب', gradient: G('#B8C4E8', '#F7C948'), route: 'build' as const },
+  { id: 'bride' as const, label: 'Bride to Be', sub: 'Bridal showers & setups', labelAr: 'توديع العزوبية', subAr: 'تنسيقات مميزة للعروس', gradient: G('#FDE0EE', '#D9B8E8'), route: 'build' as const },
+  { id: 'baby' as const, label: 'Baby Shower', sub: 'Sweet celebration setups', labelAr: 'بيبي شاور', subAr: 'ترتيبات ناعمة لاستقبال البيبي', gradient: G('#BDEBE4', '#FDE0EE'), route: 'build' as const },
+  { id: 'gender' as const, label: 'Gender Reveal', sub: 'The big pink-or-blue moment', labelAr: 'كشف جنس البيبي', subAr: 'لحظات حلوة ومفاجآت مميزة', gradient: G('#F9C6DC', '#BDEBE4'), route: 'build' as const },
+  { id: 'adult' as const, label: 'Adult Birthday', sub: 'Elegant grown-up parties', labelAr: 'أعياد ميلاد الكبار', subAr: 'احتفالات أنيقة على ذوقكم', gradient: G('#D9B8E8', '#B8C4E8'), route: 'build' as const },
+  { id: 'corporate' as const, label: 'Corporate Event', sub: 'Company & office celebrations', labelAr: 'فعاليات الشركات', subAr: 'تنظيم وتنسيق فعاليات الشركات', gradient: G('#B8C4E8', '#BDEBE4'), route: 'build' as const },
+  { id: 'customc' as const, label: 'Custom Celebration', sub: 'Anything you can imagine', labelAr: 'مناسبات خاصة', subAr: 'نرتب مناسبتكم على ذوقكم', gradient: G('#F7C948', '#F9C6DC'), route: 'build' as const },
 ];
 
 /**

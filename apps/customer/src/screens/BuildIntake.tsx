@@ -14,7 +14,7 @@ import { C, fredoka, PrimaryButton } from '../ui';
  * point cannot forget to ask.
  */
 
-export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps) {
+export function BuildIntake({ catalogue, draft, go, startBuild, t, lang }: ScreenProps) {
   // Pre-select only what the customer actually chose — never a default,
   // or the question would count as answered without being asked.
   const [type, setType] = useState<string | null>(
@@ -67,8 +67,8 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t }: ScreenProps
             >
               <div style={{ height: 44, background: ev.gradient }} />
               <div style={{ padding: '8px 11px 10px' }}>
-                <div style={{ fontWeight: 700, fontSize: 12.5 }}>{ev.label}</div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 2 }}>{ev.sub}</div>
+                <div style={{ fontWeight: 700, fontSize: 12.5 }}>{lang === 'ar' ? (ev.labelAr ?? ev.label) : ev.label}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 2 }}>{lang === 'ar' ? (ev.subAr ?? ev.sub) : ev.sub}</div>
               </div>
             </div>
           );
