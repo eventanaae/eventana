@@ -147,7 +147,12 @@ export async function webhookRoutes(app: FastifyInstance) {
   app.post('/api/webhooks/resend', async (request, reply) => {
     reply.status(200).send({ ok: true });
     try {
-      const body = request.body as any;
+      // The /api/webhooks/* content-type parser hands us the RAW string body
+      // (so payment signatures verify over exact bytes), so parse it here —
+      // otherwise body.type/data are undefined and suppression never records.
+      const body = typeof request.body === 'string'
+        ? JSON.parse(request.body || '{}')
+        : (request.body as any);
       const type = String(body?.type ?? '');
       const data = body?.data ?? {};
       let campaignId: number | null = null;

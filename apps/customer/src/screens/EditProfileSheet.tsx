@@ -44,7 +44,7 @@ export function EditProfileSheet({
       .finally(() => setLoaded(true));
   }, []);
 
-  const nameOk = name.trim().split(/\s+/).filter(Boolean).length >= 2;
+  const nameOk = name.trim().length >= 2; // a single legal name is fine
   const phoneOk = Boolean(uaeMobile(phone));
   const canSave = nameOk && phoneOk && !busy;
 

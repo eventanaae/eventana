@@ -530,12 +530,34 @@ export async function confirmBooking(
   // reach confirm; the reconcile sweep refunds their reserved balance.
   const disc = cart.appliedDiscounts;
   if (disc) {
+    // If this order sat unpaid > 2h, the reconcile sweep already REFUNDED the
+    // reserved points/credit back to the customer (discounts_reversed_at). The
+    // payment has now landed and the discount IS applied to the charged total,
+    // so re-consume them here — otherwise the customer keeps the balance AND the
+    // discount (ledger/balance drift). This block runs once (confirm is
+    // idempotent on events.order_id), so it can't double-subtract.
+    const reversed = Boolean(order.discounts_reversed_at);
     if (disc.points && disc.points.used > 0) {
+      if (reversed) {
+        await db.query(
+          `UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $2) WHERE id = $1`,
+          [order.customer_id, disc.points.used],
+        );
+      }
       await db.query(
         `INSERT INTO loyalty_transactions (customer_id, event_id, order_id, points, reason)
          VALUES ($1,$2,$3,$4,'Points redeemed at checkout')`,
         [order.customer_id, eventId, order.id, -disc.points.used],
       );
+    }
+    if (reversed) {
+      const creditFils = Number((disc as any).creditFils ?? 0);
+      if (creditFils > 0) {
+        await db.query(
+          `UPDATE customers SET referral_credit_fils = GREATEST(0, referral_credit_fils - $2) WHERE id = $1`,
+          [order.customer_id, creditFils],
+        );
+      }
     }
     if (disc.promo) {
       await db.query(

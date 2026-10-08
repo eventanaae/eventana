@@ -40,7 +40,7 @@ export function AuthSheet({
   const [forgotMsg, setForgotMsg] = useState<string | null>(null);
 
   const emailOk = /.+@.+\..+/.test(email.trim());
-  const nameOk = name.trim().split(/\s+/).filter(Boolean).length >= 2;
+  const nameOk = name.trim().length >= 2; // a single legal name is fine
   const phoneOk = Boolean(uaeMobile(phone));
   const loginReady = emailOk && password.length >= 1;
   const registerReady = nameOk && emailOk && phoneOk && password.length >= 6;

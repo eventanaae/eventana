@@ -394,12 +394,18 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   );
   for (const r of offRows.rows as any[]) unavailable.add(r.member_id);
   // Members whose recurring WEEKLY day off falls on the event's weekday are off.
-  const evWeekday = new Date(`${ev.date}T00:00:00Z`).getUTCDay(); // 0=Sun … 6=Sat
-  const weeklyOff = await pool.query(
-    `SELECT id FROM team_members WHERE active AND weekly_day_off = $1`,
-    [evWeekday],
-  );
-  for (const r of weeklyOff.rows as any[]) unavailable.add(r.id);
+  // A date-TBD booking has no date — skip this (a NaN weekday would be sent to
+  // Postgres as "NaN" and error on the integer column).
+  const evWeekday = /^\d{4}-\d{2}-\d{2}$/.test(String(ev.date ?? ''))
+    ? new Date(`${ev.date}T00:00:00Z`).getUTCDay() // 0=Sun … 6=Sat
+    : null;
+  if (evWeekday !== null) {
+    const weeklyOff = await pool.query(
+      `SELECT id FROM team_members WHERE active AND weekly_day_off = $1`,
+      [evWeekday],
+    );
+    for (const r of weeklyOff.rows as any[]) unavailable.add(r.id);
+  }
 
   const staff: StaffRow[] = staffRows.rows.map((r: any) => ({ id: r.id, name: r.name, skills: new Set(r.skills), workload: wlMap.get(r.id) ?? 0 }));
   const rolesByStaff = new Map<string, Set<Skill>>();
@@ -958,9 +964,14 @@ export async function listInternalStaff(eventId?: string) {
     [ev.date],
   );
   for (const r of offRows.rows as any[]) reason.set(r.member_id, 'On leave');
-  const evWeekday = new Date(`${ev.date}T00:00:00Z`).getUTCDay();
-  const weeklyOff = await pool.query(`SELECT id FROM team_members WHERE active AND weekly_day_off = $1`, [evWeekday]);
-  for (const r of weeklyOff.rows as any[]) reason.set(r.id, 'Weekly day off');
+  // Date-TBD booking → no weekday; skip (avoids a NaN weekday hitting Postgres).
+  const evWeekday = /^\d{4}-\d{2}-\d{2}$/.test(String(ev.date ?? ''))
+    ? new Date(`${ev.date}T00:00:00Z`).getUTCDay()
+    : null;
+  if (evWeekday !== null) {
+    const weeklyOff = await pool.query(`SELECT id FROM team_members WHERE active AND weekly_day_off = $1`, [evWeekday]);
+    for (const r of weeklyOff.rows as any[]) reason.set(r.id, 'Weekly day off');
+  }
 
   return plain.map((m) => {
     const isDriver = (m.skills as string[]).includes('driver');

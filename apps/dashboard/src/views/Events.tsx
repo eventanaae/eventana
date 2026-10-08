@@ -627,11 +627,11 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
               )}
 
               {!isDriver && <Panel title="Reserved inventory">
-                {data.reservations.length === 0 ? (
+                {(data.reservations ?? []).length === 0 ? (
                   <Empty>No physical assets reserved.</Empty>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {data.reservations.map((r: any) => (
+                    {(data.reservations ?? []).map((r: any) => (
                       <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{r.name}{r.variant ? ` · ${r.variant}` : ''}</div>
@@ -649,10 +649,10 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
               </Panel>}
 
               {!isDriver && <Panel title="Setup placement notes">
-                {data.setupPhotos.length === 0 ? (
+                {(data.setupPhotos ?? []).length === 0 ? (
                   <Empty>The customer didn’t add placement notes — that’s optional.</Empty>
                 ) : (
-                  data.setupPhotos.map((p: any) => (
+                  (data.setupPhotos ?? []).map((p: any) => (
                     <div key={p.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '5px 0' }}>
                       {p.photo_url && (
                         <a href={p.photo_url} target="_blank" rel="noreferrer">
@@ -762,7 +762,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
 
               {!moneyHidden && (
               <Panel title="Payments &amp; audit trail">
-                {data.orders.map((o: any) => (
+                {(data.orders ?? []).map((o: any) => (
                   <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
                     <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, flex: 1 }}>{o.id}</span>
                     <Badge tone={o.kind === 'addon' ? 'info' : 'neutral'}>{o.kind}</Badge>

@@ -2995,7 +2995,10 @@ export async function adminRoutes(app: FastifyInstance) {
    * month's ad spend to the real booking count → cost-per-booking and ROAS.
    * Manager + Owner. ?month=YYYY-MM (default current month).
    */
-  app.get('/api/admin/ad-performance', async (request) => {
+  app.get('/api/admin/ad-performance', async (request, reply) => {
+    // Returns monthly booking REVENUE + ad spend → owner-only, same as
+    // /finance and /today (revenue is never shown to managers/employees).
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
     const q = request.query as { month?: string };
     const now = new Date();
     const month = /^\d{4}-\d{2}$/.test(q.month ?? '') ? q.month! : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -4636,7 +4639,9 @@ export async function adminRoutes(app: FastifyInstance) {
    * registered = accounts with a password; booked = accounts with a paid order
    * or a live event.
    */
-  app.get('/api/admin/web-funnel', async () => {
+  app.get('/api/admin/web-funnel', async (request, reply) => {
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const [visitAll, visit30, reg, booked, trend] = await Promise.all([
       pool.query(`SELECT COUNT(DISTINCT visitor_hash)::int n, COALESCE(SUM(hits),0)::int hits FROM site_visits`),
       pool.query(`SELECT COUNT(DISTINCT visitor_hash)::int n FROM site_visits WHERE day >= current_date - 29`),

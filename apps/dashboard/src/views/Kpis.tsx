@@ -37,7 +37,7 @@ export function Kpis({ role }: { role?: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <AchievementsPanel personal={personal} fiveStarPts={data.rules?.fiveStarPoints ?? 40} glamPts={data.rules?.glamPoints ?? 40} />
+      <AchievementsPanel personal={personal} fiveStarPts={data?.rules?.fiveStarPoints ?? 40} glamPts={data?.rules?.glamPoints ?? 40} />
       <Panel
         title={`${personal ? 'My Achievements & Tips' : 'Team Achievements'} — ${monthLabel(month)}`}
         action={

@@ -66,13 +66,15 @@ export function ShopCheckout({
   const [error, setError] = useState<string | null>(null);
 
   const emailOk = /.+@.+\..+/.test(reg.email.trim());
-  // Full name must be at least two words (first + last).
-  const fullNameOk = reg.name.trim().split(/\s+/).filter((w) => w.length >= 1).length >= 2;
+  // A single legal name is fine (same rule as the party checkout — a mandatory
+  // 2-word name was a top reason checkouts stalled, booking rehab 2026-09-24).
+  const fullNameOk = reg.name.trim().length >= 2;
   const phoneN = uaeMobile(reg.phone);
   const backupN = uaeMobile(reg.backupPhone);
   const phonesDiffer = Boolean(phoneN) && Boolean(backupN) && phoneN !== backupN;
-  const guestReady =
-    fullNameOk && emailOk && Boolean(phoneN) && Boolean(backupN) && phonesDiffer;
+  // Backup phone is OPTIONAL (party checkout parity). If given it should differ.
+  const backupOk = !reg.backupPhone.trim() || phonesDiffer;
+  const guestReady = fullNameOk && emailOk && Boolean(phoneN) && backupOk;
   const noDelivery = hasPrinted && Boolean(emirate) && q.problems.some((p) => p.code === 'no_delivery');
   const addressReady = !hasPrinted || (Boolean(emirate) && addr.area.trim().length > 0 && !noDelivery);
   const customizationReady = !needsDrawing || wantDraw || refs.length > 0;
