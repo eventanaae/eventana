@@ -503,14 +503,30 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   // PRESERVE manager-confirmed part-timers across the rebuild: the planner re-emits
   // an empty 'part_time_required' slot, so a re-run on an add-on would otherwise
   // wipe a confirmed "Ahmed" and re-raise the resolved staffing alert.
+  // In MANUAL mode the planner emits every slot as an empty 'to_confirm', so a
+  // rebuild (e.g. the owner tapping "Add a role" to add a Mascot) would WIPE the
+  // employees the owner already picked for the other slots and force re-selecting
+  // them. Preserve those manager-assigned EMPLOYEES too (not just confirmed
+  // part-timers) and re-apply them onto their matching (role, slot). Only in
+  // manual mode: in auto mode the engine deliberately (re)assigns internal crew,
+  // so pinning the old picks would fight the re-balance.
+  const preserveEmployees = staffingMode === 'manual';
   let preserved: Array<{ role: string; slot: number; part_time_name: string }> = [];
+  let preservedEmp: Array<{ role: string; slot: number; assignee_id: string }> = [];
   await withTransaction(async (db) => {
     await db.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [eventId]);
     preserved = (await db.query<{ role: string; slot: number; part_time_name: string }>(
       `SELECT role, slot, part_time_name FROM event_staff
-        WHERE event_id = $1 AND status = 'confirmed' AND part_time_name IS NOT NULL`,
+        WHERE event_id = $1 AND status = 'confirmed' AND part_time_name IS NOT NULL AND is_leader = false`,
       [eventId],
     )).rows;
+    if (preserveEmployees) {
+      preservedEmp = (await db.query<{ role: string; slot: number; assignee_id: string }>(
+        `SELECT role, slot, assignee_id FROM event_staff
+          WHERE event_id = $1 AND status = 'assigned' AND assignee_id IS NOT NULL AND is_leader = false`,
+        [eventId],
+      )).rows;
+    }
     await db.query(`DELETE FROM event_staff WHERE event_id = $1`, [eventId]);
     for (const a of assigned) {
       await db.query(
@@ -534,6 +550,17 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
         [eventId, p.role, p.part_time_name, p.slot],
       );
     }
+    // Re-apply each manager-assigned EMPLOYEE onto its matching (role, slot). A
+    // slot that no longer exists (the owner removed that role) matches nothing, so
+    // the pick is correctly dropped; a still-present slot keeps its person.
+    for (const e of preservedEmp) {
+      await db.query(
+        `UPDATE event_staff SET status = 'assigned', assignee_id = $3, part_time_name = NULL
+          WHERE event_id = $1 AND role = $2 AND slot = $4 AND is_leader = false
+            AND status = 'to_confirm'`,
+        [eventId, e.role, e.assignee_id, e.slot],
+      );
+    }
   });
 
   // Keep event_team (what employees read for "My jobs", and what feedback rewards
@@ -550,6 +577,14 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
      ON CONFLICT DO NOTHING`,
     [eventId],
   ).catch(() => {});
+
+  // When we restored the owner's picked employees (manual mode), the in-transaction
+  // leader was derived from an EMPTY plan (every slot 'to_confirm'), so recompute it
+  // now from the real, final roster so the "Leader" badge points at a present person
+  // instead of nobody/Marsha. (DB is the source of truth the UI reads.)
+  if (preserveEmployees && preservedEmp.length > 0) {
+    await recomputeEventLeader(eventId).catch(() => {});
+  }
 
   // ── Delivery-conflict guard ────────────────────────────────────────────────
   // The driver runs several deliveries a day, but two whose time windows OVERLAP
