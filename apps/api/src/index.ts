@@ -603,9 +603,6 @@ async function main() {
     // (SET_SHAN_LEADER='hideqb' → then blank it). Reversible (active=false).
     const { hideImportedServicesFromEnv } = await import('./db/hideImportedServices.js');
     await hideImportedServicesFromEnv().catch((err) => console.error('[hide-imported] failed:', err));
-    // One-shot: upload the clean car-free Summer cover photo (SET_SHAN_LEADER='summerimg').
-    const { uploadSummerCoverFromEnv } = await import('./db/uploadSummerCover.js');
-    await uploadSummerCoverFromEnv().catch((err) => console.error('[summer-cover] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
