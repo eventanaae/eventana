@@ -1001,11 +1001,13 @@ export async function publicRoutes(app: FastifyInstance) {
     );
     const theme = themeRows[0] ?? null;
 
-    // 1) A ready-made package (kids) that fits — the fullest within budget.
+    // 1) A ready-made package for THIS celebration that fits — the fullest
+    //    within budget. Must filter by celebrationType or a kids plan could be
+    //    handed a gender package (and vice-versa).
     const pkg = [...cfg.packages.values()]
-      .filter((p) => p.priceFils <= budget)
+      .filter((p) => p.celebrationType === celebrationType && p.priceFils <= budget)
       .sort((a, b) => b.priceFils - a.priceFils)[0];
-    if (celebrationType === 'kids' && pkg) {
+    if ((celebrationType === 'kids' || celebrationType === 'gender') && pkg) {
       return {
         kind: 'package',
         celebrationType,

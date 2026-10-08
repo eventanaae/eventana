@@ -521,7 +521,7 @@ export async function refreshPrepAssignmentAlert(eventId: string, date: string):
 // via staffing.ts) and pure consumables / non-item charge lines. Everything else
 // that the templates don't recognise is treated as a bespoke item that must be
 // prepared — so it can never be silently dropped.
-const PERFORMER_RE = /clown|mascot|acrobat|entertainer|\bcharacter\b|puppet|magician|\bmc\b|\bdj\b|singer|\bhost\b|glam|face\s*paint|twist|performer|dancer|stilt/;
+const PERFORMER_RE = /clown|mascot|acrobat|entertainer|\bcharacters?\b|boy\s*&?\s*girl|reveal\s*characters?|puppet|magician|\bmc\b|\bdj\b|singer|\bhost\b|glam|face\s*paint|twist|performer|dancer|stilt/;
 const CONSUMABLE_RE = /\bsocks?\b|water\s*bottle|\bplates?\b|\bcups?\b|napkin|cutlery|spoon|\bfork\b|candle|invitation|sticker|straw|tattoo|\bbadge\b|goodie\s*bag|\bsash\b|reveal\s*spray|confetti/;
 const NONITEM_RE = /discount|deliver|shipping|\bfee\b|\bvat\b|\btax\b|deposit|\btip\b|additional\s*hour|extra\s*hour|\bhours?\b|\bcharge\b|surcharge|\bbalance\b|down\s*payment|installment|round\s*ing/;
 
