@@ -60,6 +60,24 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t }
         </div>
       </div>
 
+      {/* Online-booking discount — advertise the existing WELCOME10 code up top */}
+      <div
+        onClick={() => go('explore')}
+        style={{
+          marginBottom: 16, background: 'linear-gradient(135deg,#E94F9C,#F7A948)', borderRadius: 18,
+          padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', boxShadow: C.shadowLg,
+        }}
+      >
+        <div style={{ fontSize: 26, flex: 'none' }}>🎉</div>
+        <div style={{ flex: 1, minWidth: 0, color: '#fff' }}>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>{t('home.promoTitle')}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.92)' }}>{t('home.promoSub')}</div>
+        </div>
+        <div style={{ flex: 'none', background: '#fff', color: '#D6317F', fontWeight: 800, fontSize: 12.5, padding: '6px 12px', borderRadius: 20, letterSpacing: '.5px' }}>
+          WELCOME10
+        </div>
+      </div>
+
       <div
         style={{
           background: 'linear-gradient(135deg,#FDE0EE 0%,#F9C6DC 55%,#BDEBE4 130%)',
