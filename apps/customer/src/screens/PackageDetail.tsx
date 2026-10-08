@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet, itemIcon, wasPriceFils } from '../ui';
-import { pkgName } from '../pkgAr';
+import { pkgName, itemNameAr } from '../pkgAr';
 
 export function PackageDetail({ catalogue, draft, update, go, t, social, lang }: ScreenProps) {
   const pkg = catalogue.packages.find((p) => p.id === draft.packageId);
@@ -92,7 +92,7 @@ export function PackageDetail({ catalogue, draft, update, go, t, social, lang }:
             >
               <div style={{ width: 44, height: 44, borderRadius: 14, background: pkg.gradient, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{itemIcon(it.name)}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{it.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{itemNameAr(it.name, lang === 'ar')}</div>
               </div>
               <span style={{ color: '#e8cbd9', fontSize: 17 }}>ⓘ</span>
             </div>
@@ -164,7 +164,7 @@ export function PackageDetail({ catalogue, draft, update, go, t, social, lang }:
           <>
             <div style={{ height: 160, background: pkg.gradient, borderRadius: '28px 28px 0 0' }} />
             <div style={{ padding: '18px 24px 0' }}>
-              <div style={fredoka(21)}>{detail.name}</div>
+              <div style={fredoka(21)}>{itemNameAr(detail.name, lang === 'ar')}</div>
               <div style={{ fontSize: 13, fontWeight: 600, color: C.muted2, marginTop: 8, lineHeight: 1.55 }}>
                 {detail.detail}
               </div>

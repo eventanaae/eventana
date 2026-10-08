@@ -69,6 +69,23 @@ export const THEME_AR: Record<string, string> = {
 };
 export const thName = (id: string, en: string, ar: boolean): string => (ar ? (THEME_AR[id] ?? en) : en);
 
+/** Arabic for package "what's included" item names (gender packages). Keyed by
+ *  the English item name (lowercased). Falls back to English when unmapped. */
+export const PKG_ITEM_AR: Record<string, string> = {
+  'main backdrop': 'الستاند الرئيسي',
+  'premium main backdrop': 'الستاند الرئيسي الفاخر',
+  'voting stand': 'ستاند التصويت',
+  'entrance stand': 'ستاند المدخل',
+  'gender reveal spray': 'سبراي كشف جنس البيبي',
+  '3 cake stands': '٣ ستاندات كيك',
+  'large gender reveal box with 20 helium balloons': 'بوكس جندر ريفيل كبير + ٢٠ بالون هيليوم',
+  'tables & chairs for 20 guests': 'طاولات وكراسي لـ٢٠ ضيف',
+  'baby onesie painting activity': 'فقرة رسم أوفارول البيبي',
+  'interactive games & activities': 'ألعاب وأنشطة تفاعلية',
+};
+export const itemNameAr = (en: string, ar: boolean): string =>
+  (ar ? (PKG_ITEM_AR[String(en ?? '').trim().toLowerCase()] ?? en) : en);
+
 export const pkgName = (id: string, en: string, ar: boolean): string => (ar ? (PKG_AR[id]?.name ?? en) : en);
 export const pkgCapacity = (id: string, en: string, ar: boolean): string => (ar ? (PKG_AR[id]?.capacity ?? en) : en);
 export const pkgTag = (id: string, en: string, ar: boolean): string => (ar ? (PKG_AR[id]?.tag ?? en) : en);
