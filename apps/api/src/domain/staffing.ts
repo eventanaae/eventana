@@ -472,8 +472,21 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     if (a?.assignee) { leader = { id: a.assignee.id, name: a.assignee.name, remote: name === 'Marsha' }; break; }
   }
   if (!leader) {
-    const marsha = staff.find((x) => x.name === 'Marsha');
-    if (marsha) leader = { id: marsha.id, name: 'Marsha', remote: true };
+    // Only invent a REMOTE coordinator (Marsha) when the event genuinely HAS crew
+    // but none of them is an on-site leader — the "all external part-timers" case
+    // the comment above describes. An EMPTY roster must get NO leader: in manual
+    // mode a brand-new booking has no assigned slots (reqs=[]), and auto-inserting
+    // Marsha here would mirror her into event_team as phantom crew on every new
+    // party — shown to the customer, paid the whole-team tip, credited in the
+    // points KPI, and defeating the REAL_ROSTER guard (she'd be a non-null
+    // assignee on every event). Unfilled 'to_confirm' slots aren't real crew yet,
+    // so they don't count — the owner/Marsha assign by hand and the leader then
+    // emerges from a real assignee.
+    const hasRealCrew = assigned.some((a) => a.status === 'assigned' || a.status === 'part_time_required');
+    if (hasRealCrew) {
+      const marsha = staff.find((x) => x.name === 'Marsha');
+      if (marsha) leader = { id: marsha.id, name: 'Marsha', remote: true };
+    }
   }
 
   // Persist the plan ATOMICALLY. An advisory lock keyed by the event serialises
@@ -617,6 +630,28 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
  * rewards, the customer crew card) is correct. Idempotent — safe to run on boot.
  */
 export async function syncAllEventTeams(): Promise<{ synced: number }> {
+  // Remove phantom LEADER rows (historically the auto-inserted Marsha remote
+  // leader) from UPCOMING, not-completed events that have NO real crew. A lone
+  // remote leader on an otherwise-unstaffed event is exactly the phantom crew the
+  // manual-staffing switch is meant to eliminate — and because that leader row
+  // carries a non-null assignee_id, the event_team prune below can't drop her
+  // (she "is" an assignee) and the points REAL_ROSTER guard would count the event
+  // as rostered. Delete the leader row first (scoped to upcoming + not-completed
+  // so completed events that drive the points KPI are never touched), leaving it
+  // in place when the event genuinely has crew (a real all-part-timer event still
+  // gets its remote leader). This runs before the event_team sync so the prune
+  // then correctly removes her.
+  await pool.query(
+    `DELETE FROM event_staff lead USING events e
+      WHERE lead.event_id = e.id AND lead.is_leader = true
+        AND e.event_date >= (now() AT TIME ZONE 'Asia/Dubai')::date
+        AND e.phase NOT IN ('Event Completed','Cancelled')
+        AND NOT EXISTS (
+          SELECT 1 FROM event_staff es
+           WHERE es.event_id = lead.event_id AND es.is_leader = false
+             AND (es.assignee_id IS NOT NULL OR es.part_time_name IS NOT NULL OR es.status = 'part_time_required')
+        )`,
+  ).catch(() => {});
   // Drop stale members that aren't on the real roster (only for staffed events).
   await pool.query(
     `DELETE FROM event_team et
@@ -697,10 +732,26 @@ export async function recomputeEventLeader(eventId: string): Promise<void> {
     const hit = rows.find((r) => firstNameLc(r.name) === name.toLowerCase());
     if (hit) { leaderId = hit.assignee_id; remote = name === 'Marsha'; break; }
   }
-  // Whole event is external part-timers → Marsha leads remotely.
+  // Whole event is external part-timers → Marsha leads remotely. BUT a truly
+  // EMPTY event (manual mode, nothing staffed yet) must get NO leader — otherwise
+  // we re-invent the phantom Marsha this manual-mode change was meant to kill.
+  // `rows` above holds only INTERNAL assignees, so an empty `rows` is ambiguous
+  // ("no crew" vs "all part-timers"); disambiguate by checking for ANY real crew
+  // slot (an assignee, a named part-timer, or a part-time-required slot — NOT an
+  // unfilled 'to_confirm' slot the owner hasn't chosen anyone for yet).
   if (!leaderId) {
-    const marsha = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE name = 'Marsha' LIMIT 1`);
-    if (marsha.rows[0]) { leaderId = marsha.rows[0].id; remote = true; }
+    const anySlot = await pool
+      .query<{ n: string }>(
+        `SELECT COUNT(*) n FROM event_staff
+          WHERE event_id = $1 AND is_leader = false
+            AND (assignee_id IS NOT NULL OR part_time_name IS NOT NULL OR status = 'part_time_required')`,
+        [eventId],
+      )
+      .catch(() => ({ rows: [{ n: '0' }] }));
+    if (Number(anySlot.rows[0].n) > 0) {
+      const marsha = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE name = 'Marsha' LIMIT 1`);
+      if (marsha.rows[0]) { leaderId = marsha.rows[0].id; remote = true; }
+    }
   }
   await pool.query(`DELETE FROM event_staff WHERE event_id = $1 AND is_leader = true`, [eventId]).catch(() => {});
   if (leaderId) {
