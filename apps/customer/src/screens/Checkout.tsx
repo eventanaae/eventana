@@ -9,6 +9,7 @@ import { loadAccount, saveAccount, clearAccount, type Account } from '../account
 import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
 import { svcName } from '../serviceAr';
+import { thName } from '../pkgAr';
 import { TermsSheet } from './Terms';
 import { uaeMobile } from './ShopCheckout';
 
@@ -170,8 +171,9 @@ export function Checkout({
 
   // The chosen theme (a catalogue theme, or a custom-theme request) so it's
   // visible at checkout — resolved once and shown in Step 1 and the summary.
-  const themeName = draft.themeId
-    ? (catalogue.themes.find((th) => th.id === draft.themeId)?.name ?? null)
+  const chosenTheme = draft.themeId ? catalogue.themes.find((th) => th.id === draft.themeId) : null;
+  const themeName = chosenTheme
+    ? thName(chosenTheme.id, chosenTheme.name, lang === 'ar')
     : (draft.customTheme ? (lang === 'ar' ? 'ثيم مخصص' : 'Custom theme') : null);
 
   const emailOk = /.+@.+\..+/.test(reg.email.trim());
@@ -836,7 +838,7 @@ export function Checkout({
           >
             <span>{line.label}</span>
             <span style={{ whiteSpace: 'nowrap' }}>
-              {line.amountFils < 0 ? '−' : ''}AED {money(Math.abs(line.amountFils))}
+              {line.amountFils < 0 ? '−' : ''}{t('common.aed')} {money(Math.abs(line.amountFils))}
             </span>
           </div>
         ))}

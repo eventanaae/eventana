@@ -86,6 +86,24 @@ export const PKG_ITEM_AR: Record<string, string> = {
 export const itemNameAr = (en: string, ar: boolean): string =>
   (ar ? (PKG_ITEM_AR[String(en ?? '').trim().toLowerCase()] ?? en) : en);
 
+/** Arabic package name keyed by the ENGLISH display name (for places that only
+ *  have the stored name string, e.g. MyEvent/receipts, not the package id). */
+export const PKG_NAME_AR: Record<string, string> = {
+  'golden birthday package': 'باقة عيد الميلاد الذهبية',
+  'silver birthday package': 'باقة عيد الميلاد الفضية',
+  'bronze birthday package': 'باقة عيد الميلاد البرونزية',
+  'spa birthday package': 'باقة سبا للأطفال',
+  'summer birthday package': 'باقة عيد الميلاد الصيفية',
+  'movie night package': 'باقة ليلة السينما',
+  'gender reveal package': 'باقة الجندر ريفيل',
+  'twinkle package': 'باقة توينكل',
+  'teddy bear package': 'باقة تيدي بير',
+};
+export const pkgNameByEn = (en: string | null | undefined, ar: boolean): string => {
+  const s = String(en ?? '');
+  return ar ? (PKG_NAME_AR[s.trim().toLowerCase()] ?? s) : s;
+};
+
 export const pkgName = (id: string, en: string, ar: boolean): string => (ar ? (PKG_AR[id]?.name ?? en) : en);
 export const pkgCapacity = (id: string, en: string, ar: boolean): string => (ar ? (PKG_AR[id]?.capacity ?? en) : en);
 export const pkgTag = (id: string, en: string, ar: boolean): string => (ar ? (PKG_AR[id]?.tag ?? en) : en);

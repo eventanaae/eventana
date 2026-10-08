@@ -308,7 +308,7 @@ export function Themes({
       <Sheet open={Boolean(preview)} onClose={() => setPreview(null)}>
         {preview && (
           <div style={{ padding: '20px 22px 8px' }}>
-            <div style={{ ...fredoka(22) }}>{preview.name}</div>
+            <div style={{ ...fredoka(22) }}>{thName(preview.id, preview.name, ar)}</div>
             <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '4px 0 12px' }}>
               {t('themes.galleryNote')}
             </div>

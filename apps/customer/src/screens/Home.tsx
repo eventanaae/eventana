@@ -31,9 +31,11 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
     (s, [id, q]) => s + (q > 0 && catalogue.services.some((sv) => sv.id === id) ? q : 0),
     0,
   );
+  const resumePkg = catalogue.packages.find((p) => p.id === draft.packageId);
+  const resumeCt = catalogue.celebrationTypes.find((c) => c.id === draft.celebrationType);
   const partyLabel =
-    catalogue.packages.find((p) => p.id === draft.packageId)?.name ??
-    catalogue.celebrationTypes.find((c) => c.id === draft.celebrationType)?.label ??
+    (resumePkg ? pkgName(resumePkg.id, resumePkg.name, lang === 'ar') : null) ??
+    (resumeCt ? (lang === 'ar' ? (resumeCt.labelAr ?? resumeCt.label) : resumeCt.label) : null) ??
     t('home.resumeParty');
   // The Home "popular packages" strip is the kids-birthday showcase.
   const popular = catalogue.packages.filter((p) => p.celebrationType === 'kids').slice(0, 3);
@@ -300,7 +302,7 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
             </button>
             <div style={{ background: 'linear-gradient(135deg,#E94F9C,#F7A948)', padding: '30px 22px 24px', textAlign: 'center', color: '#fff' }}>
               <div style={{ fontSize: 46, lineHeight: 1 }}>🎉</div>
-              <div style={{ ...fredoka(32), color: '#fff', marginTop: 6, lineHeight: 1.05 }}>10% OFF</div>
+              <div style={{ ...fredoka(32), color: '#fff', marginTop: 6, lineHeight: 1.05 }}>{lang === 'ar' ? 'خصم ١٠٪' : '10% OFF'}</div>
               <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4, color: 'rgba(255,255,255,.95)' }}>
                 {t('home.promoTitle').replace('🎉 ', '')}
               </div>

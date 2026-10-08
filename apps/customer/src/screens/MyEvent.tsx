@@ -5,6 +5,7 @@ import type { Screen } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Spinner, timeLabel } from '../ui';
 import type { Lang, TFn } from '../i18n';
 import { TermsSheet } from './Terms';
+import { pkgNameByEn } from '../pkgAr';
 import { loadAccount, currentFb } from '../account';
 import { AuthSheet } from './AuthSheet';
 
@@ -284,7 +285,7 @@ export function MyEvent({
                 }}
               >
                 <div style={{ fontWeight: 700, fontSize: 12, color: active ? C.pinkDeep : C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {e.packageName ?? t('me.celebration')}
+                  {e.packageName ? pkgNameByEn(e.packageName, lang === 'ar') : t('me.celebration')}
                 </div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, marginTop: 2 }}>
                   {new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short' })} · {e.phase ? phaseLabel(PHASES[stepOf(e.phase)]) : ''}
@@ -304,7 +305,7 @@ export function MyEvent({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-          <span style={{ fontWeight: 700, fontSize: 15 }}>{event.packageName ?? t('me.celebration')}</span>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>{event.packageName ? pkgNameByEn(event.packageName, lang === 'ar') : t('me.celebration')}</span>
           <span
             style={{
               background: cancelled ? C.redSoft : '#fff',
@@ -1310,7 +1311,7 @@ function ReceiptCard({ event, t, lang }: { event: any; t: TFn; lang: Lang }) {
       {event.eventFor && <SummaryRow label={t('me.rcFor')} value={event.eventFor} />}
       {event.ageBand && <SummaryRow label={t('me.rcAge')} value={String(event.ageBand)} />}
       {theme && <SummaryRow label={t('me.rcTheme')} value={theme} />}
-      {event.packageName && <SummaryRow label={t('me.rcPackage')} value={event.packageName} />}
+      {event.packageName && <SummaryRow label={t('me.rcPackage')} value={pkgNameByEn(event.packageName, lang === 'ar')} />}
       {dateStr && <SummaryRow label={t('me.rcDate')} value={dateStr} />}
       {event.startDisplay && (
         <SummaryRow label={t('me.rcTime')} value={`${event.startDisplay} – ${event.endDisplay}`} />
@@ -1472,7 +1473,7 @@ function CancelBooking({
             <>
               <div style={{ fontWeight: 800, fontSize: 14, color: C.ink, marginBottom: 8 }}>{t('cancel.confirmTitle')}</div>
               <div style={{ background: C.cream, borderRadius: 14, padding: '12px 14px', marginBottom: 10 }}>
-                <SummaryRow label={t('cancel.event')} value={event.packageName ?? t('me.celebration')} />
+                <SummaryRow label={t('cancel.event')} value={event.packageName ? pkgNameByEn(event.packageName, lang === 'ar') : t('me.celebration')} />
                 <SummaryRow label={t('cancel.date')} value={new Date(event.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
                 <SummaryRow label={t('cancel.order')} value={event.orderId} />
                 <SummaryRow label={t('cancel.totalPaid')} value={`${r.totalPaidDisplay} ${aed}`} />

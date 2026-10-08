@@ -26,8 +26,8 @@ export function Build({ catalogue, draft, update, quote, go, t, lang }: ScreenPr
   const [detail, setDetail] = useState<Catalogue['services'][number] | null>(null);
   const ar = lang === 'ar';
 
-  const evLabel =
-    catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType)?.label ?? 'Celebration';
+  const evType = catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType);
+  const evLabel = (ar ? (evType?.labelAr ?? evType?.label) : evType?.label) ?? (ar ? 'مناسبتك' : 'Celebration');
   const missing = catalogue.missingServiceNotes[draft.celebrationType];
 
   const categories = catalogue.categories
