@@ -37,7 +37,7 @@ export function Kpis({ role }: { role?: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <AchievementsPanel personal={personal} />
+      <AchievementsPanel personal={personal} fiveStarPts={data.rules?.fiveStarPoints ?? 40} glamPts={data.rules?.glamPoints ?? 40} />
       <Panel
         title={`${personal ? 'My Achievements & Tips' : 'Team Achievements'} — ${monthLabel(month)}`}
         action={
@@ -231,12 +231,12 @@ function MiniKpi({ label, value, accent }: { label: string; value: string; accen
 // Recorded rewards (Achievements): each positive-feedback reward with its event,
 // date, amount and the feedback that earned it. Employee sees own; owner/manager
 // see everyone's. Amounts come from the settings value at the time earned.
-function AchievementsPanel({ personal }: { personal: boolean }) {
+function AchievementsPanel({ personal, fiveStarPts, glamPts }: { personal: boolean; fiveStarPts: number; glamPts: number }) {
   const [data, setData] = useState<{ rows: any[]; totalDisplay: string } | null>(null);
   useEffect(() => { api.achievements().then(setData).catch(() => setData({ rows: [], totalDisplay: '0' })); }, []);
   if (!data) return null;
-  // Each 5★ moment is worth 20 points in the new system.
-  const ptsFor = (kind: string) => (kind === 'good_feedback' || kind === 'glam_doll' ? 20 : 0);
+  // Points per 5★ / Glam Doll moment — from the live rules (doubled 2026-10-08).
+  const ptsFor = (kind: string) => (kind === 'good_feedback' ? fiveStarPts : kind === 'glam_doll' ? glamPts : 0);
   const totalPts = data.rows.reduce((s, r) => s + ptsFor(r.kind), 0);
   return (
     <Panel title={personal ? '🏆 My 5★ moments' : '🏆 5★ moments'} action={<span style={{ ...fredoka(15), color: C.pinkDeep }}>{totalPts} pts</span>}>

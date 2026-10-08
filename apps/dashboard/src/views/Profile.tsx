@@ -111,7 +111,7 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
 
       <Section title={`🏆 5★ moments (${d.achievements.rows.length})`}>
         {d.achievements.rows.length === 0 ? (
-          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>Great customer feedback will appear here — each 5★ is worth 20 points.</div>
+          <div style={{ color: C.muted, fontWeight: 600, fontSize: 13 }}>Great customer feedback will appear here — each 5★ is worth {kpi?.rules?.fiveStarPoints ?? 40} points.</div>
         ) : d.achievements.rows.map((r: any) => (
           <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
             <span style={{ fontSize: 17 }}>{r.kind === 'glam_doll' ? '💅' : '🌟'}</span>
@@ -119,7 +119,7 @@ export function Profile({ onSignedOut }: { onSignedOut?: () => void }) {
               <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Great customer feedback</div>
               <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>{r.date}{r.event_id ? ` · ${r.event_id}` : ''}{r.note ? ` · "${r.note}"` : ''}</div>
             </div>
-            <span style={{ ...fredoka(14), color: C.pinkDeep }}>+{r.kind === 'good_feedback' || r.kind === 'glam_doll' ? 20 : 0} pts</span>
+            <span style={{ ...fredoka(14), color: C.pinkDeep }}>+{r.kind === 'good_feedback' ? (kpi?.rules?.fiveStarPoints ?? 40) : r.kind === 'glam_doll' ? (kpi?.rules?.glamPoints ?? 40) : 0} pts</span>
           </div>
         ))}
       </Section>

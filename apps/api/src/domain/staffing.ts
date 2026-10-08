@@ -581,11 +581,14 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     [eventId],
   ).catch(() => {});
 
-  // When we restored the owner's picked employees (manual mode), the in-transaction
-  // leader was derived from an EMPTY plan (every slot 'to_confirm'), so recompute it
-  // now from the real, final roster so the "Leader" badge points at a present person
-  // instead of nobody/Marsha. (DB is the source of truth the UI reads.)
-  if (preserveEmployees && preservedEmp.length > 0) {
+  // When we restored crew (manual mode), the in-transaction leader was derived
+  // from an EMPTY plan (every slot 'to_confirm'), so recompute it now from the
+  // real, final roster so the "Leader" badge points at a present person instead
+  // of nobody. Covers BOTH restored employees AND restored confirmed part-timers:
+  // an all-part-timer event (Marsha remote-leads) would otherwise lose its leader
+  // on a date/reschedule rebuild, since the part-timers are re-applied after the
+  // in-txn leader decision. (DB is the source of truth the UI reads.)
+  if (preserveEmployees && (preservedEmp.length > 0 || preserved.length > 0)) {
     await recomputeEventLeader(eventId).catch(() => {});
   }
 
