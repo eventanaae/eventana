@@ -190,7 +190,7 @@ export function Build({ catalogue, draft, update, quote, go, t }: ScreenProps) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 3, gap: 10 }}>
               <button
-                onClick={() => go(themeRequired ? 'theme' : 'checkout')}
+                onClick={() => go(themeRequired && !(draft.themeId || draft.customTheme) ? 'theme' : 'checkout')}
                 style={{ background: C.pink, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, padding: '11px 18px', borderRadius: 16, cursor: 'pointer' }}
               >
                 {themeRequired ? t('build.continueTheme') : t('build.continueReview')}

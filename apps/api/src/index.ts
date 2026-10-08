@@ -603,6 +603,9 @@ async function main() {
     // (SET_SHAN_LEADER='hideqb' → then blank it). Reversible (active=false).
     const { hideImportedServicesFromEnv } = await import('./db/hideImportedServices.js');
     await hideImportedServicesFromEnv().catch((err) => console.error('[hide-imported] failed:', err));
+    // One-shot: set WELCOME10 terms (min AED 2,000 + first-booking) (SET_SHAN_LEADER='welcome10').
+    const { setWelcome10TermsFromEnv } = await import('./db/setWelcome10Terms.js');
+    await setWelcome10TermsFromEnv().catch((err) => console.error('[welcome10] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));

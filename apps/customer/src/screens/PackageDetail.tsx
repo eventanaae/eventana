@@ -128,7 +128,13 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
 
         <div style={{ marginTop: 24 }}>
           <PrimaryButton
-            onClick={() => go(isMovie ? 'movieselect' : isSpa ? 'checkout' : 'theme')}
+            onClick={() => go(
+              isMovie ? 'movieselect'
+                : isSpa ? 'checkout'
+                // Theme already chosen (e.g. picked from Home) → skip the theme step.
+                : (draft.themeId || draft.customTheme) ? 'checkout'
+                : 'theme',
+            )}
             disabled={pkg.hasCastleChoice && !draft.castleVariant}
           >
             {pkg.hasCastleChoice && !draft.castleVariant

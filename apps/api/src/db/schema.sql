@@ -197,9 +197,9 @@ CREATE TABLE IF NOT EXISTS promo_redemptions (
 );
 
 -- Launch promo codes (owner can add/disable more from the dashboard).
-INSERT INTO promo_codes (code, kind, value, min_spend_fils) VALUES
-  ('WELCOME10', 'percent', 10, 0),
-  ('EVENTANA50', 'fixed', 5000, 100000)
+INSERT INTO promo_codes (code, kind, value, min_spend_fils, campaign) VALUES
+  ('WELCOME10', 'percent', 10, 200000, 'welcome'),   -- 10% off, min AED 2,000, first booking only
+  ('EVENTANA50', 'fixed', 5000, 100000, NULL)
 ON CONFLICT (code) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS orders (

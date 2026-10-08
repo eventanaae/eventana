@@ -1,8 +1,21 @@
+import { useEffect, useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, SectionTitle, wasPriceFils } from '../ui';
 
 export function Home({ catalogue, draft, shopCart, update, go, customerName, t }: ScreenProps) {
   const hour = new Date().getHours();
+
+  // Welcome-discount pop-up: show once per visitor (remembered in localStorage),
+  // a big attention-grabber that pushes them to book now with WELCOME10.
+  const [showPromo, setShowPromo] = useState(false);
+  useEffect(() => {
+    try { if (!localStorage.getItem('eventana_welcome_promo_v1')) setShowPromo(true); }
+    catch { /* private mode — just don't show */ }
+  }, []);
+  const dismissPromo = () => {
+    setShowPromo(false);
+    try { localStorage.setItem('eventana_welcome_promo_v1', '1'); } catch { /* ignore */ }
+  };
   const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
   const firstName = (customerName || '').trim().split(' ')[0] || t('common.friend');
   const initial = firstName.charAt(0).toUpperCase() || '☺';
@@ -57,24 +70,6 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t }
           }}
         >
           {initial}
-        </div>
-      </div>
-
-      {/* Online-booking discount — advertise the existing WELCOME10 code up top */}
-      <div
-        onClick={() => go('explore')}
-        style={{
-          marginBottom: 16, background: 'linear-gradient(135deg,#E94F9C,#F7A948)', borderRadius: 18,
-          padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', boxShadow: C.shadowLg,
-        }}
-      >
-        <div style={{ fontSize: 26, flex: 'none' }}>🎉</div>
-        <div style={{ flex: 1, minWidth: 0, color: '#fff' }}>
-          <div style={{ fontWeight: 800, fontSize: 14 }}>{t('home.promoTitle')}</div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.92)' }}>{t('home.promoSub')}</div>
-        </div>
-        <div style={{ flex: 'none', background: '#fff', color: '#D6317F', fontWeight: 800, fontSize: 12.5, padding: '6px 12px', borderRadius: 20, letterSpacing: '.5px' }}>
-          WELCOME10
         </div>
       </div>
 
@@ -267,6 +262,53 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t }
       <div style={{ marginTop: 18, textAlign: 'center', fontSize: 11, fontWeight: 600, color: C.faint }}>
         @eventana.uae · +971 56 450 0777
       </div>
+
+      {showPromo && (
+        <div
+          onClick={dismissPromo}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.55)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 340, background: '#fff', borderRadius: 26, overflow: 'hidden', boxShadow: '0 24px 64px rgba(214,49,127,.30)', position: 'relative', animation: 'rise .28s ease' }}
+          >
+            <button
+              onClick={dismissPromo}
+              aria-label="close"
+              style={{ position: 'absolute', top: 12, right: 12, width: 30, height: 30, borderRadius: 15, border: 'none', background: 'rgba(255,255,255,.28)', color: '#fff', fontSize: 17, fontWeight: 800, cursor: 'pointer', lineHeight: '27px', zIndex: 2 }}
+            >
+              ×
+            </button>
+            <div style={{ background: 'linear-gradient(135deg,#E94F9C,#F7A948)', padding: '30px 22px 24px', textAlign: 'center', color: '#fff' }}>
+              <div style={{ fontSize: 46, lineHeight: 1 }}>🎉</div>
+              <div style={{ ...fredoka(32), color: '#fff', marginTop: 6, lineHeight: 1.05 }}>10% OFF</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4, color: 'rgba(255,255,255,.95)' }}>
+                {t('home.promoTitle').replace('🎉 ', '')}
+              </div>
+            </div>
+            <div style={{ padding: '20px 22px 22px', textAlign: 'center' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '1px' }}>
+                {t('home.promoSub').split('—')[0].toUpperCase()}
+              </div>
+              <div style={{ margin: '9px 0 4px', display: 'inline-block', border: `2px dashed ${C.pink}`, color: C.pinkDeep, fontWeight: 800, fontSize: 20, letterSpacing: '2px', padding: '9px 22px', borderRadius: 14, background: '#FEF2F8' }}>
+                WELCOME10
+              </div>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>
+                {t('home.popFine')}
+              </div>
+              <div
+                onClick={() => { dismissPromo(); go('explore'); }}
+                style={{ marginTop: 16, background: C.pink, color: '#fff', fontWeight: 800, fontSize: 15, padding: '13px', borderRadius: 16, cursor: 'pointer', boxShadow: C.shadowLg }}
+              >
+                {t('home.popCta')}
+              </div>
+              <div onClick={dismissPromo} style={{ marginTop: 11, fontSize: 12, fontWeight: 700, color: C.faint, cursor: 'pointer' }}>
+                {t('home.popLater')}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

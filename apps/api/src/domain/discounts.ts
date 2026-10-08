@@ -80,6 +80,17 @@ export async function validatePromo(
   if (subtotalFils < p.min_spend_fils) {
     return { ok: false, reason: `Spend at least AED ${Math.round(p.min_spend_fils / 100)} to use this code.` };
   }
+  // A "welcome" code (e.g. WELCOME10) is for the customer's FIRST booking only —
+  // reject if this customer already has a paid booking. Guests with no account
+  // yet (null customerId) are treated as first-timers.
+  if (p.campaign === 'welcome' && customerId) {
+    const prior = await db.query(
+      `SELECT 1 FROM orders WHERE customer_id = $1 AND status IN ('paid','partially_refunded')
+         AND kind IN ('booking','addon') LIMIT 1`,
+      [customerId],
+    );
+    if (prior.rowCount) return { ok: false, reason: 'This code is for your first booking only.' };
+  }
   const used = await db.query(`SELECT 1 FROM promo_redemptions WHERE code = $1 AND customer_id = $2`, [norm, customerId]);
   if (used.rowCount) return { ok: false, reason: 'You’ve already used this code.' };
 
