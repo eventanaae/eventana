@@ -599,6 +599,10 @@ async function main() {
     // then blank it; idempotent via a settings marker regardless).
     const { emailPointsUpdateFromEnv } = await import('./db/emailPointsUpdate.js');
     await emailPointsUpdateFromEnv().catch((err) => console.error('[points-email] failed:', err));
+    // One-shot: hide QuickBooks/internal services that leaked onto the public site
+    // (SET_SHAN_LEADER='hideqb' → then blank it). Reversible (active=false).
+    const { hideImportedServicesFromEnv } = await import('./db/hideImportedServices.js');
+    await hideImportedServicesFromEnv().catch((err) => console.error('[hide-imported] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
