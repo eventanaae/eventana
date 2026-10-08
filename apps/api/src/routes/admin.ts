@@ -2226,7 +2226,12 @@ export async function adminRoutes(app: FastifyInstance) {
     const TARGET_POINTS = 600;
     const POINTS_PER_STEP = 100;     // above target, every 100 points…
     const STEP_FILS = 1000;          // …earns AED 10 (10 fils per point)
-    const EVENT_POINTS = 10, FIVE_STAR_POINTS = 20, GLAM_POINTS = 20;
+    // Point values DOUBLED (owner 2026-10-08): the board felt small and the 600
+    // target hard to reach, so every earning rate is ×2 — 20/event, 40 per 5★,
+    // 40 per Glam Doll, and AED 1 = 1 point on referred value (see referralPoints
+    // below). Points are computed live, so this also doubles every past month's
+    // standings automatically. Target + the 100 pts = AED 10 conversion unchanged.
+    const EVENT_POINTS = 20, FIVE_STAR_POINTS = 40, GLAM_POINTS = 40;
     // Glam Doll: +20 points for each completed event that INCLUDED a Glam Doll,
     // awarded to the internal crew who worked that event (owner decision
     // 2026-09-12). The Glam Doll itself is performed by external part-timers who
@@ -2272,7 +2277,7 @@ export async function adminRoutes(app: FastifyInstance) {
       (warnRes.rows as any[]).map((r) => [r.member_id, { reason: r.reason ?? null, affectsPoints: r.affects_points === true, deductionPct: Math.min(100, Math.max(0, Number(r.salary_deduction_pct) || 0)) }]),
     );
     // AED 100 = 1 step; 100 points = AED 10 above the 600 target.
-    const rules = { targetPoints: TARGET_POINTS, pointsToAed10: 100, eventPoints: EVENT_POINTS, fiveStarPoints: FIVE_STAR_POINTS, glamPoints: GLAM_POINTS, valuePointsPerAed: 0.5, commissionRate: 2, commissionMinAed: 20000 };
+    const rules = { targetPoints: TARGET_POINTS, pointsToAed10: 100, eventPoints: EVENT_POINTS, fiveStarPoints: FIVE_STAR_POINTS, glamPoints: GLAM_POINTS, valuePointsPerAed: 1, commissionRate: 2, commissionMinAed: 20000 };
     // Marsha's incentive is different: a 2% commission on the corporate/events
     // invoices she brings in (via email), each worth ≥ AED 20,000. Tagged on the
     // invoice (commission_rep) and events-based only (the team tags qualifying ones).
@@ -2313,10 +2318,12 @@ export async function adminRoutes(app: FastifyInstance) {
       const glam = glamCount.get(r.id) ?? 0;
       const ref = referralByMember.get(r.id) ?? { valueFils: 0, n: 0 };
       // Points: activity (events worked, 5★, Glam Doll) + value of events brought
-      // in (AED 0.5 per AED, i.e. fils / 200). Money is earned only ABOVE the
+      // in (AED 1 per AED — see referralPoints). Money is earned only ABOVE the
       // 600 target: every 100 points past it = AED 10 (10 fils per point).
       const activityPoints = eventsDone * EVENT_POINTS + fiveStars * FIVE_STAR_POINTS + glam * GLAM_POINTS;
-      const referralPoints = Math.round(ref.valueFils / 200);
+      // Referral value points DOUBLED: AED 1 = 1 point (fils / 100), was AED 2 = 1
+      // point (fils / 200). So a 4,000 AED event brought in with your code ≈ 4,000 pts.
+      const referralPoints = Math.round(ref.valueFils / 100);
       // A warning may zero this month's points, or just be on record (exception).
       const warn = warnMap.get(r.id) ?? null;
       const warned = !!warn;

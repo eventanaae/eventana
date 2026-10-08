@@ -89,7 +89,7 @@ export function Kpis({ role }: { role?: string }) {
                         <>
                           <Tile label="Bonus (above target)" value={`AED ${o.bonusDisplay}`} accent={C.green} />
                           {(o.referralCount ?? 0) > 0 && <Tile label={`Brought in · ${o.referralCount}`} value={`${o.referralPoints} pts`} accent="#8a6cc0" />}
-                          {(o.glamCount ?? 0) > 0 && <Tile label={`Glam Doll · ${o.glamCount}`} value={`${(o.glamCount ?? 0) * 20} pts`} accent="#8a6cc0" />}
+                          {(o.glamCount ?? 0) > 0 && <Tile label={`Glam Doll · ${o.glamCount}`} value={`${(o.glamCount ?? 0) * (data.rules?.glamPoints ?? 40)} pts`} accent="#8a6cc0" />}
                         </>
                       )}
                       <Tile label="Tips" value={`AED ${o.tipsDisplay}`} accent={C.pinkDeep} />
@@ -114,7 +114,7 @@ export function Kpis({ role }: { role?: string }) {
                       );
                     })() : (
                       <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 12, lineHeight: 1.6 }}>
-                        {`Points: ${data.rules?.eventPoints ?? 10} per event · ${data.rules?.fiveStarPoints ?? 20} per 5★ · ${data.rules?.glamPoints ?? 20} per Glam Doll · plus the value of events you bring in with your code (every AED 2 = 1 point, so an AED 4,000 event ≈ 2,000 points). Reach ${target} points, then every 100 points above it = AED 10. Tips are 100% yours on top. Part-timers aren’t included.`}
+                        {`Points: ${data.rules?.eventPoints ?? 20} per event · ${data.rules?.fiveStarPoints ?? 40} per 5★ · ${data.rules?.glamPoints ?? 40} per Glam Doll · plus the value of events you bring in with your code (every AED 1 = 1 point, so an AED 4,000 event ≈ 4,000 points). Reach ${target} points, then every 100 points above it = AED 10. Tips are 100% yours on top. Part-timers aren’t included.`}
                       </div>
                     )}
                   </div>
@@ -154,7 +154,7 @@ export function Kpis({ role }: { role?: string }) {
             ))}
           </div>
           <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 10, lineHeight: 1.6 }}>
-            Points = 10 × completed events + 20 × 5★ ratings + 20 × Glam Doll + points on the value of events you bring in. Everyone sees the points board — the money each person earns stays private.
+            Points = 20 × completed events + 40 × 5★ ratings + 40 × Glam Doll + points on the value of events you bring in. Everyone sees the points board — the money each person earns stays private.
           </div>
         </Panel>
       )}
@@ -202,7 +202,7 @@ export function Kpis({ role }: { role?: string }) {
             </div>
           )}
           <div style={{ marginTop: 12, fontSize: 11, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>
-            Target {data.rules?.targetPoints ?? 600} points. Above it, every 100 points = AED 10. Points: 10/event · 20/5★ · 20/Glam Doll · plus the value of events each person brings in (every AED 2 = 1 pt). Tips 100% on top.
+            Target {data.rules?.targetPoints ?? 600} points. Above it, every 100 points = AED 10. Points: 20/event · 40/5★ · 40/Glam Doll · plus the value of events each person brings in (every AED 1 = 1 pt). Tips 100% on top.
           </div>
         </Panel>
       )}

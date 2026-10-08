@@ -689,10 +689,10 @@ function PointsHelp() {
   return (
     <div style={{ background: '#faf6f9', border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
       <div style={head}>🏆 How you earn points</div>
-      <div style={line}><span style={emo}>🎈</span><span>{b('10 points')} for every event you complete.</span></div>
-      <div style={line}><span style={emo}>⭐</span><span>{b('+20 points')} each time a customer rates your event 5★.</span></div>
-      <div style={line}><span style={emo}>💅</span><span>{b('+20 points')} for every Glam Doll you perform.</span></div>
-      <div style={line}><span style={emo}>🎟️</span><span>Bring in an event with your code and earn on its value — {b('every AED 2 = 1 point')} (so an AED 4,000 event ≈ 2,000 points).</span></div>
+      <div style={line}><span style={emo}>🎈</span><span>{b('20 points')} for every event you complete.</span></div>
+      <div style={line}><span style={emo}>⭐</span><span>{b('+40 points')} each time a customer rates your event 5★.</span></div>
+      <div style={line}><span style={emo}>💅</span><span>{b('+40 points')} for every Glam Doll you perform.</span></div>
+      <div style={line}><span style={emo}>🎟️</span><span>Bring in an event with your code and earn on its value — {b('every AED 1 = 1 point')} (so an AED 4,000 event ≈ 4,000 points).</span></div>
 
       <div style={{ ...head, marginTop: 10 }}>🎯 Your target &amp; reward</div>
       <div style={line}><span style={emo}>🎯</span><span>Your monthly target is {b('600 points')} — reach this first.</span></div>
