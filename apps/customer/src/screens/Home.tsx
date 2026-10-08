@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, SectionTitle, wasPriceFils } from '../ui';
+import { pkgName, pkgCapacity, pkgTag } from '../pkgAr';
 
 export function Home({ catalogue, draft, shopCart, update, go, customerName, t, lang }: ScreenProps) {
   const hour = new Date().getHours();
@@ -182,17 +183,17 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
           >
             <div style={{ height: 120, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
               <span style={{ position: 'absolute', top: 10, left: 10, background: '#fff', color: C.pinkDeep, fontSize: 9.5, fontWeight: 700, padding: '4px 9px', borderRadius: 20, letterSpacing: '.5px' }}>
-                {p.tag}
+                {pkgTag(p.id, p.tag, lang === 'ar')}
               </span>
             </div>
             <div style={{ padding: '13px 15px 15px' }}>
-              <div style={fredoka(14.5)}>{p.name}</div>
+              <div style={fredoka(14.5)}>{pkgName(p.id, p.name, lang === 'ar')}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, margin: '3px 0 8px' }}>
-                {p.capacity} · {p.durationHours} {t('home.hours')}
+                {pkgCapacity(p.id, p.capacity, lang === 'ar')} · {p.durationHours} {t('home.hours')}
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textDecoration: 'line-through' }}>{money(wasPriceFils(p.priceFils))}</span>
-                <span style={{ fontWeight: 700, fontSize: 15, color: C.pinkDeep }}>AED {money(p.priceFils)}</span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: C.pinkDeep }}>{t('common.aed')} {money(p.priceFils)}</span>
               </div>
             </div>
           </div>

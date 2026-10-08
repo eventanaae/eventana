@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, PrimaryButton, Sheet, itemIcon, wasPriceFils } from '../ui';
+import { pkgName } from '../pkgAr';
 
-export function PackageDetail({ catalogue, draft, update, go, t, social }: ScreenProps) {
+export function PackageDetail({ catalogue, draft, update, go, t, social, lang }: ScreenProps) {
   const pkg = catalogue.packages.find((p) => p.id === draft.packageId);
   const [detail, setDetail] = useState<
     { name: string; detail: string; assets: string[] } | null
@@ -51,10 +52,10 @@ export function PackageDetail({ catalogue, draft, update, go, t, social }: Scree
 
       <div style={{ padding: '20px 22px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 16 }}>
-          <span style={{ ...fredoka(23), marginTop: 4 }}>{pkg.name}</span>
+          <span style={{ ...fredoka(23), marginTop: 4 }}>{pkgName(pkg.id, pkg.name, lang === 'ar')}</span>
           <div style={{ textAlign: 'right', flex: 'none' }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, textDecoration: 'line-through' }}>AED {money(wasPriceFils(pkg.priceFils))}</div>
-            <div style={{ fontWeight: 700, fontSize: 20, color: C.pinkDeep, lineHeight: 1.1 }}>AED {money(pkg.priceFils)}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, textDecoration: 'line-through' }}>{t('common.aed')} {money(wasPriceFils(pkg.priceFils))}</div>
+            <div style={{ fontWeight: 700, fontSize: 20, color: C.pinkDeep, lineHeight: 1.1 }}>{t('common.aed')} {money(pkg.priceFils)}</div>
             <span style={{ display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 800, color: '#fff', background: C.pink, borderRadius: 8, padding: '2px 8px' }}>{t('pkg.percentOff')}</span>
           </div>
         </div>
