@@ -51,16 +51,16 @@ export async function syncCatalogueContent(): Promise<void> {
     }
 
     // Package ROWS: insert any package that doesn't exist yet (e.g. a new
-    // celebration's packages) and backfill celebration_type on existing rows.
-    // price_fils and name are deliberately NOT overwritten on conflict — an
-    // owner edit in the dashboard is the source of truth and must survive a
-    // redeploy (same rule as services above). New packages take the code values.
+    // celebration's packages) and refresh the code-authoritative fields. Name IS
+    // refreshed (same as services + the seed) so a code rename goes live; only
+    // price_fils is left to the dashboard owner and survives a redeploy.
     for (const p of PACKAGES) {
       await pool.query(
         `INSERT INTO packages
            (id, name, price_fils, capacity, duration_hours, tag, gradient, has_castle_choice, celebration_type, active)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE)
          ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
            celebration_type = EXCLUDED.celebration_type,
            capacity = EXCLUDED.capacity, duration_hours = EXCLUDED.duration_hours,
            tag = EXCLUDED.tag, gradient = EXCLUDED.gradient,

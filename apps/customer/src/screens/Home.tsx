@@ -101,6 +101,19 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
         </div>
       </div>
 
+      {/* Eventana Sessions — Coming Soon teaser (owner: build hype before launch) */}
+      <div style={{ marginTop: 16, borderRadius: 22, padding: '16px 18px', background: 'linear-gradient(135deg,#F3E9FB,#FDE7F1)', border: `1.5px dashed ${C.pink}`, position: 'relative', overflow: 'hidden' }}>
+        <span style={{ display: 'inline-block', background: C.pink, color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: '.5px', padding: '4px 11px', borderRadius: 999, marginBottom: 9 }}>
+          {lang === 'ar' ? 'قريباً ✨' : 'COMING SOON ✨'}
+        </span>
+        <div style={fredoka(17)}>{lang === 'ar' ? 'جلسات إيفنتانا 🎨' : 'Eventana Sessions 🎨'}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: '#8b7d84', marginTop: 5, lineHeight: 1.55 }}>
+          {lang === 'ar'
+            ? 'أول ورشة: دفتر الريزون ✨ جلسة إبداعية تصمّمين فيها دفترك بالريزون على ذوقك. ترقبوا التفاصيل قريباً!'
+            : 'First workshop: Resin Journal ✨ A creative session where you design your own resin notebook. Details coming soon!'}
+        </div>
+      </div>
+
       {/* Pick up where you left off — the saved party draft and/or shop basket */}
       {(hasParty || shopCount > 0) && (
         <div style={{ marginTop: 16, background: '#fff', borderRadius: 22, padding: '14px 16px', boxShadow: C.shadowLg, border: `1.5px solid ${C.pink}` }}>

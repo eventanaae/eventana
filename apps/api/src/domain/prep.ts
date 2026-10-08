@@ -163,7 +163,9 @@ function classifyLabel(label: string, serviceIds: Set<string>, categories: Set<s
   if (/face\s*paint/.test(n)) serviceIds.add('facepaint');
   if (/foam/.test(n)) serviceIds.add('foam');
   if (/ice\s*cream/.test(n)) serviceIds.add('icecream');
-  if (/instant|camera|photograph/.test(n)) serviceIds.add('camera');
+  if (/instant|camera|photograph|photo\s*booth/.test(n)) serviceIds.add('camera');
+  if (/sound\s*system/.test(n)) serviceIds.add('speaker');
+  if (/reveal\s*box/.test(n)) serviceIds.add('balloons');
   if (/(entertainer|clown|mascot)/.test(n) && !/glam/.test(n)) serviceIds.add('clown');
   if (/giveaway/.test(n)) categories.add('giveaways');
   // Made-to-order shop goods (customized hat, face banner, wristband, t-shirt)

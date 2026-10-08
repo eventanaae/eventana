@@ -12,7 +12,7 @@ export const PKG_AR: Record<string, { name: string; capacity: string; tag: strin
   spa: { name: 'باقة سبا للأطفال', capacity: 'حتى 20 طفل', tag: 'للبنات' },
   movie: { name: 'باقة ليلة السينما', capacity: 'حتى 40 طفل', tag: 'ليلة مميزة' },
   'gender-reveal': { name: 'باقة الجندر ريفيل', capacity: 'الترتيب الأساسي', tag: 'وردي ولا أزرق' },
-  'gender-disney': { name: 'باقة ديزني', capacity: 'ترتيب فاخر', tag: 'الأكثر طلباً' },
+  'gender-disney': { name: 'باقة توينكل', capacity: 'ترتيب فاخر', tag: 'الأكثر طلباً' },
   'gender-teddy': { name: 'باقة تيدي بير', capacity: 'حتى 20 ضيف', tag: 'المفضّلة للعائلات' },
 };
 

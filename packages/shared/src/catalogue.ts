@@ -234,12 +234,14 @@ export const SERVICES: ServiceDefinition[] = [
   svc({ id: 'voting-stand', name: 'Voting Stand', categoryId: 'gendersetup', price: 350, celebrationTypes: ['gender'], shortDescription: 'Team Pink or Team Blue voting stand', detail: 'A “Team Pink or Team Blue” voting stand to welcome your guests and let them cast their guess.', requiresAssets: ['voting-stand'], gradient: G('#F9C6DC', '#7FB2E8') }),
   svc({ id: 'entrance-stand', name: 'Entrance Stand', categoryId: 'gendersetup', price: 350, celebrationTypes: ['gender'], shortDescription: 'Themed entrance stand', detail: 'A themed entrance stand at your party door to welcome your guests.', requiresAssets: ['entrance-stand'], gradient: G('#BDEBE4', '#F9C6DC') }),
   svc({ id: 'boygirl-characters', name: 'Boy & Girl Characters (2 hours)', categoryId: 'gendersetup', price: 1600, celebrationTypes: ['gender'], shortDescription: '2 hrs · interactive reveal with a personalized song', detail: 'Boy & Girl characters for two hours, including an interactive gender-reveal performance with a personalized song featuring your names.', gradient: G('#7FB2E8', '#F9C6DC') }),
-  // NOTE: the owner's other Gender add-ons (Baby Onesie Painting, Customized
-  // Gender Reveal Box, Helium Balloons, Photo Booth & Instant Printing, Sound
-  // System, Customized Giveaways) are intentionally NOT listed yet — they came
-  // with no prices. Add them here once Eventana sets a price (never price 0,
-  // which would let a customer check out paying nothing). Chocolate Fountain
-  // and the Ice Cream Station already show for gender via the Food category.
+
+  // --- Gender Reveal optional add-ons (prices set from comparable items) ---
+  svc({ id: 'onesie-painting', name: 'Baby Onesie Painting', categoryId: 'extras', price: 550, celebrationTypes: ['gender'], shortDescription: 'Guests paint a keepsake baby onesie', detail: 'A baby-onesie painting station with fabric paints and blank onesies for your guests to decorate — a keepsake from your reveal.', gradient: G('#FDE0EE', '#BDEBE4') }),
+  svc({ id: 'reveal-box', name: 'Customized Gender Reveal Box', categoryId: 'extras', price: 450, celebrationTypes: ['gender'], shortDescription: 'A custom reveal box for the big moment', detail: 'A customized gender-reveal box — open it to reveal pink or blue balloons for the big moment.', requiresAssets: ['reveal-box'], gradient: G('#D9B8E8', '#7FB2E8') }),
+  svc({ id: 'helium-balloons', name: 'Helium Balloons', categoryId: 'extras', price: 350, celebrationTypes: ['gender'], shortDescription: 'Pink or blue helium balloons', detail: 'A set of pink-or-blue helium balloons to add to your setup or your reveal box.', gradient: G('#F9C6DC', '#D9E8FB') }),
+  svc({ id: 'photo-booth', name: 'Photo Booth & Instant Printing', categoryId: 'extras', price: 900, celebrationTypes: ['gender'], shortDescription: 'Photo booth with instant prints', detail: 'A photo booth with instant printing so your guests take home a memory on the spot.', requiresAssets: ['photo-booth'], gradient: G('#BDEBE4', '#F7C948') }),
+  svc({ id: 'sound-system', name: 'Sound System', categoryId: 'extras', price: 450, celebrationTypes: ['gender'], shortDescription: 'Speakers & mic for your reveal', detail: 'A sound system with speakers and a microphone for your reveal and announcements.', requiresAssets: ['sound-system'], gradient: G('#D9E8FB', '#BDEBE4') }),
+  svc({ id: 'custom-giveaways', name: 'Customized Giveaways', categoryId: 'giveaways', price: 350, celebrationTypes: ['gender'], needsAdminReview: true, shortDescription: 'Personalized giveaways for your guests', detail: 'Customized giveaways for your guests — a keepsake from your special reveal. Final quantity and design confirmed by Eventana.', gradient: G('#F7C948', '#F9C6DC') }),
 ];
 
 export const SERVICE_BY_ID = new Map(SERVICES.map((s) => [s.id, s]));
@@ -416,7 +418,7 @@ export const PACKAGES: PackageDefinition[] = [
   {
     id: 'gender-disney',
     celebrationType: 'gender',
-    name: 'Disney Package',
+    name: 'Twinkle Package',
     priceFils: aed(3500),
     capacity: 'Premium setup',
     durationHours: 4,
