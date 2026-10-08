@@ -36,19 +36,28 @@ export async function applyThemeGallery(): Promise<void> {
     await pool.query(`UPDATE themes SET active = false WHERE celebration_type NOT IN ('kids','gender')`);
 
     // Gender Reveal themes live in the shared catalogue but seedIfEmpty skips on
-    // a non-empty (production) DB, so insert them here — idempotently, without
-    // overwriting an owner edit. Keep them active.
+    // a non-empty (production) DB, so reconcile them here. The catalogue is
+    // authoritative for these (brand-new, owner-defined), so UPSERT name/tags/
+    // colors/gradient — an earlier DB state had different gender themes at the
+    // same ids, and those stale names must not win. Keep them active.
     for (const th of THEMES.filter((t) => t.celebrationType === 'gender')) {
       await pool.query(
         `INSERT INTO themes (id, name, tags, colors, gradient, popular, featured, active, celebration_type, sort_order)
-         SELECT $1,$2,$3,$4,$5,false,false,true,'gender',$6
-          WHERE NOT EXISTS (SELECT 1 FROM themes WHERE id = $1)`,
+         VALUES ($1,$2,$3,$4,$5,false,false,true,'gender',$6)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name, tags = EXCLUDED.tags, colors = EXCLUDED.colors,
+           gradient = EXCLUDED.gradient, active = true, celebration_type = 'gender',
+           sort_order = EXCLUDED.sort_order`,
         [th.id, th.name, th.tags, th.colors, th.gradient, th.sortOrder],
       );
     }
-    // If a gender theme was previously inserted then deactivated by the old
-    // rule, make sure it's active again.
-    await pool.query(`UPDATE themes SET active = true WHERE celebration_type = 'gender'`);
+    // Retire any OTHER gender theme not in the catalogue (stale rows from an
+    // earlier state), so only the owner's current 10 show.
+    await pool.query(
+      `UPDATE themes SET active = false
+        WHERE celebration_type = 'gender' AND id <> ALL($1)`,
+      [THEMES.filter((t) => t.celebrationType === 'gender').map((t) => t.id)],
+    );
 
     // Renames requested by the owner.
     await pool.query(`UPDATE themes SET name = 'Circus' WHERE id = 't33'`);
