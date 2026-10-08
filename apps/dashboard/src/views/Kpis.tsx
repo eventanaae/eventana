@@ -26,7 +26,7 @@ export function Kpis({ role }: { role?: string }) {
 
   useEffect(() => {
     setData(null);
-    void api.kpis(month).then(setData);
+    void api.kpis(month).then(setData).catch(() => setData({ personal: null, rules: {}, rows: [] }));
   }, [month]);
 
   const shift = (delta: number) => {

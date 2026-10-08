@@ -31,9 +31,9 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {!scoped && (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
-        <Stat label="Low stock items" value={data.counts.lowStock} tone={data.counts.lowStock > 0 ? 'warn' : 'ok'} />
-        <Stat label="Leave to approve" value={data.counts.pendingLeave} tone={data.counts.pendingLeave > 0 ? 'warn' : 'ok'} />
-        <Stat label="Orders in review" value={data.counts.needsReview} tone={data.counts.needsReview > 0 ? 'error' : 'ok'} />
+        <Stat label="Low stock items" value={data.counts?.lowStock ?? 0} tone={(data.counts?.lowStock ?? 0) > 0 ? 'warn' : 'ok'} />
+        <Stat label="Leave to approve" value={data.counts?.pendingLeave ?? 0} tone={(data.counts?.pendingLeave ?? 0) > 0 ? 'warn' : 'ok'} />
+        <Stat label="Orders in review" value={data.counts?.needsReview ?? 0} tone={(data.counts?.needsReview ?? 0) > 0 ? 'error' : 'ok'} />
         <Stat label="Staffing to confirm" value={data.counts?.staffingGaps ?? 0} tone={(data.counts?.staffingGaps ?? 0) > 0 ? 'error' : 'ok'} />
         <Stat label="Prep at risk" value={data.counts?.prepAtRisk ?? 0} tone={(data.counts?.prepAtRisk ?? 0) > 0 ? 'error' : 'ok'} />
       </div>
@@ -84,10 +84,10 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
       )}
 
       <Panel title="🧴 Low stock — reorder soon">
-        {data.lowStock.length === 0 ? (
+        {(data.lowStock ?? []).length === 0 ? (
           <Empty>All consumables above their reorder level.</Empty>
         ) : (
-          data.lowStock.map((c: any) => (
+          (data.lowStock ?? []).map((c: any) => (
             <div key={c.id} style={row}>
               <span style={{ fontWeight: 700, fontSize: 12.5, flex: 1 }}>{c.name}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: c.on_hand === 0 ? C.red : '#c98a2b' }}>
@@ -144,11 +144,11 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
         <Panel title={scoped ? '💐 Your recent tips' : '💐 Recent tips'}>
-          {data.recentTips.length === 0 ? (
+          {(data.recentTips ?? []).length === 0 ? (
             <Empty>No tips yet.</Empty>
           ) : (
-            data.recentTips.map((t: any) => (
-              <div key={t.id} style={row} onClick={() => onOpenEvent?.(t.event_id)}>
+            (data.recentTips ?? []).map((t: any) => (
+              <div key={t.id} style={{ ...row, cursor: 'pointer' }} onClick={() => onOpenEvent?.(t.event_id)}>
                 <span style={{ fontWeight: 700, fontSize: 12.5, color: C.pinkDeep }}>AED {t.amountDisplay}</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
                   {t.member_name ? `for ${t.member_name}` : 'for the team'} · {t.event_id}
@@ -160,13 +160,13 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
         </Panel>
 
         <Panel title={scoped ? '⭐ Ratings on your events' : '⭐ Recent ratings'}>
-          {data.recentRatings.length === 0 ? (
+          {(data.recentRatings ?? []).length === 0 ? (
             <Empty>No ratings yet.</Empty>
           ) : (
-            data.recentRatings.map((r: any) => (
-              <div key={r.id} style={{ ...row, alignItems: 'flex-start' }} onClick={() => onOpenEvent?.(r.event_id)}>
+            (data.recentRatings ?? []).map((r: any) => (
+              <div key={r.id} style={{ ...row, alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => onOpenEvent?.(r.event_id)}>
                 <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1, minWidth: 74 }}>
-                  {'★'.repeat(r.stars)}<span style={{ color: C.line }}>{'★'.repeat(5 - r.stars)}</span>
+                  {'★'.repeat(Math.max(0, Math.min(5, r.stars || 0)))}<span style={{ color: C.line }}>{'★'.repeat(Math.max(0, 5 - (r.stars || 0)))}</span>
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, flex: 1, lineHeight: 1.4 }}>
                   {r.feedback ? `“${r.feedback}”` : <span style={{ color: C.muted }}>{r.event_id}</span>}

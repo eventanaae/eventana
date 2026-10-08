@@ -475,7 +475,7 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
   useEffect(() => {
     load();
     api.me().then((m: any) => setMyId(m?.id ?? null)).catch(() => {});
-    if (canManage) api.staffingCrew().then((c) => setCrew(c.filter((m: any) => ['Marsha', 'Dindo', 'Diana', 'Gloria', 'Jane'].includes(m.name)))).catch(() => {});
+    if (canManage) api.staffingCrew().then((c) => setCrew(c)).catch(() => {});
   }, [eventId]);
 
   return (
@@ -591,7 +591,7 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
                   {canManage && openAssign === t.id && (
                     <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {crew.map((m) => {
-                        const on = (t.assignees ?? []).some((a: any) => a.id === m.id);
+                        const on = (t.assignees ?? []).some((a: any) => String(a.id) === String(m.id));
                         return (
                           <Button key={m.id} tone={on ? 'primary' : 'ghost'}
                             onClick={async () => {

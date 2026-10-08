@@ -14,7 +14,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
   const [data, setData] = useState<any>(null);
   const [brief, setBrief] = useState<any>(null);
 
-  const load = () => api.today().then(setData);
+  const load = () => api.today().then(setData).catch(() => setData({ events: [], shopOrders: [] }));
   useEffect(() => {
     load();
     const timer = setInterval(load, 30_000);
@@ -296,7 +296,7 @@ function RatingsOnYourEvents({ onOpenEvent }: { onOpenEvent: (id: string) => voi
         return (
           <div key={r.id} style={{ padding: '11px 0', borderTop: `1px solid ${C.lineSoft}`, cursor: 'pointer' }} onClick={() => onOpenEvent(r.event_id)}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1 }}>{'★'.repeat(r.stars)}<span style={{ color: C.line }}>{'★'.repeat(5 - r.stars)}</span></span>
+              <span style={{ color: C.pinkDeep, fontSize: 13, letterSpacing: 1 }}>{'★'.repeat(Math.max(0, Math.min(5, r.stars || 0)))}<span style={{ color: C.line }}>{'★'.repeat(Math.max(0, 5 - (r.stars || 0)))}</span></span>
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, whiteSpace: 'nowrap' }}>{fmtDate(r.event_date) || ago2(r.created_at)}</span>
             </div>

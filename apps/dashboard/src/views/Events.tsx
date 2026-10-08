@@ -840,7 +840,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                 </Panel>
               )}
 
-              {!moneyHidden && (
+              {!moneyHidden && data.event.order_id && (
               <Panel title="Refund">
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
                   First pick <b>what happened</b>. A <b>cancelled</b> or <b>missing</b> item is removed from the
@@ -1158,7 +1158,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                     />
                     <Button
                       disabled={!(names[s.id] ?? '').trim()}
-                      onClick={async () => { await api.confirmPartTime(s.id, names[s.id].trim(), { eventId, role: s.role, slot: s.slot }); await load(); }}
+                      onClick={async () => { await api.confirmPartTime(s.id, (names[s.id] ?? '').trim(), { eventId, role: s.role, slot: s.slot }); await load(); }}
                     >
                       Confirm
                     </Button>
@@ -1195,7 +1195,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
                           />
                           <Button
                             disabled={!(names[s.id] ?? '').trim()}
-                            onClick={async () => { await api.confirmPartTime(s.id, names[s.id].trim(), { eventId, role: s.role, slot: s.slot }); setOpenOverride(null); await load(); }}
+                            onClick={async () => { await api.confirmPartTime(s.id, (names[s.id] ?? '').trim(), { eventId, role: s.role, slot: s.slot }); setOpenOverride(null); await load(); }}
                           >
                             Confirm
                           </Button>
@@ -1741,8 +1741,8 @@ function RatingTipsPanel({ rating, tips }: { rating: any; tips: any[] }) {
       {rating ? (
         <div style={{ marginBottom: tips?.length ? 12 : 0 }}>
           <span style={{ color: C.pinkDeep, fontSize: 17, letterSpacing: 1 }}>
-            {'★'.repeat(rating.stars)}
-            <span style={{ color: C.line }}>{'★'.repeat(5 - rating.stars)}</span>
+            {'★'.repeat(Math.max(0, Math.min(5, rating.stars || 0)))}
+            <span style={{ color: C.line }}>{'★'.repeat(Math.max(0, 5 - (rating.stars || 0)))}</span>
           </span>
           {rating.feedback && (
             <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, marginTop: 6, lineHeight: 1.5 }}>

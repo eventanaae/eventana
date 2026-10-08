@@ -67,9 +67,13 @@ export function Settings({ role }: { role?: string }) {
       const value = Number(draft[key]);
       if (Number.isFinite(value)) patch[key] = value;
     }
-    await api.saveRules(patch);
-    setSaved('Pricing rules saved — the next checkout uses them.');
-    load();
+    try {
+      await api.saveRules(patch);
+      setSaved('Pricing rules saved — the next checkout uses them.');
+      load();
+    } catch {
+      setSaved('Could not save — please try again.');
+    }
     setTimeout(() => setSaved(null), 4000);
   };
 
@@ -148,9 +152,13 @@ export function Settings({ role }: { role?: string }) {
                   style={{ padding: '9px 14px', fontSize: 11.5 }}
                   onClick={async () => {
                     const raw = zoneDraft[z.emirate];
-                    await api.saveZone(z.emirate, { feeFils: raw === '' ? null : Math.round(Number(raw) * 100) });
-                    setSaved(`${z.zoneName} delivery fee updated.`);
-                    load();
+                    try {
+                      await api.saveZone(z.emirate, { feeFils: raw === '' ? null : Math.round(Number(raw) * 100) });
+                      setSaved(`${z.zoneName} delivery fee updated.`);
+                      load();
+                    } catch {
+                      setSaved('Could not save the delivery fee — please try again.');
+                    }
                     setTimeout(() => setSaved(null), 4000);
                   }}
                 >

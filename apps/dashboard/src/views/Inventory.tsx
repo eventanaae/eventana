@@ -139,7 +139,7 @@ export function Inventory({ role }: { role?: string }) {
                   <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     {(m.supplier_phone || m.supplier_email) && (
                       <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => {
-                        if (!window.confirm(`Send an order request to the supplier for "${m.name ?? 'this item'}"?`)) return;
+                        if (!window.confirm(`Send an order request to the supplier for "${m.item ?? 'this item'}"?`)) return;
                         const r = await api.contactSupplier(m.id).catch(() => null);
                         if (!r) { alert('Failed — please try again.'); return; }
                         if (!r.ok) { alert('No supplier phone/email saved — add it on the Suppliers page.'); return; }
@@ -151,7 +151,7 @@ export function Inventory({ role }: { role?: string }) {
                     )}
                     {m.status !== 'ordered' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'ordered'); load(); }}>🛒 Ordered</Button>}
                     <Button style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { await api.setMissingStatus(m.id, 'received'); load(); }}>✓ Received</Button>
-                    <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { if (!window.confirm(`Cancel the request for "${m.name ?? 'this item'}"?`)) return; await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>
+                    <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { if (!window.confirm(`Cancel the request for "${m.item ?? 'this item'}"?`)) return; await api.setMissingStatus(m.id, 'cancelled'); load(); }}>✕ Cancel</Button>
                     {/* Reject = not actually missing (it's available / a false report). Writes
                         a note saying so, and stays visible so nobody re-reports it. */}
                     {m.status !== 'rejected' && <Button tone="ghost" style={{ padding: '6px 12px', fontSize: 11 }} onClick={async () => { const note = window.prompt('Reject this report — it is available / not actually missing. Write a short note:', m.note || 'Available — not actually missing'); if (note === null) return; await api.setMissingStatus(m.id, 'rejected', note.trim() || 'Not missing — available'); load(); }}>✋ Reject (available)</Button>}

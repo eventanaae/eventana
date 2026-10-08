@@ -108,7 +108,7 @@ export function Marketing() {
   };
 
   if (!data) return <Spinner />;
-  const findFull = (id: string) => data.campaigns.find((x: any) => String(x.id) === String(id));
+  const findFull = (id: string) => (data.campaigns ?? []).find((x: any) => String(x.id) === String(id));
 
   const campaigns: any[] = data.campaigns ?? [];
   // Use the DB-wide status counts (the list is capped at 50, so filtering it
