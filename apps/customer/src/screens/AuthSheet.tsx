@@ -153,6 +153,6 @@ export function AuthSheet({
 }
 
 const field: React.CSSProperties = {
-  width: '100%', border: `1.5px solid ${C.pinkLine}`, borderRadius: 14, padding: '13px 15px',
+  width: '100%', boxSizing: 'border-box', border: `1.5px solid ${C.pinkLine}`, borderRadius: 14, padding: '13px 15px',
   fontWeight: 600, fontSize: 13.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 11,
 };

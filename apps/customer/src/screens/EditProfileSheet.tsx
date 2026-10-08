@@ -101,7 +101,7 @@ export function EditProfileSheet({
 }
 
 const field: React.CSSProperties = {
-  width: '100%', border: `1.5px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 15px',
+  width: '100%', boxSizing: 'border-box', border: `1.5px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 15px',
   fontWeight: 600, fontSize: 13.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 12,
 };
 const label: React.CSSProperties = {

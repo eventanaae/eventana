@@ -185,9 +185,9 @@ export function PayLink({
 
         <label style={lbl}>{ar ? 'العنوان' : 'Address'}</label>
         <div style={{ display: 'flex', gap: 10 }}>
-          <input value={area} onChange={(e) => setArea(e.target.value)} style={field} placeholder={ar ? 'المنطقة' : 'Area'} />
-          <input value={street} onChange={(e) => setStreet(e.target.value)} style={field} placeholder={ar ? 'الشارع' : 'Street'} />
-          <input value={villa} onChange={(e) => setVilla(e.target.value)} style={field} placeholder={ar ? 'فيلا/مبنى' : 'Villa/Bldg'} />
+          <input value={area} onChange={(e) => setArea(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'المنطقة' : 'Area'} />
+          <input value={street} onChange={(e) => setStreet(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'الشارع' : 'Street'} />
+          <input value={villa} onChange={(e) => setVilla(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'فيلا/مبنى' : 'Villa/Bldg'} />
         </div>
         <input value={details} onChange={(e) => setDetails(e.target.value)} style={field} placeholder={ar ? 'تفاصيل إضافية (اختياري)' : 'Extra directions (optional)'} />
 
@@ -243,6 +243,6 @@ function StripeEmbed({ clientSecret, publishableKey, onError, ar }: { clientSecr
 
 const lbl: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: C.muted2, margin: '10px 0 5px' };
 const field: React.CSSProperties = {
-  width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px',
+  width: '100%', boxSizing: 'border-box', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px',
   fontWeight: 600, fontSize: 13, background: '#fff', color: C.ink, outline: 'none', marginBottom: 2,
 };
