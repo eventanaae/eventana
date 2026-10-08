@@ -23,7 +23,10 @@ export type Skill =
   | 'pt_driver'
   // A costumed character mascot. Manual-only (not derived from any package);
   // the owner adds it to an event and picks an employee or types a part-timer.
-  | 'mascot';
+  | 'mascot'
+  // A bride's corner attendant (bridal-corner setup/host). Manual-only, same as
+  // mascot — the owner adds it and picks an employee or types a part-timer.
+  | 'brides_corner';
 
 export interface RoleReq {
   role: Skill;

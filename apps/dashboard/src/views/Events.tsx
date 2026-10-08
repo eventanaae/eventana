@@ -988,7 +988,7 @@ const ROLE_LABEL: Record<string, string> = {
   leader: '👑 Event Leader', balloon_artist: '🎈 Balloon Artist', clown: '🤡 Clown',
   face_painting: '🎨 Face Painter', helper: '🧍 Helper', balloon_twisting: '🎈 Balloon Twisting',
   staff: '👷 Staff', acrobat_clown: '🤸 Acrobat Clown', design: '🖌️ Design (Marsha)', driver: '🚐 Driver',
-  pt_driver: '🚐 Driver (part-time)', mascot: '🧸 Mascot',
+  pt_driver: '🚐 Driver (part-time)', mascot: '🧸 Mascot', brides_corner: '👰 Bride’s Corner',
 };
 
 /**
@@ -1241,7 +1241,7 @@ function StaffingPanel({ eventId, onChange }: { eventId: string; onChange?: () =
         <div style={{ borderTop: `1px dashed ${C.line}`, marginTop: 12, paddingTop: 10 }}>
           <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, letterSpacing: '.4px', marginBottom: 7 }}>➕ ADD A ROLE MANUALLY</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {([['balloon_artist', '🎈 Balloon'], ['clown', '🤡 Clown'], ['face_painting', '🎨 Face Painter'], ['helper', '🧍 Helper'], ['balloon_twisting', '🎈 Twisting'], ['mascot', '🧸 Mascot'], ['driver', '🚐 Driver'], ['pt_driver', '🚐 Part-time Driver']] as [string, string][]).map(([r, label]) => (
+            {([['balloon_artist', '🎈 Balloon'], ['clown', '🤡 Clown'], ['face_painting', '🎨 Face Painter'], ['helper', '🧍 Helper'], ['balloon_twisting', '🎈 Twisting'], ['mascot', '🧸 Mascot'], ['brides_corner', '👰 Bride’s Corner'], ['driver', '🚐 Driver'], ['pt_driver', '🚐 Part-time Driver']] as [string, string][]).map(([r, label]) => (
               <Button key={r} tone="ghost" onClick={() => addRole(r, +1)}>
                 {busy ? '…' : `+ ${label}${manualCount(r) > 0 ? ` (${manualCount(r)})` : ''}`}
               </Button>
