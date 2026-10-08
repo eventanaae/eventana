@@ -41,14 +41,18 @@ export const STAFF_SKILLS: Record<string, Skill[]> = {
   Gloria: ['clown', 'helper'],
   Diana: ['clown', 'helper'],
   Marsha: ['design'],
-  Shan: ['driver'],
+  // Shan (the salaried own-van driver) left Eventana — last day 2 Oct 2026, and
+  // the owner deactivated his account. Driving is now freelance, assigned
+  // per-event (a typed part-timer in the drivers roster), so there's no salaried
+  // driver to seed. Removed so the boot seed never re-creates/re-activates him.
 };
 // Who can lead an event on-site (Marsha leads remotely as a fallback).
 export const ONSITE_LEADERS = ['Jane', 'Dindo'];
 // Event-leader priority (owner's order): the leader is the highest person in
 // this list who is actually assigned to the event. Marsha leads remotely;
-// everyone above her is on-site. Shan (the driver) leads whenever he's on it.
-export const LEADER_PRIORITY = ['Shan', 'Jane', 'Dindo', 'Diana', 'Gloria', 'Marsha'];
+// everyone above her is on-site. (Shan, the driver, was #1 but left 2 Oct 2026,
+// so Jane is now the top on-site leader.)
+export const LEADER_PRIORITY = ['Jane', 'Dindo', 'Diana', 'Gloria', 'Marsha'];
 const firstNameLc = (n: string | null | undefined) => (n ?? '').trim().split(/\s+/)[0].toLowerCase();
 
 /**
@@ -94,7 +98,7 @@ export async function seedStaffSkills(): Promise<void> {
       await pool.query(
         `INSERT INTO team_members (id, name, role, active) VALUES ($1,$2,$3,true)
          ON CONFLICT (id) DO NOTHING`,
-        [id, name, name === 'Marsha' ? 'Design & Remote Lead' : name === 'Shan' ? 'Driver' : 'Crew'],
+        [id, name, name === 'Marsha' ? 'Design & Remote Lead' : 'Crew'],
       );
     }
     for (const skill of skills) {
