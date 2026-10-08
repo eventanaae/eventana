@@ -20,7 +20,6 @@ import { ResetPassword } from './screens/ResetPassword';
 import { Shop } from './screens/Shop';
 import { ShopCheckout } from './screens/ShopCheckout';
 import { LeadForm } from './screens/LeadForm';
-import { QuickBook } from './screens/QuickBook';
 import { PayLink } from './screens/PayLink';
 import { TermsSheet } from './screens/Terms';
 import { PrivacySheet } from './screens/Privacy';
@@ -38,7 +37,7 @@ import { useLang, makeT, type Lang, type TFn } from './i18n';
 export type Screen =
   | 'home' | 'explore' | 'package' | 'buildIntake' | 'build' | 'theme' | 'custom'
   | 'assistant' | 'movieselect' | 'checkout' | 'confirming' | 'myevent' | 'profile'
-  | 'shop' | 'shopcheckout' | 'paylink' | 'feedback' | 'lead' | 'quickbook';
+  | 'shop' | 'shopcheckout' | 'paylink' | 'feedback' | 'lead';
 
 export interface Draft {
   celebrationType: string;
@@ -695,7 +694,6 @@ export default function App() {
         )}
         {screen === 'assistant' && <Assistant {...shared} />}
         {screen === 'lead' && <LeadForm {...shared} />}
-        {screen === 'quickbook' && <QuickBook {...shared} />}
         {screen === 'movieselect' && <MovieSelect {...shared} />}
         {screen === 'checkout' && (
           <Checkout {...shared} onOrder={(id, embed, tok, stripe) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); setStripeInfo(stripe ?? null); go('confirming'); }} />
