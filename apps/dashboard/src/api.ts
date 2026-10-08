@@ -199,6 +199,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (text) { try { body = JSON.parse(text); } catch { body = null; } }
   if (!res.ok) {
     const message = body?.message ?? body?.error ?? `Request failed (${res.status})`;
+    // A dead SESSION (401) — an expired token, or the account was deactivated —
+    // must NOT leave the app stuck on a misleading "offline / can't reach the
+    // engine" screen. Clear the dead token and bounce to the login screen so the
+    // user simply signs in again. Only when we HELD a token (we thought we were
+    // logged in): a 401 from the login/forgot/set-password calls themselves means
+    // "wrong credentials / bad link", which the caller shows — don't loop on those.
+    const authPath = path.startsWith('/api/staff/login') || path.startsWith('/api/staff/forgot') || path.startsWith('/api/staff/set-password');
+    if (res.status === 401 && getStaffToken() && !authPath) {
+      clearStaffToken();
+      onApiError?.('Your session ended — please sign in again.');
+      try { window.location.reload(); } catch { /* ignore */ }
+      throw new Error('session_expired');
+    }
     // A 403 means this role simply can't see this data — the UI already hides the
     // relevant controls, so surfacing "Managers only" as a red toast just confuses
     // staff. Swallow the toast for permission errors (the caller still gets the throw).
