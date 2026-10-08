@@ -1,7 +1,10 @@
 /**
  * One-shot: email the field crew the "points doubled" announcement, CC Marsha.
  *
- * Triggered by EMAIL_POINTS_UPDATE=send (then blank the env). Recipients are the
+ * Triggered by SET_SHAN_LEADER=send (then blank the env). NOTE: this REUSES the
+ * now-obsolete SET_SHAN_LEADER key because Render caps the service at 300 env
+ * vars (can't add a new one); setShanLeaderFromEnv only runs on the value
+ * 'true', so 'send' is inert there and only this task reacts. Recipients are the
  * active point-scheme crew (everyone with an email who isn't the owner, Marsha,
  * or the retired driver); Marsha is CC'd on each. Branded like the booking /
  * finance emails. Non-fatal and logs each send so the owner can confirm.
@@ -73,7 +76,7 @@ function buildHtml(name: string): string {
 }
 
 export async function emailPointsUpdateFromEnv(): Promise<void> {
-  if (process.env.EMAIL_POINTS_UPDATE !== 'send') return;
+  if (process.env.SET_SHAN_LEADER !== 'send') return;
   if (!emailEnabled()) { console.log('[points-email] email disabled — skipped'); return; }
 
   // Idempotent guard: send this announcement AT MOST ONCE, even if the env flag
@@ -116,5 +119,5 @@ export async function emailPointsUpdateFromEnv(): Promise<void> {
     if (res.ok) sent++;
     console.log(`[points-email] ${r.name} <${r.email}> cc=${ccForThis ?? '-'} → ${res.ok ? 'sent' : 'FAILED'}`);
   }
-  console.log(`[points-email] DONE sent=${sent}/${rows.length}, cc=${cc ?? 'none'}. Blank EMAIL_POINTS_UPDATE now.`);
+  console.log(`[points-email] DONE sent=${sent}/${rows.length}, cc=${cc ?? 'none'}. Blank SET_SHAN_LEADER now.`);
 }
