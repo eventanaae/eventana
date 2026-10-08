@@ -339,7 +339,13 @@ export function Themes({
         </div>
       )}
       {(draft.themeId || draft.customTheme || !themeRequired) && (
-        <div style={{ marginTop: 14 }}>
+        // Sticky so the "next step" button is ALWAYS visible — no scrolling to
+        // the very bottom after picking a theme.
+        <div style={{
+          position: 'sticky', bottom: 0, zIndex: 5, marginTop: 14,
+          padding: '12px 0 calc(8px + env(safe-area-inset-bottom))',
+          background: C.cream, boxShadow: '0 -10px 18px -10px rgba(74,53,64,.18)',
+        }}>
           <PrimaryButton onClick={() => go('checkout')}>
             {draft.themeId || draft.customTheme ? t('themes.reviewPay') : t('themes.skipTheme')}
           </PrimaryButton>
