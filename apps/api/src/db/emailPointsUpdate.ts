@@ -76,6 +76,17 @@ export async function emailPointsUpdateFromEnv(): Promise<void> {
   if (process.env.EMAIL_POINTS_UPDATE !== 'send') return;
   if (!emailEnabled()) { console.log('[points-email] email disabled — skipped'); return; }
 
+  // Idempotent guard: send this announcement AT MOST ONCE, even if the env flag
+  // is accidentally left on across a redeploy (the task has no per-message
+  // dedupe otherwise, so staff would get the email again on every boot). Claim a
+  // settings marker first; only the winner sends.
+  const claim = await pool.query(
+    `INSERT INTO settings (key, value, updated_by)
+     VALUES ('points_double_email_sent', to_jsonb(now()::text), 'system')
+     ON CONFLICT (key) DO NOTHING RETURNING key`,
+  ).catch(() => ({ rowCount: 0 as number }));
+  if (!claim.rowCount) { console.log('[points-email] already sent (marker present) — skipped'); return; }
+
   // Field crew = active members with an email who are on the points scheme:
   // not the owner, not Marsha (she's CC'd, on commission not points), not the
   // retired driver Shan.
