@@ -20,7 +20,10 @@ export type Skill =
   | 'performer'
   // A part-time (external) driver other than Shan — always filled by a typed
   // name, never auto-assigned internally.
-  | 'pt_driver';
+  | 'pt_driver'
+  // A costumed character mascot. Manual-only (not derived from any package);
+  // the owner adds it to an event and picks an employee or types a part-timer.
+  | 'mascot';
 
 export interface RoleReq {
   role: Skill;

@@ -899,7 +899,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post('/api/admin/staffing/:eventId/requirements', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
     const { role, count } = (request.body ?? {}) as { role?: string; count?: number };
-    const ROLES = ['balloon_artist', 'clown', 'face_painting', 'helper', 'balloon_twisting', 'staff', 'driver', 'pt_driver', 'design'];
+    const ROLES = ['balloon_artist', 'clown', 'face_painting', 'helper', 'balloon_twisting', 'staff', 'driver', 'pt_driver', 'design', 'mascot'];
     if (!role || !ROLES.includes(role)) return reply.status(400).send({ error: 'invalid_role' });
     const { setManualRequirement } = await import('../domain/staffing.js');
     const plan = await setManualRequirement(eventId, role, Math.max(0, Math.min(10, Number(count) || 0)));
