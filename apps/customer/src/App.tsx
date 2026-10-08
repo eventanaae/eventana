@@ -837,7 +837,7 @@ function Frame({ children, lang = 'en', setLang }: { children: React.ReactNode; 
           linear-gradient(155deg,#FBEAF2 0%,#FBF3EA 100%);}
         .ev-brand{display:none;}
         @media (min-width:980px){.ev-brand{display:flex;}}
-        @media (min-width:760px){.ev-frame{border-radius:36px !important;
+        @media (min-width:760px){.ev-frame{width:390px !important;height:844px !important;border-radius:36px !important;
           box-shadow:0 24px 70px rgba(214,49,127,.20),0 4px 14px rgba(59,54,65,.10) !important;}}
       `}</style>
       <div className="ev-brand" style={{ flexDirection: 'column', maxWidth: 360, padding: 24 }}>
@@ -863,9 +863,9 @@ function Frame({ children, lang = 'en', setLang }: { children: React.ReactNode; 
       <div
         className="ev-frame"
         style={{
-          width: 390,
+          width: '100%',
           maxWidth: '100vw',
-          height: 844,
+          height: '100dvh',
           maxHeight: '100dvh',
           background: C.cream,
           display: 'flex',
@@ -875,29 +875,26 @@ function Frame({ children, lang = 'en', setLang }: { children: React.ReactNode; 
           boxShadow: '0 10px 40px rgba(59,54,65,.18)',
         }}
       >
+        {/* Just the language toggle — no fake phone status bar (the real device
+            already shows the time + signal/battery, and the dummy icons looked
+            like a menu that went nowhere). */}
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'center',
-            padding: '14px 22px 8px',
-            fontSize: 13,
-            fontWeight: 700,
+            padding: '12px 22px 4px',
             flex: 'none',
           }}
         >
-          <span>{new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {setLang && (
-              <button
-                onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
-                style={{ border: `1px solid ${C.pinkSoft}`, background: '#fff', color: C.pinkDeep, fontWeight: 800, fontSize: 11, borderRadius: 999, padding: '3px 11px', cursor: 'pointer' }}
-              >
-                {lang === 'ar' ? 'English' : 'عربي'}
-              </button>
-            )}
-            <span style={{ fontSize: 11, letterSpacing: '.5px', color: C.muted }}>●●● ▲ ▮</span>
-          </span>
+          {setLang && (
+            <button
+              onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+              style={{ border: `1px solid ${C.pinkSoft}`, background: '#fff', color: C.pinkDeep, fontWeight: 800, fontSize: 12, borderRadius: 999, padding: '5px 14px', cursor: 'pointer' }}
+            >
+              {lang === 'ar' ? 'English' : 'عربي'}
+            </button>
+          )}
         </div>
         {children}
       </div>
