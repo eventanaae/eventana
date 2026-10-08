@@ -439,8 +439,9 @@ export function Checkout({
       : step === 3 ? Boolean(draft.eventDate) && Boolean(draft.startTime) && !dateTimeBlocked
       : step === 4 ? (Boolean(account) || (authMode === 'register' && guestReady))
       : true;
-  const goNext = () => { if (step < 6 && canAdvance) { setStep(step + 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
-  const goStepBack = () => { if (step > 1) { setStep(step - 1); try { window.scrollTo(0, 0); } catch { /* noop */ } } };
+  const scrollTop = () => { try { document.getElementById('screen-scroll')?.scrollTo(0, 0); } catch { /* noop */ } };
+  const goNext = () => { if (step < 6 && canAdvance) { setStep(step + 1); scrollTop(); } };
+  const goStepBack = () => { if (step > 1) { setStep(step - 1); scrollTop(); } };
   const stepTitles = lang === 'ar'
     ? ['شو اسم صاحب المناسبة؟ 🎈', 'وين بتكون الحفلة؟ 📍', 'متى موعد الحفلة؟ 🗓️', 'معلومات التواصل 💬', 'تبين تضيفين شي لحفلتك؟ ✨', 'باقي تفاصيل بسيطة ونجهّز كل شي على ذوقك 💛']
     : ["Who's the star of the party? 🎈", "Where's the party? 📍", 'When is the party? 🗓️', 'Your contact details 💬', 'Want to add anything to your party? ✨', "A few last details, then you're set 💛"];

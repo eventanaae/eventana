@@ -210,7 +210,7 @@ export function ShopCheckout({
         )}
         <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
         <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
-        <Field placeholder={`${t('checkout.phBackup')} *`} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} />
+        <Field placeholder={t('checkout.phBackup')} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} />
         {reg.phone.trim().length > 0 && !phoneN && (
           <div style={hintErr}>{t('shopco.phoneUae')}</div>
         )}

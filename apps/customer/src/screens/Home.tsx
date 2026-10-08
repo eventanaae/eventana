@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, SectionTitle, wasPriceFils } from '../ui';
-import { pkgName, pkgCapacity, pkgTag } from '../pkgAr';
+import { pkgName, pkgCapacity, pkgTag, thName } from '../pkgAr';
 
 export function Home({ catalogue, draft, shopCart, update, go, customerName, t, lang }: ScreenProps) {
   const hour = new Date().getHours();
@@ -198,7 +198,7 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
         {popular.map((p) => (
           <div
             key={p.id}
-            onClick={() => { update({ packageId: p.id, services: {} }); go('package'); }}
+            onClick={() => { update({ celebrationType: p.celebrationType ?? 'kids', packageId: p.id, services: {} }); go('package'); }}
             style={{ flex: 'none', width: 230, background: '#fff', borderRadius: 22, overflow: 'hidden', boxShadow: C.shadowLg, cursor: 'pointer' }}
           >
             <div style={{ height: 120, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
@@ -245,7 +245,7 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
             style={{ flex: 'none', width: 132, cursor: 'pointer' }}
           >
             <div style={{ height: 96, borderRadius: 18, background: t.coverImageUrl ? `#f2e7ee url(${t.coverImageUrl}) center/cover no-repeat` : t.gradient, boxShadow: C.shadow }} />
-            <div style={{ fontSize: 11.5, fontWeight: 700, padding: '8px 2px 0', textAlign: 'center' }}>{t.name}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, padding: '8px 2px 0', textAlign: 'center' }}>{thName(t.id, t.name, lang === 'ar')}</div>
           </div>
         ))}
       </div>

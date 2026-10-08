@@ -72,7 +72,7 @@ export function Themes({
         // celebrations that DO ship a theme list (Gender Reveal) show their
         // gradient cards too, since their photos come later.
         (Boolean(t.coverImageUrl) || (t.gallery?.length ?? 0) > 0 || t.celebrationType !== 'kids') &&
-        (!q || t.name.toLowerCase().includes(q)) &&
+        (!q || t.name.toLowerCase().includes(q) || thName(t.id, t.name, true).toLowerCase().includes(q)) &&
         (tag === 'All' || t.tags.includes(tag)),
     );
   }, [library, query, tag]);

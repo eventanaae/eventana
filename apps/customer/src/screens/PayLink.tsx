@@ -170,7 +170,7 @@ export function PayLink({
         {!isAddon && (<>
         <label style={lbl}>{ar ? 'اسم صاحب الحفلة' : 'Guest of honour'} *</label>
         <input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={field} placeholder={ar ? 'مثال: سارة' : 'e.g. Sara'} />
-        <label style={lbl}>{ar ? 'اسمك الكامل (اسمين على الأقل)' : 'Your full name (2 names)'} *</label>
+        <label style={lbl}>{ar ? 'اسمك الكامل' : 'Your full name'} *</label>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={field} />
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>

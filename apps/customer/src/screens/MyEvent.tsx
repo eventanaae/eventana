@@ -599,7 +599,7 @@ export function MyEvent({
                       border: m.confirmed ? 'none' : `2px dashed ${C.pinkLine}`,
                     }}
                   >
-                    {m.isLeader ? '👑' : m.confirmed ? String(m.name)[0] : '★'}
+                    {m.isLeader ? '👑' : m.confirmed ? (String(m.name ?? '·')[0] || '·') : '★'}
                   </div>
                   <div style={{ fontWeight: 700, fontSize: 12, lineHeight: 1.2 }}>
                     {m.confirmed ? m.name : t('me.toBeConfirmed')}
@@ -616,10 +616,12 @@ export function MyEvent({
       {!eventOver && signedIn && <SetupSpotPhotos eventId={event.id} photos={event.setupPhotos ?? []} t={t} />}
 
       {/* ---------------- rate & tip ----------------
-          Only ask ONCE: once the customer has rated (event.review.rating exists)
-          the section disappears — no re-prompting the stars or the tip on every
-          visit to a finished event. They already gave their feedback. */}
-      {!cancelled && event.review?.canReview && !event.review?.rating && (
+          Shown whenever the event can be reviewed. After rating it does NOT
+          disappear (that was dropping the Google-review CTA and the crew tip the
+          moment a customer rated) — instead RateAndTip switches to its "thanks +
+          leave a Google review + tip the crew" state and stops re-prompting the
+          stars. So a happy customer can still leave a review and tip. */}
+      {!cancelled && event.review?.canReview && (
         <RateAndTip event={event} onDone={async () => setEvent(await api.event(event.id))} t={t} />
       )}
 
@@ -778,7 +780,14 @@ function Reschedule({ eventId, hours, t, onDone }: { eventId: string; hours?: nu
     // Pass this event's real length so a 6-hour party isn't offered late slots
     // that overrun midnight (the move would just be rejected server-side).
     api.startTimes(hours && hours > 0 ? hours : undefined)
-      .then((r) => setTimes(r.filter((x) => x.allowed).map((x) => x.value))).catch(() => {});
+      .then((r) => {
+        const allowed = r.filter((x) => x.allowed).map((x) => x.value);
+        setTimes(allowed);
+        // Reconcile the selected time: if it's no longer allowed (e.g. a 6-hour
+        // party drops late slots), snap to the first allowed slot so submit
+        // never posts a time the server will reject.
+        setStartTime((cur) => (allowed.includes(cur) ? cur : (allowed[0] ?? cur)));
+      }).catch(() => {});
   }, [hours]);
 
   // 72h ≈ 3 days; add a day of buffer so the picked date always clears the rule.
@@ -1121,9 +1130,11 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
         {/* who */}
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
           <TipChip label={t('me.tipWholeTeam')} active={memberId === null} onClick={() => setMemberId(null)} />
-          {(event.team ?? []).map((m: any) => (
-            <TipChip key={m.id} label={m.name} active={memberId === m.id} onClick={() => setMemberId(m.id)} />
-          ))}
+          {((event.crew && event.crew.length ? event.crew : (event.team ?? []))
+            .filter((m: any) => m?.id != null && m?.name && m?.confirmed !== false))
+            .map((m: any) => (
+              <TipChip key={m.id} label={m.name} active={memberId === m.id} onClick={() => setMemberId(m.id)} />
+            ))}
         </div>
 
         {/* amount */}
@@ -1166,8 +1177,8 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
           {tipping
             ? t('me.opening')
             : memberId
-              ? t('me.tipTo', { aed: `${t('common.aed')} ${money(effectiveTip)}`, who: (event.team ?? []).find((m: any) => m.id === memberId)?.name ?? t('me.crew') })
-              : t('me.tipToTeam', { aed: `${t('common.aed')} ${money(effectiveTip)}` })}
+              ? t('me.tipTo', { aed: `${t('common.aed')} ${money(Number.isFinite(effectiveTip) ? effectiveTip : 0)}`, who: ((event.crew && event.crew.length ? event.crew : (event.team ?? [])).find((m: any) => m.id === memberId)?.name) ?? t('me.crew') })
+              : t('me.tipToTeam', { aed: `${t('common.aed')} ${money(Number.isFinite(effectiveTip) ? effectiveTip : 0)}` })}
         </button>
         {tipError && (
           <div style={{ marginTop: 8 }}>

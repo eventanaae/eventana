@@ -190,7 +190,7 @@ export function GuestFeedback({
                   onClick={sendTip}
                   disabled={tipping}
                   style={{ width: '100%', background: C.pink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '13px 0', borderRadius: 16, cursor: 'pointer', marginTop: 4 }}
-                >{tipping ? t('me.rateSaving') : t('me.tipGive', { aed: `${t('common.aed')} ${money(effectiveTip)}` })}</button>
+                >{tipping ? t('me.rateSaving') : t('me.tipGive', { aed: `${t('common.aed')} ${money(Number.isFinite(effectiveTip) ? effectiveTip : 0)}` })}</button>
                 <button
                   onClick={() => setStep(3)}
                   style={{ width: '100%', background: '#fff', border: `1.5px solid ${C.pinkLine}`, color: C.pinkDeep, fontWeight: 800, fontSize: 14, padding: '13px 0', borderRadius: 16, cursor: 'pointer', marginTop: 10 }}

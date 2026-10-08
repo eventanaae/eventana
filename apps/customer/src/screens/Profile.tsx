@@ -226,7 +226,7 @@ export function Profile({
                   {e.historical && <span style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, background: C.cream, borderRadius: 8, padding: '2px 6px', marginInlineStart: 6 }}>{t('profile.pastLabel')}</span>}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>
-                  {e.date ? new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}{e.emirate ? ` · ${e.emirate}` : ''} · {t('common.aed')} {e.totalDisplay}
+                  {e.date ? new Date(e.date).toLocaleDateString(lang === 'ar' ? 'ar-AE' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}{e.emirate ? ` · ${e.emirate}` : ''}{e.totalDisplay ? ` · ${t('common.aed')} ${e.totalDisplay}` : ''}
                 </div>
               </div>
               {!e.historical && (
