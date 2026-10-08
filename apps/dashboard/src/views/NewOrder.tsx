@@ -55,7 +55,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
     return [...act, ...inactive];
   }, [cat, inactive]);
 
-  const eligiblePackages = useMemo(() => (showAll || celebrationType === 'kids' ? (cat?.packages ?? []) : []), [cat, celebrationType, showAll]);
+  const eligiblePackages = useMemo(() => (showAll ? (cat?.packages ?? []) : (cat?.packages ?? []).filter((p: any) => (p.celebrationType ?? 'kids') === celebrationType)), [cat, celebrationType, showAll]);
   const eligibleThemes = useMemo(() => (cat?.themes ?? []).filter((t: any) => showAll || !t.celebrationType || t.celebrationType === celebrationType), [cat, celebrationType, showAll]);
   const eligibleServices = useMemo(() => (showAll ? allServices : allServices.filter((s: any) => (s.celebrationTypes ?? []).includes(celebrationType))), [allServices, celebrationType, showAll]);
   const shownServices = useMemo(() => {

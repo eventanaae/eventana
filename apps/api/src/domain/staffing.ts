@@ -162,6 +162,8 @@ function serviceReqs(s: ServiceInput): RoleReq[] {
   else if (id === 'glamdolls' || /glam/i.test(s.name)) push('performer', qty, `${qty} Glam Doll(s) — 1 performer each`, { partTimeOnly: true });
   // Host / MC service — one entertainer (clown) runs the party.
   else if (id === 'host' || /\bhost\b|master of ceremon|\bmc\b/i.test(s.name)) push('clown', 1, 'Host service — entertainer');
+  // Gender-reveal Boy & Girl characters — two performers for the 2-hour reveal.
+  else if (id === 'boygirl-characters' || /boy\s*&?\s*girl|gender\s*(?:reveal\s*)?characters?|reveal\s*characters?/i.test(s.name)) push('performer', 2, 'Boy & Girl reveal performers (2)', { partTimeOnly: true });
   // Food stations — one helper each, running concurrently.
   else if (s.isFoodStation || cat === 'food') push('helper', qty, `${qty} food station(s) — 1 helper each`);
   // Inflatables — two staff each.

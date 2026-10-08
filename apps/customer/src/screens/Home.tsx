@@ -35,9 +35,11 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
     catalogue.packages.find((p) => p.id === draft.packageId)?.name ??
     catalogue.celebrationTypes.find((c) => c.id === draft.celebrationType)?.label ??
     t('home.resumeParty');
-  const popular = catalogue.packages.slice(0, 3);
-  const popularThemes = catalogue.themes.filter((t) => t.popular);
-  const trending = (popularThemes.length >= 4 ? popularThemes : catalogue.themes).slice(0, 12);
+  // The Home "popular packages" strip is the kids-birthday showcase.
+  const popular = catalogue.packages.filter((p) => p.celebrationType === 'kids').slice(0, 3);
+  const popularThemes = catalogue.themes.filter((t) => t.popular && t.celebrationType === 'kids');
+  const kidsThemesAll = catalogue.themes.filter((t) => t.celebrationType === 'kids');
+  const trending = (popularThemes.length >= 4 ? popularThemes : kidsThemesAll).slice(0, 12);
 
   const pickCelebration = (id: string, route: 'explore' | 'build') => {
     // Switching celebration type resets the build so pricing stays

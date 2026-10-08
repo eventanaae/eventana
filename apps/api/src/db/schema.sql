@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS package_items (
 
 -- Additive: a hero cover image + an inspiration gallery for each package.
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
+-- Additive: which celebration a package belongs to (kids, gender, …). A
+-- package only shows for its own celebration.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS celebration_type TEXT NOT NULL DEFAULT 'kids';
 
 CREATE TABLE IF NOT EXISTS package_inspiration (
   id          SERIAL PRIMARY KEY,

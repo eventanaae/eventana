@@ -11,6 +11,9 @@ export const PKG_AR: Record<string, { name: string; capacity: string; tag: strin
   summer: { name: 'باقة عيد الميلاد الصيفية', capacity: 'حتى 40 طفل', tag: 'أجواء صيفية' },
   spa: { name: 'باقة سبا للأطفال', capacity: 'حتى 20 طفل', tag: 'للبنات' },
   movie: { name: 'باقة ليلة السينما', capacity: 'حتى 40 طفل', tag: 'ليلة مميزة' },
+  'gender-reveal': { name: 'باقة الجندر ريفيل', capacity: 'الترتيب الأساسي', tag: 'وردي ولا أزرق' },
+  'gender-disney': { name: 'باقة ديزني', capacity: 'ترتيب فاخر', tag: 'الأكثر طلباً' },
+  'gender-teddy': { name: 'باقة تيدي بير', capacity: 'حتى 20 ضيف', tag: 'المفضّلة للعائلات' },
 };
 
 /**
@@ -50,6 +53,21 @@ export const COMING_AR: Record<string, { title: string; body: string; cta: strin
     cta: 'صمّمي فعالية شركتك',
   },
 };
+
+/** Arabic names for the Gender Reveal themes (keyed by stable theme id). */
+export const THEME_AR: Record<string, string> = {
+  g0: 'الوزة',
+  g1: 'تيدي بير',
+  g2: 'اللولو',
+  g3: 'التنس',
+  g4: 'الأرنب',
+  g5: 'الورود',
+  g6: 'البيكنك',
+  g7: 'الليمون',
+  g8: 'القصص الخيالية',
+  g9: 'وايلد ون',
+};
+export const thName = (id: string, en: string, ar: boolean): string => (ar ? (THEME_AR[id] ?? en) : en);
 
 export const pkgName = (id: string, en: string, ar: boolean): string => (ar ? (PKG_AR[id]?.name ?? en) : en);
 export const pkgCapacity = (id: string, en: string, ar: boolean): string => (ar ? (PKG_AR[id]?.capacity ?? en) : en);

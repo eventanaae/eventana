@@ -178,7 +178,9 @@ function classifyLabel(label: string, serviceIds: Set<string>, categories: Set<s
   if (/cake\s*stand/.test(n)) serviceIds.add('cakestand');
   if (/speaker/.test(n)) serviceIds.add('speaker');
   if (/table|chair/.test(n)) serviceIds.add('tables');
-  if (/entrance|welcoming\s*stand|welcome\s*stand/.test(n)) serviceIds.add('entrance');
+  if (/entrance|welcoming\s*stand|welcome\s*stand|voting\s*stand/.test(n)) serviceIds.add('entrance');
+  // Gender-reveal "Interactive Games & Activities" is a hosted day-of activity.
+  if (/interactive\s*games|games\s*(?:&|and)\s*activities/.test(n)) serviceIds.add('host');
   if (/balloon/.test(n)) serviceIds.add('balloons');
   if (/\bhost\b/.test(n)) serviceIds.add('host');
   if (/glam\s*doll/.test(n)) serviceIds.add('glamdolls');
@@ -520,7 +522,7 @@ export async function refreshPrepAssignmentAlert(eventId: string, date: string):
 // that the templates don't recognise is treated as a bespoke item that must be
 // prepared — so it can never be silently dropped.
 const PERFORMER_RE = /clown|mascot|acrobat|entertainer|\bcharacter\b|puppet|magician|\bmc\b|\bdj\b|singer|\bhost\b|glam|face\s*paint|twist|performer|dancer|stilt/;
-const CONSUMABLE_RE = /\bsocks?\b|water\s*bottle|\bplates?\b|\bcups?\b|napkin|cutlery|spoon|\bfork\b|candle|invitation|sticker|straw|tattoo|\bbadge\b|goodie\s*bag|\bsash\b/;
+const CONSUMABLE_RE = /\bsocks?\b|water\s*bottle|\bplates?\b|\bcups?\b|napkin|cutlery|spoon|\bfork\b|candle|invitation|sticker|straw|tattoo|\bbadge\b|goodie\s*bag|\bsash\b|reveal\s*spray|confetti/;
 const NONITEM_RE = /discount|deliver|shipping|\bfee\b|\bvat\b|\btax\b|deposit|\btip\b|additional\s*hour|extra\s*hour|\bhours?\b|\bcharge\b|surcharge|\bbalance\b|down\s*payment|installment|round\s*ing/;
 
 /** True when a booked line already has a home (a prep template via classifyLabel,
@@ -630,6 +632,7 @@ export async function backfillUncoveredPrep(
 /** Skill best-guess for a free-typed customer extra. null → leave unassigned. */
 function guessSkill(label: string): string | null {
   const s = label.toLowerCase();
+  if (/onesie/.test(s)) return 'table_setup';
   if (/table|chair|seat/.test(s)) return 'tables_chairs';
   if (/backdrop/.test(s)) return 'backdrop';
   if (/balloon/.test(s)) return 'balloons';

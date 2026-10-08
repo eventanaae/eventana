@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ScreenProps } from '../App';
 import { api, type Catalogue } from '../api';
 import { C, fredoka, money, PrimaryButton, Sheet } from '../ui';
+import { thName } from '../pkgAr';
 
 type Th = Catalogue['themes'][number];
 
@@ -12,7 +13,9 @@ export function Themes({
   go,
   custom,
   t,
+  lang,
 }: ScreenProps & { custom: boolean }) {
+  const ar = lang === 'ar';
   // A theme is only required when the booking includes a backdrop/decoration
   // (a package, or a Build service in the 'backdrop' category). Otherwise the
   // customer may continue with no theme.
@@ -65,10 +68,10 @@ export function Themes({
     const q = query.trim().toLowerCase();
     return library.filter(
       (t) =>
-        // Only show themes that have real setup photos — no "Coming Soon"
-        // placeholders. Celebrations with no ready themes get the custom /
-        // write-your-own path instead.
-        (Boolean(t.coverImageUrl) || (t.gallery?.length ?? 0) > 0) &&
+        // Kids themes only show with real setup photos (no placeholders). Other
+        // celebrations that DO ship a theme list (Gender Reveal) show their
+        // gradient cards too, since their photos come later.
+        (Boolean(t.coverImageUrl) || (t.gallery?.length ?? 0) > 0 || t.celebrationType !== 'kids') &&
         (!q || t.name.toLowerCase().includes(q)) &&
         (tag === 'All' || t.tags.includes(tag)),
     );
@@ -267,8 +270,8 @@ export function Themes({
               {/* Fixed-height cover — every card is exactly the same size. */}
               <div style={{ height: 118, background: cover ? `#f2e7ee url(${cover}) center/cover no-repeat` : th.gradient, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {!cover && (
-                  <span style={{ background: 'rgba(255,255,255,.9)', color: C.pinkDeep, fontSize: 11.5, fontWeight: 800, padding: '6px 14px', borderRadius: 20, letterSpacing: '.3px', boxShadow: '0 2px 8px rgba(0,0,0,.12)' }}>
-                    {t('themes.comingSoon')}
+                  <span style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 16, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,.28)', textAlign: 'center', padding: '0 10px' }}>
+                    {thName(th.id, th.name, ar)}
                   </span>
                 )}
                 {photos.length > 0 && (
@@ -289,7 +292,7 @@ export function Themes({
                 )}
               </div>
               <div style={{ padding: '10px 12px 12px' }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{th.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{thName(th.id, th.name, ar)}</div>
                 <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
                   {th.colors.slice(0, 3).map((c, i) => (
                     <div key={i} style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />

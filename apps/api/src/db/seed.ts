@@ -86,13 +86,14 @@ export async function seed(): Promise<void> {
 
     for (const p of PACKAGES) {
       await db.query(
-        `INSERT INTO packages (id, name, price_fils, capacity, duration_hours, tag, gradient, has_castle_choice)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        `INSERT INTO packages (id, name, price_fils, capacity, duration_hours, tag, gradient, has_castle_choice, celebration_type)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name, price_fils = EXCLUDED.price_fils,
            capacity = EXCLUDED.capacity, tag = EXCLUDED.tag,
-           gradient = EXCLUDED.gradient, has_castle_choice = EXCLUDED.has_castle_choice`,
-        [p.id, p.name, p.priceFils, p.capacity, p.durationHours, p.tag, p.gradient, p.hasCastleChoice],
+           gradient = EXCLUDED.gradient, has_castle_choice = EXCLUDED.has_castle_choice,
+           celebration_type = EXCLUDED.celebration_type`,
+        [p.id, p.name, p.priceFils, p.capacity, p.durationHours, p.tag, p.gradient, p.hasCastleChoice, p.celebrationType],
       );
       await db.query('DELETE FROM package_items WHERE package_id = $1', [p.id]);
       for (const [i, it] of p.items.entries()) {

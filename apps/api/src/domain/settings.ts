@@ -97,6 +97,7 @@ export async function loadConfig(db: Db = pool, { fresh = false } = {}): Promise
         tag: r.tag,
         gradient: r.gradient,
         hasCastleChoice: r.has_castle_choice,
+        celebrationType: (r.celebration_type ?? 'kids') as PackageDefinition['celebrationType'],
         coverImageUrl: r.cover_image_url ?? null,
         gallery: pkgGallery.get(r.id as string) ?? [],
         items: itemsRes.rows

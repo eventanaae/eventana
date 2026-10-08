@@ -7,6 +7,7 @@
  * home. Authoritative: it rewrites the gallery to match THEME_GALLERY, which
  * is the single source of truth for these images.
  */
+import { THEMES } from '@eventana/shared';
 import { pool } from './pool.js';
 import { THEME_GALLERY } from './themeGalleryData.js';
 
@@ -28,12 +29,26 @@ export async function applyThemeGallery(): Promise<void> {
     // Retire themes the owner removed (kept in the table, just not shown).
     await pool.query(`UPDATE themes SET active = false WHERE id = ANY($1)`, [RETIRED_THEME_IDS]);
 
-    // Non-kids celebrations no longer offer ready-made themes (owner request) —
-    // they get the free custom-theme brief instead. Deactivate every non-kids
-    // theme so they vanish from those types AND from the home "Trending Themes"
-    // carousel. Authoritative on every boot (the catalogue sync covers only
-    // services/packages, so themes must be reconciled here).
-    await pool.query(`UPDATE themes SET active = false WHERE celebration_type <> 'kids'`);
+    // Non-kids celebrations (except Gender Reveal) offer no ready-made themes
+    // (owner request) — they get the free custom-theme brief instead. Gender
+    // Reveal DOES ship a theme list, so keep it active. Authoritative on every
+    // boot (the catalogue sync covers only services/packages).
+    await pool.query(`UPDATE themes SET active = false WHERE celebration_type NOT IN ('kids','gender')`);
+
+    // Gender Reveal themes live in the shared catalogue but seedIfEmpty skips on
+    // a non-empty (production) DB, so insert them here — idempotently, without
+    // overwriting an owner edit. Keep them active.
+    for (const th of THEMES.filter((t) => t.celebrationType === 'gender')) {
+      await pool.query(
+        `INSERT INTO themes (id, name, tags, colors, gradient, popular, featured, active, celebration_type, sort_order)
+         SELECT $1,$2,$3,$4,$5,false,false,true,'gender',$6
+          WHERE NOT EXISTS (SELECT 1 FROM themes WHERE id = $1)`,
+        [th.id, th.name, th.tags, th.colors, th.gradient, th.sortOrder],
+      );
+    }
+    // If a gender theme was previously inserted then deactivated by the old
+    // rule, make sure it's active again.
+    await pool.query(`UPDATE themes SET active = true WHERE celebration_type = 'gender'`);
 
     // Renames requested by the owner.
     await pool.query(`UPDATE themes SET name = 'Circus' WHERE id = 't33'`);

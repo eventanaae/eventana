@@ -1,24 +1,23 @@
 import type { ScreenProps } from '../App';
 import { C, fredoka, money, Notice, wasPriceFils } from '../ui';
-import { pkgName, pkgCapacity, pkgTag, COMING_AR } from '../pkgAr';
+import { pkgName, pkgCapacity, pkgTag, COMING_AR, thName } from '../pkgAr';
 
 /** Owner-chosen package order (cheapest tier first, then specials). */
 const PKG_SORT = ['bronze', 'silver', 'golden', 'summer', 'spa', 'movie'];
 
 export function Explore({ catalogue, draft, update, go, t, social, lang }: ScreenProps) {
-  const isKids = draft.celebrationType === 'kids';
+  // Celebrations with their own ready-made packages + themes (Kids, Gender
+  // Reveal) show the full browse flow; the rest get the "design with us" card.
+  const showsFixed = draft.celebrationType === 'kids' || draft.celebrationType === 'gender';
   const evType = catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType);
   const evLabel = (lang === 'ar' ? (evType?.labelAr ?? evType?.label) : evType?.label) ?? 'Celebration';
-  const kidsThemes = (() => {
-    const k = catalogue.themes.filter((t) => t.celebrationType === 'kids');
-    return k.length ? k : catalogue.themes;
-  })();
+  const themesForType = catalogue.themes.filter((t) => t.celebrationType === draft.celebrationType);
 
   return (
     <div style={{ padding: '8px 22px 30px', animation: 'rise .35s ease' }}>
-      <div style={{ ...fredoka(24), marginBottom: 4 }}>{isKids ? evLabel : t('explore.title')}</div>
+      <div style={{ ...fredoka(24), marginBottom: 4 }}>{showsFixed ? evLabel : t('explore.title')}</div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginBottom: 16 }}>
-        {isKids ? t('explore.subKids') : t('explore.subFixed')}
+        {showsFixed ? t('explore.subKids') : t('explore.subFixed')}
       </div>
 
       <div className="scroll" style={{ display: 'flex', gap: 8, marginBottom: 18, overflowX: 'auto', paddingBottom: 2 }}>
@@ -31,8 +30,9 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
                 update({
                   celebrationType: ev.id,
                   celebrationTypeChosen: true,
-                  // A new celebration re-asks the Build intake.
-                  buildAnswered: draft.celebrationType === ev.id ? draft.buildAnswered : false,
+                  // The celebration is chosen here, so the Build intake's only
+                  // question is already answered — never re-ask it.
+                  buildAnswered: true,
                   packageId: null,
                   services: {},
                   themeId: null,
@@ -53,7 +53,7 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
         })}
       </div>
 
-      {!isKids ? (
+      {!showsFixed ? (
         (() => {
           // Per-celebration Arabic coming-soon copy; else the generic strings.
           const coming = lang === 'ar' ? COMING_AR[draft.celebrationType] : undefined;
@@ -80,7 +80,7 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
             <span style={{ fontSize: 11, fontWeight: 700, color: C.faint }}>{t('common.swipe')}</span>
           </div>
           <div className="scroll" style={{ display: 'flex', gap: 12, overflowX: 'auto', margin: '0 -22px 6px', padding: '0 22px 6px' }}>
-            {kidsThemes.map((t) => {
+            {themesForType.map((t) => {
               const active = draft.themeId === t.id;
               return (
                 <div
@@ -96,7 +96,7 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
                     }}
                   />
                   <div style={{ fontSize: 11.5, fontWeight: 700, padding: '8px 2px 0', textAlign: 'center', color: active ? C.pinkDeep : C.ink }}>
-                    {active ? `✓ ${t.name}` : t.name}
+                    {active ? `✓ ${thName(t.id, t.name, lang === 'ar')}` : thName(t.id, t.name, lang === 'ar')}
                   </div>
                 </div>
               );
@@ -110,7 +110,7 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
 
           <div style={{ ...fredoka(17), margin: '20px 0 12px' }}>{t('explore.readyMade')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {[...catalogue.packages].sort((a, b) => (PKG_SORT.indexOf(a.id) + 1 || 99) - (PKG_SORT.indexOf(b.id) + 1 || 99)).map((p) => {
+          {[...catalogue.packages].filter((p) => p.celebrationType === draft.celebrationType).sort((a, b) => (PKG_SORT.indexOf(a.id) + 1 || 99) - (PKG_SORT.indexOf(b.id) + 1 || 99)).map((p) => {
             // A short, on-brand reason to book — falls back to nothing if a
             // package has no blurb yet (t() returns the key when unknown).
             const descKey = `pkgDesc.${p.id}`;

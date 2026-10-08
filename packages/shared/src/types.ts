@@ -87,6 +87,9 @@ export interface PackageDefinition {
   tag: string;
   gradient: string;
   hasCastleChoice: boolean;
+  /** Which celebration this package belongs to — a package only shows for its
+   *  own celebration (kids packages never leak into gender, and vice-versa). */
+  celebrationType: CelebrationType;
   items: PackageItem[];
 }
 

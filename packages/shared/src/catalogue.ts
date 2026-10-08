@@ -92,6 +92,13 @@ export const INVENTORY_ASSETS: InventoryAsset[] = [
   { code: 'game-target', name: 'Target Master', variant: null, units: 2, bufferBeforeMinutes: 45, bufferAfterMinutes: 60 },
   { code: 'game-hoop', name: 'The Hoop', variant: null, units: 2, bufferBeforeMinutes: 45, bufferAfterMinutes: 60 },
   { code: 'game-roll', name: 'Roll & Rule', variant: null, units: 2, bufferBeforeMinutes: 45, bufferAfterMinutes: 60 },
+  // Gender-reveal gear
+  { code: 'gender-backdrop', name: 'Gender Reveal Backdrop', variant: null, units: 2, bufferBeforeMinutes: 120, bufferAfterMinutes: 120 },
+  { code: 'voting-stand', name: 'Voting Stand', variant: null, units: 2, bufferBeforeMinutes: 60, bufferAfterMinutes: 90 },
+  { code: 'entrance-stand', name: 'Entrance Stand', variant: null, units: 2, bufferBeforeMinutes: 60, bufferAfterMinutes: 90 },
+  { code: 'reveal-box', name: 'Gender Reveal Box', variant: null, units: 2, bufferBeforeMinutes: 45, bufferAfterMinutes: 60 },
+  { code: 'photo-booth', name: 'Photo Booth & Instant Printing', variant: null, units: 1, bufferBeforeMinutes: 60, bufferAfterMinutes: 90 },
+  { code: 'sound-system', name: 'Sound System', variant: null, units: 2, bufferBeforeMinutes: 45, bufferAfterMinutes: 60 },
 ];
 
 /** Bouncy castle colours, in the order the customer app shows them. */
@@ -107,6 +114,7 @@ export const CASTLE_VARIANTS = [
 
 export const SERVICE_CATEGORIES: ServiceCategory[] = [
   { id: 'backdrop', name: 'Main Backdrop & Decoration', note: 'Your main Eventana setup — exact dimensions confirmed by Eventana', celebrationTypes: ALL, sortOrder: 1 },
+  { id: 'gendersetup', name: 'Gender Reveal Setup', note: 'Pink or Blue? Choose your setup for the big reveal 💗💙', celebrationTypes: ['gender'], sortOrder: 1 },
   { id: 'food', name: 'Food Stations', note: 'Operated & served by the Eventana team — kids never run the machines · 4 hours · up to 40 guests', celebrationTypes: ALL, sortOrder: 2 },
   { id: 'inflatables', name: 'Inflatables', note: 'Socks required · no food or drinks inside · max 10 kids each ride', celebrationTypes: ['kids', 'customc'], sortOrder: 3 },
   { id: 'games', name: 'Games', note: '4 hours of fun & prizes', celebrationTypes: ['kids', 'graduation', 'gender', 'adult', 'customc'], sortOrder: 4 },
@@ -221,6 +229,17 @@ export const SERVICES: ServiceDefinition[] = [
   svc({ id: 'invite-image', name: 'Digital Invitation (Image)', categoryId: 'extras', price: 150, shortDescription: 'Themed image invitation to share', detail: 'A digital invitation card designed in your party theme, delivered as an image ready to share. Sent to your email within 3 days of booking — no urgent fees, order any time.', gradient: G('#FDE0EE', '#D9B8E8') }),
   svc({ id: 'invite-video', name: 'Digital Invitation (Video)', categoryId: 'extras', price: 250, shortDescription: 'Animated themed video invitation', detail: 'An animated video invitation designed in your party theme, ready to share with your guests. Sent to your email within 3 days of booking — no urgent fees, order any time.', gradient: G('#D9B8E8', '#7A8AC8') }),
   svc({ id: 'tables-chairs', name: 'Extra Tables & Chairs (10 guests)', categoryId: 'extras', price: 550, shortDescription: 'Fully styled seating for 10 more guests', detail: 'Themed tables and chairs seating for 10 extra guests, fully styled. Each seat includes a customized placemat with the name and party theme, a card holder, a water bottle with a custom label, plates, a wooden spoon & fork, and a balloon centerpiece. Add one set for every extra 10 guests.', pricing: { kind: 'per_piece', minQuantity: 1 }, gradient: G('#FBD9C0', '#F9C6DC') }),
+
+  // --- Gender Reveal setup (owner-priced) -------------------------
+  svc({ id: 'voting-stand', name: 'Voting Stand', categoryId: 'gendersetup', price: 350, celebrationTypes: ['gender'], shortDescription: 'Team Pink or Team Blue voting stand', detail: 'A “Team Pink or Team Blue” voting stand to welcome your guests and let them cast their guess.', requiresAssets: ['voting-stand'], gradient: G('#F9C6DC', '#7FB2E8') }),
+  svc({ id: 'entrance-stand', name: 'Entrance Stand', categoryId: 'gendersetup', price: 350, celebrationTypes: ['gender'], shortDescription: 'Themed entrance stand', detail: 'A themed entrance stand at your party door to welcome your guests.', requiresAssets: ['entrance-stand'], gradient: G('#BDEBE4', '#F9C6DC') }),
+  svc({ id: 'boygirl-characters', name: 'Boy & Girl Characters (2 hours)', categoryId: 'gendersetup', price: 1600, celebrationTypes: ['gender'], shortDescription: '2 hrs · interactive reveal with a personalized song', detail: 'Boy & Girl characters for two hours, including an interactive gender-reveal performance with a personalized song featuring your names.', gradient: G('#7FB2E8', '#F9C6DC') }),
+  // NOTE: the owner's other Gender add-ons (Baby Onesie Painting, Customized
+  // Gender Reveal Box, Helium Balloons, Photo Booth & Instant Printing, Sound
+  // System, Customized Giveaways) are intentionally NOT listed yet — they came
+  // with no prices. Add them here once Eventana sets a price (never price 0,
+  // which would let a customer check out paying nothing). Chocolate Fountain
+  // and the Ice Cream Station already show for gender via the Food category.
 ];
 
 export const SERVICE_BY_ID = new Map(SERVICES.map((s) => [s.id, s]));
@@ -239,6 +258,7 @@ export const TABLES_DETAIL =
 export const PACKAGES: PackageDefinition[] = [
   {
     id: 'golden',
+    celebrationType: 'kids',
     name: 'Golden Birthday Package',
     priceFils: aed(5999),
     capacity: 'Up to 40 kids',
@@ -263,6 +283,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'silver',
+    celebrationType: 'kids',
     name: 'Silver Birthday Package',
     priceFils: aed(4799),
     capacity: 'Up to 40 kids',
@@ -286,6 +307,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'bronze',
+    celebrationType: 'kids',
     name: 'Bronze Birthday Package',
     priceFils: aed(3599),
     capacity: 'Up to 40 kids',
@@ -308,6 +330,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'spa',
+    celebrationType: 'kids',
     name: 'Spa Birthday Package',
     priceFils: aed(5999),
     capacity: 'Up to 20 kids',
@@ -331,6 +354,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'summer',
+    celebrationType: 'kids',
     name: 'Summer Birthday Package',
     priceFils: aed(4999),
     capacity: 'Up to 40 kids',
@@ -354,6 +378,7 @@ export const PACKAGES: PackageDefinition[] = [
   },
   {
     id: 'movie',
+    celebrationType: 'kids',
     name: 'Movie Night Package',
     priceFils: aed(2199),
     capacity: 'Up to 40 kids',
@@ -367,6 +392,62 @@ export const PACKAGES: PackageDefinition[] = [
       item('Hot Chocolate (40 kids)', 'Ten litres of hot chocolate with marshmallows, candy canes and sauce.', ['hotchoc-urn']),
       item('Popcorn (40 kids)', 'Freshly popped popcorn for up to 40 kids.', ['popcorn-cart']),
       item('10 Bean Bags + Tables + Lights', 'Ten black bean bags with tables and lights for a cosy cinema corner.'),
+    ],
+  },
+
+  /* ---- Gender Reveal packages (owner-defined) ---------------------- */
+  {
+    id: 'gender-reveal',
+    celebrationType: 'gender',
+    name: 'Gender Reveal Package',
+    priceFils: aed(1999),
+    capacity: 'Main setup',
+    durationHours: 4,
+    tag: 'PINK OR BLUE',
+    gradient: G('#F9C6DC', '#BDEBE4'),
+    hasCastleChoice: false,
+    items: [
+      item('Main Backdrop', 'Your main gender-reveal backdrop with balloons in pink & blue and the parents’ names.', ['gender-backdrop']),
+      item('Voting Stand', 'A “Team Pink or Team Blue” voting stand to welcome your guests.', ['voting-stand']),
+      item('Entrance Stand', 'A themed entrance stand at your party door.', ['entrance-stand']),
+      item('Gender Reveal Spray', 'A pink-or-blue reveal spray for the big moment.'),
+    ],
+  },
+  {
+    id: 'gender-disney',
+    celebrationType: 'gender',
+    name: 'Disney Package',
+    priceFils: aed(3500),
+    capacity: 'Premium setup',
+    durationHours: 4,
+    tag: 'MOST POPULAR',
+    gradient: G('#D9B8E8', '#7FB2E8'),
+    hasCastleChoice: false,
+    items: [
+      item('Premium Main Backdrop', 'A premium gender-reveal backdrop with lush balloons and the parents’ names.', ['gender-backdrop']),
+      item('3 Cake Stands', 'Three themed cake display stands.'),
+      item('Voting Stand', 'A “Team Pink or Team Blue” voting stand to welcome your guests.', ['voting-stand']),
+      item('Entrance Stand', 'A themed entrance stand at your party door.', ['entrance-stand']),
+      item('Large Gender Reveal Box with 20 Helium Balloons', 'A large reveal box filled with 20 pink-or-blue helium balloons for the reveal.', ['reveal-box']),
+    ],
+  },
+  {
+    id: 'gender-teddy',
+    celebrationType: 'gender',
+    name: 'Teddy Bear Package',
+    priceFils: aed(3899),
+    capacity: 'Up to 20 guests',
+    durationHours: 4,
+    tag: 'FAMILY FAVOURITE',
+    gradient: G('#FBD9C0', '#F0A8B8'),
+    hasCastleChoice: false,
+    items: [
+      item('Main Backdrop', 'Your main gender-reveal backdrop with balloons in pink & blue and the parents’ names.', ['gender-backdrop']),
+      item('Voting Stand', 'A “Team Pink or Team Blue” voting stand to welcome your guests.', ['voting-stand']),
+      item('Entrance Stand', 'A themed entrance stand at your party door.', ['entrance-stand']),
+      item('Tables & Chairs for 20 Guests', TABLES_DETAIL),
+      item('Baby Onesie Painting Activity', 'A baby-onesie painting station with paints and blank onesies for your guests.'),
+      item('Interactive Games & Activities', 'Hosted interactive games and activities to keep your guests entertained.'),
     ],
   },
 ];
@@ -517,6 +598,21 @@ export const THEME_TAGS = [
   'Neutral',
 ];
 
+/** Gender-reveal themes (owner's list). Gradient cards (no setup photos yet) —
+ *  shown as selectable themes; Eventana designs the chosen one. */
+const GENDER_THEME_ROWS: Array<[string, string, number]> = [
+  ['Little Goose', 'Cute|Neutral', 9],
+  ['Teddy Bear', 'Cute|Neutral', 7],
+  ['Pearl', 'Cute|Neutral', 1],
+  ['Tennis', 'Sports|Neutral', 3],
+  ['Bunny', 'Animals|Cute', 4],
+  ['Floral', 'Cute|Neutral', 0],
+  ['Picnic', 'Cute|Neutral', 6],
+  ['Lemon', 'Cute|Neutral', 2],
+  ['Fairytale', 'Fantasy|Neutral', 5],
+  ['Wild One', 'Animals|Adventure', 3],
+];
+
 export const THEMES: ThemeDefinition[] = [
   ...KIDS_THEME_ROWS.map((r, i) => ({
     id: `t${i}`,
@@ -530,9 +626,20 @@ export const THEMES: ThemeDefinition[] = [
     celebrationType: 'kids' as CelebrationType,
     sortOrder: i,
   })),
-  // Non-kids celebrations ship with NO ready-made themes — those customers get a
-  // free custom-theme brief instead (owner decision). Removing these libraries
-  // also clears them from the home "Trending Themes" carousel.
+  // Gender-reveal themes — selectable gradient cards (photos come later). Only
+  // other non-kids celebrations ship with no ready themes (free custom brief).
+  ...GENDER_THEME_ROWS.map((r, i) => ({
+    id: `g${i}`,
+    name: r[0],
+    tags: r[1].split('|'),
+    colors: PALETTES[r[2]],
+    gradient: G(PALETTES[r[2]][0], PALETTES[r[2]][1]),
+    popular: false,
+    featured: false,
+    active: true,
+    celebrationType: 'gender' as CelebrationType,
+    sortOrder: 100 + i,
+  })),
 ];
 
 /* ------------------------------------------------------------------ */
@@ -544,7 +651,7 @@ export const CELEBRATION_TYPES = [
   { id: 'graduation' as const, label: 'Graduation Party', sub: 'School, uni & adult grads', labelAr: 'حفلات التخرج', subAr: 'احتفلوا بنجاحكم بأحلى ترتيب', gradient: G('#B8C4E8', '#F7C948'), route: 'build' as const },
   { id: 'bride' as const, label: 'Bride to Be', sub: 'Bridal showers & setups', labelAr: 'برايد تو بي', subAr: 'تنسيقات مميزة للعروس', gradient: G('#FDE0EE', '#D9B8E8'), route: 'build' as const },
   { id: 'baby' as const, label: 'Baby Shower', sub: 'Sweet celebration setups', labelAr: 'بيبي شور', subAr: 'ترتيبات ناعمة لاستقبال البيبي', gradient: G('#BDEBE4', '#FDE0EE'), route: 'build' as const },
-  { id: 'gender' as const, label: 'Gender Reveal', sub: 'The big pink-or-blue moment', labelAr: 'جندر ريفيل', subAr: 'لحظات حلوة ومفاجآت مميزة', gradient: G('#F9C6DC', '#BDEBE4'), route: 'build' as const },
+  { id: 'gender' as const, label: 'Gender Reveal', sub: 'The big pink-or-blue moment', labelAr: 'جندر ريفيل', subAr: 'لحظات حلوة ومفاجآت مميزة', gradient: G('#F9C6DC', '#BDEBE4'), route: 'explore' as const },
   { id: 'adult' as const, label: 'Adult Birthday', sub: 'Elegant grown-up parties', labelAr: 'أعياد ميلاد الكبار', subAr: 'احتفالات أنيقة على ذوقكم', gradient: G('#D9B8E8', '#B8C4E8'), route: 'build' as const },
   { id: 'corporate' as const, label: 'Corporate Event', sub: 'Company & office celebrations', labelAr: 'فعاليات الشركات', subAr: 'تنظيم وتنسيق فعاليات الشركات', gradient: G('#B8C4E8', '#BDEBE4'), route: 'build' as const },
   { id: 'customc' as const, label: 'Custom Celebration', sub: 'Anything you can imagine', labelAr: 'صمّمي مناسبتك', subAr: 'نرتب مناسبتكم على ذوقكم', gradient: G('#F7C948', '#F9C6DC'), route: 'build' as const },
@@ -569,7 +676,6 @@ export const MISSING_SERVICE_NOTES: Partial<Record<CelebrationType, string>> = {
   graduation: 'Entrance Stand, Graduation Decoration & Tables',
   bride: 'Elegant Decoration, Flower Arrangements, Tables & Chairs',
   baby: 'Baby Shower Decoration, Welcome Stand & Guest Activities',
-  gender: 'Voting Stand, Reveal Experience & Boy/Girl Characters',
   adult: 'Elegant Decoration & F&B Stations',
   corporate: 'Branded Backdrop & Stage, Setup, Catering & Activity Stations',
 };
