@@ -594,6 +594,10 @@ async function main() {
     // Make Shan the leader of every upcoming event he's on (SET_SHAN_LEADER=true).
     const { setShanLeaderFromEnv } = await import('./db/setShanLeader.js');
     await setShanLeaderFromEnv().catch((err) => console.error('[shan-leader] failed:', err));
+    // One-shot: email the field crew the "points doubled" announcement, CC Marsha
+    // (EMAIL_POINTS_UPDATE=send → then blank it).
+    const { emailPointsUpdateFromEnv } = await import('./db/emailPointsUpdate.js');
+    await emailPointsUpdateFromEnv().catch((err) => console.error('[points-email] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
