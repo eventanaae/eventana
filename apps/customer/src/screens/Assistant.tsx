@@ -10,6 +10,13 @@ const PROMPTS = [
   'How much is delivery to Sharjah?',
   'Is the Bubble House available?',
 ];
+const PROMPTS_AR = [
+  'شو في باقة الذهبية؟',
+  'عندي ٣٠ طفل وميزانيتي ٥٠٠٠ درهم',
+  'بنتي عمرها ٦ وتحب الوردي بس مب باربي',
+  'كم التوصيل للشارقة؟',
+  'البابلز هاوس متوفر؟',
+];
 
 interface Ref { kind: string; id: string; name: string }
 interface Msg {
@@ -19,7 +26,7 @@ interface Msg {
   refs?: Ref[];
 }
 
-export function Assistant({ catalogue, draft, update, go, customerName, t }: ScreenProps) {
+export function Assistant({ catalogue, draft, update, go, customerName, t, lang }: ScreenProps) {
   const firstName = (customerName || '').trim().split(' ')[0];
   const [messages, setMessages] = useState<Msg[]>([
     { who: 'ai', text: t('assistant.greeting', { name: firstName || t('common.friend') }) },
@@ -215,7 +222,7 @@ export function Assistant({ catalogue, draft, update, go, customerName, t }: Scr
 
       <div style={{ flex: 'none', padding: '0 22px 14px' }}>
         <div className="scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', margin: '0 -22px 10px', padding: '0 22px 2px' }}>
-          {PROMPTS.map((p) => (
+          {(lang === 'ar' ? PROMPTS_AR : PROMPTS).map((p) => (
             <button
               key={p}
               onClick={() => send(p)}

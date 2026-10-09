@@ -428,7 +428,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
         const counts: Record<string, number> = {};
         // Use the NET total (gross − refunds), matching the server's own sum and
         // the opened receipt; a fully/partly refunded row shouldn't read PAID @ gross.
-        for (const r of dated) { const k = monthKey(r.date); totals[k] = (totals[k] ?? 0) + Number(r.netTotalFils ?? r.total_fils || 0); counts[k] = (counts[k] ?? 0) + 1; }
+        for (const r of dated) { const k = monthKey(r.date); totals[k] = (totals[k] ?? 0) + Number(r.netTotalFils ?? r.total_fils ?? 0); counts[k] = (counts[k] ?? 0) + 1; }
         const out: ReactNode[] = [];
         const receiptRow = (r: any, tbd: boolean) => {
           const refunded = Number(r.refundedFils ?? 0) || 0;
@@ -447,7 +447,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
           );
         };
         if (tbdList.length) {
-          const tbdTotal = tbdList.reduce((s: number, r: any) => s + Number(r.netTotalFils ?? r.total_fils || 0), 0);
+          const tbdTotal = tbdList.reduce((s: number, r: any) => s + Number(r.netTotalFils ?? r.total_fils ?? 0), 0);
           out.push(
             <div key="m-tbd" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4, marginBottom: 6, paddingBottom: 6, borderBottom: `2px solid ${C.line}` }}>
               <span style={{ ...fredoka(14), color: C.ink }}>🗓️ Date to be confirmed</span>

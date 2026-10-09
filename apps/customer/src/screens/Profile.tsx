@@ -140,9 +140,12 @@ export function Profile({
               onClick={async () => {
                 const msg = `${t('profile.referSub')} ${rewards.referralCode}`;
                 try {
-                  if (navigator.share) await navigator.share({ text: msg });
-                  else { await navigator.clipboard.writeText(rewards.referralCode!); setCopied(true); setTimeout(() => setCopied(false), 1500); }
-                } catch { /* dismissed */ }
+                  if (navigator.share) { await navigator.share({ text: msg }); return; }
+                  if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(rewards.referralCode!); setCopied(true); setTimeout(() => setCopied(false), 1500); return; }
+                } catch { /* share dismissed / copy blocked */ return; }
+                // Neither Web Share nor Clipboard (insecure context / old browser) →
+                // still confirm so the button never silently does nothing.
+                setCopied(true); setTimeout(() => setCopied(false), 1500);
               }}
               style={{ border: 'none', background: C.pink, color: '#fff', fontWeight: 700, fontSize: 12.5, padding: '11px 16px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
