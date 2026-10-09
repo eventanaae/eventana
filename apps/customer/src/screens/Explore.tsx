@@ -9,6 +9,8 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
   // Celebrations with their own ready-made packages + themes (Kids, Gender
   // Reveal) show the full browse flow; the rest get the "design with us" card.
   const showsFixed = draft.celebrationType === 'kids' || draft.celebrationType === 'gender';
+  // Only advertise "pay in 4" when a BNPL method is actually live.
+  const bnplLive = (catalogue.paymentMethods ?? []).some((p: any) => (p.name === 'tabby' || p.name === 'tamara') && p.mode === 'live');
   const evType = catalogue.celebrationTypes.find((e) => e.id === draft.celebrationType);
   const evLabel = (lang === 'ar' ? (evType?.labelAr ?? evType?.label) : evType?.label) ?? 'Celebration';
   const themesForType = catalogue.themes.filter((t) => t.celebrationType === draft.celebrationType);
@@ -126,9 +128,11 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
                   <span style={{ position: 'absolute', top: 12, left: 12, background: p.id === 'summer' ? C.pink : '#fff', color: p.id === 'summer' ? '#fff' : C.pinkDeep, fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20, letterSpacing: '.5px' }}>
                     {p.id === 'summer' ? t('explore.limitedTime') : pkgTag(p.id, p.tag, lang === 'ar')}
                   </span>
+                  {bnplLive && (
                   <span style={{ position: 'absolute', top: 12, right: 12, background: '#C7F2C2', color: '#2e7d4f', fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
                     {t('explore.installments', { aed: `${t('common.aed')} ${money(Math.round(p.priceFils / 4))}` })}
                   </span>
+                  )}
                 </div>
                 <div style={{ padding: '15px 18px 17px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>

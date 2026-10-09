@@ -426,17 +426,28 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
         const dated = list.filter((r: any) => !r.date_tbd);
         const totals: Record<string, number> = {};
         const counts: Record<string, number> = {};
-        for (const r of dated) { const k = monthKey(r.date); totals[k] = (totals[k] ?? 0) + Number(r.total_fils || 0); counts[k] = (counts[k] ?? 0) + 1; }
+        // Use the NET total (gross − refunds), matching the server's own sum and
+        // the opened receipt; a fully/partly refunded row shouldn't read PAID @ gross.
+        for (const r of dated) { const k = monthKey(r.date); totals[k] = (totals[k] ?? 0) + Number(r.netTotalFils ?? r.total_fils || 0); counts[k] = (counts[k] ?? 0) + 1; }
         const out: ReactNode[] = [];
-        const receiptRow = (r: any, tbd: boolean) => (
-          <DocRow key={r.id} onClick={() => setSel(r)}
-            title={r.customer_name} sub={`EV-${r.number} · ${tbd ? 'TBD' : fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
-            amount={r.totalDisplay}
-            badge={<span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>}
-          />
-        );
+        const receiptRow = (r: any, tbd: boolean) => {
+          const refunded = Number(r.refundedFils ?? 0) || 0;
+          const net = Number(r.netTotalFils ?? (Number(r.total_fils) - refunded));
+          const badge = refunded <= 0
+            ? <span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>
+            : net <= 0
+              ? <span style={{ ...pill, background: C.redSoft, color: C.red }}>REFUNDED</span>
+              : <span style={{ ...pill, background: C.yellowSoft, color: C.yellowInk }}>PART. REFUND</span>;
+          return (
+            <DocRow key={r.id} onClick={() => setSel(r)}
+              title={r.customer_name} sub={`EV-${r.number} · ${tbd ? 'TBD' : fmtDate(r.date)}${r.city ? ` · ${r.city}` : ''}`}
+              amount={r.netTotalDisplay ?? r.totalDisplay}
+              badge={badge}
+            />
+          );
+        };
         if (tbdList.length) {
-          const tbdTotal = tbdList.reduce((s: number, r: any) => s + Number(r.total_fils || 0), 0);
+          const tbdTotal = tbdList.reduce((s: number, r: any) => s + Number(r.netTotalFils ?? r.total_fils || 0), 0);
           out.push(
             <div key="m-tbd" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4, marginBottom: 6, paddingBottom: 6, borderBottom: `2px solid ${C.line}` }}>
               <span style={{ ...fredoka(14), color: C.ink }}>🗓️ Date to be confirmed</span>

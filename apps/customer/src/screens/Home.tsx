@@ -121,7 +121,19 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
         <div style={{ marginTop: 16, background: '#fff', borderRadius: 22, padding: '14px 16px', boxShadow: C.shadowLg, border: `1.5px solid ${C.pink}` }}>
           <div style={{ ...fredoka(15), marginBottom: 6 }}>🧺 {t('home.resumeTitle')}</div>
           {hasParty && (
-            <div onClick={() => go('checkout')} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '8px 0' }}>
+            <div onClick={() => {
+              // Resume at the right step — don't skip the theme/castle choice the
+              // normal flow forces (otherwise a backdrop/castle cart lands at pay
+              // with nothing chosen).
+              const pkg = catalogue.packages.find((p) => p.id === draft.packageId);
+              const isSpaMovie = pkg?.id === 'spa' || pkg?.id === 'movie';
+              const pkgNeedsTheme = Boolean(pkg) && !isSpaMovie && !(draft.themeId || draft.customTheme);
+              const needsCastle = Boolean(pkg?.hasCastleChoice) && !draft.castleVariant;
+              const byoNeedsTheme = !pkg
+                && Object.keys(draft.services).some((id) => catalogue.services.find((s) => s.id === id)?.categoryId === 'backdrop')
+                && !(draft.themeId || draft.customTheme);
+              go(pkg && (needsCastle || pkgNeedsTheme) ? 'package' : byoNeedsTheme ? 'theme' : 'checkout');
+            }} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '8px 0' }}>
               <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg,#FDE0EE,#F9C6DC)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flex: 'none' }}>🎉</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{partyLabel}</div>

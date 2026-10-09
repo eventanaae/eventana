@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { eventDateYMD, timeRange12h, packageItemDetail, servicePackageItemNames } from '@eventana/shared';
+import { eventDateYMD, timeRange12h, packageItemDetail, servicePackageItemNames, packageItemNames } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty, eventTitle } from './Today';
@@ -362,7 +362,11 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   // (shown via `included`) and an ad-hoc service package on the same
                   // event each show their contents, with no duplication.
                   const extraItems = (label: string): string[] => servicePackageItemNames(label);
-                  const pkgLabel = main.find((s) => s.source === 'booking' && Number(s.amount_fils) > 0 && !/delivery/i.test(s.label))?.label ?? 'the package';
+                  // Identify the package line by its label resolving to package
+                  // items — NOT by amount_fils, which is hidden (null) for staff.
+                  const pkgLabel = main.find((s) => s.source === 'booking' && !/delivery/i.test(s.label) && packageItemNames(s.label).length > 0)?.label
+                    ?? main.find((s) => s.source === 'booking' && Number(s.amount_fils) > 0 && !/delivery/i.test(s.label))?.label
+                    ?? 'the package';
                   // Giveaways are keepsakes handed to guests — the team never needs
                   // their price, and converted/imported lines store an unreliable
                   // per-piece figure here, so we always hide the AED on giveaway

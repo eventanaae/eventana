@@ -215,10 +215,12 @@ export default function App() {
   const canSeeAll = role !== 'driver';
 
   // If the current tab isn't allowed for this role, snap to the first that is.
+  // Depend on `view` too, so a forbidden deep link (?view=finance as an employee)
+  // is corrected even when the resolved role equals the default and never changes.
   useEffect(() => {
     if (!isVisible(view)) setView(primaryNav[0]?.id ?? 'today');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role]);
+  }, [role, view]);
 
   // Hooks must run on every render, before any early return — otherwise
   // logging in (authed false→true) changes the hook count and React crashes.
