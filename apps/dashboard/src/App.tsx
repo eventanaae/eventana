@@ -231,7 +231,7 @@ export default function App() {
     return <StaffLogin onDone={() => setAuthed(true)} />;
   }
 
-  const current = NAV.find((n) => n.id === view) ?? { ...NAV[0], id: view, title: view === 'menu' ? 'Menu' : view === 'feedback' ? 'What customers say' : NAV[0].title };
+  const current = NAV.find((n) => n.id === view) ?? { ...NAV[0], id: view, title: view === 'menu' ? 'Menu' : view === 'feedback' ? 'What customers say' : view === 'themes' ? 'Theme Backfill' : NAV[0].title };
   // Only warn when a provider is genuinely in test/sandbox mode. A 'disabled'
   // provider (e.g. Tabby/Tamara/Ziina awaiting production creds) is not a
   // sandbox — Stripe being live means real payments work.

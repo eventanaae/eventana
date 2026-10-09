@@ -528,6 +528,11 @@ export default function App() {
         eventDate: defaultDate(),
         startTime: '17:00',
         provider: 'tabby',
+        // Fresh booking: force a re-pin instead of silently carrying the old
+        // event's location/address through.
+        mapPin: null,
+        locationTbd: false,
+        address: { area: '', street: '', villa: '', details: '' },
       });
       go('checkout');
     },

@@ -233,7 +233,12 @@ export function Checkout({
     // reflects the right party length here too (not the static seed's 4h).
     const svcMap = new Map((catalogue.services ?? []).map((s: any) => [s.id, s]));
     const hrs = effectiveEventHours(cart, catalogue.rules as any, svcMap);
-    api.startTimes(hrs).then(setTimes).catch(() => setTimes([]));
+    api.startTimes(hrs).then((r) => {
+      setTimes(r);
+      // If the chosen start time is no longer allowed (e.g. the cart grew to a
+      // 6-hour window), clear it so a stale/greyed selection isn't submitted.
+      if (draft.startTime && r.some((x) => x.value === draft.startTime && !x.allowed)) update({ startTime: null });
+    }).catch(() => setTimes([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.packageId, JSON.stringify(draft.services)]);
 
@@ -797,7 +802,7 @@ export function Checkout({
                   </div>
                   <button
                     onClick={() => {
-                      const min = s.pricing.kind === 'per_child' ? draft.childrenCount : (s.pricing.minQuantity ?? 1);
+                      const min = s.pricing.kind === 'per_child' ? Math.max(s.pricing.minChildren ?? 20, draft.childrenCount || 0) : (s.pricing.minQuantity ?? 1);
                       // Food/games stations need a kiosk colour. There's no colour
                       // picker on this screen, so a station added here gets a
                       // default (pink) the customer can change back in Build —
@@ -843,10 +848,23 @@ export function Checkout({
             </span>
           </div>
         ))}
+        {/* Discounts applied at pay (promo / store credit / points / free
+            delivery) so the itemized summary foots to the amount actually charged. */}
+        {[
+          { v: promoFils, label: lang === 'ar' ? 'خصم الكود' : 'Promo discount' },
+          { v: freeDeliveryFils, label: lang === 'ar' ? 'توصيل مجاني' : 'Free delivery' },
+          { v: creditFils, label: lang === 'ar' ? 'رصيدك' : 'Store credit' },
+          { v: pointsFils, label: lang === 'ar' ? 'نقاطك' : 'Points redeemed' },
+        ].filter((d) => d.v > 0).map((d) => (
+          <div key={d.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, padding: '5px 0', color: C.green, fontWeight: 700 }}>
+            <span>{d.label}</span>
+            <span style={{ whiteSpace: 'nowrap' }}>−{t('common.aed')} {money(d.v)}</span>
+          </div>
+        ))}
         <div style={{ borderTop: '1px solid #f6e7ef', margin: '9px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700 }}>
           <span>{t('checkout.total')}</span>
-          <span>{t('common.aed')} {quote ? money(quote.totalFils) : '—'}</span>
+          <span>{t('common.aed')} {quote ? money(estTotalFils) : '—'}</span>
         </div>
         {themeName && (
           <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12.5, fontWeight: 700 }}>

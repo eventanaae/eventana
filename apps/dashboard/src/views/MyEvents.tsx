@@ -21,9 +21,9 @@ export function MyEvents({ onOpenEvent }: { onOpenEvent: (id: string) => void })
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {events.map((e, i) => {
-            const date = String(e.event_date).slice(0, 10);
+            const date = eventDateYMD(new Date(e.event_date)); // local, matches `today`
             const isToday = date === today;
-            const hasPin = Number(e.map_lat) !== 0 || Number(e.map_lng) !== 0;
+            const hasPin = e.map_lat != null && e.map_lng != null && (Number(e.map_lat) !== 0 || Number(e.map_lng) !== 0);
             const dir = `https://www.google.com/maps/dir/?api=1&destination=${e.map_lat},${e.map_lng}&travelmode=driving`;
             const d = new Date(e.event_date);
             const key = `${d.getFullYear()}-${d.getMonth()}`;

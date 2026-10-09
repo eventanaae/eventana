@@ -75,7 +75,8 @@ export function LeadThread({
       const res = await api.whatsappReply(phone, body);
       setMessages(res.messages ?? []);
       setDraft('');
-      load();
+      // The reply response already carries the refreshed thread; the 20s poll
+      // keeps it fresh. (Was double-fetching with an extra load() here.)
     } catch (e: any) {
       setError(e?.message ?? 'The message could not be sent.');
     } finally {

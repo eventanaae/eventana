@@ -12,7 +12,10 @@ export function PackageDetail({ catalogue, draft, update, go, t, social, lang }:
   if (!pkg) {
     return (
       <div style={{ padding: 30 }}>
-        <button onClick={() => go('explore')} style={backStyle}>‹ Explore</button>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, marginBottom: 14 }}>
+          {lang === 'ar' ? 'هذه الباقة لم تعد متاحة.' : 'This package is no longer available.'}
+        </div>
+        <button onClick={() => go('explore')} style={backStyle}>{lang === 'ar' ? '‹ تصفّح' : '‹ Explore'}</button>
       </div>
     );
   }

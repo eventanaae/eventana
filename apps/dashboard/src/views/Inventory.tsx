@@ -58,7 +58,9 @@ export function Inventory({ role }: { role?: string }) {
     load();
   };
 
-  const openMissing = missing.filter((m: any) => m.status === 'requested').length;
+  // Match the rendered list (everything not received/cancelled) so the badge
+  // count never disagrees with the rows shown.
+  const openMissing = missing.filter((m: any) => m.status !== 'received' && m.status !== 'cancelled').length;
   const filtered = q.trim()
     ? assets.filter((a) => `${a.name} ${a.variant ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()))
     : assets;

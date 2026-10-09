@@ -93,7 +93,7 @@ export function Assistant({ catalogue, draft, update, go, customerName, t }: Scr
       go('theme');
     } else if (r.kind === 'service') {
       const s = catalogue.services.find((x) => x.id === r.id);
-      const min = s?.pricing.kind === 'per_child' ? draft.childrenCount : (s?.pricing.minQuantity ?? 1);
+      const min = s?.pricing.kind === 'per_child' ? Math.max(1, draft.childrenCount || 1) : (s?.pricing.minQuantity ?? 1);
       update({ services: { ...draft.services, [r.id]: min }, buildAnswered: true, celebrationTypeChosen: true });
       go('build');
     }
