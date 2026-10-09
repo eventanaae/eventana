@@ -1,29 +1,34 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SHOP_DRAWING_IDS, SHOP_SERVICE_IDS, type CartInput } from '@eventana/shared';
 import { api, type Catalogue, type QuoteResult } from './api';
 import { C, Spinner, fredoka } from './ui';
+// Eager — the first-paint / core-navigation screens. Everything else is
+// code-split (below) so the initial JS download is just the landing path.
 import { Home } from './screens/Home';
 import { Explore } from './screens/Explore';
-import { PackageDetail } from './screens/PackageDetail';
-import { Build } from './screens/Build';
 import { BuildIntake } from './screens/BuildIntake';
-import { Themes } from './screens/Themes';
-import { Checkout } from './screens/Checkout';
 import { PaymentReturn } from './screens/Payment';
-import { MyEvent } from './screens/MyEvent';
-import { GuestFeedback } from './screens/GuestFeedback';
-import { Assistant } from './screens/Assistant';
-import { Profile } from './screens/Profile';
 import { Onboarding } from './screens/Onboarding';
-import { MovieSelect } from './screens/MovieSelect';
-import { ResetPassword } from './screens/ResetPassword';
-import { Shop } from './screens/Shop';
-import { ShopCheckout } from './screens/ShopCheckout';
-import { LeadForm } from './screens/LeadForm';
-import { PayLink } from './screens/PayLink';
-import { TermsSheet } from './screens/Terms';
-import { PrivacySheet } from './screens/Privacy';
 import { Landing } from './screens/Landing';
+
+// Lazy — heavy or rarely-first screens, each its own chunk fetched on demand.
+// Named-export pattern: React.lazy needs a module with a `default` export.
+const PackageDetail = lazy(() => import('./screens/PackageDetail').then((m) => ({ default: m.PackageDetail })));
+const Build = lazy(() => import('./screens/Build').then((m) => ({ default: m.Build })));
+const Themes = lazy(() => import('./screens/Themes').then((m) => ({ default: m.Themes })));
+const Checkout = lazy(() => import('./screens/Checkout').then((m) => ({ default: m.Checkout })));
+const MyEvent = lazy(() => import('./screens/MyEvent').then((m) => ({ default: m.MyEvent })));
+const GuestFeedback = lazy(() => import('./screens/GuestFeedback').then((m) => ({ default: m.GuestFeedback })));
+const Assistant = lazy(() => import('./screens/Assistant').then((m) => ({ default: m.Assistant })));
+const Profile = lazy(() => import('./screens/Profile').then((m) => ({ default: m.Profile })));
+const MovieSelect = lazy(() => import('./screens/MovieSelect').then((m) => ({ default: m.MovieSelect })));
+const ResetPassword = lazy(() => import('./screens/ResetPassword').then((m) => ({ default: m.ResetPassword })));
+const Shop = lazy(() => import('./screens/Shop').then((m) => ({ default: m.Shop })));
+const ShopCheckout = lazy(() => import('./screens/ShopCheckout').then((m) => ({ default: m.ShopCheckout })));
+const LeadForm = lazy(() => import('./screens/LeadForm').then((m) => ({ default: m.LeadForm })));
+const PayLink = lazy(() => import('./screens/PayLink').then((m) => ({ default: m.PayLink })));
+const TermsSheet = lazy(() => import('./screens/Terms').then((m) => ({ default: m.TermsSheet })));
+const PrivacySheet = lazy(() => import('./screens/Privacy').then((m) => ({ default: m.PrivacySheet })));
 import { landingFromPath, LANDING_ROUTES, type LandingRoute } from './landing';
 
 /** On a laptop, the bare home shows this full marketing page (a real website)
@@ -584,7 +589,11 @@ export default function App() {
   // URL is what Meta and the app stores are pointed at, and a visitor who
   // followed it came to read the policy — not to be asked their name first.
   if (showPrivacy) {
-    return <PrivacySheet lang={lang} onClose={() => setShowPrivacy(false)} />;
+    return (
+      <Suspense fallback={<ScreenFallback />}>
+        <PrivacySheet lang={lang} onClose={() => setShowPrivacy(false)} />
+      </Suspense>
+    );
   }
 
   // A search-ad arrival is answered before anything else — ahead of the
@@ -622,7 +631,9 @@ export default function App() {
   if (resetToken) {
     return (
       <Frame lang={lang}>
-        <ResetPassword token={resetToken} t={t} />
+        <Suspense fallback={<ScreenFallback />}>
+          <ResetPassword token={resetToken} t={t} />
+        </Suspense>
       </Frame>
     );
   }
@@ -702,6 +713,7 @@ export default function App() {
         className="scroll"
         style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
       >
+        <Suspense fallback={<ScreenFallback />}>
         {screen === 'home' && <Home {...shared} />}
         {screen === 'explore' && <Explore {...shared} />}
         {screen === 'package' && <PackageDetail {...shared} />}
@@ -740,10 +752,15 @@ export default function App() {
         {screen === 'feedback' && feedbackLink && (
           <GuestFeedback event={feedbackLink.event} token={feedbackLink.token} t={t} lang={lang} />
         )}
+        </Suspense>
       </div>
 
-      {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
-      {showPrivacy && <PrivacySheet lang={lang} onClose={() => setShowPrivacy(false)} />}
+      {(showTerms || showPrivacy) && (
+        <Suspense fallback={null}>
+          {showTerms && <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />}
+          {showPrivacy && <PrivacySheet lang={lang} onClose={() => setShowPrivacy(false)} />}
+        </Suspense>
+      )}
 
       {/* Auto feedback POP-UP for a signed-in customer whose party just finished. */}
       {autoFeedback && (
@@ -757,7 +774,9 @@ export default function App() {
               aria-label="Close"
               style={{ position: 'absolute', top: 6, insetInlineEnd: 6, zIndex: 2, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.9)', color: C.muted, fontSize: 20, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,.15)' }}
             >×</button>
-            <GuestFeedback event={autoFeedback.event} token={autoFeedback.token} t={t} lang={lang} />
+            <Suspense fallback={<ScreenFallback />}>
+              <GuestFeedback event={autoFeedback.event} token={autoFeedback.token} t={t} lang={lang} />
+            </Suspense>
           </div>
         </div>
       )}
@@ -827,6 +846,16 @@ export default function App() {
         </div>
       )}
     </Frame>
+  );
+}
+
+/** Centered spinner shown for the brief moment a code-split screen's chunk is
+ *  being fetched. Fills the scroll area so the layout doesn't jump. */
+function ScreenFallback() {
+  return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 24px' }}>
+      <Spinner />
+    </div>
   );
 }
 
