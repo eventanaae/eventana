@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ScreenProps } from '../App';
 import { api, type Catalogue } from '../api';
-import { C, fredoka, money, PrimaryButton, Sheet } from '../ui';
+import { C, fredoka, money, PrimaryButton, Sheet, cld } from '../ui';
 import { thName } from '../pkgAr';
 
 type Th = Catalogue['themes'][number];
@@ -268,7 +268,7 @@ export function Themes({
               }}
             >
               {/* Fixed-height cover — every card is exactly the same size. */}
-              <div style={{ height: 118, background: cover ? `#f2e7ee url(${cover}) center/cover no-repeat` : th.gradient, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ height: 118, background: cover ? `#f2e7ee url(${cld(cover, 300)}) center/cover no-repeat` : th.gradient, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {!cover && (
                   <span style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 16, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,.28)', textAlign: 'center', padding: '0 10px' }}>
                     {thName(th.id, th.name, ar)}
@@ -327,7 +327,7 @@ export function Themes({
                   key={i}
                   style={{
                     aspectRatio: '1 / 1', width: '100%', borderRadius: 14, overflow: 'hidden',
-                    background: `#f2e7ee url(${url}) center/cover no-repeat`, border: `1px solid ${C.pinkLine}`,
+                    background: `#f2e7ee url(${cld(url, 500)}) center/cover no-repeat`, border: `1px solid ${C.pinkLine}`,
                   }}
                 />
               ))}

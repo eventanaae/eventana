@@ -222,7 +222,12 @@ export default function App() {
   const { profile, save: saveProfile } = useProfile();
   const { lang, setLang } = useLang();
   const t = useMemo(() => makeT(lang), [lang]);
-  const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
+  // Hydrate the last catalogue from localStorage so a repeat visitor paints
+  // instantly (no blocking spinner) and the slow/cold-starting API revalidates
+  // in the background. Catalogue content changes rarely.
+  const [catalogue, setCatalogue] = useState<Catalogue | null>(() => {
+    try { const c = localStorage.getItem('ev_catalogue'); return c ? (JSON.parse(c) as Catalogue) : null; } catch { return null; }
+  });
   const [screen, setScreen] = useState<Screen>('home');
   // Standalone shop cart (custom printed & digital goods) — kept apart from the
   // party draft: service id → quantity.
@@ -291,8 +296,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const slow = window.setTimeout(() => setSlowLoad(true), 15000);
-    api.catalogue().then(setCatalogue).catch((e) => setError(e.message)).finally(() => window.clearTimeout(slow));
+    const hadCache = catalogue !== null; // hydrated from localStorage above
+    const slow = window.setTimeout(() => { if (!hadCache) setSlowLoad(true); }, 15000);
+    api.catalogue()
+      .then((c) => { setCatalogue(c); try { localStorage.setItem('ev_catalogue', JSON.stringify(c)); } catch { /* quota/private mode */ } })
+      // Only block with the error screen when we have NOTHING cached to show; a
+      // failed background revalidation must not hide a working (stale) app.
+      .catch((e) => { if (!hadCache) setError(e.message); })
+      .finally(() => window.clearTimeout(slow));
     // Social proof is non-essential: its failure must never block the app —
     // it fails silently and the home screen renders without it.
     api.socialProof().then(setSocial).catch(() => setSocial(null));
@@ -444,7 +455,9 @@ export default function App() {
   }, []);
 
   // Keep the in-progress party saved so nothing is lost on refresh/close.
-  useEffect(() => { saveDraft(draft); }, [draft]);
+  // Debounce the draft write — on low-end phones, JSON.stringify + localStorage
+  // on every keystroke (name/address) is wasteful; 400ms after the last change.
+  useEffect(() => { const h = window.setTimeout(() => saveDraft(draft), 400); return () => window.clearTimeout(h); }, [draft]);
   // Same for the shop basket — it used to live in memory only and vanish on refresh.
   useEffect(() => { saveShopCart(shopCart); }, [shopCart]);
 

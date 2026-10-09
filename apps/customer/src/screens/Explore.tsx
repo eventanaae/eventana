@@ -1,5 +1,5 @@
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, Notice, wasPriceFils } from '../ui';
+import { C, fredoka, money, Notice, wasPriceFils, cld } from '../ui';
 import { pkgName, pkgCapacity, pkgTag, COMING_AR, thName } from '../pkgAr';
 
 /** Owner-chosen package order (cheapest tier first, then specials). */
@@ -93,7 +93,7 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
                   <div
                     style={{
                       height: 96, borderRadius: 18, boxShadow: C.shadow,
-                      background: t.coverImageUrl ? `#f2e7ee url(${t.coverImageUrl}) center/cover no-repeat` : t.gradient,
+                      background: t.coverImageUrl ? `#f2e7ee url(${cld(t.coverImageUrl, 200)}) center/cover no-repeat` : t.gradient,
                       border: `2.5px solid ${active ? C.pink : 'transparent'}`,
                     }}
                   />
@@ -124,7 +124,7 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
                 onClick={() => { update({ packageId: p.id, services: {} }); go('package'); }}
                 style={{ background: '#fff', borderRadius: 24, overflow: 'hidden', boxShadow: C.shadowLg, cursor: 'pointer' }}
               >
-                <div style={{ height: 150, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
+                <div style={{ height: 150, background: p.coverImageUrl ? `#f2e7ee url(${cld(p.coverImageUrl, 380)}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
                   <span style={{ position: 'absolute', top: 12, left: 12, background: p.id === 'summer' ? C.pink : '#fff', color: p.id === 'summer' ? '#fff' : C.pinkDeep, fontSize: 9.5, fontWeight: 700, padding: '4px 10px', borderRadius: 20, letterSpacing: '.5px' }}>
                     {p.id === 'summer' ? t('explore.limitedTime') : pkgTag(p.id, p.tag, lang === 'ar')}
                   </span>

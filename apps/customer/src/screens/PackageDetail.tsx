@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, Notice, PrimaryButton, Sheet, itemIcon, wasPriceFils } from '../ui';
+import { C, fredoka, money, Notice, PrimaryButton, Sheet, itemIcon, wasPriceFils, cld } from '../ui';
 import { pkgName, itemNameAr } from '../pkgAr';
 
 export function PackageDetail({ catalogue, draft, update, go, t, social, lang }: ScreenProps) {
@@ -31,11 +31,11 @@ export function PackageDetail({ catalogue, draft, update, go, t, social, lang }:
           // Swipeable photo carousel — the customer flips through real setups.
           <div className="scroll" style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}>
             {pkg.gallery.map((url, i) => (
-              <div key={i} style={{ flex: '0 0 100%', scrollSnapAlign: 'start', height: 250, background: `#f2e7ee url(${url}) center/cover no-repeat` }} />
+              <div key={i} style={{ flex: '0 0 100%', scrollSnapAlign: 'start', height: 250, background: `#f2e7ee url(${cld(url, 640)}) center/cover no-repeat` }} />
             ))}
           </div>
         ) : (
-          <div style={{ height: 210, background: pkg.coverImageUrl ? `#f2e7ee url(${pkg.coverImageUrl}) center/cover no-repeat` : pkg.gradient }} />
+          <div style={{ height: 210, background: pkg.coverImageUrl ? `#f2e7ee url(${cld(pkg.coverImageUrl, 640)}) center/cover no-repeat` : pkg.gradient }} />
         )}
         <button
           onClick={() => go('explore')}

@@ -89,6 +89,18 @@ export const fredoka = (size: number, weight = 600): CSSProperties => ({
 export const money = (fils: number) =>
   (fils / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
+/**
+ * Cloudinary on-the-fly transform so a 1–3 MB original isn't downloaded into a
+ * 120 px tile: injects `f_auto,q_auto,w_<px>,c_fill,dpr_auto` after `/upload/`.
+ * Non-Cloudinary or already-transformed URLs pass through unchanged.
+ */
+export function cld(url: string | null | undefined, w: number): string | undefined {
+  if (!url) return url ?? undefined;
+  if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
+  if (/\/upload\/[^/]*(?:f_auto|q_auto|w_\d)/.test(url)) return url; // already sized
+  return url.replace('/upload/', `/upload/f_auto,q_auto,w_${w},c_fill,dpr_auto/`);
+}
+
 /** "17:00" -> "5:00 PM" */
 export function timeLabel(t: string): string {
   const [h, m] = t.split(':').map(Number);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ScreenProps } from '../App';
-import { C, fredoka, money, SectionTitle, wasPriceFils } from '../ui';
+import { C, fredoka, money, SectionTitle, wasPriceFils, cld } from '../ui';
 import { pkgName, pkgCapacity, pkgTag, thName } from '../pkgAr';
 
 export function Home({ catalogue, draft, shopCart, update, go, customerName, t, lang }: ScreenProps) {
@@ -213,7 +213,7 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
             onClick={() => { update({ celebrationType: p.celebrationType ?? 'kids', packageId: p.id, services: {} }); go('package'); }}
             style={{ flex: 'none', width: 230, background: '#fff', borderRadius: 22, overflow: 'hidden', boxShadow: C.shadowLg, cursor: 'pointer' }}
           >
-            <div style={{ height: 120, background: p.coverImageUrl ? `#f2e7ee url(${p.coverImageUrl}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
+            <div style={{ height: 120, background: p.coverImageUrl ? `#f2e7ee url(${cld(p.coverImageUrl, 320)}) center/cover no-repeat` : p.gradient, position: 'relative' }}>
               <span style={{ position: 'absolute', top: 10, left: 10, background: '#fff', color: C.pinkDeep, fontSize: 9.5, fontWeight: 700, padding: '4px 9px', borderRadius: 20, letterSpacing: '.5px' }}>
                 {pkgTag(p.id, p.tag, lang === 'ar')}
               </span>
@@ -256,7 +256,7 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
             }}
             style={{ flex: 'none', width: 132, cursor: 'pointer' }}
           >
-            <div style={{ height: 96, borderRadius: 18, background: t.coverImageUrl ? `#f2e7ee url(${t.coverImageUrl}) center/cover no-repeat` : t.gradient, boxShadow: C.shadow }} />
+            <div style={{ height: 96, borderRadius: 18, background: t.coverImageUrl ? `#f2e7ee url(${cld(t.coverImageUrl, 200)}) center/cover no-repeat` : t.gradient, boxShadow: C.shadow }} />
             <div style={{ fontSize: 11.5, fontWeight: 700, padding: '8px 2px 0', textAlign: 'center' }}>{thName(t.id, t.name, lang === 'ar')}</div>
           </div>
         ))}
