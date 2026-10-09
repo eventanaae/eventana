@@ -1058,7 +1058,10 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
          JOIN customers c ON c.id = e.customer_id
          LEFT JOIN orders o ON o.id = e.order_id
          LEFT JOIN packages p ON p.id = e.package_id
-         LEFT JOIN cancellations cx ON cx.event_id = e.id
+         -- ONE cancellation row per event (an event can have 2+ — main + add-on
+         -- order — which would otherwise duplicate every pending row for it and
+         -- send the customer the same message twice).
+         LEFT JOIN LATERAL (SELECT * FROM cancellations cx2 WHERE cx2.event_id = e.id ORDER BY cx2.created_at DESC LIMIT 1) cx ON TRUE
         WHERE n.channel = 'email' AND n.whatsapp_sent_at IS NULL AND n.cancelled_at IS NULL
           AND n.template IN ('booking_confirmation','three_day_reminder','event_day',
                              'team_on_the_way','team_arrived','setup_ready','feedback_request',
@@ -1084,6 +1087,10 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
         LIMIT 100`,
     );
     for (const row of rows) {
+      // An orphaned cancellation_refund notification (its cancellation row is
+      // gone) would render "Paid AED 0 … Refund AED 0 (0%)" — skip it rather than
+      // send a misleading zero-value message.
+      if (row.template === 'cancellation_refund' && (row as any).total_paid_fils == null) continue;
       const tpl = whatsAppTemplateFor(row);
       // Meta needs the number in E.164 (9715XXXXXXXX). A UAE mobile stored as a
       // local 05X — common for older/QuickBooks-migrated customers — is promoted
@@ -1273,7 +1280,9 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
          JOIN customers c ON c.id = e.customer_id
          LEFT JOIN orders o ON o.id = e.order_id
          LEFT JOIN packages p ON p.id = e.package_id
-         LEFT JOIN cancellations cx ON cx.event_id = e.id
+         -- ONE cancellation row per event (see the WhatsApp sweep above) so an
+         -- event with 2+ cancellations doesn't duplicate + double-send the email.
+         LEFT JOIN LATERAL (SELECT * FROM cancellations cx2 WHERE cx2.event_id = e.id ORDER BY cx2.created_at DESC LIMIT 1) cx ON TRUE
         WHERE n.channel = 'email' AND n.sent_at IS NULL AND n.cancelled_at IS NULL
           AND n.template NOT IN ('addon_invoice', 'refund_processed')
           -- No dated customer email while the event date is unconfirmed (TBD):
@@ -1297,6 +1306,12 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
         LIMIT 100`,
     );
     for (const row of rows) {
+      // Orphaned cancellation_refund (cancellation row gone) → would render a
+      // zero-value refund email; mark done without sending the misleading message.
+      if (row.template === 'cancellation_refund' && (row as any).total_paid_fils == null) {
+        await pool.query(`UPDATE notifications SET sent_at = now() WHERE id = $1`, [row.id]);
+        continue;
+      }
       const msg = renderEmail(row);
       if (!msg || !row.customer_email) {
         // Unknown template or no recipient — mark done so the queue can't stall.
@@ -1376,7 +1391,12 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
       // block the email — fall back to the inline-only send below.
       let attachments: Array<{ filename: string; content: string; contentType?: string }> | undefined;
       try {
-        const resp = await fetch(row.image_url);
+        // Hard timeout: a hung image host must never stall the whole notification
+        // sweep (which holds the single-runner lock) and, through it, reconcile.
+        const ac = new AbortController();
+        const imgTimer = setTimeout(() => ac.abort(), 8000);
+        let resp: Awaited<ReturnType<typeof fetch>>;
+        try { resp = await fetch(row.image_url, { signal: ac.signal }); } finally { clearTimeout(imgTimer); }
         if (resp.ok) {
           const buf = Buffer.from(await resp.arrayBuffer());
           const ct = (resp.headers.get('content-type') || '').toLowerCase();
@@ -1603,16 +1623,21 @@ export async function sendInvoiceBalanceReminders(): Promise<{ sent: number }> {
     try {
       const balance = Number(inv.total_fils) - Number(inv.amount_paid_fils ?? 0);
       if (balance <= 0) continue;
+      let didSend = false;
       if (inv.email && emailEnabled()) {
         const msg = renderInvoiceReminder({
           number: inv.number, customerName: inv.customer_name, balanceFils: balance,
           issueDate: inv.issue_date, lineItems: inv.line_items, payUrl: inv.pay_url,
         });
         const res = await sendEmail({ to: inv.email, subject: msg.subject, html: msg.html });
-        if (res.ok) sent += 1;
+        if (res.ok) { sent += 1; didSend = true; }
       }
-      // Throttle to once per day regardless of the channel outcome.
-      await pool.query(`UPDATE finance_invoices SET last_reminded_at = now() WHERE id = $1`, [inv.id]);
+      // Stamp (throttle to once/day) only when we actually sent, or when there's
+      // no email to send to — so a TRANSIENT send failure retries next tick
+      // instead of silently burning the invoice's daily dunning slot.
+      if (didSend || !inv.email) {
+        await pool.query(`UPDATE finance_invoices SET last_reminded_at = now() WHERE id = $1`, [inv.id]);
+      }
     } catch (e) {
       console.error('[invoice-reminder] failed for', inv.id, (e as Error).message);
     }

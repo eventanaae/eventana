@@ -457,9 +457,11 @@ export async function sweepCustomerBirthdays(): Promise<number> {
   const { rows } = await pool.query<{ id: string; name: string; email: string }>(
     `SELECT id, name, email FROM customers
       WHERE birthday IS NOT NULL
-        AND to_char(birthday,'MM-DD') = to_char(current_date,'MM-DD')
+        -- Dubai calendar day (not UTC) so the greeting lands on the right day,
+        -- matching the staff-birthday path.
+        AND to_char(birthday,'MM-DD') = to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD')
         AND email IS NOT NULL AND email <> '' AND email_opt_out = FALSE
-        AND (birthday_greeted_year IS NULL OR birthday_greeted_year < extract(year from current_date)::int)
+        AND (birthday_greeted_year IS NULL OR birthday_greeted_year < extract(year from (now() AT TIME ZONE 'Asia/Dubai')::date)::int)
       LIMIT 200`,
   );
   let sent = 0;
@@ -473,7 +475,7 @@ export async function sweepCustomerBirthdays(): Promise<number> {
     const unsub = `${config.email.publicBaseUrl}/api/unsubscribe?c=${encodeURIComponent(c.id)}&t=${unsubToken(c.id)}`;
     const res = await sendEmail({ to: c.email, subject: `كل عام وانتِ بخير ${first} 🎂`, html: renderCampaignHtml(body, unsub) });
     if (res.ok) {
-      await pool.query(`UPDATE customers SET birthday_greeted_year = extract(year from current_date)::int WHERE id = $1`, [c.id]);
+      await pool.query(`UPDATE customers SET birthday_greeted_year = extract(year from (now() AT TIME ZONE 'Asia/Dubai')::date)::int WHERE id = $1`, [c.id]);
       sent++;
     }
     await new Promise((r) => setTimeout(r, 120)); // gentle pacing

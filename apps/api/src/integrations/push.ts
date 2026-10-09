@@ -138,9 +138,12 @@ export async function pushToOwner(
   title: string,
   body: string,
   data?: Record<string, string>,
+  opts?: { skipWhatsApp?: boolean },
 ): Promise<void> {
-  // Mirror staff-directed notifications to that member's WhatsApp too.
-  if (ownerType === 'staff') void staffWhatsApp(title, body, ownerId);
+  // Mirror staff-directed notifications to that member's WhatsApp too — unless the
+  // caller already sent a dedicated WhatsApp (e.g. the warm birthday template) and
+  // doesn't want a second, generic one.
+  if (ownerType === 'staff' && !opts?.skipWhatsApp) void staffWhatsApp(title, body, ownerId);
   // Browser/PWA push to that member's (or customer's) subscriptions.
   void sendWebPush(ownerType, ownerId, { title, body, url: data?.url, tag: data?.kind });
   if (!pushEnabled()) return;

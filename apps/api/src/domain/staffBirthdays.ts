@@ -102,7 +102,9 @@ export async function sendStaffBirthdayEmails(): Promise<{ sent: number }> {
         [JSON.stringify({ memberId: m.id, year: String(year) })],
       ).catch(() => {});
       // Also a warm in-app push to their own device (best-effort).
-      await pushToOwner('staff', m.id, `Happy Birthday, ${first}! 🎂`, 'Wishing you a wonderful day from the Eventana family 💕').catch(() => {});
+      // skipWhatsApp: the warm birthday WhatsApp already went out above (line ~94);
+      // this is a push-only greeting so the member doesn't get a 2nd generic one.
+      await pushToOwner('staff', m.id, `Happy Birthday, ${first}! 🎂`, 'Wishing you a wonderful day from the Eventana family 💕', undefined, { skipWhatsApp: true }).catch(() => {});
     }
   }
   if (sent) console.log(`[birthday] sent ${sent} staff birthday greeting(s)`);
