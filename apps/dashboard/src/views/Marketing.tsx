@@ -8,6 +8,14 @@ const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> 
   sent: 'ok', approved: 'ok', scheduled: 'info', sending: 'info',
   pending_approval: 'warn', rejected: 'error', failed: 'error', draft: 'neutral',
 };
+
+/** A stored UTC timestamp → a `datetime-local` value in LOCAL (Dubai) time, so
+ *  the owner reads/edits the real local send time (not the raw UTC string). */
+const isoToLocalInput = (iso: string | null | undefined): string => {
+  if (!iso) return '';
+  const d = new Date(iso); const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 // A company's stage in the outreach journey (see the Companies list).
 const CORP_STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> = {
   new: 'neutral', contacted: 'info', interested: 'warn', booked: 'ok', not_interested: 'neutral',
@@ -582,7 +590,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                         <div>
                           <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, marginBottom: 6 }}>Send date &amp; time</div>
                           <input type="datetime-local"
-                            value={pickDate || (chosenCamp.scheduled_for ? String(chosenCamp.scheduled_for).slice(0, 16) : '')}
+                            value={pickDate || isoToLocalInput(chosenCamp.scheduled_for)}
                             onChange={(e) => setPickDate(e.target.value)} style={input as any} />
                           <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 4 }}>Leave as-is to keep the suggested date, or pick when it should go out.</div>
                         </div>

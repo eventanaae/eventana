@@ -105,6 +105,14 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
 
   const generate = async () => {
     if (!hasSelection) { setError('Pick a package, an add-on, or add a product.'); return; }
+    // Block a priceless selected item from becoming an AED 0 order line — the
+    // manager must type a price for any "set price" item first.
+    const zero = Object.entries(services).filter(([, q]) => (q as number) > 0).find(([id]) => {
+      const s = allServices.find((x: any) => x.id === id);
+      const ov = Math.round((Number(String(priceOverride[id] ?? '').replace(/,/g, '')) || 0) * 100);
+      return s && (s.priceFils || 0) === 0 && ov <= 0;
+    });
+    if (zero) { const s = allServices.find((x: any) => x.id === zero[0]); setError(`Set a price for "${s?.name ?? 'the selected item'}" before generating.`); return; }
     setBusy(true); setError(null); setResult(null);
     try {
       const del = delivery.trim() === '' ? null : toFils(delivery);
