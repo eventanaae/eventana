@@ -25,7 +25,14 @@ const THROTTLE_MS = 6 * 60 * 60 * 1000;
 // Feed history to consider. Yodlee/partner feeds rarely bring more than ~90
 // days anyway; the watermark keeps steady-state runs cheap.
 const FIRST_RUN_LOOKBACK_DAYS = 100;
-const OVERLAP_DAYS = 3; // re-scan a few days each run so nothing slips the cutoff
+// Re-scan this many days before the watermark on every run. It must be wide
+// enough to absorb a bank-feed OUTAGE: when a Yodlee/partner feed disconnects
+// (it needs periodic re-auth in Zoho) and is later reconnected, Zoho backfills
+// the missed transactions with their ORIGINAL dates. A narrow window would see
+// those as older than the watermark and skip them forever — the expense would
+// silently never reach the Bank Inbox. 30 days covers a month-long outage;
+// re-scanning is free because ingestExternalTxn dedupes by transaction_id.
+const OVERLAP_DAYS = 30;
 
 /** Dubai "today" as YYYY-MM-DD. */
 function dubaiToday(): string {
