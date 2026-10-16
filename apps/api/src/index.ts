@@ -610,6 +610,10 @@ async function main() {
     // (SET_SHAN_LEADER='zohosync' → then blank it). Idempotent (dedupes by txn id).
     const { forceZohoSyncFromEnv } = await import('./db/forceZohoSync.js');
     await forceZohoSyncFromEnv().catch((err) => console.error('[zoho-force] failed:', err));
+    // READ-ONLY one-shot: dump every email campaign's real status/send info
+    // (SET_SHAN_LEADER='campaudit' → then blank it).
+    const { campaignAuditFromEnv } = await import('./db/campaignAudit.js');
+    await campaignAuditFromEnv().catch((err) => console.error('[camp-audit] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
