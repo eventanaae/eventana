@@ -101,6 +101,9 @@ export function Marketing() {
   const [flowInit, setFlowInit] = useState<{ path: 'menu' | 'new' | 'existing'; aud: 'customer' | 'company'; step: number } | null>(null);
   const [companies, setCompanies] = useState(false);
   const [perf, setPerf] = useState(false);
+  // Long lists collapsed by default to keep the page clean (owner: "too busy").
+  const [occasionsOpen, setOccasionsOpen] = useState(false);
+  const [recentOpen, setRecentOpen] = useState(false);
   const openFlow = (path: 'menu' | 'new' | 'existing', aud: 'customer' | 'company' = 'customer', step = 1) => { setMsg(null); setFlowInit({ path, aud, step }); };
   const [preview, setPreview] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
@@ -166,9 +169,10 @@ export function Marketing() {
         </div>
       </div>
 
-      {/* Upcoming occasions — see at a glance which are greetings vs offers. */}
+      {/* Upcoming occasions — collapsed by default to keep the page clean. */}
       <div>
-        <SectionHeader action={<button onClick={() => openFlow('existing')} style={linkBtn}>View all ›</button>}>Upcoming occasions</SectionHeader>
+        <SectionHeader action={<button onClick={() => setOccasionsOpen((o) => !o)} style={linkBtn}>{occasionsOpen ? 'Hide ▾' : `Show${upcoming.length ? ` (${upcoming.length})` : ''} ▸`}</button>}>Upcoming occasions</SectionHeader>
+        {occasionsOpen && (
         <Panel style={{ padding: 6 }}>
           {!cal ? <Spinner /> : upcoming.length === 0 ? <div style={{ padding: 12 }}><Empty>No upcoming occasions to show.</Empty></div> : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -193,11 +197,13 @@ export function Marketing() {
             </div>
           )}
         </Panel>
+        )}
       </div>
 
-      {/* Recent campaigns */}
+      {/* Recent campaigns — collapsed by default to keep the page clean. */}
       <div>
-        <SectionHeader action={<button onClick={() => setPerf(true)} style={linkBtn}>Performance ›</button>}>Recent campaigns</SectionHeader>
+        <SectionHeader action={<button onClick={() => setRecentOpen((o) => !o)} style={linkBtn}>{recentOpen ? 'Hide ▾' : `Show${recentCampaigns.length ? ` (${recentCampaigns.length})` : ''} ▸`}</button>}>Recent campaigns</SectionHeader>
+        {recentOpen && (
         <Panel style={{ padding: 6 }}>
           {recentCampaigns.length === 0 ? <div style={{ padding: 12 }}><Empty>No campaigns yet — create one above.</Empty></div> : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -217,6 +223,7 @@ export function Marketing() {
             </div>
           )}
         </Panel>
+        )}
       </div>
 
       {flowInit && (
