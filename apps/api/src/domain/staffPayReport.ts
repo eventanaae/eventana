@@ -49,6 +49,7 @@ export type StaffPayReport = {
   drivers: Array<{ id: string; eventId: string | null; name: string; date: string; emirate: string; type: string; truck: string | null; priceFils: number | null; priceDisplay: string; priceManual: boolean }>;
   deliveryTotalDisplay: string;
   driverPayouts: Array<{ name: string; phone: string | null; type: string; count: number; entries: Array<{ date: string; emirate: string; truck: string | null; priceDisplay: string }>; suggestedFils: number; suggestedDisplay: string; paid: boolean; paidDisplay: string | null }>;
+  driverPayoutTotalDisplay: string;
 };
 
 export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayReport> {
@@ -182,7 +183,8 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
       paid: paid != null, paidDisplay: paid != null ? formatAed(paid) : null };
   });
 
-  return { month: monthStr, monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers, deliveryTotalDisplay: formatAed(deliveryTotal), driverPayouts };
+  const driverPayoutTotal = driverPayouts.reduce((s, d) => s + (d.suggestedFils ?? 0), 0);
+  return { month: monthStr, monthLabel, partTimers, partTimerTotalDisplay: formatAed(grand), drivers, deliveryTotalDisplay: formatAed(deliveryTotal), driverPayouts, driverPayoutTotalDisplay: formatAed(driverPayoutTotal) };
 }
 
 export type OutstandingStaffPay = Array<{

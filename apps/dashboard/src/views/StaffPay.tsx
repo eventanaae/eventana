@@ -57,6 +57,7 @@ export function StaffPay() {
   const [data, setData] = useState<any>(null);
   const [upcoming, setUpcoming] = useState<any>(null);
   const [upcomingOpen, setUpcomingOpen] = useState(false); // collapsed by default
+  const [deliveriesOpen, setDeliveriesOpen] = useState(false); // collapsed by default
   const [outstanding, setOutstanding] = useState<any[] | null>(null);
   const reload = (m: string = month) => api.staffPayReport(`${m}-01`).then(setData).catch(() => setData({ partTimers: [], drivers: [] }));
   // Unpaid dues carried over from previous months (relative to the real current
@@ -203,7 +204,7 @@ export function StaffPay() {
       </Panel>
 
       {data.driverPayouts && data.driverPayouts.length > 0 && (
-        <Panel title="💵 Driver payouts">
+        <Panel title="💵 Driver payouts" action={<Badge tone="info">total {data.driverPayoutTotalDisplay ?? '—'}</Badge>}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {data.driverPayouts.map((d: any) => (
               <div key={d.name} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 13px' }}>
@@ -229,14 +230,31 @@ export function StaffPay() {
         </Panel>
       )}
 
-      <Panel title="🚐 Deliveries" action={<Badge tone="info">total {data.deliveryTotalDisplay ?? '—'}</Badge>}>
-        <DeliveryForm onAdded={reload} />
-        {(!data.drivers || data.drivers.length === 0) ? (
-          <Empty>No deliveries this month.</Empty>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-            {data.drivers.map((d: any) => <DeliveryRow key={d.id} d={d} onChange={reload} />)}
-          </div>
+      <Panel
+        title="🚐 Deliveries"
+        action={
+          <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+            <Badge tone="info">total {data.deliveryTotalDisplay ?? '—'}</Badge>
+            <button
+              onClick={() => setDeliveriesOpen((o) => !o)}
+              style={{ border: `1px solid ${C.line}`, background: '#fff', color: C.pinkDeep, borderRadius: 9, padding: '4px 11px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}
+            >
+              {deliveriesOpen ? 'Hide ▾' : `Show${data.drivers ? ` (${data.drivers.length})` : ''} ▸`}
+            </button>
+          </span>
+        }
+      >
+        {deliveriesOpen && (
+          <>
+            <DeliveryForm onAdded={reload} />
+            {(!data.drivers || data.drivers.length === 0) ? (
+              <Empty>No deliveries this month.</Empty>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                {data.drivers.map((d: any) => <DeliveryRow key={d.id} d={d} onChange={reload} />)}
+              </div>
+            )}
+          </>
         )}
       </Panel>
 
