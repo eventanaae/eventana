@@ -48,7 +48,7 @@ export type StaffPayReport = {
   partTimerTotalDisplay: string;
   drivers: Array<{ id: string; eventId: string | null; name: string; date: string; emirate: string; type: string; truck: string | null; priceFils: number | null; priceDisplay: string; priceManual: boolean }>;
   deliveryTotalDisplay: string;
-  driverPayouts: Array<{ name: string; phone: string | null; type: string; count: number; suggestedFils: number; suggestedDisplay: string; paid: boolean; paidDisplay: string | null }>;
+  driverPayouts: Array<{ name: string; phone: string | null; type: string; count: number; entries: Array<{ date: string; emirate: string; truck: string | null; priceDisplay: string }>; suggestedFils: number; suggestedDisplay: string; paid: boolean; paidDisplay: string | null }>;
 };
 
 export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayReport> {
@@ -159,11 +159,14 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
 
   // Group deliveries by driver for the monthly payout (owner enters the amount
   // she pays; the sum of delivery prices is a suggestion).
-  const payoutMap = new Map<string, { name: string; count: number; priceSumFils: number; days: Set<string> }>();
+  const payoutMap = new Map<string, { name: string; count: number; priceSumFils: number; days: Set<string>; entries: Array<{ date: string; emirate: string; truck: string | null; priceDisplay: string }> }>();
   for (const d of drivers) {
     const key = d.name.toLowerCase();
-    const g = payoutMap.get(key) ?? { name: d.name, count: 0, priceSumFils: 0, days: new Set<string>() };
+    const g = payoutMap.get(key) ?? { name: d.name, count: 0, priceSumFils: 0, days: new Set<string>(), entries: [] };
     g.count += 1; g.priceSumFils += d.priceFils ?? 0; g.days.add(d.date);
+    // Per-trip line (date + emirate), so the payout card itemises like the
+    // part-timer cards do. `drivers` is already sorted by date.
+    g.entries.push({ date: d.date, emirate: d.emirate, truck: d.truck, priceDisplay: d.priceDisplay });
     payoutMap.set(key, g);
   }
   const driverPayouts = [...payoutMap.values()].map((g) => {
@@ -175,7 +178,7 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
     const paid = paidOf('driver', g.name);
     return { name: g.name, phone: drPhone.get(g.name.toLowerCase()) ?? null,
       type: isVan ? `Van · AED 250/day × ${g.days.size}` : 'Own car · delivery price',
-      count: g.count, suggestedFils, suggestedDisplay: formatAed(suggestedFils),
+      count: g.count, entries: g.entries, suggestedFils, suggestedDisplay: formatAed(suggestedFils),
       paid: paid != null, paidDisplay: paid != null ? formatAed(paid) : null };
   });
 

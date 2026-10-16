@@ -56,6 +56,7 @@ export function StaffPay() {
   const [month, setMonth] = useState<string>(curMonth);
   const [data, setData] = useState<any>(null);
   const [upcoming, setUpcoming] = useState<any>(null);
+  const [upcomingOpen, setUpcomingOpen] = useState(false); // collapsed by default
   const [outstanding, setOutstanding] = useState<any[] | null>(null);
   const reload = (m: string = month) => api.staffPayReport(`${m}-01`).then(setData).catch(() => setData({ partTimers: [], drivers: [] }));
   // Unpaid dues carried over from previous months (relative to the real current
@@ -115,8 +116,20 @@ export function StaffPay() {
         </Panel>
       )}
 
-      <Panel title="⏭️ Upcoming">
-        {!upcoming ? <Spinner /> : ((upcoming.partTimers?.length ?? 0) === 0 && (upcoming.drivers?.length ?? 0) === 0) ? (
+      <Panel
+        title="⏭️ Upcoming"
+        action={
+          <button
+            onClick={() => setUpcomingOpen((o) => !o)}
+            style={{ border: `1px solid ${C.line}`, background: '#fff', color: C.pinkDeep, borderRadius: 9, padding: '4px 11px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}
+          >
+            {upcomingOpen
+              ? 'Hide ▾'
+              : `Show${upcoming ? ` (${(upcoming.partTimers?.length ?? 0) + (upcoming.drivers?.length ?? 0)})` : ''} ▸`}
+          </button>
+        }
+      >
+        {!upcomingOpen ? null : !upcoming ? <Spinner /> : ((upcoming.partTimers?.length ?? 0) === 0 && (upcoming.drivers?.length ?? 0) === 0) ? (
           <Empty>No part-timers or deliveries scheduled ahead yet.</Empty>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -191,15 +204,24 @@ export function StaffPay() {
 
       {data.driverPayouts && data.driverPayouts.length > 0 && (
         <Panel title="💵 Driver payouts">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {data.driverPayouts.map((d: any) => (
-              <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{d.name}{d.phone ? '' : ' ⚠️'}</div>
-                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 2 }}>{d.count} trip{d.count > 1 ? 's' : ''} · {d.type}</div>
+              <div key={d.name} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 13px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: C.ink, flex: 1 }}>{d.name}{d.phone ? '' : ' ⚠️'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{d.suggestedDisplay}</span>
+                  <PayButton kind="driver" name={d.name} suggestedFils={d.suggestedFils} month={data.month} paid={d.paid} paidDisplay={d.paidDisplay} onPaid={reload} />
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{d.suggestedDisplay}</span>
-                <PayButton kind="driver" name={d.name} suggestedFils={d.suggestedFils} month={data.month} paid={d.paid} paidDisplay={d.paidDisplay} onPaid={reload} />
+                <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 4 }}>{d.count} trip{d.count > 1 ? 's' : ''} · {d.type}</div>
+                {(d.entries?.length ?? 0) > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
+                    {d.entries.map((e: any, i: number) => (
+                      <div key={i} style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
+                        {fmtDate(e.date)} · {e.truck ? `${e.truck === 'small' ? '🚐 Small' : '🚛 Big'} truck · ` : ''}📍 {e.emirate} · <span style={{ color: C.ink, fontWeight: 700 }}>{e.priceDisplay}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
