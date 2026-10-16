@@ -262,7 +262,8 @@ export async function resetCorporateLeads(): Promise<number> {
  * enrichment runs every day. Gated by CORP_COLLECT + a Google key.
  */
 export async function sweepCorporateCollect(): Promise<number> {
-  if (String(process.env.CORP_COLLECT ?? 'on').toLowerCase() === 'off') return 0;
+  // B2B retired 2026-10-16 — default OFF (see sweepCorporateFirstTouch).
+  if (String(process.env.CORP_COLLECT ?? 'off').toLowerCase() !== 'on') return 0;
   if (!config.googleMapsApiKey) return 0;
   // Once-per-day guard.
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_collect_at'`).catch(() => ({ rows: [] as { v: string }[] }));
@@ -469,9 +470,10 @@ async function corpDailyCap(): Promise<number> {
 }
 
 export async function sweepCorporateFirstTouch(): Promise<number> {
-  // Owner switched auto-send ON 2026-09-20. Default is now 'on'; set
-  // CORP_AUTOSEND=off in the environment to pause it.
-  if (String(process.env.CORP_AUTOSEND ?? 'on').toLowerCase() === 'off') return 0;
+  // B2B/corporate outreach RETIRED 2026-10-16 (owner: "zero B2B", the auto-sent
+  // company campaigns were never approved). Default is now OFF and the feature
+  // is being removed; it only runs if someone explicitly sets CORP_AUTOSEND=on.
+  if (String(process.env.CORP_AUTOSEND ?? 'off').toLowerCase() !== 'on') return 0;
   if (!inCorpSendWindow()) return 0; // only Mon–Fri, 10:00–14:00 Dubai
   const perDay = await corpDailyCap();
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_firsttouch_at'`).catch(() => ({ rows: [] as { v: string }[] }));
@@ -562,7 +564,8 @@ export function firstTouchPreview(category: CorpCategory, sampleName: string): {
  * CORP_COLLECT (same switch as the collector).
  */
 export async function sweepCorporateFollowups(): Promise<number> {
-  if (String(process.env.CORP_COLLECT ?? 'on').toLowerCase() === 'off') return 0;
+  // B2B retired 2026-10-16 — default OFF (see sweepCorporateFirstTouch).
+  if (String(process.env.CORP_COLLECT ?? 'off').toLowerCase() !== 'on') return 0;
   if (!inCorpSendWindow()) return 0; // company emails only Mon–Fri, 10:00–14:00 Dubai
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_followup_at'`).catch(() => ({ rows: [] as { v: string }[] }));
   const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;
