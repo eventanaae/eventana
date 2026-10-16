@@ -31,7 +31,25 @@ export async function migrate({ drop = false } = {}): Promise<void> {
     await pool.query(DROP);
   }
   const sql = await readFile(join(here, 'schema.sql'), 'utf8');
-  await pool.query(sql);
+  // The schema is all CREATE/ALTER ... IF NOT EXISTS, so re-running is safe.
+  // During a zero-downtime deploy the NEW instance applies DDL (which takes
+  // AccessExclusiveLock) while the OLD instance is still serving reads
+  // (AccessShareLock) — those can deadlock (Postgres 40P01). Uncaught, that
+  // crashes boot and FAILS the whole deploy (seen 2026-10-16). The DDL is the
+  // victim, so retry a few times with backoff and the collision self-heals.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await pool.query(sql);
+      return;
+    } catch (err: any) {
+      if (err?.code === '40P01' && attempt < 5) {
+        console.warn(`[migrate] deadlock (40P01) on attempt ${attempt} — retrying in ${attempt}s…`);
+        await new Promise((r) => setTimeout(r, attempt * 1000));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 if (isMain(import.meta.url)) {
