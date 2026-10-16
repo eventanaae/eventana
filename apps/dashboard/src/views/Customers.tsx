@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { C, fredoka, Panel, Button, Spinner, Badge } from '../ui';
 
@@ -18,9 +18,15 @@ export function Customers() {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<number | null>(null);
 
+  // Sequence guard so a slower earlier search ("sam") can't land after a later
+  // one ("samir") and show stale results.
+  const loadToken = useRef(0);
   const load = (search?: string, initial = false) => {
     if (initial) setRows(null); // only the very first load shows the full spinner
-    api.customers(search).then(setRows).catch(() => setRows([]));
+    const token = ++loadToken.current;
+    api.customers(search)
+      .then((r) => { if (token === loadToken.current) setRows(r); })
+      .catch(() => { if (token === loadToken.current) setRows([]); });
   };
   useEffect(() => { load(undefined, true); }, []);
   // Debounced search — keeps the current list on screen (no full-page flicker).

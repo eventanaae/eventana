@@ -194,6 +194,7 @@ function NewServiceEditor({ categories, celebrationTypes, onClose, onSaved }: { 
             {categories.length === 0 && <option value="">—</option>}
             {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {categories.length === 0 && <span style={{ fontSize: 11, fontWeight: 700, color: C.red }}>Categories didn’t load — refresh the page, then add the service.</span>}
         </label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={lbl}>Shows for which celebrations</span>
