@@ -149,16 +149,6 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
     throw new Error('not_approved');
   }
 
-  // B2B/corporate outreach retired 2026-10-16: never send a legacy corp campaign
-  // (e.g. one scheduled before the retirement). Mark it terminally 'failed' — the
-  // scheduled sweep only re-picks 'approved'/'scheduled', so it can't fire again —
-  // and return without emailing anyone.
-  if (String(camp.audience || '').startsWith('corp:') || camp.audience === 'corporate') {
-    await pool.query(`UPDATE email_campaigns SET status = 'failed' WHERE id = $1`, [campaignId]).catch(() => {});
-    console.log(`[marketing] skipped retired B2B campaign ${campaignId} (audience ${camp.audience})`);
-    return { recipients: 0, sent: 0 };
-  }
-
   // A "custom:" audience is a manual list of email addresses the owner typed;
   // corporate (B2B) draws from corporate_leads; consumer draws from customers.
   const isCustom = String(camp.audience || '').startsWith('custom:');

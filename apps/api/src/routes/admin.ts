@@ -6400,18 +6400,17 @@ export async function adminRoutes(app: FastifyInstance) {
     const [counts, campaigns, statusCountRows] = await Promise.all([
       audienceCounts(),
       pool.query(
-        // B2B/corporate retired 2026-10-16 — hide any legacy corp campaigns from
-        // the consumer marketing list.
         `SELECT id, subject, body_html, audience, status, scheduled_for, sent_at,
                 recipient_count, sent_count, delivered_count, opened_count, clicked_count, bounced_count,
                 created_at, created_by, approved_by, approved_at, rejection_reason, source, dedupe_key
-           FROM email_campaigns WHERE audience NOT LIKE 'corp:%' ORDER BY created_at DESC LIMIT 50`,
+           FROM email_campaigns ORDER BY created_at DESC LIMIT 50`,
       ),
-      // Accurate counts across ALL (non-corp) campaigns — the list above is capped
-      // at 50, so the dashboard must not derive "Sent" etc. by filtering it (older
-      // sent campaigns fall off the list and get undercounted). #27.
-      pool.query(`SELECT status, COUNT(*)::int c FROM email_campaigns WHERE audience NOT LIKE 'corp:%' GROUP BY status`),
+      // Accurate counts across ALL campaigns — the list above is capped at 50, so
+      // the dashboard must not derive "Sent" etc. by filtering it (older sent
+      // campaigns fall off the list and get undercounted). #27.
+      pool.query(`SELECT status, COUNT(*)::int c FROM email_campaigns GROUP BY status`),
     ]);
+    const corp = await corporateCounts().catch(() => ({ byCategory: {}, total: 0, emailable: 0, optedOut: 0 }));
     const statusCounts: Record<string, number> = {};
     for (const r of statusCountRows.rows as Array<{ status: string; c: number }>) statusCounts[r.status] = Number(r.c);
     return {
@@ -6420,6 +6419,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // offer/discount vs a general promo (read-only, derived — no schema change).
       campaigns: campaigns.rows.map((r) => ({ ...r, kind: classifyCampaignKind(r as any) })),
       statusCounts,
+      corporate: corp, corporateLabels: CORP_CATEGORY_LABELS,
     };
   });
 
@@ -6427,9 +6427,10 @@ export async function adminRoutes(app: FastifyInstance) {
     const schema = z.object({
       subject: z.string().min(1).max(200),
       bodyHtml: z.string().min(1).max(50_000),
-      // Consumer segments only (B2B/corp audiences retired 2026-10-16).
+      // Consumer segments, a corporate segment ('corp:all' / 'corp:<category>'),
+      // or a manual custom list.
       audience: z.string().max(4000).refine(
-        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^custom:.+@.+/.test(a),
+        (a) => ['all', 'past_customers', 'no_recent_booking', 'anniversary'].includes(a) || /^corp:[a-z_]+$/.test(a) || /^custom:.+@.+/.test(a),
         'invalid audience',
       ).default('all'),
       scheduledFor: z.string().datetime().optional(),

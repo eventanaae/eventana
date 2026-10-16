@@ -262,8 +262,9 @@ export async function resetCorporateLeads(): Promise<number> {
  * enrichment runs every day. Gated by CORP_COLLECT + a Google key.
  */
 export async function sweepCorporateCollect(): Promise<number> {
-  // B2B retired 2026-10-16 — default OFF (see sweepCorporateFirstTouch).
-  if (String(process.env.CORP_COLLECT ?? 'off').toLowerCase() !== 'on') return 0;
+  // Collection only GROWS the company directory from Google — it never emails
+  // anyone — so it's on by default. Sending stays owner-approved (auto-send off).
+  if (String(process.env.CORP_COLLECT ?? 'on').toLowerCase() === 'off') return 0;
   if (!config.googleMapsApiKey) return 0;
   // Once-per-day guard.
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_collect_at'`).catch(() => ({ rows: [] as { v: string }[] }));
@@ -564,8 +565,10 @@ export function firstTouchPreview(category: CorpCategory, sampleName: string): {
  * CORP_COLLECT (same switch as the collector).
  */
 export async function sweepCorporateFollowups(): Promise<number> {
-  // B2B retired 2026-10-16 — default OFF (see sweepCorporateFirstTouch).
-  if (String(process.env.CORP_COLLECT ?? 'off').toLowerCase() !== 'on') return 0;
+  // Auto follow-up reminders are an auto-SEND, so gated with first-touch
+  // (CORP_AUTOSEND, default OFF). Nothing emails companies without the owner
+  // approving a campaign — only the list itself grows (sweepCorporateCollect).
+  if (String(process.env.CORP_AUTOSEND ?? 'off').toLowerCase() !== 'on') return 0;
   if (!inCorpSendWindow()) return 0; // company emails only Mon–Fri, 10:00–14:00 Dubai
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_followup_at'`).catch(() => ({ rows: [] as { v: string }[] }));
   const lastAt = last.rows[0]?.v ? new Date(last.rows[0].v).getTime() : 0;

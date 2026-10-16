@@ -106,6 +106,7 @@ export function Marketing() {
   const [recentOpen, setRecentOpen] = useState(false);
   const openFlow = (path: 'menu' | 'new' | 'existing', aud: 'customer' | 'company' = 'customer', step = 1) => { setMsg(null); setFlowInit({ path, aud, step }); };
   const [preview, setPreview] = useState<string | null>(null);
+  const [previewCamp, setPreviewCamp] = useState<any | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
 
   const load = () => {
@@ -116,6 +117,7 @@ export function Marketing() {
 
   const openPreview = async (id: number) => {
     setMsg(null);
+    setPreviewCamp((data.campaigns ?? []).find((x: any) => String(x.id) === String(id)) ?? null);
     try { setPreview(await api.campaignPreviewHtml(id)); }
     catch { setMsg('Could not load the preview.'); }
   };
@@ -157,6 +159,7 @@ export function Marketing() {
       {/* At-a-glance numbers — each opens the matching tool. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
         <StatCard label="Customer emails" value={data.audiences.all} icon="👨‍👩‍👧" accent={ACCENTS[0]} i={0} onClick={() => openFlow('new', 'customer', 2)} />
+        <StatCard label="Company emails" value={data.corporate?.emailable ?? 0} icon="🏢" accent={ACCENTS[1]} i={1} onClick={() => openFlow('new', 'company', 2)} />
         <StatCard label="Awaiting review" value={pendingCount} icon="📝" accent={ACCENTS[3]} i={2} hint={pendingCount ? 'needs approval' : undefined} onClick={() => openFlow('existing')} />
         <StatCard label="Sent" value={sentCount} icon="✅" accent={ACCENTS[2]} i={3} onClick={() => setPerf(true)} />
       </div>
@@ -293,8 +296,28 @@ export function Marketing() {
       })()}
 
       {preview !== null && (
-        <Modal title="Email preview" onClose={() => setPreview(null)}>
-          <iframe title="preview" srcDoc={preview} style={{ width: '100%', height: '65vh', border: `1px solid ${C.line}`, borderRadius: 12, background: '#fff' }} />
+        <Modal title="Email preview" onClose={() => { setPreview(null); setPreviewCamp(null); }}>
+          <iframe title="preview" srcDoc={preview} style={{ width: '100%', height: '55vh', border: `1px solid ${C.line}`, borderRadius: 12, background: '#fff' }} />
+          {previewCamp && (previewCamp.status === 'pending_approval' || previewCamp.status === 'draft' || previewCamp.status === 'approved') && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+              <Action emoji="📤" label="Send now" tone="green" disabled={busy || !data.emailConfigured}
+                onClick={() => act(() => api.approveCampaign(Number(previewCamp.id), new Date().toISOString()), 'Sent ✓ — it’s on its way to your customers.').then(() => { setPreview(null); setPreviewCamp(null); })} />
+              {previewCamp.scheduled_for && new Date(previewCamp.scheduled_for).getTime() > Date.now() && (
+                <Action emoji="⏰" label={`Schedule for ${fmtDay(previewCamp.scheduled_for)}`} disabled={busy}
+                  onClick={() => act(() => api.approveCampaign(Number(previewCamp.id)), `Scheduled ✓ — it will send on ${fmtDay(previewCamp.scheduled_for)}.`).then(() => { setPreview(null); setPreviewCamp(null); })} />
+              )}
+              <Action emoji="✏️" label="Edit first" onClick={() => { setEditing(previewCamp); setPreview(null); setPreviewCamp(null); }} />
+            </div>
+          )}
+          {previewCamp && previewCamp.status === 'sent' && (
+            <div style={{ marginTop: 12, fontSize: 13, fontWeight: 800, color: C.green }}>✓ Sent · {previewCamp.sent_count ?? 0} emails{(previewCamp.opened_count ?? 0) > 0 ? ` · ${previewCamp.opened_count} opened` : ''}</div>
+          )}
+          {previewCamp && (previewCamp.status === 'failed' || previewCamp.status === 'sending') && (
+            <div style={{ marginTop: 12 }}>
+              <Action emoji="🔄" label="Retry sending" tone="green" disabled={busy}
+                onClick={() => act(() => api.retryCampaign(Number(previewCamp.id)), 'Sending again ✓').then(() => { setPreview(null); setPreviewCamp(null); })} />
+            </div>
+          )}
         </Modal>
       )}
 
@@ -416,6 +439,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
           {key === 'audience' && (
             <Q title="Who is this campaign for?">
               <Choice emoji="👨‍👩‍👧" label="Our customers" sub={`${data.audiences.all} emails`} active={aud === 'customer'} onClick={() => { setAud('customer'); setStep(2); }} />
+              <Choice emoji="🏢" label="Companies" sub={`${data.corporate?.emailable ?? 0} emails`} active={aud === 'company'} onClick={() => { setAud('company'); setStep(2); }} />
               <Choice emoji="✉️" label="Specific email(s)" sub="Type your own recipients" active={aud === 'custom'} onClick={() => { setAud('custom'); setStep(2); }} />
             </Q>
           )}
@@ -482,6 +506,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
           {step === 1 && (
             <Q title="Which audience?">
               <Choice emoji="👨‍👩‍👧" label="Customers" sub="Our customer list" active={aud === 'customer'} onClick={() => { setAud('customer'); setStep(2); }} />
+              <Choice emoji="🏢" label="Companies" sub="Send to businesses" active={aud === 'company'} onClick={() => { setAud('company'); setStep(2); }} />
             </Q>
           )}
           {step === 2 && (
@@ -564,15 +589,17 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                         )}
                         <Action emoji="✏️" label="Edit the text" onClick={() => onEdit(String(chosenCamp.id))} />
                         <Action emoji="🔄" label="Regenerate (I don’t like it)" onClick={() => onAct(() => api.regenerateCampaign(Number(chosenCamp.id)), 'Regenerated — preview it again.').then(() => api.marketingCalendar().then((r) => setOcc((r.occasions ?? []).find((x: any) => x.slug === occ.slug) ?? occ)))} />
+                        <Action emoji="📤" label="Send now" tone="green" disabled={!data.emailConfigured}
+                          onClick={() => onAct(() => api.approveCampaign(Number(chosenCamp.id), new Date().toISOString()), 'Sent ✓ — it’s on its way now.').then(onClose)} />
                         <div>
-                          <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, marginBottom: 6 }}>Send date &amp; time</div>
+                          <div style={{ fontSize: 11.5, fontWeight: 800, color: C.muted, marginBottom: 6 }}>…or schedule it for later</div>
                           <input type="datetime-local"
                             value={pickDate || isoToLocalInput(chosenCamp.scheduled_for)}
                             onChange={(e) => setPickDate(e.target.value)} style={input as any} />
-                          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 4 }}>Leave as-is to keep the suggested date, or pick when it should go out.</div>
+                          <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted, marginTop: 4 }}>Pick when it should go out, then tap Schedule.</div>
                         </div>
-                        <Action emoji="✅" label="Approve & schedule" tone="green" disabled={!data.emailConfigured}
-                          onClick={() => onAct(() => api.approveCampaign(Number(chosenCamp.id), pickDate ? new Date(pickDate).toISOString() : undefined), 'Approved & scheduled.').then(onClose)} />
+                        <Action emoji="⏰" label="Schedule for later" disabled={!data.emailConfigured}
+                          onClick={() => onAct(() => api.approveCampaign(Number(chosenCamp.id), pickDate ? new Date(pickDate).toISOString() : undefined), 'Scheduled ✓.').then(onClose)} />
                         <Action emoji="🚫" label="Reject" tone="red"
                           onClick={() => { const r = window.prompt('Reason for rejecting?'); if (r !== null) onAct(() => api.rejectCampaign(Number(chosenCamp.id), r), 'Rejected.').then(onClose); }} />
                       </>
