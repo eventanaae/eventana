@@ -25,8 +25,12 @@ export function Kpis({ role }: { role?: string }) {
   const personal = !!data?.personal;
 
   useEffect(() => {
+    // Ignore a stale response if the month changed again before it resolved,
+    // otherwise rapid ‹/› clicks can show the wrong month's numbers.
+    let live = true;
     setData(null);
-    void api.kpis(month).then(setData).catch(() => setData({ personal: null, rules: {}, rows: [] }));
+    void api.kpis(month).then((d) => { if (live) setData(d); }).catch(() => { if (live) setData({ personal: null, rules: {}, rows: [] }); });
+    return () => { live = false; };
   }, [month]);
 
   const shift = (delta: number) => {

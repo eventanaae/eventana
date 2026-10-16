@@ -100,7 +100,7 @@ export function Settings({ role }: { role?: string }) {
                 inputMode="decimal"
                 value={moneyText[r.key] ?? ''}
                 onChange={(e) =>
-                  setMoneyText({ ...moneyText, [r.key]: e.target.value.replace(/[^\d.]/g, '') })
+                  setMoneyText({ ...moneyText, [r.key]: e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1') })
                 }
                 style={inputStyle}
               />
@@ -115,7 +115,7 @@ export function Settings({ role }: { role?: string }) {
               </label>
               <input
                 value={draft[r.key] ?? ''}
-                onChange={(e) => setDraft({ ...draft, [r.key]: e.target.value.replace(/[^\d.]/g, '') })}
+                onChange={(e) => setDraft({ ...draft, [r.key]: e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1') })}
                 style={inputStyle}
               />
               <div style={helpStyle}>{r.help}</div>
@@ -144,7 +144,7 @@ export function Settings({ role }: { role?: string }) {
                 <input
                   value={zoneDraft[z.emirate] ?? ''}
                   placeholder="Fee (AED)"
-                  onChange={(e) => setZoneDraft({ ...zoneDraft, [z.emirate]: e.target.value.replace(/[^\d.]/g, '') })}
+                  onChange={(e) => setZoneDraft({ ...zoneDraft, [z.emirate]: e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1') })}
                   style={{ ...inputStyle, flex: 1, minWidth: 0, marginTop: 0 }}
                 />
                 <Button
@@ -152,6 +152,9 @@ export function Settings({ role }: { role?: string }) {
                   style={{ padding: '9px 14px', fontSize: 11.5 }}
                   onClick={async () => {
                     const raw = zoneDraft[z.emirate];
+                    // '' = clear the fee (intended). Any other non-numeric value
+                    // (e.g. a lone ".") must NOT silently blank the fee.
+                    if (raw !== '' && !Number.isFinite(Number(raw))) { setSaved('Enter a valid fee amount.'); return; }
                     try {
                       await api.saveZone(z.emirate, { feeFils: raw === '' ? null : Math.round(Number(raw) * 100) });
                       setSaved(`${z.zoneName} delivery fee updated.`);

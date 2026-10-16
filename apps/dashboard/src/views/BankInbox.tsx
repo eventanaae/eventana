@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { C, Panel, Button, Spinner, Badge } from '../ui';
 
@@ -22,9 +22,16 @@ export function BankInbox({ role }: { role?: string }) {
   const [note, setNote] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
 
+  // Guard against a tab-switch race: if the owner flips tabs quickly, only the
+  // latest request may write rows — otherwise a slow response could render the
+  // wrong tab's rows (and she might approve/ignore the wrong ones).
+  const loadToken = useRef(0);
   const load = (t: Tab) => {
-    setRows(null);
-    api.bankTransactions(t).then((r) => setRows(Array.isArray(r) ? r : [])).catch(() => setRows([]));
+    const token = ++loadToken.current;
+    setRows(null); setErr(null);
+    api.bankTransactions(t)
+      .then((r) => { if (token === loadToken.current) setRows(Array.isArray(r) ? r : []); })
+      .catch(() => { if (token === loadToken.current) setRows([]); });
   };
   useEffect(() => { load(tab); }, [tab]);
 

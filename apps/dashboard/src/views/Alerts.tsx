@@ -103,11 +103,11 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
 
       {!scoped && (
       <Panel title="🌴 Leave requests">
-        {data.pendingLeave.length === 0 && (data.annualLeave?.length ?? 0) === 0 ? (
+        {(data.pendingLeave ?? []).length === 0 && (data.annualLeave?.length ?? 0) === 0 ? (
           <Empty>No pending leave requests.</Empty>
         ) : (
           <>
-            {data.pendingLeave.map((d: any) => (
+            {(data.pendingLeave ?? []).map((d: any) => (
               <div key={d.id} style={row}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flex: 'none' }} />
                 <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 110 }}>{d.member_name}</span>
@@ -122,7 +122,7 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
               </div>
             ))}
             {(data.annualLeave?.length ?? 0) > 0 && (
-              <div style={{ marginTop: data.pendingLeave.length ? 10 : 0, paddingTop: data.pendingLeave.length ? 10 : 0, borderTop: data.pendingLeave.length ? `1px solid ${C.lineSoft}` : 'none' }}>
+              <div style={{ marginTop: (data.pendingLeave ?? []).length ? 10 : 0, paddingTop: (data.pendingLeave ?? []).length ? 10 : 0, borderTop: (data.pendingLeave ?? []).length ? `1px solid ${C.lineSoft}` : 'none' }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, marginBottom: 6, letterSpacing: 0.3 }}>ANNUAL LEAVE — approve in the Leave tab</div>
                 {data.annualLeave.map((d: any) => (
                   <div key={'al' + d.id} style={row}>
@@ -151,7 +151,7 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
               <div key={t.id} style={{ ...row, cursor: 'pointer' }} onClick={() => onOpenEvent?.(t.event_id)}>
                 <span style={{ fontWeight: 700, fontSize: 12.5, color: C.pinkDeep }}>AED {t.amountDisplay}</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flex: 1 }}>
-                  {t.member_name ? `for ${t.member_name}` : 'for the team'} · {t.event_id}
+                  {t.member_name ? `for ${t.member_name}` : 'for the team'} · {t.reference ?? t.event_id}
                 </span>
                 <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{ago(t.created_at)}</span>
               </div>
@@ -169,7 +169,7 @@ export function Alerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
                   {'★'.repeat(Math.max(0, Math.min(5, r.stars || 0)))}<span style={{ color: C.line }}>{'★'.repeat(Math.max(0, 5 - (r.stars || 0)))}</span>
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, flex: 1, lineHeight: 1.4 }}>
-                  {r.feedback ? `“${r.feedback}”` : <span style={{ color: C.muted }}>{r.event_id}</span>}
+                  {r.feedback ? `“${r.feedback}”` : <span style={{ color: C.muted }}>{r.reference ?? r.event_id}</span>}
                 </span>
                 <span style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{ago(r.created_at)}</span>
               </div>

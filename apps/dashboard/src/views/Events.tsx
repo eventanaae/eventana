@@ -831,6 +831,12 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                             tone="ghost"
                             style={{ marginTop: 10, fontSize: 11.5, padding: '8px 12px' }}
                             onClick={() => {
+                              // A policy-% refund isn't tied to one line item, so use the
+                              // free-amount path ('other') — otherwise the default
+                              // 'customer_cancellation' category requires an item and the
+                              // Refund button stays disabled.
+                              setRefundCategory('other' as any);
+                              setRefundItem('');
                               setRefundAmount(String(cx.refundAmountFils / 100));
                               setRefundReason(`Customer cancellation — ${cx.refundPercent}% per policy`);
                             }}
@@ -891,7 +897,15 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                     <input
                       placeholder="Amount to take off as a discount (AED)"
                       value={refundAmount}
-                      onChange={(e) => setRefundAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                      // Convert Arabic-Indic digits to ASCII first (our team types
+                      // on an Arabic keyboard) so the amount isn't stripped to empty.
+                      onChange={(e) => setRefundAmount(
+                        e.target.value
+                          .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+                          .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+                          .replace(/٫/g, '.')
+                          .replace(/[^\d.]/g, ''),
+                      )}
                       style={inputStyle}
                     />
                   )}
