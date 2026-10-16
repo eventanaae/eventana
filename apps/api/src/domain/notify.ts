@@ -1089,8 +1089,12 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
     for (const row of rows) {
       // An orphaned cancellation_refund notification (its cancellation row is
       // gone) would render "Paid AED 0 … Refund AED 0 (0%)" — skip it rather than
-      // send a misleading zero-value message.
-      if (row.template === 'cancellation_refund' && (row as any).total_paid_fils == null) continue;
+      // send a misleading zero-value message. Stamp it so it isn't re-selected
+      // (and re-skipped) on every sweep, mirroring the email loop.
+      if (row.template === 'cancellation_refund' && (row as any).total_paid_fils == null) {
+        await pool.query(`UPDATE notifications SET whatsapp_sent_at = now() WHERE id = $1`, [row.id]).catch(() => {});
+        continue;
+      }
       const tpl = whatsAppTemplateFor(row);
       // Meta needs the number in E.164 (9715XXXXXXXX). A UAE mobile stored as a
       // local 05X — common for older/QuickBooks-migrated customers — is promoted

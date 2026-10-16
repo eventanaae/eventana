@@ -155,9 +155,11 @@ export async function sweepReconReport(): Promise<void> {
   try {
     const now = new Date();
     // Last day of the current month? (day-0 of next month = last day of this one.)
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    if (now.getDate() !== lastDay) return;
-    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // Use UTC throughout — matching the staff-pay and finance monthly sweeps — so
+    // the report fires on the right day/month regardless of the server timezone.
+    const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+    if (now.getUTCDate() !== lastDay) return;
+    const monthStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
     const { rowCount } = await pool.query(
       `INSERT INTO recon_reports (month, recipients) VALUES ($1, 0) ON CONFLICT (month) DO NOTHING`,
       [monthStr],
