@@ -140,8 +140,11 @@ export function Marketing() {
   const sc: Record<string, number> | undefined = data.statusCounts;
   const sentCount = sc ? (sc.sent ?? 0) : campaigns.filter((c) => c.status === 'sent').length;
   const pendingCount = sc ? (sc.pending_approval ?? 0) : campaigns.filter((c) => c.status === 'pending_approval').length;
-  const recentCampaigns = campaigns.slice(0, 6);
-  const upcoming = (cal ?? []).filter((o: any) => !o.needsDateConfirm && o.dateISO).slice(0, 6);
+  // Recent campaigns = only the ones we actually SENT (owner: drafts/pending
+  // shouldn't show here). 'sending' counts too (a send in progress).
+  const recentCampaigns = campaigns.filter((c) => c.status === 'sent' || c.status === 'sending').slice(0, 6);
+  // The 3 nearest upcoming occasions, shown as cards.
+  const upcoming = (cal ?? []).filter((o: any) => !o.needsDateConfirm && o.dateISO).slice(0, 3);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -169,43 +172,39 @@ export function Marketing() {
         </div>
       </div>
 
-      {/* Upcoming occasions — collapsed by default to keep the page clean. */}
+      {/* Upcoming occasions — the 3 nearest, as cards. */}
       <div>
-        <SectionHeader action={<button onClick={() => setOccasionsOpen((o) => !o)} style={linkBtn}>{occasionsOpen ? 'Hide ▾' : `Show${upcoming.length ? ` (${upcoming.length})` : ''} ▸`}</button>}>Upcoming occasions</SectionHeader>
-        {occasionsOpen && (
-        <Panel style={{ padding: 6 }}>
-          {!cal ? <Spinner /> : upcoming.length === 0 ? <div style={{ padding: 12 }}><Empty>No upcoming occasions to show.</Empty></div> : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {upcoming.map((o: any, i: number) => {
-                const draft = o.consumer;
-                return (
-                  <button key={o.slug} onClick={() => openFlow('existing')} style={{ ...rowBtn, borderTop: i ? `1px solid ${C.lineSoft}` : 'none' }}>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: 'block', fontWeight: 800, fontSize: 13.5, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.name}</span>
-                      <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, marginTop: 2 }}>
-                        📅 {fmtDay(o.dateISO)}{typeof o.daysAway === 'number' ? ` · ${o.daysAway === 0 ? 'today' : `in ${o.daysAway}d`}` : ''}
-                      </span>
-                    </span>
+        <SectionHeader action={<button onClick={() => openFlow('existing')} style={linkBtn}>View all ›</button>}>Upcoming occasions</SectionHeader>
+        {!cal ? <Spinner /> : upcoming.length === 0 ? <Panel style={{ padding: 12 }}><Empty>No upcoming occasions to show.</Empty></Panel> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {upcoming.map((o: any) => {
+              const draft = o.consumer;
+              return (
+                <button key={o.slug} onClick={() => openFlow('existing')} style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%', cursor: 'pointer', border: `1px solid ${C.line}`, background: '#fff', borderRadius: 16, padding: '14px 16px', boxShadow: C.shadow }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.name}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginTop: 3 }}>
+                      📅 {fmtDay(o.dateISO)}{typeof o.daysAway === 'number' ? ` · ${o.daysAway === 0 ? 'today' : `in ${o.daysAway} days`}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                     <TypeBadge kind={occasionKind(o)} />
                     {draft
                       ? <Badge tone={STATUS_TONE[draft.status] ?? 'neutral'}>{statusLabel(draft.status)}</Badge>
                       : <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>not prepared</span>}
-                    <span style={{ color: C.muted, fontSize: 17, fontWeight: 700 }}>›</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </Panel>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      {/* Recent campaigns — collapsed by default to keep the page clean. */}
+      {/* Recent campaigns — only ones actually SENT. */}
       <div>
-        <SectionHeader action={<button onClick={() => setRecentOpen((o) => !o)} style={linkBtn}>{recentOpen ? 'Hide ▾' : `Show${recentCampaigns.length ? ` (${recentCampaigns.length})` : ''} ▸`}</button>}>Recent campaigns</SectionHeader>
-        {recentOpen && (
+        <SectionHeader action={<button onClick={() => setPerf(true)} style={linkBtn}>Performance ›</button>}>Sent campaigns</SectionHeader>
         <Panel style={{ padding: 6 }}>
-          {recentCampaigns.length === 0 ? <div style={{ padding: 12 }}><Empty>No campaigns yet — create one above.</Empty></div> : (
+          {recentCampaigns.length === 0 ? <div style={{ padding: 12 }}><Empty>Nothing sent yet — create a campaign, approve it, then send. It’ll show here once it goes out.</Empty></div> : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {recentCampaigns.map((c: any, i: number) => (
                 <button key={c.id} onClick={() => openPreview(Number(c.id))} style={{ ...rowBtn, alignItems: 'flex-start', borderTop: i ? `1px solid ${C.lineSoft}` : 'none' }}>
@@ -213,8 +212,8 @@ export function Marketing() {
                     <span style={{ display: 'block', fontWeight: 700, fontSize: 13, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 5 }}>
                       <TypeBadge kind={campaignKind(c)} />
-                      <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{statusLabel(c.status)}</Badge>
-                      {c.status === 'sent' && <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>{c.sent_count ?? 0} sent · {c.opened_count ?? 0} opened</span>}
+                      <Badge tone={c.status === 'sending' ? 'info' : 'ok'}>{c.status === 'sending' ? 'Sending…' : '✓ Sent'}</Badge>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>{c.sent_count ?? 0} emails{(c.opened_count ?? 0) > 0 ? ` · ${c.opened_count} opened` : ''}</span>
                     </span>
                   </span>
                   <span style={{ color: C.muted, fontSize: 17, fontWeight: 700, marginTop: 2 }}>›</span>
@@ -223,7 +222,6 @@ export function Marketing() {
             </div>
           )}
         </Panel>
-        )}
       </div>
 
       {flowInit && (
