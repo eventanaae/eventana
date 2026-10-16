@@ -33,6 +33,13 @@ const FIRST_RUN_LOOKBACK_DAYS = 100;
 // silently never reach the Bank Inbox. 30 days covers a month-long outage;
 // re-scanning is free because ingestExternalTxn dedupes by transaction_id.
 const OVERLAP_DAYS = 30;
+// Bank-feed freshness alert. If the NEWEST transaction Zoho holds (across all
+// accounts) is older than this many days, the bank→Zoho feed has most likely
+// disconnected (it needs a periodic reconnect + Refresh in Zoho Books) and
+// expenses are silently not flowing — so we notify the owner + Marsha. 4 days
+// absorbs a normal quiet weekend without crying wolf.
+const STALE_FEED_DAYS = 4;
+const STALE_ALERT_THROTTLE_MS = 24 * 60 * 60 * 1000; // re-warn at most once a day
 
 /** Dubai "today" as YYYY-MM-DD. */
 function dubaiToday(): string {
@@ -149,6 +156,10 @@ export async function syncZohoBank(): Promise<void> {
 
   let pended = 0;
   let sampled = false;
+  // Newest transaction date Zoho holds across all accounts — the feed-freshness
+  // signal (captured from the DESC-sorted first row, BEFORE the floor cutoff, so
+  // it still works even when the feed has been stale longer than the overlap).
+  let newestTxnDate = '';
   for (const acc of accounts) {
     for (let page = 1; page <= 50; page++) {
       // The raw bank-FEED lines (what we want) live under Status.Uncategorized —
@@ -160,6 +171,11 @@ export async function syncZohoBank(): Promise<void> {
       // One-time visibility: log the raw shape of the first line so the exact
       // field names/values can be confirmed in Render logs after go-live.
       if (!sampled && list[0]) { console.log('[zoho-sync] sample txn:', JSON.stringify(list[0]).slice(0, 800)); sampled = true; }
+      // Page 1 is sorted date-DESC, so list[0] is this account's newest line.
+      if (page === 1 && list[0]?.date) {
+        const d = String(list[0].date).slice(0, 10);
+        if (d > newestTxnDate) newestTxnDate = d;
+      }
 
       let hitFloor = false;
       for (const t of list) {
@@ -220,6 +236,36 @@ export async function syncZohoBank(): Promise<void> {
     ).catch(() => ({ rows: [] as { id: string }[] }));
     for (const t of targets.rows) {
       await pushToOwner('staff', t.id, title, bodyMsg, {}).catch(() => {});
+    }
+  }
+
+  // ── Feed-freshness watchdog ──────────────────────────────────────────────
+  // Only meaningful when the fetch actually succeeded (we saw a newest date).
+  if (newestTxnDate) {
+    await pool.query(
+      `INSERT INTO app_kv (k, v) VALUES ('zoho_feed_latest_txn_date', $1) ON CONFLICT (k) DO UPDATE SET v = $1`,
+      [newestTxnDate],
+    ).catch(() => {});
+    const ageDays = Math.floor((Date.parse(dubaiToday()) - Date.parse(newestTxnDate)) / 86_400_000);
+    if (ageDays >= STALE_FEED_DAYS) {
+      // Feed looks stalled — warn owner + Marsha, but at most once a day.
+      const la = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'zoho_feed_alert_at'`).catch(() => ({ rows: [] as { v: string }[] }));
+      const lastAlert = la.rows[0]?.v ? new Date(la.rows[0].v).getTime() : 0;
+      if (Date.now() - lastAlert >= STALE_ALERT_THROTTLE_MS) {
+        console.warn(`[zoho-sync] feed looks STALE — newest transaction is ${ageDays} day(s) old (${newestTxnDate}); alerting owner + Marsha.`);
+        const title = '⚠️ Bank feed stopped updating';
+        const bodyMsg = `No new bank transactions since ${newestTxnDate} (${ageDays} days). The bank→Zoho feed likely disconnected — open Zoho Books ▸ Banking, Reconnect the account and tap Refresh. Expenses aren't syncing until then.`;
+        const targets = await pool.query<{ id: string }>(
+          `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
+        ).catch(() => ({ rows: [] as { id: string }[] }));
+        for (const t of targets.rows) {
+          await pushToOwner('staff', t.id, title, bodyMsg, {}).catch(() => {});
+        }
+        await pool.query(`INSERT INTO app_kv (k, v) VALUES ('zoho_feed_alert_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
+      }
+    } else {
+      // Healthy again — clear the throttle so a FUTURE outage alerts immediately.
+      await pool.query(`DELETE FROM app_kv WHERE k = 'zoho_feed_alert_at'`).catch(() => {});
     }
   }
 }
