@@ -8,6 +8,19 @@ const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> 
   sent: 'ok', approved: 'ok', scheduled: 'info', sending: 'info',
   pending_approval: 'warn', rejected: 'error', failed: 'error', draft: 'neutral',
 };
+// Plain-language status labels so the owner is never confused about whether an
+// email actually went out. "pending_approval" especially must read as NOT sent.
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft — not sent',
+  pending_approval: '⏳ Draft — not sent yet',
+  approved: '✅ Approved',
+  scheduled: '⏰ Scheduled — not sent yet',
+  sending: 'Sending…',
+  sent: '✓ Sent',
+  rejected: 'Rejected',
+  failed: 'Not sent — tap to retry',
+};
+const statusLabel = (s: string) => STATUS_LABEL[s] ?? String(s).replace(/_/g, ' ');
 
 /** A stored UTC timestamp → a `datetime-local` value in LOCAL (Dubai) time, so
  *  the owner reads/edits the real local send time (not the raw UTC string). */
@@ -171,7 +184,7 @@ export function Marketing() {
                     </span>
                     <TypeBadge kind={occasionKind(o)} />
                     {draft
-                      ? <Badge tone={STATUS_TONE[draft.status] ?? 'neutral'}>{String(draft.status).replace(/_/g, ' ')}</Badge>
+                      ? <Badge tone={STATUS_TONE[draft.status] ?? 'neutral'}>{statusLabel(draft.status)}</Badge>
                       : <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>not prepared</span>}
                     <span style={{ color: C.muted, fontSize: 17, fontWeight: 700 }}>›</span>
                   </button>
@@ -194,7 +207,7 @@ export function Marketing() {
                     <span style={{ display: 'block', fontWeight: 700, fontSize: 13, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 5 }}>
                       <TypeBadge kind={campaignKind(c)} />
-                      <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
+                      <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{statusLabel(c.status)}</Badge>
                       {c.status === 'sent' && <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>{c.sent_count ?? 0} sent · {c.opened_count ?? 0} opened</span>}
                     </span>
                   </span>
@@ -243,7 +256,7 @@ export function Marketing() {
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                     <TypeBadge kind={campaignKind(c)} />
-                    <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
+                    <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{statusLabel(c.status)}</Badge>
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>{whenLine(c)}</div>
                   {c.status === 'sent' ? (
@@ -501,7 +514,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                                       {o.dateISO && <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, marginTop: 2 }}>📅 {fmtDay(o.dateISO)}</span>}
                                     </span>
                                     <TypeBadge kind={occasionKind(o)} />
-                                    {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
+                                    {c ? <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{statusLabel(c.status)}</Badge> : <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>not prepared</span>}
                                     <span style={{ color: C.muted, fontSize: 18, fontWeight: 700 }}>›</span>
                                   </button>
                                 );
@@ -522,7 +535,7 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
                 {chosenCamp ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12.5, color: C.muted, fontWeight: 600 }}>
-                      Status: <Badge tone={STATUS_TONE[chosenCamp.status] ?? 'neutral'}>{String(chosenCamp.status).replace(/_/g, ' ')}</Badge>
+                      Status: <Badge tone={STATUS_TONE[chosenCamp.status] ?? 'neutral'}>{statusLabel(chosenCamp.status)}</Badge>
                       <TypeBadge kind={occasionKind(occ)} />
                     </div>
                     <Action emoji="👁" label="Preview the email" onClick={() => onPreview(Number(chosenCamp.id))} />
