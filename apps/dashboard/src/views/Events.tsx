@@ -1337,6 +1337,13 @@ function EditEventPanel({ event, eventId, onSaved, onMessage }: { event: any; ev
       const c = parseLatLng(map);
       if (c) { patch.mapLat = c.lat; patch.mapLng = c.lng; }
       else if (!map) { patch.mapLat = 0; patch.mapLng = 0; } // cleared
+      else {
+        // Not coordinates — a Google Maps SHARE link (maps.app.goo.gl / goo.gl)
+        // has none. Don't silently drop it: keep the raw link in the location
+        // note so the driver still gets a tappable map, and clear the coords.
+        patch.locationNote = villa ? `${villa} · ${map}` : map;
+        patch.mapLat = 0; patch.mapLng = 0;
+      }
     }
     if ((eventFor ?? '') !== (event.eventFor ?? '')) patch.eventFor = eventFor.trim() || null;
     if ((phone ?? '') !== (event.phone ?? '') && phone.trim()) patch.phone = phone.trim();

@@ -32,6 +32,10 @@ export function Discounts() {
     try {
       await api.setPromoCodeActive(c.code, !c.active);
       await load();
+    } catch (e: any) {
+      // Don't let a failed toggle look like it worked — surface it, so the owner
+      // never thinks a code is on/off when it isn't.
+      alert(e?.message ?? 'Could not change this code — please try again.');
     } finally {
       setBusyCode(null);
     }

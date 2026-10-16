@@ -9,6 +9,19 @@ const input: React.CSSProperties = {
 };
 const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', color: C.muted2 };
 
+/** Parse a typed price (Arabic-Indic digits tolerated) to a POSITIVE number, or
+ *  null when it isn't a valid price. Prevents a typo/blank from silently saving
+ *  a package or service as AED 0 (free) — these go live to customers at once. */
+const parsePriceAed = (s: string): number | null => {
+  const ascii = String(s ?? '')
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/٫/g, '.')
+    .replace(/[,\s٬]/g, '');
+  const n = Number(ascii);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
 /**
  * Products & services — the REAL customer catalogue (packages + services, with
  * the prices customers pay), plus reusable custom billing items. Editing a
@@ -117,7 +130,9 @@ function CatalogEditor({ kind, item, onClose, onSaved }: { kind: 'package' | 'se
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const save = async () => {
-    const priceFils = Math.round((Number(String(price).replace(/,/g, '')) || 0) * 100);
+    const priceAed = parsePriceAed(price);
+    if (priceAed === null) { setErr('Enter a valid price (greater than 0) before saving.'); return; }
+    const priceFils = Math.round(priceAed * 100);
     setBusy(true); setErr(null);
     try {
       const patch = { priceFils, active };
@@ -159,7 +174,9 @@ function NewServiceEditor({ categories, celebrationTypes, onClose, onSaved }: { 
   const save = async () => {
     if (!name.trim()) { setErr('Name is required.'); return; }
     if (!categoryId) { setErr('Choose a category.'); return; }
-    const priceFils = Math.round((Number(String(price).replace(/,/g, '')) || 0) * 100);
+    const priceAed = parsePriceAed(price);
+    if (priceAed === null) { setErr('Enter a valid price (greater than 0) before saving.'); return; }
+    const priceFils = Math.round(priceAed * 100);
     setBusy(true); setErr(null);
     try {
       await api.serviceCreate({ name: name.trim(), priceFils, categoryId, celebrationTypes: types });
@@ -206,7 +223,9 @@ function CustomEditor({ item, onClose, onSaved }: { item: any | null; onClose: (
   const [err, setErr] = useState<string | null>(null);
   const save = async () => {
     if (!name.trim()) { setErr('Name is required.'); return; }
-    const priceFils = Math.round((Number(String(price).replace(/,/g, '')) || 0) * 100);
+    const priceAed = parsePriceAed(price);
+    if (priceAed === null) { setErr('Enter a valid price (greater than 0) before saving.'); return; }
+    const priceFils = Math.round(priceAed * 100);
     setBusy(true); setErr(null);
     try {
       if (item) await api.productUpdate(item.id, { name: name.trim(), priceFils, description: description.trim() || null });

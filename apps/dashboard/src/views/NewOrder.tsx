@@ -167,7 +167,13 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10, marginBottom: 12 }}>
           <Labeled label="Celebration">
-            <select value={celebrationType} onChange={(e) => { setCelebrationType(e.target.value); setPackageId(''); setServices({}); setThemeId(''); }} style={input}>
+            <select value={celebrationType} onChange={(e) => {
+              // Reset EVERYTHING order-specific — not just package/services — so a
+              // previous order's manual discount, delivery, custom theme/items,
+              // typed prices and reference photos never leak into the new one.
+              setCelebrationType(e.target.value); setPackageId(''); setServices({}); setThemeId('');
+              setCustomItems([]); setDiscount(''); setDelivery(''); setCustomTheme(''); setPriceOverride({}); setRefImages([]);
+            }} style={input}>
               {(cat.celebrationTypes ?? []).map((t: any) => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </Labeled>

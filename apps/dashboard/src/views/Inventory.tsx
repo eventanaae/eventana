@@ -32,7 +32,10 @@ export function Inventory({ role }: { role?: string }) {
   const [report, setReport] = useState<{ code: string; name: string } | null>(null);
 
   const load = () => {
-    void api.inventory().then(setAssets);
+    // Guard the one loader that had neither a .catch nor a shape check: a reject
+    // left assets null forever (permanent spinner), and a non-array body made
+    // `assets.filter` throw (white-screen). Normalise to an array either way.
+    void api.inventory().then((a: any) => setAssets(Array.isArray(a) ? a : [])).catch(() => setAssets([]));
     void api.missingItems().then(setMissing).catch(() => setMissing([]));
     void api.me().then((m: any) => setMyId(m?.id ?? null)).catch(() => {});
     void api.supplierNames().then((r) => setSupplierNames(r?.names ?? [])).catch(() => {});

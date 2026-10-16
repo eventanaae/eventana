@@ -186,7 +186,7 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
         const acts = [
           isMgr && { icon: '🎀', label: 'New order', accent: ACCENTS[0], to: 'neworder' as View },
           { icon: '🗓️', label: 'Events', accent: ACCENTS[1], to: 'schedule' as View },
-          role !== 'driver' && { icon: '✅', label: 'Tasks', accent: ACCENTS[3], to: 'tasks' as View },
+          role !== 'driver' && { icon: '✅', label: 'Tasks', accent: ACCENTS[3], to: 'mytasks' as View },
           isMgr && { icon: '💰', label: 'Finance', accent: ACCENTS[5], to: 'finance' as View },
         ].filter(Boolean) as Array<{ icon: string; label: string; accent: any; to: View }>;
         if (acts.length === 0) return null;

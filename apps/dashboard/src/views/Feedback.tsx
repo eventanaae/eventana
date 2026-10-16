@@ -71,7 +71,7 @@ export function Feedback({ onBack, onOpenEvent }: { onBack: () => void; onOpenEv
                 const ref = r.receipt_number ? `EV-${r.receipt_number}` : null;
                 return (
                   <Panel key={r.id}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={() => onOpenEvent(r.event_id)}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: r.event_id ? 'pointer' : 'default' }} onClick={r.event_id ? () => onOpenEvent(r.event_id) : undefined}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 15, letterSpacing: 1, color: r.stars >= 4 ? '#e8a800' : '#F06C6C' }}>{stars(r.stars)}</span>
                         {ref && <span style={{ fontSize: 11.5, fontWeight: 800, color: C.pinkDeep }}>{ref}</span>}

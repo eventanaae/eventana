@@ -545,7 +545,7 @@ function ExpensesTab({ role }: { role?: string }) {
   }, [month, search]);
   if (!data) return <Spinner />;
   const rows = data.expenses ?? [];
-  const total = rows.reduce((s: number, e: any) => s + Number(e.amount_fils), 0);
+  const total = rows.reduce((s: number, e: any) => s + (Number(e.amount_fils) || 0), 0);
   const shiftMonth = (delta: number) => {
     const [y, mo] = month.split('-').map(Number);
     const d = new Date(y, mo - 1 + delta, 1);
@@ -1369,7 +1369,10 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
               <input
                 placeholder="Amount to take off as a discount (AED)"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                // Convert Arabic-Indic digits to ASCII FIRST (our team types on an
+                // Arabic keyboard) — otherwise the \d filter strips them and the
+                // field stays empty, blocking the refund.
+                onChange={(e) => setAmount(toAsciiDigits(e.target.value).replace(/[^\d.]/g, ''))}
                 style={input}
               />
             )}

@@ -546,7 +546,7 @@ export function Leads({ role }: { role?: string }) {
         />
       )}
 
-      {funnel && funnel.byEmirate.length > 0 && (
+      {funnel?.byEmirate?.length > 0 && (
         <Panel title="By emirate">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             {funnel.byEmirate.map((e) => (
