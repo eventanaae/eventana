@@ -123,7 +123,7 @@ export async function recoverStuckSends(): Promise<number> {
   return rowCount ?? 0;
 }
 
-export async function sendCampaign(campaignId: number): Promise<{ recipients: number; sent: number }> {
+export async function sendCampaign(campaignId: number): Promise<{ recipients: number; sent: number; status?: string }> {
   // Atomic CLAIM: compare-and-set the status to 'sending' in a single statement,
   // and only from a sendable state ('approved'/'scheduled' — the retry route
   // resets 'failed'/'sending' back to 'approved' before calling us). Two
@@ -226,11 +226,16 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
     }
     await new Promise((res) => setTimeout(res, 120));
   }
+  // finalRecips empty = the frequency cap / suppression blocked the whole
+  // audience (nobody was eligible) — that's NOT a successful send, so record it
+  // as 'skipped' rather than falsely showing "Sent". sent>0 → sent; else failed.
+  const finalStatus = finalRecips.length === 0 ? 'skipped' : sent > 0 ? 'sent' : 'failed';
   await pool.query(
-    `UPDATE email_campaigns SET status = $2, sent_count = $3, sent_at = now() WHERE id = $1`,
-    [campaignId, sent > 0 || finalRecips.length === 0 ? 'sent' : 'failed', sent],
+    `UPDATE email_campaigns SET status = $2, sent_count = $3,
+            sent_at = CASE WHEN $2 = 'sent' THEN now() ELSE sent_at END WHERE id = $1`,
+    [campaignId, finalStatus, sent],
   );
-  return { recipients: finalRecips.length, sent };
+  return { recipients: finalRecips.length, sent, status: finalStatus };
 }
 
 /**
@@ -505,9 +510,27 @@ export async function sweepScheduledCampaigns(): Promise<number> {
     // campaigns the consumer window (16:00–22:30). Out of window → wait; it stays
     // 'scheduled' and a later sweep sends it once the window opens.
     const isCorp = String(r.audience || '').startsWith('corp:') || r.audience === 'corporate';
+    // A scheduled COMPANY campaign must NOT auto-fire on its date — company sends
+    // are owner-approved only (unless CORP_AUTOSEND is explicitly turned on). It
+    // stays 'scheduled'; the owner sends it herself from the Marketing page.
+    if (isCorp && String(process.env.CORP_AUTOSEND ?? 'off').toLowerCase() !== 'on') continue;
     if (isCorp ? !inCorpSendWindow() : !inCustomerSendWindow()) continue;
-    const out = await sendCampaign(r.id).catch((e) => { console.error('[marketing] scheduled send failed', e); return { recipients: 0, sent: 0 }; });
-    if (out.sent > 0) sent++; // count only campaigns that actually delivered, not skips/throws
+    const out = await sendCampaign(r.id).catch((e) => { console.error('[marketing] scheduled send failed', e); return { recipients: 0, sent: 0, status: 'failed' as string }; });
+    if (out.sent > 0) { sent++; continue; } // count only campaigns that actually delivered
+    if (out.status === 'failed') {
+      // A scheduled blast FAILED — never let it fail silently; alert owner+Marsha
+      // once (it's now 'failed', the sweep won't re-pick it, so no repeat spam).
+      try {
+        const { pushToOwner } = await import('../integrations/push.js');
+        const targets = (await pool.query<{ id: string }>(
+          `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
+        )).rows;
+        for (const t of targets) {
+          await pushToOwner('staff', t.id, '⚠️ A scheduled campaign failed to send',
+            `A campaign didn't go out as scheduled. Open Marketing → Performance and tap Retry.`, {}).catch(() => {});
+        }
+      } catch { /* alert is best-effort */ }
+    }
   }
   return sent;
 }

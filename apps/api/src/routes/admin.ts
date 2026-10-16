@@ -6488,7 +6488,9 @@ export async function adminRoutes(app: FastifyInstance) {
     if (future) return { id, status: 'scheduled', approvedBy: approver };
     try {
       const result = await sendCampaign(id);
-      return { id, status: 'sent', approvedBy: approver, ...result };
+      // result.status reflects reality: 'sent' (delivered), 'skipped' (nobody
+      // eligible — all recently emailed/suppressed), or 'failed'.
+      return { id, approvedBy: approver, ...result };
     } catch (e) {
       return reply.status(400).send({ error: 'send_failed', message: (e as Error).message });
     }
@@ -6531,10 +6533,10 @@ export async function adminRoutes(app: FastifyInstance) {
     const id = Number((request.params as { id: string }).id);
     const upd = await pool.query(
       `UPDATE email_campaigns SET status = 'approved', sent_at = NULL
-        WHERE id = $1 AND status IN ('sending','failed') RETURNING id`,
+        WHERE id = $1 AND status IN ('sending','failed','skipped') RETURNING id`,
       [id],
     );
-    if (!upd.rows[0]) return reply.status(409).send({ error: 'invalid_state', message: 'Only a stuck or failed campaign can be retried.' });
+    if (!upd.rows[0]) return reply.status(409).send({ error: 'invalid_state', message: 'Only a stuck, failed or skipped campaign can be retried.' });
     try {
       const result = await sendCampaign(id);
       return { id, ...result };

@@ -6,7 +6,7 @@ import { Empty } from './Today';
 
 const STATUS_TONE: Record<string, 'ok' | 'warn' | 'error' | 'info' | 'neutral'> = {
   sent: 'ok', approved: 'ok', scheduled: 'info', sending: 'info',
-  pending_approval: 'warn', rejected: 'error', failed: 'error', draft: 'neutral',
+  pending_approval: 'warn', rejected: 'error', failed: 'error', draft: 'neutral', skipped: 'neutral',
 };
 // Plain-language status labels so the owner is never confused about whether an
 // email actually went out. "pending_approval" especially must read as NOT sent.
@@ -19,6 +19,7 @@ const STATUS_LABEL: Record<string, string> = {
   sent: '✓ Sent',
   rejected: 'Rejected',
   failed: 'Not sent — tap to retry',
+  skipped: 'Skipped — nobody eligible',
 };
 const statusLabel = (s: string) => STATUS_LABEL[s] ?? String(s).replace(/_/g, ' ');
 
@@ -99,11 +100,7 @@ export function Marketing() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [flowInit, setFlowInit] = useState<{ path: 'menu' | 'new' | 'existing'; aud: 'customer' | 'company'; step: number } | null>(null);
-  const [companies, setCompanies] = useState(false);
   const [perf, setPerf] = useState(false);
-  // Long lists collapsed by default to keep the page clean (owner: "too busy").
-  const [occasionsOpen, setOccasionsOpen] = useState(false);
-  const [recentOpen, setRecentOpen] = useState(false);
   const openFlow = (path: 'menu' | 'new' | 'existing', aud: 'customer' | 'company' = 'customer', step = 1) => { setMsg(null); setFlowInit({ path, aud, step }); };
   const [preview, setPreview] = useState<string | null>(null);
   const [previewCamp, setPreviewCamp] = useState<any | null>(null);
@@ -127,6 +124,24 @@ export function Marketing() {
     catch (e: any) { setMsg(e?.message ?? 'Action failed.'); }
     finally { setBusy(false); }
   };
+  // Send a campaign right now, with an HONEST result message. An already-approved
+  // campaign uses the /send route; anything else is approved-with-send-now. If the
+  // frequency cap left nobody eligible the backend returns status 'skipped' — say
+  // so instead of claiming "Sent".
+  const sendNow = async (camp: any) => {
+    if (!camp) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r: any = camp.status === 'approved'
+        ? await api.sendCampaign(Number(camp.id))
+        : await api.approveCampaign(Number(camp.id), new Date().toISOString());
+      if (r?.status === 'scheduled') setMsg('Scheduled ✓.');
+      else if (r?.status === 'skipped' || (r?.recipients ?? 0) === 0) setMsg('Nobody was eligible — everyone on this list was emailed recently, so nothing went out.');
+      else setMsg(`Sent ✓ — ${r?.sent ?? r?.recipients ?? 0} email${(r?.sent ?? 0) === 1 ? '' : 's'} on the way to your customers.`);
+      load(); setPreview(null); setPreviewCamp(null);
+    } catch (e: any) { setMsg(e?.message ?? 'Send failed.'); }
+    finally { setBusy(false); }
+  };
   const saveEdit = async (patch: Record<string, unknown>) => {
     if (!editing) return;
     await act(() => api.updateCampaign(Number(editing.id), patch), 'Saved.');
@@ -140,13 +155,14 @@ export function Marketing() {
   // Use the DB-wide status counts (the list is capped at 50, so filtering it
   // undercounts once enough drafts pile up). Fall back to the list if absent. #27
   const sc: Record<string, number> | undefined = data.statusCounts;
-  const sentCount = sc ? (sc.sent ?? 0) : campaigns.filter((c) => c.status === 'sent').length;
+  const sentCount = sc ? ((sc.sent ?? 0) + (sc.sending ?? 0)) : campaigns.filter((c) => c.status === 'sent' || c.status === 'sending').length;
   const pendingCount = sc ? (sc.pending_approval ?? 0) : campaigns.filter((c) => c.status === 'pending_approval').length;
   // Recent campaigns = only the ones we actually SENT (owner: drafts/pending
   // shouldn't show here). 'sending' counts too (a send in progress).
   const recentCampaigns = campaigns.filter((c) => c.status === 'sent' || c.status === 'sending').slice(0, 6);
-  // The 3 nearest upcoming occasions, shown as cards.
-  const upcoming = (cal ?? []).filter((o: any) => !o.needsDateConfirm && o.dateISO).slice(0, 3);
+  // The 3 nearest upcoming occasions (consumer-facing; company-only awareness
+  // days live in the occasion→Companies flow), shown as cards.
+  const upcoming = (cal ?? []).filter((o: any) => !o.needsDateConfirm && o.dateISO && !o.corporateOnly).slice(0, 3);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -304,7 +320,7 @@ export function Marketing() {
           {previewCamp && (previewCamp.status === 'pending_approval' || previewCamp.status === 'draft' || previewCamp.status === 'approved') && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
               <Action emoji="📤" label="Send now" tone="green" disabled={busy || !data.emailConfigured}
-                onClick={() => act(() => api.approveCampaign(Number(previewCamp.id), new Date().toISOString()), 'Sent ✓ — it’s on its way to your customers.').then(() => { setPreview(null); setPreviewCamp(null); })} />
+                onClick={() => sendNow(previewCamp)} />
               {previewCamp.scheduled_for && new Date(previewCamp.scheduled_for).getTime() > Date.now() && (
                 <Action emoji="⏰" label={`Schedule for ${fmtDay(previewCamp.scheduled_for)}`} disabled={busy}
                   onClick={() => act(() => api.approveCampaign(Number(previewCamp.id)), `Scheduled ✓ — it will send on ${fmtDay(previewCamp.scheduled_for)}.`).then(() => { setPreview(null); setPreviewCamp(null); })} />

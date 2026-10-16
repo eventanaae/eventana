@@ -1090,20 +1090,21 @@ export async function marketingCalendar(): Promise<
     return r ? { id: String(r.id), status: r.status, scheduledFor: r.scheduled_for } : null;
   };
   const rows = await Promise.all(
-    // B2B retired 2026-10-16 — corporate-only occasions no longer produce any
-    // draft, so drop them from the calendar instead of showing them as
-    // perpetually "not prepared".
-    OCCASIONS.filter((o) => !o.corporateOnly).map(async (o) => {
+    OCCASIONS.map(async (o) => {
       const next = nextOccasionDate(o, now);
       const ov = await getOccasionOverrides(o.slug);
-      const consumer = next ? await lookup(`occasion|${o.slug}|${next.year}`) : null;
+      // Consumer draft (none for corporate-only days); company draft looked up so
+      // the occasion→company flow can preview/approve/send it (not perpetually
+      // "not prepared"). Company drafts are created on demand, never auto-sent.
+      const consumer = next && !o.corporateOnly ? await lookup(`occasion|${o.slug}|${next.year}`) : null;
+      const corporate = next && !o.greetingOnly ? await lookup(`occasion|${o.slug}|${next.year}|corp`) : null;
       return {
         slug: o.slug, name: o.name, nameAr: o.nameAr, type: o.type,
-        greetingOnly: Boolean(o.greetingOnly), corporateOnly: false,
+        greetingOnly: Boolean(o.greetingOnly), corporateOnly: Boolean(o.corporateOnly),
         dateISO: next?.dateISO ?? null,
         daysAway: next ? daysUntil(next.dateISO, now) : null,
         needsDateConfirm: Boolean(o.variable) && !next,
-        consumer, corporate: null as CalCampaign,
+        consumer, corporate,
         services: ov.services && ov.services.length ? ov.services : servicesFor(o),
         servicesCustom: Boolean(ov.services && ov.services.length),
         intro: ov.intro || '',
