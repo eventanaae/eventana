@@ -22,7 +22,6 @@ const GROUPS: Array<{ label: string; items: Item[] }> = [
     { id: 'marketing', icon: '📣', label: 'Marketing' },
     { id: 'leads', icon: '💬', label: 'Leads' },
     { id: 'feedback', icon: '🌟', label: 'Review Report' },
-    { id: 'reviews', icon: '⭐', label: 'Google Reviews' },
     { id: 'stories', icon: '📸', label: 'Story Studio' },
     { id: 'discounts', icon: '🏷️', label: 'Discount Codes' },
   ] },
