@@ -606,6 +606,10 @@ async function main() {
     // One-shot: set WELCOME10 terms (min AED 2,000 + first-booking) (SET_SHAN_LEADER='welcome10').
     const { setWelcome10TermsFromEnv } = await import('./db/setWelcome10Terms.js');
     await setWelcome10TermsFromEnv().catch((err) => console.error('[welcome10] failed:', err));
+    // One-shot: force an immediate Zoho bank sync after a feed reconnect
+    // (SET_SHAN_LEADER='zohosync' → then blank it). Idempotent (dedupes by txn id).
+    const { forceZohoSyncFromEnv } = await import('./db/forceZohoSync.js');
+    await forceZohoSyncFromEnv().catch((err) => console.error('[zoho-force] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
