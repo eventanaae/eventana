@@ -27,7 +27,6 @@ const GROUPS: Array<{ label: string; items: Item[] }> = [
     { id: 'discounts', icon: '🏷️', label: 'Discount Codes' },
   ] },
   { label: 'Staff', items: [
-    { id: 'kpis', icon: '🏆', label: 'Achievements' },
     { id: 'team', icon: '😊', label: 'Team' },
     { id: 'theweek', icon: '🗓️', label: 'The Eventana Week' },
     { id: 'leave', icon: '🌴', label: 'Leave' },

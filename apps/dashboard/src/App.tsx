@@ -76,7 +76,6 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'marketing' },
   { id: 'discounts', label: 'Discount Codes', icon: '🏷️', title: 'Discount Codes', sub: 'Create & manage promo codes customers use at checkout', section: 'marketing' },
   // Staff
-  { id: 'kpis', label: 'Achievements', icon: '★', title: 'Achievements & Reviews', sub: 'Team points & rewards + what customers said', section: 'staff' },
   { id: 'team', label: 'Team', icon: '☺', title: 'Team', sub: 'Staff, roles and days off', section: 'staff' },
   { id: 'leave', label: 'Leave', icon: '🌴', title: 'Annual Leave', sub: 'Leave requests, balances & approvals', section: 'staff' },
   { id: 'theweek', label: 'The Week', icon: '🗓️', title: 'The Eventana Week', sub: 'Our weekly rhythm — pickups, office hours, days off & shopping day', section: 'staff' },
@@ -95,7 +94,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'kpis', 'marketing', 'stories', 'discounts', 'reviews', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'marketing', 'stories', 'discounts', 'reviews', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'feedback' — reachable from the
   // "Show more" on Home but never shown as a tab (achievements live in Profile).
   employee: ['today', 'schedule', 'inventory', 'theweek', 'profile'],
