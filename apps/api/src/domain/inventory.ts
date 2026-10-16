@@ -248,19 +248,23 @@ export async function releaseHolds(db: Db, orderId: string, reason = 'released')
  * (spec §6.5).
  */
 export async function holdsStillValid(db: Db, orderId: string): Promise<boolean> {
-  const { rows } = await db.query<{ live: number; total: number }>(
-    `SELECT
-       count(*) FILTER (
-         WHERE status = 'reserved'
-            OR (status = 'held' AND (expires_at IS NULL OR expires_at > now()))
-       )::int AS live,
-       count(*)::int AS total
-     FROM inventory_holds WHERE order_id = $1`,
+  // Valid when EVERY asset the order holds still has at least one LIVE hold.
+  // Grouping by asset_code is essential: re-opening a pay-link runs
+  // releaseHolds()+acquireHolds(), leaving an old 'released' row AND a fresh live
+  // 'held' row for the SAME asset — the order is still protected. The old
+  // live===count(*) check counted those released rows and wrongly failed, sending
+  // a real PAID booking to needs_review (charged, no event created). A genuinely
+  // lapsed asset (all its rows released/expired, none re-held) still reads invalid.
+  const { rows } = await db.query<{ ok: boolean | null }>(
+    `SELECT bool_and(has_live) AS ok FROM (
+       SELECT asset_code,
+              bool_or(status = 'reserved' OR (status = 'held' AND (expires_at IS NULL OR expires_at > now()))) AS has_live
+         FROM inventory_holds WHERE order_id = $1 GROUP BY asset_code
+     ) t`,
     [orderId],
   );
-  const row = rows[0];
-  if (!row || row.total === 0) return true; // nothing physical to protect
-  return row.live === row.total;
+  const ok = rows[0]?.ok;
+  return ok == null || ok === true; // no physical holds (null) → nothing to protect
 }
 
 /** Housekeeping: mark lapsed holds released so the dashboard reads true. */
