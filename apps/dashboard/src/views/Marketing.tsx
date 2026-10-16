@@ -183,19 +183,22 @@ export function Marketing() {
             {upcoming.map((o: any) => {
               const draft = o.consumer;
               return (
-                <button key={o.slug} onClick={() => openFlow('existing')} style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%', cursor: 'pointer', border: `1px solid ${C.line}`, background: '#fff', borderRadius: 16, padding: '14px 16px', boxShadow: C.shadow }}>
+                <button key={o.slug} onClick={() => openFlow('existing')} style={{ display: 'flex', alignItems: 'center', gap: 13, textAlign: 'left', width: '100%', cursor: 'pointer', border: `1px solid ${C.line}`, background: '#fff', borderRadius: 18, padding: '14px 15px', boxShadow: C.shadow }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 15, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 23, background: C.pinkSoft }}>
+                    {occasionKind(o) === 'offer' ? '🎁' : occasionKind(o) === 'promo' ? '📣' : '🎉'}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 800, fontSize: 15, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginTop: 3 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginTop: 2 }}>
                       📅 {fmtDay(o.dateISO)}{typeof o.daysAway === 'number' ? ` · ${o.daysAway === 0 ? 'today' : `in ${o.daysAway} days`}` : ''}
                     </div>
+                    <div style={{ marginTop: 7 }}>
+                      {draft
+                        ? <Badge tone={STATUS_TONE[draft.status] ?? 'neutral'}>{statusLabel(draft.status)}</Badge>
+                        : <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, background: C.pinkSoft, borderRadius: 8, padding: '3px 9px' }}>not prepared yet</span>}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                    <TypeBadge kind={occasionKind(o)} />
-                    {draft
-                      ? <Badge tone={STATUS_TONE[draft.status] ?? 'neutral'}>{statusLabel(draft.status)}</Badge>
-                      : <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>not prepared</span>}
-                  </div>
+                  <span style={{ color: C.muted, fontSize: 18, fontWeight: 700, flex: 'none' }}>›</span>
                 </button>
               );
             })}
