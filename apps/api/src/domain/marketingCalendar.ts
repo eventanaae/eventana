@@ -915,10 +915,6 @@ export async function sweepMarketingCalendar(): Promise<number> {
   const targets = (await pool.query<{ id: string }>(
     `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
   )).rows;
-  // Do we have any businesses we can email? (drives the corporate draft).
-  const haveCorp = (await pool.query(
-    `SELECT 1 FROM corporate_leads WHERE email IS NOT NULL AND email <> '' AND email_opt_out = FALSE AND status <> 'not_interested' LIMIT 1`,
-  ).catch(() => ({ rowCount: 0 }))).rowCount;
 
   let prepared = 0;
   const createDraft = async (
@@ -964,6 +960,7 @@ export async function sweepMarketingCalendar(): Promise<number> {
   };
 
   for (const o of OCCASIONS) {
+    if (o.corporateOnly) continue; // B2B retired 2026-10-16 — these were company-only
     const next = nextOccasionDate(o, now);
     if (!next) continue; // variable date not confirmed for an upcoming year
     const away = daysUntil(next.dateISO, now);
@@ -975,21 +972,14 @@ export async function sweepMarketingCalendar(): Promise<number> {
     if (away > lead || away < o.sendDaysBefore) continue;
     const scheduledFor = sendTime(next.dateISO, o.sendDaysBefore);
     const ov = await getOccasionOverrides(o.slug);
-    // Consumer draft (to our customers) — skipped for corporate-only occasions.
-    if (!o.corporateOnly) {
-      await createDraft(`occasion|${o.slug}|${next.year}`, o.audience, o.copy.subject, buildOccasionBody(o, ov), 'occasion', o.name, next.dateISO, scheduledFor);
-    }
-    // Corporate draft (to businesses) — for any selling/awareness occasion when
-    // we actually have companies to email.
-    if (!o.greetingOnly && haveCorp) {
-      await createDraft(`occasion|${o.slug}|${next.year}|corp`, 'corp:all', `${o.copy.subject} — for your organisation`, buildCorporateBody(o, ov), 'occasion_corp', `${o.name} (companies)`, next.dateISO, scheduledFor);
-    }
+    // Consumer draft (to our customers). B2B/company drafts retired 2026-10-16.
+    await createDraft(`occasion|${o.slug}|${next.year}`, o.audience, o.copy.subject, buildOccasionBody(o, ov), 'occasion', o.name, next.dateISO, scheduledFor);
     // Owner + Marsha to-do for selling occasions that actually have a draft to act
     // on (greeting-only days like Commemoration Day never create a task).
     if (!o.greetingOnly) {
       const hasDraft = await pool.query(
-        `SELECT 1 FROM email_campaigns WHERE dedupe_key IN ($1,$2) LIMIT 1`,
-        [`occasion|${o.slug}|${next.year}`, `occasion|${o.slug}|${next.year}|corp`],
+        `SELECT 1 FROM email_campaigns WHERE dedupe_key = $1 LIMIT 1`,
+        [`occasion|${o.slug}|${next.year}`],
       );
       if (hasDraft.rowCount) await ensureOccasionTask(o, next.dateISO, next.year);
     }

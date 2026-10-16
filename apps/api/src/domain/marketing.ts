@@ -107,10 +107,19 @@ export function customRecipients(audience: string): Array<{ id: string; email: s
  * is orphaned → reset it to 'failed' so the owner can simply Retry it. (#27)
  */
 export async function recoverStuckSends(): Promise<number> {
+  // A row left 'sending' by a restart mid-send falls into two cases:
+  //  • sent_count > 0 → it ALREADY emailed some/all recipients, so it really
+  //    DID send. Mark it 'sent' (the per-recipient freq-cap stops a re-send on
+  //    retry anyway). Previously these were demoted to 'failed' and dropped out
+  //    of the "Sent" count — the owner saw e.g. "Sent 1" when 3 had gone out.
+  //  • sent_count = 0 → nothing went out → 'failed' (retryable).
   const { rowCount } = await pool.query(
-    `UPDATE email_campaigns SET status = 'failed' WHERE status = 'sending'`,
+    `UPDATE email_campaigns
+        SET status  = CASE WHEN sent_count > 0 THEN 'sent' ELSE 'failed' END,
+            sent_at = CASE WHEN sent_count > 0 THEN COALESCE(sent_at, now()) ELSE sent_at END
+      WHERE status = 'sending'`,
   ).catch(() => ({ rowCount: 0 }));
-  if (rowCount) console.log(`[marketing] recovered ${rowCount} stuck 'sending' campaign(s) → failed (retryable)`);
+  if (rowCount) console.log(`[marketing] recovered ${rowCount} stuck 'sending' campaign(s) (partial→sent, none→failed)`);
   return rowCount ?? 0;
 }
 
@@ -138,6 +147,16 @@ export async function sendCampaign(campaignId: number): Promise<{ recipients: nu
       return { recipients: existing.recipient_count, sent: existing.sent_count };
     }
     throw new Error('not_approved');
+  }
+
+  // B2B/corporate outreach retired 2026-10-16: never send a legacy corp campaign
+  // (e.g. one scheduled before the retirement). Mark it terminally 'failed' — the
+  // scheduled sweep only re-picks 'approved'/'scheduled', so it can't fire again —
+  // and return without emailing anyone.
+  if (String(camp.audience || '').startsWith('corp:') || camp.audience === 'corporate') {
+    await pool.query(`UPDATE email_campaigns SET status = 'failed' WHERE id = $1`, [campaignId]).catch(() => {});
+    console.log(`[marketing] skipped retired B2B campaign ${campaignId} (audience ${camp.audience})`);
+    return { recipients: 0, sent: 0 };
   }
 
   // A "custom:" audience is a manual list of email addresses the owner typed;

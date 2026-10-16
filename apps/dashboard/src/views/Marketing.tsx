@@ -126,7 +126,6 @@ export function Marketing() {
   const pendingCount = sc ? (sc.pending_approval ?? 0) : campaigns.filter((c) => c.status === 'pending_approval').length;
   const recentCampaigns = campaigns.slice(0, 6);
   const upcoming = (cal ?? []).filter((o: any) => !o.needsDateConfirm && o.dateISO).slice(0, 6);
-  const corp = data.corporate ?? {};
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -139,7 +138,6 @@ export function Marketing() {
       {/* At-a-glance numbers — each opens the matching tool. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
         <StatCard label="Customer emails" value={data.audiences.all} icon="👨‍👩‍👧" accent={ACCENTS[0]} i={0} onClick={() => openFlow('new', 'customer', 2)} />
-        <StatCard label="Company emails" value={corp.emailable ?? 0} icon="🏢" accent={ACCENTS[1]} i={1} onClick={() => openFlow('new', 'company', 2)} />
         <StatCard label="Awaiting review" value={pendingCount} icon="📝" accent={ACCENTS[3]} i={2} hint={pendingCount ? 'needs approval' : undefined} onClick={() => openFlow('existing')} />
         <StatCard label="Sent" value={sentCount} icon="✅" accent={ACCENTS[2]} i={3} onClick={() => setPerf(true)} />
       </div>
@@ -162,7 +160,7 @@ export function Marketing() {
           {!cal ? <Spinner /> : upcoming.length === 0 ? <div style={{ padding: 12 }}><Empty>No upcoming occasions to show.</Empty></div> : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {upcoming.map((o: any, i: number) => {
-                const draft = o.consumer ?? o.corporate;
+                const draft = o.consumer;
                 return (
                   <button key={o.slug} onClick={() => openFlow('existing')} style={{ ...rowBtn, borderTop: i ? `1px solid ${C.lineSoft}` : 'none' }}>
                     <span style={{ flex: 1, minWidth: 0 }}>
@@ -196,7 +194,6 @@ export function Marketing() {
                     <span style={{ display: 'block', fontWeight: 700, fontSize: 13, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 5 }}>
                       <TypeBadge kind={campaignKind(c)} />
-                      {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
                       <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
                       {c.status === 'sent' && <span style={{ fontSize: 10.5, fontWeight: 700, color: C.muted }}>{c.sent_count ?? 0} sent · {c.opened_count ?? 0} opened</span>}
                     </span>
@@ -206,23 +203,6 @@ export function Marketing() {
               ))}
             </div>
           )}
-        </Panel>
-      </div>
-
-      {/* Companies (B2B) */}
-      <div>
-        <SectionHeader action={<button onClick={() => setCompanies(true)} style={linkBtn}>Manage ›</button>}>Companies (B2B)</SectionHeader>
-        <Panel>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Stat label="Total" v={corp.total ?? 0} />
-            <Stat label="Emailable" v={corp.emailable ?? 0} tone={C.ink} />
-            <Stat label="Contacted" v={corp.contacted ?? 0} />
-            <Stat label="Replied" v={corp.replied ?? 0} tone={C.green} />
-            <Stat label="Interested" v={corp.interested ?? 0} tone={C.pinkDeep} />
-          </div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginTop: 12 }}>
-            Businesses we can email — grown automatically each week from Google.
-          </div>
         </Panel>
       </div>
 
@@ -239,12 +219,6 @@ export function Marketing() {
         />
       )}
 
-      {companies && (
-        <Modal title="Companies (B2B)" onClose={() => setCompanies(false)}>
-          <CorporatePanel labels={data.corporateLabels ?? {}} counts={data.corporate} onChanged={load} setMsg={setMsg} bare />
-        </Modal>
-      )}
-
       {perf && (() => {
         const fmt = (v?: string | null) => v ? new Date(v).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
         // Performance = campaigns we actually tried to send (sent, sending now, or
@@ -252,7 +226,6 @@ export function Marketing() {
         const list = [...(data.campaigns ?? [])]
           .filter((c: any) => ['sent', 'sending', 'failed'].includes(c.status))
           .sort((a: any, b: any) => new Date(b.sent_at || b.scheduled_for || b.created_at || 0).getTime() - new Date(a.sent_at || a.scheduled_for || a.created_at || 0).getTime());
-        const corp = data.corporate ?? {};
         const whenLine = (c: any) =>
           c.status === 'sent' ? `Sent ${fmt(c.sent_at)}`
           : c.status === 'sending' ? 'Was interrupted — tap retry to finish sending'
@@ -263,17 +236,6 @@ export function Marketing() {
           : `Draft · created ${fmt(c.created_at)}`;
         return (
         <Modal title="Campaigns & performance" onClose={() => setPerf(false)}>
-          {/* Company outreach outcomes — the "how many replied" picture for B2B. */}
-          {(corp.contacted ?? 0) > 0 && (
-            <div style={{ border: `1px solid ${C.line}`, borderRadius: 14, padding: '12px 14px', marginBottom: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: C.ink, marginBottom: 8 }}>🏢 Company outreach</div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11.5, fontWeight: 700 }}>
-                <Stat label="Contacted" v={corp.contacted} />
-                <Stat label="Replied" v={corp.replied} tone={C.green} />
-                <Stat label="Interested" v={corp.interested} tone={C.pinkDeep} />
-              </div>
-            </div>
-          )}
           {list.length === 0 ? <Empty>No campaigns sent yet — once you approve &amp; send one, its results show here (received, opened, clicked).</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {list.map((c: any) => (
@@ -281,7 +243,6 @@ export function Marketing() {
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                     <TypeBadge kind={campaignKind(c)} />
-                    {String(c.audience).startsWith('corp') && <Badge tone="neutral">B2B</Badge>}
                     <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{String(c.status).replace(/_/g, ' ')}</Badge>
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 2 }}>{whenLine(c)}</div>
@@ -437,7 +398,6 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
           {key === 'audience' && (
             <Q title="Who is this campaign for?">
               <Choice emoji="👨‍👩‍👧" label="Our customers" sub={`${data.audiences.all} emails`} active={aud === 'customer'} onClick={() => { setAud('customer'); setStep(2); }} />
-              <Choice emoji="🏢" label="Companies" sub={`${data.corporate?.emailable ?? 0} emails`} active={aud === 'company'} onClick={() => { setAud('company'); setStep(2); }} />
               <Choice emoji="✉️" label="Specific email(s)" sub="Type your own recipients" active={aud === 'custom'} onClick={() => { setAud('custom'); setStep(2); }} />
             </Q>
           )}
@@ -504,7 +464,6 @@ function MarketingFlow({ data, cal, busy, initialPath, initialAud, initialStep, 
           {step === 1 && (
             <Q title="Which audience?">
               <Choice emoji="👨‍👩‍👧" label="Customers" sub="Our customer list" active={aud === 'customer'} onClick={() => { setAud('customer'); setStep(2); }} />
-              <Choice emoji="🏢" label="Companies" sub="The B2B directory" active={aud === 'company'} onClick={() => { setAud('company'); setStep(2); }} />
             </Q>
           )}
           {step === 2 && (
