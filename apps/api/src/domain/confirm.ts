@@ -30,6 +30,7 @@ import { recordSaleFromOrder } from './finance.js';
 import { markOfferUsed } from './offers.js';
 import { INCENTIVE_EXCLUDED } from './incentives.js';
 import { recordReferralEvent } from './staffReferral.js';
+import { pool } from '../db/pool.js';
 
 export interface ConfirmResult {
   /** Null for orders that create no event (e.g. standalone shop orders). */
@@ -815,4 +816,50 @@ async function applyAddonOrder(db: PoolClient, order: any, rules: PricingRules):
   );
 
   void parseHour;
+}
+
+/**
+ * Re-split any whole-team tip that was PAID before its crew was assigned (common
+ * now that staffing is manual). The confirm-time split only runs when crew is
+ * already set, so a pooled tip (member_id NULL) could sit uncredited forever —
+ * nobody's earnings/KPIs ever saw it. This sweep splits it once the event has
+ * crew. Idempotent: the NULL pool row is DELETED as it's split (and only if the
+ * delete claims the row), so a re-run can never double-credit. Runs from the
+ * reconcile sweep; mirrors the confirm.ts split exactly.
+ */
+export async function splitPendingPoolTips(): Promise<number> {
+  const { rows: pools } = await pool.query<{ order_id: string; event_id: string; amount_fils: string }>(
+    `SELECT order_id, event_id, amount_fils FROM tips
+      WHERE member_id IS NULL AND status = 'paid' AND order_id IS NOT NULL`,
+  ).catch(() => ({ rows: [] as Array<{ order_id: string; event_id: string; amount_fils: string }> }));
+  let split = 0;
+  for (const p of pools) {
+    const { rows: crew } = await pool.query<{ id: string }>(
+      `SELECT tm.id FROM event_team et JOIN team_members tm ON tm.id = et.member_id
+        WHERE et.event_id = $1 AND tm.active AND lower(tm.name) <> ALL($2::text[])
+        ORDER BY tm.id`,
+      [p.event_id, INCENTIVE_EXCLUDED],
+    ).catch(() => ({ rows: [] as Array<{ id: string }> }));
+    if (crew.length === 0) continue; // still no crew — leave it pooled
+    const total = Number(p.amount_fils);
+    if (!Number.isFinite(total) || total <= 0) continue;
+    const base = Math.floor(total / crew.length);
+    const rem = total - base * crew.length;
+    // Claim the pool row by deleting it FIRST; if the delete matched nothing,
+    // another run already split it — skip so we never double-credit.
+    const del = await pool.query(`DELETE FROM tips WHERE order_id = $1 AND member_id IS NULL`, [p.order_id]).catch(() => ({ rowCount: 0 }));
+    if (!del.rowCount) continue;
+    for (let i = 0; i < crew.length; i++) {
+      const share = base + (i < rem ? 1 : 0);
+      if (share <= 0) continue;
+      await pool.query(
+        `INSERT INTO tips (event_id, order_id, member_id, amount_fils, status, paid_at)
+         VALUES ($1,$2,$3,$4,'paid', now())`,
+        [p.event_id, i === 0 ? p.order_id : null, crew[i].id, share],
+      ).catch(() => {});
+    }
+    split++;
+  }
+  if (split) console.log(`[tips] re-split ${split} pooled tip(s) now that crew is assigned`);
+  return split;
 }

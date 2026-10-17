@@ -17,6 +17,7 @@ import { recordPaymentEvent } from './orders.js';
 import { processDelivery } from './webhooks.js';
 import { sweepScheduledCampaigns, sweepVoucherReminders, sweepWinbackReminders, sweepPostEventWinback, sweepWinbackCampaignAuto, sweepCustomerBirthdays } from './marketing.js';
 import { sweepMarketingCalendar } from './marketingCalendar.js';
+import { splitPendingPoolTips } from './confirm.js';
 import { sweepCorporateCollect, sweepCorporateFirstTouch, sweepCorporateFollowups } from './corporateOutreach.js';
 import { deliverPendingNotifications } from './notify.js';
 
@@ -225,6 +226,10 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
       if (r.emails || r.pushes || r.whatsapps) console.log(`[notify] delivered ${r.emails} email(s), ${r.pushes} push(es), ${r.whatsapps} whatsapp(s)`);
     })
     .catch((err) => console.error('[notify] delivery failed:', err));
+
+  // Credit any whole-team tip that was paid before its crew was assigned
+  // (manual staffing) — idempotent, never double-credits.
+  await splitPendingPoolTips().catch((err) => console.error('[tips] re-split failed:', err));
 
   // Send any marketing campaigns whose scheduled time has arrived. Non-fatal:
   // a mail hiccup must never disturb payment reconciliation.
