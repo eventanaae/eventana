@@ -104,6 +104,10 @@ function CustomerDrawer({ id, onClose, onSaved }: { id: number; onClose: () => v
     setBusy(true); setMsg(null);
     try {
       await api.updateCustomer(id, form);
+      // Refresh the open drawer too (header name / tiles) — not just the list —
+      // so it doesn't keep showing the pre-edit values until reopened.
+      const fresh = await api.customer(id).catch(() => null);
+      if (fresh) setData(fresh);
       setMsg('Saved ✓');
       onSaved();
       setTimeout(() => setMsg(null), 1500);
