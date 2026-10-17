@@ -876,9 +876,12 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                     <select
                       value={refundItem}
                       onChange={(e) => {
-                        const label = e.target.value;
-                        setRefundItem(label);
-                        const svc = (data.services || []).find((s: any) => String(s.label) === label);
+                        // Key by the UNIQUE row id, not the label — two lines can
+                        // share a label (e.g. two "Extra hour") and matching by
+                        // label picked the first one's amount. Resolve the exact row.
+                        const idSel = e.target.value;
+                        setRefundItem(idSel);
+                        const svc = (data.services || []).find((s: any) => String(s.id) === idSel);
                         setRefundAmount(svc ? String((Number(svc.amount_fils) || 0) / 100) : '');
                       }}
                       style={{ ...inputStyle, width: '100%' }}
@@ -887,7 +890,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                       {(data.services || [])
                         .filter((s: any) => Number(s.amount_fils) > 0 && s.source !== 'package_item')
                         .map((s: any) => (
-                          <option key={s.id} value={String(s.label)}>
+                          <option key={s.id} value={String(s.id)}>
                             {s.label} — AED {(Number(s.amount_fils) / 100).toLocaleString()}
                           </option>
                         ))}
@@ -912,7 +915,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
 
                   {refundItem && (refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') && (
                     <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
-                      Removing <b>{refundItem}</b> — AED {Number(refundAmount || 0).toLocaleString()} back to the customer.
+                      Removing <b>{(data.services || []).find((s: any) => String(s.id) === refundItem)?.label ?? ''}</b> — AED {Number(refundAmount || 0).toLocaleString()} back to the customer.
                     </div>
                   )}
 
@@ -935,6 +938,8 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         if (!amt) return;
                         const needsItem = refundCategory === 'customer_cancellation' || refundCategory === 'missing_item';
                         if (needsItem && !refundItem) return;
+                        // refundItem is the row id — resolve its label for the message + API.
+                        const refundItemLabel = (data.services || []).find((s: any) => String(s.id) === refundItem)?.label ?? '';
                         // A clear confirmation BEFORE anything happens — the amount,
                         // what it's for, and the reason — so a stray tap can't quietly
                         // refund a customer (and the money is always returned by hand).
@@ -947,7 +952,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         const lines = [
                           `Refund AED ${amt.toLocaleString()} on ${data.event.order_id}?`,
                           '',
-                          `• For: ${refundItem || 'no specific item (free amount)'}`,
+                          `• For: ${refundItemLabel || 'no specific item (free amount)'}`,
                           `• Reason: ${reasonLabels[refundCategory] || refundCategory}${refundReason.trim() ? ` — ${refundReason.trim()}` : ''}`,
                         ];
                         if (refundCancelEvent) lines.push('• The EVENT will also be CANCELLED (reservations released, emails stopped).');
@@ -957,7 +962,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                           const res = await api.refund(
                             data.event.order_id,
                             Math.round(amt * 100),
-                            { reasonCategory: refundCategory, reason: refundReason.trim() || undefined, cancelEvent: refundCancelEvent, itemLabel: refundItem || undefined },
+                            { reasonCategory: refundCategory, reason: refundReason.trim() || undefined, cancelEvent: refundCancelEvent, itemLabel: refundItemLabel || undefined },
                           );
                           const apology = refundCategory === 'quality_issue' || refundCategory === 'missing_item';
                           setMessage(`Refund recorded — order is now ${res.status}.${res.eventCancelled ? ' Event cancelled.' : ''} The customer has been ${apology ? 'sent an apology + the updated receipt' : 'emailed the updated receipt'}.`);
