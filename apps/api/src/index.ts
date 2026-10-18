@@ -614,6 +614,10 @@ async function main() {
     // (SET_SHAN_LEADER='campaudit' → then blank it).
     const { campaignAuditFromEnv } = await import('./db/campaignAudit.js');
     await campaignAuditFromEnv().catch((err) => console.error('[camp-audit] failed:', err));
+    // One-shot: owner-approved feedback reply to the EV-1757 customer, CC Marsha
+    // (SET_SHAN_LEADER='ev1757mail' → then blank it). Dedup-guarded via app_kv.
+    const { sendComplaintEv1757FromEnv } = await import('./db/sendComplaintEv1757.js');
+    await sendComplaintEv1757FromEnv().catch((err) => console.error('[ev1757-reply] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
