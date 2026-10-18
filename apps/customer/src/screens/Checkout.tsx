@@ -164,11 +164,11 @@ export function Checkout({
   // which is never stored) so a trip to the catalogue and back doesn't force the
   // customer to retype their name/email/phone. Restored on mount, cleared on a
   // placed order and on reset().
-  const [reg, setReg] = useState(() => {
+  const [reg, setReg] = useState<{ name: string; email: string; phone: string; backupPhone: string; password: string; referralCode: string }>(() => {
     const base = { name: loadProfile()?.name ?? '', email: '', phone: '', backupPhone: '', password: '', referralCode: '' };
     try {
       const raw = sessionStorage.getItem('ev_co_reg');
-      if (raw) return { ...base, ...JSON.parse(raw), password: '' };
+      if (raw) return { ...base, ...(JSON.parse(raw) as Partial<typeof base>), password: '' };
     } catch { /* ignore */ }
     return base;
   });
