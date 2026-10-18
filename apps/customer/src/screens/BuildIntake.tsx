@@ -29,9 +29,13 @@ export function BuildIntake({ catalogue, draft, go, startBuild, t, lang }: Scree
     startBuild({
       celebrationType: type!,
       celebrationTypeChosen: true,
-      // A different celebration prices differently — start its build clean.
+      // Build-Your-Own is package-free by definition, so starting it always drops
+      // any package the customer had picked (this is the one place that clears it
+      // now — Build's item toggle no longer does, so a package keeps its add-ons).
+      packageId: null,
+      // A different celebration prices differently — also start its services clean.
       ...(type !== draft.celebrationType
-        ? { services: {}, packageId: null, themeId: null, customTheme: false }
+        ? { services: {}, themeId: null, customTheme: false }
         : {}),
     });
   };

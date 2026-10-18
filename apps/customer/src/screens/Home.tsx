@@ -6,16 +6,17 @@ import { pkgName, pkgCapacity, pkgTag, thName } from '../pkgAr';
 export function Home({ catalogue, draft, shopCart, update, go, customerName, t, lang }: ScreenProps) {
   const hour = new Date().getHours();
 
-  // Welcome-discount pop-up: show once per visitor (remembered in localStorage),
-  // a big attention-grabber that pushes them to book now with WELCOME10.
+  // Welcome-discount pop-up: show once per VISIT — remembered in sessionStorage,
+  // so a returning customer sees it again every new session (but it won't nag on
+  // every in-session navigation). A big attention-grabber pushing WELCOME10.
   const [showPromo, setShowPromo] = useState(false);
   useEffect(() => {
-    try { if (!localStorage.getItem('eventana_welcome_promo_v1')) setShowPromo(true); }
+    try { if (!sessionStorage.getItem('eventana_welcome_promo_v1')) setShowPromo(true); }
     catch { /* private mode — just don't show */ }
   }, []);
   const dismissPromo = () => {
     setShowPromo(false);
-    try { localStorage.setItem('eventana_welcome_promo_v1', '1'); } catch { /* ignore */ }
+    try { sessionStorage.setItem('eventana_welcome_promo_v1', '1'); } catch { /* ignore */ }
   };
   const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
   const firstName = (customerName || '').trim().split(' ')[0] || t('common.friend');

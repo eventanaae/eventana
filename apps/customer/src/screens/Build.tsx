@@ -41,7 +41,10 @@ export function Build({ catalogue, draft, update, quote, go, t, lang }: ScreenPr
     const next = { ...draft.services };
     if (next[id]) delete next[id];
     else next[id] = defaultQty;
-    update({ services: next, packageId: null });
+    // Adding/removing an item must NOT wipe a chosen package — a package and its
+    // add-ons coexist (same as the checkout cross-sell). Build-Your-Own is kept
+    // package-free at its entry (BuildIntake), so there's nothing to clear here.
+    update({ services: next });
   };
 
   const count = Object.keys(draft.services).length;

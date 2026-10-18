@@ -562,6 +562,9 @@ export default function App() {
     setQuote(null);
     setOrderId(null);
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    // Drop the checkout wizard's saved step + typed guest details too, so the
+    // next booking starts clean.
+    try { sessionStorage.removeItem('ev_co_step'); sessionStorage.removeItem('ev_co_reg'); } catch { /* ignore */ }
   }, []);
 
   const shared = useMemo(

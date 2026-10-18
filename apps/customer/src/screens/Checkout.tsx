@@ -95,7 +95,17 @@ export function Checkout({
   const [error, setError] = useState<string | null>(null);
   // Wizard: one topic per step (1..6). Switching the index keeps all draft +
   // local state mounted, so going Back never loses what the customer typed.
-  const [step, setStep] = useState(1);
+  // The step is also mirrored to sessionStorage so leaving checkout to add an
+  // item from the catalogue (which unmounts this screen) and coming back lands
+  // the customer on the SAME step — not thrown back to step 1. Cleared on a
+  // placed order and on reset(), so a brand-new booking still starts at step 1.
+  const [step, setStep] = useState(() => {
+    try { const s = Number(sessionStorage.getItem('ev_co_step')); if (s >= 1 && s <= 6) return s; } catch { /* ignore */ }
+    return 1;
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem('ev_co_step', String(step)); } catch { /* ignore */ }
+  }, [step]);
 
   const [account, setAccount] = useState<Account | null>(() => loadAccount());
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
@@ -106,6 +116,10 @@ export function Checkout({
   const [promo, setPromo] = useState<{ code: string; amountFils: number; freeDelivery: boolean } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoBusy, setPromoBusy] = useState(false);
+  // A discount code the customer has available but may not know about — surfaced
+  // right above the code field, validated against THIS cart so it only shows when
+  // it would actually apply.
+  const [suggest, setSuggest] = useState<{ code: string; amountFils: number; freeDelivery: boolean } | null>(null);
   const [useCredit, setUseCredit] = useState(false);
   const [redeemPoints, setRedeemPoints] = useState(false);
   const [custBusy, setCustBusy] = useState(false);
@@ -146,7 +160,25 @@ export function Checkout({
       setRefBusy(false);
     }
   };
-  const [reg, setReg] = useState({ name: loadProfile()?.name ?? '', email: '', phone: '', backupPhone: '', password: '', referralCode: '' });
+  // Guest contact details — also mirrored to sessionStorage (minus the password,
+  // which is never stored) so a trip to the catalogue and back doesn't force the
+  // customer to retype their name/email/phone. Restored on mount, cleared on a
+  // placed order and on reset().
+  const [reg, setReg] = useState(() => {
+    const base = { name: loadProfile()?.name ?? '', email: '', phone: '', backupPhone: '', password: '', referralCode: '' };
+    try {
+      const raw = sessionStorage.getItem('ev_co_reg');
+      if (raw) return { ...base, ...JSON.parse(raw), password: '' };
+    } catch { /* ignore */ }
+    return base;
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ev_co_reg', JSON.stringify({
+        name: reg.name, email: reg.email, phone: reg.phone, backupPhone: reg.backupPhone, referralCode: reg.referralCode,
+      }));
+    } catch { /* ignore */ }
+  }, [reg]);
   // Guest checkout is the default; creating an account (for points + a next-
   // booking voucher) is opt-in.
   const [wantAccount, setWantAccount] = useState(false);
@@ -303,6 +335,24 @@ export function Checkout({
     }
   };
 
+  // Surface an available code (the public WELCOME10) above the field on the last
+  // step — validated against this cart, so it only appears when it would really
+  // apply and auto-hides once any code is applied.
+  useEffect(() => {
+    if (step !== 6 || promo || subtotalFils <= 0) { setSuggest(null); return; }
+    let alive = true;
+    api.checkPromo('WELCOME10', subtotalFils)
+      .then((r) => {
+        if (!alive) return;
+        setSuggest(r.ok && r.code && ((r.amountFils ?? 0) > 0 || r.freeDelivery)
+          ? { code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false }
+          : null);
+      })
+      .catch(() => { if (alive) setSuggest(null); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, promo, subtotalFils]);
+
   // Re-validate an applied promo whenever the cart total changes, so a code that
   // no longer meets its minimum (or whose value changed) can't show a stale
   // discount the server will reject at pay.
@@ -386,6 +436,9 @@ export function Checkout({
       // paid" audience — the warmest list there is to retarget.
       trackInitiateCheckout(result.totalFils);
       trackGoogleBeginCheckout(result.totalFils);
+      // Booking is on its way to payment — drop the saved wizard progress so the
+      // customer's NEXT booking starts clean at step 1 with empty contact fields.
+      try { sessionStorage.removeItem('ev_co_step'); sessionStorage.removeItem('ev_co_reg'); } catch { /* ignore */ }
       // Use the provider's hosted checkout (redirect) — the reliable path.
       // Ziina's embedded iframe widget returns "Forbidden" for this account
       // (embedded/iframe payments are not enabled), so only fall back to the
@@ -746,12 +799,15 @@ export function Checkout({
       {/* ============================ STEP 5 — Add-ons ============================ */}
       {step === 5 && (
         <>
-      {/* Manual-order (offer) links: let the customer add anything else from the
-          full catalogue while reviewing — the server re-prices and keeps the
-          team's manual pieces via the offer token. */}
-      {draft.offerToken && (
+      {/* Add anything else from the full catalogue while reviewing. For an offer
+          link the server re-prices and keeps the team's manual pieces via the
+          token; for a normal package booking we mark the build questions answered
+          so this skips the intake and — crucially — the chosen package SURVIVES
+          (Build's item toggle no longer clears it), then the customer returns to
+          checkout on the same step with their details intact. */}
+      {(draft.offerToken || draft.packageId) && (
         <button
-          onClick={() => go('build')}
+          onClick={() => { if (!draft.offerToken) update({ buildAnswered: true }); go('build'); }}
           style={{ width: '100%', boxSizing: 'border-box', border: `1.5px dashed ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, fontWeight: 800, fontSize: 14, padding: '13px', borderRadius: 14, cursor: 'pointer', margin: '0 0 14px' }}
         >
           ＋ {lang === 'ar' ? 'أضف أشياء أخرى من القائمة' : 'Add more items from the catalogue'}
@@ -1054,6 +1110,21 @@ export function Checkout({
             <div style={{ marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: C.green }}>
               {t('checkout.freeDelivery', { aed: `${t('common.aed')} ${money(freeDeliveryFils)}` })}
             </div>
+          )}
+          {!promo && suggest && (
+            <button
+              type="button"
+              onClick={() => { setPromoInput(suggest.code); setPromo({ code: suggest.code, amountFils: suggest.amountFils, freeDelivery: suggest.freeDelivery }); }}
+              style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: `1.5px dashed ${C.pink}`, background: C.pinkSoft, borderRadius: 12, padding: '10px 12px', marginBottom: 8, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.pinkDeep, textAlign: lang === 'ar' ? 'right' : 'left', lineHeight: 1.4 }}>
+                🎁 {lang === 'ar' ? `عندك كود ${suggest.code}` : `You have code ${suggest.code}`}
+                {suggest.amountFils > 0
+                  ? ` — ${lang === 'ar' ? 'وفّر' : 'save'} ${t('common.aed')} ${money(suggest.amountFils)}`
+                  : (suggest.freeDelivery ? ` — ${lang === 'ar' ? 'توصيل مجاني' : 'free delivery'}` : '')}
+              </span>
+              <span style={{ flex: 'none', background: C.pink, color: '#fff', fontWeight: 800, fontSize: 11.5, borderRadius: 999, padding: '6px 12px', whiteSpace: 'nowrap' }}>{t('checkout.apply')}</span>
+            </button>
           )}
           {!promo && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
