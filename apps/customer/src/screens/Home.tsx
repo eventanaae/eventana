@@ -170,7 +170,9 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
           tint="linear-gradient(135deg,#E9F8F5,#BDEBE4)"
           title={t('home.buildTitle')}
           sub={t('home.buildSub')}
-          onClick={() => go('build')}
+          // Build-Your-Own is package-free — drop any chosen package on entry so a
+          // sticky buildAnswered can't carry a stale package into a fresh build.
+          onClick={() => { update({ packageId: null }); go('build'); }}
         />
       </div>
 

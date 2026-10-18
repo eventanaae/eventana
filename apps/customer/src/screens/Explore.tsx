@@ -66,7 +66,7 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
             {coming?.body ?? t('explore.comingBody')}
           </div>
           <button
-            onClick={() => go('build')}
+            onClick={() => { update({ packageId: null }); go('build'); }}
             style={{ background: C.pink, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, padding: '12px 22px', borderRadius: 18, cursor: 'pointer' }}
           >
             {coming?.cta ?? t('explore.buildYour', { label: evLabel })}
@@ -176,7 +176,7 @@ export function Explore({ catalogue, draft, update, go, t, social, lang }: Scree
 
           {/* Build Your Own — part of the Kids Birthday experience */}
           <div
-            onClick={() => go('build')}
+            onClick={() => { update({ packageId: null }); go('build'); }}
             style={{
               marginTop: 18, display: 'flex', alignItems: 'center', gap: 14, background: '#fff',
               borderRadius: 22, padding: 16, boxShadow: C.shadowLg, cursor: 'pointer',

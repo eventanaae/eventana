@@ -77,6 +77,7 @@ export function Checkout({
   quoteError,
   retryQuote,
   go,
+  startBuild,
   onOrder,
   t,
   lang,
@@ -99,7 +100,15 @@ export function Checkout({
   // item from the catalogue (which unmounts this screen) and coming back lands
   // the customer on the SAME step — not thrown back to step 1. Cleared on a
   // placed order and on reset(), so a brand-new booking still starts at step 1.
+  // Restore the saved step / typed details ONLY when returning from a mid-checkout
+  // trip to the catalogue (the "Add more items" button sets ev_co_resume). A fresh
+  // checkout in the same session starts clean — so one customer's details never
+  // resurface for the next. One-shot: the flag is consumed on mount.
+  const [resuming] = useState(() => {
+    try { const f = sessionStorage.getItem('ev_co_resume') === '1'; if (f) sessionStorage.removeItem('ev_co_resume'); return f; } catch { return false; }
+  });
   const [step, setStep] = useState(() => {
+    if (!resuming) return 1;
     try { const s = Number(sessionStorage.getItem('ev_co_step')); if (s >= 1 && s <= 6) return s; } catch { /* ignore */ }
     return 1;
   });
@@ -166,10 +175,12 @@ export function Checkout({
   // placed order and on reset().
   const [reg, setReg] = useState<{ name: string; email: string; phone: string; backupPhone: string; password: string; referralCode: string }>(() => {
     const base = { name: loadProfile()?.name ?? '', email: '', phone: '', backupPhone: '', password: '', referralCode: '' };
-    try {
-      const raw = sessionStorage.getItem('ev_co_reg');
-      if (raw) return { ...base, ...(JSON.parse(raw) as Partial<typeof base>), password: '' };
-    } catch { /* ignore */ }
+    if (resuming) {
+      try {
+        const raw = sessionStorage.getItem('ev_co_reg');
+        if (raw) return { ...base, ...(JSON.parse(raw) as Partial<typeof base>), password: '' };
+      } catch { /* ignore */ }
+    }
     return base;
   });
   useEffect(() => {
@@ -807,7 +818,15 @@ export function Checkout({
           checkout on the same step with their details intact. */}
       {(draft.offerToken || draft.packageId) && (
         <button
-          onClick={() => { if (!draft.offerToken) update({ buildAnswered: true }); go('build'); }}
+          onClick={() => {
+            // Flag that we're stepping out to add items, so returning restores the
+            // same step + typed details (see the `resuming` gate at the top).
+            try { sessionStorage.setItem('ev_co_resume', '1'); } catch { /* ignore */ }
+            // startBuild sets buildAnswered AND navigates in ONE commit, keeping the
+            // package. Using update()+go('build') here would misroute: go() reads a
+            // not-yet-updated draftRef, lands on the intake, and wipes the package.
+            if (draft.offerToken) go('build'); else startBuild({});
+          }}
           style={{ width: '100%', boxSizing: 'border-box', border: `1.5px dashed ${C.pink}`, background: C.pinkSoft, color: C.pinkDeep, fontWeight: 800, fontSize: 14, padding: '13px', borderRadius: 14, cursor: 'pointer', margin: '0 0 14px' }}
         >
           ＋ {lang === 'ar' ? 'أضف أشياء أخرى من القائمة' : 'Add more items from the catalogue'}
