@@ -618,6 +618,10 @@ async function main() {
     // (SET_SHAN_LEADER='ev1757mail' → then blank it). Dedup-guarded via app_kv.
     const { sendComplaintEv1757FromEnv } = await import('./db/sendComplaintEv1757.js');
     await sendComplaintEv1757FromEnv().catch((err) => console.error('[ev1757-reply] failed:', err));
+    // READ-ONLY one-shot: dump the last 3 months of expenses to logs for an Excel
+    // report (SET_SHAN_LEADER='expdump3mo' → then blank it).
+    const { dumpExpenses3moFromEnv } = await import('./db/dumpExpenses3mo.js');
+    await dumpExpenses3moFromEnv().catch((err) => console.error('[expdump] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
