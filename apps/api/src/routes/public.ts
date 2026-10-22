@@ -828,11 +828,15 @@ export async function publicRoutes(app: FastifyInstance) {
       ),
       pool.query(`SELECT round(avg(stars)::numeric, 1) AS avg, count(*)::int AS count FROM event_ratings`),
       pool.query(
+        // PUBLIC testimonials: ONLY happy 4–5★ reviews. Low ratings (1–3★) carry
+        // the customer's private complaint text and are INTERNAL ONLY — they must
+        // never surface on the public site. (This filter was missing, which leaked
+        // negative internal feedback onto the landing page.)
         `SELECT r.stars, r.feedback, c.name
            FROM event_ratings r
            JOIN events e ON e.id = r.event_id
            LEFT JOIN customers c ON c.id = e.customer_id
-          WHERE r.feedback IS NOT NULL AND length(trim(r.feedback)) > 0
+          WHERE r.stars >= 4 AND r.feedback IS NOT NULL AND length(trim(r.feedback)) > 0
           ORDER BY r.created_at DESC LIMIT 8`,
       ),
     ]);

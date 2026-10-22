@@ -78,7 +78,10 @@ export function Landing({
     canonical.setAttribute('href', `${CANONICAL_ORIGIN}/${route.slug}/`);
   }, [copy.title, copy.description, route.slug]);
 
-  const testimonials = (social?.testimonials ?? []).filter((x) => x.feedback).slice(0, 3);
+  // Only ever show happy 4–5★ reviews publicly. 1–3★ feedback is private
+  // (internal complaints) and must never appear here — guard on the client too,
+  // so a stale/cached API response can't leak it.
+  const testimonials = (social?.testimonials ?? []).filter((x) => x.feedback && x.stars >= 4).slice(0, 3);
   const rating = social?.overall;
 
   return (
