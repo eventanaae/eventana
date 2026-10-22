@@ -622,6 +622,10 @@ async function main() {
     // report (SET_SHAN_LEADER='expdump3mo' → then blank it).
     const { dumpExpenses3moFromEnv } = await import('./db/dumpExpenses3mo.js');
     await dumpExpenses3moFromEnv().catch((err) => console.error('[expdump] failed:', err));
+    // READ-ONLY one-shot: dump ALL transactions (sales + expenses) base64-chunked
+    // for an all-time statement PDF (SET_SHAN_LEADER='alltxndump' → then blank it).
+    const { dumpAllTxnsFromEnv } = await import('./db/dumpAllTxns.js');
+    await dumpAllTxnsFromEnv().catch((err) => console.error('[alltxndump] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
