@@ -15,7 +15,7 @@ const PRICES = {
 };
 const NAMES = {
   "pudding": "Date Pudding", "strawberry": "Chocolate Strawberry", "hot-choc": "Hot Chocolate",
-  "matcha": "Matcha", "golden-brew": "Golden Brew", "matcha-ic": "Matcha Ice Cream",
+  "matcha": "Matcha", "golden-brew": "Iced V60", "matcha-ic": "Matcha Ice Cream",
   "redbull-ic": "Red Bull Ice Cream", "karak-ic": "Karak Ice Cream", "acai-ic": "Açaí Ice Cream",
   "greek-ic": "Greek Yogurt Ice Cream", "vanilla-ic": "Vanilla Ice Cream"
 };
