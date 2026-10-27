@@ -69,6 +69,7 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".webp": "image/webp", ".pn
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   try {
+    if (url.pathname.startsWith("/api/") && !dbReady) return send(res, 503, { error: "db" });
     if (url.pathname === "/api/orders" && req.method === "POST") {
       const b = await readBody(req);
       if (!["cash", "card"].includes(b.pay)) return send(res, 400, { error: "pay" });
@@ -129,5 +130,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-init().then(() => server.listen(PORT, () => console.log("ODDLY menu on", PORT)))
-  .catch(e => { console.error("DB init failed", e); process.exit(1); });
+let dbReady = false;
+async function connectDb() {
+  if (!process.env.DATABASE_URL) { console.error("DATABASE_URL is not set: orders cannot be saved yet"); return; }
+  try { await init(); dbReady = true; console.log("Database ready"); }
+  catch (e) { console.error("DB init failed, retrying in 15s", e.message); setTimeout(connectDb, 15000); }
+}
+server.listen(PORT, () => { console.log("ODDLY menu on", PORT); connectDb(); });
