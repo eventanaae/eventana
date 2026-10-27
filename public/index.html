@@ -38,13 +38,13 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 #app{height:100%;display:flex;flex-direction:column}
 
 /* Brand band */
-.hero{background:var(--hdr,var(--peach));position:relative;flex:none;transition:background .4s}
+.hero{background:var(--peach);position:relative;flex:none}
 .hero .gut{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:8px 20px;position:relative;z-index:1}
 .brand{font-family:var(--display);font-weight:800;color:var(--green);font-size:clamp(34px,5.4vh,52px);line-height:1;letter-spacing:-1px;direction:ltr}
 .brand b{color:var(--magenta)}
 .logo{height:clamp(38px,6vh,56px);width:auto;display:block}
 .logo.sm{height:36px}
-.mid{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;font-family:var(--display);font-weight:700;color:var(--cocoa);font-size:clamp(15px,2.2vh,20px)}
+.mid{flex:1;min-width:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;font-family:var(--display);font-weight:700;color:var(--cocoa);font-size:clamp(15px,2.2vh,20px)}
 .chip{display:inline-flex;align-items:baseline;gap:6px;background:var(--green);color:var(--cream);padding:4px 16px;border-radius:999px}
 .chip strong{font-size:1.35em;color:var(--gold)}
 .lock{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.55);display:grid;place-items:center;color:var(--cocoa)}
@@ -84,9 +84,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 
 
 /* Seasonal themes (switch automatically by date in Dubai) */
-.d1{fill:var(--dune1,#F4A3BC)}.d2{fill:var(--dune2,#C2216A)}.d3{fill:var(--dune3,#6A3524)}
-.themed .logo{background:var(--cream);padding:6px 14px;border-radius:18px;box-sizing:content-box}
-.theme-pill{font-family:var(--display);font-weight:800;font-size:clamp(18px,3vh,28px);line-height:1.2;color:var(--tfg,var(--green));text-align:center;text-wrap:balance;text-shadow:var(--tshadow,none);letter-spacing:.2px}
+.greet{font-family:var(--display);font-weight:700;font-size:clamp(14px,2vh,17px);color:var(--magenta);white-space:nowrap;}
+.greet+.lock{margin-inline-start:10px}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
 #fx span{position:absolute;top:-8vh;animation:fall linear infinite;opacity:.85;will-change:transform}
 @keyframes fall{0%{transform:translate(0,0) rotate(0)}50%{transform:translate(var(--sway),55vh) rotate(180deg)}100%{transform:translate(0,118vh) rotate(360deg)}}
@@ -109,7 +108,6 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
   .mid span.say{display:none}
   .hero .gut{flex-wrap:wrap;row-gap:4px}
   .mid{order:3;flex-basis:100%}
-  .theme-pill{font-size:19px}
 }
 
 /* Overlays */
@@ -230,6 +228,7 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
     <div class="gut">
       <img class="logo" src="/logo.png" alt="ODDLY">
       <div class="mid" id="mid"><span class="say">اضغط على أي صنف وشوفه من قريب</span></div>
+      <span class="greet" id="greet" dir="auto" hidden></span>
       <button class="lock" id="adminBtn" aria-label="تقرير الطلبات"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
     </div>
     <svg class="dunes" viewBox="0 0 1200 20" preserveAspectRatio="none" aria-hidden="true">
@@ -455,19 +454,18 @@ document.addEventListener("keydown",e=>{
 
 
 /* ---------- Seasonal themes ---------- */
-const FLAG = "linear-gradient(#C8102E,#C8102E) left/20% 100% no-repeat, linear-gradient(#00732F,#00732F) top/100% 33.4% no-repeat, linear-gradient(#FFFFFF,#FFFFFF) center/100% 33.4% no-repeat, linear-gradient(#000,#000) bottom/100% 33.4% no-repeat";
 const THEMES = [
-  {id:"halloween", tfg:"#E8742A", from:"10-30", to:"10-31", hdr:"#1E1410", accent:"#E8742A", dunes:["#E8742A","#6B2E8F","#120B08"], fx:["🎃","🦇","👻","🍬"], text:()=>"🎃 هالوين في ODDLY… حلا مرعب من لذته!"},
-  {id:"flag", tfg:"#000000", halo:true, from:"11-03", to:"11-03", hdr:FLAG, flag:true, accent:"#C8102E", dunes:["#00732F","#FFFFFF","#000000"], fx:["🇦🇪"], text:()=>"🇦🇪 يوم العلم… رايتنا عالية دوم"},
-  {id:"national", tfg:"#000000", halo:true, from:"12-02", to:"12-03", hdr:FLAG, flag:true, accent:"#C8102E", dunes:["#00732F","#FFFFFF","#000000"], fx:["🇦🇪","✨"], text:y=>`🇦🇪 عيد الاتحاد الـ${y-1971}… كل عام والإمارات بخير`},
-  {id:"christmas", tfg:"#FFF6F0", from:"12-24", to:"12-25", hdr:"#14402F", accent:"#C8102E", dunes:["#FFFFFF","#C8102E","#0E2E22"], fx:["❄️","🎄","⭐","🎁","❄️"], text:()=>"Merry Christmas 🎄"},
-  {id:"newyear", tfg:"#E3A72F", from:"12-31", to:"01-01", hdr:"#1E1410", accent:"#E3A72F", pillfg:"#1E1410", dunes:["#E3A72F","#C81E68","#120B08"], fx:["✨","🎆","🎉","⭐"], text:(y,md)=>`Happy New Year ${md==="12-31"?y+1:y} ✨`},
-  {id:"valentine", tfg:"#14402F", from:"02-13", to:"02-14", hdr:"#F2A0B6", accent:"#C81E68", dunes:["#FFFFFF","#C81E68","#9E1552"], fx:["❤️","💕","💗","🌹"], text:()=>"❤️ عيد حب سعيد… شارك حلاك مع اللي تحبه"},
-  {id:"mothers", tfg:"#C81E68", from:"03-21", to:"03-21", hdr:"#F9D6C4", accent:"#C81E68", dunes:["#F2A0B6","#C81E68","#6B3524"], fx:["🌸","💐","🌷"], text:()=>"🌸 كل عام وأمهاتنا بخير"},
-  {id:"womens", tfg:"#C81E68", from:"08-28", to:"08-28", hdr:"#F9D6C4", accent:"#C81E68", dunes:["#00732F","#C8102E","#6B3524"], fx:["🌸","✨"], text:()=>"🌸 يوم المرأة الإماراتية… كل عام وأنتن ملهمات"},
-  {id:"ramadan", tfg:"#E3A72F", from:"2027-02-08", to:"2027-03-08", hdr:"#14402F", accent:"#E3A72F", pillfg:"#14402F", dunes:["#E3A72F","#2F6B4F","#0E2E22"], fx:["🌙","⭐","🏮","✨"], text:()=>"🌙 رمضان كريم"},
-  {id:"eidfitr", tfg:"#E3A72F", from:"2027-03-09", to:"2027-03-12", hdr:"#14402F", accent:"#E3A72F", pillfg:"#14402F", dunes:["#E3A72F","#C81E68","#0E2E22"], fx:["✨","🌙","🎉","🎈"], text:()=>"✨ عيدكم مبارك… وكل عام وأنتم بخير"},
-  {id:"eidadha", tfg:"#E3A72F", from:"2027-05-15", to:"2027-05-19", hdr:"#14402F", accent:"#E3A72F", pillfg:"#14402F", dunes:["#E3A72F","#C81E68","#0E2E22"], fx:["✨","🌙","🎉"], text:()=>"✨ عيد أضحى مبارك… وكل عام وأنتم بخير"}
+  {id:"halloween", from:"10-30", to:"10-31", fx:["🎃","🦇","👻","🍬"], text:()=>"Trick or Treat 🎃"},
+  {id:"flag", from:"11-03", to:"11-03", fx:["🇦🇪"], text:()=>"يوم العلم 🇦🇪"},
+  {id:"national", from:"12-02", to:"12-03", fx:["🇦🇪","✨"], text:y=>`عيد الاتحاد الـ${y-1971} 🇦🇪`},
+  {id:"christmas", from:"12-24", to:"12-25", fx:["❄️","🎄","⭐","🎁","❄️"], text:()=>"Merry Christmas 🎄"},
+  {id:"newyear", from:"12-31", to:"01-01", fx:["✨","🎆","🎉","⭐"], text:(y,md)=>`Happy New Year ${md==="12-31"?y+1:y} ✨`},
+  {id:"valentine", from:"02-13", to:"02-14", fx:["❤️","💕","💗","🌹"], text:()=>"Happy Valentine’s ❤️"},
+  {id:"mothers", from:"03-21", to:"03-21", fx:["🌸","💐","🌷"], text:()=>"عيد أم سعيد 🌸"},
+  {id:"womens", from:"08-28", to:"08-28", fx:["🌸","✨"], text:()=>"يوم المرأة الإماراتية 🌸"},
+  {id:"ramadan", from:"2027-02-08", to:"2027-03-08", fx:["🌙","⭐","🏮","✨"], text:()=>"رمضان كريم 🌙"},
+  {id:"eidfitr", from:"2027-03-09", to:"2027-03-12", fx:["✨","🌙","🎉","🎈"], text:()=>"عيدكم مبارك ✨"},
+  {id:"eidadha", from:"2027-05-15", to:"2027-05-19", fx:["✨","🌙","🎉"], text:()=>"عيدكم مبارك ✨"}
 ];
 function dubaiDate(){ return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
 function pickTheme(){
@@ -479,21 +477,13 @@ function pickTheme(){
     return t.from<=t.to ? (md>=t.from && md<=t.to) : (md>=t.from || md<=t.to);
   })||null;
 }
-let themeId="";
+let themeId=null;
 function applyTheme(){
   const t=pickTheme(); const id=t?t.id:"";
   if(id===themeId) return; themeId=id;
-  const root=document.documentElement.style, app=$("#app");
-  ["--hdr","--dune1","--dune2","--dune3","--pillbg","--pillfg","--tfg","--tshadow"].forEach(k=>root.removeProperty(k));
-  root.removeProperty("--magenta");
-  app.classList.toggle("themed",!!t);
-  const fx=$("#fx"); fx.innerHTML="";
-  if(!t){ $("#mid").innerHTML=`<span class="say">اضغط على أي صنف وشوفه من قريب</span>`; return; }
-  const full=dubaiDate(), y=+full.slice(0,4);
-  root.setProperty("--hdr",t.hdr); root.setProperty("--magenta",t.accent);
-  root.setProperty("--pillbg",t.accent); root.setProperty("--tfg",t.tfg); if(t.halo) root.setProperty("--tshadow","0 0 6px #fff,0 0 12px #fff,0 0 2px #fff"); if(t.pillfg) root.setProperty("--pillfg",t.pillfg);
-  t.dunes.forEach((c,i)=>root.setProperty("--dune"+(i+1),c));
-  $("#mid").innerHTML=`<span class="theme-pill" dir="auto">${esc(t.text(y,full.slice(5)))}</span>`;
+  const g=$("#greet"), fx=$("#fx"); fx.innerHTML="";
+  if(!t){ g.textContent=""; g.hidden=true; return; }
+  const full=dubaiDate(); g.textContent=t.text(+full.slice(0,4),full.slice(5)); g.hidden=false;
   const n=window.innerWidth<700?10:16;
   for(let i=0;i<n;i++){
     const sp=document.createElement("span"); sp.textContent=t.fx[i%t.fx.length];
