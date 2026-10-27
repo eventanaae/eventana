@@ -38,7 +38,30 @@ async function init() {
     pay TEXT NOT NULL CHECK (pay IN ('cash','card'))
   )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS oddly_orders_day ON oddly_orders(day)`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS oddly_expenses (
+    id SERIAL PRIMARY KEY,
+    day DATE NOT NULL,
+    amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+    supplier TEXT NOT NULL,
+    person TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS oddly_expenses_day ON oddly_expenses(day)`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS oddly_expense_photos (
+    expense_id INT PRIMARY KEY REFERENCES oddly_expenses(id) ON DELETE CASCADE,
+    mime TEXT NOT NULL,
+    data TEXT NOT NULL
+  )`);
 }
+const PEOPLE = ["شيم", "مريم", "فطيم"];
+const validMonth = m => /^\d{4}-\d{2}$/.test(m || "");
+function monthRange(m) {
+  const [y, mo] = m.split("-").map(Number);
+  const next = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
+  return [`${m}-01`, `${next}-01`];
+}
+const expOut = r => ({ id: r.id, day: String(r.day).slice(0, 10), amount: Number(r.amount), supplier: r.supplier, person: r.person, note: r.note || "", photo: !!r.has_photo });
 
 function dubaiParts(d = new Date()) {
   const f = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -54,9 +77,9 @@ function send(res, code, body, type = "application/json; charset=utf-8", extra =
   res.writeHead(code, { "Content-Type": type, "Cache-Control": "no-store", ...extra });
   res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
-function readBody(req) {
+function readBody(req, limit = 20000) {
   return new Promise((ok, bad) => {
-    let s = ""; req.on("data", c => { s += c; if (s.length > 20000) { bad(new Error("too big")); req.destroy(); } });
+    let s = ""; req.on("data", c => { s += c; if (s.length > limit) { bad(new Error("too big")); req.destroy(); } });
     req.on("end", () => { try { ok(s ? JSON.parse(s) : {}); } catch (e) { bad(e); } });
   });
 }
@@ -111,6 +134,59 @@ const server = http.createServer(async (req, res) => {
       r.rows.map(rowOut).forEach(o => rows.push([o.num, o.day, o.time, o.items.map(i => `${i.q}x ${i.en}`).join(" + "), o.qty, o.total, o.pay === "cash" ? "كاش" : "بطاقة"]));
       const csv = "﻿" + rows.map(x => x.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
       return send(res, 200, csv, "text/csv; charset=utf-8", { "Content-Disposition": `attachment; filename="ODDLY-orders-${day}.csv"` });
+    }
+
+    // ----- Expenses (PIN) -----
+    if (url.pathname === "/api/expenses" && req.method === "GET") {
+      if (!pinOk(req, url)) return send(res, 401, { error: "pin" });
+      const month = validMonth(url.searchParams.get("month")) ? url.searchParams.get("month") : dubaiParts().day.slice(0, 7);
+      const [from, to] = monthRange(month);
+      const r = await pool.query(`SELECT e.*, (p.expense_id IS NOT NULL) AS has_photo FROM oddly_expenses e
+        LEFT JOIN oddly_expense_photos p ON p.expense_id = e.id WHERE e.day >= $1 AND e.day < $2 ORDER BY e.day DESC, e.id DESC`, [from, to]);
+      const sales = await pool.query("SELECT COALESCE(SUM(total),0) AS s, COUNT(*) AS n FROM oddly_orders WHERE day >= $1 AND day < $2", [from, to]);
+      return send(res, 200, { month, expenses: r.rows.map(expOut), sales: Number(sales.rows[0].s), orders: Number(sales.rows[0].n) });
+    }
+    if (url.pathname === "/api/expenses" && req.method === "POST") {
+      if (!pinOk(req, url)) return send(res, 401, { error: "pin" });
+      const b = await readBody(req, 12 * 1024 * 1024);
+      const amount = Math.round(Number(b.amount) * 100) / 100;
+      const supplier = String(b.supplier || "").trim().slice(0, 120);
+      const note = String(b.note || "").trim().slice(0, 300);
+      if (!validDay(b.day) || !(amount > 0) || amount > 10000000 || !supplier || !PEOPLE.includes(b.person)) return send(res, 400, { error: "fields" });
+      let photo = null;
+      if (b.photo && typeof b.photo.data === "string") {
+        if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(b.photo.mime || "")) return send(res, 400, { error: "photo" });
+        if (!/^[A-Za-z0-9+/=]+$/.test(b.photo.data)) return send(res, 400, { error: "photo" });
+        photo = b.photo;
+      }
+      const r = await pool.query("INSERT INTO oddly_expenses(day,amount,supplier,person,note) VALUES($1,$2,$3,$4,$5) RETURNING *", [b.day, amount, supplier, b.person, note]);
+      const row = r.rows[0];
+      if (photo) await pool.query("INSERT INTO oddly_expense_photos(expense_id,mime,data) VALUES($1,$2,$3)", [row.id, photo.mime, photo.data]);
+      row.has_photo = !!photo;
+      return send(res, 200, expOut(row));
+    }
+    let m;
+    if ((m = url.pathname.match(/^\/api\/expenses\/(\d+)\/photo$/)) && req.method === "GET") {
+      if (!pinOk(req, url)) return send(res, 401, "PIN", "text/plain");
+      const r = await pool.query("SELECT mime, data FROM oddly_expense_photos WHERE expense_id=$1", [Number(m[1])]);
+      if (!r.rows.length) return send(res, 404, "Not found", "text/plain");
+      res.writeHead(200, { "Content-Type": r.rows[0].mime, "Cache-Control": "private, max-age=86400" });
+      return res.end(Buffer.from(r.rows[0].data, "base64"));
+    }
+    if ((m = url.pathname.match(/^\/api\/expenses\/(\d+)$/)) && req.method === "DELETE") {
+      if (!pinOk(req, url)) return send(res, 401, { error: "pin" });
+      await pool.query("DELETE FROM oddly_expenses WHERE id=$1", [Number(m[1])]);
+      return send(res, 200, { ok: true });
+    }
+    if (url.pathname === "/api/expenses.csv" && req.method === "GET") {
+      if (!pinOk(req, url)) return send(res, 401, "PIN", "text/plain");
+      const month = validMonth(url.searchParams.get("month")) ? url.searchParams.get("month") : dubaiParts().day.slice(0, 7);
+      const [from, to] = monthRange(month);
+      const r = await pool.query("SELECT * FROM oddly_expenses WHERE day >= $1 AND day < $2 ORDER BY day ASC, id ASC", [from, to]);
+      const rows = [["التاريخ", "المورد", "المبلغ (درهم)", "رفعه", "ملاحظة"]];
+      r.rows.map(expOut).forEach(e => rows.push([e.day, e.supplier, e.amount.toFixed(2), e.person, e.note]));
+      const csv = "\uFEFF" + rows.map(x => x.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+      return send(res, 200, csv, "text/csv; charset=utf-8", { "Content-Disposition": `attachment; filename="ODDLY-expenses-${month}.csv"` });
     }
     if (url.pathname === "/healthz") return send(res, 200, { ok: true });
 

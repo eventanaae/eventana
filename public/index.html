@@ -193,7 +193,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .rp-top h3{font-family:var(--display);font-weight:800;font-size:30px;margin:0;color:var(--cocoa)}
 .rp-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .rp-tools input{font:inherit;font-size:16px;padding:10px 14px;border-radius:14px;border:2px solid var(--line);background:var(--paper);color:var(--ink)}
-.btn{padding:10px 16px;border-radius:14px;background:var(--paper);border:2px solid var(--line);font-weight:600}
+.btn{padding:10px 16px;border-radius:14px;background:var(--paper);border:2px solid var(--line);font-weight:600;color:var(--cocoa)}
 .btn.dark{background:var(--green);border-color:var(--green);color:var(--cream)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
 @media (max-width:760px){.stats{grid-template-columns:1fr 1fr}}
@@ -223,6 +223,36 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:5px;vertical-align:middle;background:var(--c)}
 .note{font-size:13px;color:var(--muted);margin-top:14px}
+
+.tabs{display:flex;gap:6px;background:var(--paper);padding:5px;border-radius:16px}
+.tab{padding:10px 22px;border-radius:12px;font-family:var(--display);font-weight:700;font-size:18px;color:var(--cocoa)}
+.tab.on{background:var(--green);color:var(--cream)}
+.rp-tools.sub{margin-top:16px}
+.prow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:15px;margin-top:6px;color:var(--cocoa);font-weight:600}
+.prow b{font-size:18px}
+.prow b{font-family:var(--display);color:var(--green)}
+.exlist{display:flex;flex-direction:column;gap:10px}
+.excard{display:flex;align-items:center;gap:14px;background:var(--paper);border-radius:20px;padding:10px 14px 10px 10px}
+.exthumb{flex:none;width:72px;height:72px;border-radius:14px;overflow:hidden;background:var(--peach);display:grid;place-items:center;font-size:11px;color:var(--muted);text-align:center}
+.exthumb img{width:100%;height:100%;object-fit:cover}
+.exinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.exinfo b{font-family:var(--display);font-size:18px;color:var(--cocoa);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exinfo span{font-size:14px;color:var(--muted)}
+.exinfo .who{align-self:flex-start;background:var(--peach);color:var(--green);font-weight:600;padding:1px 10px;border-radius:999px;font-size:13px}
+.exend{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.exend b{font-family:var(--display);font-size:20px;color:var(--green);white-space:nowrap}
+.scrim.top{z-index:80}
+.scrim.photo{background:rgba(20,12,8,.88);flex-direction:column;gap:12px}
+.scrim.photo img{max-width:100%;max-height:85%;border-radius:12px;object-fit:contain}
+.photo-in{display:grid;place-items:center;min-height:150px;border:2px dashed var(--line);border-radius:20px;background:var(--paper);color:var(--muted);text-align:center;font-weight:600;cursor:pointer;overflow:hidden;margin-bottom:12px}
+.photo-in span{font-size:16px;line-height:1.8}
+.photo-in img{max-height:260px;width:100%;object-fit:contain}
+.frow{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.frow label{font-weight:600;color:var(--cocoa)}
+.frow input{font:inherit;font-size:17px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--paper);color:var(--ink);width:100%}
+.people{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.people button{padding:14px 6px;border-radius:16px;background:var(--paper);border:3px solid var(--line);font-family:var(--display);font-weight:700;font-size:19px;color:var(--cocoa)}
+.people button[aria-pressed="true"]{border-color:var(--green);background:var(--green);color:var(--cream)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
@@ -387,19 +417,28 @@ async function pinKey(k){
     catch(e){ pinOK=null; const d=$("#dots"); if(!d) return; d.classList.add("bad"); setTimeout(()=>{pin="";d.classList.remove("bad");d.querySelectorAll("i").forEach(i=>i.classList.remove("on"));},400); }
   }
 }
-let rpTimer=null, rpOrders=[], rpDay=null, armed=null;
+let rpTimer=null, rpOrders=[], rpDay=null, armed=null, rpTab="sales";
 function openReport(){
-  rpDay=dubaiDay();
+  rpDay=dubaiDay(); rpTab="sales";
   const el=document.createElement("div"); el.className="report"; el.id="report"; el.dir="rtl";
   el.innerHTML=`<div class="gut">
-    <div class="rp-top"><h3>تقرير الطلبات</h3>
-      <div class="rp-tools"><input type="date" id="rpDate" value="${rpDay}" aria-label="اليوم">
-      <a class="btn dark" id="rpExport" style="text-decoration:none" href="#">تنزيل Excel</a>
-      <button class="btn" id="rpClose">رجوع للمنيو</button></div></div>
-    <div id="rpBody"><div class="empty">جاري التحميل…</div></div>
-    <p class="note">الطلبات محفوظة أونلاين وتتحدث كل ١٠ ثواني. تقدر تفتح التقرير من أي جهاز بنفس الرابط والرقم السري.</p></div>`;
+    <div class="rp-top"><div class="tabs" role="tablist"><button class="tab on" data-act="tab" data-tab="sales" role="tab">المبيعات</button><button class="tab" data-act="tab" data-tab="exp" role="tab">المصاريف</button></div>
+      <button class="btn" id="rpClose">رجوع للمنيو</button></div>
+    <div id="paneSales">
+      <div class="rp-tools sub"><input type="date" id="rpDate" value="${rpDay}" aria-label="اليوم">
+      <a class="btn dark" id="rpExport" style="text-decoration:none" href="#">تنزيل Excel</a></div>
+      <div id="rpBody"><div class="empty">جاري التحميل…</div></div>
+      <p class="note">الطلبات محفوظة أونلاين وتتحدث كل ١٠ ثواني. تقدر تفتح التقرير من أي جهاز بنفس الرابط والرقم السري.</p>
+    </div>
+    <div id="paneExp" hidden>
+      <div class="rp-tools sub"><input type="month" id="exMonth" value="${rpDay.slice(0,7)}" aria-label="الشهر">
+      <a class="btn" id="exExport" style="text-decoration:none" href="#">تنزيل Excel</a>
+      <button class="btn dark" data-act="addExp">+ إضافة مصروف</button></div>
+      <div id="exBody"><div class="empty">جاري التحميل…</div></div>
+    </div>
+    <div id="rpLayer"></div></div>`;
   document.body.appendChild(el); setExport(); loadReport();
-  clearInterval(rpTimer); rpTimer=setInterval(loadReport,10000);
+  clearInterval(rpTimer); rpTimer=setInterval(()=>{ if(rpTab==="sales") loadReport(); },10000);
 }
 function setExport(){ const a=$("#rpExport"); if(a) a.href=`/api/orders.csv?day=${rpDay}&pin=${encodeURIComponent(pinOK||"")}`; }
 async function loadReport(){
@@ -407,6 +446,110 @@ async function loadReport(){
   catch(e){ if(e.pin){ closeReport(); openPin(); } }
 }
 function closeReport(){ clearInterval(rpTimer); rpTimer=null; $("#report")?.remove(); }
+function setTab(tab){
+  rpTab=tab;
+  document.querySelectorAll("#report .tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  $("#paneSales").hidden=tab!=="sales"; $("#paneExp").hidden=tab!=="exp";
+  if(tab==="exp") loadExpenses(); else loadReport();
+}
+
+/* ---------- Expenses ---------- */
+const PEOPLE=["شيم","مريم","فطيم"];
+let exMonth=null, exData=null, exArmed=null;
+const money=n=>Number(n).toLocaleString("en-US",{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2});
+const photoURL=id=>`/api/expenses/${id}/photo?pin=${encodeURIComponent(pinOK||"")}`;
+async function loadExpenses(){
+  exMonth=$("#exMonth").value||dubaiDay().slice(0,7);
+  $("#exExport").href=`/api/expenses.csv?month=${exMonth}&pin=${encodeURIComponent(pinOK||"")}`;
+  try{ const r=await api("/api/expenses?month="+exMonth); if(r.month!==exMonth) return; exData=r; renderExpenses(); }
+  catch(e){ if(e.pin){ closeReport(); openPin(); } else $("#exBody").innerHTML=`<div class="empty">ما قدرنا نجيب المصاريف، تأكد من الإنترنت</div>`; }
+}
+function renderExpenses(){
+  const ex=exData.expenses, tot=ex.reduce((a,b)=>a+b.amount,0), net=exData.sales-tot;
+  const byP=PEOPLE.map(p=>[p,ex.filter(e=>e.person===p).reduce((a,b)=>a+b.amount,0)]);
+  $("#exBody").innerHTML=`<div class="stats">
+    <div class="stat"><small>إجمالي المصاريف</small><b class="num">${money(tot)} ${AED}</b><em class="num">${ex.length} فاتورة</em></div>
+    <div class="stat"><small>مبيعات الشهر</small><b class="num">${money(exData.sales)} ${AED}</b><em class="num">${exData.orders} طلب</em></div>
+    <div class="stat"><small>الصافي</small><b class="num" style="color:${net<0?"var(--magenta)":"var(--green)"}">${money(net)} ${AED}</b><em>المبيعات ناقص المصاريف</em></div>
+    <div class="stat"><small>حسب الشخص</small>${byP.map(([p,v])=>`<div class="prow"><span>${p}</span><b class="num">${money(v)} ${AED}</b></div>`).join("")}</div>
+  </div>
+  ${ex.length?`<div class="exlist">${ex.map(e=>`<div class="excard">
+      ${e.photo?`<button class="exthumb" data-act="photo" data-id="${e.id}" aria-label="عرض الفاتورة"><img src="${photoURL(e.id)}" alt="" loading="lazy"></button>`:`<div class="exthumb none">بدون صورة</div>`}
+      <div class="exinfo"><b>${esc(e.supplier)}</b><span class="num">${esc(e.day)}</span><span class="who">${esc(e.person)}</span></div>
+      <div class="exend"><b class="num">${money(e.amount)} ${AED}</b><button class="del ${exArmed===e.id?"arm":""}" data-act="exDel" data-id="${e.id}">${exArmed===e.id?"متأكد؟":"حذف"}</button></div>
+    </div>`).join("")}</div>`:`<div class="empty">ما في مصاريف في هذا الشهر. اضغط "+ إضافة مصروف" عشان تضيف أول فاتورة.</div>`}`;
+}
+let exForm={};
+function openExpenseForm(){
+  exForm={day:dubaiDay(),amount:"",supplier:"",person:"",photo:null,preview:""};
+  renderExpenseForm();
+}
+function renderExpenseForm(){
+  const sup=[...new Set((exData?.expenses||[]).map(e=>e.supplier))];
+  const ok=exForm.day&&Number(exForm.amount)>0&&exForm.supplier.trim()&&exForm.person;
+  $("#rpLayer").innerHTML=`<div class="scrim top" data-act="closeForm"><div class="sheet" role="dialog" aria-modal="true" aria-label="إضافة مصروف">
+    <div class="sh-head"><h3>إضافة مصروف</h3><button class="x" data-act="closeForm" aria-label="إغلاق">✕</button></div>
+    <label class="photo-in" for="exPhoto">${exForm.preview?`<img src="${exForm.preview}" alt="صورة الفاتورة">`:`<span>📷<br>صوّر الفاتورة أو اختر صورة</span>`}</label>
+    <input type="file" id="exPhoto" accept="image/*" hidden>
+    <div class="frow"><label for="exDay">التاريخ</label><input type="date" id="exDay" value="${exForm.day}"></div>
+    <div class="frow"><label for="exAmount">المبلغ (درهم)</label><input type="number" id="exAmount" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${esc(exForm.amount)}"></div>
+    <div class="frow"><label for="exSupplier">اسم المورد</label><input type="text" id="exSupplier" list="exSupList" placeholder="مثلاً: سبينس" value="${esc(exForm.supplier)}"><datalist id="exSupList">${sup.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></div>
+    <div class="lbl">مين رفع المصروف؟</div>
+    <div class="people">${PEOPLE.map(p=>`<button data-act="person" data-p="${p}" aria-pressed="${exForm.person===p}">${p}</button>`).join("")}</div>
+    <button class="go" data-act="saveExp" ${ok?"":"disabled"}>حفظ المصروف</button>
+    <div class="hint" id="exHint">${ok?"":"عبّي التاريخ والمبلغ والمورد واختر الشخص"}</div>
+  </div></div>`;
+}
+function compressImage(file){
+  return new Promise((ok,bad)=>{
+    const url=URL.createObjectURL(file), img=new Image();
+    img.onload=()=>{ const max=1600, k=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement("canvas"); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url);
+      const d=c.toDataURL("image/jpeg",0.8); ok({preview:d,mime:"image/jpeg",data:d.split(",")[1]}); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); bad(new Error("img")); };
+    img.src=url;
+  });
+}
+async function saveExpense(){
+  const btn=document.querySelector('[data-act="saveExp"]'); btn.disabled=true; btn.textContent="جاري الحفظ…";
+  try{
+    await api("/api/expenses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({day:exForm.day,amount:Number(exForm.amount),supplier:exForm.supplier.trim(),person:exForm.person,photo:exForm.photo})});
+    $("#rpLayer").innerHTML="";
+    if(exForm.day.slice(0,7)!==$("#exMonth").value) $("#exMonth").value=exForm.day.slice(0,7);
+    loadExpenses();
+  }catch(e){ btn.disabled=false; btn.textContent="حفظ المصروف"; $("#exHint").textContent="ما انحفظ المصروف، تأكد من الإنترنت وجرّب مرة ثانية"; }
+}
+function showPhoto(id){
+  $("#rpLayer").innerHTML=`<div class="scrim top photo" data-act="closeForm"><img src="${photoURL(id)}" alt="صورة الفاتورة"><button class="x" data-act="closeForm" aria-label="إغلاق">✕</button></div>`;
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-act]"); if(!t) return;
+  const act=t.dataset.act;
+  if(act==="closeForm"){ if(t.classList.contains("scrim")&&e.target!==t) return; $("#rpLayer").innerHTML=""; }
+  else if(act==="tab") setTab(t.dataset.tab);
+  else if(act==="addExp") openExpenseForm();
+  else if(act==="person"){ exForm.person=t.dataset.p; renderExpenseForm(); }
+  else if(act==="saveExp") saveExpense();
+  else if(act==="photo") showPhoto(t.dataset.id);
+  else if(act==="exDel"){ const id=+t.dataset.id; if(exArmed===id){ exArmed=null; api("/api/expenses/"+id,{method:"DELETE"}).then(loadExpenses).catch(()=>{}); } else { exArmed=id; renderExpenses(); setTimeout(()=>{ if(exArmed===id){ exArmed=null; renderExpenses(); } },3000); } }
+});
+document.addEventListener("input",e=>{
+  const id=e.target.id;
+  if(id==="exAmount"||id==="exSupplier"||id==="exDay"){
+    exForm[{exAmount:"amount",exSupplier:"supplier",exDay:"day"}[id]]=e.target.value;
+    const ok=exForm.day&&Number(exForm.amount)>0&&exForm.supplier.trim()&&exForm.person;
+    const b=document.querySelector('[data-act="saveExp"]'); if(b) b.disabled=!ok;
+    const h=$("#exHint"); if(h) h.textContent=ok?"":"عبّي التاريخ والمبلغ والمورد واختر الشخص";
+  }
+});
+document.addEventListener("change",async e=>{
+  if(e.target.id==="exMonth") loadExpenses();
+  if(e.target.id==="exPhoto" && e.target.files[0]){
+    try{ const r=await compressImage(e.target.files[0]); exForm.photo={mime:r.mime,data:r.data}; exForm.preview=r.preview; renderExpenseForm(); }
+    catch(err){ const h=$("#exHint"); if(h) h.textContent="ما قدرنا نقرا الصورة، جرّب صورة ثانية"; }
+  }
+});
 
 function renderReport(){
   const o=rpOrders, sum=o.reduce((a,b)=>a+b.total,0);
