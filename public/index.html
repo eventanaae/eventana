@@ -38,7 +38,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 #app{height:100%;display:flex;flex-direction:column}
 
 /* Brand band */
-.hero{background:var(--peach);position:relative;flex:none}
+.hero{background:var(--hdr,var(--peach));position:relative;flex:none;transition:background .4s}
 .hero .gut{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:8px 20px;position:relative;z-index:1}
 .brand{font-family:var(--display);font-weight:800;color:var(--green);font-size:clamp(34px,5.4vh,52px);line-height:1;letter-spacing:-1px;direction:ltr}
 .brand b{color:var(--magenta)}
@@ -81,6 +81,16 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .soon b{font-family:var(--display);font-weight:800;font-size:clamp(14px,2.1vh,19px)}
 @keyframes glow{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg) scale(1.06)}}
 @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+
+/* Seasonal themes (switch automatically by date in Dubai) */
+.d1{fill:var(--dune1,#F4A3BC)}.d2{fill:var(--dune2,#C2216A)}.d3{fill:var(--dune3,#6A3524)}
+.themed .logo{background:var(--cream);padding:6px 14px;border-radius:18px;box-sizing:content-box}
+.theme-pill{background:var(--pillbg,var(--magenta));color:var(--pillfg,#fff);padding:6px 20px;border-radius:999px;font-weight:800;font-size:clamp(15px,2.3vh,21px);box-shadow:0 6px 16px -10px rgba(0,0,0,.5);text-align:center}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
+#fx span{position:absolute;top:-8vh;animation:fall linear infinite;opacity:.85;will-change:transform}
+@keyframes fall{0%{transform:translate(0,0) rotate(0)}50%{transform:translate(var(--sway),55vh) rotate(180deg)}100%{transform:translate(0,118vh) rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#fx{display:none}}
 
 /* Order bar */
 .bar{flex:none;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
@@ -216,19 +226,20 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
   <header class="hero">
     <div class="gut">
       <img class="logo" src="/logo.png" alt="ODDLY">
-      <div class="mid"><span class="say">اضغط على أي صنف وشوفه من قريب</span></div>
+      <div class="mid" id="mid"><span class="say">اضغط على أي صنف وشوفه من قريب</span></div>
       <button class="lock" id="adminBtn" aria-label="تقرير الطلبات"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
     </div>
     <svg class="dunes" viewBox="0 0 1200 20" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0 8 C200 0 400 16 600 8 C800 0 1000 14 1200 6 V20 H0Z" fill="#F4A3BC"/>
-      <path d="M0 13 C260 6 460 20 700 12 C900 6 1060 18 1200 11 V20 H0Z" fill="#C2216A"/>
-      <path d="M0 17 C280 12 500 20 740 16 C950 12 1080 20 1200 16 V20 H0Z" fill="#6A3524"/>
+      <path d="M0 8 C200 0 400 16 600 8 C800 0 1000 14 1200 6 V20 H0Z" fill="#F4A3BC" class="d1"/>
+      <path d="M0 13 C260 6 460 20 700 12 C900 6 1060 18 1200 11 V20 H0Z" fill="#C2216A" class="d2"/>
+      <path d="M0 17 C280 12 500 20 740 16 C950 12 1080 20 1200 16 V20 H0Z" fill="#6A3524" class="d3"/>
     </svg>
   </header>
 
   <main class="board gut" id="board"></main>
 
   <div class="bar gut" id="bar"></div>
+  <div id="fx" aria-hidden="true"></div>
   <div id="layer"></div>
 </div>
 
@@ -439,7 +450,59 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Enter" && e.target.matches?.(".tile")) openViewer(+e.target.dataset.view);
 });
 
-renderBoard(); renderBar();
+
+/* ---------- Seasonal themes ---------- */
+const FLAG = "linear-gradient(#C8102E,#C8102E) left/20% 100% no-repeat, linear-gradient(#00732F,#00732F) top/100% 33.4% no-repeat, linear-gradient(#FFFFFF,#FFFFFF) center/100% 33.4% no-repeat, linear-gradient(#000,#000) bottom/100% 33.4% no-repeat";
+const THEMES = [
+  {id:"halloween", from:"10-30", to:"10-31", hdr:"#1E1410", accent:"#E8742A", dunes:["#E8742A","#6B2E8F","#120B08"], fx:["🎃","🦇","👻","🍬"], text:()=>"🎃 هالوين في ODDLY… حلا مرعب من لذته!"},
+  {id:"flag", from:"11-03", to:"11-03", hdr:FLAG, flag:true, accent:"#C8102E", dunes:["#00732F","#FFFFFF","#000000"], fx:["🇦🇪"], text:()=>"🇦🇪 يوم العلم… رايتنا عالية دوم"},
+  {id:"national", from:"12-02", to:"12-03", hdr:FLAG, flag:true, accent:"#C8102E", dunes:["#00732F","#FFFFFF","#000000"], fx:["🇦🇪","✨"], text:y=>`🇦🇪 عيد الاتحاد الـ${y-1971}… كل عام والإمارات بخير`},
+  {id:"christmas", from:"12-24", to:"12-25", hdr:"#14402F", accent:"#C8102E", dunes:["#FFFFFF","#C8102E","#0E2E22"], fx:["❄️","🎄","⭐","🎁","❄️"], text:()=>"Merry Christmas 🎄"},
+  {id:"newyear", from:"12-31", to:"01-01", hdr:"#1E1410", accent:"#E3A72F", pillfg:"#1E1410", dunes:["#E3A72F","#C81E68","#120B08"], fx:["✨","🎆","🎉","⭐"], text:(y,md)=>`Happy New Year ${md==="12-31"?y+1:y} ✨`},
+  {id:"valentine", from:"02-13", to:"02-14", hdr:"#F2A0B6", accent:"#C81E68", dunes:["#FFFFFF","#C81E68","#9E1552"], fx:["❤️","💕","💗","🌹"], text:()=>"❤️ عيد حب سعيد… شارك حلاك مع اللي تحبه"},
+  {id:"mothers", from:"03-21", to:"03-21", hdr:"#F9D6C4", accent:"#C81E68", dunes:["#F2A0B6","#C81E68","#6B3524"], fx:["🌸","💐","🌷"], text:()=>"🌸 كل عام وأمهاتنا بخير"},
+  {id:"womens", from:"08-28", to:"08-28", hdr:"#F9D6C4", accent:"#C81E68", dunes:["#00732F","#C8102E","#6B3524"], fx:["🌸","✨"], text:()=>"🌸 يوم المرأة الإماراتية… كل عام وأنتن ملهمات"},
+  {id:"ramadan", from:"2027-02-08", to:"2027-03-08", hdr:"#14402F", accent:"#E3A72F", pillfg:"#14402F", dunes:["#E3A72F","#2F6B4F","#0E2E22"], fx:["🌙","⭐","🏮","✨"], text:()=>"🌙 رمضان كريم"},
+  {id:"eidfitr", from:"2027-03-09", to:"2027-03-12", hdr:"#14402F", accent:"#E3A72F", pillfg:"#14402F", dunes:["#E3A72F","#C81E68","#0E2E22"], fx:["✨","🌙","🎉","🎈"], text:()=>"✨ عيدكم مبارك… وكل عام وأنتم بخير"},
+  {id:"eidadha", from:"2027-05-15", to:"2027-05-19", hdr:"#14402F", accent:"#E3A72F", pillfg:"#14402F", dunes:["#E3A72F","#C81E68","#0E2E22"], fx:["✨","🌙","🎉"], text:()=>"✨ عيد أضحى مبارك… وكل عام وأنتم بخير"}
+];
+function dubaiDate(){ return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
+function pickTheme(){
+  let forced=null; try{ forced=new URLSearchParams(location.search).get("theme"); }catch(e){}
+  if(forced) return THEMES.find(t=>t.id===forced)||null;
+  const full=dubaiDate(), md=full.slice(5);
+  return THEMES.find(t=>{
+    if(t.from.length===10) return full>=t.from && full<=t.to;
+    return t.from<=t.to ? (md>=t.from && md<=t.to) : (md>=t.from || md<=t.to);
+  })||null;
+}
+let themeId="";
+function applyTheme(){
+  const t=pickTheme(); const id=t?t.id:"";
+  if(id===themeId) return; themeId=id;
+  const root=document.documentElement.style, app=$("#app");
+  ["--hdr","--dune1","--dune2","--dune3","--pillbg","--pillfg"].forEach(k=>root.removeProperty(k));
+  root.removeProperty("--magenta");
+  app.classList.toggle("themed",!!t);
+  const fx=$("#fx"); fx.innerHTML="";
+  if(!t){ $("#mid").innerHTML=`<span class="say">اضغط على أي صنف وشوفه من قريب</span>`; return; }
+  const full=dubaiDate(), y=+full.slice(0,4);
+  root.setProperty("--hdr",t.hdr); root.setProperty("--magenta",t.accent);
+  root.setProperty("--pillbg",t.accent); if(t.pillfg) root.setProperty("--pillfg",t.pillfg);
+  t.dunes.forEach((c,i)=>root.setProperty("--dune"+(i+1),c));
+  $("#mid").innerHTML=`<span class="theme-pill" dir="auto">${esc(t.text(y,full.slice(5)))}</span>`;
+  const n=window.innerWidth<700?10:16;
+  for(let i=0;i<n;i++){
+    const sp=document.createElement("span"); sp.textContent=t.fx[i%t.fx.length];
+    sp.style.left=(Math.random()*96)+"%"; sp.style.fontSize=(18+Math.random()*16)+"px";
+    sp.style.animationDuration=(14+Math.random()*12)+"s"; sp.style.animationDelay=(-Math.random()*26)+"s";
+    sp.style.setProperty("--sway",(Math.random()*80-40)+"px");
+    fx.appendChild(sp);
+  }
+}
+
+renderBoard(); renderBar(); applyTheme();
+setInterval(applyTheme,5*60*1000);
 </script>
 </body>
 </html>
