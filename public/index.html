@@ -68,6 +68,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .buyc{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px}
 .tp{font-family:var(--display);font-weight:800;font-size:clamp(14px,2vh,18px);color:var(--green);line-height:1;white-space:nowrap}
 .tp small{font-size:.7em;font-weight:700}
+.aed{width:.78em;height:.78em;vertical-align:-.06em;margin-inline-start:.18em;display:inline-block;stroke-width:11}
 .plus{flex:none;width:clamp(34px,4.8vh,42px);height:clamp(34px,4.8vh,42px);border-radius:50%;background:var(--green);color:var(--peach-2);font-size:24px;font-weight:700;display:grid;place-items:center;transition:transform .1s}
 .plus:active{transform:scale(.9)}
 .badge{position:absolute;top:12px;right:12px;font-family:var(--display);font-weight:700;font-size:12px;padding:2px 10px;border-radius:999px;color:#fff;background:var(--magenta);z-index:1}
@@ -233,6 +234,7 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 
 <script>
 const PRICE = 35;
+const AED = `<svg class="aed" viewBox="0 0 100 100" aria-label="درهم" role="img" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M30 12 V88 H46 C72 88 88 72 88 50 C88 28 72 12 46 12 Z"/><path d="M10 40 H94 M10 60 H94"/></svg>`;
 const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp"};
 const ITEMS = [
   {id:"pudding",img:1,c:"#E2457E",w:"Dates",en:"Date Pudding",tag:"ألذ بودنق تمر!",desc:"كعكة تمر طرية تُقدَّم دافئة، مغطاة بصوص الكراميل والتوفي، ويعلوها آيسكريم الفانيلا."},
@@ -268,14 +270,14 @@ function renderBoard(){
       ${it.badge?`<span class="badge">${it.badge}</span>`:""}<span data-q="${it.id}">${qtyBadge(it.id)}</span>
       <div class="pic"><img src="${IMG[it.img]}" alt="${esc(it.en)}" draggable="false"></div>
       <div class="txt"><div><div class="n en">${esc(it.en)}</div><div class="t">${esc(it.tag)}</div></div>
-      <div class="buyc"><span class="tp num">${PRICE}<small> د.إ</small></span><button class="plus" data-inc="${it.id}" aria-label="أضف ${esc(it.en)}">+</button></div></div>
+      <div class="buyc"><span class="tp num">${PRICE}${AED}</span><button class="plus" data-inc="${it.id}" aria-label="أضف ${esc(it.en)}">+</button></div></div>
     </div>`;}).join("");
 }
 function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
 function renderBar(){
   const n=cartCount();
   $("#bar").innerHTML = n
-    ? `<button class="in" id="openCart"><span><span class="cnt num">${n}</span>${n===1?"صنف":"أصناف"} · <span class="num">${n*PRICE} د.إ</span></span><span class="go-txt">شوف طلبك ←</span></button>`
+    ? `<button class="in" id="openCart"><span><span class="cnt num">${n}</span>${n===1?"صنف":"أصناف"} · <span class="num">${n*PRICE}${AED}</span></span><span class="go-txt">شوف طلبك ←</span></button>`
     : `<div class="in hintline">اضغط على أي صنف عشان تشوفه كبير، و + عشان تضيفه لطلبك</div>`;
 }
 function stepHTML(id){
@@ -299,7 +301,7 @@ function openViewer(i){
     <div class="top gut"><img class="logo sm" src="/logo.png" alt="ODDLY"><button class="x" data-close aria-label="إغلاق">✕</button></div>
     <div class="stage gut"><button class="arrow prev" data-step="-1" aria-label="السابق"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button><img src="${IMG[it.img]}" alt="${esc(it.en)}"><button class="arrow next" data-step="1" aria-label="التالي"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button></div>
     <svg class="vdunes" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18 C200 0 400 30 600 14 C800 0 1000 26 1200 10 V46 H0Z" fill="#F2A0B6"/><path d="M0 28 C260 12 460 40 700 24 C900 12 1060 34 1200 22 V46 H0Z" fill="#C81E68"/><path d="M0 38 C280 26 500 46 740 34 C950 24 1080 44 1200 32 V46 H0Z" fill="#6B3524"/></svg><div class="info gut"><div style="min-width:0;flex:1"><div class="n en">${esc(it.en)}</div><h2>${esc(it.tag)}</h2></div>
-      <div class="buy"><div class="price num">${PRICE}<span>د.إ</span></div><div data-slot="${it.id}">${stepHTML(it.id)}</div></div></div>
+      <div class="buy"><div class="price num">${PRICE}${AED}</div><div data-slot="${it.id}">${stepHTML(it.id)}</div></div></div>
   </div>`;
 }
 let touchX=null;
@@ -314,8 +316,8 @@ const ICON_CARD=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stro
 function openCart(){
   const ids=Object.keys(cart); if(!ids.length){ closeLayer(); return; }
   sheet("cart",`<div class="sh-head"><h3>طلبك</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
-    ${ids.map(id=>{const it=byId[id];return `<div class="line"><img src="${IMG[it.img]}" alt=""><div class="t"><b class="en">${esc(it.en)}</b><small class="num">${cart[id]} × ${PRICE} د.إ</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
-    <div class="total"><span>المجموع</span><span class="num">${cartCount()*PRICE} د.إ</span></div>
+    ${ids.map(id=>{const it=byId[id];return `<div class="line"><img src="${IMG[it.img]}" alt=""><div class="t"><b class="en">${esc(it.en)}</b><small class="num">${cart[id]} × ${PRICE}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
+    <div class="total"><span>المجموع</span><span class="num">${cartCount()*PRICE}${AED}</span></div>
     <div class="lbl">شلون بتدفع؟</div>
     <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}كاش</button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}بطاقة</button></div>
     <button class="go" id="confirm" ${payment?"":"disabled"}>أكّد الطلب</button>
@@ -334,7 +336,7 @@ async function confirmOrder(){
   PRODUCTS.forEach(i=>document.querySelectorAll(`[data-q="${i.id}"]`).forEach(el=>el.innerHTML="")); renderBar();
   sheet("done",`<div class="done"><div class="ok"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#FFF4EC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
     <h3>تم استلام طلبك!</h3><div class="no num">#${order.num}</div>
-    <p>${p==="cash"?"💵 تفضّل ادفع كاش عند الكاونتر":"💳 تفضّل ادفع بالبطاقة عند الكاونتر"}</p><p style="color:var(--muted)">المجموع <b class="num">${order.total} د.إ</b></p>
+    <p>${p==="cash"?"💵 تفضّل ادفع كاش عند الكاونتر":"💳 تفضّل ادفع بالبطاقة عند الكاونتر"}</p><p style="color:var(--muted)">المجموع <b class="num">${order.total}${AED}</b></p>
     <button class="go" data-close>طلب جديد</button></div>`);
   clearTimeout(doneTimer); doneTimer=setTimeout(()=>{ if($("#layer").dataset.view==="done") closeLayer(); },12000);
 }
@@ -396,9 +398,9 @@ function renderReport(){
   const pct=sum?Math.round(cash/sum*100):0;
   $("#rpBody").innerHTML=`<div class="stats">
     <div class="stat"><small>عدد الطلبات</small><b class="num">${o.length}</b><em class="num">${o.reduce((a,b)=>a+b.qty,0)} قطعة</em></div>
-    <div class="stat"><small>إجمالي المبيعات</small><b class="num">${sum} <span style="font-size:16px">د.إ</span></b></div>
-    <div class="stat"><small>💵 كاش</small><b class="num">${cash} <span style="font-size:16px">د.إ</span></b><em class="num">${cashN.length} طلب</em></div>
-    <div class="stat"><small>💳 بطاقة</small><b class="num">${card} <span style="font-size:16px">د.إ</span></b><em class="num">${o.length-cashN.length} طلب</em></div>
+    <div class="stat"><small>إجمالي المبيعات</small><b class="num">${sum} ${AED}</b></div>
+    <div class="stat"><small>💵 كاش</small><b class="num">${cash} ${AED}</b><em class="num">${cashN.length} طلب</em></div>
+    <div class="stat"><small>💳 بطاقة</small><b class="num">${card} ${AED}</b><em class="num">${o.length-cashN.length} طلب</em></div>
   </div>
   <div class="panels">
     <div class="panel"><h4>الأكثر طلباً</h4>
@@ -407,7 +409,7 @@ function renderReport(){
     </div>
     <div class="panel"><h4>كل الطلبات</h4>
       ${o.length?`<div class="tbl"><table><thead><tr><th>#</th><th>الوقت</th><th>الطلب</th><th>المجموع</th><th>الدفع</th><th></th></tr></thead><tbody>
-      ${o.map(x=>`<tr><td class="num"><b>${x.num}</b></td><td class="num">${esc(x.time)}</td><td>${x.items.map(i=>`<div><span class="num">${i.q}×</span> <span class="en">${esc(i.en)}</span></div>`).join("")}</td><td class="num">${x.total} د.إ</td><td><span class="pill ${x.pay}">${x.pay==="cash"?"كاش":"بطاقة"}</span></td><td><button class="del ${armed===x.id?"arm":""}" data-del="${x.id}">${armed===x.id?"متأكد؟":"حذف"}</button></td></tr>`).join("")}
+      ${o.map(x=>`<tr><td class="num"><b>${x.num}</b></td><td class="num">${esc(x.time)}</td><td>${x.items.map(i=>`<div><span class="num">${i.q}×</span> <span class="en">${esc(i.en)}</span></div>`).join("")}</td><td class="num">${x.total}${AED}</td><td><span class="pill ${x.pay}">${x.pay==="cash"?"كاش":"بطاقة"}</span></td><td><button class="del ${armed===x.id?"arm":""}" data-del="${x.id}">${armed===x.id?"متأكد؟":"حذف"}</button></td></tr>`).join("")}
       </tbody></table></div>`:`<div class="empty">ما في طلبات في هذا اليوم</div>`}
     </div>
   </div>`;
