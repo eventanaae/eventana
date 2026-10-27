@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ODDLY">
+<meta name="theme-color" content="#F9D6C4">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
+<title>ODDLY Menu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+#app{padding-top:env(safe-area-inset-top,0px)}
+/* Layout: one iPad screen — slim brand band, a 4×3 board of every product, order bar at the bottom. Tap a product for a full-size photo. */
+:root{
+  --peach:#F9D6C4; --peach-2:#FCE7DC; --cream:#FFF6F0; --pink:#F2A0B6;
+  --magenta:#C81E68; --brown:#6B3524; --green:#14402F; --gold:#E3A72F;
+  --ink:#14402F; --muted:#9A6E5E; --line:#F1CDBB;
+  --plum:#9E1552; --cocoa:#6B3524; --paper:#FCE7DC; --blue:#6B3524;
+  --display:"Baloo Bhaijaan 2","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --body:"IBM Plex Sans Arabic",system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;background:var(--cream);color:var(--ink)}
+body{font-family:var(--body);font-size:16px;-webkit-tap-highlight-color:transparent;overflow:hidden;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.en{direction:ltr;unicode-bidi:isolate}
+.gut{padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
+
+#app{height:100%;display:flex;flex-direction:column}
+
+/* Brand band */
+.hero{background:var(--peach);position:relative;flex:none}
+.hero .gut{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:8px 20px;position:relative;z-index:1}
+.brand{font-family:var(--display);font-weight:800;color:var(--green);font-size:clamp(34px,5.4vh,52px);line-height:1;letter-spacing:-1px;direction:ltr}
+.brand b{color:var(--magenta)}
+.mid{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;font-family:var(--display);font-weight:700;color:var(--cocoa);font-size:clamp(15px,2.2vh,20px)}
+.chip{display:inline-flex;align-items:baseline;gap:6px;background:var(--green);color:var(--cream);padding:4px 16px;border-radius:999px}
+.chip strong{font-size:1.35em;color:var(--gold)}
+.lock{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.55);display:grid;place-items:center;color:var(--cocoa)}
+.dunes{position:absolute;inset:auto 0 0 0;height:20px;width:100%}
+
+/* Board: landscape = 6×2 (cups & desserts on top, every ice cream on the bottom row); portrait = 3×4 */
+.board{flex:1;min-height:0;display:grid;gap:10px;padding-block:14px;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}
+@media (orientation:portrait){.board{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr))}}
+
+.tile{position:relative;background:var(--peach-2);color:var(--green);border-radius:26px;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden;text-align:start;isolation:isolate;transition:transform .15s,background .2s}
+.tile:active{transform:scale(.97)}
+.tile::before{content:"";position:absolute;left:50%;top:44%;width:78%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:var(--peach);z-index:-1}
+.word{display:none}
+.tile .pic{min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;padding:12% 9% 2%}
+.tile .pic img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 12px 10px rgba(107,53,36,.22));transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+.tile:hover .pic img{transform:translateY(-4px) scale(1.04)}
+.tile .txt{min-width:0;padding:4px 12px 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:6px}
+.tile .txt div{min-width:0}
+.tile .n{font-family:var(--display);font-weight:700;color:var(--magenta);font-size:clamp(11px,1.45vh,13px);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;letter-spacing:.2px}
+.tile .t{font-family:var(--display);font-weight:800;font-size:clamp(13px,1.9vh,17px);line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.buyc{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px}
+.tp{font-family:var(--display);font-weight:800;font-size:clamp(14px,2vh,18px);color:var(--green);line-height:1;white-space:nowrap}
+.tp small{font-size:.7em;font-weight:700}
+.plus{flex:none;width:clamp(34px,4.8vh,42px);height:clamp(34px,4.8vh,42px);border-radius:50%;background:var(--green);color:var(--peach-2);font-size:24px;font-weight:700;display:grid;place-items:center;transition:transform .1s}
+.plus:active{transform:scale(.9)}
+.badge{position:absolute;top:12px;right:12px;font-family:var(--display);font-weight:700;font-size:12px;padding:2px 10px;border-radius:999px;color:#fff;background:var(--magenta);z-index:1}
+.qty{position:absolute;top:12px;left:12px;min-width:28px;height:28px;padding:0 8px;border-radius:999px;background:var(--magenta);color:#fff;font-family:var(--display);font-weight:800;font-size:15px;display:grid;place-items:center;z-index:1;animation:pop .3s}
+.tile:has(.qty){background:#FBDCCD}
+
+.soon{background:var(--green);color:var(--peach-2);border-radius:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:hidden;padding:10px;gap:2px;container-type:size}
+.soon .q{font-family:var(--display);font-weight:800;font-size:min(58cqw,40cqh);line-height:1;color:var(--gold);animation:glow 3s ease-in-out infinite}
+.soon small{font-family:var(--display);font-weight:700;letter-spacing:3px;font-size:11px;color:var(--pink);text-transform:uppercase}
+.soon b{font-family:var(--display);font-weight:800;font-size:clamp(14px,2.1vh,19px)}
+@keyframes glow{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg) scale(1.06)}}
+@keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+/* Order bar */
+.bar{flex:none;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:20px;font-family:var(--display);font-weight:700}
+.bar .hintline{color:var(--muted);font-size:clamp(15px,2vh,19px);border:2px dashed var(--line)}
+.bar button.in{width:100%;justify-content:space-between;padding:0 22px;background:var(--green);color:var(--peach-2);font-size:20px}
+.bar .cnt{background:var(--peach);color:var(--green);min-width:34px;height:34px;padding:0 8px;border-radius:12px;display:inline-grid;place-items:center;font-weight:800;margin-inline-end:10px}
+.bar .go-txt{background:var(--magenta);padding:6px 16px;border-radius:12px}
+
+/* Phones: scroll instead of fitting one screen */
+@media (max-width:699px){
+  html,body{height:auto;overflow:auto}
+  #app{height:auto;min-height:100%}
+  .board{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:270px}
+  .bar{position:sticky;bottom:0;background:var(--cream);padding-top:8px}
+  .mid span.say{display:none}
+}
+
+/* Overlays */
+.scrim{position:fixed;inset:0;z-index:50;background:rgba(42,26,20,.5);display:flex;align-items:center;justify-content:center;padding:16px;animation:fade .2s}
+.sheet{background:var(--cream);width:100%;max-width:640px;max-height:94%;overflow:auto;border-radius:30px;padding:22px;animation:up .26s cubic-bezier(.2,.8,.2,1);user-select:text;-webkit-user-select:text}
+@keyframes fade{from{opacity:0}}
+@keyframes up{from{transform:translateY(30px) scale(.98);opacity:0}}
+.sh-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sh-head h3{font-family:var(--display);font-weight:800;font-size:28px;margin:0;color:var(--cocoa)}
+.x{width:44px;height:44px;border-radius:50%;background:var(--paper);font-size:22px;color:var(--muted);display:grid;place-items:center;flex:none}
+
+/* Big photo viewer: product standing on the packaging dunes */
+.viewer{position:fixed;inset:0;z-index:50;background:var(--peach-2);color:var(--green);display:flex;flex-direction:column;animation:fade .2s;padding-top:env(safe-area-inset-top,0px);overflow:hidden;isolation:isolate}
+.bigword{display:none}
+.viewer .top{display:flex;justify-content:space-between;align-items:center;padding-block:14px}
+.viewer .x{background:var(--peach);color:var(--green)}
+.viewer .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative;padding-bottom:10px}
+.viewer .stage::before{content:"";position:absolute;left:50%;top:50%;height:88%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:var(--peach);z-index:-1}
+.viewer .stage img{max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 26px 22px rgba(107,53,36,.28));animation:zoom .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes zoom{from{transform:scale(.85) translateY(16px);opacity:.2}}
+.arrow{position:absolute;top:50%;transform:translateY(-50%);width:56px;height:56px;border-radius:50%;background:#fff;color:var(--green);display:grid;place-items:center;z-index:2;box-shadow:0 6px 16px -8px rgba(107,53,36,.35)}
+.arrow.prev{right:max(14px,env(safe-area-inset-right,0px))}.arrow.next{left:max(14px,env(safe-area-inset-left,0px))}
+.vdunes{display:block;width:100%;height:46px;margin-bottom:-1px;flex:none}
+.viewer .info{background:var(--brown);color:var(--peach-2);padding-block:6px calc(18px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.viewer .info .n{font-family:var(--display);font-weight:700;color:var(--pink);font-size:17px;text-align:right}
+.viewer .info h2{font-family:var(--display);font-weight:800;font-size:clamp(24px,3.6vh,34px);margin:0;line-height:1.2}
+.viewer .info p{margin:4px 0 0;max-width:60ch;line-height:1.6;opacity:.85}
+.viewer .buy{display:flex;align-items:center;gap:14px}
+.viewer .price{color:var(--peach-2)}
+.viewer .add{background:var(--magenta);color:#fff;box-shadow:none}
+.viewer .step{background:rgba(255,255,255,.12)}
+.viewer .step button,.viewer .step button.p{background:var(--peach-2);color:var(--green)}
+.viewer .step b{color:var(--peach-2)}
+.viewer .price{color:var(--peach-2)}
+.price{font-family:var(--display);font-weight:800;font-size:30px;color:var(--green)}
+.price span{font-size:16px;margin-inline-start:3px}
+.add{background:var(--magenta);color:#fff;font-family:var(--display);font-weight:800;font-size:20px;padding:12px 26px;border-radius:999px;}
+.step{display:flex;align-items:center;gap:6px;background:var(--paper);border-radius:999px;padding:5px}
+.step button{width:44px;height:44px;border-radius:50%;background:var(--cream);font-size:24px;font-weight:700;color:var(--plum);display:grid;place-items:center}
+.step button.p{background:var(--magenta);color:#fff}
+.step b{min-width:30px;text-align:center;font-family:var(--display);font-size:22px}
+
+/* Cart */
+.line{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.line img{width:62px;height:62px;object-fit:contain;background:var(--paper);border-radius:16px;padding:4px}
+.line .t{flex:1;min-width:0}
+.line .t b{font-family:var(--display);font-size:18px;display:block;text-align:right}
+.line .t small{color:var(--muted)}
+.line .step{background:var(--cream)}
+.line .step button{width:38px;height:38px;background:var(--paper)}
+.line .step button.p{background:var(--magenta)}
+.total{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--display);font-weight:800;font-size:26px;margin:16px 0 6px;color:var(--green)}
+.lbl{font-family:var(--display);font-weight:700;font-size:19px;margin:16px 0 10px;color:var(--cocoa)}
+.pay{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pay button{background:var(--paper);border:3px solid var(--line);border-radius:22px;padding:18px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;font-family:var(--display);font-weight:700;font-size:20px;transition:.15s}
+.pay button svg{width:40px;height:40px}
+.pay button[aria-pressed="true"]{border-color:var(--magenta);background:#FBE0E8;color:var(--magenta)}
+.go{width:100%;margin-top:18px;background:var(--magenta);color:#fff;font-family:var(--display);font-weight:800;font-size:22px;padding:16px;border-radius:20px;}
+.go:disabled{background:var(--line);box-shadow:none;cursor:not-allowed}
+.hint{text-align:center;color:var(--muted);font-size:14px;margin-top:10px}
+.done{text-align:center;padding:20px 0 6px}
+.done .ok{width:96px;height:96px;margin:0 auto;border-radius:50%;background:var(--green);display:grid;place-items:center;animation:pop .5s}
+.done h3{font-family:var(--display);font-weight:800;font-size:30px;margin:16px 0 0;color:var(--cocoa)}
+.done .no{font-family:var(--display);font-weight:800;font-size:80px;line-height:1;color:var(--magenta);margin:8px 0}
+.done p{color:var(--cocoa);font-size:18px;margin:4px 0}
+
+/* PIN + report */
+.pin-dots{display:flex;justify-content:center;gap:14px;margin:16px 0}
+.pin-dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--cocoa)}
+.pin-dots i.on{background:var(--cocoa)}
+.pin-dots.bad{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(8px)}75%{transform:translateX(-8px)}}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:300px;margin:0 auto}
+.pad button{height:64px;border-radius:18px;background:var(--paper);font-family:var(--display);font-weight:700;font-size:26px}
+.report{position:fixed;inset:0;z-index:60;background:var(--cream);overflow:auto;user-select:text;-webkit-user-select:text}
+.report .gut{padding-block:calc(20px + env(safe-area-inset-top,0px)) 40px;max-width:1180px;margin:0 auto}
+.rp-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.rp-top h3{font-family:var(--display);font-weight:800;font-size:30px;margin:0;color:var(--cocoa)}
+.rp-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.rp-tools input{font:inherit;font-size:16px;padding:10px 14px;border-radius:14px;border:2px solid var(--line);background:var(--paper);color:var(--ink)}
+.btn{padding:10px 16px;border-radius:14px;background:var(--paper);border:2px solid var(--line);font-weight:600}
+.btn.dark{background:var(--green);border-color:var(--green);color:var(--cream)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
+@media (max-width:760px){.stats{grid-template-columns:1fr 1fr}}
+.stat{background:var(--paper);border-radius:20px;padding:16px}
+.stat small{color:var(--muted);font-weight:600}
+.stat b{display:block;font-family:var(--display);font-weight:800;font-size:30px;color:var(--green);margin-top:2px}
+.stat em{font-style:normal;color:var(--muted);font-size:13px}
+.split{height:10px;border-radius:999px;background:var(--magenta);overflow:hidden;margin-top:10px}
+.split i{display:block;height:100%;background:var(--gold)}
+.panels{display:grid;grid-template-columns:1fr 2fr;gap:14px}
+@media (max-width:820px){.panels{grid-template-columns:1fr}}
+.panel{background:var(--paper);border-radius:20px;padding:16px;min-width:0}
+.panel h4{font-family:var(--display);font-weight:700;font-size:20px;margin:0 0 10px;color:var(--cocoa)}
+.best{display:flex;flex-direction:column;gap:9px}
+.best div{display:grid;grid-template-columns:1fr auto;gap:4px 8px;font-size:14px}
+.best div i{grid-column:1/-1;height:8px;border-radius:999px;background:var(--magenta)}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:start;color:var(--muted);font-weight:600;padding:8px;border-bottom:2px solid var(--line);white-space:nowrap}
+td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:600;font-size:13px}
+.pill.cash{background:#FDF0D3;color:#8A5A00}
+.pill.card{background:#F6D3DF;color:#9E1552}
+.del{color:var(--plum);font-size:13px;font-weight:600;padding:4px 8px;border-radius:8px}
+.del.arm{background:var(--plum);color:#fff}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:5px;vertical-align:middle;background:var(--c)}
+.note{font-size:13px;color:var(--muted);margin-top:14px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+</head>
+<body>
+<div dir="rtl" id="app">
+  <header class="hero">
+    <div class="gut">
+      <div class="brand">ODDLY<b>.</b></div>
+      <div class="mid"><span class="say">اضغط على أي صنف وشوفه من قريب</span></div>
+      <button class="lock" id="adminBtn" aria-label="تقرير الطلبات"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+    </div>
+    <svg class="dunes" viewBox="0 0 1200 20" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 8 C200 0 400 16 600 8 C800 0 1000 14 1200 6 V20 H0Z" fill="#F4A3BC"/>
+      <path d="M0 13 C260 6 460 20 700 12 C900 6 1060 18 1200 11 V20 H0Z" fill="#C2216A"/>
+      <path d="M0 17 C280 12 500 20 740 16 C950 12 1080 20 1200 16 V20 H0Z" fill="#6A3524"/>
+    </svg>
+  </header>
+
+  <main class="board gut" id="board"></main>
+
+  <div class="bar gut" id="bar"></div>
+  <div id="layer"></div>
+</div>
+
+<script>
+const PRICE = 35;
+const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp"};
+const ITEMS = [
+  {id:"pudding",img:1,c:"#E2457E",w:"Dates",en:"Date Pudding",tag:"ألذ بودنق تمر!",desc:"كيكة تمر دافية وطرية، غرقانة بصوص التوفي، وفوقها سوفت سيرف فانيلا يذوب عليها."},
+  {id:"strawberry",img:2,c:"#C2213A",w:"Berry",en:"Chocolate Strawberry",tag:"فراولة وجوكليت عالم ثاني!",desc:"فراولة طازجة مقطعة، طبقات فوق طبقات من الجوكليت الكريمي اللامع."},
+  {id:"hot-choc",img:5,c:"#6A3524",w:"Cocoa",en:"Hot Chocolate",tag:"هوت جوكليت ترند هالشتاء!",desc:"جوكليت حار غني وكثيف، فوقه كريمة مخفوقة وكاكاو وقطعة جوكليت.",badge:"ترند الشتاء ❄️"},
+  {id:"matcha",img:6,c:"#2F5D3A",w:"Matcha",en:"Matcha",tag:"أحلى ماتجا في الدنيا!",desc:"ماتجا خضراء أصلية فوق حليب بارد وثلج، طبقتين تشوفهم وتذوقهم."},
+  {id:"golden-brew",img:7,c:"#B8741A",w:"Gold",en:"Golden Brew",tag:"قهوة باردة تقنّد الراس!",desc:"قهوة مختصة مقطّرة على الثلج، صافية ونقية وتطلع نكهة الحبة على حقيقتها."},
+  "soon",
+  {id:"matcha-ic",img:3,c:"#8DB255",fg:"#14402F",w:"Matcha",en:"Matcha Ice Cream",tag:"ماتجا آيسكريم ما ذقتوا مثله!",desc:"سوفت سيرف ماتجا كريمي، مرشوش عليه بودرة ماتجا أصلية، في سلة وافل مقرمشة."},
+  {id:"redbull-ic",img:4,c:"#2F7DD6",w:"Wings",en:"Red Bull Ice Cream",tag:"أول آيسكريم رد بول من نوعه!",desc:"سوفت سيرف أزرق ثلجي بنكهة رد بول المنعشة، في سلة وافل مقرمشة.",badge:"جديد ⚡"},
+  {id:"karak-ic",img:8,c:"#D27A33",w:"Karak",en:"Karak Ice Cream",tag:"أولد سكول، أحب الكرك!",desc:"سوفت سيرف بطعم الكرك والهيل، مرشوش عليه فتات بسكوت، في سلة وافل مقرمشة."},
+  {id:"acai-ic",img:11,c:"#5E2463",w:"Açaí",en:"Açaí Ice Cream",tag:"سوبر فود بس بطعم حلو!",desc:"أساي بنفسجي غني مع فراولة طازجة وتوت أسود، في سلة وافل مقرمشة."},
+  {id:"greek-ic",img:9,c:"#E0577A",w:"Greek",en:"Greek Yogurt Ice Cream",tag:"خفيف ومنعش… وما تحس بالذنب!",desc:"زبادي يوناني منعش مع فراولة طازجة وتوت أسود، في سلة وافل مقرمشة."},
+  {id:"vanilla-ic",img:10,c:"#F2C14E",fg:"#3A2210",w:"Vanilla",en:"Vanilla Ice Cream",tag:"الكلاسيك اللي ما يخيب!",desc:"سوفت سيرف فانيلا كريمي ناعم، في سلة وافل ذهبية مقرمشة."}
+];
+const LAYOUT = ITEMS;
+const PRODUCTS = ITEMS.filter(i=>i!=="soon");
+const byId = Object.fromEntries(PRODUCTS.map(i=>[i.id,i]));
+const vars = it=>``;
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cart = {};
+let payment = null, viewIdx = -1;
+
+/* ---------- Board ---------- */
+function qtyBadge(id){ return cart[id]?`<span class="qty num">${cart[id]}</span>`:""; }
+function renderBoard(){
+  $("#board").innerHTML = LAYOUT.map(it=>{
+    if(it==="soon") return `<div class="soon"><div class="q">?</div><small>Coming Soon</small><b>شي على ذوقكم؟</b></div>`;
+    const i=PRODUCTS.indexOf(it);
+    return `<div class="tile" data-view="${i}" role="button" tabindex="0" aria-label="${esc(it.en)}" style="${vars(it)};--i:${i}">
+      <span class="word" aria-hidden="true">${esc(it.w)}</span>
+      ${it.badge?`<span class="badge">${it.badge}</span>`:""}<span data-q="${it.id}">${qtyBadge(it.id)}</span>
+      <div class="pic"><img src="${IMG[it.img]}" alt="${esc(it.en)}" draggable="false"></div>
+      <div class="txt"><div><div class="n en">${esc(it.en)}</div><div class="t">${esc(it.tag)}</div></div>
+      <div class="buyc"><span class="tp num">${PRICE}<small> د.إ</small></span><button class="plus" data-inc="${it.id}" aria-label="أضف ${esc(it.en)}">+</button></div></div>
+    </div>`;}).join("");
+}
+function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
+function renderBar(){
+  const n=cartCount();
+  $("#bar").innerHTML = n
+    ? `<button class="in" id="openCart"><span><span class="cnt num">${n}</span>${n===1?"صنف":"أصناف"} · <span class="num">${n*PRICE} د.إ</span></span><span class="go-txt">شوف طلبك ←</span></button>`
+    : `<div class="in hintline">اضغط على أي صنف عشان تشوفه كبير، و + عشان تضيفه لطلبك</div>`;
+}
+function stepHTML(id){
+  const q=cart[id]||0;
+  return q?`<div class="step"><button data-dec="${id}" aria-label="نقّص">−</button><b class="num">${q}</b><button class="p" data-inc="${id}" aria-label="زيد">+</button></div>`
+          :`<button class="add" data-inc="${id}">+ أضف لطلبي</button>`;
+}
+function changeQty(id,d){
+  cart[id]=Math.max(0,(cart[id]||0)+d); if(!cart[id]) delete cart[id];
+  document.querySelectorAll(`[data-q="${id}"]`).forEach(el=>el.innerHTML=qtyBadge(id));
+  document.querySelectorAll(`[data-slot="${id}"]`).forEach(el=>el.innerHTML=stepHTML(id));
+  renderBar();
+  if($("#layer").dataset.view==="cart") openCart();
+}
+
+/* ---------- Big photo viewer ---------- */
+function openViewer(i){
+  viewIdx=(i+PRODUCTS.length)%PRODUCTS.length; const it=PRODUCTS[viewIdx];
+  $("#layer").dataset.view="viewer";
+  $("#layer").innerHTML=`<div class="viewer" role="dialog" aria-modal="true" aria-label="${esc(it.en)}" style="${vars(it)}"><span class="bigword" aria-hidden="true">${esc(it.w)}</span>
+    <div class="top gut"><span class="brand" style="font-size:32px">ODDLY<b>.</b></span><button class="x" data-close aria-label="إغلاق">✕</button></div>
+    <div class="stage gut"><button class="arrow prev" data-step="-1" aria-label="السابق"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button><img src="${IMG[it.img]}" alt="${esc(it.en)}"><button class="arrow next" data-step="1" aria-label="التالي"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button></div>
+    <svg class="vdunes" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18 C200 0 400 30 600 14 C800 0 1000 26 1200 10 V46 H0Z" fill="#F2A0B6"/><path d="M0 28 C260 12 460 40 700 24 C900 12 1060 34 1200 22 V46 H0Z" fill="#C81E68"/><path d="M0 38 C280 26 500 46 740 34 C950 24 1080 44 1200 32 V46 H0Z" fill="#6B3524"/></svg><div class="info gut"><div style="min-width:0;flex:1"><div class="n en">${esc(it.en)}</div><h2>${esc(it.tag)}</h2><p>${esc(it.desc)}</p></div>
+      <div class="buy"><div class="price num">${PRICE}<span>د.إ</span></div><div data-slot="${it.id}">${stepHTML(it.id)}</div></div></div>
+  </div>`;
+}
+let touchX=null;
+document.addEventListener("touchstart",e=>{ if($("#layer").dataset.view==="viewer") touchX=e.touches[0].clientX; },{passive:true});
+document.addEventListener("touchend",e=>{ if(touchX===null) return; const dx=e.changedTouches[0].clientX-touchX; touchX=null; if(Math.abs(dx)>60) openViewer(viewIdx+(dx>0?1:-1)); });
+
+/* ---------- Cart / checkout ---------- */
+function closeLayer(){ $("#layer").innerHTML=""; $("#layer").dataset.view=""; }
+function sheet(view,inner){ $("#layer").dataset.view=view; $("#layer").innerHTML=`<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true">${inner}</div></div>`; }
+const ICON_CASH=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10" width="32" height="20" rx="4"/><circle cx="20" cy="20" r="5"/></svg>`;
+const ICON_CARD=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="9" width="32" height="22" rx="4"/><path d="M4 16h32M10 25h7"/></svg>`;
+function openCart(){
+  const ids=Object.keys(cart); if(!ids.length){ closeLayer(); return; }
+  sheet("cart",`<div class="sh-head"><h3>طلبك</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
+    ${ids.map(id=>{const it=byId[id];return `<div class="line"><img src="${IMG[it.img]}" alt=""><div class="t"><b class="en">${esc(it.en)}</b><small class="num">${cart[id]} × ${PRICE} د.إ</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
+    <div class="total"><span>المجموع</span><span class="num">${cartCount()*PRICE} د.إ</span></div>
+    <div class="lbl">شلون بتدفع؟</div>
+    <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}كاش</button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}بطاقة</button></div>
+    <button class="go" id="confirm" ${payment?"":"disabled"}>أكّد الطلب</button>
+    <div class="hint">${payment?"الدفع يكون عند الكاونتر":"اختار طريقة الدفع عشان تأكد الطلب"}</div>`);
+}
+let doneTimer;
+async function confirmOrder(){
+  const btn=$("#confirm"); if(btn.disabled) return; btn.disabled=true; btn.textContent="لحظة…";
+  const items=Object.keys(cart).map(id=>({id,q:cart[id]}));
+  let order;
+  try{
+    const r=await fetch("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items,pay:payment})});
+    if(!r.ok) throw new Error(r.status); order=await r.json();
+  }catch(e){ btn.disabled=false; btn.textContent="أكّد الطلب"; $(".hint").textContent="ما انحفظ الطلب، تأكد من الإنترنت وجرّب مرة ثانية"; return; }
+  const p=payment; Object.keys(cart).forEach(k=>delete cart[k]); payment=null;
+  PRODUCTS.forEach(i=>document.querySelectorAll(`[data-q="${i.id}"]`).forEach(el=>el.innerHTML="")); renderBar();
+  sheet("done",`<div class="done"><div class="ok"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#FFF4EC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h3>تم استلام طلبك!</h3><div class="no num">#${order.num}</div>
+    <p>${p==="cash"?"💵 تفضّل ادفع كاش عند الكاونتر":"💳 تفضّل ادفع بالبطاقة عند الكاونتر"}</p><p style="color:var(--muted)">المجموع <b class="num">${order.total} د.إ</b></p>
+    <button class="go" data-close>طلب جديد</button></div>`);
+  clearTimeout(doneTimer); doneTimer=setTimeout(()=>{ if($("#layer").dataset.view==="done") closeLayer(); },12000);
+}
+
+/* ---------- Server ---------- */
+function dubaiDay(){ return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
+let pinOK=null;
+try{ pinOK=sessionStorage.getItem("oddly_pin"); }catch(e){}
+async function api(path,opt={}){
+  const r=await fetch(path,{...opt,headers:{...(opt.headers||{}),"x-pin":pinOK||""}});
+  if(r.status===401){ const e=new Error("pin"); e.pin=true; throw e; }
+  if(!r.ok) throw new Error(r.status); return r.json();
+}
+
+/* ---------- Admin: PIN + report ---------- */
+let pin="";
+function openPin(){
+  pin="";
+  sheet("pin",`<div class="sh-head"><h3>تقرير الطلبات</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
+    <p style="text-align:center;color:var(--muted);margin:0">دخّل الرقم السري</p>
+    <div class="pin-dots" id="dots">${"<i></i>".repeat(4)}</div>
+    <div class="pad">${[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map(k=>k===""?"<span></span>":`<button data-key="${k}" class="num">${k}</button>`).join("")}</div>`);
+}
+async function pinKey(k){
+  if(k==="⌫") pin=pin.slice(0,-1); else if(pin.length<4) pin+=k;
+  document.querySelectorAll("#dots i").forEach((d,i)=>d.classList.toggle("on",i<pin.length));
+  if(pin.length===4){
+    const tryPin=pin; pinOK=tryPin;
+    try{ await api("/api/orders?day="+dubaiDay()); try{ sessionStorage.setItem("oddly_pin",tryPin); }catch(e){} closeLayer(); openReport(); }
+    catch(e){ pinOK=null; const d=$("#dots"); if(!d) return; d.classList.add("bad"); setTimeout(()=>{pin="";d.classList.remove("bad");d.querySelectorAll("i").forEach(i=>i.classList.remove("on"));},400); }
+  }
+}
+let rpTimer=null, rpOrders=[], rpDay=null, armed=null;
+function openReport(){
+  rpDay=dubaiDay();
+  const el=document.createElement("div"); el.className="report"; el.id="report"; el.dir="rtl";
+  el.innerHTML=`<div class="gut">
+    <div class="rp-top"><h3>تقرير الطلبات</h3>
+      <div class="rp-tools"><input type="date" id="rpDate" value="${rpDay}" aria-label="اليوم">
+      <a class="btn dark" id="rpExport" style="text-decoration:none" href="#">تنزيل Excel</a>
+      <button class="btn" id="rpClose">رجوع للمنيو</button></div></div>
+    <div id="rpBody"><div class="empty">جاري التحميل…</div></div>
+    <p class="note">الطلبات محفوظة أونلاين وتتحدث كل ١٠ ثواني. تقدر تفتح التقرير من أي جهاز بنفس الرابط والرقم السري.</p></div>`;
+  document.body.appendChild(el); setExport(); loadReport();
+  clearInterval(rpTimer); rpTimer=setInterval(loadReport,10000);
+}
+function setExport(){ const a=$("#rpExport"); if(a) a.href=`/api/orders.csv?day=${rpDay}&pin=${encodeURIComponent(pinOK||"")}`; }
+async function loadReport(){
+  try{ const r=await api("/api/orders?day="+rpDay); if(r.day!==rpDay) return; rpOrders=r.orders; renderReport(); }
+  catch(e){ if(e.pin){ closeReport(); openPin(); } }
+}
+function closeReport(){ clearInterval(rpTimer); rpTimer=null; $("#report")?.remove(); }
+
+function renderReport(){
+  const o=rpOrders, sum=o.reduce((a,b)=>a+b.total,0);
+  const cashN=o.filter(x=>x.pay==="cash"), cash=cashN.reduce((a,b)=>a+b.total,0), card=sum-cash;
+  const cnt={}; o.forEach(x=>x.items.forEach(i=>cnt[i.en]=(cnt[i.en]||0)+i.q));
+  const best=Object.entries(cnt).sort((a,b)=>b[1]-a[1]); const max=best[0]?.[1]||1;
+  const pct=sum?Math.round(cash/sum*100):0;
+  $("#rpBody").innerHTML=`<div class="stats">
+    <div class="stat"><small>عدد الطلبات</small><b class="num">${o.length}</b><em class="num">${o.reduce((a,b)=>a+b.qty,0)} قطعة</em></div>
+    <div class="stat"><small>إجمالي المبيعات</small><b class="num">${sum} <span style="font-size:16px">د.إ</span></b></div>
+    <div class="stat"><small>💵 كاش</small><b class="num">${cash} <span style="font-size:16px">د.إ</span></b><em class="num">${cashN.length} طلب</em></div>
+    <div class="stat"><small>💳 بطاقة</small><b class="num">${card} <span style="font-size:16px">د.إ</span></b><em class="num">${o.length-cashN.length} طلب</em></div>
+  </div>
+  <div class="panels">
+    <div class="panel"><h4>الأكثر طلباً</h4>
+      ${best.length?`<div class="best">${best.map(([n,q])=>`<div><span class="en" style="text-align:right">${esc(n)}</span><b class="num">${q}</b><i style="width:${q/max*100}%"></i></div>`).join("")}</div>`:`<div class="empty">ما في طلبات</div>`}
+      ${sum?`<h4 style="margin-top:20px">كاش مقابل بطاقة</h4><div class="split"><i style="width:${pct}%"></i></div><div class="legend"><span style="--c:var(--gold)">كاش ${pct}%</span><span style="--c:var(--magenta)">بطاقة ${100-pct}%</span></div>`:""}
+    </div>
+    <div class="panel"><h4>كل الطلبات</h4>
+      ${o.length?`<div class="tbl"><table><thead><tr><th>#</th><th>الوقت</th><th>الطلب</th><th>المجموع</th><th>الدفع</th><th></th></tr></thead><tbody>
+      ${o.map(x=>`<tr><td class="num"><b>${x.num}</b></td><td class="num">${esc(x.time)}</td><td>${x.items.map(i=>`<div><span class="num">${i.q}×</span> <span class="en">${esc(i.en)}</span></div>`).join("")}</td><td class="num">${x.total} د.إ</td><td><span class="pill ${x.pay}">${x.pay==="cash"?"كاش":"بطاقة"}</span></td><td><button class="del ${armed===x.id?"arm":""}" data-del="${x.id}">${armed===x.id?"متأكد؟":"حذف"}</button></td></tr>`).join("")}
+      </tbody></table></div>`:`<div class="empty">ما في طلبات في هذا اليوم</div>`}
+    </div>
+  </div>`;
+}
+/* ---------- Events ---------- */
+document.addEventListener("click",e=>{
+  if(e.target.matches("[data-scrim]")){ closeLayer(); return; }
+  const t=e.target.closest("button,[data-view]"); if(!t) return;
+  const d=t.dataset;
+  if(d.inc) changeQty(d.inc,1);
+  else if(d.dec) changeQty(d.dec,-1);
+  else if(d.view!==undefined) openViewer(+d.view);
+  else if(d.step) openViewer(viewIdx+(+d.step));
+  else if(d.close!==undefined) closeLayer();
+  else if(d.pay){ payment=d.pay; openCart(); }
+  else if(d.key!==undefined) pinKey(d.key);
+  else if(d.del){ if(String(armed)===d.del){ armed=null; api("/api/orders/"+d.del,{method:"DELETE"}).then(loadReport).catch(()=>{}); } else { armed=+d.del; renderReport(); setTimeout(()=>{ if(armed===+d.del){armed=null;renderReport();} },3000); } }
+  else if(t.id==="openCart") openCart();
+  else if(t.id==="confirm") confirmOrder();
+  else if(t.id==="adminBtn") openPin();
+  else if(t.id==="rpClose") closeReport();
+});
+document.addEventListener("change",e=>{ if(e.target.id==="rpDate" && e.target.value){ rpDay=e.target.value; setExport(); $("#rpBody").innerHTML=`<div class="empty">جاري التحميل…</div>`; loadReport(); } });
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape") closeLayer();
+  if($("#layer").dataset.view==="viewer"){ if(e.key==="ArrowLeft") openViewer(viewIdx+1); if(e.key==="ArrowRight") openViewer(viewIdx-1); }
+  if(e.key==="Enter" && e.target.matches?.(".tile")) openViewer(+e.target.dataset.view);
+});
+
+renderBoard(); renderBar();
+</script>
+</body>
+</html>
