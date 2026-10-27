@@ -12,7 +12,7 @@
 <link rel="icon" href="/icon.png">
 <title>ODDLY Menu</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
 <style>
 body{margin:0}img{max-width:100%}[hidden]{display:none!important}
 #app{padding-top:env(safe-area-inset-top,0px)}
@@ -22,7 +22,7 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
   --magenta:#C81E68; --brown:#6B3524; --green:#14402F; --gold:#E3A72F;
   --ink:#14402F; --muted:#9A6E5E; --line:#F1CDBB;
   --plum:#9E1552; --cocoa:#6B3524; --paper:#FCE7DC; --blue:#6B3524;
-  --display:"Baloo Bhaijaan 2","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --display:"Alexandria","IBM Plex Sans Arabic",system-ui,sans-serif;
   --body:"IBM Plex Sans Arabic",system-ui,-apple-system,sans-serif;
   color-scheme:light;
 }
@@ -63,10 +63,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .tile:hover .pic img{transform:translateY(-4px) scale(1.04)}
 .tile .txt{min-width:0;padding:4px 12px 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:6px}
 .tile .txt div{min-width:0}
-.tile .n{font-family:var(--display);font-weight:700;color:var(--magenta);font-size:clamp(11px,1.45vh,13px);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;letter-spacing:.2px}
-.tile .t{font-family:var(--display);font-weight:800;font-size:clamp(13px,1.9vh,17px);line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile .n{font-family:var(--display);font-weight:500;color:var(--magenta);font-size:clamp(11px,1.45vh,13px);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;letter-spacing:.2px}
+.tile .t{font-family:var(--display);font-weight:600;letter-spacing:-.1px;font-size:clamp(13px,1.9vh,17px);line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .buyc{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px}
-.tp{font-family:var(--display);font-weight:800;font-size:clamp(14px,2vh,18px);color:var(--green);line-height:1;white-space:nowrap}
+.tp{font-family:var(--display);font-weight:600;font-size:clamp(14px,2vh,18px);color:var(--green);line-height:1;white-space:nowrap}
 .tp small{font-size:.7em;font-weight:700}
 .aed{width:.78em;height:.78em;vertical-align:-.06em;margin-inline-start:.18em;display:inline-block;stroke-width:11}
 .plus{flex:none;width:clamp(34px,4.8vh,42px);height:clamp(34px,4.8vh,42px);border-radius:50%;background:var(--green);color:var(--peach-2);font-size:24px;font-weight:700;display:grid;place-items:center;transition:transform .1s}
@@ -133,7 +133,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .vdunes{display:block;width:100%;height:46px;margin-bottom:-1px;flex:none}
 .viewer .info{background:var(--brown);color:var(--peach-2);padding-block:6px calc(18px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .viewer .info .n{font-family:var(--display);font-weight:700;color:var(--pink);font-size:17px;text-align:right}
-.viewer .info h2{font-family:var(--display);font-weight:800;font-size:clamp(24px,3.6vh,34px);margin:0;line-height:1.2}
+.viewer .info h2{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.6vh,34px);margin:0;line-height:1.2}
 .viewer .info p{margin:4px 0 0;max-width:60ch;line-height:1.6;opacity:.85}
 .viewer .buy{display:flex;align-items:center;gap:14px}
 .viewer .price{color:var(--peach-2)}
