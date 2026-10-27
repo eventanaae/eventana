@@ -12,7 +12,7 @@
 <link rel="icon" href="/icon.png">
 <title>ODDLY Menu</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Playfair+Display:ital,wght@1,600&family=Baloo+Bhaijaan+2:wght@500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
 <style>
 body{margin:0}img{max-width:100%}[hidden]{display:none!important}
 #app{padding-top:env(safe-area-inset-top,0px)}
@@ -84,7 +84,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 
 
 /* Seasonal themes (switch automatically by date in Dubai) */
-.greet{font-family:var(--display);font-weight:700;font-size:clamp(14px,2vh,17px);color:var(--magenta);white-space:nowrap;}
+.greet{display:inline-flex;align-items:center;gap:8px;font-family:"Aref Ruqaa","Baloo Bhaijaan 2",serif;font-weight:700;font-size:clamp(20px,3vh,26px);line-height:1;color:var(--green);white-space:nowrap}
+.greet.lat{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-weight:600;font-size:clamp(18px,2.7vh,23px)}
+.greet .sp{display:inline-flex;gap:2px;font-style:normal}
+.greet .sp i{font-style:normal;font-size:.62em;line-height:1}
+.greet .sp i:first-child{color:var(--gold);transform:translateY(-.35em)}
+.greet .sp i:last-child{color:var(--magenta)}
 .greet+.lock{margin-inline-start:10px}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
 #fx span{position:absolute;top:-8vh;animation:fall linear infinite;opacity:.85;will-change:transform}
@@ -455,17 +460,17 @@ document.addEventListener("keydown",e=>{
 
 /* ---------- Seasonal themes ---------- */
 const THEMES = [
-  {id:"halloween", from:"10-30", to:"10-31", fx:["🎃","🦇","👻","🍬"], text:()=>"Trick or Treat 🎃"},
-  {id:"flag", from:"11-03", to:"11-03", fx:["🇦🇪"], text:()=>"يوم العلم 🇦🇪"},
-  {id:"national", from:"12-02", to:"12-03", fx:["🇦🇪","✨"], text:y=>`عيد الاتحاد الـ${y-1971} 🇦🇪`},
-  {id:"christmas", from:"12-24", to:"12-25", fx:["❄️","🎄","⭐","🎁","❄️"], text:()=>"Merry Christmas 🎄"},
-  {id:"newyear", from:"12-31", to:"01-01", fx:["✨","🎆","🎉","⭐"], text:(y,md)=>`Happy New Year ${md==="12-31"?y+1:y} ✨`},
-  {id:"valentine", from:"02-13", to:"02-14", fx:["❤️","💕","💗","🌹"], text:()=>"Happy Valentine’s ❤️"},
-  {id:"mothers", from:"03-21", to:"03-21", fx:["🌸","💐","🌷"], text:()=>"عيد أم سعيد 🌸"},
-  {id:"womens", from:"08-28", to:"08-28", fx:["🌸","✨"], text:()=>"يوم المرأة الإماراتية 🌸"},
-  {id:"ramadan", from:"2027-02-08", to:"2027-03-08", fx:["🌙","⭐","🏮","✨"], text:()=>"رمضان كريم 🌙"},
-  {id:"eidfitr", from:"2027-03-09", to:"2027-03-12", fx:["✨","🌙","🎉","🎈"], text:()=>"عيدكم مبارك ✨"},
-  {id:"eidadha", from:"2027-05-15", to:"2027-05-19", fx:["✨","🌙","🎉"], text:()=>"عيدكم مبارك ✨"}
+  {id:"halloween", from:"10-30", to:"10-31", fx:["🎃","🦇","👻","🍬"], text:()=>"Trick or Treat"},
+  {id:"flag", from:"11-03", to:"11-03", fx:["🇦🇪"], text:()=>"يوم العلم"},
+  {id:"national", from:"12-02", to:"12-03", fx:["🇦🇪","✨"], text:y=>`عيد الاتحاد الـ${y-1971}`},
+  {id:"christmas", from:"12-24", to:"12-25", fx:["❄️","🎄","⭐","🎁","❄️"], text:()=>"Merry Christmas"},
+  {id:"newyear", from:"12-31", to:"01-01", fx:["✨","🎆","🎉","⭐"], text:(y,md)=>`Happy New Year ${md==="12-31"?y+1:y}`},
+  {id:"valentine", from:"02-13", to:"02-14", fx:["❤️","💕","💗","🌹"], text:()=>"Happy Valentine’s"},
+  {id:"mothers", from:"03-21", to:"03-21", fx:["🌸","💐","🌷"], text:()=>"عيد أم سعيد"},
+  {id:"womens", from:"08-28", to:"08-28", fx:["🌸","✨"], text:()=>"يوم المرأة الإماراتية"},
+  {id:"ramadan", from:"2027-02-08", to:"2027-03-08", fx:["🌙","⭐","🏮","✨"], text:()=>"رمضان كريم"},
+  {id:"eidfitr", from:"2027-03-09", to:"2027-03-12", fx:["✨","🌙","🎉","🎈"], text:()=>"عيدكم مبارك"},
+  {id:"eidadha", from:"2027-05-15", to:"2027-05-19", fx:["✨","🌙","🎉"], text:()=>"عيدكم مبارك"}
 ];
 function dubaiDate(){ return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()); }
 function pickTheme(){
@@ -483,7 +488,7 @@ function applyTheme(){
   if(id===themeId) return; themeId=id;
   const g=$("#greet"), fx=$("#fx"); fx.innerHTML="";
   if(!t){ g.textContent=""; g.hidden=true; return; }
-  const full=dubaiDate(); g.textContent=t.text(+full.slice(0,4),full.slice(5)); g.hidden=false;
+  const full=dubaiDate(); const txt=t.text(+full.slice(0,4),full.slice(5)); g.className="greet"+(/[A-Za-z]/.test(txt)?" lat":""); g.innerHTML=`<span class="sp" aria-hidden="true"><i>✦</i><i>✦</i></span><span>${esc(txt)}</span>`; g.hidden=false;
   const n=window.innerWidth<700?10:16;
   for(let i=0;i<n;i++){
     const sp=document.createElement("span"); sp.textContent=t.fx[i%t.fx.length];
