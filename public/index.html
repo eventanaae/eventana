@@ -51,8 +51,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .dunes{position:absolute;inset:auto 0 0 0;height:20px;width:100%}
 
 /* Board: landscape = 6×2 (cups & desserts on top, every ice cream on the bottom row); portrait = 3×4 */
-.board{flex:1;min-height:0;display:grid;gap:10px;padding-block:14px;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}
-@media (orientation:portrait){.board{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr))}}
+.board{flex:1;min-height:0;display:grid;gap:10px;padding-block:14px;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr)) auto}
+@media (orientation:portrait){.board{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr)) auto}}
 
 .tile{position:relative;background:var(--peach-2);color:var(--green);border-radius:26px;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden;text-align:start;isolation:isolate;transition:transform .15s,background .2s}
 .tile:active{transform:scale(.97)}
@@ -75,10 +75,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .qty{position:absolute;top:12px;left:12px;min-width:28px;height:28px;padding:0 8px;border-radius:999px;background:var(--magenta);color:#fff;font-family:var(--display);font-weight:800;font-size:15px;display:grid;place-items:center;z-index:1;animation:pop .3s}
 .tile:has(.qty){background:#FBDCCD}
 
-.soon{background:var(--green);color:var(--peach-2);border-radius:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:hidden;padding:10px;gap:2px;container-type:size}
-.soon .q{font-family:var(--display);font-weight:800;font-size:min(58cqw,40cqh);line-height:1;color:var(--gold);animation:glow 3s ease-in-out infinite}
+.soon{grid-column:1/-1;background:var(--green);color:var(--peach-2);border-radius:20px;display:flex;flex-direction:row;align-items:center;justify-content:center;text-align:center;overflow:hidden;padding:6px 18px;gap:14px;min-height:54px}
+.soon .q{font-family:var(--display);font-weight:800;font-size:38px;line-height:1;color:var(--gold);animation:glow 3s ease-in-out infinite}
 .soon small{font-family:var(--display);font-weight:700;letter-spacing:3px;font-size:11px;color:var(--pink);text-transform:uppercase}
-.soon b{font-family:var(--display);font-weight:800;font-size:clamp(14px,2.1vh,19px)}
+.soon b{font-family:var(--display);font-weight:800;font-size:clamp(16px,2.2vh,20px)}
 @keyframes glow{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg) scale(1.06)}}
 @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 
@@ -108,7 +108,9 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 @media (max-width:699px){
   html,body{height:auto;overflow:auto}
   #app{height:auto;min-height:100%}
-  .board{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:270px}
+  .board{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:auto}
+  .tile{height:270px}
+  .soon{flex-wrap:wrap;row-gap:2px}
   .bar{position:sticky;bottom:0;background:var(--cream);padding-top:8px}
   .mid span.say{display:none}
   .hero .gut{flex-wrap:wrap;row-gap:4px}
@@ -283,20 +285,21 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 <script>
 const PRICE = 35;
 const AED = `<svg class="aed" viewBox="0 0 100 100" aria-label="درهم" role="img" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M30 12 V88 H46 C72 88 88 72 88 50 C88 28 72 12 46 12 Z"/><path d="M10 40 H94 M10 60 H94"/></svg>`;
-const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp"};
+const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp",12:"/img/12.webp"};
 const ITEMS = [
   {id:"pudding",img:1,c:"#E2457E",w:"Dates",en:"Date Pudding",tag:"ألذ بودنق تمر!",desc:"كعكة تمر طرية تُقدَّم دافئة، مغطاة بصوص الكراميل والتوفي، ويعلوها آيسكريم الفانيلا."},
   {id:"strawberry",img:2,c:"#C2213A",w:"Berry",en:"Chocolate Strawberry",tag:"فراولة وجوكليت عالم ثاني!",desc:"فراولة طازجة بطبقات متتالية من الشوكولاتة البلجيكية الذائبة."},
   {id:"hot-choc",img:5,c:"#6A3524",w:"Cocoa",en:"Hot Chocolate",tag:"هوت جوكليت ترند هالشتاء!",desc:"شوكولاتة بلجيكية ساخنة غنية القوام، تعلوها كريمة مخفوقة ورشة من الكاكاو وقطعة شوكولاتة.",badge:"ترند الشتاء ❄️"},
   {id:"matcha",img:6,c:"#2F5D3A",w:"Matcha",en:"Matcha",tag:"أحلى ماتجا في الدنيا!",desc:"ماتشا فاخرة عالية الجودة تُخفق طازجة وتُسكب على الحليب البارد والثلج."},
   {id:"golden-brew",img:7,c:"#B8741A",w:"Gold",en:"Iced V60",tag:"قهوة باردة تقنّد الراس!",desc:"قهوة مختصة محضّرة يدويًا بطريقة V60 وتُقدَّم على الثلج، بقوام صافٍ ونكهة واضحة لحبوب القهوة."},
-  "soon",
+  {id:"acai-smoothie",img:12,c:"#7A1E3A",w:"Açaí",en:"Açaí Smoothie",tag:"أساي سموثي يرد الروح!",desc:"سموثي أساي بارد ومنعش."},
   {id:"matcha-ic",img:3,c:"#8DB255",fg:"#14402F",w:"Matcha",en:"Matcha Ice Cream",tag:"ماتجا آيسكريم ما ذقتوا مثله!",desc:"آيسكريم كريمي بالماتشا الفاخرة عالية الجودة، مزيّن ببودرة الماتشا، يُقدَّم في كوب بسكويت مقرمش."},
   {id:"redbull-ic",img:4,c:"#2F7DD6",w:"Wings",en:"Red Bull Ice Cream",tag:"أول آيسكريم رد بول من نوعه!",desc:"آيسكريم كريمي بنكهة ريد بول المنعشة، يُقدَّم في كوب بسكويت مقرمش.",badge:"جديد ⚡"},
   {id:"karak-ic",img:8,c:"#D27A33",w:"Karak",en:"Karak Ice Cream",tag:"أولد سكول، أحب الكرك!",desc:"آيسكريم كريمي بنكهة الكرك والهيل، يعلوه فتات البسكويت، ويُقدَّم في كوب بسكويت مقرمش."},
   {id:"acai-ic",img:11,c:"#5E2463",w:"Açaí",en:"Açaí Ice Cream",tag:"أول مرة تشوفه صح! جرّبه",desc:"آيسكريم الأساي الغني بنكهة التوت، مع الفراولة الطازجة والتوت الأسود، في كوب بسكويت مقرمش."},
   {id:"greek-ic",img:9,c:"#E0577A",w:"Greek",en:"Greek Yogurt Ice Cream",tag:"آيسكريم يوقرت يوناني لذيذ",desc:"آيسكريم الزبادي اليوناني الخفيف بلمسة حمضية منعشة، مع الفراولة الطازجة والتوت الأسود، في كوب بسكويت مقرمش."},
-  {id:"vanilla-ic",img:10,c:"#F2C14E",fg:"#3A2210",w:"Vanilla",en:"Vanilla Ice Cream",tag:"الكلاسيك اللي ما يخيب!",desc:"آيسكريم الفانيلا الكلاسيكي بقوام كريمي ناعم، يُقدَّم في كوب بسكويت مقرمش."}
+  {id:"vanilla-ic",img:10,c:"#F2C14E",fg:"#3A2210",w:"Vanilla",en:"Vanilla Ice Cream",tag:"الكلاسيك اللي ما يخيب!",desc:"آيسكريم الفانيلا الكلاسيكي بقوام كريمي ناعم، يُقدَّم في كوب بسكويت مقرمش."},
+  "soon"
 ];
 const LAYOUT = ITEMS;
 const PRODUCTS = ITEMS.filter(i=>i!=="soon");

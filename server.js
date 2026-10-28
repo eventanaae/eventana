@@ -11,13 +11,13 @@ const PIN = process.env.REPORT_PIN || ""; // set REPORT_PIN on the host
 const TZ = "Asia/Dubai";
 const PRICES = {
   "pudding": 35, "strawberry": 35, "hot-choc": 35, "matcha": 35, "golden-brew": 35,
-  "matcha-ic": 35, "redbull-ic": 35, "karak-ic": 35, "acai-ic": 35, "greek-ic": 35, "vanilla-ic": 35
+  "matcha-ic": 35, "redbull-ic": 35, "karak-ic": 35, "acai-ic": 35, "greek-ic": 35, "vanilla-ic": 35, "acai-smoothie": 35
 };
 const NAMES = {
   "pudding": "Date Pudding", "strawberry": "Chocolate Strawberry", "hot-choc": "Hot Chocolate",
   "matcha": "Matcha", "golden-brew": "Iced V60", "matcha-ic": "Matcha Ice Cream",
   "redbull-ic": "Red Bull Ice Cream", "karak-ic": "Karak Ice Cream", "acai-ic": "Açaí Ice Cream",
-  "greek-ic": "Greek Yogurt Ice Cream", "vanilla-ic": "Vanilla Ice Cream"
+  "greek-ic": "Greek Yogurt Ice Cream", "vanilla-ic": "Vanilla Ice Cream", "acai-smoothie": "Açaí Smoothie"
 };
 
 const pool = new Pool({
