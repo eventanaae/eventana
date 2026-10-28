@@ -13,6 +13,7 @@ const PRICES = {
   "pudding": 35, "strawberry": 35, "hot-choc": 35, "matcha": 35, "golden-brew": 35,
   "matcha-ic": 35, "redbull-ic": 35, "karak-ic": 35, "acai-ic": 35, "greek-ic": 35, "vanilla-ic": 35, "acai-smoothie": 35
 };
+const EXTRA = 5; // extra flavour add-on, AED
 const FLAVORS = { "matcha": { "coconut": "Coconut", "cloud": "Cloud", "oat": "Oat Milk" } };
 const NAMES = {
   "pudding": "Date Pudding", "strawberry": "Chocolate Strawberry", "hot-choc": "Hot Chocolate",
@@ -102,7 +103,8 @@ const server = http.createServer(async (req, res) => {
         .filter(i => !i.flavor || (FLAVORS[i.id] && FLAVORS[i.id][i.flavor]))
         .map(i => {
           const f = i.flavor ? FLAVORS[i.id][i.flavor] : "";
-          return { id: i.id, en: NAMES[i.id] + (f ? " · " + f : ""), q: i.q, price: PRICES[i.id], ...(f ? { flavor: i.flavor } : {}) };
+          const x = i.extra === true;
+          return { id: i.id, en: NAMES[i.id] + (f ? " · " + f : "") + (x ? " + Extra Flavour" : ""), q: i.q, price: PRICES[i.id] + (x ? EXTRA : 0), ...(f ? { flavor: i.flavor } : {}), ...(x ? { extra: true } : {}) };
         });
       if (!items.length) return send(res, 400, { error: "items" });
       const qty = items.reduce((a, i) => a + i.q, 0);
