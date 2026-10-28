@@ -288,7 +288,7 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 <script>
 const PRICE = 35;
 const AED = `<svg class="aed" viewBox="0 0 100 100" aria-label="درهم" role="img" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M30 12 V88 H46 C72 88 88 72 88 50 C88 28 72 12 46 12 Z"/><path d="M10 40 H94 M10 60 H94"/></svg>`;
-const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp",12:"/img/12.webp",13:"/img/13.webp"};
+const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp",12:"/img/12.webp"};
 const ITEMS = [
   {id:"pudding",img:1,c:"#E2457E",w:"Dates",en:"Date Pudding",tag:"ألذ بودنق تمر!",desc:"كعكة تمر طرية تُقدَّم دافئة، مغطاة بصوص الكراميل والتوفي، ويعلوها آيسكريم الفانيلا."},
   {id:"strawberry",img:2,c:"#C2213A",w:"Berry",en:"Chocolate Strawberry",tag:"فراولة وجوكليت عالم ثاني!",desc:"فراولة طازجة بطبقات متتالية من الشوكولاتة البلجيكية الذائبة."},
@@ -315,7 +315,7 @@ let payment = null, viewIdx = -1;
 
 /* ---------- Board ---------- */
 /* Flavours: an item can offer options; the cart keys them as "id~flavour" */
-const FLAVORS={matcha:[["classic","Classic"],["coconut","Coconut"],["cloud","Cloud",13],["oat","Oat Milk"]]};
+const FLAVORS={matcha:[["classic","Classic"],["coconut","Coconut"],["cloud","Cloud"],["oat","Oat Milk"]]};
 let viewFlv="classic";
 const keyOf=(id,f)=>(!f||f==="classic")?id:id+"~"+f;
 const baseOf=k=>k.split("~")[0], flvOf=k=>k.split("~")[1]||"";
