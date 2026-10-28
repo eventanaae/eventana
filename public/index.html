@@ -99,7 +99,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .flv{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .flv button{min-height:44px;padding:8px 18px;border-radius:999px;background:rgba(255,255,255,.12);color:var(--peach-2);border:2px solid rgba(255,255,255,.35);font-family:var(--display);font-weight:700;font-size:16px}
 .flv button[aria-pressed="true"]{background:var(--peach-2);color:var(--green);border-color:var(--peach-2)}
-.addx{display:flex;width:max-content;margin-inline-start:auto;align-items:center;gap:4px;margin-top:6px;min-height:36px;padding:4px 12px;border-radius:999px;border:2px dashed var(--magenta);color:var(--magenta);font-family:var(--display);font-weight:700;font-size:14px;direction:ltr}
+.xrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px dashed var(--line)}
+.xinfo b{font-family:var(--display);font-size:18px;display:block;color:var(--magenta)}
+.xinfo small{color:var(--muted)}
+.addx{display:flex;width:100%;justify-content:center;align-items:center;gap:6px;min-height:52px;padding:8px 16px;border-radius:18px;border:2px dashed var(--magenta);color:var(--magenta);background:#FBE0E8;font-family:var(--display);font-weight:800;font-size:18px;direction:ltr}
 .addx .aed,.flv .aed{width:.8em;height:.8em}
 /* Order bar */
 .bar{flex:none;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
@@ -323,7 +326,8 @@ let viewFlv="classic", viewExtra=false;
 const keyOf=(id,f)=>(!f||f==="classic")?id:id+"~"+f;
 const hasX=k=>k.endsWith("+x"), plain=k=>k.replace(/\+x$/,"");
 const baseOf=k=>plain(k).split("~")[0], flvOf=k=>plain(k).split("~")[1]||"";
-const unitPrice=k=>PRICE+(hasX(k)?EXTRA:0);
+const unitPrice=k=>k==="extra"?EXTRA:PRICE+(hasX(k)?EXTRA:0);
+const prodKeys=()=>Object.keys(cart).filter(k=>k!=="extra");
 const cartTotal=()=>Object.keys(cart).reduce((a,k)=>a+cart[k]*unitPrice(k),0);
 const flvName=(id,f)=>{ const o=(FLAVORS[id]||[]).find(x=>x[0]===f); return o?o[1]:""; };
 const lineName=k=>{ const id=baseOf(k), f=flvOf(k); return byId[id].en+(f?" · "+flvName(id,f):"")+(hasX(k)?" + Extra Flavour":""); };
@@ -341,7 +345,7 @@ function renderBoard(){
       <div class="buyc"><span class="tp num">${PRICE}${AED}</span><button class="plus" ${FLAVORS[it.id]?`data-pick="${i}"`:`data-inc="${it.id}"`} aria-label="أضف ${esc(it.en)}">+</button></div></div>
     </div>`;}).join("");
 }
-function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
+function cartCount(){ return prodKeys().reduce((a,k)=>a+cart[k],0); }
 function renderBar(){
   const n=cartCount();
   $("#bar").innerHTML = n
@@ -355,6 +359,7 @@ function stepHTML(id){
 }
 function changeQty(id,d){
   cart[id]=Math.max(0,(cart[id]||0)+d); if(!cart[id]) delete cart[id];
+  if(!prodKeys().length) delete cart.extra;
   document.querySelectorAll(`[data-q="${baseOf(id)}"]`).forEach(el=>el.innerHTML=qtyBadge(baseOf(id)));
   document.querySelectorAll(`[data-slot="${id}"]`).forEach(el=>el.innerHTML=stepHTML(id));
   renderBar();
@@ -365,15 +370,14 @@ function changeQty(id,d){
 function openViewer(i,keepFlv){
   const ni=(i+PRODUCTS.length)%PRODUCTS.length; if(!keepFlv||ni!==viewIdx){ viewFlv="classic"; viewExtra=false; }
   viewIdx=ni; const it=PRODUCTS[viewIdx];
-  const fl=FLAVORS[it.id], key=(fl?keyOf(it.id,viewFlv):it.id)+(viewExtra?"+x":"");
+  const fl=FLAVORS[it.id], key=fl?keyOf(it.id,viewFlv):it.id;
   const opt=fl&&fl.find(x=>x[0]===viewFlv), img=IMG[(opt&&opt[2])||it.img];
   $("#layer").dataset.view="viewer";
   $("#layer").innerHTML=`<div class="viewer" role="dialog" aria-modal="true" aria-label="${esc(it.en)}" style="${vars(it)}"><span class="bigword" aria-hidden="true">${esc(it.w)}</span>
     <div class="top gut"><img class="logo sm" src="/logo.png" alt="ODDLY"><button class="x" data-close aria-label="إغلاق">✕</button></div>
     <div class="stage gut"><button class="arrow prev" data-step="-1" aria-label="السابق"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button><img src="${img}" alt="${esc(it.en)}"><button class="arrow next" data-step="1" aria-label="التالي"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button></div>
     <svg class="vdunes" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18 C200 0 400 30 600 14 C800 0 1000 26 1200 10 V46 H0Z" fill="#F2A0B6"/><path d="M0 28 C260 12 460 40 700 24 C900 12 1060 34 1200 22 V46 H0Z" fill="#C81E68"/><path d="M0 38 C280 26 500 46 740 34 C950 24 1080 44 1200 32 V46 H0Z" fill="#6B3524"/></svg><div class="info gut"><div style="min-width:0;flex:1"><div class="n en">${esc(it.en)}</div><h2>${esc(it.tag)}</h2>
-      ${fl?`<div class="flv" role="group" aria-label="النكهة">${fl.map(o=>`<button data-flv="${o[0]}" aria-pressed="${o[0]===viewFlv}" class="en">${o[1]}</button>`).join("")}</div>`:""}
-      <div class="flv"><button data-xtra aria-pressed="${viewExtra}" style="direction:ltr">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button></div></div>
+      ${fl?`<div class="flv" role="group" aria-label="النكهة">${fl.map(o=>`<button data-flv="${o[0]}" aria-pressed="${o[0]===viewFlv}" class="en">${o[1]}</button>`).join("")}</div>`:""}</div>
       <div class="buy"><div class="price num">${unitPrice(key)}${AED}</div><div data-slot="${key}">${stepHTML(key)}</div></div></div>
   </div>`;
 }
@@ -387,9 +391,11 @@ function sheet(view,inner){ $("#layer").dataset.view=view; $("#layer").innerHTML
 const ICON_CASH=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10" width="32" height="20" rx="4"/><circle cx="20" cy="20" r="5"/></svg>`;
 const ICON_CARD=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="9" width="32" height="22" rx="4"/><path d="M4 16h32M10 25h7"/></svg>`;
 function openCart(){
-  const ids=Object.keys(cart); if(!ids.length){ closeLayer(); return; }
+  const ids=prodKeys(); if(!ids.length){ delete cart.extra; closeLayer(); return; }
+  const nx=cart.extra||0;
   sheet("cart",`<div class="sh-head"><h3>طلبك</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
-    ${ids.map(id=>{return `<div class="line"><img src="${lineImg(id)}" alt=""><div class="t"><b class="en">${esc(lineName(id))}</b><small class="num">${cart[id]} × ${unitPrice(id)}${AED}</small>${hasX(id)?"":`<button class="addx" data-addx="${id}">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button>`}</div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
+    ${ids.map(id=>{return `<div class="line"><img src="${lineImg(id)}" alt=""><div class="t"><b class="en">${esc(lineName(id))}</b><small class="num">${cart[id]} × ${unitPrice(id)}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
+    <div class="xrow">${nx?`<div class="xinfo"><b class="en">Extra Flavour</b><small class="num">${nx} × ${EXTRA}${AED}</small></div><div class="step"><button data-dec="extra" aria-label="نقّص">−</button><b class="num">${nx}</b><button class="p" data-inc="extra" aria-label="زيد">+</button></div>`:`<button class="addx" data-inc="extra">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button>`}</div>
     <div class="total"><span>المجموع</span><span class="num">${cartTotal()}${AED}</span></div>
     <div class="lbl">شلون بتدفع؟</div>
     <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}كاش</button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}بطاقة</button></div>
@@ -609,8 +615,6 @@ document.addEventListener("click",e=>{
   else if(d.dec) changeQty(d.dec,-1);
   else if(d.pick!==undefined) openViewer(+d.pick);
   else if(d.flv){ viewFlv=d.flv; openViewer(viewIdx,true); }
-  else if(d.xtra!==undefined){ viewExtra=!viewExtra; openViewer(viewIdx,true); }
-  else if(d.addx){ const k=d.addx; cart[k]--; if(!cart[k]) delete cart[k]; cart[k+"+x"]=(cart[k+"+x"]||0)+1; renderBar(); openCart(); }
   else if(d.view!==undefined) openViewer(+d.view);
   else if(d.step) openViewer(viewIdx+(+d.step));
   else if(d.close!==undefined) closeLayer();

@@ -11,7 +11,7 @@ const PIN = process.env.REPORT_PIN || ""; // set REPORT_PIN on the host
 const TZ = "Asia/Dubai";
 const PRICES = {
   "pudding": 35, "strawberry": 35, "hot-choc": 35, "matcha": 35, "golden-brew": 35,
-  "matcha-ic": 35, "redbull-ic": 35, "karak-ic": 35, "acai-ic": 35, "greek-ic": 35, "vanilla-ic": 35, "acai-smoothie": 35
+  "matcha-ic": 35, "redbull-ic": 35, "karak-ic": 35, "acai-ic": 35, "greek-ic": 35, "vanilla-ic": 35, "acai-smoothie": 35, "extra": 5
 };
 const EXTRA = 5; // extra flavour add-on, AED
 const FLAVORS = { "matcha": { "coconut": "Coconut", "cloud": "Cloud", "oat": "Oat Milk" } };
@@ -19,7 +19,7 @@ const NAMES = {
   "pudding": "Date Pudding", "strawberry": "Chocolate Strawberry", "hot-choc": "Hot Chocolate",
   "matcha": "Matcha", "golden-brew": "Iced V60", "matcha-ic": "Matcha Ice Cream",
   "redbull-ic": "Red Bull Ice Cream", "karak-ic": "Karak Ice Cream", "acai-ic": "Açaí Ice Cream",
-  "greek-ic": "Greek Yogurt Ice Cream", "vanilla-ic": "Vanilla Ice Cream", "acai-smoothie": "Açaí Smoothie"
+  "greek-ic": "Greek Yogurt Ice Cream", "vanilla-ic": "Vanilla Ice Cream", "acai-smoothie": "Açaí Smoothie", "extra": "Extra Flavour"
 };
 
 const pool = new Pool({
@@ -106,7 +106,7 @@ const server = http.createServer(async (req, res) => {
           const x = i.extra === true;
           return { id: i.id, en: NAMES[i.id] + (f ? " · " + f : "") + (x ? " + Extra Flavour" : ""), q: i.q, price: PRICES[i.id] + (x ? EXTRA : 0), ...(f ? { flavor: i.flavor } : {}), ...(x ? { extra: true } : {}) };
         });
-      if (!items.length) return send(res, 400, { error: "items" });
+      if (!items.some(i => i.id !== "extra")) return send(res, 400, { error: "items" });
       const qty = items.reduce((a, i) => a + i.q, 0);
       const total = items.reduce((a, i) => a + i.q * i.price, 0);
       const { day } = dubaiParts();
