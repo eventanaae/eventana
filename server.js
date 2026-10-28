@@ -13,6 +13,7 @@ const PRICES = {
   "pudding": 35, "strawberry": 35, "hot-choc": 35, "matcha": 35, "golden-brew": 35,
   "matcha-ic": 35, "redbull-ic": 35, "karak-ic": 35, "acai-ic": 35, "greek-ic": 35, "vanilla-ic": 35, "acai-smoothie": 35
 };
+const FLAVORS = { "matcha": { "coconut": "Coconut", "cloud": "Cloud", "oat": "Oat Milk" } };
 const NAMES = {
   "pudding": "Date Pudding", "strawberry": "Chocolate Strawberry", "hot-choc": "Hot Chocolate",
   "matcha": "Matcha", "golden-brew": "Iced V60", "matcha-ic": "Matcha Ice Cream",
@@ -98,7 +99,11 @@ const server = http.createServer(async (req, res) => {
       if (!["cash", "card"].includes(b.pay)) return send(res, 400, { error: "pay" });
       const items = (Array.isArray(b.items) ? b.items : [])
         .filter(i => PRICES[i.id] && Number.isInteger(i.q) && i.q > 0 && i.q < 50)
-        .map(i => ({ id: i.id, en: NAMES[i.id], q: i.q, price: PRICES[i.id] }));
+        .filter(i => !i.flavor || (FLAVORS[i.id] && FLAVORS[i.id][i.flavor]))
+        .map(i => {
+          const f = i.flavor ? FLAVORS[i.id][i.flavor] : "";
+          return { id: i.id, en: NAMES[i.id] + (f ? " · " + f : ""), q: i.q, price: PRICES[i.id], ...(f ? { flavor: i.flavor } : {}) };
+        });
       if (!items.length) return send(res, 400, { error: "items" });
       const qty = items.reduce((a, i) => a + i.q, 0);
       const total = items.reduce((a, i) => a + i.q * i.price, 0);

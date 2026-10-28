@@ -96,6 +96,9 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 @keyframes fall{0%{transform:translate(0,0) rotate(0)}50%{transform:translate(var(--sway),55vh) rotate(180deg)}100%{transform:translate(0,118vh) rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){#fx{display:none}}
 
+.flv{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.flv button{min-height:44px;padding:8px 18px;border-radius:999px;background:rgba(255,255,255,.12);color:var(--peach-2);border:2px solid rgba(255,255,255,.35);font-family:var(--display);font-weight:700;font-size:16px}
+.flv button[aria-pressed="true"]{background:var(--peach-2);color:var(--green);border-color:var(--peach-2)}
 /* Order bar */
 .bar{flex:none;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .bar .in{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:20px;font-family:var(--display);font-weight:700}
@@ -285,7 +288,7 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 <script>
 const PRICE = 35;
 const AED = `<svg class="aed" viewBox="0 0 100 100" aria-label="درهم" role="img" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M30 12 V88 H46 C72 88 88 72 88 50 C88 28 72 12 46 12 Z"/><path d="M10 40 H94 M10 60 H94"/></svg>`;
-const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp",12:"/img/12.webp"};
+const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp",12:"/img/12.webp",13:"/img/13.webp"};
 const ITEMS = [
   {id:"pudding",img:1,c:"#E2457E",w:"Dates",en:"Date Pudding",tag:"ألذ بودنق تمر!",desc:"كعكة تمر طرية تُقدَّم دافئة، مغطاة بصوص الكراميل والتوفي، ويعلوها آيسكريم الفانيلا."},
   {id:"strawberry",img:2,c:"#C2213A",w:"Berry",en:"Chocolate Strawberry",tag:"فراولة وجوكليت عالم ثاني!",desc:"فراولة طازجة بطبقات متتالية من الشوكولاتة البلجيكية الذائبة."},
@@ -311,7 +314,15 @@ const cart = {};
 let payment = null, viewIdx = -1;
 
 /* ---------- Board ---------- */
-function qtyBadge(id){ return cart[id]?`<span class="qty num">${cart[id]}</span>`:""; }
+/* Flavours: an item can offer options; the cart keys them as "id~flavour" */
+const FLAVORS={matcha:[["classic","Classic"],["coconut","Coconut"],["cloud","Cloud",13],["oat","Oat Milk"]]};
+let viewFlv="classic";
+const keyOf=(id,f)=>(!f||f==="classic")?id:id+"~"+f;
+const baseOf=k=>k.split("~")[0], flvOf=k=>k.split("~")[1]||"";
+const flvName=(id,f)=>{ const o=(FLAVORS[id]||[]).find(x=>x[0]===f); return o?o[1]:""; };
+const lineName=k=>{ const id=baseOf(k), f=flvOf(k); return byId[id].en+(f?" · "+flvName(id,f):""); };
+const lineImg=k=>{ const id=baseOf(k), o=(FLAVORS[id]||[]).find(x=>x[0]===flvOf(k)); return IMG[(o&&o[2])||byId[id].img]; };
+function qtyBadge(id){ const n=Object.keys(cart).filter(k=>baseOf(k)===id).reduce((a,k)=>a+cart[k],0); return n?`<span class="qty num">${n}</span>`:""; }
 function renderBoard(){
   $("#board").innerHTML = LAYOUT.map(it=>{
     if(it==="soon") return `<div class="soon"><div class="q">?</div><small>Coming Soon</small><b>شي على ذوقكم؟</b></div>`;
@@ -321,7 +332,7 @@ function renderBoard(){
       ${it.badge?`<span class="badge">${it.badge}</span>`:""}<span data-q="${it.id}">${qtyBadge(it.id)}</span>
       <div class="pic"><img src="${IMG[it.img]}" alt="${esc(it.en)}" draggable="false"></div>
       <div class="txt"><div><div class="n en">${esc(it.en)}</div><div class="t">${esc(it.tag)}</div></div>
-      <div class="buyc"><span class="tp num">${PRICE}${AED}</span><button class="plus" data-inc="${it.id}" aria-label="أضف ${esc(it.en)}">+</button></div></div>
+      <div class="buyc"><span class="tp num">${PRICE}${AED}</span><button class="plus" ${FLAVORS[it.id]?`data-pick="${i}"`:`data-inc="${it.id}"`} aria-label="أضف ${esc(it.en)}">+</button></div></div>
     </div>`;}).join("");
 }
 function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
@@ -338,21 +349,25 @@ function stepHTML(id){
 }
 function changeQty(id,d){
   cart[id]=Math.max(0,(cart[id]||0)+d); if(!cart[id]) delete cart[id];
-  document.querySelectorAll(`[data-q="${id}"]`).forEach(el=>el.innerHTML=qtyBadge(id));
+  document.querySelectorAll(`[data-q="${baseOf(id)}"]`).forEach(el=>el.innerHTML=qtyBadge(baseOf(id)));
   document.querySelectorAll(`[data-slot="${id}"]`).forEach(el=>el.innerHTML=stepHTML(id));
   renderBar();
   if($("#layer").dataset.view==="cart") openCart();
 }
 
 /* ---------- Big photo viewer ---------- */
-function openViewer(i){
-  viewIdx=(i+PRODUCTS.length)%PRODUCTS.length; const it=PRODUCTS[viewIdx];
+function openViewer(i,keepFlv){
+  const ni=(i+PRODUCTS.length)%PRODUCTS.length; if(!keepFlv||ni!==viewIdx) viewFlv="classic";
+  viewIdx=ni; const it=PRODUCTS[viewIdx];
+  const fl=FLAVORS[it.id], key=fl?keyOf(it.id,viewFlv):it.id;
+  const opt=fl&&fl.find(x=>x[0]===viewFlv), img=IMG[(opt&&opt[2])||it.img];
   $("#layer").dataset.view="viewer";
   $("#layer").innerHTML=`<div class="viewer" role="dialog" aria-modal="true" aria-label="${esc(it.en)}" style="${vars(it)}"><span class="bigword" aria-hidden="true">${esc(it.w)}</span>
     <div class="top gut"><img class="logo sm" src="/logo.png" alt="ODDLY"><button class="x" data-close aria-label="إغلاق">✕</button></div>
-    <div class="stage gut"><button class="arrow prev" data-step="-1" aria-label="السابق"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button><img src="${IMG[it.img]}" alt="${esc(it.en)}"><button class="arrow next" data-step="1" aria-label="التالي"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button></div>
-    <svg class="vdunes" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18 C200 0 400 30 600 14 C800 0 1000 26 1200 10 V46 H0Z" fill="#F2A0B6"/><path d="M0 28 C260 12 460 40 700 24 C900 12 1060 34 1200 22 V46 H0Z" fill="#C81E68"/><path d="M0 38 C280 26 500 46 740 34 C950 24 1080 44 1200 32 V46 H0Z" fill="#6B3524"/></svg><div class="info gut"><div style="min-width:0;flex:1"><div class="n en">${esc(it.en)}</div><h2>${esc(it.tag)}</h2></div>
-      <div class="buy"><div class="price num">${PRICE}${AED}</div><div data-slot="${it.id}">${stepHTML(it.id)}</div></div></div>
+    <div class="stage gut"><button class="arrow prev" data-step="-1" aria-label="السابق"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button><img src="${img}" alt="${esc(it.en)}"><button class="arrow next" data-step="1" aria-label="التالي"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button></div>
+    <svg class="vdunes" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18 C200 0 400 30 600 14 C800 0 1000 26 1200 10 V46 H0Z" fill="#F2A0B6"/><path d="M0 28 C260 12 460 40 700 24 C900 12 1060 34 1200 22 V46 H0Z" fill="#C81E68"/><path d="M0 38 C280 26 500 46 740 34 C950 24 1080 44 1200 32 V46 H0Z" fill="#6B3524"/></svg><div class="info gut"><div style="min-width:0;flex:1"><div class="n en">${esc(it.en)}</div><h2>${esc(it.tag)}</h2>
+      ${fl?`<div class="flv" role="group" aria-label="النكهة">${fl.map(o=>`<button data-flv="${o[0]}" aria-pressed="${o[0]===viewFlv}" class="en">${o[1]}</button>`).join("")}</div>`:""}</div>
+      <div class="buy"><div class="price num">${PRICE}${AED}</div><div data-slot="${key}">${stepHTML(key)}</div></div></div>
   </div>`;
 }
 let touchX=null;
@@ -367,7 +382,7 @@ const ICON_CARD=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stro
 function openCart(){
   const ids=Object.keys(cart); if(!ids.length){ closeLayer(); return; }
   sheet("cart",`<div class="sh-head"><h3>طلبك</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
-    ${ids.map(id=>{const it=byId[id];return `<div class="line"><img src="${IMG[it.img]}" alt=""><div class="t"><b class="en">${esc(it.en)}</b><small class="num">${cart[id]} × ${PRICE}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
+    ${ids.map(id=>{return `<div class="line"><img src="${lineImg(id)}" alt=""><div class="t"><b class="en">${esc(lineName(id))}</b><small class="num">${cart[id]} × ${PRICE}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
     <div class="total"><span>المجموع</span><span class="num">${cartCount()*PRICE}${AED}</span></div>
     <div class="lbl">شلون بتدفع؟</div>
     <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}كاش</button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}بطاقة</button></div>
@@ -377,7 +392,7 @@ function openCart(){
 let doneTimer;
 async function confirmOrder(){
   const btn=$("#confirm"); if(btn.disabled) return; btn.disabled=true; btn.textContent="لحظة…";
-  const items=Object.keys(cart).map(id=>({id,q:cart[id]}));
+  const items=Object.keys(cart).map(k=>({id:baseOf(k),flavor:flvOf(k)||undefined,q:cart[k]}));
   let order;
   try{
     const r=await fetch("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items,pay:payment})});
@@ -585,6 +600,8 @@ document.addEventListener("click",e=>{
   const d=t.dataset;
   if(d.inc) changeQty(d.inc,1);
   else if(d.dec) changeQty(d.dec,-1);
+  else if(d.pick!==undefined) openViewer(+d.pick);
+  else if(d.flv){ viewFlv=d.flv; openViewer(viewIdx,true); }
   else if(d.view!==undefined) openViewer(+d.view);
   else if(d.step) openViewer(viewIdx+(+d.step));
   else if(d.close!==undefined) closeLayer();
