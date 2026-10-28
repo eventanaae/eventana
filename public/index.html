@@ -104,6 +104,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .xinfo small{color:var(--muted)}
 .addx{display:flex;width:100%;justify-content:center;align-items:center;gap:6px;min-height:52px;padding:8px 16px;border-radius:18px;border:2px dashed var(--magenta);color:var(--magenta);background:#FBE0E8;font-family:var(--display);font-weight:800;font-size:18px;direction:ltr}
 .addx .aed,.flv .aed{width:.8em;height:.8em}
+.scrim.still,.scrim.still .sheet{animation:none}
 /* Order bar */
 .bar{flex:none;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .bar .in{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:20px;font-family:var(--display);font-weight:700}
@@ -387,7 +388,7 @@ document.addEventListener("touchend",e=>{ if(touchX===null) return; const dx=e.c
 
 /* ---------- Cart / checkout ---------- */
 function closeLayer(){ $("#layer").innerHTML=""; $("#layer").dataset.view=""; }
-function sheet(view,inner){ $("#layer").dataset.view=view; $("#layer").innerHTML=`<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true">${inner}</div></div>`; }
+function sheet(view,inner){ const L=$("#layer"), same=L.dataset.view===view, top=same?(L.querySelector(".sheet")?.scrollTop||0):0; L.dataset.view=view; L.innerHTML=`<div class="scrim${same?" still":""}" data-scrim><div class="sheet" role="dialog" aria-modal="true">${inner}</div></div>`; if(same) L.querySelector(".sheet").scrollTop=top; }
 const ICON_CASH=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10" width="32" height="20" rx="4"/><circle cx="20" cy="20" r="5"/></svg>`;
 const ICON_CARD=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="9" width="32" height="22" rx="4"/><path d="M4 16h32M10 25h7"/></svg>`;
 function openCart(){
@@ -395,7 +396,8 @@ function openCart(){
   const nx=cart.extra||0;
   sheet("cart",`<div class="sh-head"><h3>طلبك</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
     ${ids.map(id=>{return `<div class="line"><img src="${lineImg(id)}" alt=""><div class="t"><b class="en">${esc(lineName(id))}</b><small class="num">${cart[id]} × ${unitPrice(id)}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
-    <div class="xrow">${nx?`<div class="xinfo"><b class="en">Extra Flavour</b><small class="num">${nx} × ${EXTRA}${AED}</small></div><div class="step"><button data-dec="extra" aria-label="نقّص">−</button><b class="num">${nx}</b><button class="p" data-inc="extra" aria-label="زيد">+</button></div>`:`<button class="addx" data-inc="extra">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button>`}</div>
+    ${nx?`<div class="xrow"><div class="xinfo"><b class="en">Extra Flavour</b><small class="num">${nx} × ${EXTRA}${AED}</small></div><div class="step"><button data-dec="extra" aria-label="نقّص">−</button><b class="num">${nx}</b><button class="p" data-inc="extra" aria-label="زيد">+</button></div></div>`:""}
+    <div class="xrow"><button class="addx" data-inc="extra">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button></div>
     <div class="total"><span>المجموع</span><span class="num">${cartTotal()}${AED}</span></div>
     <div class="lbl">شلون بتدفع؟</div>
     <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}كاش</button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}بطاقة</button></div>
