@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { api } from '../api';
+import { api, isQueued } from '../api';
 import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
 
@@ -50,7 +50,8 @@ export function Inventory({ role }: { role?: string }) {
 
   const reportMissing = async () => {
     if (!nm.item.trim()) return;
-    await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, location: nm.location.trim() || undefined, photoUrl: nm.photoUrl || undefined, assignTo: nm.assignTo || undefined });
+    const r = await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, location: nm.location.trim() || undefined, photoUrl: nm.photoUrl || undefined, assignTo: nm.assignTo || undefined });
+    if (isQueued(r)) alert('No internet — the missing item is saved on this phone and will be sent automatically when you’re back online.');
     setNm({ item: '', quantity: '', supplier: '', location: '', photoUrl: '', assignTo: '' });
     load();
   };
@@ -313,7 +314,11 @@ function ReportModal({ target, onClose, onDone }: { target: { code: string; name
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     setBusy(true);
-    try { await api.reportAsset(target.code, kind, note.trim() || undefined); onDone(); }
+    try {
+      const r = await api.reportAsset(target.code, kind, note.trim() || undefined);
+      if (isQueued(r)) alert('No internet — the report is saved on this phone and will be sent automatically when you’re back online.');
+      onDone();
+    }
     catch { setBusy(false); }
   };
   return (

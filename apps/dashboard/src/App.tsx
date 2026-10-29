@@ -4,6 +4,7 @@ import { api, hasStaffToken, setStaffToken, clearStaffToken, setApiErrorHandler,
 import { C, fredoka } from './ui';
 import { BookingNotifier } from './BookingNotifier';
 import { NotificationBell } from './NotificationBell';
+import { OfflineBar, useOfflineState } from './OfflineBar';
 import { Today } from './views/Today';
 import { Schedule } from './views/Schedule';
 import { MyTasks } from './views/MyTasks';
@@ -128,6 +129,15 @@ export default function App() {
   const [openShopId, setOpenShopId] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Bumped after offline changes are sent / the phone reconnects, to reload the
+  // current screen with fresh data (skipped while someone is typing in a form).
+  const [syncTick, setSyncTick] = useState(0);
+  const offline = useOfflineState().offline;
+  const refreshAfterSync = () => {
+    const el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return;
+    setSyncTick((n) => n + 1);
+  };
 
   // Surface any failed API request (broken load / failed action) as a toast so
   // nothing fails silently.
@@ -187,7 +197,9 @@ export default function App() {
         .catch((e) => setError(e.message));
     load();
     const timer = setInterval(load, 30_000);
-    return () => clearInterval(timer);
+    // Back online: refresh right away instead of waiting for the next tick.
+    window.addEventListener('online', load);
+    return () => { clearInterval(timer); window.removeEventListener('online', load); };
   }, [authed]);
 
   const allowed = ROLE_VIEWS[role] ?? 'all';
@@ -244,11 +256,11 @@ export default function App() {
 
   const body = error ? (
     <div style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ ...fredoka(18), marginBottom: 8 }}>Can’t reach the Eventana engine</div>
+      <div style={{ ...fredoka(18), marginBottom: 8 }}>{offline ? 'No internet' : 'Can’t reach the Eventana engine'}</div>
       <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>{error}</div>
     </div>
   ) : (
-    <>
+    <div key={syncTick}>
       {view === 'today' && <Today onOpenEvent={openEvent} onOpenShop={setOpenShopId} onGoto={go} staffName={staffName} role={role} />}
       {view === 'mytasks' && <MyTasks />}
       {view === 'stories' && <StoryStudio />}
@@ -280,8 +292,9 @@ export default function App() {
       {view === 'staffpay' && <StaffPay />}
       {view === 'menu' && <Menu onGoto={go} isVisible={isVisible} staffName={staffName} onSignedOut={() => setAuthed(false)} />}
       {view === 'settings' && <Settings role={role} />}
-    </>
+    </div>
   );
+  const offlineBar = <OfflineBar onSynced={refreshAfterSync} onMessage={setToast} />;
 
   const eventDrawer = openEventId && (
     <EventDrawer eventId={openEventId} onClose={() => setOpenEventId(null)} role={role} />
@@ -308,7 +321,7 @@ export default function App() {
         maxWidth: 520, margin: '0 auto',
       }}
     >
-      ⚠️ {toast}
+      {toast.startsWith('✓') ? '' : '⚠️ '}{toast}
     </div>
   ) : null;
 
@@ -321,8 +334,8 @@ export default function App() {
         <BookingNotifier enabled={authed} />
         <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: `1px solid ${C.line}`, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ ...fredoka(16), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current.title}</div>
-          <span style={{ background: error ? C.redSoft : C.greenSoft, color: error ? C.red : C.green, fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 10, flex: 'none' }}>
-            {error ? '● offline' : '● live'}
+          <span style={{ background: error || offline ? C.redSoft : C.greenSoft, color: error || offline ? C.red : C.green, fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 10, flex: 'none' }}>
+            {error || offline ? '● offline' : '● live'}
           </span>
           <NotificationBell onOpenEvent={openEvent} />
           {(role === 'manager' || role === 'owner') && (
@@ -330,6 +343,7 @@ export default function App() {
           )}
         </div>
 
+        {offlineBar}
         <div style={{ flex: 1, padding: 14, paddingBottom: 84, minWidth: 0 }}><InstallPrompt /><NotificationsPrompt />{body}</div>
 
         <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 10, background: '#fff', borderTop: `1px solid ${C.line}`, display: 'flex', padding: '8px 4px calc(8px + env(safe-area-inset-bottom))' }}>
@@ -515,13 +529,14 @@ export default function App() {
                 ⚙ Sandbox mode — no live payment keys
               </span>
             )}
-            <span style={{ background: error ? C.redSoft : C.greenSoft, color: error ? C.red : C.green, fontSize: 11, fontWeight: 700, padding: '7px 12px', borderRadius: 12 }}>
-              {error ? '● Engine unreachable' : '● Live sync'}
+            <span style={{ background: error || offline ? C.redSoft : C.greenSoft, color: error || offline ? C.red : C.green, fontSize: 11, fontWeight: 700, padding: '7px 12px', borderRadius: 12 }}>
+              {offline ? '● Offline' : error ? '● Engine unreachable' : '● Live sync'}
             </span>
             <NotificationBell onOpenEvent={openEvent} />
           </div>
         </div>
 
+        {offlineBar}
         <div style={{ flex: 1, padding: 24, minWidth: 0 }}>{body}</div>
       </div>
 

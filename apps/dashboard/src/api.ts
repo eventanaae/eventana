@@ -1,3 +1,8 @@
+import {
+  cacheGet, cachePut, clearOfflineData, deviceOffline, enqueue, flushOutbox, getOfflineState,
+  isQueueable, markOffline, markOnline, type OutboxItem,
+} from './offline';
+
 /**
  * Dashboard API client. Every call carries the staff token; the API
  * rejects the whole /api/admin surface without it.
@@ -107,6 +112,8 @@ export function setStaffToken(t: string): void {
 }
 export function clearStaffToken(): void {
   try { localStorage.removeItem(STAFF_TOKEN_KEY); } catch { /* ignore */ }
+  // Signing out also wipes the copies saved on this phone for offline use.
+  clearOfflineData();
   deleteCookie(TOKEN_COOKIE);
 }
 export function hasStaffToken(): boolean {
@@ -163,8 +170,44 @@ export function setApiErrorHandler(fn: ((message: string) => void) | null): void
   onApiError = fn;
 }
 
+/** Returned (instead of the server's reply) when an action was saved offline. */
+export interface QueuedOffline { queued: true }
+export const isQueued = (r: unknown): r is QueuedOffline => !!r && typeof r === 'object' && (r as any).queued === true;
+
+// Login / password calls are never cached or served from the device.
+const isAuthPath = (path: string) =>
+  path.startsWith('/api/staff/login') || path.startsWith('/api/staff/forgot') || path.startsWith('/api/staff/set-password');
+
+const OFFLINE_NO_CACHE = 'No internet — this screen hasn’t been opened on this phone yet. Connect once and it will work offline after that.';
+const OFFLINE_NOT_QUEUEABLE = 'No internet — this action needs a connection. Please try again when you’re back online.';
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const idempotent = (init.method ?? 'GET').toUpperCase() === 'GET';
+  const method = (init.method ?? 'GET').toUpperCase();
+  const idempotent = method === 'GET';
+  const token = getStaffToken();
+  const cacheable = idempotent && !!token && !isAuthPath(path);
+  const queueable = !idempotent && !!token && isQueueable(method, path);
+
+  // Offline fallbacks: a GET serves this phone's saved copy; a queueable action
+  // is saved to the outbox and sent later. Anything else fails with a clear reason.
+  const fallback = async (): Promise<T> => {
+    if (cacheable) {
+      const hit = await cacheGet(path, token);
+      if (hit) { markOffline(hit.at); return hit.body as T; }
+      markOffline(null);
+      throw new Error(OFFLINE_NO_CACHE);
+    }
+    markOffline(null);
+    if (queueable) {
+      await enqueue({ kind: 'json', token, at: Date.now(), method, path, body: typeof init.body === 'string' ? init.body : null });
+      return { queued: true } as T;
+    }
+    onApiError?.(OFFLINE_NOT_QUEUEABLE);
+    throw new Error(OFFLINE_NOT_QUEUEABLE);
+  };
+  // No network at all: answer straight away instead of retrying for ~40s.
+  if (deviceOffline() && (cacheable || !idempotent)) return fallback();
+
   const opts: RequestInit = {
     ...init,
     // Never serve a stale cached response: the dashboard must always reflect the
@@ -188,12 +231,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       }
       break;
     } catch (err) {
+      // Connected to Wi-Fi/data but nothing gets through: with a saved copy (or a
+      // queueable action) don't sit through the cold-start retries — use it now.
+      if (cacheable || queueable) {
+        if (!cacheable || (await cacheGet(path, token))) return fallback();
+      }
       // Only retry idempotent (GET) requests — re-sending a POST could double-apply.
       if (idempotent && attempt < COLD_START_BACKOFF_MS.length) { await sleep(COLD_START_BACKOFF_MS[attempt++]); continue; }
       onApiError?.('Network error — please check your connection and try again.');
       throw err;
     }
   }
+  // The server is still waking up (gateway error after every retry): a saved copy beats an error screen.
+  if (cacheable && (res.status === 502 || res.status === 503 || res.status === 504) && (await cacheGet(path, token))) return fallback();
+  markOnline();
   const text = await res.text();
   let body: any = null;
   if (text) { try { body = JSON.parse(text); } catch { body = null; } }
@@ -218,7 +269,108 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (res.status !== 403) onApiError?.(message);
     throw new Error(message);
   }
+  if (cacheable) cachePut(path, token, body);
   return body as T;
+}
+
+/* ── offline outbox replay ─────────────────────────────────────────────────── */
+
+/** Upload a photo to Cloudinary under a given session (used live and on replay). */
+async function uploadWith(token: string, file: Blob, fileName: string, folder: string): Promise<string> {
+  const signRes = await fetch(`${BASE}/api/admin/uploads/sign`, {
+    method: 'POST', cache: 'no-store',
+    headers: { 'content-type': 'application/json', 'x-staff-token': token },
+    body: JSON.stringify({ folder }),
+  });
+  const s = await signRes.json().catch(() => null);
+  if (!signRes.ok || !s) throw Object.assign(new Error(s?.message ?? s?.error ?? `Upload failed (${signRes.status})`), { status: signRes.status });
+  const asFile = file instanceof File ? file : new File([file], fileName, { type: file.type || 'image/jpeg' });
+  const uploadFile = await compressImage(asFile);
+  const form = new FormData();
+  form.append('file', uploadFile);
+  form.append('api_key', s.apiKey);
+  form.append('timestamp', String(s.timestamp));
+  form.append('signature', s.signature);
+  form.append('folder', s.folder);
+  const res = await fetch(s.uploadUrl, { method: 'POST', body: form });
+  const j = await res.json().catch(() => null);
+  if (!res.ok) throw Object.assign(new Error(j?.error?.message ?? 'Upload failed'), { status: res.status });
+  return j.secure_url as string;
+}
+
+/**
+ * Send one queued action with the token of the person who made it. A refusal
+ * (4xx — task deleted, no longer assigned, session ended) is dropped and
+ * reported; no connection or a server hiccup (5xx) leaves it queued.
+ */
+async function replay(item: OutboxItem): Promise<{ result: 'ok' | 'drop' | 'retry'; message?: string }> {
+  const label = describeQueued(item);
+  try {
+    const path = item.path;
+    let bodyText: string | null;
+    if (item.kind === 'photo') {
+      const url = await uploadWith(item.token, item.file, item.fileName, item.folder);
+      bodyText = JSON.stringify({ ...item.extra, [item.field]: url });
+    } else {
+      bodyText = item.body;
+    }
+    const res = await fetch(`${BASE}${path}`, {
+      method: item.kind === 'photo' ? 'POST' : item.method,
+      cache: 'no-store',
+      // Only headers the API's CORS allow-list accepts (content-type, x-staff-token).
+      headers: { 'content-type': 'application/json', 'x-staff-token': item.token },
+      ...(bodyText != null ? { body: bodyText } : {}),
+    });
+    if (res.ok) return { result: 'ok' };
+    if (res.status >= 500 || res.status === 429) return { result: 'retry' };
+    const j = await res.json().catch(() => null);
+    return { result: 'drop', message: `${label}: ${j?.message ?? j?.error ?? `refused (${res.status})`}` };
+  } catch (err: any) {
+    const status = Number(err?.status ?? 0);
+    if (status >= 400 && status < 500) return { result: 'drop', message: `${label}: ${err?.message ?? 'upload refused'}` };
+    return { result: 'retry' };
+  }
+}
+
+function describeQueued(item: OutboxItem): string {
+  if (item.kind === 'photo') return item.path.includes('/prep/') ? 'Task photo' : 'Event photo';
+  if (/\/complete$/.test(item.path)) return 'Task done';
+  if (/\/status$/.test(item.path)) return 'Task status';
+  if (/\/checklist$/.test(item.path)) return 'Checklist tick';
+  if (/\/report$/.test(item.path)) return 'Damage report';
+  if (/missing-items$/.test(item.path)) return 'Missing item';
+  return 'Change';
+}
+
+/** Send everything waiting on this phone. Safe to call any time (no-op when empty). */
+export async function syncOutbox(): Promise<{ sent: number; failed: string[] }> {
+  if (deviceOffline() || !getOfflineState().pending) return { sent: 0, failed: [] };
+  const r = await flushOutbox(replay);
+  if (r.sent > 0) markOnline();
+  return r;
+}
+
+/**
+ * Upload a photo and POST its URL — or, with no connection, keep the photo on
+ * the phone and do both later. Returns whether it went now or was queued.
+ */
+async function photoAction(path: string, folder: 'setup-photos' | 'event-photos', field: string, extra: Record<string, unknown>, file: File): Promise<'sent' | 'queued'> {
+  const token = getStaffToken();
+  const queue = async () => {
+    markOffline(null);
+    await enqueue({ kind: 'photo', token, at: Date.now(), path, folder, field, extra, file, fileName: file.name || 'photo.jpg' });
+    return 'queued' as const;
+  };
+  if (deviceOffline()) return queue();
+  let url: string;
+  try {
+    url = await uploadWith(token, file, file.name, folder);
+  } catch (err: any) {
+    if (!err?.status) return queue(); // never reached the server — keep it for later
+    throw err;
+  }
+  await request<any>(path, { method: 'POST', body: JSON.stringify({ ...extra, [field]: url }) });
+  return 'sent';
 }
 
 export interface PromoCode {
@@ -289,8 +441,9 @@ export const api = {
   prepBoard: () => request<any[]>('/api/admin/prep-board'),
   prepEvents: () => request<any[]>('/api/admin/prep-events'),
   prepMine: () => request<any[]>('/api/admin/prep-mine'),
+  // completedAt = when the employee tapped Done, so a task done offline keeps its real time.
   prepComplete: (taskId: string, photoUrl?: string) =>
-    request<any>(`/api/admin/prep/task/${taskId}/complete`, { method: 'POST', body: JSON.stringify({ photoUrl }) }),
+    request<any>(`/api/admin/prep/task/${taskId}/complete`, { method: 'POST', body: JSON.stringify({ photoUrl, completedAt: new Date().toISOString() }) }),
   prepSetStatus: (taskId: string, status: string, note?: string) =>
     request<any>(`/api/admin/prep/task/${taskId}/status`, { method: 'POST', body: JSON.stringify({ status, note }) }),
   prepToggleChecklist: (taskId: string, index: number, done: boolean) =>
@@ -578,6 +731,12 @@ export const api = {
     if (!res.ok) throw new Error(j?.error?.message ?? 'Upload failed');
     return j.secure_url as string;
   },
+  /** Mark a prep task done with a photo — works offline (photo kept on the phone and sent later). */
+  prepCompleteWithPhoto: (taskId: string, file: File) =>
+    photoAction(`/api/admin/prep/task/${encodeURIComponent(taskId)}/complete`, 'setup-photos', 'photoUrl', { completedAt: new Date().toISOString() }, file),
+  /** Add a photo to an event's gallery — works offline (sent when back online). */
+  addEventPhotoFile: (eventId: string, file: File) =>
+    photoAction(`/api/admin/events/${encodeURIComponent(eventId)}/photos`, 'event-photos', 'url', {}, file),
 
   marketing: () => request<any>('/api/admin/marketing'),
   createCampaign: (body: Record<string, unknown>) =>
