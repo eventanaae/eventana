@@ -1,0 +1,10 @@
+{
+  "name": "hr-business-partner-tasks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HR Business Partner Tasks: tasks, AI categories, achievements and morning reminders",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "pg": "8.13.1", "web-push": "3.6.7" }
+}
