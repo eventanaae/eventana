@@ -256,9 +256,8 @@ ul.list{background:none;border:0;padding:0;gap:10px}
     <div class="flower" aria-hidden="true">Hello there…</div>
     <h1 id="authTitle">HR Business Partner Tasks</h1>
     <p id="authSub">Create your account to start</p>
-    <input id="a-name" name="name" autocomplete="given-name" maxlength="40" placeholder="Your name" aria-label="Your name">
-    <input id="a-email" name="email" type="email" autocomplete="email" placeholder="Email" aria-label="Email" required>
-    <input id="a-pw" name="password" type="password" autocomplete="new-password" placeholder="Password (8+ characters)" aria-label="Password" required minlength="8">
+    <input id="a-name" name="username" autocomplete="username" maxlength="40" placeholder="Your name" aria-label="Your name" required>
+    <input id="a-pw" name="password" type="password" autocomplete="new-password" placeholder="Password (6+ characters)" aria-label="Password" required minlength="6">
     <p class="err" id="authErr" hidden></p>
     <button class="go wide" type="submit" id="authBtn">Create account</button>
     <button type="button" class="link" id="authSwitch">I already have an account</button>
@@ -692,12 +691,12 @@ Return JSON: {"emoji": one emoji, "text": the message}`,{modelTier:"quick"});
 
   // ---------- sign in ----------
   let signup=true;
-  function setMode(up){signup=up;$("#a-name").hidden=!up;$("#authBtn").textContent=up?"Create account":"Sign in";$("#authSwitch").textContent=up?"I already have an account":"Create a new account";$("#authSub").textContent=up?"Create your account to start":"Welcome back 💗";$("#a-pw").autocomplete=up?"new-password":"current-password";$("#authErr").hidden=true}
-  function showAuth(on){$("#hi").hidden=!on;$("#app").hidden=on;if(on)setTimeout(()=>$(signup?"#a-name":"#a-email").focus(),50)}
+  function setMode(up){signup=up;$("#authBtn").textContent=up?"Create account":"Sign in";$("#authSwitch").textContent=up?"I already have an account":"Create a new account";$("#authSub").textContent=up?"Create your account to start":"Welcome back 💗";$("#a-pw").autocomplete=up?"new-password":"current-password";$("#authErr").hidden=true}
+  function showAuth(on){$("#hi").hidden=!on;$("#app").hidden=on;if(on)setTimeout(()=>$("#a-name").focus(),50)}
   $("#authSwitch").addEventListener("click",()=>setMode(!signup));
   $("#authForm").addEventListener("submit",async e=>{
     e.preventDefault();const err=$("#authErr");err.hidden=true;
-    const body={name:$("#a-name").value.trim(),email:$("#a-email").value.trim(),password:$("#a-pw").value};
+    const body={name:$("#a-name").value.trim(),password:$("#a-pw").value};
     $("#authBtn").disabled=true;
     try{await api("POST",signup?"/api/signup":"/api/login",body);location.reload()}
     catch(x){err.textContent=x.error||"Something went wrong. Try again.";err.hidden=false}

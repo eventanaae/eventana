@@ -193,22 +193,22 @@ async function api(req, res, url) {
   if (p === "/api/health") return send(res, 200, { ok: true });
 
   if (p === "/api/signup" && req.method === "POST") {
-    const b = await readBody(req); const email = String(b.email || "").trim().toLowerCase(); const pw = String(b.password || ""); const name = String(b.name || "").trim().slice(0, 40);
-    if (!validEmail(email)) return send(res, 400, { error: "Enter a valid email." });
-    if (pw.length < 8) return send(res, 400, { error: "Use at least 8 characters for your password." });
-    if (!name) return send(res, 400, { error: "Tell us your name." });
+    const b = await readBody(req); const name = String(b.name || "").trim().replace(/\s+/g, " ").slice(0, 40); const pw = String(b.password || "");
+    const email = name.toLowerCase(); // login name, stored in the email column
+    if (name.length < 2) return send(res, 400, { error: "Choose a name with at least 2 letters." });
+    if (pw.length < 6) return send(res, 400, { error: "Use at least 6 characters for your password." });
     const ex = await pool.query(`SELECT 1 FROM hrbp.users WHERE email=$1`, [email]);
-    if (ex.rowCount) return send(res, 409, { error: "This email already has an account. Sign in instead." });
+    if (ex.rowCount) return send(res, 409, { error: "This name is taken. Sign in, or pick another name." });
     const u = await pool.query(`INSERT INTO hrbp.users(email,pw,name) VALUES($1,$2,$3) RETURNING id`, [email, hashPw(pw), name]);
     await newSession(res, u.rows[0].id);
     return send(res, 200, { ok: true });
   }
   if (p === "/api/login" && req.method === "POST") {
-    const b = await readBody(req); const email = String(b.email || "").trim().toLowerCase(); const pw = String(b.password || "");
+    const b = await readBody(req); const email = String(b.name || b.email || "").trim().replace(/\s+/g, " ").toLowerCase(); const pw = String(b.password || "");
     const key = email + "|" + (req.headers["x-forwarded-for"] || "").split(",")[0];
     if (throttled(key)) return send(res, 429, { error: "Too many tries. Wait 15 minutes and try again." });
     const u = await pool.query(`SELECT id,pw FROM hrbp.users WHERE email=$1`, [email]);
-    if (!u.rowCount || !checkPw(pw, u.rows[0].pw)) { noteAttempt(key); return send(res, 401, { error: "Email or password is wrong." }); }
+    if (!u.rowCount || !checkPw(pw, u.rows[0].pw)) { noteAttempt(key); return send(res, 401, { error: "Name or password is wrong." }); }
     await newSession(res, u.rows[0].id);
     return send(res, 200, { ok: true });
   }
