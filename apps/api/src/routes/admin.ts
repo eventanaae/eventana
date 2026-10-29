@@ -1025,10 +1025,15 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post('/api/admin/prep/task/:taskId/complete', async (request, reply) => {
     const { taskId } = request.params as { taskId: string };
     if (!(await prepTaskIsMine(taskId, request))) return reply.status(403).send({ error: 'forbidden', message: 'You can only update tasks assigned to you.' });
-    const b = (request.body ?? {}) as { completedBy?: string; photoUrl?: string };
+    const b = (request.body ?? {}) as { completedBy?: string; photoUrl?: string; completedAt?: string };
     const { completePrepTask } = await import('../domain/prep.js');
     const actor = String((request as any).staff?.name ?? 'staff');
-    const r = await completePrepTask(taskId, { completedBy: b.completedBy ?? actor, photoUrl: b.photoUrl, actor });
+    // A task ticked off while the phone was offline arrives later: keep the time
+    // the employee actually did it (only within the last 7 days, never future).
+    const at = b.completedAt ? new Date(b.completedAt) : null;
+    const completedAt = at && !isNaN(at.getTime()) && at.getTime() <= Date.now() + 60_000 && at.getTime() >= Date.now() - 7 * 86400_000
+      ? new Date(Math.min(at.getTime(), Date.now())) : undefined;
+    const r = await completePrepTask(taskId, { completedBy: b.completedBy ?? actor, photoUrl: b.photoUrl, actor, completedAt });
     if (!r) return reply.status(404).send({ error: 'not_found' });
     const { getPrepPlan } = await import('../domain/prep.js');
     return getPrepPlan(r.eventId);

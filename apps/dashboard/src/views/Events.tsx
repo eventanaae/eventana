@@ -1586,10 +1586,11 @@ function EventPhotosPanel({ eventId, gallery, canEdit, onSaved }: { eventId: str
     if (!files || files.length === 0) return;
     setBusy(true);
     try {
+      let queued = 0;
       for (const f of Array.from(files)) {
-        const url = await api.uploadImage(f, 'event-photos');
-        await api.addEventPhoto(eventId, url);
+        if ((await api.addEventPhotoFile(eventId, f)) === 'queued') queued++;
       }
+      if (queued) alert(`No internet — ${queued} photo${queued > 1 ? 's are' : ' is'} saved on this phone and will upload automatically when you're back online.`);
       await onSaved();
     } catch (e: any) { alert(e?.message ?? 'Upload failed'); }
     finally { setBusy(false); }

@@ -56,17 +56,28 @@ self.addEventListener('fetch', (event) => {
   // leaves every API call completely untouched (always live).
   if (url.origin !== self.location.origin) return;
 
-  // Page loads: network-first, cached shell as the offline fallback.
+  // Page loads: network-first, cached shell as the offline fallback. On a weak
+  // or dead connection (Wi-Fi with no internet) a page load can hang for a long
+  // time before failing, so after 4s open the cached shell instead — the fresh
+  // page still lands in the cache for next time.
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
-      try {
-        const net = await fetch(req);
-        const cache = await caches.open(CACHE);
-        cache.put('/', net.clone());
+      const network = fetch(req).then(async (net) => {
+        if (net.ok) { const cache = await caches.open(CACHE); await cache.put('/', net.clone()); }
         return net;
+      });
+      const cached = await caches.match('/');
+      if (!cached) {
+        try { return await network; } catch { return Response.error(); }
+      }
+      const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 4000));
+      try {
+        const first = await Promise.race([network, timeout]);
+        if (first) return first;
+        event.waitUntil(network.catch(() => {}));
+        return cached;
       } catch {
-        const cached = await caches.match('/');
-        return cached || Response.error();
+        return cached;
       }
     })());
     return;
