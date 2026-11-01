@@ -107,7 +107,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .scrim.still,.scrim.still .sheet{animation:none}
 .enl{display:block;direction:ltr;unicode-bidi:isolate;font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-weight:600;font-size:.62em;letter-spacing:.2px;opacity:.85;line-height:1.25;margin-top:2px}
 .say .enl{font-size:.7em}
-.lbl .enl,.sh-head .enl,.total .enl{text-align:right}
+
 .bar .hintline{flex-direction:column;text-align:center;line-height:1.3;padding-block:6px}
 .bar .go-txt{display:inline-flex;flex-direction:column;align-items:center;line-height:1.15;padding:6px 16px}
 .bar .go-txt .enl{font-size:.6em;opacity:.9}
@@ -115,6 +115,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .sync{display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 10px;border-radius:999px;background:var(--gold);color:var(--green);font-weight:800;font-size:14px;margin-inline-end:8px}
 .sync svg{animation:spin 2.4s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.sheet[dir="ltr"] .line .t b,.sheet[dir="ltr"] .line .t small{text-align:left}
 /* Order bar */
 .bar{flex:none;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .bar .in{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:20px;font-family:var(--display);font-weight:700}
@@ -297,7 +298,7 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 
   <main class="board gut" id="board"></main>
 
-  <div class="bar gut" id="bar"></div>
+  <div class="bar gut" id="bar" dir="ltr"></div>
   <div id="fx" aria-hidden="true"></div>
   <div id="layer"></div>
 </div>
@@ -362,13 +363,13 @@ function cartCount(){ return prodKeys().reduce((a,k)=>a+cart[k],0); }
 function renderBar(){
   const n=cartCount();
   $("#bar").innerHTML = n
-    ? `<button class="in" id="openCart"><span><span class="cnt num">${n}</span>${n===1?"صنف":"أصناف"} <span class="en" style="opacity:.8;font-size:.8em">${n===1?"item":"items"}</span> · <span class="num">${cartTotal()}${AED}</span></span><span class="go-txt">شوف طلبك ←${EN("View order")}</span></button>`
-    : `<div class="in hintline">اضغط على أي صنف عشان تشوفه كبير، و + عشان تضيفه لطلبك${EN("Tap an item to see it · tap + to add it to your order")}</div>`;
+    ? `<button class="in" id="openCart"><span><span class="cnt num">${n}</span>${n===1?"item":"items"} · <span class="num">${cartTotal()}${AED}</span></span><span class="go-txt">View order →</span></button>`
+    : `<div class="in hintline">Tap an item to see it · Tap + to add it to your order</div>`;
 }
 function stepHTML(id){
   const q=cart[id]||0;
   return q?`<div class="step"><button data-dec="${id}" aria-label="نقّص">−</button><b class="num">${q}</b><button class="p" data-inc="${id}" aria-label="زيد">+</button></div>`
-          :`<button class="add" data-inc="${id}">+ أضف لطلبي${EN("Add to order")}</button>`;
+          :`<button class="add" data-inc="${id}">+ Add to order</button>`;
 }
 function changeQty(id,d){
   cart[id]=Math.max(0,(cart[id]||0)+d); if(!cart[id]) delete cart[id];
@@ -400,21 +401,21 @@ document.addEventListener("touchend",e=>{ if(touchX===null) return; const dx=e.c
 
 /* ---------- Cart / checkout ---------- */
 function closeLayer(){ $("#layer").innerHTML=""; $("#layer").dataset.view=""; }
-function sheet(view,inner){ const L=$("#layer"), same=L.dataset.view===view, top=same?(L.querySelector(".sheet")?.scrollTop||0):0; L.dataset.view=view; L.innerHTML=`<div class="scrim${same?" still":""}" data-scrim><div class="sheet" role="dialog" aria-modal="true">${inner}</div></div>`; if(same) L.querySelector(".sheet").scrollTop=top; }
+function sheet(view,inner){ const L=$("#layer"), same=L.dataset.view===view, top=same?(L.querySelector(".sheet")?.scrollTop||0):0; L.dataset.view=view; L.innerHTML=`<div class="scrim${same?" still":""}" data-scrim><div class="sheet" dir="ltr" role="dialog" aria-modal="true">${inner}</div></div>`; if(same) L.querySelector(".sheet").scrollTop=top; }
 const ICON_CASH=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10" width="32" height="20" rx="4"/><circle cx="20" cy="20" r="5"/></svg>`;
 const ICON_CARD=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="9" width="32" height="22" rx="4"/><path d="M4 16h32M10 25h7"/></svg>`;
 function openCart(){
   const ids=prodKeys(); if(!ids.length){ delete cart.extra; closeLayer(); return; }
   const nx=cart.extra||0;
-  sheet("cart",`<div class="sh-head"><h3>طلبك${EN("Your order")}</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
+  sheet("cart",`<div class="sh-head"><h3>Your order</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
     ${ids.map(id=>{return `<div class="line"><img src="${lineImg(id)}" alt=""><div class="t"><b class="en">${esc(lineName(id))}</b><small class="num">${cart[id]} × ${unitPrice(id)}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
     ${nx?`<div class="xrow"><div class="xinfo"><b class="en">Extra Flavour</b><small class="num">${nx} × ${EXTRA}${AED}</small></div><div class="step"><button data-dec="extra" aria-label="نقّص">−</button><b class="num">${nx}</b><button class="p" data-inc="extra" aria-label="زيد">+</button></div></div>`:""}
     <div class="xrow"><button class="addx" data-inc="extra">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button></div>
-    <div class="total"><span>المجموع${EN("Total")}</span><span class="num">${cartTotal()}${AED}</span></div>
-    <div class="lbl">شلون بتدفع؟${EN("How would you like to pay?")}</div>
-    <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}<span>كاش${EN("Cash")}</span></button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}<span>بطاقة${EN("Card")}</span></button></div>
-    <button class="go" id="confirm" ${payment?"":"disabled"}>أكّد الطلب${EN("Confirm order")}</button>
-    <div class="hint">${payment?"الدفع يكون عند الكاونتر"+EN("You pay at the counter"):"اختار طريقة الدفع عشان تأكد الطلب"+EN("Choose Cash or Card to confirm")}</div>`);
+    <div class="total"><span>Total</span><span class="num">${cartTotal()}${AED}</span></div>
+    <div class="lbl">How would you like to pay?</div>
+    <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}<span>Cash</span></button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}<span>Card</span></button></div>
+    <button class="go" id="confirm" ${payment?"":"disabled"}>Confirm order</button>
+    <div class="hint">${payment?"You pay at the counter":"Choose Cash or Card to confirm"}</div>`);
 }
 let doneTimer;
 /* ---------- Offline-safe orders ----------
@@ -456,9 +457,9 @@ function confirmOrder(){
   Object.keys(cart).forEach(k=>delete cart[k]); payment=null;
   PRODUCTS.forEach(i=>document.querySelectorAll(`[data-q="${i.id}"]`).forEach(el=>el.innerHTML="")); renderBar();
   sheet("done",`<div class="done"><div class="ok"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#FFF4EC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-    <h3>تم استلام طلبك!${EN("Order received!")}</h3><div class="no num">#${num}</div>
-    <p>${p==="cash"?"💵 تفضّل ادفع كاش عند الكاونتر"+EN("Please pay cash at the counter"):"💳 تفضّل ادفع بالبطاقة عند الكاونتر"+EN("Please pay by card at the counter")}</p><p style="color:var(--muted)">المجموع · Total <b class="num">${total}${AED}</b></p>
-    <button class="go" data-close>طلب جديد${EN("New order")}</button></div>`);
+    <h3>Order received!</h3><div class="no num">#${num}</div>
+    <p>${p==="cash"?"💵 Please pay cash at the counter":"💳 Please pay by card at the counter"}</p><p style="color:var(--muted)">Total <b class="num">${total}${AED}</b></p>
+    <button class="go" data-close>New order</button></div>`);
   clearTimeout(doneTimer); doneTimer=setTimeout(()=>{ if($("#layer").dataset.view==="done") closeLayer(); },12000);
   flushQueue();
 }
