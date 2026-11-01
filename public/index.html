@@ -116,6 +116,15 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .sync svg{animation:spin 2.4s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .sheet[dir="ltr"] .line .t b,.sheet[dir="ltr"] .line .t small{text-align:left}
+.dlink{display:block;margin:14px auto 0;padding:10px 16px;min-height:44px;color:var(--muted);font-size:14px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.drow .xinfo b{color:var(--green)}
+.dval{display:flex;align-items:center;gap:10px}
+.dval b{font-family:var(--display);font-size:20px;color:var(--green)}
+.dx{width:36px;height:36px;border-radius:50%;background:var(--paper);color:var(--muted);font-size:15px}
+.damt{text-align:center;font-family:var(--display);font-weight:800;font-size:56px;color:var(--green);margin:6px 0 12px}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:300px;margin:0 auto 12px}
+.quick button{height:48px;border-radius:14px;background:var(--peach);color:var(--green);font-family:var(--display);font-weight:800;font-size:18px}
+.dsc{font-size:12px;color:var(--magenta);font-weight:600}
 /* Order bar */
 .bar{flex:none;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .bar .in{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:20px;font-family:var(--display);font-weight:700}
@@ -342,7 +351,9 @@ const hasX=k=>k.endsWith("+x"), plain=k=>k.replace(/\+x$/,"");
 const baseOf=k=>plain(k).split("~")[0], flvOf=k=>plain(k).split("~")[1]||"";
 const unitPrice=k=>k==="extra"?EXTRA:PRICE+(hasX(k)?EXTRA:0);
 const prodKeys=()=>Object.keys(cart).filter(k=>k!=="extra");
-const cartTotal=()=>Object.keys(cart).reduce((a,k)=>a+cart[k]*unitPrice(k),0);
+const cartSubtotal=()=>Object.keys(cart).reduce((a,k)=>a+cart[k]*unitPrice(k),0);
+let discount=null; // {amount, pin} — set by staff at checkout
+const cartTotal=()=>Math.max(0,cartSubtotal()-(discount?discount.amount:0));
 const flvName=(id,f)=>{ const o=(FLAVORS[id]||[]).find(x=>x[0]===f); return o?o[1]:""; };
 const lineName=k=>{ const id=baseOf(k), f=flvOf(k); return byId[id].en+(f?" · "+flvName(id,f):"")+(hasX(k)?" + Extra Flavour":""); };
 const lineImg=k=>{ const id=baseOf(k), o=(FLAVORS[id]||[]).find(x=>x[0]===flvOf(k)); return IMG[(o&&o[2])||byId[id].img]; };
@@ -373,7 +384,7 @@ function stepHTML(id){
 }
 function changeQty(id,d){
   cart[id]=Math.max(0,(cart[id]||0)+d); if(!cart[id]) delete cart[id];
-  if(!prodKeys().length) delete cart.extra;
+  if(!prodKeys().length){ delete cart.extra; discount=null; }
   document.querySelectorAll(`[data-q="${baseOf(id)}"]`).forEach(el=>el.innerHTML=qtyBadge(baseOf(id)));
   document.querySelectorAll(`[data-slot="${id}"]`).forEach(el=>el.innerHTML=stepHTML(id));
   renderBar();
@@ -405,18 +416,62 @@ function sheet(view,inner){ const L=$("#layer"), same=L.dataset.view===view, top
 const ICON_CASH=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10" width="32" height="20" rx="4"/><circle cx="20" cy="20" r="5"/></svg>`;
 const ICON_CARD=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="9" width="32" height="22" rx="4"/><path d="M4 16h32M10 25h7"/></svg>`;
 function openCart(){
-  const ids=prodKeys(); if(!ids.length){ delete cart.extra; closeLayer(); return; }
+  const ids=prodKeys(); if(!ids.length){ delete cart.extra; discount=null; closeLayer(); return; }
+  if(discount && discount.amount>cartSubtotal()) discount.amount=cartSubtotal();
   const nx=cart.extra||0;
   sheet("cart",`<div class="sh-head"><h3>Your order</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
     ${ids.map(id=>{return `<div class="line"><img src="${lineImg(id)}" alt=""><div class="t"><b class="en">${esc(lineName(id))}</b><small class="num">${cart[id]} × ${unitPrice(id)}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
     ${nx?`<div class="xrow"><div class="xinfo"><b class="en">Extra Flavour</b><small class="num">${nx} × ${EXTRA}${AED}</small></div><div class="step"><button data-dec="extra" aria-label="نقّص">−</button><b class="num">${nx}</b><button class="p" data-inc="extra" aria-label="زيد">+</button></div></div>`:""}
     <div class="xrow"><button class="addx" data-inc="extra">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button></div>
+    ${discount?`<div class="xrow drow"><div class="xinfo"><b>Discount</b><small>Applied by staff</small></div><div class="dval"><b class="num">−${discount.amount}${AED}</b><button class="dx" data-rmdisc aria-label="Remove discount">✕</button></div></div>`:""}
     <div class="total"><span>Total</span><span class="num">${cartTotal()}${AED}</span></div>
     <div class="lbl">How would you like to pay?</div>
     <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}<span>Cash</span></button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}<span>Card</span></button></div>
     <button class="go" id="confirm" ${payment?"":"disabled"}>Confirm order</button>
-    <div class="hint">${payment?"You pay at the counter":"Choose Cash or Card to confirm"}</div>`);
+    <div class="hint">${payment?"You pay at the counter":"Choose Cash or Card to confirm"}</div>
+    ${discount?"":`<button class="dlink" data-disc>Staff discount</button>`}`);
 }
+/* ---------- Staff discount (PIN, works offline once the PIN was used online) ---------- */
+async function sha(t){ try{ const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("oddly:"+t)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }catch(e){ return ""; } }
+async function verifyPin(p){
+  try{
+    const r=await fetch("/api/check-pin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:p})});
+    if(r.ok){ lsSet("oddly_dpin_h",await sha(p)); return true; }
+    if(r.status===401) return false;
+  }catch(e){}
+  const h=lsGet("oddly_dpin_h",null); return !!h && h===await sha(p);
+}
+let dpin="", damt="";
+const padKeys=(attr,keys)=>`<div class="pad">${keys.map(k=>k===""?"<span></span>":`<button ${attr}="${k}" class="num">${k}</button>`).join("")}</div>`;
+function openDiscPin(){
+  dpin="";
+  sheet("dpin",`<div class="sh-head"><h3>Staff discount</h3><button class="x" data-back aria-label="Back to order">✕</button></div>
+    <p class="hint" style="margin:0">Enter the staff PIN</p>
+    <div class="pin-dots" id="ddots">${"<i></i>".repeat(4)}</div>
+    ${padKeys("data-dkey",["1","2","3","4","5","6","7","8","9","","0","⌫"])}
+    <div class="hint" id="dmsg"></div>`);
+}
+async function discKey(k){
+  if(k==="⌫") dpin=dpin.slice(0,-1); else if(dpin.length<4) dpin+=k;
+  document.querySelectorAll("#ddots i").forEach((d,i)=>d.classList.toggle("on",i<dpin.length));
+  if(dpin.length===4){
+    const tryPin=dpin;
+    if(await verifyPin(tryPin)){ discount={amount:0,pin:tryPin}; damt=""; renderDiscAmt(); }
+    else { const d=$("#ddots"); if(!d) return; d.classList.add("bad"); const m=$("#dmsg"); if(m) m.textContent=navigator.onLine?"Wrong PIN":"Wrong PIN, or connect to the internet once to use the PIN offline";
+      setTimeout(()=>{ dpin=""; d.classList.remove("bad"); d.querySelectorAll("i").forEach(i=>i.classList.remove("on")); },400); }
+  }
+}
+function renderDiscAmt(){
+  const sub=cartSubtotal(), v=+damt||0, ok=v>0&&v<=sub;
+  sheet("damt",`<div class="sh-head"><h3>Discount amount</h3><button class="x" data-back aria-label="Back to order">✕</button></div>
+    <div class="damt num">${v}${AED}</div>
+    <div class="quick">${[5,10,15,20].filter(x=>x<=sub).map(x=>`<button data-dq="${x}" class="num">${x}${AED}</button>`).join("")}</div>
+    ${padKeys("data-dn",["1","2","3","4","5","6","7","8","9","C","0","⌫"])}
+    <button class="go" data-dapply ${ok?"":"disabled"}>Apply discount</button>
+    <div class="hint">${v>sub?"The discount can't be more than the order":"Order before discount: "+sub+" AED"}</div>`);
+}
+function discNum(k){ if(k==="C") damt=""; else if(k==="⌫") damt=damt.slice(0,-1); else if(damt.length<4) damt=(damt+k).replace(/^0+/,""); renderDiscAmt(); }
+
 let doneTimer;
 /* ---------- Offline-safe orders ----------
    Each order gets its ticket number on the iPad and is kept in a queue
@@ -452,13 +507,14 @@ function renderSync(){
 function confirmOrder(){
   const btn=$("#confirm"); if(!btn||btn.disabled) return; btn.disabled=true;
   const items=Object.keys(cart).map(k=>({id:baseOf(k),flavor:flvOf(k)||undefined,extra:hasX(k)||undefined,q:cart[k]}));
-  const num=nextTicket(), total=cartTotal(), p=payment;
-  queue.push({cid:newId(),num,at:new Date().toISOString(),items,pay:p}); lsSet(QK,queue); renderSync();
+  const num=nextTicket(), total=cartTotal(), p=payment, disc=discount&&discount.amount>0?discount:null;
+  queue.push({cid:newId(),num,at:new Date().toISOString(),items,pay:p,...(disc?{discount:disc.amount,dk:disc.pin}:{})}); lsSet(QK,queue); renderSync();
+  discount=null;
   Object.keys(cart).forEach(k=>delete cart[k]); payment=null;
   PRODUCTS.forEach(i=>document.querySelectorAll(`[data-q="${i.id}"]`).forEach(el=>el.innerHTML="")); renderBar();
   sheet("done",`<div class="done"><div class="ok"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#FFF4EC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
     <h3>Order received!</h3><div class="no num">#${num}</div>
-    <p>${p==="cash"?"💵 Please pay cash at the counter":"💳 Please pay by card at the counter"}</p><p style="color:var(--muted)">Total <b class="num">${total}${AED}</b></p>
+    <p>${p==="cash"?"💵 Please pay cash at the counter":"💳 Please pay by card at the counter"}</p><p style="color:var(--muted)">${disc?`Discount <b class="num">−${disc.amount}${AED}</b> · `:""}Total <b class="num">${total}${AED}</b></p>
     <button class="go" data-close>New order</button></div>`);
   clearTimeout(doneTimer); doneTimer=setTimeout(()=>{ if($("#layer").dataset.view==="done") closeLayer(); },12000);
   flushQueue();
@@ -634,7 +690,7 @@ function renderReport(){
   const pct=sum?Math.round(cash/sum*100):0;
   $("#rpBody").innerHTML=`<div class="stats">
     <div class="stat"><small>عدد الطلبات</small><b class="num">${o.length}</b><em class="num">${o.reduce((a,b)=>a+b.qty,0)} قطعة</em></div>
-    <div class="stat"><small>إجمالي المبيعات</small><b class="num">${sum} ${AED}</b></div>
+    <div class="stat"><small>إجمالي المبيعات</small><b class="num">${sum} ${AED}</b>${o.some(x=>x.discount)?`<em class="num">بعد خصومات ${o.reduce((a,b)=>a+(b.discount||0),0)} درهم</em>`:""}</div>
     <div class="stat"><small>💵 كاش</small><b class="num">${cash} ${AED}</b><em class="num">${cashN.length} طلب</em></div>
     <div class="stat"><small>💳 بطاقة</small><b class="num">${card} ${AED}</b><em class="num">${o.length-cashN.length} طلب</em></div>
   </div>
@@ -645,7 +701,7 @@ function renderReport(){
     </div>
     <div class="panel"><h4>كل الطلبات</h4>
       ${o.length?`<div class="tbl"><table><thead><tr><th>#</th><th>الوقت</th><th>الطلب</th><th>المجموع</th><th>الدفع</th><th></th></tr></thead><tbody>
-      ${o.map(x=>`<tr><td class="num"><b>${x.num}</b></td><td class="num">${esc(x.time)}</td><td>${x.items.map(i=>`<div><span class="num">${i.q}×</span> <span class="en">${esc(i.en)}</span></div>`).join("")}</td><td class="num">${x.total}${AED}</td><td><span class="pill ${x.pay}">${x.pay==="cash"?"كاش":"بطاقة"}</span></td><td><button class="del ${armed===x.id?"arm":""}" data-del="${x.id}">${armed===x.id?"متأكد؟":"حذف"}</button></td></tr>`).join("")}
+      ${o.map(x=>`<tr><td class="num"><b>${x.num}</b></td><td class="num">${esc(x.time)}</td><td>${x.items.map(i=>`<div><span class="num">${i.q}×</span> <span class="en">${esc(i.en)}</span></div>`).join("")}</td><td class="num">${x.total}${AED}${x.discount?`<div class="dsc">خصم −${x.discount}</div>`:""}</td><td><span class="pill ${x.pay}">${x.pay==="cash"?"كاش":"بطاقة"}</span></td><td><button class="del ${armed===x.id?"arm":""}" data-del="${x.id}">${armed===x.id?"متأكد؟":"حذف"}</button></td></tr>`).join("")}
       </tbody></table></div>`:`<div class="empty">ما في طلبات في هذا اليوم</div>`}
     </div>
   </div>`;
@@ -665,6 +721,13 @@ document.addEventListener("click",e=>{
   else if(d.pay){ payment=d.pay; openCart(); }
   else if(d.key!==undefined) pinKey(d.key);
   else if(d.del){ if(String(armed)===d.del){ armed=null; api("/api/orders/"+d.del,{method:"DELETE"}).then(loadReport).catch(()=>{}); } else { armed=+d.del; renderReport(); setTimeout(()=>{ if(armed===+d.del){armed=null;renderReport();} },3000); } }
+  else if(d.disc!==undefined) openDiscPin();
+  else if(d.dkey!==undefined) discKey(d.dkey);
+  else if(d.dq){ damt=d.dq; renderDiscAmt(); }
+  else if(d.dn!==undefined) discNum(d.dn);
+  else if(d.dapply!==undefined){ const v=+damt||0; if(discount&&v>0&&v<=cartSubtotal()){ discount.amount=v; renderBar(); openCart(); } }
+  else if(d.back!==undefined){ if(discount&&!discount.amount) discount=null; openCart(); }
+  else if(d.rmdisc!==undefined){ discount=null; renderBar(); openCart(); }
   else if(t.id==="openCart") openCart();
   else if(t.id==="confirm") confirmOrder();
   else if(t.id==="adminBtn") openPin();
