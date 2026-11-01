@@ -105,6 +105,16 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--pink);outline-o
 .addx{display:flex;width:100%;justify-content:center;align-items:center;gap:6px;min-height:52px;padding:8px 16px;border-radius:18px;border:2px dashed var(--magenta);color:var(--magenta);background:#FBE0E8;font-family:var(--display);font-weight:800;font-size:18px;direction:ltr}
 .addx .aed,.flv .aed{width:.8em;height:.8em}
 .scrim.still,.scrim.still .sheet{animation:none}
+.enl{display:block;direction:ltr;unicode-bidi:isolate;font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-weight:600;font-size:.62em;letter-spacing:.2px;opacity:.85;line-height:1.25;margin-top:2px}
+.say .enl{font-size:.7em}
+.lbl .enl,.sh-head .enl,.total .enl{text-align:right}
+.bar .hintline{flex-direction:column;text-align:center;line-height:1.3;padding-block:6px}
+.bar .go-txt{display:inline-flex;flex-direction:column;align-items:center;line-height:1.15;padding:6px 16px}
+.bar .go-txt .enl{font-size:.6em;opacity:.9}
+.badge .enl{display:inline;font-size:.85em;margin:0 0 0 4px}
+.sync{display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 10px;border-radius:999px;background:var(--gold);color:var(--green);font-weight:800;font-size:14px;margin-inline-end:8px}
+.sync svg{animation:spin 2.4s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 /* Order bar */
 .bar{flex:none;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .bar .in{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:20px;font-family:var(--display);font-weight:700}
@@ -273,8 +283,9 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
   <header class="hero">
     <div class="gut">
       <img class="logo" src="/logo.png" alt="ODDLY">
-      <div class="mid" id="mid"><span class="say">اضغط على أي صنف وشوفه من قريب</span></div>
+      <div class="mid" id="mid"><span class="say">اضغط على أي صنف وشوفه من قريب<span class="enl">Tap any item for a closer look</span></span></div>
       <span class="greet" id="greet" dir="auto" hidden></span>
+      <span class="sync" id="sync" role="status" hidden></span>
       <button class="lock" id="adminBtn" aria-label="تقرير الطلبات"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
     </div>
     <svg class="dunes" viewBox="0 0 1200 20" preserveAspectRatio="none" aria-hidden="true">
@@ -293,18 +304,19 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 
 <script>
 const PRICE = 35;
+const EN = t=>`<span class="enl">${t}</span>`;
 const EXTRA = 5;
 const AED = `<svg class="aed" viewBox="0 0 100 100" aria-label="درهم" role="img" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M30 12 V88 H46 C72 88 88 72 88 50 C88 28 72 12 46 12 Z"/><path d="M10 40 H94 M10 60 H94"/></svg>`;
 const IMG = {1:"/img/1.webp",2:"/img/2.webp",3:"/img/3.webp",4:"/img/4.webp",5:"/img/5.webp",6:"/img/6.webp",7:"/img/7.webp",8:"/img/8.webp",9:"/img/9.webp",10:"/img/10.webp",11:"/img/11.webp",12:"/img/12.webp"};
 const ITEMS = [
   {id:"pudding",img:1,c:"#E2457E",w:"Dates",en:"Date Pudding",tag:"ألذ بودنق تمر!",desc:"كعكة تمر طرية تُقدَّم دافئة، مغطاة بصوص الكراميل والتوفي، ويعلوها آيسكريم الفانيلا."},
   {id:"strawberry",img:2,c:"#C2213A",w:"Berry",en:"Chocolate Strawberry",tag:"فراولة وجوكليت عالم ثاني!",desc:"فراولة طازجة بطبقات متتالية من الشوكولاتة البلجيكية الذائبة."},
-  {id:"hot-choc",img:5,c:"#6A3524",w:"Cocoa",en:"Hot Chocolate",tag:"هوت جوكليت ترند هالشتاء!",desc:"شوكولاتة بلجيكية ساخنة غنية القوام، تعلوها كريمة مخفوقة ورشة من الكاكاو وقطعة شوكولاتة.",badge:"ترند الشتاء ❄️"},
+  {id:"hot-choc",img:5,c:"#6A3524",w:"Cocoa",en:"Hot Chocolate",tag:"هوت جوكليت ترند هالشتاء!",desc:"شوكولاتة بلجيكية ساخنة غنية القوام، تعلوها كريمة مخفوقة ورشة من الكاكاو وقطعة شوكولاتة.",badge:"ترند الشتاء ❄️ <span class=\"enl\">Winter trend</span>"},
   {id:"matcha",img:6,c:"#2F5D3A",w:"Matcha",en:"Matcha",tag:"أحلى ماتجا في الدنيا!",desc:"ماتشا فاخرة عالية الجودة تُخفق طازجة وتُسكب على الحليب البارد والثلج."},
   {id:"golden-brew",img:7,c:"#B8741A",w:"Gold",en:"Iced V60",tag:"قهوة باردة تقنّد الراس!",desc:"قهوة مختصة محضّرة يدويًا بطريقة V60 وتُقدَّم على الثلج، بقوام صافٍ ونكهة واضحة لحبوب القهوة."},
   {id:"acai-smoothie",img:12,c:"#7A1E3A",w:"Açaí",en:"Açaí Smoothie",tag:"أساي سموثي يرد الروح!",desc:"سموثي أساي بارد ومنعش."},
   {id:"matcha-ic",img:3,c:"#8DB255",fg:"#14402F",w:"Matcha",en:"Matcha Ice Cream",tag:"ماتجا آيسكريم ما ذقتوا مثله!",desc:"آيسكريم كريمي بالماتشا الفاخرة عالية الجودة، مزيّن ببودرة الماتشا، يُقدَّم في كوب بسكويت مقرمش."},
-  {id:"redbull-ic",img:4,c:"#2F7DD6",w:"Wings",en:"Red Bull Ice Cream",tag:"أول آيسكريم رد بول من نوعه!",desc:"آيسكريم كريمي بنكهة ريد بول المنعشة، يُقدَّم في كوب بسكويت مقرمش.",badge:"جديد ⚡"},
+  {id:"redbull-ic",img:4,c:"#2F7DD6",w:"Wings",en:"Red Bull Ice Cream",tag:"أول آيسكريم رد بول من نوعه!",desc:"آيسكريم كريمي بنكهة ريد بول المنعشة، يُقدَّم في كوب بسكويت مقرمش.",badge:"جديد ⚡ <span class=\"enl\">New</span>"},
   {id:"karak-ic",img:8,c:"#D27A33",w:"Karak",en:"Karak Ice Cream",tag:"أولد سكول، أحب الكرك!",desc:"آيسكريم كريمي بنكهة الكرك والهيل، يعلوه فتات البسكويت، ويُقدَّم في كوب بسكويت مقرمش."},
   {id:"acai-ic",img:11,c:"#5E2463",w:"Açaí",en:"Açaí Ice Cream",tag:"أول مرة تشوفه صح! جرّبه",desc:"آيسكريم الأساي الغني بنكهة التوت، مع الفراولة الطازجة والتوت الأسود، في كوب بسكويت مقرمش."},
   {id:"greek-ic",img:9,c:"#E0577A",w:"Greek",en:"Greek Yogurt Ice Cream",tag:"آيسكريم يوقرت يوناني لذيذ",desc:"آيسكريم الزبادي اليوناني الخفيف بلمسة حمضية منعشة، مع الفراولة الطازجة والتوت الأسود، في كوب بسكويت مقرمش."},
@@ -350,13 +362,13 @@ function cartCount(){ return prodKeys().reduce((a,k)=>a+cart[k],0); }
 function renderBar(){
   const n=cartCount();
   $("#bar").innerHTML = n
-    ? `<button class="in" id="openCart"><span><span class="cnt num">${n}</span>${n===1?"صنف":"أصناف"} · <span class="num">${cartTotal()}${AED}</span></span><span class="go-txt">شوف طلبك ←</span></button>`
-    : `<div class="in hintline">اضغط على أي صنف عشان تشوفه كبير، و + عشان تضيفه لطلبك</div>`;
+    ? `<button class="in" id="openCart"><span><span class="cnt num">${n}</span>${n===1?"صنف":"أصناف"} <span class="en" style="opacity:.8;font-size:.8em">${n===1?"item":"items"}</span> · <span class="num">${cartTotal()}${AED}</span></span><span class="go-txt">شوف طلبك ←${EN("View order")}</span></button>`
+    : `<div class="in hintline">اضغط على أي صنف عشان تشوفه كبير، و + عشان تضيفه لطلبك${EN("Tap an item to see it · tap + to add it to your order")}</div>`;
 }
 function stepHTML(id){
   const q=cart[id]||0;
   return q?`<div class="step"><button data-dec="${id}" aria-label="نقّص">−</button><b class="num">${q}</b><button class="p" data-inc="${id}" aria-label="زيد">+</button></div>`
-          :`<button class="add" data-inc="${id}">+ أضف لطلبي</button>`;
+          :`<button class="add" data-inc="${id}">+ أضف لطلبي${EN("Add to order")}</button>`;
 }
 function changeQty(id,d){
   cart[id]=Math.max(0,(cart[id]||0)+d); if(!cart[id]) delete cart[id];
@@ -394,32 +406,61 @@ const ICON_CARD=`<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stro
 function openCart(){
   const ids=prodKeys(); if(!ids.length){ delete cart.extra; closeLayer(); return; }
   const nx=cart.extra||0;
-  sheet("cart",`<div class="sh-head"><h3>طلبك</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
+  sheet("cart",`<div class="sh-head"><h3>طلبك${EN("Your order")}</h3><button class="x" data-close aria-label="إغلاق">✕</button></div>
     ${ids.map(id=>{return `<div class="line"><img src="${lineImg(id)}" alt=""><div class="t"><b class="en">${esc(lineName(id))}</b><small class="num">${cart[id]} × ${unitPrice(id)}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
     ${nx?`<div class="xrow"><div class="xinfo"><b class="en">Extra Flavour</b><small class="num">${nx} × ${EXTRA}${AED}</small></div><div class="step"><button data-dec="extra" aria-label="نقّص">−</button><b class="num">${nx}</b><button class="p" data-inc="extra" aria-label="زيد">+</button></div></div>`:""}
     <div class="xrow"><button class="addx" data-inc="extra">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button></div>
-    <div class="total"><span>المجموع</span><span class="num">${cartTotal()}${AED}</span></div>
-    <div class="lbl">شلون بتدفع؟</div>
-    <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}كاش</button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}بطاقة</button></div>
-    <button class="go" id="confirm" ${payment?"":"disabled"}>أكّد الطلب</button>
-    <div class="hint">${payment?"الدفع يكون عند الكاونتر":"اختار طريقة الدفع عشان تأكد الطلب"}</div>`);
+    <div class="total"><span>المجموع${EN("Total")}</span><span class="num">${cartTotal()}${AED}</span></div>
+    <div class="lbl">شلون بتدفع؟${EN("How would you like to pay?")}</div>
+    <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}<span>كاش${EN("Cash")}</span></button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}<span>بطاقة${EN("Card")}</span></button></div>
+    <button class="go" id="confirm" ${payment?"":"disabled"}>أكّد الطلب${EN("Confirm order")}</button>
+    <div class="hint">${payment?"الدفع يكون عند الكاونتر"+EN("You pay at the counter"):"اختار طريقة الدفع عشان تأكد الطلب"+EN("Choose Cash or Card to confirm")}</div>`);
 }
 let doneTimer;
-async function confirmOrder(){
-  const btn=$("#confirm"); if(btn.disabled) return; btn.disabled=true; btn.textContent="لحظة…";
+/* ---------- Offline-safe orders ----------
+   Each order gets its ticket number on the iPad and is kept in a queue
+   in the iPad's storage, then sent to the server whenever there is internet. */
+const QK="oddly_queue_v1", CK="oddly_counter_v1";
+const lsGet=(k,d)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } };
+const lsSet=(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} };
+let queue=lsGet(QK,[]);
+function counter(){ const day=dubaiDay(); let c=lsGet(CK,null); if(!c||c.day!==day) c={day,n:0}; return c; }
+function nextTicket(){ const c=counter(); c.n++; lsSet(CK,c); return c.n; }
+function bumpCounter(day,max){ const c=counter(); if(c.day===day && max>c.n){ c.n=max; lsSet(CK,c); } }
+async function syncCounter(){ try{ const r=await fetch("/api/today",{cache:"no-store"}); if(r.ok){ const j=await r.json(); bumpCounter(j.day,j.max); } }catch(e){} }
+const newId=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,12));
+let syncing=false;
+async function flushQueue(){
+  if(syncing) return; syncing=true;
+  while(queue.length){
+    const o=queue[0];
+    try{
+      const r=await fetch("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)});
+      if(r.ok || r.status===400){ queue.shift(); lsSet(QK,queue); continue; } // 400 = order the server can't read; drop it so the rest still go
+      break;
+    }catch(e){ break; }
+  }
+  syncing=false; renderSync();
+}
+function renderSync(){
+  const el=$("#sync"); if(!el) return;
+  el.hidden=!queue.length;
+  el.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg><span class="num">${queue.length}</span>`;
+  el.title=`${queue.length} طلب ينتظر الإنترنت · ${queue.length} order(s) waiting for internet`;
+}
+function confirmOrder(){
+  const btn=$("#confirm"); if(!btn||btn.disabled) return; btn.disabled=true;
   const items=Object.keys(cart).map(k=>({id:baseOf(k),flavor:flvOf(k)||undefined,extra:hasX(k)||undefined,q:cart[k]}));
-  let order;
-  try{
-    const r=await fetch("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items,pay:payment})});
-    if(!r.ok) throw new Error(r.status); order=await r.json();
-  }catch(e){ btn.disabled=false; btn.textContent="أكّد الطلب"; $(".hint").textContent="ما انحفظ الطلب، تأكد من الإنترنت وجرّب مرة ثانية"; return; }
-  const p=payment; Object.keys(cart).forEach(k=>delete cart[k]); payment=null;
+  const num=nextTicket(), total=cartTotal(), p=payment;
+  queue.push({cid:newId(),num,at:new Date().toISOString(),items,pay:p}); lsSet(QK,queue); renderSync();
+  Object.keys(cart).forEach(k=>delete cart[k]); payment=null;
   PRODUCTS.forEach(i=>document.querySelectorAll(`[data-q="${i.id}"]`).forEach(el=>el.innerHTML="")); renderBar();
   sheet("done",`<div class="done"><div class="ok"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#FFF4EC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-    <h3>تم استلام طلبك!</h3><div class="no num">#${order.num}</div>
-    <p>${p==="cash"?"💵 تفضّل ادفع كاش عند الكاونتر":"💳 تفضّل ادفع بالبطاقة عند الكاونتر"}</p><p style="color:var(--muted)">المجموع <b class="num">${order.total}${AED}</b></p>
-    <button class="go" data-close>طلب جديد</button></div>`);
+    <h3>تم استلام طلبك!${EN("Order received!")}</h3><div class="no num">#${num}</div>
+    <p>${p==="cash"?"💵 تفضّل ادفع كاش عند الكاونتر"+EN("Please pay cash at the counter"):"💳 تفضّل ادفع بالبطاقة عند الكاونتر"+EN("Please pay by card at the counter")}</p><p style="color:var(--muted)">المجموع · Total <b class="num">${total}${AED}</b></p>
+    <button class="go" data-close>طلب جديد${EN("New order")}</button></div>`);
   clearTimeout(doneTimer); doneTimer=setTimeout(()=>{ if($("#layer").dataset.view==="done") closeLayer(); },12000);
+  flushQueue();
 }
 
 /* ---------- Server ---------- */
@@ -677,7 +718,11 @@ function applyTheme(){
   }
 }
 
-renderBoard(); renderBar(); applyTheme();
+renderBoard(); renderBar(); applyTheme(); renderSync();
+syncCounter().then(flushQueue);
+addEventListener("online",()=>{ syncCounter().then(flushQueue); });
+setInterval(()=>{ if(queue.length) flushQueue(); },20000);
+if("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
 setInterval(applyTheme,5*60*1000);
 </script>
 </body>

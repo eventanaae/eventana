@@ -40,6 +40,8 @@ async function init() {
     pay TEXT NOT NULL CHECK (pay IN ('cash','card'))
   )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS oddly_orders_day ON oddly_orders(day)`);
+  await pool.query(`ALTER TABLE oddly_orders ADD COLUMN IF NOT EXISTS client_id TEXT`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS oddly_orders_client ON oddly_orders(client_id)`);
   await pool.query(`CREATE TABLE IF NOT EXISTS oddly_expenses (
     id SERIAL PRIMARY KEY,
     day DATE NOT NULL,
@@ -109,14 +111,26 @@ const server = http.createServer(async (req, res) => {
       if (!items.some(i => i.id !== "extra")) return send(res, 400, { error: "items" });
       const qty = items.reduce((a, i) => a + i.q, 0);
       const total = items.reduce((a, i) => a + i.q * i.price, 0);
-      const { day } = dubaiParts();
+      // Orders taken while the iPad was offline arrive later with their own id, time and ticket number.
+      const cid = typeof b.cid === "string" && /^[A-Za-z0-9-]{8,64}$/.test(b.cid) ? b.cid : null;
+      let at = new Date();
+      if (typeof b.at === "string") {
+        const t = new Date(b.at);
+        if (!isNaN(t) && t <= new Date(Date.now() + 5 * 60e3) && t >= new Date(Date.now() - 14 * 864e5)) at = t;
+      }
+      const { day } = dubaiParts(at);
       const c = await pool.connect();
       try {
         await c.query("BEGIN");
         await c.query("SELECT pg_advisory_xact_lock(7712001)");
-        const n = await c.query("SELECT COALESCE(MAX(num),0)+1 AS n FROM oddly_orders WHERE day=$1", [day]);
-        const r = await c.query("INSERT INTO oddly_orders(day,num,items,qty,total,pay) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",
-          [day, n.rows[0].n, JSON.stringify(items), qty, total, b.pay]);
+        if (cid) {
+          const dup = await c.query("SELECT * FROM oddly_orders WHERE client_id=$1", [cid]);
+          if (dup.rows.length) { await c.query("COMMIT"); return send(res, 200, rowOut(dup.rows[0])); }
+        }
+        let num = Number.isInteger(b.num) && b.num > 0 && b.num < 100000 ? b.num : null;
+        if (!num) num = (await c.query("SELECT COALESCE(MAX(num),0)+1 AS n FROM oddly_orders WHERE day=$1", [day])).rows[0].n;
+        const r = await c.query("INSERT INTO oddly_orders(day,num,items,qty,total,pay,created_at,client_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
+          [day, num, JSON.stringify(items), qty, total, b.pay, at.toISOString(), cid]);
         await c.query("COMMIT");
         return send(res, 200, rowOut(r.rows[0]));
       } catch (e) { await c.query("ROLLBACK").catch(() => {}); throw e; } finally { c.release(); }
@@ -195,6 +209,11 @@ const server = http.createServer(async (req, res) => {
       const csv = "\uFEFF" + rows.map(x => x.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
       return send(res, 200, csv, "text/csv; charset=utf-8", { "Content-Disposition": `attachment; filename="ODDLY-expenses-${month}.csv"` });
     }
+    if (url.pathname === "/api/today" && req.method === "GET") {
+      const { day } = dubaiParts();
+      const r = await pool.query("SELECT COALESCE(MAX(num),0) AS m FROM oddly_orders WHERE day=$1", [day]);
+      return send(res, 200, { day, max: Number(r.rows[0].m) });
+    }
     if (url.pathname === "/healthz") return send(res, 200, { ok: true });
 
     // static files
@@ -204,7 +223,7 @@ const server = http.createServer(async (req, res) => {
     fs.readFile(file, (err, data) => {
       if (err) return send(res, 404, "Not found", "text/plain");
       const ext = path.extname(file);
-      res.writeHead(200, { "Content-Type": TYPES[ext] || "application/octet-stream", "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=604800" });
+      res.writeHead(200, { "Content-Type": TYPES[ext] || "application/octet-stream", "Cache-Control": (ext === ".html" || p === "/sw.js") ? "no-cache" : "public, max-age=604800" });
       res.end(data);
     });
   } catch (e) {
