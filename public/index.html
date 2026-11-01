@@ -423,13 +423,13 @@ function openCart(){
     ${ids.map(id=>{return `<div class="line"><img src="${lineImg(id)}" alt=""><div class="t"><b class="en">${esc(lineName(id))}</b><small class="num">${cart[id]} × ${unitPrice(id)}${AED}</small></div><div data-slot="${id}">${stepHTML(id)}</div></div>`}).join("")}
     ${nx?`<div class="xrow"><div class="xinfo"><b class="en">Extra Flavour</b><small class="num">${nx} × ${EXTRA}${AED}</small></div><div class="step"><button data-dec="extra" aria-label="نقّص">−</button><b class="num">${nx}</b><button class="p" data-inc="extra" aria-label="زيد">+</button></div></div>`:""}
     <div class="xrow"><button class="addx" data-inc="extra">+ Extra Flavour <span class="num">${EXTRA}</span>${AED}</button></div>
-    ${discount?`<div class="xrow drow"><div class="xinfo"><b>Discount</b><small>Applied by staff</small></div><div class="dval"><b class="num">−${discount.amount}${AED}</b><button class="dx" data-rmdisc aria-label="Remove discount">✕</button></div></div>`:""}
+    ${discount?`<div class="xrow drow"><div class="xinfo"><b>Customer discount</b></div><div class="dval"><b class="num">−${discount.amount}${AED}</b><button class="dx" data-rmdisc aria-label="Remove discount">✕</button></div></div>`:""}
     <div class="total"><span>Total</span><span class="num">${cartTotal()}${AED}</span></div>
     <div class="lbl">How would you like to pay?</div>
     <div class="pay"><button data-pay="cash" aria-pressed="${payment==="cash"}">${ICON_CASH}<span>Cash</span></button><button data-pay="card" aria-pressed="${payment==="card"}">${ICON_CARD}<span>Card</span></button></div>
     <button class="go" id="confirm" ${payment?"":"disabled"}>Confirm order</button>
     <div class="hint">${payment?"You pay at the counter":"Choose Cash or Card to confirm"}</div>
-    ${discount?"":`<button class="dlink" data-disc>Staff discount</button>`}`);
+    ${discount?"":`<button class="dlink" data-disc>Customer discount</button>`}`);
 }
 /* ---------- Staff discount (PIN, works offline once the PIN was used online) ---------- */
 async function sha(t){ try{ const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("oddly:"+t)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }catch(e){ return ""; } }
@@ -445,8 +445,8 @@ let dpin="", damt="";
 const padKeys=(attr,keys)=>`<div class="pad">${keys.map(k=>k===""?"<span></span>":`<button ${attr}="${k}" class="num">${k}</button>`).join("")}</div>`;
 function openDiscPin(){
   dpin="";
-  sheet("dpin",`<div class="sh-head"><h3>Staff discount</h3><button class="x" data-back aria-label="Back to order">✕</button></div>
-    <p class="hint" style="margin:0">Enter the staff PIN</p>
+  sheet("dpin",`<div class="sh-head"><h3>Customer discount</h3><button class="x" data-back aria-label="Back to order">✕</button></div>
+    <p class="hint" style="margin:0">Enter the PIN to give this customer a discount</p>
     <div class="pin-dots" id="ddots">${"<i></i>".repeat(4)}</div>
     ${padKeys("data-dkey",["1","2","3","4","5","6","7","8","9","","0","⌫"])}
     <div class="hint" id="dmsg"></div>`);
