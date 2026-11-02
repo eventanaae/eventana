@@ -148,8 +148,8 @@ async function digestFor(userId, day) {
   const r = await pool.query(`SELECT data FROM hrbp.tasks WHERE user_id=$1 AND ((data->>'status' IS DISTINCT FROM 'done' AND COALESCE(data->>'due','')<>'') OR COALESCE(data->>'followUp','')<>'')`, [userId]);
   const tm = addDays(day, 1);
   const all = r.rows.map(x => x.data);
-  const T = all.filter(t => t.status !== "done" && t.due);
-  const F = all.filter(t => t.status === "done" && t.followUp);
+  const T = all.filter(t => t.status !== "done" && t.due && !t.followUp);
+  const F = all.filter(t => t.followUp);
   const fuToday = F.filter(t => t.followUp <= day).map(t => t.title);
   const fuTomorrow = F.filter(t => t.followUp === tm).map(t => t.title);
   const today = T.filter(t => t.due === day).map(t => t.title);

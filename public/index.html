@@ -358,8 +358,8 @@ ul.list{background:none;border:0;padding:0;gap:10px}
 
   function render(){
     document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===view)));
-    const open=tasks.filter(t=>t.status!=="done").sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999"));
-    const fus=tasks.filter(t=>t.status==="done"&&t.followUp).sort((a,b)=>a.followUp.localeCompare(b.followUp));
+    const open=tasks.filter(t=>t.status!=="done"&&!t.followUp).sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999"));
+    const fus=tasks.filter(t=>t.followUp).sort((a,b)=>a.followUp.localeCompare(b.followUp));
     const late=open.filter(t=>left(t.due)!==null&&left(t.due)<0).length;
     const h=new Date().getHours();
     $("#hello").innerHTML=`<span class="script">${h<12?"Good morning,":h<18?"Good afternoon,":"Good evening,"}</span>${myName?esc(myName):"My tasks"}`;
@@ -659,9 +659,9 @@ Return JSON: {"emoji": one emoji, "text": the message}`,{modelTier:"quick"});
         await col().doc(nid).set({title:t.title,notes:t.notes||"",category:t.category||"",repeat:t.repeat,rday:t.rday||0,due:nd,status:"open",createdAt:today(),completedAt:""});
         await col().doc(id).update({nextMade:true});toast("Done ✓ Next one is set for "+fmt(nd))}
       else if(d){toast(CHEERS[Math.floor(Math.random()*CHEERS.length)]);if(!t.followUp){fuAsk=id;render()}if(!CATS.includes(t.category))setTimeout(classify,300)}}catch(_){toast("Couldn't save the change")}}
-    else if(b.dataset.act==="fuset"&&t){const v=$("#fu-date").value;if(!v){toast("Pick a follow-up date");return}fuAsk=null;try{await col().doc(id).update({followUp:v});toast("Follow-up set for "+fmt(v)+" ↪")}catch(_){toast("Couldn't save")}}
+    else if(b.dataset.act==="fuset"&&t){const v=$("#fu-date").value;if(!v){toast("Pick a follow-up date");return}fuAsk=null;try{await col().doc(id).update({followUp:v,due:""});toast("Follow-up set for "+fmt(v)+" ↪")}catch(_){toast("Couldn't save")}}
     else if(b.dataset.act==="funo"){fuAsk=null;render()}
-    else if(b.dataset.act==="fudone"&&t){const log=(t.followUps||[]).concat(today());try{await col().doc(id).update({followUp:"",followUps:log});toast("Followed up ✓")}catch(_){toast("Couldn't save")}}
+    else if(b.dataset.act==="fudone"&&t){const log=(t.followUps||[]).concat(today());const up={followUp:"",followUps:log};if(t.status!=="done"){up.status="done";up.completedAt=today()}try{await col().doc(id).update(up);toast("Followed up ✓")}catch(_){toast("Couldn't save")}}
     else if(b.dataset.act==="quote"){qi=qi===null?0:(qi+1)%Q.length;const el=$("#quote");el.style.animation="none";void el.offsetWidth;el.style.animation="";render()}
     else if(b.dataset.act==="settings"){const st=$("#settings");st.hidden=!st.hidden;$("#gearBtn").setAttribute("aria-expanded",String(!st.hidden));if(!st.hidden){renderSettings();$("#s-name").value=myName;st.scrollIntoView({behavior:"smooth",block:"nearest"})}}
     else if(b.dataset.act==="color"){setPref("color",b.dataset.k)}
@@ -673,7 +673,7 @@ Return JSON: {"emoji": one emoji, "text": the message}`,{modelTier:"quick"});
     else if(b.dataset.act==="cat"){cat=b.dataset.cat||null;sumText="";render()}
     else if(b.dataset.act==="sum"){summarize()}
     else if(b.dataset.act==="open"){openId=openId===id?null:id;render()}
-    else if(b.dataset.act==="save"&&t){const n=$("#d-"+id).value.trim(),cs=$("#c-"+id);const up={notes:n};const f2=$("#f2-"+id);if(f2&&f2.value!==(t.followUp||""))up.followUp=f2.value;if(cs&&cs.value!==t.category){up.category=cs.value;up.catManual=true}else if(!t.catManual)up.category=autoCategory(t.title,n);try{await col().doc(id).update(up);openId=null;render();toast("Saved")}catch(_){toast("Couldn't save")}}
+    else if(b.dataset.act==="save"&&t){const n=$("#d-"+id).value.trim(),cs=$("#c-"+id);const up={notes:n};const f2=$("#f2-"+id);if(f2&&f2.value!==(t.followUp||"")){up.followUp=f2.value;if(f2.value)up.due=""}if(cs&&cs.value!==t.category){up.category=cs.value;up.catManual=true}else if(!t.catManual)up.category=autoCategory(t.title,n);try{await col().doc(id).update(up);openId=null;render();toast("Saved")}catch(_){toast("Couldn't save")}}
     else if(b.dataset.act==="ask"){ask=id;render()}
     else if(b.dataset.act==="no"){ask=null;render()}
     else if(b.dataset.act==="del"){ask=null;try{await col().doc(id).delete()}catch(_){toast("Couldn't delete")}}
