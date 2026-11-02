@@ -626,6 +626,10 @@ async function main() {
     // for an all-time statement PDF (SET_SHAN_LEADER='alltxndump' → then blank it).
     const { dumpAllTxnsFromEnv } = await import('./db/dumpAllTxns.js');
     await dumpAllTxnsFromEnv().catch((err) => console.error('[alltxndump] failed:', err));
+    // READ-ONLY one-shot: events / receipts / orders since go-live by entry date
+    // (SET_SHAN_LEADER='opsstats' → then blank it).
+    const { opsStatsFromEnv } = await import('./db/opsStats.js');
+    await opsStatsFromEnv().catch((err) => console.error('[opsstats] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
