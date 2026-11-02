@@ -247,6 +247,14 @@ ul.list{background:none;border:0;padding:0;gap:10px}
 .welcome input[hidden]{display:none}
 .hint{margin:0 0 10px;color:var(--ink-soft);font-size:.9rem}
 .nameinput{color:var(--ink);background:var(--cream);border:1px solid var(--rule);border-radius:999px;padding:8px 14px;font-size:.95rem;flex:1;min-width:0}
+.when.fu{color:var(--teal-ink);font-weight:700}
+.focus li.fu::before{background:var(--teal)}
+.furow .tick{border-style:dashed}
+.fuask{background:var(--paper);border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;box-shadow:0 4px 14px -12px color-mix(in srgb,var(--ink) 40%,transparent)}
+.fuask b{font-family:var(--display);font-weight:500;font-size:1.05rem}
+.fuask span{color:var(--ink-soft);font-size:.9rem}
+.fuask .row2{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fuask input,.catpick input{font:inherit;color:var(--ink);background:var(--tint-a);border:0;border-radius:999px;padding:6px 12px}
 </style>
 
 </head>
@@ -330,7 +338,7 @@ ul.list{background:none;border:0;padding:0;gap:10px}
   const M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   let uid=null,me=null,myName="",unsub=null;
   const col=()=>tasksCol;
-  let tasks=[],db=null,view="open",loaded=false,ask=null,openId=null,cat=null,tcat=null,classified=false,sumText="",sumBusy=false;
+  let fuAsk=null,tasks=[],db=null,view="open",loaded=false,ask=null,openId=null,cat=null,tcat=null,classified=false,sumText="",sumBusy=false;
   let fromD=new Date().getFullYear()+"-01-01",toD=(d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"))(new Date());
 
   const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -351,13 +359,14 @@ ul.list{background:none;border:0;padding:0;gap:10px}
   function render(){
     document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===view)));
     const open=tasks.filter(t=>t.status!=="done").sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999"));
+    const fus=tasks.filter(t=>t.status==="done"&&t.followUp).sort((a,b)=>a.followUp.localeCompare(b.followUp));
     const late=open.filter(t=>left(t.due)!==null&&left(t.due)<0).length;
     const h=new Date().getHours();
     $("#hello").innerHTML=`<span class="script">${h<12?"Good morning,":h<18?"Good afternoon,":"Good evening,"}</span>${myName?esc(myName):"My tasks"}`;
-    $("#sub").innerHTML=!loaded?"":(open.length?`You have <span class="num">${open.length}</span> open task${open.length>1?"s":""}${late?`, <span class="num" style="color:var(--late);font-weight:700">${late}</span> overdue`:""}`:"Nothing on your list. Enjoy ✨");
+    $("#sub").innerHTML=!loaded?"":((open.length||fus.length)?`You have <span class="num">${open.length}</span> open task${open.length===1?"":"s"}${late?`, <span class="num" style="color:var(--late);font-weight:700">${late}</span> overdue`:""}${fus.length?` and <span class="num">${fus.length}</span> follow-up${fus.length>1?"s":""}`:""}`:"Nothing on your list. Enjoy ✨");
     renderOccasion();
     renderQuote(open,late);
-    renderFocus(open);
+    renderFocus(open,fus);
     const v=$("#view");
     if(!loaded){v.innerHTML=`<div class="empty">Loading…</div>`;return}
     $(".seg").hidden=!!q;
@@ -365,18 +374,20 @@ ul.list{background:none;border:0;padding:0;gap:10px}
       const words=q.toLowerCase().split(/\s+/).filter(Boolean);
       const hits=tasks.filter(t=>{const hay=[t.title,t.notes,t.category].join(" ").toLowerCase();return words.every(w=>hay.includes(w))})
         .sort((a,b)=>((b.completedAt||b.createdAt||"")).localeCompare(a.completedAt||a.createdAt||""));
-      v.innerHTML=hits.length?`<p class="hits"><span class="num">${hits.length}</span> result${hits.length>1?"s":""} for “${esc(q)}”</p><ul class="list">${hits.map(row).join("")}</ul>`
+      v.innerHTML=hits.length?`<p class="hits"><span class="num">${hits.length}</span> result${hits.length>1?"s":""} for “${esc(q)}”</p><ul class="list">${hits.map(t=>row(t)).join("")}</ul>`
         :`<div class="empty">Nothing found for “${esc(q)}”. Try another word.</div>`;
       return;
     }
     if(view==="open"){
-      if(!open.length){v.innerHTML=`<div class="empty">Type any request above and tap +</div>`;return}
+      const prompt=fuAsk?fuPrompt():"";
+      const fuBlock=fus.length?`<section class="month"><h3>Follow-ups</h3><ul class="list">${fus.map(t=>row(t,true)).join("")}</ul></section>`:"";
+      if(!open.length){v.innerHTML=prompt+(fus.length?"":`<div class="empty">Type any request above and tap +</div>`)+fuBlock;return}
       const cc={};open.forEach(t=>{const c=CATS.includes(t.category)?t.category:"Sorting…";cc[c]=(cc[c]||0)+1});
       if(tcat&&!cc[tcat])tcat=null;
       const shown=open.filter(t=>!tcat||(CATS.includes(t.category)?t.category:"Sorting…")===tcat);
       v.innerHTML=`<div class="chips"><button class="chip" data-act="tcat" data-cat="" aria-pressed="${!tcat}">All <span class="num">${open.length}</span></button>`+
         Object.entries(cc).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`<button class="chip" data-act="tcat" data-cat="${esc(c)}" aria-pressed="${tcat===c}">${esc(c)} <span class="num">${n}</span></button>`).join("")+`</div>`+
-        `<ul class="list">${shown.map(row).join("")}</ul>`;
+        prompt+`<ul class="list">${shown.map(t=>row(t)).join("")}</ul>`+fuBlock;
     }else{
       const inRange=tasks.filter(t=>t.status==="done"&&t.completedAt&&t.completedAt>=fromD&&t.completedAt<=toD);
       const counts={};inRange.forEach(t=>{const c=t.category||"Uncategorized";counts[c]=(counts[c]||0)+1});
@@ -390,7 +401,7 @@ ul.list{background:none;border:0;padding:0;gap:10px}
       v.innerHTML=range+chips+
         `<div class="count"><b>You finished <span class="num">${done.length}</span> task${done.length>1?"s":""}${cat?" in "+esc(cat):""}</b><span style="display:flex;gap:6px"><button class="copy" data-act="sum" ${sumBusy?"disabled":""}>Summary</button><button class="copy" data-act="copy">Copy</button></span></div>`+
         (sumText?`<div class="summary" id="sumBox">${esc(sumText)}</div>`:"")+
-        Object.keys(by).sort().reverse().map(k=>`<section class="month"><h3>${M[+k.slice(5,7)-1]} ${k.slice(0,4)}</h3><ul class="list">${by[k].map(row).join("")}</ul></section>`).join("");
+        Object.keys(by).sort().reverse().map(k=>`<section class="month"><h3>${M[+k.slice(5,7)-1]} ${k.slice(0,4)}</h3><ul class="list">${by[k].map(t=>row(t)).join("")}</ul></section>`).join("");
     }
   }
   const Q=[
@@ -527,18 +538,21 @@ Return JSON: {"emoji": one emoji, "text": the message}`,{modelTier:"quick"});
     const hint=late?"A couple of things slipped. That's okay, start with those 💜":open.length?"Tap for another one":"Your list is clear. Enjoy it 🌸";
     el.innerHTML=`<span class="e" aria-hidden="true">${e}</span><span>${esc(t)}<small>${hint}</small></span>`; el.hidden=false;
   }
-  function renderFocus(open){
-    const f=$("#focus"); if(!loaded||!open.length){f.hidden=true;return}
+  function renderFocus(open,fus){
+    fus=fus||[];
+    const f=$("#focus"); if(!loaded||(!open.length&&!fus.length)){f.hidden=true;return}
+    const fuNow=fus.filter(t=>left(t.followUp)<=0), fuTmr=fus.filter(t=>left(t.followUp)===1);
     const now=open.filter(t=>left(t.due)!==null&&left(t.due)<=0);
     const tmr=open.filter(t=>left(t.due)===1);
     const nextUp=open.find(t=>left(t.due)!==null&&left(t.due)>1);
     const li=t=>{const n=left(t.due);return `<li class="${n<0?"late":""}"><b>${esc(t.title)}</b><span>${n<0?(-n)+"d overdue":"Today"}</span></li>`};
     let html="";
-    if(now.length) html+=`<h2>Focus on today</h2><ul>${now.map(li).join("")}</ul>`;
+    if(now.length||fuNow.length) html+=`<h2>Focus on today</h2><ul>${now.map(li).join("")}${fuNow.map(t=>`<li class="fu"><b>${esc(t.title)}</b><span>Follow up</span></li>`).join("")}</ul>`;
     else html+=`<h2>No deadlines today</h2>`;
-    if(tmr.length) html+=`<p class="next">Tomorrow: ${tmr.map(t=>esc(t.title)).join(", ")}</p>`;
-    else if(!now.length&&nextUp) html+=`<p class="next">Next up: ${esc(nextUp.title)} · ${fmt(nextUp.due)}</p>`;
-    else if(!now.length) html+=`<p class="next">A calm day. Chip away at whatever you can.</p>`;
+    const tm2=tmr.map(t=>esc(t.title)).concat(fuTmr.map(t=>"follow up on "+esc(t.title)));
+    if(tm2.length) html+=`<p class="next">Tomorrow: ${tm2.join(", ")}</p>`;
+    else if(!now.length&&!fuNow.length&&nextUp) html+=`<p class="next">Next up: ${esc(nextUp.title)} · ${fmt(nextUp.due)}</p>`;
+    else if(!now.length&&!fuNow.length) html+=`<p class="next">A calm day. Chip away at whatever you can.</p>`;
     f.innerHTML=html; f.hidden=false;
   }
   function filteredDone(){return tasks.filter(t=>t.status==="done"&&t.completedAt&&t.completedAt>=fromD&&t.completedAt<=toD&&(!cat||(t.category||"Uncategorized")===cat)).sort((a,b)=>a.completedAt.localeCompare(b.completedAt))}
@@ -606,13 +620,21 @@ Return JSON: {"emoji": one emoji, "text": the message}`,{modelTier:"quick"});
     let u="https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent("📌 "+t.title)+"&dates="+a+"/"+b+"&details="+encodeURIComponent((t.notes||"")+(t.category?"\n\nCategory: "+t.category:""));
     if(t.repeat&&RR[t.repeat])u+="&recur="+encodeURIComponent("RRULE:FREQ="+RR[t.repeat]);return u}
   function ocal(t){return "https://outlook.live.com/calendar/0/action/compose?allday=true&subject="+encodeURIComponent("📌 "+t.title)+"&startdt="+t.due+"&enddt="+nextDay(t.due)+"&body="+encodeURIComponent(t.notes||"")}
-  function row(t){
-    const isDone=t.status==="done";const[c,label]=isDone?["",t.completedAt?fmt(t.completedAt):""]:when(t);
+  function fuWhen(t){const n=left(t.followUp);if(n<0)return["today","Follow-up was "+fmt(t.followUp)];if(n===0)return["today","Follow up today"];if(n===1)return["today","Follow up tomorrow"];return["fu","↪ Follow up "+fmt(t.followUp)]}
+  function fuPrompt(){const t=tasks.find(x=>x.id===fuAsk);if(!t)return"";
+    return `<div class="fuask"><b>✓ ${esc(t.title)}</b><span>Does this need a follow-up?</span><div class="row2"><input type="date" id="fu-date" aria-label="Follow-up date"><button type="button" class="save" data-act="fuset" data-id="${t.id}">Set follow-up</button><button type="button" class="link" data-act="funo">No</button></div></div>`}
+  function detail(t){return `<div class="detail"><textarea id="d-${t.id}" rows="3" placeholder="Add details…" aria-label="Details">${esc(t.notes||"")}</textarea><label class="catpick">Category <select id="c-${t.id}">${CATS.map(c=>`<option ${c===t.category?"selected":""}>${esc(c)}</option>`).join("")}</select></label><label class="catpick">Follow up on <input type="date" id="f2-${t.id}" value="${esc(t.followUp||"")}"></label><button class="save" data-act="save" data-id="${t.id}">Save</button>${t.due&&t.status!=="done"?`<div class="cal"><span>Add to my calendar</span><a href="${gcal(t)}" target="_blank" rel="noopener">Google Calendar</a><a href="${ocal(t)}" target="_blank" rel="noopener">Outlook</a></div>`:""}</div>`}
+  function row(t,fuMode){
+    const isDone=t.status==="done";let[c,label]=fuMode?fuWhen(t):isDone?["",t.completedAt?fmt(t.completedAt):""]:when(t);
+    if(!fuMode&&t.followUp)label+=(label?" · ":"")+"↪ Follow-up "+fmt(t.followUp);
     const end=ask===t.id?`<span class="sure"><button class="y" data-act="del" data-id="${t.id}">Delete</button><button class="n" data-act="no">Keep</button></span>`:`<button class="x" data-act="ask" data-id="${t.id}" aria-label="Delete">×</button>`;
+    if(fuMode) return `<li class="row furow"><button class="tick" data-act="fudone" data-id="${t.id}" aria-label="Mark follow-up as done"></button>
+      <div class="txt"><button class="open" data-act="open" data-id="${t.id}" aria-expanded="${openId===t.id}">${hl(t.title)}</button><span class="when ${c}">${label}${CATS.includes(t.category)?`<span class="tag c${catIdx(t.category)}">${esc(t.category)}</span>`:""}</span>
+        ${openId===t.id?detail(t):""}</div>${end}</li>`;
     return `<li class="row ${isDone?"done":""}"><button class="tick" data-act="tick" data-id="${t.id}" aria-label="${isDone?"Mark as not done":"Mark as done"}">${isDone?"✓":""}</button>
       <div class="txt"><button class="open" data-act="open" data-id="${t.id}" aria-expanded="${openId===t.id}">${hl(t.title)}${t.notes?'<span class="has" aria-label="Has details"></span>':""}</button>${true?`<span class="when ${c}">${label}${t.repeat&&!isDone?`<span class="repeat">↻ ${{weekly:"Weekly",monthly:"Monthly",yearly:"Yearly"}[t.repeat]||""}</span>`:""}${CATS.includes(t.category)?`<span class="tag c${catIdx(t.category)}">${esc(t.category)}</span>`:(AI_ON?`<span class="tag sorting">Sorting…</span>`:"")}</span>`:""}
         ${q&&openId!==t.id&&t.notes?`<span class="snip">${hl(snip(t.notes))}</span>`:""}
-        ${openId===t.id?`<div class="detail"><textarea id="d-${t.id}" rows="3" placeholder="Add details…" aria-label="Details">${esc(t.notes||"")}</textarea><label class="catpick">Category <select id="c-${t.id}">${CATS.map(c=>`<option ${c===t.category?"selected":""}>${esc(c)}</option>`).join("")}</select></label><button class="save" data-act="save" data-id="${t.id}">Save</button>${t.due&&t.status!=="done"?`<div class="cal"><span>Add to my calendar</span><a href="${gcal(t)}" target="_blank" rel="noopener">Google Calendar</a><a href="${ocal(t)}" target="_blank" rel="noopener">Outlook</a></div>`:""}</div>`:""}</div>${end}</li>`;
+        ${openId===t.id?detail(t):""}</div>${end}</li>`;
   }
 
   $("#f-due").addEventListener("change",e=>{$("#dateLbl").textContent=e.target.value?"📅 "+fmt(e.target.value):"📅 Due"});
@@ -636,7 +658,10 @@ Return JSON: {"emoji": one emoji, "text": the message}`,{modelTier:"quick"});
       if(d&&t.repeat&&!t.nextMade){const nd=nextDue(t);const nid="t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
         await col().doc(nid).set({title:t.title,notes:t.notes||"",category:t.category||"",repeat:t.repeat,rday:t.rday||0,due:nd,status:"open",createdAt:today(),completedAt:""});
         await col().doc(id).update({nextMade:true});toast("Done ✓ Next one is set for "+fmt(nd))}
-      else if(d){toast(CHEERS[Math.floor(Math.random()*CHEERS.length)]);if(!CATS.includes(t.category))setTimeout(classify,300)}}catch(_){toast("Couldn't save the change")}}
+      else if(d){toast(CHEERS[Math.floor(Math.random()*CHEERS.length)]);if(!t.followUp){fuAsk=id;render()}if(!CATS.includes(t.category))setTimeout(classify,300)}}catch(_){toast("Couldn't save the change")}}
+    else if(b.dataset.act==="fuset"&&t){const v=$("#fu-date").value;if(!v){toast("Pick a follow-up date");return}fuAsk=null;try{await col().doc(id).update({followUp:v});toast("Follow-up set for "+fmt(v)+" ↪")}catch(_){toast("Couldn't save")}}
+    else if(b.dataset.act==="funo"){fuAsk=null;render()}
+    else if(b.dataset.act==="fudone"&&t){const log=(t.followUps||[]).concat(today());try{await col().doc(id).update({followUp:"",followUps:log});toast("Followed up ✓")}catch(_){toast("Couldn't save")}}
     else if(b.dataset.act==="quote"){qi=qi===null?0:(qi+1)%Q.length;const el=$("#quote");el.style.animation="none";void el.offsetWidth;el.style.animation="";render()}
     else if(b.dataset.act==="settings"){const st=$("#settings");st.hidden=!st.hidden;$("#gearBtn").setAttribute("aria-expanded",String(!st.hidden));if(!st.hidden){renderSettings();$("#s-name").value=myName;st.scrollIntoView({behavior:"smooth",block:"nearest"})}}
     else if(b.dataset.act==="color"){setPref("color",b.dataset.k)}
@@ -648,7 +673,7 @@ Return JSON: {"emoji": one emoji, "text": the message}`,{modelTier:"quick"});
     else if(b.dataset.act==="cat"){cat=b.dataset.cat||null;sumText="";render()}
     else if(b.dataset.act==="sum"){summarize()}
     else if(b.dataset.act==="open"){openId=openId===id?null:id;render()}
-    else if(b.dataset.act==="save"&&t){const n=$("#d-"+id).value.trim(),cs=$("#c-"+id);const up={notes:n};if(cs&&cs.value!==t.category){up.category=cs.value;up.catManual=true}else if(!t.catManual)up.category=autoCategory(t.title,n);try{await col().doc(id).update(up);openId=null;render();toast("Saved")}catch(_){toast("Couldn't save")}}
+    else if(b.dataset.act==="save"&&t){const n=$("#d-"+id).value.trim(),cs=$("#c-"+id);const up={notes:n};const f2=$("#f2-"+id);if(f2&&f2.value!==(t.followUp||""))up.followUp=f2.value;if(cs&&cs.value!==t.category){up.category=cs.value;up.catManual=true}else if(!t.catManual)up.category=autoCategory(t.title,n);try{await col().doc(id).update(up);openId=null;render();toast("Saved")}catch(_){toast("Couldn't save")}}
     else if(b.dataset.act==="ask"){ask=id;render()}
     else if(b.dataset.act==="no"){ask=null;render()}
     else if(b.dataset.act==="del"){ask=null;try{await col().doc(id).delete()}catch(_){toast("Couldn't delete")}}

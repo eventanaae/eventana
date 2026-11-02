@@ -145,9 +145,13 @@ function occasionOn(ymd) {
 }
 
 async function digestFor(userId, day) {
-  const r = await pool.query(`SELECT data FROM hrbp.tasks WHERE user_id=$1 AND data->>'status' IS DISTINCT FROM 'done' AND COALESCE(data->>'due','')<>''`, [userId]);
+  const r = await pool.query(`SELECT data FROM hrbp.tasks WHERE user_id=$1 AND ((data->>'status' IS DISTINCT FROM 'done' AND COALESCE(data->>'due','')<>'') OR COALESCE(data->>'followUp','')<>'')`, [userId]);
   const tm = addDays(day, 1);
-  const T = r.rows.map(x => x.data);
+  const all = r.rows.map(x => x.data);
+  const T = all.filter(t => t.status !== "done" && t.due);
+  const F = all.filter(t => t.status === "done" && t.followUp);
+  const fuToday = F.filter(t => t.followUp <= day).map(t => t.title);
+  const fuTomorrow = F.filter(t => t.followUp === tm).map(t => t.title);
   const today = T.filter(t => t.due === day).map(t => t.title);
   const tomorrow = T.filter(t => t.due === tm).map(t => t.title);
   const late = T.filter(t => t.due < day).map(t => t.title);
@@ -156,6 +160,8 @@ async function digestFor(userId, day) {
   if (occ) lines.push(`Today is ${occ}`);
   if (today.length) lines.push(`📌 Due today: ${today.join(", ")}`);
   if (tomorrow.length) lines.push(`⏰ Due tomorrow: ${tomorrow.join(", ")}`);
+  if (fuToday.length) lines.push(`↪ Follow up today: ${fuToday.join(", ")}`);
+  if (fuTomorrow.length) lines.push(`↪ Follow up tomorrow: ${fuTomorrow.join(", ")}`);
   if (late.length) lines.push(`⚠️ Overdue: ${late.join(", ")}`);
   if (occT) lines.push(`🗓️ Tomorrow is ${occT}`);
   return lines;
