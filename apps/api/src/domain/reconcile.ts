@@ -109,12 +109,15 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
 
   // Auto-complete events whose end time (in UAE) has passed. base_end_time
   // already reflects any extra hours the customer bought, so this respects a
-  // longer party. Never touches cancelled events. Non-fatal.
+  // longer party. Never touches cancelled or date-TBD (postponed) events. Non-fatal.
   try {
     const done = await pool.query<{ id: string }>(
       `UPDATE events SET phase = 'Event Completed'
         WHERE phase NOT IN ('Event Completed', 'Cancelled')
           AND cancelled_at IS NULL
+          -- A postponed event (date TBD) keeps its old date until a new one is
+          -- set: it has not happened, so it must never auto-complete.
+          AND NOT COALESCE(date_tbd, false)
           AND base_end_time ~ '^[0-2][0-9]:[0-5][0-9]$'
           AND ((event_date + base_end_time::time) AT TIME ZONE 'Asia/Dubai') < now()
        RETURNING id`,

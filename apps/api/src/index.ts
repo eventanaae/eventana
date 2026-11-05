@@ -682,6 +682,33 @@ async function main() {
   const app = await buildServer();
   await app.listen({ port: config.port, host: config.host });
 
+  // One-time fix (2026-11-05): postponed (date TBD) events were auto-completed
+  // on their old date, which also counted part-timer and driver pay. Reopen them
+  // and cancel any feedback request not yet sent. Guarded by app_kv: runs once.
+  try {
+    const g = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'tbd_reopen_20261105'`);
+    if (!g.rowCount) {
+      const r = await pool.query<{ id: string }>(
+        `UPDATE events SET phase = 'Booking Confirmed'
+          WHERE COALESCE(date_tbd, false) AND phase = 'Event Completed' AND cancelled_at IS NULL
+          RETURNING id`,
+      );
+      const ids = r.rows.map((x) => x.id);
+      if (ids.length) {
+        await pool.query(
+          `UPDATE notifications SET cancelled_at = now()
+            WHERE event_id = ANY($1::text[]) AND template = 'feedback_request'
+              AND sent_at IS NULL AND whatsapp_sent_at IS NULL AND cancelled_at IS NULL`,
+          [ids],
+        );
+      }
+      console.log(`[tbd-reopen] reopened ${ids.length} postponed event(s): ${ids.join(', ') || '-'}`);
+      await pool.query(`INSERT INTO app_kv (k, v) VALUES ('tbd_reopen_20261105', now()) ON CONFLICT (k) DO UPDATE SET v = now()`);
+    }
+  } catch (err) {
+    console.error('[tbd-reopen] failed:', (err as Error).message);
+  }
+
   startReconciliation();
 
   // One-shot: test whether the configured Meta token can READ ad performance
