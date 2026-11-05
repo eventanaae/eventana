@@ -82,7 +82,7 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
         -- Only the paid entertainer roles belong in this tracker (clown / face
         -- paint / balloon artist); part-time drivers show under Deliveries.
         AND es.role IN ('clown', 'acrobat_clown', 'face_painting', 'balloon_artist', 'balloon_twisting')
-        AND e.phase IS DISTINCT FROM 'Cancelled'
+        AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
         AND e.event_date >= date_trunc('month', $1::date)
         AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
         -- Count only events that have already happened (up to today) — the total
@@ -119,7 +119,7 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
          LEFT JOIN deliveries d ON d.event_id = e.id
         WHERE es.role IN ('driver','pt_driver')
           AND (es.role = 'pt_driver' OR es.assignee_id IS NULL OR lower(tm.name) <> 'shan')
-          AND e.phase IS DISTINCT FROM 'Cancelled'
+          AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
           AND e.event_date >= date_trunc('month', $1::date)
           AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
           AND e.event_date <= CURRENT_DATE
@@ -210,7 +210,7 @@ export async function buildOutstandingStaffPay(beforeMonthISO?: string): Promise
            FROM event_staff es JOIN events e ON e.id = es.event_id
           WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
             AND es.role IN ('clown','acrobat_clown','face_painting','balloon_artist','balloon_twisting','driver','pt_driver')
-            AND e.phase IS DISTINCT FROM 'Cancelled' AND e.event_date <= CURRENT_DATE
+            AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false) AND e.event_date <= CURRENT_DATE
          UNION ALL
          SELECT del_date AS d FROM deliveries
        ) x
@@ -267,7 +267,7 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
        LEFT JOIN customers c ON c.id = e.customer_id
       WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
         AND es.role IN ('clown', 'acrobat_clown', 'face_painting', 'balloon_artist', 'balloon_twisting')
-        AND e.phase IS DISTINCT FROM 'Cancelled'
+        AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
         AND e.event_date > CURRENT_DATE
       ORDER BY e.event_date, btrim(es.part_time_name)`,
   );
@@ -292,7 +292,7 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
          LEFT JOIN customers c ON c.id = e.customer_id
         WHERE es.role IN ('driver','pt_driver')
           AND (es.role = 'pt_driver' OR es.assignee_id IS NULL OR lower(tm.name) <> 'shan')
-          AND e.phase IS DISTINCT FROM 'Cancelled'
+          AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
           AND e.event_date > CURRENT_DATE
         ORDER BY e.event_date`,
     ),
