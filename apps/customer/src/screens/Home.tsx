@@ -266,8 +266,24 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
       </div>
 
       <div
+        onClick={() => go('designer')}
+        style={{ marginTop: 26, background: '#F3ECFB', borderRadius: 22, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: 16, background: '#9B7BD8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flex: 'none' }}>
+          🎨
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{lang === 'ar' ? 'صممي حفلتج بالذكاء الاصطناعي' : 'Design my party with AI'}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8a74b8' }}>
+            {lang === 'ar' ? 'اختاري الثيم والميزانية وشوفي التصور' : 'Pick a theme & budget — see the concept'}
+          </div>
+        </div>
+        <span style={{ color: '#9B7BD8', fontWeight: 700 }}>›</span>
+      </div>
+
+      <div
         onClick={() => go('assistant')}
-        style={{ marginTop: 26, background: C.mintSoft, borderRadius: 22, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}
+        style={{ marginTop: 12, background: C.mintSoft, borderRadius: 22, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}
       >
         <div style={{ width: 44, height: 44, borderRadius: 16, background: C.mint, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flex: 'none' }}>
           ✦

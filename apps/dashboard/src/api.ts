@@ -478,6 +478,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
+  // AI Studio — drafts only, a person always presses Send.
+  aiSalesDraft: (phone: string, mode: 'reply' | 'followup' = 'reply') =>
+    request<any>('/api/admin/ai/sales/draft', { method: 'POST', body: JSON.stringify({ phone, mode }) }),
+  aiFollowups: () => request<any>('/api/admin/ai/sales/followups'),
+  aiDesign: (input: unknown) => request<any>('/api/admin/ai/design', { method: 'POST', body: JSON.stringify(input) }),
+  aiOccasions: () => request<any>('/api/admin/ai/occasions'),
+  aiMarketingIdeas: (input: unknown) => request<any>('/api/admin/ai/marketing/ideas', { method: 'POST', body: JSON.stringify(input) }),
+  aiAdResults: (days = 90) => request<any>(`/api/admin/ai/marketing/ad-results?days=${days}`),
+  aiAdVerdict: (days = 90, lang: 'en' | 'ar' = 'ar') =>
+    request<any>('/api/admin/ai/marketing/verdict', { method: 'POST', body: JSON.stringify({ days, lang }) }),
   importWhatsappLeads: (leads: unknown[]) =>
     request<{ received: number; imported: number; skipped: number }>('/api/admin/whatsapp/leads/import', {
       method: 'POST',

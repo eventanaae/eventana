@@ -440,4 +440,10 @@ export const api = {
       services: Record<string, number>; themeId: string | null; themeName: string | null;
       estTotalFils: number; summary: string;
     }>('/api/plan', { method: 'POST', body: JSON.stringify(body) }),
+
+  /** AI Event Designer: theme + budget → party concept priced from the live catalogue. */
+  design: (body: {
+    celebrationType: string; themeId?: string | null; themeText?: string | null; budgetAed?: number | null;
+    childrenCount: number; age?: string | null; notes?: string | null; lang?: 'en' | 'ar';
+  }) => request<any>('/api/design', { method: 'POST', body: JSON.stringify(body) }),
 };
