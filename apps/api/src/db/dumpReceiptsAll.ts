@@ -21,11 +21,15 @@ export async function dumpReceiptsAllFromEnv(): Promise<void> {
         ORDER BY e.spent_on, e.id`,
     );
     console.log(`RCPTMETA|${JSON.stringify({ count: rows.length })}`);
-    const b64 = Buffer.from(JSON.stringify(rows), 'utf8').toString('base64');
-    const CHUNK = 8000;
-    const n = Math.ceil(b64.length / CHUNK);
-    for (let i = 0; i < n; i++) console.log(`RCPTB64|${i}|${n}|${b64.slice(i * CHUNK, (i + 1) * CHUNK)}`);
-    console.log(`RCPTDONE|${n}|${b64.length}`);
+    // One readable line per receipt (so it can be reviewed straight from the logs).
+    const clean = (v: unknown) => String(v ?? '').replace(/[\s|]+/g, ' ').trim();
+    rows.forEach((r, i) => {
+      const items = Array.isArray(r.oi)
+        ? r.oi.map((x: { name?: string; qty?: number; unit_price?: number }) => `${clean(x.name)} x${x.qty ?? '?'}@${x.unit_price ?? '?'}`).join('; ')
+        : '';
+      console.log(`RCPT|${String(i + 1).padStart(4, '0')}|${r.d}|EXP-${r.id}|AED ${(Number(r.f) / 100).toFixed(2)}|${clean(r.c)}|${clean(r.v)}|${clean(r.ds).slice(0, 80)}|ocr:${clean(r.os)}|${items.slice(0, 400)}|${r.u}`);
+    });
+    console.log(`RCPTDONE|${rows.length}`);
   } catch (err) {
     console.error('[rcptall] failed:', (err as Error).message);
   }
