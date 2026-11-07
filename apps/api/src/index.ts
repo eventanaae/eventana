@@ -634,6 +634,8 @@ async function main() {
     // (SET_SHAN_LEADER='rcptall' → then blank it).
     const { dumpReceiptsAllFromEnv } = await import('./db/dumpReceiptsAll.js');
     await dumpReceiptsAllFromEnv().catch((err) => console.error('[rcptall] failed:', err));
+    const { dumpPhotoCheckFromEnv } = await import('./db/dumpPhotoCheck.js');
+    await dumpPhotoCheckFromEnv().catch((err) => console.error('[photochk] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
