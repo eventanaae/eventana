@@ -630,6 +630,10 @@ async function main() {
     // (SET_SHAN_LEADER='opsstats' → then blank it).
     const { opsStatsFromEnv } = await import('./db/opsStats.js');
     await opsStatsFromEnv().catch((err) => console.error('[opsstats] failed:', err));
+    // READ-ONLY one-shot: every expense with a receipt image + its OCR items
+    // (SET_SHAN_LEADER='rcptall' → then blank it).
+    const { dumpReceiptsAllFromEnv } = await import('./db/dumpReceiptsAll.js');
+    await dumpReceiptsAllFromEnv().catch((err) => console.error('[rcptall] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
