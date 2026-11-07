@@ -39,10 +39,11 @@ import { Discounts } from './views/Discounts';
 import { TheWeek } from './views/TheWeek';
 import { Reports } from './views/Reports';
 import { ThemeBackfill } from './views/ThemeBackfill';
+import { AiStudio } from './views/AiStudio';
 
 export type View =
   | 'today' | 'schedule' | 'tasks' | 'inventory'
-  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'reports' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek' | 'mytasks' | 'stories';
+  | 'alerts' | 'team' | 'kpis' | 'ceo' | 'finance' | 'reports' | 'marketing' | 'settings' | 'shop' | 'leads' | 'neworder' | 'customers' | 'profile' | 'feedback' | 'products' | 'suppliers' | 'menu' | 'leave' | 'reviews' | 'driverschedule' | 'staffpay' | 'discounts' | 'themes' | 'theweek' | 'mytasks' | 'stories' | 'ai';
 
 type Section = 'ops' | 'sales' | 'marketing' | 'staff' | 'business' | 'admin';
 
@@ -73,6 +74,7 @@ const NAV: Array<{ id: View; label: string; icon: string; title: string; sub: st
   { id: 'neworder', label: 'New Order', icon: '➕', title: 'New Order', sub: 'Create a WhatsApp order & payment link', section: 'sales' },
   // Marketing
   { id: 'marketing', label: 'Marketing', icon: '📣', title: 'Marketing', sub: 'Email campaigns & approvals', section: 'marketing' },
+  { id: 'ai', label: 'AI Studio', icon: '✨', title: 'AI Studio', sub: 'AI sales follow-ups, party designer & marketing ideas — drafts you approve', section: 'marketing' },
   { id: 'stories', label: 'Story Studio', icon: '🎬', title: 'Story Studio', sub: 'Daily Instagram & WhatsApp stories', section: 'marketing' },
   { id: 'leads', label: 'Leads', icon: '💬', title: 'WhatsApp Leads', sub: 'Enquiries and their party dates', section: 'marketing' },
   { id: 'discounts', label: 'Discount Codes', icon: '🏷️', title: 'Discount Codes', sub: 'Create & manage promo codes customers use at checkout', section: 'marketing' },
@@ -95,7 +97,7 @@ const ROLE_VIEWS: Record<string, View[] | 'all'> = {
   owner: 'all',
   // Manager: everything EXCEPT the CEO dashboard and the P&L history (Owner's
   // money views). Gets the money-free Overview instead.
-  manager: ['today', 'mytasks', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'marketing', 'stories', 'discounts', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
+  manager: ['today', 'mytasks', 'schedule', 'inventory', 'customers', 'neworder', 'leads', 'finance', 'marketing', 'ai', 'stories', 'discounts', 'team', 'leave', 'theweek', 'staffpay', 'settings', 'profile', 'feedback', 'products', 'suppliers', 'menu'],
   // Employee/driver: their bottom-bar tabs, plus 'mytasks' (the Home "Tasks"
   // quick action) and 'feedback' — reachable from the "Show more" on Home but
   // never shown as a tab (achievements live in Profile).
@@ -279,6 +281,7 @@ export default function App() {
       {view === 'ceo' && <Ceo />}
       {view === 'finance' && <FinanceHub role={role} />}
       {view === 'marketing' && <Marketing />}
+      {view === 'ai' && <AiStudio />}
       {view === 'discounts' && <Discounts />}
       {view === 'themes' && <ThemeBackfill />}
       {view === 'neworder' && <NewOrder />}

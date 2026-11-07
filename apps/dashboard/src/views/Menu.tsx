@@ -23,6 +23,7 @@ const GROUPS: Array<{ label: string; items: Item[] }> = [
     { id: 'leads', icon: '💬', label: 'Leads' },
     { id: 'feedback', icon: '🌟', label: 'Review Report' },
     { id: 'stories', icon: '📸', label: 'Story Studio' },
+    { id: 'ai', icon: '✨', label: 'AI Studio' },
     { id: 'discounts', icon: '🏷️', label: 'Discount Codes' },
   ] },
   { label: 'Staff', items: [

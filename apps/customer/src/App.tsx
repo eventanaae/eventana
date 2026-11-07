@@ -19,6 +19,7 @@ const Themes = lazy(() => import('./screens/Themes').then((m) => ({ default: m.T
 const Checkout = lazy(() => import('./screens/Checkout').then((m) => ({ default: m.Checkout })));
 const MyEvent = lazy(() => import('./screens/MyEvent').then((m) => ({ default: m.MyEvent })));
 const GuestFeedback = lazy(() => import('./screens/GuestFeedback').then((m) => ({ default: m.GuestFeedback })));
+const Designer = lazy(() => import('./screens/Designer').then((m) => ({ default: m.Designer })));
 const Assistant = lazy(() => import('./screens/Assistant').then((m) => ({ default: m.Assistant })));
 const Profile = lazy(() => import('./screens/Profile').then((m) => ({ default: m.Profile })));
 const MovieSelect = lazy(() => import('./screens/MovieSelect').then((m) => ({ default: m.MovieSelect })));
@@ -42,7 +43,7 @@ import { useLang, makeT, type Lang, type TFn } from './i18n';
 export type Screen =
   | 'home' | 'explore' | 'package' | 'buildIntake' | 'build' | 'theme' | 'custom'
   | 'assistant' | 'movieselect' | 'checkout' | 'confirming' | 'myevent' | 'profile'
-  | 'shop' | 'shopcheckout' | 'paylink' | 'feedback' | 'lead';
+  | 'shop' | 'shopcheckout' | 'paylink' | 'feedback' | 'lead' | 'designer';
 
 export interface Draft {
   celebrationType: string;
@@ -726,6 +727,7 @@ export default function App() {
           <Themes {...shared} custom={screen === 'custom'} />
         )}
         {screen === 'assistant' && <Assistant {...shared} />}
+        {screen === 'designer' && <Designer {...shared} />}
         {screen === 'lead' && <LeadForm {...shared} />}
         {screen === 'movieselect' && <MovieSelect {...shared} />}
         {screen === 'checkout' && (

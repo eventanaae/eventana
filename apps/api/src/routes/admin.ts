@@ -33,6 +33,8 @@ import { flooredStart, COUNTING_START } from '../domain/period.js';
 import { staffUpdateEvent, EventEditError } from '../domain/eventEdit.js';
 import { logAudit, listAudit } from '../domain/auditLog.js';
 import { verifyStaffSession, issueStaffSession } from '../domain/staffAuth.js';
+import * as aiStudio from '../domain/aiStudio.js';
+const { designSchema } = aiStudio;
 import { sendStaffSetupEmail, buildSetupLink } from './staffAuth.js';
 import { issueStaffSetupToken } from '../domain/staffAuth.js';
 import { audienceCounts, sendCampaign, campaignRecipients } from '../domain/marketing.js';
@@ -1151,6 +1153,53 @@ export async function adminRoutes(app: FastifyInstance) {
       sentBy: 'staff',
     });
     return { ok: true, messages: await leadMessages(phone) };
+  });
+
+  // ── AI Studio (sales drafts, event designer, marketing). Drafts only: the
+  // AI never sends anything — a person reviews the text and presses Send.
+  const aiGuard = (request: any, reply: any) => {
+    const role = request.staff?.role;
+    if (role !== 'owner' && role !== 'manager') { reply.status(403).send({ error: 'forbidden' }); return false; }
+    return true;
+  };
+  app.post('/api/admin/ai/sales/draft', async (request, reply) => {
+    if (!aiGuard(request, reply)) return;
+    const parsed = z.object({ phone: z.string().trim().min(6).max(20), mode: z.enum(['reply', 'followup']).default('reply') }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    return aiStudio.salesDraft(parsed.data.phone, parsed.data.mode);
+  });
+  app.get('/api/admin/ai/sales/followups', async (request, reply) => {
+    if (!aiGuard(request, reply)) return;
+    return { leads: await aiStudio.salesFollowups() };
+  });
+  app.post('/api/admin/ai/design', async (request, reply) => {
+    if (!aiGuard(request, reply)) return;
+    const parsed = designSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    return aiStudio.designParty(parsed.data);
+  });
+  app.get('/api/admin/ai/occasions', async (request, reply) => {
+    if (!aiGuard(request, reply)) return;
+    return { occasions: aiStudio.upcomingOccasions(14) };
+  });
+  app.post('/api/admin/ai/marketing/ideas', async (request, reply) => {
+    if (!aiGuard(request, reply)) return;
+    const parsed = z.object({
+      occasion: z.string().max(60).nullable().optional(), topic: z.string().max(300).nullable().optional(),
+      goal: z.string().max(300).nullable().optional(), lang: z.enum(['en', 'ar']).default('ar'),
+    }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    return aiStudio.marketingIdeas(parsed.data);
+  });
+  app.get('/api/admin/ai/marketing/ad-results', async (request, reply) => {
+    if (!aiGuard(request, reply)) return;
+    const days = Number((request.query as any)?.days) || 90;
+    return aiStudio.adResults(days);
+  });
+  app.post('/api/admin/ai/marketing/verdict', async (request, reply) => {
+    if (!aiGuard(request, reply)) return;
+    const b = (request.body ?? {}) as any;
+    return aiStudio.adVerdict(Number(b.days) || 90, b.lang === 'en' ? 'en' : 'ar');
   });
 
   /**

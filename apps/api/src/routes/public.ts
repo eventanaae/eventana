@@ -2,6 +2,7 @@
  * Customer-facing routes. Nothing here can confirm a booking, change a
  * price, approve a refund or read another customer's event.
  */
+import { designParty, designSchema } from '../domain/aiStudio.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
@@ -170,6 +171,8 @@ export async function publicRoutes(app: FastifyInstance) {
     { test: /^\/api\/(checkout|shop\/checkout)$/, max: 15, windowMs: 60_000 },
     { test: /^\/api\/customers\/(register|forgot|login|reset)$/, max: 8, windowMs: 60_000 },
     { test: /^\/api\/lead$/, max: 6, windowMs: 60_000 },
+    // Each call is a paid Claude request — keep it tight per IP.
+    { test: /^\/api\/design$/, max: 5, windowMs: 60_000 },
     { test: /^\/api\/promo\/check$/, max: 25, windowMs: 60_000 },
     { test: /^\/api\/customers\/uploads\/sign$/, max: 25, windowMs: 60_000 },
   ];
@@ -977,6 +980,13 @@ export async function publicRoutes(app: FastifyInstance) {
    * budget-fitted Build-Your-Own bundle that reaches the 15% threshold when it
    * can. A matching theme is included.
    */
+  /** AI Event Designer: theme + budget → a party concept priced from the live catalogue. */
+  app.post('/api/design', async (request, reply) => {
+    const parsed = designSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    return designParty(parsed.data);
+  });
+
   app.post('/api/plan', async (request, reply) => {
     const schema = z.object({
       celebrationType: z.enum(['kids', 'graduation', 'bride', 'baby', 'gender', 'adult', 'customc']).default('kids'),

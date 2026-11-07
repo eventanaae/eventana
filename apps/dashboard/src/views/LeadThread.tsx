@@ -38,10 +38,13 @@ export function LeadThread({
   phone,
   name,
   onClose,
+  aiMode,
 }: {
   phone: string;
   name: string | null;
   onClose: () => void;
+  /** Open with an AI draft already requested (e.g. from the follow-ups list). */
+  aiMode?: 'reply' | 'followup';
 }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [window24, setWindow24] = useState<Window24 | null>(null);
@@ -49,6 +52,24 @@ export function LeadThread({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const [ai, setAi] = useState<any | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  /** Ask Claude for a draft. It only fills the box — nothing is sent until a person presses Send. */
+  const askAi = async (mode: 'reply' | 'followup') => {
+    setAiBusy(true); setError(null); setCopied(false);
+    try {
+      const d = await api.aiSalesDraft(phone, mode);
+      setAi(d);
+      if (d?.reply) setDraft(d.reply);
+    } catch (e: any) {
+      setError(e?.message ?? 'The AI draft failed.');
+    } finally {
+      setAiBusy(false);
+    }
+  };
+  useEffect(() => { if (aiMode) void askAi(aiMode); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [phone, aiMode]);
 
   const load = () =>
     api
@@ -178,6 +199,53 @@ export function LeadThread({
               reach her now you need an approved template — or wait for her to write again.
             </div>
           )}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {(['reply', 'followup'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => void askAi(m)}
+                disabled={aiBusy}
+                style={{
+                  border: `1px solid ${C.line}`, background: C.pinkSoft, color: C.pinkDeep, borderRadius: 999,
+                  padding: '6px 12px', fontSize: 12, fontWeight: 800, cursor: aiBusy ? 'default' : 'pointer',
+                }}
+              >
+                {aiBusy ? '✨ Thinking…' : m === 'reply' ? '✨ AI draft reply' : '✨ AI follow-up'}
+              </button>
+            ))}
+            {ai?.reply && closed && (
+              <button
+                onClick={() => { void navigator.clipboard?.writeText(draft || ai.reply).then(() => setCopied(true)); }}
+                style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+              >
+                {copied ? 'Copied ✓' : 'Copy draft'}
+              </button>
+            )}
+          </div>
+          {ai && (
+            <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 12px', marginBottom: 10, fontSize: 12, fontWeight: 600, lineHeight: 1.6, maxHeight: 190, overflowY: 'auto' }}>
+              <div style={{ color: C.muted, marginBottom: 4 }}>
+                {ai.ai ? 'AI draft — check it, edit it, then press Send. Nothing is sent automatically.' : ai.note}
+              </div>
+              {ai.ai && ai.note && <div style={{ color: C.yellowInk, marginBottom: 4 }}>⚠️ {ai.note}</div>}
+              {ai.suggestions?.length > 0 && (
+                <div style={{ marginBottom: 4 }}>
+                  <b>Suggested:</b>{' '}
+                  {ai.suggestions.map((s: any) => `${s.name} (AED ${s.priceAed}${s.unit !== 'flat' && s.unit !== 'package' ? ' ' + s.unit : ''})${s.why ? ' — ' + s.why : ''}`).join(' · ')}
+                </div>
+              )}
+              {ai.quote?.length > 0 && (
+                <div>
+                  <b>Quote ({ai.kids} kids):</b>
+                  {ai.quote.map((q: any) => (
+                    <div key={q.id}>• {q.name}{q.qty > 1 ? ` × ${q.qty}` : ''} — AED {q.totalAed}</div>
+                  ))}
+                  <div style={{ fontWeight: 800 }}>Total: AED {ai.quoteTotalAed} (catalogue prices, before any promo)</div>
+                </div>
+              )}
+              {closed && <div style={{ color: C.yellowInk, marginTop: 4 }}>Window closed — copy the draft and send it from an approved template or wait for her reply.</div>}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <textarea
               value={draft}
@@ -185,7 +253,7 @@ export function LeadThread({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); }
               }}
-              rows={2}
+              rows={ai?.reply ? 5 : 2}
               disabled={closed || sending}
               placeholder={closed ? 'Reply window closed' : 'Write a reply…'}
               style={{
