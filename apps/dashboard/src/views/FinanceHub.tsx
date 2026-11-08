@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { CELEBRATION_TYPES, packageItemNames, packageItemDetail, expenseNeedsItems, cleanExpenseItems } from '@eventana/shared';
+import { CELEBRATION_TYPES, packageItemNames, packageItemDetail, expenseNeedsItems, cleanExpenseItems, cleanExpenseCharges, expenseItemsTotal } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, Panel, Spinner, fredoka, money } from '../ui';
 import { NewOrder } from './NewOrder';
@@ -657,6 +657,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   const [vendor, setVendor] = useState<Record<string, string>>({});
   const [amt, setAmt] = useState<Record<string, string>>({}); // manual amount for rows captured at 0
   const [items, setItems] = useState<Record<string, ItemRow[]>>({});
+  const [charges, setCharges] = useState<Record<string, Charges>>({});
   const [err, setErr] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -709,7 +710,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
     if (expenseNeedsItems(category) && lineItems.length === 0) { setErr('Add the items bought, one by one (name + quantity), before approving.'); return; }
     setBusy(r.id); setErr(null);
     try {
-      await api.bankTxApprove(r.id, { category, vendor: v, amountFils, lineItems });
+      await api.bankTxApprove(r.id, { category, vendor: v, amountFils, lineItems, charges: chargesPayload(charges[r.id] ?? blankCharges()) });
       setRows((rs) => rs?.filter((x) => x.id !== r.id) ?? rs);
       onApproved();
     } catch (e: any) { setErr(e?.message || 'Could not approve — please try again.'); } finally { setBusy(null); }
@@ -788,6 +789,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
             {(cat[r.id] ?? '') && (
               <div style={{ marginTop: 10 }}>
                 <ItemsEditor rows={items[r.id] ?? [blankItem()]} setRows={(rs) => setItems((m) => ({ ...m, [r.id]: rs }))}
+                  charges={charges[r.id] ?? blankCharges()} setCharges={(c) => setCharges((m) => ({ ...m, [r.id]: c }))}
                   required={expenseNeedsItems(cat[r.id])} amountFils={parseAedFils(amt[r.id] ?? '') || Number(r.amount_fils)} />
               </div>
             )}
@@ -835,14 +837,34 @@ const itemsSummary = (li: any): string => {
   return arr.length > 4 ? `${s} +${arr.length - 4} more` : s;
 };
 
-function ItemsEditor({ rows, setRows, required, amountFils }: { rows: ItemRow[]; setRows: (r: ItemRow[]) => void; required: boolean; amountFils?: number }) {
+type Charges = { vat: string; delivery: string; discount: string; other: string };
+const blankCharges = (): Charges => ({ vat: '', delivery: '', discount: '', other: '' });
+const chargesFromExpense = (c: any): Charges => {
+  const f = (v: any) => (Number(v) > 0 ? String(Number(v) / 100) : '');
+  return { vat: f(c?.vatFils), delivery: f(c?.deliveryFils), discount: f(c?.discountFils), other: f(c?.otherFils) };
+};
+const chargesPayload = (c: Charges) => cleanExpenseCharges({
+  vatFils: parseAedFils(c.vat), deliveryFils: parseAedFils(c.delivery), discountFils: parseAedFils(c.discount), otherFils: parseAedFils(c.other),
+});
+
+function ItemsEditor({ rows, setRows, charges, setCharges, required, amountFils }: {
+  rows: ItemRow[]; setRows: (r: ItemRow[]) => void; charges: Charges; setCharges: (c: Charges) => void; required: boolean; amountFils?: number;
+}) {
   const set = (i: number, k: keyof ItemRow, v: string) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
-  const priced = rows.filter((r) => r.name.trim() && r.price.trim());
-  const named = rows.filter((r) => r.name.trim());
-  const totalFils = priced.reduce((s, r) => s + parseAedFils(r.price) * (Number(r.qty) || 1), 0);
-  const allPriced = named.length > 0 && priced.length === named.length;
-  const off = allPriced && amountFils && amountFils > 0 && Math.abs(totalFils - amountFils) > 100;
+  const setC = (k: keyof Charges, v: string) => setCharges({ ...charges, [k]: v });
+  const items = itemsPayload(rows);
+  const anyPrice = items.some((i) => (i.unitFils ?? 0) > 0);
+  const allPriced = items.length > 0 && items.every((i) => (i.unitFils ?? 0) > 0);
+  const { subtotalFils, totalFils } = expenseItemsTotal(items, chargesPayload(charges));
+  const diff = amountFils && amountFils > 0 ? totalFils - amountFils : 0;
+  const matches = allPriced && amountFils && amountFils > 0 && Math.abs(diff) <= 100; // within 1 AED rounding
   const cell: CSSProperties = { ...input, marginBottom: 0 };
+  const chargeRow = (k: keyof Charges, label: string, extra?: ReactNode) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 6, alignItems: 'center', marginBottom: 5 }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: C.muted2, display: 'flex', alignItems: 'center', gap: 6 }}>{label}{extra}</span>
+      <input value={charges[k]} onChange={(e) => setC(k, e.target.value)} inputMode="decimal" placeholder="0.00" style={cell} />
+    </div>
+  );
   return (
     <div style={{ marginBottom: 12, border: `1px solid ${required ? C.pink : C.line}`, borderRadius: 12, padding: 10, background: required ? C.pinkSoft : '#fff' }}>
       <div style={{ fontSize: 11.5, fontWeight: 800, color: required ? C.pinkDeep : C.muted, marginBottom: 6 }}>
@@ -864,11 +886,32 @@ function ItemsEditor({ rows, setRows, required, amountFils }: { rows: ItemRow[];
         style={{ border: `1px dashed ${C.pink}`, background: '#fff', color: C.pinkDeep, borderRadius: 9, padding: '6px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
         ＋ Add item
       </button>
-      {priced.length > 0 && (
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: off ? C.red : C.muted2, marginTop: 6 }}>
-          Items total AED {money(totalFils)}{off ? ` — doesn't match the amount (AED ${money(amountFils!)})` : ''}
-        </div>
-      )}
+
+      {/* The rest of the receipt, so items + VAT + delivery − discount = the total. */}
+      <div style={{ borderTop: `1px dashed ${C.line}`, marginTop: 10, paddingTop: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, marginBottom: 6 }}>Rest of the receipt (if any)</div>
+        {anyPrice && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: C.muted2, marginBottom: 5 }}>
+            <span>Items subtotal</span><span>AED {money(subtotalFils)}</span>
+          </div>
+        )}
+        {chargeRow('vat', 'VAT', anyPrice ? (
+          <button type="button" onClick={() => setC('vat', (Math.round(subtotalFils * 0.05) / 100).toFixed(2))}
+            style={{ border: `1px solid ${C.line}`, background: '#fff', color: C.pinkDeep, borderRadius: 7, padding: '2px 7px', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>+5%</button>
+        ) : null)}
+        {chargeRow('delivery', 'Delivery / shipping')}
+        {chargeRow('discount', 'Discount (−)')}
+        {chargeRow('other', 'Other fees')}
+        {allPriced && amountFils ? (
+          <div style={{ fontSize: 12.5, fontWeight: 800, marginTop: 6, color: matches ? C.green : C.red }}>
+            {matches
+              ? `✓ Adds up to the receipt: AED ${money(totalFils)}`
+              : `Adds up to AED ${money(totalFils)}: ${diff > 0 ? 'AED ' + money(diff) + ' more' : 'AED ' + money(-diff) + ' less'} than the amount (AED ${money(amountFils)})`}
+          </div>
+        ) : anyPrice ? (
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2, marginTop: 6 }}>Add a price to every item to check it against the total.</div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -889,6 +932,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
   const [err, setErr] = useState<string | null>(null);
   const [vendorAcct, setVendorAcct] = useState<Record<string, string>>({});
   const [items, setItems] = useState<ItemRow[]>([blankItem()]);
+  const [charges, setCharges] = useState<Charges>(blankCharges());
   useEffect(() => { api.suppliers().then((r) => setSuppliers(r.rows)).catch(() => setSuppliers([])); }, []);
   useEffect(() => { api.vendorAccounts().then((r) => setVendorAcct(r.map || {})).catch(() => setVendorAcct({})); }, []);
   // Pick a vendor and auto-fill its usual account (learned from history).
@@ -918,7 +962,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
     if (expenseNeedsItems(category) && lineItems.length === 0) { setErr('Add the items bought, one by one (name + quantity).'); return; }
     setBusy(true); setErr(null);
     try {
-      await api.addExpense({ category, description: description || prettyCat(category), amountFils: fils, vendor: supplier.trim(), spentOn, receiptUrl: receiptUrl || null, paymentMethod: 'cash', lineItems });
+      await api.addExpense({ category, description: description || prettyCat(category), amountFils: fils, vendor: supplier.trim(), spentOn, receiptUrl: receiptUrl || null, paymentMethod: 'cash', lineItems, charges: chargesPayload(charges) });
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
   };
@@ -990,7 +1034,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
         </select>
       </Field>
       <Field label="Amount (AED) *"><input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} style={input} placeholder="0.00" /></Field>
-      <ItemsEditor rows={items} setRows={setItems} required={expenseNeedsItems(category)} amountFils={parseAedFils(amount)} />
+      <ItemsEditor rows={items} setRows={setItems} charges={charges} setCharges={setCharges} required={expenseNeedsItems(category)} amountFils={parseAedFils(amount)} />
       <Field label="Description / memo"><input value={description} onChange={(e) => setDescription(e.target.value)} style={input} /></Field>
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2 }}>Paid from: <b style={{ color: C.ink }}>Cash on hand</b></div>
     </Modal>
@@ -1005,6 +1049,7 @@ function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose:
   const [spentOn, setSpentOn] = useState<string>(String(expense.spent_on || '').slice(0, 10));
   const [receiptUrl, setReceiptUrl] = useState<string | null>(expense.receipt_url ?? null);
   const [items, setItems] = useState<ItemRow[]>(itemsFromExpense(expense.line_items));
+  const [charges, setCharges] = useState<Charges>(chargesFromExpense(expense.extra_charges));
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -1022,6 +1067,7 @@ function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose:
         spentOn: spentOn || undefined,
         receiptUrl, // null clears the receipt, a URL sets/replaces it
         lineItems: itemsPayload(items),
+        charges: chargesPayload(charges),
       });
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
@@ -1032,7 +1078,7 @@ function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose:
       <Field label="Supplier name"><input value={vendor} onChange={(e) => setVendor(e.target.value)} style={input} placeholder="e.g. Hot Pack Packaging" /></Field>
       <Field label="Date"><input type="date" value={spentOn} onChange={(e) => setSpentOn(e.target.value)} style={input} /></Field>
       <Field label="Amount (AED) *"><input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} style={input} placeholder="0.00" /></Field>
-      <ItemsEditor rows={items} setRows={setItems} required={expenseNeedsItems(category)} amountFils={parseAedFils(amount)} />
+      <ItemsEditor rows={items} setRows={setItems} charges={charges} setCharges={setCharges} required={expenseNeedsItems(category)} amountFils={parseAedFils(amount)} />
       <Field label="Description / memo"><input value={description} onChange={(e) => setDescription(e.target.value)} style={input} /></Field>
       <Field label="Receipt">
         <label style={{ ...input, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: receiptUrl ? C.green : C.muted, fontWeight: 700 }}>

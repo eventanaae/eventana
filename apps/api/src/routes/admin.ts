@@ -7,7 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { expenseNeedsItems, cleanExpenseItems } from '@eventana/shared';
+import { expenseNeedsItems, cleanExpenseItems, cleanExpenseCharges } from '@eventana/shared';
 import { formatAed, isCancelled, celebrationLabel, computeRefund, eventDateYMD, packageItemNames } from '@eventana/shared';
 import { refundOrderMoney } from '../domain/refund.js';
 import { config } from '../config.js';
@@ -2944,6 +2944,12 @@ const lineItemSchema = z.array(z.object({
   qty: z.number().min(0).max(100000).optional(),
   unitFils: z.number().int().min(0).nullable().optional(),
 })).max(200);
+const chargesSchema = z.object({
+  vatFils: z.number().int().min(0).optional(),
+  deliveryFils: z.number().int().min(0).optional(),
+  discountFils: z.number().int().min(0).optional(),
+  otherFils: z.number().int().min(0).optional(),
+});
 const ITEMS_REQUIRED = {
   error: 'items_required',
   message: 'Add the items bought, one by one (name + quantity), before saving this expense.',
@@ -2962,6 +2968,7 @@ const ITEMS_REQUIRED = {
       receiptUrl: z.string().url().nullable().optional(),
       paymentMethod: z.enum(PAYMENT_METHODS).optional(),
       lineItems: lineItemSchema.optional(),
+      charges: chargesSchema.optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
@@ -2969,12 +2976,12 @@ const ITEMS_REQUIRED = {
     const items = cleanExpenseItems(d.lineItems);
     if (expenseNeedsItems(d.category) && items.length === 0) return reply.status(400).send(ITEMS_REQUIRED);
     const { rows } = await pool.query(
-      `INSERT INTO expenses (category, description, amount_fils, vendor, event_id, spent_on, receipt_url, payment_method, recorded_by, line_items)
-       VALUES ($1,$2,$3,$4,$5,COALESCE($6, current_date),$7,$8,$9,$10::jsonb) RETURNING *`,
+      `INSERT INTO expenses (category, description, amount_fils, vendor, event_id, spent_on, receipt_url, payment_method, recorded_by, line_items, extra_charges)
+       VALUES ($1,$2,$3,$4,$5,COALESCE($6, current_date),$7,$8,$9,$10::jsonb,$11::jsonb) RETURNING *`,
       [
         d.category, d.description, d.amountFils, d.vendor ?? null, d.eventId ?? null,
         d.spentOn ?? null, d.receiptUrl ?? null, d.paymentMethod ?? null,
-        String((request as any).staff?.name ?? 'Staff'), JSON.stringify(items),
+        String((request as any).staff?.name ?? 'Staff'), JSON.stringify(items), JSON.stringify(cleanExpenseCharges(d.charges)),
       ],
     );
     return reply.status(201).send({ ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) });
@@ -2996,6 +3003,7 @@ const ITEMS_REQUIRED = {
       // leave the current receipt untouched.
       receiptUrl: z.string().url().nullable().optional(),
       lineItems: lineItemSchema.optional(),
+      charges: chargesSchema.optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -3021,10 +3029,12 @@ const ITEMS_REQUIRED = {
          spent_on = COALESCE($6, spent_on),
          payment_method = COALESCE($7, payment_method),
          receipt_url = CASE WHEN $8::boolean THEN $9::text ELSE receipt_url END,
-         line_items = COALESCE($10::jsonb, line_items)
+         line_items = COALESCE($10::jsonb, line_items),
+         extra_charges = COALESCE($11::jsonb, extra_charges)
        WHERE id = $1 RETURNING *`,
       [id, d.category ?? null, d.description ?? null, d.amountFils ?? null, d.vendor ?? null, d.spentOn ?? null, d.paymentMethod ?? null,
-       d.receiptUrl !== undefined, d.receiptUrl ?? null, items ? JSON.stringify(items) : null],
+       d.receiptUrl !== undefined, d.receiptUrl ?? null, items ? JSON.stringify(items) : null,
+       d.charges ? JSON.stringify(cleanExpenseCharges(d.charges)) : null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return { ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) };
@@ -3158,6 +3168,7 @@ const ITEMS_REQUIRED = {
       amountFils: z.number().int().positive().optional(),
       note: z.string().max(500).nullable().optional(),
       lineItems: lineItemSchema.optional(),
+      charges: chargesSchema.optional(),
     });
     const parsed = schema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
@@ -3169,7 +3180,7 @@ const ITEMS_REQUIRED = {
       return reply.status(400).send(ITEMS_REQUIRED);
     }
     const { approveBankTransaction } = await import('../domain/bankInbox.js');
-    const res = await approveBankTransaction(id, { ...parsed.data, lineItems: items }, actor);
+    const res = await approveBankTransaction(id, { ...parsed.data, lineItems: items, charges: cleanExpenseCharges(parsed.data.charges) }, actor);
     if (!res.ok) return reply.status(res.reason === 'not_found' ? 404 : 409).send({ error: res.reason });
     return { ok: true, expenseId: res.expenseId };
   });
