@@ -677,7 +677,7 @@ export async function listBankTransactions(status?: string): Promise<BankTxRow[]
  */
 export async function approveBankTransaction(
   id: string,
-  opts: { category?: string; vendor?: string | null; receiptUrl?: string | null; spentOn?: string | null; description?: string | null; paymentMethod?: string | null; amountFils?: number | null; note?: string | null; lineItems?: Array<{ name: string; qty: number; unitFils?: number | null }> },
+  opts: { category?: string; vendor?: string | null; receiptUrl?: string | null; spentOn?: string | null; description?: string | null; paymentMethod?: string | null; amountFils?: number | null; note?: string | null; lineItems?: Array<{ name: string; qty: number; unitFils?: number | null }>; charges?: { vatFils: number; deliveryFils: number; discountFils: number; otherFils: number } },
   actor: string,
 ): Promise<{ ok: boolean; reason?: string; expenseId?: string }> {
   // EX3: claim + post atomically. Without a lock, two concurrent approvals both
@@ -720,9 +720,9 @@ export async function approveBankTransaction(
 
     const note = (opts.note ?? '').toString().trim().slice(0, 500) || null;
     const exp = await db.query<{ id: string }>(
-      `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, receipt_url, payment_method, recorded_by, source, note, line_items)
-       VALUES ($1,$2,$3,$4,COALESCE($5::date, current_date),$6,$7,$8,'bank',$9,$10::jsonb) RETURNING id`,
-      [category, description, amountFils, vendor, spentOn, receiptUrl, paymentMethod, actor, note, JSON.stringify(opts.lineItems ?? [])],
+      `INSERT INTO expenses (category, description, amount_fils, vendor, spent_on, receipt_url, payment_method, recorded_by, source, note, line_items, extra_charges)
+       VALUES ($1,$2,$3,$4,COALESCE($5::date, current_date),$6,$7,$8,'bank',$9,$10::jsonb,$11::jsonb) RETURNING id`,
+      [category, description, amountFils, vendor, spentOn, receiptUrl, paymentMethod, actor, note, JSON.stringify(opts.lineItems ?? []), JSON.stringify(opts.charges ?? {})],
     );
     const expenseId = String(exp.rows[0].id);
     // If the amount was corrected at approval, reflect it on the bank row too.

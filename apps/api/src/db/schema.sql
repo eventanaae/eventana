@@ -1820,3 +1820,6 @@ CREATE INDEX IF NOT EXISTS google_reviews_status_idx ON google_reviews (status);
 -- item per row: [{name, qty, unitFils}]. Required for purchase accounts on new
 -- expenses (see expenseNeedsItems in @eventana/shared); old rows stay as they are.
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS line_items JSONB NOT NULL DEFAULT '[]';
+-- The rest of the receipt besides the items: {vatFils, deliveryFils, discountFils,
+-- otherFils}, so items + VAT + delivery + other − discount = the expense amount.
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS extra_charges JSONB NOT NULL DEFAULT '{}';

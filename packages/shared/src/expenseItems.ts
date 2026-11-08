@@ -34,3 +34,24 @@ export function cleanExpenseItems(raw: unknown): ExpenseItem[] {
   }
   return out;
 }
+
+/** What's on the receipt besides the items, so items + charges = the total. */
+export interface ExpenseCharges {
+  vatFils: number;
+  deliveryFils: number;
+  discountFils: number;
+  otherFils: number;
+}
+
+export function cleanExpenseCharges(raw: unknown): ExpenseCharges {
+  const n = (v: unknown) => { const x = Math.round(Number(v)); return Number.isFinite(x) && x > 0 ? Math.min(x, 1_000_000_000) : 0; };
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return { vatFils: n(r.vatFils), deliveryFils: n(r.deliveryFils), discountFils: n(r.discountFils), otherFils: n(r.otherFils) };
+}
+
+/** Items subtotal (priced items only) and the receipt total they add up to. */
+export function expenseItemsTotal(items: ExpenseItem[], charges: ExpenseCharges) {
+  const subtotalFils = items.reduce((s, i) => s + (i.unitFils ?? 0) * i.qty, 0);
+  const totalFils = subtotalFils + charges.vatFils + charges.deliveryFils + charges.otherFils - charges.discountFils;
+  return { subtotalFils, totalFils };
+}
