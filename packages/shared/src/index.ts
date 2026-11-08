@@ -5,3 +5,4 @@ export * from './catalogue.js';
 export * from './pricing.js';
 export * from './shop.js';
 export * from './refund.js';
+export * from './expenseItems.js';

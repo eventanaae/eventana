@@ -7,6 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
+import { expenseNeedsItems, cleanExpenseItems } from '@eventana/shared';
 import { formatAed, isCancelled, celebrationLabel, computeRefund, eventDateYMD, packageItemNames } from '@eventana/shared';
 import { refundOrderMoney } from '../domain/refund.js';
 import { config } from '../config.js';
@@ -2935,6 +2936,18 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+
+// Owner's rule (Nov 2026): purchase expenses list the items bought, one by one.
+const ITEMS_RULE_START = '2026-11-08';
+const lineItemSchema = z.array(z.object({
+  name: z.string().max(160),
+  qty: z.number().min(0).max(100000).optional(),
+  unitFils: z.number().int().min(0).nullable().optional(),
+})).max(200);
+const ITEMS_REQUIRED = {
+  error: 'items_required',
+  message: 'Add the items bought, one by one (name + quantity), before saving this expense.',
+};
   /** Record an expense. */
   app.post('/api/admin/expenses', async (request, reply) => {
     const schema = z.object({
@@ -2948,17 +2961,20 @@ export async function adminRoutes(app: FastifyInstance) {
       spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       receiptUrl: z.string().url().nullable().optional(),
       paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+      lineItems: lineItemSchema.optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     const d = parsed.data;
+    const items = cleanExpenseItems(d.lineItems);
+    if (expenseNeedsItems(d.category) && items.length === 0) return reply.status(400).send(ITEMS_REQUIRED);
     const { rows } = await pool.query(
-      `INSERT INTO expenses (category, description, amount_fils, vendor, event_id, spent_on, receipt_url, payment_method, recorded_by)
-       VALUES ($1,$2,$3,$4,$5,COALESCE($6, current_date),$7,$8,$9) RETURNING *`,
+      `INSERT INTO expenses (category, description, amount_fils, vendor, event_id, spent_on, receipt_url, payment_method, recorded_by, line_items)
+       VALUES ($1,$2,$3,$4,$5,COALESCE($6, current_date),$7,$8,$9,$10::jsonb) RETURNING *`,
       [
         d.category, d.description, d.amountFils, d.vendor ?? null, d.eventId ?? null,
         d.spentOn ?? null, d.receiptUrl ?? null, d.paymentMethod ?? null,
-        String((request as any).staff?.name ?? 'Staff'),
+        String((request as any).staff?.name ?? 'Staff'), JSON.stringify(items),
       ],
     );
     return reply.status(201).send({ ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) });
@@ -2979,10 +2995,23 @@ export async function adminRoutes(app: FastifyInstance) {
       // A receipt image URL, or null to remove the attached receipt. Absent =
       // leave the current receipt untouched.
       receiptUrl: z.string().url().nullable().optional(),
+      lineItems: lineItemSchema.optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     const d = parsed.data;
+    const items = d.lineItems !== undefined ? cleanExpenseItems(d.lineItems) : null;
+    // New-rule expenses (created from ITEMS_RULE_START) can't be saved without items;
+    // older history can be edited freely.
+    {
+      const cur = await pool.query(`SELECT category, line_items, created_at::date >= $2::date AS is_new FROM expenses WHERE id = $1`, [id, ITEMS_RULE_START]);
+      const row = cur.rows[0];
+      if (row?.is_new) {
+        const cat = d.category ?? row.category;
+        const finalItems = items ?? (Array.isArray(row.line_items) ? row.line_items : []);
+        if (expenseNeedsItems(cat) && finalItems.length === 0) return reply.status(400).send(ITEMS_REQUIRED);
+      }
+    }
     const { rows } = await pool.query(
       `UPDATE expenses SET
          category = COALESCE($2, category),
@@ -2991,10 +3020,11 @@ export async function adminRoutes(app: FastifyInstance) {
          vendor = COALESCE($5, vendor),
          spent_on = COALESCE($6, spent_on),
          payment_method = COALESCE($7, payment_method),
-         receipt_url = CASE WHEN $8::boolean THEN $9::text ELSE receipt_url END
+         receipt_url = CASE WHEN $8::boolean THEN $9::text ELSE receipt_url END,
+         line_items = COALESCE($10::jsonb, line_items)
        WHERE id = $1 RETURNING *`,
       [id, d.category ?? null, d.description ?? null, d.amountFils ?? null, d.vendor ?? null, d.spentOn ?? null, d.paymentMethod ?? null,
-       d.receiptUrl !== undefined, d.receiptUrl ?? null],
+       d.receiptUrl !== undefined, d.receiptUrl ?? null, items ? JSON.stringify(items) : null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });
     return { ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) };
@@ -3127,12 +3157,19 @@ export async function adminRoutes(app: FastifyInstance) {
       paymentMethod: z.enum(PAYMENT_METHODS).optional(),
       amountFils: z.number().int().positive().optional(),
       note: z.string().max(500).nullable().optional(),
+      lineItems: lineItemSchema.optional(),
     });
     const parsed = schema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     const actor = String((request as any).staff?.name ?? 'Staff');
+    const items = cleanExpenseItems(parsed.data.lineItems);
+    // Only an explicitly chosen purchase account needs items (fee/settlement rows
+    // approve with their automatic account, which is exempt).
+    if (parsed.data.category && expenseNeedsItems(parsed.data.category) && items.length === 0) {
+      return reply.status(400).send(ITEMS_REQUIRED);
+    }
     const { approveBankTransaction } = await import('../domain/bankInbox.js');
-    const res = await approveBankTransaction(id, parsed.data, actor);
+    const res = await approveBankTransaction(id, { ...parsed.data, lineItems: items }, actor);
     if (!res.ok) return reply.status(res.reason === 'not_found' ? 404 : 409).send({ error: res.reason });
     return { ok: true, expenseId: res.expenseId };
   });
