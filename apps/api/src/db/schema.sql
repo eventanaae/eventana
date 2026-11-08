@@ -1815,3 +1815,8 @@ CREATE TABLE IF NOT EXISTS google_reviews (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS google_reviews_status_idx ON google_reviews (status);
+
+-- Owner's rule (Nov 2026): every purchase expense lists what was bought, one
+-- item per row: [{name, qty, unitFils}]. Required for purchase accounts on new
+-- expenses (see expenseNeedsItems in @eventana/shared); old rows stay as they are.
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS line_items JSONB NOT NULL DEFAULT '[]';

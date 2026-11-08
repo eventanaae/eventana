@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { CELEBRATION_TYPES, packageItemNames, packageItemDetail } from '@eventana/shared';
+import { CELEBRATION_TYPES, packageItemNames, packageItemDetail, expenseNeedsItems, cleanExpenseItems } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, Panel, Spinner, fredoka, money } from '../ui';
 import { NewOrder } from './NewOrder';
@@ -590,6 +590,7 @@ function ExpensesTab({ role }: { role?: string }) {
         <DocRow key={e.id}
           title={prettyCat(e.category)}
           sub={`${fmtDate(e.spent_on)}${e.vendor ? ' · ' + e.vendor : ''}`}
+          badge={itemsSummary(e.line_items) ? <div style={{ fontSize: 11.5, color: C.ink, fontWeight: 600, marginTop: 2 }}>🛒 {itemsSummary(e.line_items)}</div> : undefined}
           amount={money(Number(e.amount_fils))}
           action={
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -655,6 +656,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   const [cat, setCat] = useState<Record<string, string>>({});
   const [vendor, setVendor] = useState<Record<string, string>>({});
   const [amt, setAmt] = useState<Record<string, string>>({}); // manual amount for rows captured at 0
+  const [items, setItems] = useState<Record<string, ItemRow[]>>({});
   const [err, setErr] = useState<string | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -703,9 +705,11 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
     const typed = parseAedFils(amt[r.id] ?? '');
     const amountFils = typed > 0 ? typed : Number(r.amount_fils);
     if (!(amountFils > 0)) { setErr('Please enter the amount before approving.'); return; }
+    const lineItems = itemsPayload(items[r.id] ?? []);
+    if (expenseNeedsItems(category) && lineItems.length === 0) { setErr('Add the items bought, one by one (name + quantity), before approving.'); return; }
     setBusy(r.id); setErr(null);
     try {
-      await api.bankTxApprove(r.id, { category, vendor: v, amountFils });
+      await api.bankTxApprove(r.id, { category, vendor: v, amountFils, lineItems });
       setRows((rs) => rs?.filter((x) => x.id !== r.id) ?? rs);
       onApproved();
     } catch (e: any) { setErr(e?.message || 'Could not approve — please try again.'); } finally { setBusy(null); }
@@ -781,6 +785,12 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
                 </select>
               </label>
             </div>
+            {(cat[r.id] ?? '') && (
+              <div style={{ marginTop: 10 }}>
+                <ItemsEditor rows={items[r.id] ?? [blankItem()]} setRows={(rs) => setItems((m) => ({ ...m, [r.id]: rs }))}
+                  required={expenseNeedsItems(cat[r.id])} amountFils={parseAedFils(amt[r.id] ?? '') || Number(r.amount_fils)} />
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 10 }}>
               <label style={{ fontSize: 12.5, fontWeight: 700, color: C.pinkDeep, cursor: 'pointer', border: `1px dashed ${C.pink}`, borderRadius: 9, padding: '7px 10px', background: C.pinkSoft }}>
@@ -805,6 +815,64 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
 }
 
 
+// ── Items bought (owner's rule, Nov 2026) ───────────────────────────────────
+// Every purchase expense lists what was bought, one item per row, under the
+// receipt — so the photo, the amount and the items are all clear.
+type ItemRow = { name: string; qty: string; price: string };
+const blankItem = (): ItemRow => ({ name: '', qty: '1', price: '' });
+const itemsFromExpense = (li: any): ItemRow[] => {
+  const arr = Array.isArray(li) ? li : [];
+  return arr.length
+    ? arr.map((x: any) => ({ name: String(x.name ?? ''), qty: String(x.qty ?? 1), price: x.unitFils ? String(Number(x.unitFils) / 100) : '' }))
+    : [blankItem()];
+};
+const itemsPayload = (rows: ItemRow[]) =>
+  cleanExpenseItems(rows.map((r) => ({ name: r.name, qty: Number(r.qty) || 1, unitFils: r.price.trim() ? parseAedFils(r.price) : null })));
+const itemsSummary = (li: any): string => {
+  const arr = Array.isArray(li) ? li : [];
+  if (!arr.length) return '';
+  const s = arr.slice(0, 4).map((x: any) => `${x.qty > 1 ? x.qty + '× ' : ''}${x.name}`).join(', ');
+  return arr.length > 4 ? `${s} +${arr.length - 4} more` : s;
+};
+
+function ItemsEditor({ rows, setRows, required, amountFils }: { rows: ItemRow[]; setRows: (r: ItemRow[]) => void; required: boolean; amountFils?: number }) {
+  const set = (i: number, k: keyof ItemRow, v: string) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const priced = rows.filter((r) => r.name.trim() && r.price.trim());
+  const named = rows.filter((r) => r.name.trim());
+  const totalFils = priced.reduce((s, r) => s + parseAedFils(r.price) * (Number(r.qty) || 1), 0);
+  const allPriced = named.length > 0 && priced.length === named.length;
+  const off = allPriced && amountFils && amountFils > 0 && Math.abs(totalFils - amountFils) > 100;
+  const cell: CSSProperties = { ...input, marginBottom: 0 };
+  return (
+    <div style={{ marginBottom: 12, border: `1px solid ${required ? C.pink : C.line}`, borderRadius: 12, padding: 10, background: required ? C.pinkSoft : '#fff' }}>
+      <div style={{ fontSize: 11.5, fontWeight: 800, color: required ? C.pinkDeep : C.muted, marginBottom: 6 }}>
+        🛒 Items bought {required ? '* (one by one)' : '(optional for this account)'}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 54px 78px 26px', gap: 6, fontSize: 10.5, fontWeight: 700, color: C.muted, marginBottom: 4 }}>
+        <span>Item</span><span>Qty</span><span>Price/each</span><span />
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 54px 78px 26px', gap: 6, marginBottom: 6 }}>
+          <input value={r.name} onChange={(e) => set(i, 'name', e.target.value)} placeholder="e.g. Pink balloons 12in" style={cell} maxLength={160} />
+          <input value={r.qty} onChange={(e) => set(i, 'qty', e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" style={cell} />
+          <input value={r.price} onChange={(e) => set(i, 'price', e.target.value)} inputMode="decimal" placeholder="opt." style={cell} />
+          <button type="button" aria-label="Remove item" onClick={() => setRows(rows.length > 1 ? rows.filter((_, j) => j !== i) : [blankItem()])}
+            style={{ border: 'none', background: 'none', color: C.muted, fontSize: 16, fontWeight: 800, cursor: 'pointer', padding: 0 }}>×</button>
+        </div>
+      ))}
+      <button type="button" onClick={() => setRows([...rows, blankItem()])}
+        style={{ border: `1px dashed ${C.pink}`, background: '#fff', color: C.pinkDeep, borderRadius: 9, padding: '6px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+        ＋ Add item
+      </button>
+      {priced.length > 0 && (
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: off ? C.red : C.muted2, marginTop: 6 }}>
+          Items total AED {money(totalFils)}{off ? ` — doesn't match the amount (AED ${money(amountFils!)})` : ''}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; onClose: () => void; onSaved: () => void }) {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [supplier, setSupplier] = useState('');
@@ -820,6 +888,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [vendorAcct, setVendorAcct] = useState<Record<string, string>>({});
+  const [items, setItems] = useState<ItemRow[]>([blankItem()]);
   useEffect(() => { api.suppliers().then((r) => setSuppliers(r.rows)).catch(() => setSuppliers([])); }, []);
   useEffect(() => { api.vendorAccounts().then((r) => setVendorAcct(r.map || {})).catch(() => setVendorAcct({})); }, []);
   // Pick a vendor and auto-fill its usual account (learned from history).
@@ -845,9 +914,11 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
     if (!supplier.trim()) { setErr('Vendor is required — pick or type a vendor.'); return; }
     const fils = parseAedFils(amount);
     if (fils <= 0) { setErr('Enter an amount.'); return; }
+    const lineItems = itemsPayload(items);
+    if (expenseNeedsItems(category) && lineItems.length === 0) { setErr('Add the items bought, one by one (name + quantity).'); return; }
     setBusy(true); setErr(null);
     try {
-      await api.addExpense({ category, description: description || prettyCat(category), amountFils: fils, vendor: supplier.trim(), spentOn, receiptUrl: receiptUrl || null, paymentMethod: 'cash' });
+      await api.addExpense({ category, description: description || prettyCat(category), amountFils: fils, vendor: supplier.trim(), spentOn, receiptUrl: receiptUrl || null, paymentMethod: 'cash', lineItems });
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
   };
@@ -919,6 +990,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
         </select>
       </Field>
       <Field label="Amount (AED) *"><input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} style={input} placeholder="0.00" /></Field>
+      <ItemsEditor rows={items} setRows={setItems} required={expenseNeedsItems(category)} amountFils={parseAedFils(amount)} />
       <Field label="Description / memo"><input value={description} onChange={(e) => setDescription(e.target.value)} style={input} /></Field>
       <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2 }}>Paid from: <b style={{ color: C.ink }}>Cash on hand</b></div>
     </Modal>
@@ -932,6 +1004,7 @@ function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose:
   const [description, setDescription] = useState<string>(expense.description || '');
   const [spentOn, setSpentOn] = useState<string>(String(expense.spent_on || '').slice(0, 10));
   const [receiptUrl, setReceiptUrl] = useState<string | null>(expense.receipt_url ?? null);
+  const [items, setItems] = useState<ItemRow[]>(itemsFromExpense(expense.line_items));
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -948,6 +1021,7 @@ function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose:
         description: description.trim() || undefined,
         spentOn: spentOn || undefined,
         receiptUrl, // null clears the receipt, a URL sets/replaces it
+        lineItems: itemsPayload(items),
       });
       onSaved();
     } catch (e: any) { setErr(e?.message || 'Could not save.'); } finally { setBusy(false); }
@@ -958,6 +1032,7 @@ function EditExpenseForm({ expense, onClose, onSaved }: { expense: any; onClose:
       <Field label="Supplier name"><input value={vendor} onChange={(e) => setVendor(e.target.value)} style={input} placeholder="e.g. Hot Pack Packaging" /></Field>
       <Field label="Date"><input type="date" value={spentOn} onChange={(e) => setSpentOn(e.target.value)} style={input} /></Field>
       <Field label="Amount (AED) *"><input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} style={input} placeholder="0.00" /></Field>
+      <ItemsEditor rows={items} setRows={setItems} required={expenseNeedsItems(category)} amountFils={parseAedFils(amount)} />
       <Field label="Description / memo"><input value={description} onChange={(e) => setDescription(e.target.value)} style={input} /></Field>
       <Field label="Receipt">
         <label style={{ ...input, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: receiptUrl ? C.green : C.muted, fontWeight: 700 }}>
