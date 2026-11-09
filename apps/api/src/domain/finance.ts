@@ -603,7 +603,10 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
   const { rows } = await pool.query(
     `SELECT o.id, o.kind, o.source, o.cart, o.quote, o.total_fils, o.customer_id
        FROM orders o
-      WHERE o.status IN ('paid','partially_refunded','refunded') AND o.kind IN ('booking','addon','shop')
+      -- Only fully 'paid' orders: a refunded / partly refunded order whose receipt
+      -- was deleted on purpose (before the receipt_deleted marker existed) must
+      -- never be re-posted as a fresh, un-refunded sale on an old day.
+      WHERE o.status = 'paid' AND o.kind IN ('booking','addon','shop')
         -- A 'converted' order is the synthetic booking minted FROM an existing
         -- upcoming receipt; that receipt already carries the money (with a NULL
         -- order_id), so backfilling would post the same sale a second time and
@@ -1186,11 +1189,17 @@ export async function deleteReceipt(id: number) {
                    AND e.cancelled_at IS NULL AND e.phase IS DISTINCT FROM 'Cancelled'
               )
               -- a duplicate receipt of the same booking may still be removed
+              -- (matched through the EVENT each receipt resolves to: its own
+              -- event_id, the event of its order, or its add-on order's event)
               AND NOT EXISTS (
                 SELECT 1 FROM finance_receipts r2
+                  JOIN events e2 ON (e2.id = r2.event_id
+                                     OR e2.order_id = r2.order_id
+                                     OR e2.id = (SELECT o2.event_id FROM orders o2 WHERE o2.id = r2.order_id))
                  WHERE r2.id <> r.id
-                   AND ((r.event_id IS NOT NULL AND r2.event_id = r.event_id)
-                        OR (r.order_id IS NOT NULL AND r2.order_id = r.order_id))
+                   AND (e2.id = r.event_id
+                        OR e2.order_id = r.order_id
+                        OR e2.id = (SELECT o.event_id FROM orders o WHERE o.id = r.order_id))
               ) AS live
          FROM finance_receipts r WHERE r.id = $1 FOR UPDATE`,
       [id],
@@ -1271,6 +1280,24 @@ async function recordReceiptEditMoney(receiptId: number, deltaFils: number, base
       left = 0;
     }
   }
+  // Never leave the booking day negative: if the receipt now holds less than its
+  // later slices, trim the newest slices by the excess.
+  const { rows: chk } = await pool.query<{ base: string }>(
+    `SELECT r.total_fils - COALESCE((SELECT SUM(amount_fils) FROM receipt_addon_money WHERE receipt_id = r.id),0) AS base
+       FROM finance_receipts r WHERE r.id = $1`, [receiptId],
+  );
+  let excess = -Number(chk[0]?.base ?? 0);
+  if (excess > 0) {
+    const { rows: sl } = await pool.query<{ id: string; amount_fils: string }>(
+      `SELECT id, amount_fils FROM receipt_addon_money WHERE receipt_id = $1 ORDER BY booked_on DESC, id DESC`, [receiptId],
+    );
+    for (const r of sl) {
+      if (excess <= 0) break;
+      const amt = Number(r.amount_fils);
+      if (amt <= excess) { await pool.query(`DELETE FROM receipt_addon_money WHERE id = $1`, [r.id]); excess -= amt; }
+      else { await pool.query(`UPDATE receipt_addon_money SET amount_fils = amount_fils - $2 WHERE id = $1`, [r.id, excess]); excess = 0; }
+    }
+  }
 }
 
 export async function updateReceipt(id: number, d: DocInput & { date?: string | null; paidWith?: string; commissionRep?: string | null }) {
@@ -1279,8 +1306,9 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   const touchComm = d.commissionRep !== undefined;
   // Remember the total before the edit: money ADDED to an older receipt counts on
   // the day of the edit (owner rule: every dirham on the day it entered the system).
-  const before = (await pool.query<{ total_fils: string; day: string | null; today: string }>(
-    `SELECT total_fils, to_char(COALESCE(booked_on, date),'YYYY-MM-DD') AS day,
+  const before = (await pool.query<{ total_fils: string; items: string; discount_fils: string; shipping_fils: string; day: string | null; today: string }>(
+    `SELECT total_fils, line_items::text AS items, discount_fils, shipping_fils,
+            to_char(COALESCE(booked_on, date),'YYYY-MM-DD') AS day,
             to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'YYYY-MM-DD') AS today
        FROM finance_receipts WHERE id = $1`, [id],
   )).rows[0];
@@ -1288,13 +1316,19 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
        event_for=$12, theme=$13, age=$14, event_time=$17, date_tbd=COALESCE($18, date_tbd), location_note=$19,
-       celebration_type=$20, booked_on=COALESCE($21::date, booked_on),
+       celebration_type=$20, booked_on=COALESCE($21::date, booked_on, date),
        commission_rep = CASE WHEN $16::boolean THEN $15 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
     [id, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null, d.addressNote ?? null, d.celebrationType ?? null, d.bookedOn ?? null],
   );
   const saved = rows[0];
-  if (saved && before) {
+  // Only a real change to what was sold (lines / discount / delivery) moves money
+  // to today — a name or date fix that merely re-totals an app receipt does not.
+  const soldChanged = !!before && (
+    JSON.stringify(saved?.line_items ?? null) !== JSON.stringify(JSON.parse(before.items ?? 'null'))
+    || Number(saved?.discount_fils) !== Number(before.discount_fils)
+    || Number(saved?.shipping_fils) !== Number(before.shipping_fils));
+  if (saved && before && (soldChanged || Number(saved.total_fils) < Number(before.total_fils))) {
     await recordReceiptEditMoney(id, Number(saved.total_fils) - Number(before.total_fils), before.day, before.today)
       .catch((e) => console.error('[finance] edit money day failed:', (e as Error).message));
   }
@@ -1425,6 +1459,11 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     void import('./staffing.js')
       .then(({ assignStaffForEvent }) => assignStaffForEvent(evId))
       .catch((e) => console.error('[finance] receipt-edit re-staff failed:', (e as Error).message));
+    // A TBD event gets no prep list; once it has a real date (or the date moves)
+    // build / re-date it so the party never arrives without one.
+    void import('./prep.js')
+      .then(({ generatePrepTasks }) => generatePrepTasks(evId))
+      .catch((e) => console.error('[finance] receipt-edit prep failed:', (e as Error).message));
   }
   // Keep the booking ORDER's total in step with its receipt for bookings made by
   // the team (manual / converted / imported) — the receipt is where staff add

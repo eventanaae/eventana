@@ -6,6 +6,8 @@ export type ExtraPayment = {
   orderId: string;
   orderToken: string | null;
   stripe: { clientSecret: string; publishableKey: string };
+  /** 'addon' | 'tip' — so a cancel before the first poll returns to the right place. */
+  kind?: 'addon' | 'tip';
 };
 
 /**
@@ -15,9 +17,9 @@ export type ExtraPayment = {
  * open checkout" every time. Hosted providers (Tabby/Tamara) still redirect.
  * Returns false when the response holds no way to pay.
  */
-export function openExtraPayment(res: any, onPay?: (p: ExtraPayment) => void): boolean {
+export function openExtraPayment(res: any, onPay?: (p: ExtraPayment) => void, kind?: 'addon' | 'tip'): boolean {
   if (res?.clientSecret && res?.publishableKey && res?.orderId && onPay) {
-    onPay({ orderId: res.orderId, orderToken: res.orderToken ?? null, stripe: { clientSecret: res.clientSecret, publishableKey: res.publishableKey } });
+    onPay({ kind, orderId: res.orderId, orderToken: res.orderToken ?? null, stripe: { clientSecret: res.clientSecret, publishableKey: res.publishableKey } });
     return true;
   }
   if (res?.checkoutUrl) { window.location.href = res.checkoutUrl; return true; }

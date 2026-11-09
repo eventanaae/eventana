@@ -221,7 +221,7 @@ export function MyEvent({
         extraServings: pending.servings,
         lang,
       });
-      if (!openExtraPayment(result, onPay)) setAddonError(t('me.errCheckout'));
+      if (!openExtraPayment(result, onPay, 'addon')) setAddonError(t('me.errCheckout'));
     } catch (e: any) {
       setAddonError(e?.body?.message ?? e?.message ?? t('me.errAddon'));
     } finally {
@@ -1052,7 +1052,7 @@ function RateAndTip({ event, onDone, t, lang, onPay }: { event: any; onDone: () 
     setTipError(null);
     try {
       const res = await api.tipCheckout(event.id, effectiveTip, memberId);
-      if (!openExtraPayment(res, onPay)) setTipError(t('me.errCheckout'));
+      if (!openExtraPayment(res, onPay, 'tip')) setTipError(t('me.errCheckout'));
     } catch (e: any) {
       setTipError(e?.body?.message ?? e?.message ?? t('me.errTip'));
     } finally {

@@ -121,7 +121,7 @@ export async function rescheduleEvent(args: {
     // Keep the event's receipt(s) in step: receipt `date` is the EVENT date and
     // event_time its start, so a reschedule must move them too (booked_on stays).
     await db.query(
-      `UPDATE finance_receipts SET date = $2, event_time = $3, date_tbd = false
+      `UPDATE finance_receipts SET booked_on = COALESCE(booked_on, date), date = $2, event_time = $3, date_tbd = false
         WHERE event_id = $1 OR order_id = (SELECT order_id FROM events WHERE id = $1)`,
       [args.eventId, args.newDate, args.newStartTime],
     );

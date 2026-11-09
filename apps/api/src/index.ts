@@ -375,7 +375,10 @@ async function main() {
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
     // One-time (app_kv marker) so a flag left set doesn't re-email on every boot.
-    if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true' && await claimOneShot('oneshot:RECON_SEND_NOW:true')) {
+    // Any value works and each NEW value sends once (e.g. RECON_SEND_NOW=2026-11-10b),
+    // so the on-demand snapshot can be requested again.
+    if (String(process.env.RECON_SEND_NOW ?? '').trim() !== '' && String(process.env.RECON_SEND_NOW).toLowerCase() !== 'false'
+        && await claimOneShot(`oneshot:RECON_SEND_NOW:${String(process.env.RECON_SEND_NOW).trim()}`)) {
       const now = new Date();
       const m = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const { sendReconReport } = await import('./domain/reconReport.js');

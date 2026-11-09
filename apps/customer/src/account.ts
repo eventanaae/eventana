@@ -58,6 +58,8 @@ export function scrubDraftPersonalData<T extends Record<string, unknown>>(d: T):
     locationTbd: false,
     eventFor: '',
     themeBrief: null,
+    // no brief left → it can't stay a (paid) custom theme with nothing to design from
+    customTheme: false,
     referenceImages: [],
     customization: { refImages: [], wantDraw: false },
   };

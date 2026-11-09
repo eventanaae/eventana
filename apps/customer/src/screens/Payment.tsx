@@ -17,6 +17,7 @@ export function PaymentReturn({
   orderId,
   token,
   embedUrl,
+  initialKind,
   stripe,
   onConfirmed,
   onShopDone,
@@ -41,6 +42,8 @@ export function PaymentReturn({
   /** How the provider sent the customer back, when it says so: a cancelled or
    *  failed Tabby/Tamara/Stripe attempt must not sit on an endless spinner. */
   returnState?: 'cancel' | 'failure' | null;
+  /** Known order kind before the first poll (an add-on / tip started in-app). */
+  initialKind?: string;
   lang?: Lang;
   t: TFn;
 }) {
@@ -51,7 +54,7 @@ export function PaymentReturn({
   // and every email) — never the raw internal event id.
   const [reference, setReference] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const [kind, setKind] = useState<string>('booking');
+  const [kind, setKind] = useState<string>(initialKind ?? 'booking');
   const [waited, setWaited] = useState(0);
   const done = useRef(false);
 
