@@ -36,6 +36,12 @@ function qaToken(): string {
   } catch { return ''; }
 }
 
+/** `?qa=<token>` suffix for checkout calls (Tabby certification only; empty for customers). */
+function qaQs(): string {
+  const t = qaToken();
+  return t ? `?qa=${encodeURIComponent(t)}` : '';
+}
+
 /**
  * Anonymous visit ping for the website funnel. Sends a random per-browser id
  * (kept in localStorage, hashed server-side) once per session. Never throws —
@@ -227,7 +233,7 @@ export const api = {
       orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
       clientSecret?: string | null; publishableKey?: string | null; eligible: boolean;
       totalFils: number; holdExpiresAt: string;
-    }>('/api/checkout', {
+    }>('/api/checkout' + qaQs(), {
       method: 'POST',
       body: JSON.stringify({
         cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest,
@@ -253,7 +259,7 @@ export const api = {
       orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
       clientSecret?: string | null; publishableKey?: string | null;
       eligible: boolean; totalFils: number; readyBy: string;
-    }>('/api/shop/checkout', {
+    }>('/api/shop/checkout' + qaQs(), {
       method: 'POST',
       body: JSON.stringify({ ...body, attribution: attributionPayload() }),
     }),
@@ -398,7 +404,7 @@ export const api = {
 
   addonCheckout: (eventId: string, body: unknown) =>
     request<{ orderId: string; checkoutUrl: string | null }>(
-      `/api/events/${eventId}/addons/checkout`,
+      `/api/events/${eventId}/addons/checkout` + qaQs(),
       { method: 'POST', body: JSON.stringify(body) },
     ),
 
@@ -470,7 +476,7 @@ export const api = {
 
   tipCheckout: (eventId: string, amountFils: number, memberId: string | null, fb?: string | null) =>
     request<{ orderId: string; checkoutUrl: string | null }>(
-      `/api/events/${eventId}/tip/checkout`,
+      `/api/events/${eventId}/tip/checkout` + qaQs(),
       // Pass the signed feedback token so an account-less customer can still tip.
       { method: 'POST', body: JSON.stringify({ amountFils, memberId, provider: 'stripe', t: fb ?? currentFb() ?? undefined }) },
     ),
