@@ -1110,7 +1110,39 @@ async function computeTotals(): Promise<AuditTotals> {
  * statement timeout) plus the context totals. Never throws for a single failing
  * check — that check comes back with `error` set.
  */
+/**
+ * Bookkeeping before the checks: a Tabby/Tamara payment marked paid but with no
+ * captured amount on record is asked about at the provider (read), and the amount
+ * the provider says it collected is written to payments.captured_fils. Changes no
+ * status and moves no money. Best-effort, at most 20 rows.
+ */
+export async function syncBnplCaptured(): Promise<number> {
+  let fixed = 0;
+  try {
+    const { rows } = await pool.query<{ id: string; provider: string; ppid: string }>(
+      `SELECT id, provider, provider_payment_id AS ppid FROM payments
+        WHERE provider IN ('tabby','tamara') AND status = 'paid' AND COALESCE(captured_fils,0) = 0
+          AND provider_payment_id IS NOT NULL AND updated_at < now() - interval '1 hour'
+        ORDER BY updated_at DESC LIMIT 20`);
+    if (!rows.length) return 0;
+    const { getProvider } = await import('../payments/index.js');
+    for (const r of rows) {
+      try {
+        const remote = await getProvider(r.provider).retrievePayment(r.ppid);
+        const cap = Number(remote.capturedFils) || 0;
+        if (cap > 0) {
+          await pool.query(`UPDATE payments SET captured_fils = $2, updated_at = now() WHERE id = $1 AND COALESCE(captured_fils,0) = 0`, [r.id, cap]);
+          fixed++;
+        }
+      } catch (e) { console.error(`[daily-audit] capture sync ${r.provider} ${r.id}:`, (e as Error).message); }
+    }
+  } catch (e) { console.error('[daily-audit] capture sync failed:', (e as Error).message); }
+  if (fixed) console.log(`[daily-audit] capture sync: recorded the provider's captured amount on ${fixed} payment(s)`);
+  return fixed;
+}
+
 export async function runDailyAudit(opts: { timeoutMs?: number; checks?: AuditCheck[] } = {}): Promise<AuditRun> {
+  if (!opts.checks) await syncBnplCaptured();
   const timeoutMs = opts.timeoutMs ?? 15_000;
   const checks = opts.checks ?? AUDIT_CHECKS;
   const ranAt = new Date(Date.now());
