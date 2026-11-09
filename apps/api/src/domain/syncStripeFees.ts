@@ -34,7 +34,11 @@ export async function syncStripeFees(): Promise<void> {
         const fee = Number(t.fee || 0);
         startingAfter = t.id;
         if (!fee) continue;
-        const iso = new Date(Number(t.created) * 1000).toISOString().slice(0, 10);
+        // Group by the DUBAI calendar month (UTC+4), matching curMonth below. With
+        // UTC months, a month was "finalized" (Dubai midnight = 20:00 UTC) and
+        // queued while its UTC month was still accruing; fees in those last 4h
+        // were added after the one-time (deduped) row was made, so never counted.
+        const iso = new Date(Number(t.created) * 1000 + 4 * 3_600_000).toISOString().slice(0, 10);
         const m = iso.slice(0, 7);
         feeByMonth[m] = (feeByMonth[m] || 0) + fee;
         if (!dateByMonth[m] || iso > dateByMonth[m]) dateByMonth[m] = iso;

@@ -1851,3 +1851,10 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS events_reopen_on_redate ON events;
 CREATE TRIGGER events_reopen_on_redate BEFORE UPDATE ON events
   FOR EACH ROW EXECUTE FUNCTION events_reopen_on_redate();
+
+-- Cross-feed duplicate flag on pending bank rows. Set at ingest when the same
+-- amount (±1%) already exists as another bank row / an expense within ±3 days,
+-- or when a debit matches a customer refund payout. A short description of the
+-- match (e.g. 'bank #123 (zoho, 2026-11-01)'); NULL = no match. Display only —
+-- nothing is auto-approved or auto-ignored because of it.
+ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS possible_dup_of TEXT;

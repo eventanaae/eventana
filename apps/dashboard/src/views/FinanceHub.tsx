@@ -771,6 +771,15 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
               <div style={{ flex: 1 }} />
               <div style={{ fontSize: 12.5, color: C.muted2, fontWeight: 700 }}>📅 {fmtDate(r.posted_on)}</div>
             </div>
+            {r.possible_dup_of && (
+              // Cross-feed duplicate / refund-payout flag set at ingest. Info only —
+              // nothing is auto-approved or auto-rejected; the approver decides.
+              <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 800, color: '#7a5a00', background: '#fff4c2', border: '1px solid #f2d36b', borderRadius: 9, padding: '6px 10px' }}>
+                {String(r.possible_dup_of).startsWith('customer refund')
+                  ? <>⚠️ This looks like a customer refund — don't approve as an expense <span style={{ fontWeight: 600 }}>({r.possible_dup_of})</span></>
+                  : <>⚠️ Possible duplicate of {r.possible_dup_of} — check it isn't already recorded before approving.</>}
+              </div>
+            )}
 
             <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
               <label style={{ display: 'grid', gap: 3 }}>

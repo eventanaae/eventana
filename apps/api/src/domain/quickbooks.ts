@@ -240,6 +240,13 @@ export async function syncExpenses(onProgress?: (msg: string) => void): Promise<
     for (const p of rows) {
       total++;
       const qbId = String(p.Id);
+      // A Purchase with Credit=true is a card refund/credit TO us (money in), not
+      // spend — never store it as an expense. Remove any copy an earlier sync
+      // stored before this check existed (browse-only QuickBooks row).
+      if (p.Credit === true) {
+        await pool.query(`DELETE FROM expenses WHERE source='quickbooks' AND qb_id = $1`, [qbId]).catch(() => {});
+        continue;
+      }
       const amountFils = Math.round(Number(p.TotalAmt ?? 0) * 100);
       const spentOn = p.TxnDate ?? null;
       const vendor: string | null = p.EntityRef?.name ?? null;
