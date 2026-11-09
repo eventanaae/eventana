@@ -638,6 +638,8 @@ async function main() {
     await dumpPhotoCheckFromEnv().catch((err) => console.error('[photochk] failed:', err));
     const { dumpRefundsCheckFromEnv } = await import('./db/dumpRefundsCheck.js');
     await dumpRefundsCheckFromEnv().catch((err) => console.error('[refundchk] failed:', err));
+    const { dumpMonthCheckFromEnv } = await import('./db/dumpMonthCheck.js');
+    await dumpMonthCheckFromEnv().catch((err) => console.error('[monthchk] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
