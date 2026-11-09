@@ -1823,3 +1823,30 @@ ALTER TABLE expenses ADD COLUMN IF NOT EXISTS line_items JSONB NOT NULL DEFAULT 
 -- The rest of the receipt besides the items: {vatFils, deliveryFils, discountFils,
 -- otherFils}, so items + VAT + delivery + other − discount = the expense amount.
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS extra_charges JSONB NOT NULL DEFAULT '{}';
+
+-- Root fix (owner, Nov 2026): an event marked "Event Completed" (by the auto-complete
+-- sweep on its old date) that is then moved to a later date / time, or set to
+-- "date not decided" (TBD), must come back to the live list instead of staying in
+-- "Past events". Done in the database so EVERY path that moves an event (receipt
+-- edit, reschedule, one-shots, future code) gets it — including a change made on
+-- the event day itself. Only fires when the date/time/TBD actually changes.
+CREATE OR REPLACE FUNCTION events_reopen_on_redate() RETURNS trigger AS $$
+BEGIN
+  IF NEW.phase = 'Event Completed' AND NEW.cancelled_at IS NULL
+     AND (NEW.event_date IS DISTINCT FROM OLD.event_date
+          OR NEW.date_tbd IS DISTINCT FROM OLD.date_tbd
+          OR NEW.start_time IS DISTINCT FROM OLD.start_time
+          OR NEW.base_end_time IS DISTINCT FROM OLD.base_end_time)
+     AND (COALESCE(NEW.date_tbd, false)
+          OR NEW.event_date > (now() AT TIME ZONE 'Asia/Dubai')::date
+          OR (NEW.base_end_time ~ '^[0-2][0-9]:[0-5][0-9]$'
+              AND ((NEW.event_date + NEW.base_end_time::time) AT TIME ZONE 'Asia/Dubai') > now()))
+  THEN
+    NEW.phase := 'Booking Confirmed';
+  END IF;
+  RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS events_reopen_on_redate ON events;
+CREATE TRIGGER events_reopen_on_redate BEFORE UPDATE ON events
+  FOR EACH ROW EXECUTE FUNCTION events_reopen_on_redate();

@@ -107,6 +107,27 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     )
     .catch(() => {});
 
+  // Safety net (owner, Nov 2026): an event can never be "Event Completed" while its
+  // date is TBD or still in the future (Dubai) — re-open any that slipped through
+  // (the events_reopen_on_redate trigger handles every date change; this catches
+  // anything else, e.g. a row edited by hand). Manual early completion on the
+  // event day itself is untouched (that date is today, not the future).
+  try {
+    const re = await pool.query<{ id: string }>(
+      `UPDATE events SET phase = 'Booking Confirmed'
+        WHERE phase = 'Event Completed' AND cancelled_at IS NULL
+          AND (COALESCE(date_tbd, false) OR event_date > (now() AT TIME ZONE 'Asia/Dubai')::date)
+        RETURNING id`,
+    );
+    if (re.rowCount) {
+      console.log(`[events] re-opened ${re.rowCount} event(s) marked completed with a future/TBD date: ${re.rows.map((r) => r.id).join(', ')}`);
+      const { reAlignPendingNotifications } = await import('./lifecycle.js');
+      for (const r of re.rows) await reAlignPendingNotifications(r.id).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[events] re-open sweep failed:', err);
+  }
+
   // Auto-complete events whose end time (in UAE) has passed. base_end_time
   // already reflects any extra hours the customer bought, so this respects a
   // longer party. Never touches cancelled or date-TBD (postponed) events. Non-fatal.
