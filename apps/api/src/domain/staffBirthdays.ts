@@ -45,7 +45,11 @@ export async function sendStaffBirthdayEmails(): Promise<{ sent: number }> {
   // Dubai year (UTC+4, no DST) so the once-per-year dedup key matches the Dubai
   // birthday-date check below — using the UTC year would flip at Dubai 04:00 on
   // 1 Jan and double-greet a 1-January birthday.
-  const year = new Date(Date.now() + 4 * 3_600_000).getUTCFullYear();
+  const dubaiNow = new Date(Date.now() + 4 * 3_600_000);
+  const year = dubaiNow.getUTCFullYear();
+  // Not at Dubai midnight: the greeting (incl. WhatsApp) goes out only within
+  // staff messaging hours, 10:00–23:00 Dubai. Later sweeps the same day send it.
+  if (dubaiNow.getUTCHours() < 10 || dubaiNow.getUTCHours() >= 23) return { sent: 0 };
   // Anyone with a birthday today who has an email OR a phone — so a member with
   // only a phone still gets their WhatsApp greeting.
   const { rows } = await pool.query<{ id: string; name: string; email: string | null; phone: string | null }>(

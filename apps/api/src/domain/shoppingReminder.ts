@@ -103,8 +103,8 @@ export async function sweepDriverShoppingList(): Promise<number> {
   );
   if (items.length === 0) return 0;
 
-  const drv = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND name ILIKE 'shan%' LIMIT 1`);
-  if (!drv.rows[0]) return 0;
+  const drv = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND access_level = 'driver' ORDER BY name`);
+  if (!drv.rows.length) return 0;
 
   // Group by supplier + location so each stop is one block.
   const groups = new Map<string, { supplier: string; location: string | null; lines: string[] }>();
@@ -120,9 +120,9 @@ export async function sweepDriverShoppingList(): Promise<number> {
     .join('\n\n');
   const headline = `🛒 Today's shopping run — ${items.length} item(s), sorted by shop & location:`;
 
-  await staffWhatsApp(headline, details, drv.rows[0].id);
+  for (const d of drv.rows) await staffWhatsApp(headline, details, d.id);
   await markSent('driver_shopping_list', { items: items.length });
-  console.log(`[driver-shopping] sent Shan the organised list (${items.length} item(s))`);
+  console.log(`[driver-shopping] sent ${drv.rows.length} driver(s) the organised list (${items.length} item(s))`);
   return 1;
 }
 

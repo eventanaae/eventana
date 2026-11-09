@@ -12,7 +12,7 @@
  * published email from the business's own website. Everything is review-gated —
  * nothing is emailed without the owner approving a campaign.
  *
- * Gated by CORP_COLLECT (default 'on'); a no-op without a Google key or when the
+ * Gated by CORP_COLLECT (default 'off' — set 'on' to enable); a no-op without a Google key or when the
  * Places API isn't enabled on the key (failed calls are logged, not fatal).
  */
 import { pool } from '../db/pool.js';
@@ -235,11 +235,13 @@ export async function collectCorporateLeads(opts?: { maxPagesPerQuery?: number; 
     await new Promise((r) => setTimeout(r, 150));
   }
 
-  // New rule: email is mandatory. Drop auto-collected businesses that can never
-  // be emailed — no website at all, or a site we already checked with no email.
+  // New rule: email is mandatory. Mark auto-collected businesses that can never
+  // be emailed — no website at all, or a site we already checked with no email —
+  // as 'no_email' instead of deleting them: a deleted row would be re-discovered
+  // (and re-billed) by the next Places run, since dedup is by stored place id.
   await pool.query(
-    `DELETE FROM corporate_leads
-      WHERE source = 'places' AND (email IS NULL OR email = '')
+    `UPDATE corporate_leads SET status = 'no_email', updated_at = now()
+      WHERE source = 'places' AND (email IS NULL OR email = '') AND status = 'new'
         AND ((website IS NULL OR website = '') OR procurement_checked = TRUE)`,
   ).catch(() => {});
 
@@ -262,9 +264,9 @@ export async function resetCorporateLeads(): Promise<number> {
  * enrichment runs every day. Gated by CORP_COLLECT + a Google key.
  */
 export async function sweepCorporateCollect(): Promise<number> {
-  // Collection only GROWS the company directory from Google — it never emails
-  // anyone — so it's on by default. Sending stays owner-approved (auto-send off).
-  if (String(process.env.CORP_COLLECT ?? 'on').toLowerCase() === 'off') return 0;
+  // Collection calls the PAID Google Places API, so it's opt-in: off unless
+  // CORP_COLLECT=on. Sending stays owner-approved (auto-send off).
+  if (String(process.env.CORP_COLLECT ?? 'off').toLowerCase() !== 'on') return 0;
   if (!config.googleMapsApiKey) return 0;
   // Once-per-day guard.
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_collect_at'`).catch(() => ({ rows: [] as { v: string }[] }));

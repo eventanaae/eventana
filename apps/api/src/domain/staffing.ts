@@ -563,6 +563,10 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     // slot that no longer exists (the owner removed that role) matches nothing, so
     // the pick is correctly dropped; a still-present slot keeps its person.
     for (const e of preservedEmp) {
+      // Don't re-pin someone who is now off (leave / weekly day off) or booked on
+      // another overlapping event (drivers may run overlapping deliveries).
+      if (unavailable.has(e.assignee_id)) continue;
+      if (e.role !== 'driver' && timeBusy.has(e.assignee_id)) continue;
       await db.query(
         `UPDATE event_staff SET status = 'assigned', assignee_id = $3, part_time_name = NULL
           WHERE event_id = $1 AND role = $2 AND slot = $4 AND is_leader = false
@@ -602,16 +606,29 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
   // The driver runs several deliveries a day, but two whose time windows OVERLAP
   // can't both be served — alert management (dashboard ops-alert + push) so they
   // can move a slot. Idempotent per event.
-  const driverAssign = assigned.find((a) => a.role === 'driver' && a.assignee?.id);
+  // Read the driver from the FINAL roster (event_staff) — in manual mode the
+  // planner leaves every slot empty and the owner's pick is re-applied after it,
+  // and a driver may also be a named part-timer.
+  const { rows: drvRows } = await pool.query<{ k: string; name: string }>(
+    `SELECT COALESCE(es.assignee_id::text, lower(es.part_time_name)) AS k,
+            COALESCE(tm.name, es.part_time_name) AS name
+       FROM event_staff es LEFT JOIN team_members tm ON tm.id = es.assignee_id
+      WHERE es.event_id = $1 AND es.role = 'driver' AND es.is_leader = false
+        AND (es.assignee_id IS NOT NULL OR es.part_time_name IS NOT NULL)
+      ORDER BY es.slot LIMIT 1`,
+    [eventId],
+  ).catch(() => ({ rows: [] as Array<{ k: string; name: string }> }));
+  const driverAssign = drvRows[0] ? { assignee: { key: drvRows[0].k, name: drvRows[0].name } } : null;
   if (driverAssign?.assignee) {
     const { rows: clash } = await pool.query<{ id: string; d: string; start_time: string; base_end_time: string }>(
       `SELECT e2.id, to_char(e2.event_date,'YYYY-MM-DD') AS d, e2.start_time, e2.base_end_time
          FROM events e1
          JOIN events e2 ON e2.event_date = e1.event_date AND e2.id <> e1.id
-         JOIN event_staff es2 ON es2.event_id = e2.id AND es2.role = 'driver' AND es2.assignee_id = $2
+         JOIN event_staff es2 ON es2.event_id = e2.id AND es2.role = 'driver'
+                             AND COALESCE(es2.assignee_id::text, lower(es2.part_time_name)) = $2
         WHERE e1.id = $1 AND e2.phase <> 'Cancelled' AND NOT COALESCE(e2.date_tbd, false)
           AND e1.start_time < e2.base_end_time AND e1.base_end_time > e2.start_time`,
-      [eventId, driverAssign.assignee.id],
+      [eventId, driverAssign.assignee.key],
     );
     if (clash.length) {
       const driverName = driverAssign.assignee.name;
@@ -695,17 +712,28 @@ export async function syncAllEventTeams(): Promise<{ synced: number }> {
   // in place when the event genuinely has crew (a real all-part-timer event still
   // gets its remote leader). This runs before the event_team sync so the prune
   // then correctly removes her.
-  await pool.query(
-    `DELETE FROM event_staff lead USING events e
-      WHERE lead.event_id = e.id AND lead.is_leader = true
-        AND e.event_date >= (now() AT TIME ZONE 'Asia/Dubai')::date
-        AND e.phase NOT IN ('Event Completed','Cancelled')
-        AND NOT EXISTS (
-          SELECT 1 FROM event_staff es
-           WHERE es.event_id = lead.event_id AND es.is_leader = false
-             AND (es.assignee_id IS NOT NULL OR es.part_time_name IS NOT NULL OR es.status = 'part_time_required')
-        )`,
-  ).catch(() => {});
+  // Leader rows carry no "auto vs owner-picked" marker (every one is written with
+  // source='Leader'), so this destructive cleanup must not run on every boot — it
+  // would strip a leader the owner deliberately kept. Run it ONCE (app_kv marker);
+  // a failed marker read is treated as "already ran".
+  const leaderCleanupDone = await pool
+    .query(`SELECT 1 FROM app_kv WHERE k = 'phantom_leader_cleanup_v1'`)
+    .then((r) => !!r.rowCount)
+    .catch(() => true);
+  if (!leaderCleanupDone) {
+    await pool.query(
+      `DELETE FROM event_staff lead USING events e
+        WHERE lead.event_id = e.id AND lead.is_leader = true
+          AND e.event_date >= (now() AT TIME ZONE 'Asia/Dubai')::date
+          AND e.phase NOT IN ('Event Completed','Cancelled')
+          AND NOT EXISTS (
+            SELECT 1 FROM event_staff es
+             WHERE es.event_id = lead.event_id AND es.is_leader = false
+               AND (es.assignee_id IS NOT NULL OR es.part_time_name IS NOT NULL OR es.status = 'part_time_required')
+          )`,
+    ).catch(() => {});
+    await pool.query(`INSERT INTO app_kv (k, v) VALUES ('phantom_leader_cleanup_v1', now()) ON CONFLICT (k) DO NOTHING`).catch(() => {});
+  }
   // Drop stale members that aren't on the real roster (only for staffed events).
   await pool.query(
     `DELETE FROM event_team et
@@ -953,6 +981,7 @@ export async function listInternalStaff(eventId?: string) {
     `SELECT DISTINCT es.assignee_id FROM event_staff es JOIN events e2 ON e2.id = es.event_id
       WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1
         AND to_char(e2.event_date,'YYYY-MM-DD') = $2 AND e2.phase <> 'Cancelled'
+        AND NOT COALESCE(e2.date_tbd, false)
         AND $3 < COALESCE(e2.base_end_time,'23:59') AND COALESCE($4::text,'23:59') > e2.start_time`,
     [eventId, ev.date, ev.start_time, ev.base_end_time],
   );

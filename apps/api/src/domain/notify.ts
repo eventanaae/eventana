@@ -1228,6 +1228,11 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
          ) drv ON true
         WHERE n.channel = 'driver' AND n.whatsapp_sent_at IS NULL AND n.cancelled_at IS NULL
           AND e.event_date >= current_date
+          -- Postponed (date TBD) events keep a placeholder date: only the
+          -- cancellation notice may go out for them.
+          AND (NOT COALESCE(e.date_tbd, false) OR n.template = 'driver_order_cancelled')
+          -- Staff WhatsApp only 10:00–23:00 Dubai; out-of-hours rows wait.
+          AND extract(hour from now() AT TIME ZONE 'Asia/Dubai') BETWEEN 10 AND 22
           AND (n.scheduled_for IS NULL OR n.scheduled_for <= now())
         ORDER BY n.scheduled_for NULLS FIRST
         LIMIT 100`,
@@ -1613,6 +1618,9 @@ export function renderInvoiceReminder(doc: {
  * channel is skipped until one exists — email goes out now.
  */
 export async function sendInvoiceBalanceReminders(): Promise<{ sent: number }> {
+  // Customer messages only 10:00–20:00 Dubai.
+  const dubaiHour = new Date(Date.now() + 4 * 3600 * 1000).getUTCHours();
+  if (dubaiHour < 10 || dubaiHour >= 20) return { sent: 0 };
   const { rows } = await pool.query(`
     SELECT i.id, i.number, i.customer_name, i.total_fils, i.amount_paid_fils, i.issue_date,
            i.line_items, i.pay_url, hc.email
@@ -1620,7 +1628,8 @@ export async function sendInvoiceBalanceReminders(): Promise<{ sent: number }> {
       LEFT JOIN historical_customers hc ON hc.id = i.customer_id
      WHERE i.remind_daily = TRUE
        AND i.total_fils > i.amount_paid_fils
-       AND (i.last_reminded_at IS NULL OR i.last_reminded_at < date_trunc('day', now()))
+       AND (i.last_reminded_at IS NULL
+            OR (i.last_reminded_at AT TIME ZONE 'Asia/Dubai')::date < (now() AT TIME ZONE 'Asia/Dubai')::date)
      LIMIT 50`);
   let sent = 0;
   for (const inv of rows as any[]) {
