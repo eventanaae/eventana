@@ -640,6 +640,8 @@ async function main() {
     await dumpRefundsCheckFromEnv().catch((err) => console.error('[refundchk] failed:', err));
     const { dumpMonthCheckFromEnv } = await import('./db/dumpMonthCheck.js');
     await dumpMonthCheckFromEnv().catch((err) => console.error('[monthchk] failed:', err));
+    const { reopenRedatedFromEnv } = await import('./db/reopenRedated.js');
+    await reopenRedatedFromEnv().catch((err) => console.error('[reopenfix] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));

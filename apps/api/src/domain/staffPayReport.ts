@@ -426,14 +426,16 @@ export async function sendStaffPayReport(monthStr: string): Promise<{ sent: numb
 }
 
 /**
- * On the 1st of each month, email the PREVIOUS month's part-timer/driver report
+ * On the 1st of each month (from 10:00 Dubai), email the PREVIOUS month's part-timer/driver report
  * to the owner + Marsha, exactly once (deduped by staff_pay_reports).
  */
 export async function sweepStaffPayReport(): Promise<void> {
   if (!emailEnabled()) return;
   try {
-    const now = new Date();
-    if (now.getUTCDate() !== 1) return;
+    // The 1st of the month from 10:00 Dubai time (owner, Nov 2026) — same slot as
+    // the monthly report, after the whole previous month (incl. the 30th/31st) is in.
+    const now = new Date(Date.now() + 4 * 3600 * 1000); // Dubai wall clock (UTC+4)
+    if (now.getUTCDate() !== 1 || now.getUTCHours() < 10) return;
     const prev = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
     const monthStr = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}`;
     const { rowCount } = await pool.query(
