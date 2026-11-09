@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { api, isQueued } from '../api';
 import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
+import { toAsciiDigits } from '../locale';
 
 const inp = (w: number | string): CSSProperties => ({
   width: w, boxSizing: 'border-box',
@@ -30,6 +31,10 @@ export function Inventory({ role }: { role?: string }) {
   const [nc, setNc] = useState({ name: '', category: 'plates', onHand: '', reorderLevel: '', perGuest: true, supplier: '' });
   const [nm, setNm] = useState({ item: '', quantity: '', supplier: '', location: '', photoUrl: '', assignTo: '' });
   const [report, setReport] = useState<{ code: string; name: string } | null>(null);
+  // In-flight guard for "Report" — a double tap filed (or queued offline) the
+  // same missing item twice.
+  const [missingBusy, setMissingBusy] = useState(false);
+  const missingBusyRef = useRef(false);
 
   const load = () => {
     // Guard the one loader that had neither a .catch nor a shape check: a reject
@@ -49,11 +54,16 @@ export function Inventory({ role }: { role?: string }) {
   if (!assets) return <Spinner />;
 
   const reportMissing = async () => {
-    if (!nm.item.trim()) return;
-    const r = await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, location: nm.location.trim() || undefined, photoUrl: nm.photoUrl || undefined, assignTo: nm.assignTo || undefined });
-    if (isQueued(r)) alert('No internet — the missing item is saved on this phone and will be sent automatically when you’re back online.');
-    setNm({ item: '', quantity: '', supplier: '', location: '', photoUrl: '', assignTo: '' });
-    load();
+    if (!nm.item.trim() || missingBusyRef.current) return;
+    missingBusyRef.current = true;
+    setMissingBusy(true);
+    try {
+      const r = await api.reportMissing({ item: nm.item.trim(), quantity: Number(nm.quantity) || 1, supplier: nm.supplier.trim() || undefined, location: nm.location.trim() || undefined, photoUrl: nm.photoUrl || undefined, assignTo: nm.assignTo || undefined });
+      if (isQueued(r)) alert('No internet — the missing item is saved on this phone and will be sent automatically when you’re back online.');
+      setNm({ item: '', quantity: '', supplier: '', location: '', photoUrl: '', assignTo: '' });
+      load();
+    } catch { /* the API error handler already shows a toast; keep the form */ }
+    finally { missingBusyRef.current = false; setMissingBusy(false); }
   };
   const addConsumable = async () => {
     if (!nc.name.trim()) return;
@@ -84,7 +94,7 @@ export function Inventory({ role }: { role?: string }) {
           </datalist>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <input placeholder="What's missing?" value={nm.item} onChange={(e) => setNm({ ...nm, item: e.target.value })} style={inp('min(220px,55vw)')} />
-            <input placeholder="Qty" value={nm.quantity} onChange={(e) => setNm({ ...nm, quantity: e.target.value.replace(/\D/g, '') })} style={inp(64)} />
+            <input placeholder="Qty" value={nm.quantity} onChange={(e) => setNm({ ...nm, quantity: toAsciiDigits(e.target.value).replace(/\D/g, '') })} style={inp(64)} />
           </div>
           {/* Supplier + location on their own clear row so they're not missed —
               supplier is a searchable dropdown of who we buy from most. */}
@@ -102,7 +112,7 @@ export function Inventory({ role }: { role?: string }) {
                 {crew.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             )}
-            <Button onClick={reportMissing} disabled={!nm.item.trim()}>Report</Button>
+            <Button onClick={reportMissing} disabled={!nm.item.trim() || missingBusy}>{missingBusy ? 'Sending…' : 'Report'}</Button>
           </div>
         </div>
       </div>
@@ -312,14 +322,19 @@ function ReportModal({ target, onClose, onDone }: { target: { code: string; name
   const [kind, setKind] = useState<'broken' | 'damaged' | 'maintenance' | 'other'>('broken');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  // A ref, not just state: two taps in the same frame both saw busy=false and
+  // filed the issue twice.
+  const busyRef = useRef(false);
   const submit = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const r = await api.reportAsset(target.code, kind, note.trim() || undefined);
       if (isQueued(r)) alert('No internet — the report is saved on this phone and will be sent automatically when you’re back online.');
       onDone();
     }
-    catch { setBusy(false); }
+    catch { busyRef.current = false; setBusy(false); }
   };
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(40,20,35,.4)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18 }}>

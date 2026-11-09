@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { packageItemDetail } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
+import { toAsciiDigits } from '../locale';
 
 const input: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', border: `1px solid ${C.line}`, borderRadius: 10,
@@ -13,11 +14,7 @@ const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing:
  *  null when it isn't a valid price. Prevents a typo/blank from silently saving
  *  a package or service as AED 0 (free) — these go live to customers at once. */
 const parsePriceAed = (s: string): number | null => {
-  const ascii = String(s ?? '')
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-    .replace(/٫/g, '.')
-    .replace(/[,\s٬]/g, '');
+  const ascii = toAsciiDigits(s).replace(/[,\s]/g, '');
   const n = Number(ascii);
   return Number.isFinite(n) && n > 0 ? n : null;
 };

@@ -187,6 +187,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getStaffToken();
   const cacheable = idempotent && !!token && !isAuthPath(path);
   const queueable = !idempotent && !!token && isQueueable(method, path);
+  // Stamp a queueable JSON action with a one-off id so the server can drop a
+  // replay of a send that did reach it (answer lost on a bad connection).
+  if (queueable && typeof init.body === 'string') {
+    try {
+      const parsed = JSON.parse(init.body);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && !parsed._cid) {
+        const cid = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+          ? crypto.randomUUID()
+          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+        init = { ...init, body: JSON.stringify({ ...parsed, _cid: cid }) };
+      }
+    } catch { /* not JSON — leave as is */ }
+  }
 
   // Offline fallbacks: a GET serves this phone's saved copy; a queueable action
   // is saved to the outbox and sent later. Anything else fails with a clear reason.

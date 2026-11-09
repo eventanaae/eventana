@@ -327,6 +327,29 @@ export async function adminRoutes(app: FastifyInstance) {
     }
   });
 
+  // Offline outbox de-duplication: the dashboard stamps each queueable action
+  // with a one-off `_cid`. If the first send reached us but the phone lost the
+  // answer, the replay carries the same `_cid` and is answered without running
+  // twice. A failed attempt (4xx/5xx) releases the id so a real retry still works.
+  app.addHook('preHandler', async (request, reply) => {
+    const body = request.body as Record<string, unknown> | null | undefined;
+    if (request.method === 'GET' || !body || typeof body !== 'object' || Array.isArray(body)) return;
+    const cid = body._cid;
+    if (cid === undefined) return;
+    delete body._cid;
+    if (typeof cid !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(cid)) return;
+    try {
+      const ins = await pool.query(`INSERT INTO app_kv (k) VALUES ($1) ON CONFLICT DO NOTHING RETURNING k`, ['cid:' + cid]);
+      if (!ins.rows[0]) return reply.status(200).send({ ok: true, duplicate: true });
+      (request as any).outboxCid = 'cid:' + cid;
+    } catch { /* never block a real action on the dedupe store */ }
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    const k = (request as any).outboxCid as string | undefined;
+    if (k && reply.statusCode >= 400) await pool.query(`DELETE FROM app_kv WHERE k = $1`, [k]).catch(() => {});
+  });
+
+
   /** The signed-in staff member and their access level. */
   app.get('/api/admin/me', async (request) => {
     return (request as any).staff ?? { name: 'Staff', role: 'employee' };
@@ -3702,7 +3725,12 @@ const ITEMS_REQUIRED = {
     };
   });
 
-  app.get('/api/admin/finance/invoices', async () => finance.listInvoices());
+  app.get('/api/admin/finance/invoices', async (request) => {
+    const r = await finance.listInvoices();
+    // Invoice income totals are the owner's; managers still see each invoice.
+    if ((request as any).staff?.role === 'owner') return r;
+    return { ...r, paidFils: null, paidDisplay: null, unpaidFils: null, unpaidDisplay: null };
+  });
   app.post('/api/admin/finance/invoices', async (request, reply) => {
     const schema = docSchema.extend({ dueDate: z.string().nullable().optional(), issueDate: z.string().nullable().optional(), status: z.enum(['draft', 'sent']).optional(), commissionRep: z.string().nullable().optional() });
     const p = schema.safeParse(request.body);
@@ -6315,7 +6343,7 @@ const ITEMS_REQUIRED = {
         adsTodayAed: adsToday > 0 ? formatAed(adsToday) : null,
         adsMonthAed: formatAed(adsMonth),
         awaitingCount: Number(awaiting.rows[0].n),
-        awaitingAed: formatAed(Number(awaiting.rows[0].v)),
+        awaitingAed: staff.role === 'owner' ? formatAed(Number(awaiting.rows[0].v)) : null,
       },
       birthdays: bdays.rows.map((r) => r.name),
       alerts: [],

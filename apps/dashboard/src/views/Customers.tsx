@@ -94,6 +94,7 @@ function CustomerDrawer({ id, onClose, onSaved }: { id: number; onClose: () => v
   const [data, setData] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [busy, setBusy] = useState(false);
+  const savingRef = useRef(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,6 +102,8 @@ function CustomerDrawer({ id, onClose, onSaved }: { id: number; onClose: () => v
   }, [id]);
 
   const save = async () => {
+    if (savingRef.current) return; // a double tap must not save twice
+    savingRef.current = true;
     setBusy(true); setMsg(null);
     try {
       await api.updateCustomer(id, form);
@@ -111,7 +114,7 @@ function CustomerDrawer({ id, onClose, onSaved }: { id: number; onClose: () => v
       setMsg('Saved ✓');
       onSaved();
       setTimeout(() => setMsg(null), 1500);
-    } catch (e: any) { setMsg(e?.message ?? 'Could not save'); } finally { setBusy(false); }
+    } catch (e: any) { setMsg(e?.message ?? 'Could not save'); } finally { savingRef.current = false; setBusy(false); }
   };
 
   return (

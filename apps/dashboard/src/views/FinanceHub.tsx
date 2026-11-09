@@ -4,17 +4,12 @@ import { CELEBRATION_TYPES, packageItemNames, packageItemDetail, expenseNeedsIte
 import { api } from '../api';
 import { Badge, Button, C, Panel, Spinner, fredoka, money } from '../ui';
 import { NewOrder } from './NewOrder';
+import { dubaiToday, toAsciiDigits } from '../locale';
 
 /** Parse a user-typed money string into fils, tolerating Arabic-Indic digits
  *  (٠-٩ / ۰-۹) and the Arabic decimal/thousands marks. Our team types on an
  *  Arabic keyboard, and a plain Number() cast turned "٤٠٫٦٠" into NaN — so a
  *  manual expense (and edited prices / discounts) silently refused to save. */
-const toAsciiDigits = (s: string): string =>
-  String(s ?? '')
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-    .replace(/٫/g, '.')
-    .replace(/٬/g, '');
 const parseAedFils = (s: string): number => {
   const n = Number(toAsciiDigits(s).replace(/[,\s]/g, ''));
   return Number.isFinite(n) ? Math.round(n * 100) : 0;
@@ -255,9 +250,12 @@ function InvoicesList({ isOwner }: { isOwner?: boolean }) {
       title="Invoices"
       action={<Button onClick={() => setCreating(true)}>+ New invoice</Button>}
     >
+      {/* Invoice income totals are OWNER-only — managers must not see company income. */}
+      {isOwner && (data.paidDisplay != null || data.unpaidDisplay != null) && (
       <div style={{ fontSize: 12.5, fontWeight: 700, color: C.muted2, marginBottom: 12 }}>
         Paid <b style={{ color: C.green }}>AED {data.paidDisplay ?? '0'}</b> · Unpaid <b style={{ color: C.red }}>AED {data.unpaidDisplay ?? '0'}</b>
       </div>
+      )}
       {(data.invoices ?? []).length === 0 && <Empty>No invoices yet. Create one to bill a customer.</Empty>}
       {(data.invoices ?? []).map((inv: any) => (
         <DocRow key={inv.id} onClick={() => setSel(inv)}
@@ -283,7 +281,7 @@ export function AddonFlow({ onClose, initialEventId }: { onClose: () => void; in
   const [events, setEvents] = useState<any[] | null>(initialEventId ? [] : null);
   useEffect(() => {
     if (initialEventId) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dubaiToday(); // Dubai date, not UTC
     api.events()
       .then((list: any[]) => setEvents(
         (list || [])
@@ -937,7 +935,7 @@ function ExpenseForm({ categories, onClose, onSaved }: { categories: string[]; o
   const [category, setCategory] = useState(categories[0] ?? 'other');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [spentOn, setSpentOn] = useState(new Date().toISOString().slice(0, 10));
+  const [spentOn, setSpentOn] = useState(dubaiToday());
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1393,7 +1391,9 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
   onDone: () => void;
 }) {
   const [category, setCategory] = useState<'customer_cancellation' | 'missing_item' | 'quality_issue' | 'other'>('customer_cancellation');
-  const [item, setItem] = useState('');
+  // The picked line's INDEX in `items` (as a string; '' = none). Matching by
+  // name picked the wrong line when two lines share a name (e.g. two "Extra hour").
+  const [itemIdx, setItemIdx] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [cancelEvent, setCancelEvent] = useState(false);
@@ -1403,11 +1403,14 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
 
   const needsItem = category === 'customer_cancellation' || category === 'missing_item';
   const items = (lineItems ?? []).filter((l: any) => Number(l.amountFils) > 0);
+  const picked = itemIdx === '' ? null : items[Number(itemIdx)] ?? null;
+  const item = picked ? String(picked.name ?? '') : '';
 
   const submit = async () => {
+    if (busy) return;
     const amt = Number(amount);
-    if (!amt) return;
-    if (needsItem && !item) return;
+    if (!amt || !Number.isFinite(amt)) return;
+    if (needsItem && !picked) return;
     // A clear confirmation BEFORE anything happens — amount, item and reason —
     // so a stray tap can't quietly refund a customer, and a reminder that the
     // money is always returned by hand. Mirrors Events.tsx exactly.
@@ -1469,7 +1472,7 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
             {/* 1) What happened — this drives everything below. */}
             <select
               value={category}
-              onChange={(e) => { setCategory(e.target.value as any); setItem(''); setAmount(''); }}
+              onChange={(e) => { setCategory(e.target.value as any); setItemIdx(''); setAmount(''); }}
               style={input}
             >
               <option value="customer_cancellation">Customer cancelled an item → remove it</option>
@@ -1481,18 +1484,18 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
             {needsItem ? (
               // Remove a specific item — pick it, the amount fills automatically.
               <select
-                value={item}
+                value={itemIdx}
                 onChange={(e) => {
-                  const label = e.target.value;
-                  setItem(label);
-                  const li = items.find((l: any) => String(l.name) === label);
+                  const idx = e.target.value;
+                  setItemIdx(idx);
+                  const li = idx === '' ? null : items[Number(idx)];
                   setAmount(li ? String((Number(li.amountFils) || 0) / 100) : '');
                 }}
                 style={input}
               >
                 <option value="">Choose the item to remove…</option>
                 {items.map((l: any, i: number) => (
-                  <option key={i} value={String(l.name)}>
+                  <option key={i} value={String(i)}>
                     {l.name} — AED {(Number(l.amountFils) / 100).toLocaleString()}
                   </option>
                 ))}
@@ -1510,7 +1513,7 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
               />
             )}
 
-            {item && needsItem && (
+            {picked && needsItem && (
               <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
                 Removing <b>{item}</b> — AED {Number(amount || 0).toLocaleString()} back to the customer.
               </div>
@@ -1528,7 +1531,7 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
             </label>
             <Button
               tone="danger"
-              disabled={busy || !amount || (needsItem && !item)}
+              disabled={busy || !amount || (needsItem && !picked)}
               onClick={submit}
             >
               {busy ? '…' : '↩ Refund'}
@@ -1595,7 +1598,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
     discount: doc.discount_fils ? String(doc.discount_fils / 100) : '',
     shipping: doc.shipping_fils ? String(doc.shipping_fils / 100) : '',
     dueDate: doc.due_date ? String(doc.due_date).slice(0, 10) : '',
-    date: doc.date ? String(doc.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
+    date: doc.date ? String(doc.date).slice(0, 10) : dubaiToday(),
     message: doc.message ?? '',
     eventFor: doc.event_for ?? '',
     age: doc.age ?? '',

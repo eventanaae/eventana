@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type PromoCode } from '../api';
 import { Button, C, Panel, Spinner } from '../ui';
+import { dubaiToday } from '../locale';
 
 const input: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', border: `1px solid ${C.line}`, borderRadius: 10,
@@ -166,7 +167,7 @@ function CodeCreator({ onClose, onCreated }: { onClose: () => void; onCreated: (
           </div>
           <div style={{ flex: 1 }}>
             <label style={lbl}>Expires on (optional)</label>
-            <input style={input} type="date" value={expiresOn} min={new Date().toISOString().slice(0, 10)}
+            <input style={input} type="date" value={expiresOn} min={dubaiToday()}
               onChange={(e) => setExpiresOn(e.target.value)} />
           </div>
         </div>
