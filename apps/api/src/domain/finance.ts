@@ -1236,10 +1236,54 @@ export async function deleteReceipt(id: number) {
   return { deleted: true };
 }
 
+/**
+ * Owner rule: an increase made by editing an older receipt (e.g. an 80 AED cake
+ * stand added a week later) is money that entered on the EDIT day. It is kept as
+ * an 'edit:<receipt>:<day>' slice in receipt_addon_money (the receipt_money_by_day
+ * view puts it on that day; the receipt total is unchanged). A decrease first
+ * takes back the latest edit slices, then comes off the booking day.
+ */
+async function recordReceiptEditMoney(receiptId: number, deltaFils: number, baseDay: string | null, today: string): Promise<void> {
+  if (!deltaFils) return;
+  if (deltaFils > 0) {
+    if (!baseDay || today <= baseDay) return; // same day as the booking: nothing moves
+    await pool.query(
+      `INSERT INTO receipt_addon_money (receipt_id, order_id, booked_on, amount_fils)
+       VALUES ($1, $2, $3::date, $4)
+       ON CONFLICT (order_id) DO UPDATE SET amount_fils = receipt_addon_money.amount_fils + EXCLUDED.amount_fils`,
+      [receiptId, `edit:${receiptId}:${today}`, today, deltaFils],
+    );
+    return;
+  }
+  let left = -deltaFils;
+  const { rows } = await pool.query<{ id: string; amount_fils: string }>(
+    `SELECT id, amount_fils FROM receipt_addon_money
+      WHERE receipt_id = $1 AND order_id LIKE 'edit:%' ORDER BY booked_on DESC, id DESC`, [receiptId],
+  );
+  for (const r of rows) {
+    if (left <= 0) break;
+    const amt = Number(r.amount_fils);
+    if (amt <= left) {
+      await pool.query(`DELETE FROM receipt_addon_money WHERE id = $1`, [r.id]);
+      left -= amt;
+    } else {
+      await pool.query(`UPDATE receipt_addon_money SET amount_fils = amount_fils - $2 WHERE id = $1`, [r.id, left]);
+      left = 0;
+    }
+  }
+}
+
 export async function updateReceipt(id: number, d: DocInput & { date?: string | null; paidWith?: string; commissionRep?: string | null }) {
   const { subtotal, total } = computeTotals(d.items, d.discountFils ?? 0, d.shippingFils ?? 0);
   // Commission approval is owner-only — see updateInvoice. undefined = leave as is.
   const touchComm = d.commissionRep !== undefined;
+  // Remember the total before the edit: money ADDED to an older receipt counts on
+  // the day of the edit (owner rule: every dirham on the day it entered the system).
+  const before = (await pool.query<{ total_fils: string; day: string | null; today: string }>(
+    `SELECT total_fils, to_char(COALESCE(booked_on, date),'YYYY-MM-DD') AS day,
+            to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'YYYY-MM-DD') AS today
+       FROM finance_receipts WHERE id = $1`, [id],
+  )).rows[0];
   const { rows } = await pool.query(
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
@@ -1250,6 +1294,10 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     [id, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null, d.addressNote ?? null, d.celebrationType ?? null, d.bookedOn ?? null],
   );
   const saved = rows[0];
+  if (saved && before) {
+    await recordReceiptEditMoney(id, Number(saved.total_fils) - Number(before.total_fils), before.day, before.today)
+      .catch((e) => console.error('[finance] edit money day failed:', (e as Error).message));
+  }
   if (saved && d.date) {
     if (saved.event_id) {
       // The receipt was converted to an operational Event — keep the calendar
