@@ -81,6 +81,7 @@ async function sendOne(sub: Sub, msg: object): Promise<number> {
   const body = encrypt(Buffer.from(JSON.stringify(msg)), fromB64url(sub.p256dh), fromB64url(sub.auth));
   const audience = new URL(sub.endpoint).origin;
   const res = await fetch(sub.endpoint, {
+    signal: AbortSignal.timeout(15000),
     method: 'POST',
     headers: {
       TTL: '86400',
@@ -98,8 +99,8 @@ export interface PushMessage { title: string; body: string; url?: string; tag?: 
 /**
  * Deliver a browser push to a staff member's devices (or, with no ownerId, every
  * staff subscription). Best-effort; prunes subscriptions the push service has
- * dropped (404/410) or that the service rejects on VAPID auth (401/403 — a
- * mis-set or rotated key). Never throws.
+ * dropped (404/410) only; a VAPID auth rejection (401/403) is logged, not pruned.
+ * Never throws.
  */
 export async function sendWebPush(ownerType: 'staff' | 'customer', ownerId: string | null, msg: PushMessage): Promise<void> {
   if (!webPushEnabled()) return;
@@ -112,11 +113,10 @@ export async function sendWebPush(ownerType: 'staff' | 'customer', ownerId: stri
       try {
         const status = await sendOne(s, msg);
         if (status === 401 || status === 403) {
-          // VAPID auth rejected — usually a mis-set or rotated VAPID key. The
-          // subscription is bound to the old key and can never succeed again, so
-          // prune it; log loudly so a misconfigured key is visible, not silent.
-          console.error(`[webpush] VAPID auth rejected (${status}) for ${new URL(s.endpoint).origin} — check VAPID_PUBLIC_KEY/PRIVATE_KEY; pruning subscription`);
-          stale.push(s.endpoint);
+          // VAPID auth rejected — usually a mis-set VAPID key on OUR side. Pruning
+          // here would wipe every subscription on a config slip, so keep it and
+          // log loudly so the misconfigured key is visible, not silent.
+          console.error(`[webpush] VAPID auth rejected (${status}) for ${new URL(s.endpoint).origin} — check VAPID_PUBLIC_KEY/PRIVATE_KEY; subscription kept`);
         } else if (status === 404 || status === 410) {
           stale.push(s.endpoint); // subscription gone — the browser dropped it
         } else if (status >= 400) {

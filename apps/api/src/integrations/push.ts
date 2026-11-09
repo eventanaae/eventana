@@ -51,6 +51,7 @@ async function accessToken(sa: ServiceAccount): Promise<string> {
   signer.end();
   const signature = signer.sign(sa.private_key).toString('base64url');
   const res = await fetch(TOKEN_URL, {
+    signal: AbortSignal.timeout(15000),
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -82,14 +83,22 @@ async function sendToTokens(
   for (const t of tokens) {
     try {
       const res = await fetch(url, {
+        signal: AbortSignal.timeout(15000),
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
         body: JSON.stringify({
           message: { token: t, notification: { title: msg.title, body: msg.body }, data: msg.data ?? {} },
         }),
       });
-      // A token FCM no longer knows is dead — prune it.
-      if (res.status === 404 || res.status === 400) stale.push(t);
+      // A token FCM no longer knows is dead — prune it. Only on a TOKEN-specific
+      // error: a 400 can also be a bad payload/project config (every token would
+      // be wiped), so require UNREGISTERED / INVALID_ARGUMENT about the token.
+      if (res.status === 404) stale.push(t);
+      else if (res.status === 400) {
+        const errText = await res.text().catch(() => '');
+        if (/UNREGISTERED/.test(errText) || (/INVALID_ARGUMENT/.test(errText) && /registration token|message\.token|"token"/i.test(errText))) stale.push(t);
+        else console.error(`[push] FCM 400 (token kept): ${errText.slice(0, 200)}`);
+      }
     } catch {
       /* transient — leave the token, try next time */
     }
