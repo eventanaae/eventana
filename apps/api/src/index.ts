@@ -644,6 +644,8 @@ async function main() {
     await reopenRedatedFromEnv().catch((err) => console.error('[reopenfix] failed:', err));
     const { dumpBookedDayFromEnv } = await import('./db/dumpBookedDay.js');
     await dumpBookedDayFromEnv().catch((err) => console.error('[bookedday] failed:', err));
+    const { dumpBackfillTraceFromEnv } = await import('./db/dumpBackfillTrace.js');
+    await dumpBackfillTraceFromEnv().catch((err) => console.error('[bftrace] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
