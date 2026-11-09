@@ -412,7 +412,10 @@ export function Build({ catalogue, draft, update, quote, go, t, lang }: ScreenPr
                           detail.id === 'glamdolls'
                             ? Math.max(1, draft.glamDolls.length)
                             : detail.pricing.kind === 'per_child'
-                              ? draft.childrenCount
+                              // Never below the activity minimum (20) — a smaller
+                              // head count is still billed at the minimum, and a
+                              // lower quantity makes the cart unbookable.
+                              ? Math.max(draft.childrenCount, detail.pricing.minChildren ?? 1)
                               : (detail.pricing.minQuantity ?? 1);
                         toggle(detail.id, min);
                         setDetail(null);

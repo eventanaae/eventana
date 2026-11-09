@@ -2,6 +2,9 @@ import { useRef, useState } from 'react';
 import { api } from '../api';
 import type { ScreenProps } from '../App';
 import { C, fredoka, money } from '../ui';
+import { clampPlanServices, glamDollsFor, missingPlanChoices } from '../planChoices';
+
+const WHATSAPP_URL = 'https://wa.me/971564500777';
 
 const PROMPTS = [
   'What’s in the Golden package?',
@@ -40,6 +43,8 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
   const [kids, setKids] = useState(String(draft.childrenCount || 20));
   const [planBusy, setPlanBusy] = useState(false);
   const [plan, setPlan] = useState<Awaited<ReturnType<typeof api.plan>> | null>(null);
+  const [planErr, setPlanErr] = useState(false);
+  const ar = lang === 'ar';
 
   const send = async (question: string) => {
     if (!question.trim() || thinking) return;
@@ -48,7 +53,16 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
     setThinking(true);
     try {
       const answer = await api.assistant(question, draft.celebrationType);
-      setMessages((m) => [...m, { who: 'ai', text: answer.reply, escalated: answer.escalated, refs: answer.references }]);
+      // An escalated question is NOT passed to anyone — nothing on the server
+      // notifies the team, and this screen has no inbox for a reply, so the
+      // server's "they'll reply here shortly" was a promise nobody kept. Say
+      // honestly that the team handles it on WhatsApp, and link it.
+      const text = answer.escalated
+        ? (ar
+          ? 'هذا الطلب يحتاج فريق إيفنتانا — ما أقدر أوافق على استرداد أو خصومات أو تغيير أسعار من هنا. راسلي الفريق على واتساب وبيردون عليج خلال ساعات العمل.'
+          : 'That one needs the Eventana team — I can’t approve refunds, discounts or price changes here. Please message the team on WhatsApp and they’ll reply during working hours.')
+        : answer.reply;
+      setMessages((m) => [...m, { who: 'ai', text, escalated: answer.escalated, refs: answer.references }]);
     } catch {
       setMessages((m) => [...m, { who: 'ai', text: t('assistant.unreachable') }]);
     } finally {
@@ -60,6 +74,7 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
   const buildPlan = async () => {
     setPlanBusy(true);
     setPlan(null);
+    setPlanErr(false);
     try {
       const p = await api.plan({
         celebrationType: draft.celebrationType,
@@ -69,11 +84,18 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
       });
       setPlan(p);
     } catch {
-      /* keep the panel; the user can retry */
+      // Keep the panel; tell the user it failed so they can retry.
+      setPlanErr(true);
     } finally {
       setPlanBusy(false);
     }
   };
+
+  // The plan as it will go into the cart: quantities raised to each service's
+  // booking minimum (e.g. the 20-child activity minimum) and the choices it
+  // still needs listed up front.
+  const planServices = plan ? clampPlanServices(plan.services, catalogue) : {};
+  const planMissing = plan ? missingPlanChoices(planServices, plan.packageId, catalogue, ar ? 'ar' : 'en') : [];
 
   const applyPlan = () => {
     if (!plan) return;
@@ -82,7 +104,8 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
       celebrationTypeChosen: true,
       buildAnswered: true,
       packageId: plan.packageId,
-      services: plan.services,
+      services: planServices,
+      glamDolls: glamDollsFor(planServices),
       themeId: plan.themeId,
       customTheme: false,
       childrenCount: Math.max(1, Number(kids.replace(/\D/g, '')) || 20),
@@ -100,7 +123,9 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
       go('theme');
     } else if (r.kind === 'service') {
       const s = catalogue.services.find((x) => x.id === r.id);
-      const min = s?.pricing.kind === 'per_child' ? Math.max(1, draft.childrenCount || 1) : (s?.pricing.minQuantity ?? 1);
+      const min = s?.pricing.kind === 'per_child'
+        ? Math.max(1, draft.childrenCount || 1, s.pricing.minChildren ?? 1)
+        : (s?.pricing.minQuantity ?? 1);
       update({ services: { ...draft.services, [r.id]: min }, buildAnswered: true, celebrationTypeChosen: true });
       go('build');
     }
@@ -140,12 +165,12 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
           <div style={{ fontSize: 11, fontWeight: 600, color: '#5b6b8a', margin: '3px 0 10px', lineHeight: 1.4 }}>{t('plan.sub')}</div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <input
-              inputMode="numeric" placeholder={t('plan.budget')} value={budget}
+              inputMode="numeric" placeholder={t('plan.budget')} aria-label={t('plan.budget')} value={budget}
               onChange={(e) => setBudget(e.target.value.replace(/[^\d]/g, ''))}
               style={{ flex: 1, minWidth: 0, border: `1px solid ${C.pinkLine}`, borderRadius: 12, padding: '10px 12px', fontWeight: 700, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none' }}
             />
             <input
-              inputMode="numeric" placeholder={t('plan.kids')} value={kids}
+              inputMode="numeric" placeholder={t('plan.kids')} aria-label={t('plan.kids')} value={kids}
               onChange={(e) => setKids(e.target.value.replace(/[^\d]/g, ''))}
               style={{ width: 84, border: `1px solid ${C.pinkLine}`, borderRadius: 12, padding: '10px 12px', fontWeight: 700, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none' }}
             />
@@ -155,11 +180,20 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
               onClick={buildPlan} disabled={planBusy}
               style={{ width: '100%', border: 'none', background: C.mint, color: '#fff', fontWeight: 700, fontSize: 13, padding: '11px 0', borderRadius: 12, cursor: 'pointer' }}
             >{planBusy ? t('plan.building') : t('plan.build')}</button>
-          ) : (
+          ) : null}
+          {!plan && planErr && (
+            <div role="alert" style={{ fontSize: 11.5, fontWeight: 700, color: C.red, marginTop: 8 }}>{t('assistant.unreachable')}</div>
+          )}
+          {plan && (
             <div style={{ background: '#fff', borderRadius: 14, padding: '12px 14px' }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>{plan.summary}</div>
               {plan.themeName && (
                 <div style={{ fontSize: 11, fontWeight: 700, color: C.pinkDeep, marginTop: 5 }}>🎨 {plan.themeName}</div>
+              )}
+              {planMissing.length > 0 && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.yellowInk, background: C.yellowSoft, borderRadius: 10, padding: '7px 10px', marginTop: 8, lineHeight: 1.45 }}>
+                  {ar ? 'بتختارين بعدها: ' : 'You’ll still choose: '}{[...new Set(planMissing)].join(ar ? '، ' : ', ')}
+                </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, gap: 10 }}>
                 <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>{t('plan.estTotal')}: {t('common.aed')} {money(plan.estTotalFils)}</span>
@@ -206,9 +240,14 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
               </div>
             )}
             {m.escalated && (
-              <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 6, letterSpacing: '.3px' }}>
-                {t('assistant.escalated')}
-              </div>
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, marginTop: 8, color: C.yellowInk, textDecoration: 'underline' }}
+              >
+                {t('common.whatsapp')}
+              </a>
             )}
           </div>
         ))}
@@ -239,6 +278,7 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             placeholder={t('assistant.placeholder')}
+            aria-label={t('assistant.placeholder')}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && send(text)}
@@ -250,6 +290,7 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
           />
           <button
             onClick={() => send(text)}
+            aria-label={ar ? 'إرسال' : 'Send'}
             style={{ width: 44, height: 44, borderRadius: 16, border: 'none', background: C.mint, color: '#fff', fontSize: 16, cursor: 'pointer', flex: 'none' }}
           >
             ➤
