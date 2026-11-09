@@ -117,7 +117,15 @@ export async function markUnknownPaymentMethods(): Promise<any> {
  */
 export async function backfillRefundEmails(dryRun = false): Promise<any> {
   const { rows } = await pool.query(
-    `SELECT DISTINCT ON (pe.order_id) pe.order_id, pe.amount_fils, pe.provider_status, o.event_id,
+    // pe.amount_fils is the PAYMENT amount (what was charged), not the refund —
+    // email the amount actually refunded: the refunds ledger, else the payment's
+    // refunded_fils, else (full refund only) the payment amount.
+    `SELECT DISTINCT ON (pe.order_id) pe.order_id, pe.provider_status, o.event_id,
+            COALESCE(
+              NULLIF((SELECT SUM(rf.amount_fils) FROM refunds rf WHERE rf.order_id = pe.order_id), 0),
+              NULLIF((SELECT MAX(p.refunded_fils) FROM payments p WHERE p.order_id = pe.order_id), 0),
+              CASE WHEN pe.new_status = 'refunded' THEN pe.amount_fils END,
+              0)::bigint AS amount_fils,
             c.name AS customer, c.email
        FROM payment_events pe
        JOIN orders o    ON o.id = pe.order_id

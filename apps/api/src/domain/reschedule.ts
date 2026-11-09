@@ -118,6 +118,13 @@ export async function rescheduleEvent(args: {
       `UPDATE events SET event_date = $2, start_time = $3, base_end_time = $4, date_tbd = false WHERE id = $1`,
       [args.eventId, args.newDate, args.newStartTime, endTime],
     );
+    // Keep the event's receipt(s) in step: receipt `date` is the EVENT date and
+    // event_time its start, so a reschedule must move them too (booked_on stays).
+    await db.query(
+      `UPDATE finance_receipts SET date = $2, event_time = $3, date_tbd = false
+        WHERE event_id = $1 OR order_id = (SELECT order_id FROM events WHERE id = $1)`,
+      [args.eventId, args.newDate, args.newStartTime],
+    );
     // Keep the order cart's time snapshot in step. Customer-facing views (paylink,
     // "view your booking") read cart.startTime/endTime; leaving them stale is the
     // exact recurring "wrong time" bug already fixed on the staff-edit path.

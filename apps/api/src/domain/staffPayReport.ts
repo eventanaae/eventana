@@ -224,7 +224,11 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
       const price = priceOf(r.truck, r.emirate, r.price_fils, r.price_manual);
       if (price) deliveryTotal += price;
       const key = personKey(r.name);
-      return { id: `event:${r.event_id}`, eventId: r.event_id, key, name: cleanName(r.name), date: r.date, emirate: r.emirate || '—',
+      // Two drivers on one event are two deliveries: give each its own row id
+      // (event:<id>:<driver>) — the UI reads split(':')[1] as the event id. The
+      // price/truck still come from the single per-event deliveries row
+      // (deliveries.event_id is UNIQUE), so both drivers carry the same price.
+      return { id: `event:${r.event_id}:${key}`, eventId: r.event_id, key, name: cleanName(r.name), date: r.date, emirate: r.emirate || '—',
         type: 'Delivery', payKind: payKindOf(r.driver_type, key), truck: r.truck, priceFils: price, priceDisplay: priceText(price), priceManual: !!r.price_manual };
     }),
     ...man.rows.map((r) => {

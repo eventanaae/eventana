@@ -14,6 +14,19 @@ import { orderStatusFor, recordPaymentEvent } from './orders.js';
 import { loadConfig } from './settings.js';
 import { formatAed } from '@eventana/shared';
 
+// The receipt(s) a refund on order $1 should show on: the order's own receipt,
+// the receipt linked to the event this order created, and — for an ADD-ON
+// (orders.event_id), whose money is merged into the event's receipt — that
+// event's receipt (linked by event_id or by the booking order). The add-on
+// fallback applies only when the add-on has no receipt of its own, so a refund
+// is never reflected twice.
+const RECEIPT_FOR_ORDER_SQL = `(order_id = $1
+   OR event_id IN (SELECT id FROM events WHERE order_id = $1)
+   OR (NOT EXISTS (SELECT 1 FROM finance_receipts x WHERE x.order_id = $1)
+       AND (event_id = (SELECT event_id FROM orders WHERE id = $1)
+            OR order_id = (SELECT e.order_id FROM events e
+                            WHERE e.id = (SELECT event_id FROM orders WHERE id = $1)))))`;
+
 export interface RefundResult {
   ok: boolean;
   status?: string;
@@ -155,14 +168,28 @@ export async function refundOrderMoney(params: {
         // into the event's receipt) raise what was paid — so cap at the larger of the
         // order total and the linked receipt total (audit 2026-11-10: a 3,500 booking
         // + an 80 cake stand could only be refunded up to 3,500).
+        // The booking and its add-on orders share ONE receipt (add-ons merge into
+        // it), so the cap and the already-refunded figure are counted across the
+        // whole event: the booking order + every add-on order (orders.event_id).
+        // For an add-on this caps at (event receipt total − all refunds on the event).
+        const evId = ord.event_id ?? (await db.query<{ id: string }>(
+          `SELECT id FROM events WHERE order_id = $1 LIMIT 1`, [orderId],
+        )).rows[0]?.id ?? null;
+        const evOrders = evId
+          ? (await db.query<{ id: string }>(
+              `SELECT order_id AS id FROM events WHERE id = $1
+               UNION SELECT id FROM orders WHERE event_id = $1`, [evId],
+            )).rows.map((x) => x.id)
+          : [];
+        if (!evOrders.includes(orderId)) evOrders.push(orderId);
         const rcptTotal = Number((await db.query<{ t: string }>(
           `SELECT COALESCE(SUM(total_fils),0)::bigint t FROM finance_receipts
-            WHERE order_id = $1 OR event_id IN (SELECT id FROM events WHERE order_id = $1)`,
-          [orderId],
+            WHERE order_id = ANY($1::text[]) OR event_id = $2::text`,
+          [evOrders, evId],
         )).rows[0].t);
         const cap = Math.max(Number(ord.total_fils), rcptTotal);
         const already = Number((await db.query<{ s: string }>(
-          `SELECT COALESCE(SUM(amount_fils),0)::bigint AS s FROM refunds WHERE order_id = $1`, [orderId],
+          `SELECT COALESCE(SUM(amount_fils),0)::bigint AS s FROM refunds WHERE order_id = ANY($1::text[])`, [evOrders],
         )).rows[0].s);
         const toRefund = Math.min(amountFils, Math.max(0, cap - already));
         if (toRefund <= 0) return { ok: false, error: 'nothing_to_refund' };
@@ -197,8 +224,7 @@ export async function refundOrderMoney(params: {
             `UPDATE finance_receipts
                 SET refunded_fils = refunded_fils + $2,
                     refunded_items = refunded_items || $3::jsonb
-              WHERE order_id = $1
-                 OR event_id IN (SELECT id FROM events WHERE order_id = $1)`,
+              WHERE ${RECEIPT_FOR_ORDER_SQL}`,
             [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
           );
           // Drop any still-unsent earlier refund email for this order so two
@@ -369,8 +395,7 @@ export async function refundOrderMoney(params: {
           `UPDATE finance_receipts
               SET refunded_fils = refunded_fils + $2,
                   refunded_items = refunded_items || $3::jsonb
-            WHERE order_id = $1
-               OR event_id IN (SELECT id FROM events WHERE order_id = $1)`,
+            WHERE ${RECEIPT_FOR_ORDER_SQL}`,
           [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
         );
 
