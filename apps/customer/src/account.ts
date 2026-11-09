@@ -44,6 +44,48 @@ export function clearAccount(): void {
   }
 }
 
+/** Fired on `window` by signOut() so the app can scrub its in-memory draft. */
+export const SIGNED_OUT_EVENT = 'eventana:signed-out';
+
+/** The party draft minus anything that identifies a person or a home: the
+ *  address, map pin, guest-of-honour name, custom-theme brief (child's name /
+ *  age) and uploaded photos. The cart selections are kept. */
+export function scrubDraftPersonalData<T extends Record<string, unknown>>(d: T): T {
+  return {
+    ...d,
+    address: { area: '', street: '', villa: '', details: '' },
+    mapPin: null,
+    locationTbd: false,
+    eventFor: '',
+    themeBrief: null,
+    referenceImages: [],
+    customization: { refImages: [], wantDraw: false },
+  };
+}
+
+/**
+ * Sign out on this device AND remove the personal details the app kept in
+ * browser storage: the account (name/email/phone/token), the on-device profile
+ * (name + birthday — kept as "skipped" so the welcome questions don't re-appear),
+ * the typed checkout contact details, a pending booking claim, and the address /
+ * guest details inside the saved party draft. A shared family tablet must not
+ * keep showing the previous person's details after "Log out".
+ */
+export function signOut(): void {
+  clearAccount();
+  clearPendingClaim();
+  try { localStorage.setItem('eventana.profile', JSON.stringify({ name: '', birthday: '', skipped: true })); } catch { /* ignore */ }
+  try {
+    sessionStorage.removeItem('ev_co_reg');
+    sessionStorage.removeItem('ev_co_step');
+  } catch { /* ignore */ }
+  try {
+    const raw = localStorage.getItem('eventana.draft');
+    if (raw) localStorage.setItem('eventana.draft', JSON.stringify(scrubDraftPersonalData(JSON.parse(raw))));
+  } catch { /* ignore */ }
+  try { window.dispatchEvent(new Event(SIGNED_OUT_EVENT)); } catch { /* ignore */ }
+}
+
 /** The id used to identify the customer to the API (empty when signed out). */
 export function currentCustomerId(): string {
   return loadAccount()?.customerId ?? '';

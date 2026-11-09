@@ -3,7 +3,7 @@ import { api } from '../api';
 import type { Screen } from '../App';
 import { C, fredoka, Spinner } from '../ui';
 import { loadProfile } from '../profile';
-import { loadAccount, clearAccount } from '../account';
+import { loadAccount, signOut } from '../account';
 import { LangToggle } from '../LangToggle';
 import { AuthSheet } from './AuthSheet';
 import { EditProfileSheet } from './EditProfileSheet';
@@ -81,7 +81,7 @@ export function Profile({
             {t('auth.editProfile')}
           </button>
           <button
-            onClick={() => { clearAccount(); window.location.reload(); }}
+            onClick={() => { signOut(); window.location.reload(); }}
             style={{ flex: 1, background: '#fff', color: C.muted, border: `1px solid ${C.pinkLine}`, fontWeight: 700, fontSize: 12.5, padding: '12px', borderRadius: 14, cursor: 'pointer' }}
           >
             {t('auth.logout')}
@@ -288,7 +288,7 @@ export function Profile({
           >
             <div style={{ padding: '18px 22px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={fredoka(18)}>{t('profile.historyTitle')}</span>
-              <button onClick={() => setShowHistory(false)} style={{ border: 'none', background: C.cream, borderRadius: '50%', width: 30, height: 30, fontSize: 15, cursor: 'pointer', color: C.muted }}>✕</button>
+              <button onClick={() => setShowHistory(false)} aria-label={lang === 'ar' ? 'إغلاق' : 'Close'} style={{ border: 'none', background: C.cream, borderRadius: '50%', width: 30, height: 30, fontSize: 15, cursor: 'pointer', color: C.muted }}>✕</button>
             </div>
             <div className="scroll" style={{ overflowY: 'auto', padding: '4px 22px 26px' }}>
               {rewards.history.map((h, i) => (
