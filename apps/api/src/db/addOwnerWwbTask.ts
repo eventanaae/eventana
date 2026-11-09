@@ -4,7 +4,7 @@
  * staff version so nothing else touches it. Gated ADD_OWNER_WWB=true. Idempotent
  * by title. Turn the flag off after it runs.
  */
-import { pool } from './pool.js';
+import { pool, claimOneShot } from './pool.js';
 import { createManualTask } from '../domain/prep.js';
 
 const NAMES = ['sheem', 'marsha'];
@@ -16,6 +16,7 @@ const NOTE =
 
 export async function addOwnerWwbTaskFromEnv(): Promise<void> {
   if (String(process.env.ADD_OWNER_WWB ?? '').toLowerCase() !== 'true') return;
+  if (!(await claimOneShot('oneshot:ADD_OWNER_WWB:true'))) return;
 
   const { rows } = await pool.query<{ id: string; name: string }>(
     `SELECT id, name FROM team_members WHERE lower(name) = ANY($1)`,

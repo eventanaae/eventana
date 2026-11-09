@@ -24,6 +24,13 @@ async function main() {
     const { applyPackageAssets } = await import('./db/packageAssets.js');
     const { syncCatalogueContent } = await import('./db/syncCatalogue.js');
     await migrate();
+    // Housekeeping: name (never the value) any leftover one-off fix flags that
+    // are still set in the environment, so they can be cleared.
+    {
+      const legacy = /^(FIX_FEEDBACK_|FULL_RESET_|DELETE_REFUND_|UNDO_REFUND_|REDO_REFUND_|DINDO_FIX|APPLY_SEPT_|APPLY_OWNER_|SET_BOOKED|AUG_FIX|FIX_MARYAM|RESEND_GHAYA|RESEND_MAHIRA|WA_TEST|SEND_TEAM_SCHEDULE|SEND_USER_MANUAL|SEND_BNPL_REQUEST|EMAIL_GLORIA|EMAIL_MARSHA|NOTIFY_GLORIA|ADD_MARSHA_|ADD_WWB_|CANCEL_WWB_|MOVE_THEMES_|RECON_SEND_NOW|SEND_FINANCE_REPORT|ADD_OWNER_WWB|SET_SHAN_LEADER)/;
+      const set = Object.keys(process.env).filter((k) => legacy.test(k) && String(process.env[k] ?? '') !== '');
+      console.log(`[env-housekeeping] leftover one-off flags set: ${set.length ? set.join(',') : 'none'}`);
+    }
     await seedIfEmpty();
     // Re-sync catalogue content (categories, services, package items) from the
     // shared catalogue so in-code edits go live without wiping the database.
