@@ -8,17 +8,22 @@ import { Empty } from './Today';
  * engagements with amounts + per-person totals, and the driver deliveries.
  * Also emailed to the owner + Marsha on the 1st of each month.
  */
+// Today in Dubai (UTC+4, no DST) as YYYY-MM-DD — months follow Dubai time.
+const dubaiToday = () => new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
+
 // "Pay" a part-timer or driver for the month: enter the amount, record it, and
-// (when WhatsApp is on) message them their summary. Shows "Paid ✓" after.
-function PayButton({ kind, name, suggestedFils, month, paid, paidDisplay, onPaid }: {
-  kind: 'part_timer' | 'driver'; name: string; suggestedFils: number; month?: string; paid: boolean; paidDisplay: string | null; onPaid: () => void;
+// (when WhatsApp is on) message them their summary. A second payment ADDS to
+// the first; "Paid ✓" only once the whole amount owed is covered. The amount
+// box is prefilled with the remaining balance.
+function PayButton({ kind, name, balanceFils, month, paid, paidDisplay, onPaid }: {
+  kind: 'part_timer' | 'driver'; name: string; balanceFils: number; month?: string; paid: boolean; paidDisplay: string | null; onPaid: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
-  const [amt, setAmt] = useState(suggestedFils ? String(suggestedFils / 100) : '');
+  const [amt, setAmt] = useState('');
   const [err, setErr] = useState<string | null>(null);
   if (paid) return <span style={{ fontSize: 11.5, fontWeight: 800, color: C.green }}>✓ Paid {paidDisplay}</span>;
-  if (!open) return <Button onClick={() => { setErr(null); setOpen(true); }} style={{ padding: '5px 12px', fontSize: 11.5 }}>💵 Pay</Button>;
+  if (!open) return <Button onClick={() => { setErr(null); setAmt(balanceFils > 0 ? String(balanceFils / 100) : ''); setOpen(true); }} style={{ padding: '5px 12px', fontSize: 11.5 }}>💵 Pay</Button>;
   const submit = async () => {
     const fils = Math.round(Number(String(amt).replace(/,/g, '')) * 100);
     if (!Number.isFinite(fils) || fils <= 0) { setErr('Enter a valid amount'); return; }
@@ -51,8 +56,20 @@ function stepMonth(ym: string, delta: number): string {
 }
 const jobEmoji = (role: string) => role === 'face_painting' ? '🎨' : '🤡';
 
+// Owed / paid / balance line under a person, when anything is paid or a
+// delivery price is still missing (e.g. "Partly paid AED 200 — AED 150 still owed").
+function PayStatus({ p }: { p: any }) {
+  if (!p?.statusDisplay || p.paid) return null;
+  return (
+    <div style={{ fontSize: 11, fontWeight: 700, color: C.red, marginTop: 3 }}>
+      {p.statusDisplay}
+      {p.partlyPaid ? <span style={{ color: C.muted2, fontWeight: 600 }}> · owed {p.owedDisplay} · paid {p.paidDisplay} · balance {p.balanceDisplay}</span> : null}
+    </div>
+  );
+}
+
 export function StaffPay() {
-  const curMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const curMonth = dubaiToday().slice(0, 7); // YYYY-MM (Dubai)
   const [month, setMonth] = useState<string>(curMonth);
   const [data, setData] = useState<any>(null);
   const [upcoming, setUpcoming] = useState<any>(null);
@@ -90,30 +107,32 @@ export function StaffPay() {
                 <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: C.muted2, marginBottom: 6 }}>{grp.monthLabel}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {grp.partTimers.map((p: any) => (
-                    <div key={`pt-${p.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
+                    <div key={`pt-${p.key ?? p.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>🤡 {p.name}{p.phone ? '' : ' ⚠️'}</div>
                         <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 2 }}>{p.entries.length} job{p.entries.length > 1 ? 's' : ''}</div>
+                        <PayStatus p={p} />
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{p.totalDisplay}</span>
-                      <PayButton kind="part_timer" name={p.name} suggestedFils={p.totalFils} month={grp.month} paid={false} paidDisplay={null} onPaid={() => { reloadOutstanding(); reload(); }} />
+                      <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{p.partlyPaid ? `${p.balanceDisplay} left` : p.totalDisplay}</span>
+                      <PayButton kind="part_timer" name={p.name} balanceFils={p.balanceFils ?? p.totalFils} month={grp.month} paid={false} paidDisplay={null} onPaid={() => { reloadOutstanding(); reload(); }} />
                     </div>
                   ))}
                   {grp.driverPayouts.map((d: any) => (
-                    <div key={`dr-${d.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
+                    <div key={`dr-${d.key ?? d.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.line}`, borderRadius: 11, padding: '9px 12px' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>🚐 {d.name}{d.phone ? '' : ' ⚠️'}</div>
                         <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 2 }}>{d.count} trip{d.count > 1 ? 's' : ''} · {d.type}</div>
+                        <PayStatus p={d} />
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{d.suggestedDisplay}</span>
-                      <PayButton kind="driver" name={d.name} suggestedFils={d.suggestedFils} month={grp.month} paid={false} paidDisplay={null} onPaid={() => { reloadOutstanding(); reload(); }} />
+                      <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{d.partlyPaid ? `${d.balanceDisplay} left` : d.suggestedDisplay}</span>
+                      <PayButton kind="driver" name={d.name} balanceFils={d.balanceFils ?? d.suggestedFils} month={grp.month} paid={false} paidDisplay={null} onPaid={() => { reloadOutstanding(); reload(); }} />
                     </div>
                   ))}
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 10 }}>These stay here until you mark them paid — nothing owed disappears when the month changes.</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 10 }}>These stay here until they're paid in full (and every delivery has a price) — nothing owed disappears when the month changes.</div>
         </Panel>
       )}
 
@@ -184,12 +203,13 @@ export function StaffPay() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {data.partTimers.map((p: any) => (
-              <div key={p.name} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 13px' }}>
+              <div key={p.key ?? p.name} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 13px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 800, color: C.ink, flex: 1 }}>{p.name}{p.phone ? '' : ' ⚠️'}</span>
                   <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{p.totalDisplay}</span>
-                  <PayButton kind="part_timer" name={p.name} suggestedFils={p.totalFils} month={data.month} paid={p.paid} paidDisplay={p.paidDisplay} onPaid={reload} />
+                  <PayButton kind="part_timer" name={p.name} balanceFils={p.balanceFils ?? p.totalFils} month={data.month} paid={p.paid} paidDisplay={p.paidDisplay} onPaid={reload} />
                 </div>
+                <PayStatus p={p} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
                   {p.entries.map((e: any, i: number) => (
                     <div key={i} style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
@@ -207,12 +227,13 @@ export function StaffPay() {
         <Panel title="💵 Driver payouts" action={<Badge tone="info">total {data.driverPayoutTotalDisplay ?? '—'}</Badge>}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {data.driverPayouts.map((d: any) => (
-              <div key={d.name} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 13px' }}>
+              <div key={d.key ?? d.name} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 13px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 800, color: C.ink, flex: 1 }}>{d.name}{d.phone ? '' : ' ⚠️'}</span>
                   <span style={{ fontSize: 13, fontWeight: 800, color: C.pinkDeep }}>{d.suggestedDisplay}</span>
-                  <PayButton kind="driver" name={d.name} suggestedFils={d.suggestedFils} month={data.month} paid={d.paid} paidDisplay={d.paidDisplay} onPaid={reload} />
+                  <PayButton kind="driver" name={d.name} balanceFils={d.balanceFils ?? d.suggestedFils} month={data.month} paid={d.paid} paidDisplay={d.paidDisplay} onPaid={reload} />
                 </div>
+                <PayStatus p={d} />
                 <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted2, marginTop: 4 }}>{d.count} trip{d.count > 1 ? 's' : ''} · {d.type}</div>
                 {(d.entries?.length ?? 0) > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
@@ -226,7 +247,7 @@ export function StaffPay() {
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 8 }}>The Pay covers the whole month; the suggested amount is the delivery total — you type the actual amount you transfer.</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted2, marginTop: 8 }}>Own-car drivers earn the delivery price; van drivers AED 250 per delivery day. Pay is prefilled with what's still owed — type the actual amount you transfer; a second payment adds to the first.</div>
         </Panel>
       )}
 
@@ -323,7 +344,7 @@ function DeliveryRow({ d, onChange }: { d: any; onChange: () => void }) {
 // Add a manual delivery (external driver, no event).
 function DeliveryForm({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ date: new Date().toISOString().slice(0, 10), driverName: '', driverType: 'external', emirate: '', truck: '' as '' | 'small' | 'big', price: '' });
+  const [f, setF] = useState({ date: dubaiToday(), driverName: '', driverType: 'external', emirate: '', truck: '' as '' | 'small' | 'big', price: '' });
   const [busy, setBusy] = useState(false);
   if (!open) return <div><Button onClick={() => setOpen(true)}>➕ Add a delivery</Button></div>;
   const submit = async () => {
@@ -334,7 +355,7 @@ function DeliveryForm({ onAdded }: { onAdded: () => void }) {
         date: f.date, driverName: f.driverName.trim() || undefined, driverType: f.driverType, emirate: f.emirate || undefined,
         truck: f.truck || undefined, priceFils: f.price.trim() ? Math.round(Number(f.price) * 100) : undefined,
       });
-      setF({ date: new Date().toISOString().slice(0, 10), driverName: '', driverType: 'external', emirate: '', truck: '', price: '' });
+      setF({ date: dubaiToday(), driverName: '', driverType: 'external', emirate: '', truck: '', price: '' });
       setOpen(false); onAdded();
     } catch (e: any) { alert(e?.message ?? 'Could not add.'); } finally { setBusy(false); }
   };

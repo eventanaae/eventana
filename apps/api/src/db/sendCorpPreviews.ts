@@ -20,7 +20,11 @@ const SAMPLES: Record<CorpCategory, string> = {
 };
 
 export async function sendCorpPreviewsOnce(): Promise<void> {
-  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'corp_previews_sent_v5'`).catch(() => ({ rowCount: 0 }));
+  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'corp_previews_sent_v5'`).catch((e: unknown) => {
+    // A failed marker read must not look like "never ran": stop instead of re-running.
+    console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+    return { rowCount: 1 };
+  });
   if (guard.rowCount) return;
 
   const { sendEmail } = await import('../integrations/email.js');

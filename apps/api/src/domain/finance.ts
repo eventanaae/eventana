@@ -91,7 +91,9 @@ export type LineItem = { name: string; qty: number; priceFils: number; descripti
 
 function computeTotals(items: LineItem[], discountFils: number, shippingFils: number) {
   const subtotal = items.reduce((s, l) => s + Math.round(l.qty * l.priceFils), 0);
-  const total = subtotal - (discountFils || 0) + (shippingFils || 0);
+  // Never a negative document (a typo like 50,000 instead of 500 as discount used
+  // to save a negative receipt that reduced sales and cash) — audit 2026-11-10.
+  const total = Math.max(0, subtotal - (discountFils || 0) + (shippingFils || 0));
   return { subtotal, total };
 }
 
@@ -591,6 +593,8 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
         -- of their own: the sale is already the QuickBooks receipt. Backfilling them
         -- posted 35 duplicate receipts (AED 107k) dated 9 Nov 2026 — never again.
         AND o.source IS DISTINCT FROM 'quickbooks_import'
+        -- The owner deleted this order's receipt on purpose — never re-post it.
+        AND NOT EXISTS (SELECT 1 FROM app_kv k WHERE k.k = 'receipt_deleted:' || o.id)
         AND NOT EXISTS (SELECT 1 FROM finance_receipts r WHERE r.order_id = o.id)
         -- Same money already on the books through the order's EVENT (a receipt
         -- linked by event_id, e.g. an imported or converted booking) — skip.
@@ -813,8 +817,25 @@ export async function ensureEventForReceipt(
   const r = rows[0];
   if (!r) return null;
   if (r.event_id) return r.event_id; // already converted
+  // The receipt's ORDER may already have its event (an app booking, an add-on, or
+  // a re-posted sale) — link to it instead of minting a duplicate event + order
+  // (audit 2026-11-10: editing such a receipt created a second party).
+  if (r.order_id) {
+    const ex = await pool.query<{ id: string }>(
+      `SELECT e.id FROM events e WHERE e.order_id = $1
+        UNION SELECT o.event_id FROM orders o WHERE o.id = $1 AND o.event_id IS NOT NULL
+        LIMIT 1`,
+      [r.order_id],
+    );
+    if (ex.rows[0]?.id) {
+      await pool.query(`UPDATE finance_receipts SET event_id = $2 WHERE id = $1 AND event_id IS NULL`, [receiptId, ex.rows[0].id]);
+      return ex.rows[0].id;
+    }
+  }
   const dateStr: string | null = r.date_str ?? null;
-  const today = new Date().toISOString().slice(0, 10);
+  // Dubai "today" (UTC+4) — at 00:00–04:00 Dubai a UTC date would still call
+  // yesterday's party "upcoming" and send a confirmation for it.
+  const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
   if (!dateStr || dateStr < today) return null; // only upcoming sales become events
 
   const newEventId = await withTransaction(async (db) => {
@@ -823,10 +844,12 @@ export async function ensureEventForReceipt(
     const name = String(r.customer_name ?? 'Customer').trim() || 'Customer';
     const email = r.hc_email ?? null;
     let customerId: string;
-    const found = await db.query(
-      `SELECT id FROM customers WHERE (phone = $1 AND phone <> '00000000') OR lower(name) = lower($2) LIMIT 1`,
-      [phone, name],
-    );
+    // Match by PHONE when we have a real one; fall back to the name only when
+    // there is no phone — two different customers can share a name (audit).
+    const hasPhone = phone.replace(/\D/g, '').length >= 7 && phone !== '00000000';
+    const found = hasPhone
+      ? await db.query(`SELECT id FROM customers WHERE phone = $1 LIMIT 1`, [phone])
+      : await db.query(`SELECT id FROM customers WHERE lower(name) = lower($1) LIMIT 1`, [name]);
     if (found.rows[0]) customerId = found.rows[0].id;
     else {
       customerId = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
@@ -870,9 +893,11 @@ export async function ensureEventForReceipt(
       `INSERT INTO events
          (id, order_id, customer_id, celebration_type, package_id, theme_id, custom_theme,
           event_date, start_time, base_end_time, extra_hours, children_count, emirate,
-          address, map_lat, map_lng, phase, location_note)
-       VALUES ($1,$2,$3,$9,$4,$5,false,$6,$10,$11,0,0,$7,'{}'::jsonb,0,0,'Booking Confirmed',$8)`,
-      [eventId, orderId, customerId, packageId, themeId, dateStr, emirate, r.location_note ?? null, r.celebration_type ?? 'kids', startTime, endTime],
+          address, map_lat, map_lng, phase, location_note, date_tbd)
+       VALUES ($1,$2,$3,$9,$4,$5,false,$6,$10,$11,0,0,$7,'{}'::jsonb,0,0,'Booking Confirmed',$8,$12)`,
+      // date_tbd carried from the receipt: a "date not decided yet" receipt must
+      // NOT become a real party dated today (audit 2026-11-10).
+      [eventId, orderId, customerId, packageId, themeId, dateStr, emirate, r.location_note ?? null, r.celebration_type ?? 'kids', startTime, endTime, Boolean(r.date_tbd)],
     );
 
     // Booked items → event_services so the job shows what's going out.
@@ -1115,8 +1140,15 @@ export async function deleteReceipt(id: number) {
     await db.query(`DELETE FROM finance_receipts WHERE id = $1`, [id]);
     const oid = (r?.order_id ?? '').trim();
     if (!oid) return;
-    const hasEvent = (await db.query(`SELECT 1 FROM events WHERE order_id = $1 LIMIT 1`, [oid])).rowCount;
-    if (hasEvent) return; // live booking — leave the order/event alone
+    // Remember that the owner deleted this order's receipt, so the sale backfill
+    // never re-posts it (audit 2026-11-10: a deleted receipt came back minutes later).
+    await db.query(`INSERT INTO app_kv (k) VALUES ($1) ON CONFLICT (k) DO NOTHING`, [`receipt_deleted:${oid}`]);
+    // Live booking — leave the order/event alone. An ADD-ON points at its event
+    // the other way round (orders.event_id), so it counts as live too.
+    const hasEvent = (await db.query(
+      `SELECT 1 FROM events WHERE order_id = $1
+        UNION ALL SELECT 1 FROM orders WHERE id = $1 AND event_id IS NOT NULL LIMIT 1`, [oid])).rowCount;
+    if (hasEvent) return;
     await db.query(`DELETE FROM payment_events WHERE order_id = $1`, [oid]);
     await db.query(`DELETE FROM payments WHERE order_id = $1`, [oid]);
     await db.query(`DELETE FROM refunds WHERE order_id = $1`, [oid]);
@@ -1139,10 +1171,10 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     `UPDATE finance_receipts SET customer_id=$2, customer_name=$3, date=COALESCE($4,date), line_items=$5,
        subtotal_fils=$6, discount_fils=$7, shipping_fils=$8, total_fils=$9, paid_with=COALESCE($10,paid_with), message=$11,
        event_for=$12, theme=$13, age=$14, event_time=$17, date_tbd=COALESCE($18, date_tbd), location_note=$19,
-       celebration_type=$20,
+       celebration_type=$20, booked_on=COALESCE($21::date, booked_on),
        commission_rep = CASE WHEN $16::boolean THEN $15 ELSE commission_rep END
      WHERE id=$1 RETURNING *`,
-    [id, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null, d.addressNote ?? null, d.celebrationType ?? null],
+    [id, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? null, d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.commissionRep ?? null, touchComm, d.eventTime ?? null, d.dateTbd ?? null, d.addressNote ?? null, d.celebrationType ?? null, d.bookedOn ?? null],
   );
   const saved = rows[0];
   if (saved && d.date) {
@@ -1150,7 +1182,43 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
       // The receipt was converted to an operational Event — keep the calendar
       // and schedule in sync by moving the linked event's date too (times are
       // preserved). Uses the raw YYYY-MM-DD to avoid any timezone drift.
+      const prev = await pool.query<{ d: string }>(`SELECT to_char(event_date,'YYYY-MM-DD') d FROM events WHERE id = $1`, [saved.event_id]).catch(() => ({ rows: [] as any[] }));
       await pool.query(`UPDATE events SET event_date = $2::date WHERE id = $1`, [saved.event_id, d.date]).catch(() => {});
+      // Move the event's reserved inventory with it (audit 2026-11-10: a date change
+      // made on the receipt left e.g. the bouncy castle blocked on the OLD day and
+      // free to double-book on the new one), and keep the order's cart date in step.
+      const oldD = prev.rows[0]?.d;
+      if (oldD && oldD !== d.date) {
+        await pool.query(
+          `UPDATE inventory_holds SET starts_at = starts_at + ($2::date - $3::date) * interval '1 day',
+                                      ends_at   = ends_at   + ($2::date - $3::date) * interval '1 day'
+            WHERE event_id = $1 AND status IN ('held','reserved')`,
+          [saved.event_id, d.date, oldD],
+        ).catch((e) => console.error('[finance] move holds failed:', (e as Error).message));
+        await pool.query(
+          `UPDATE orders o SET cart = jsonb_set(COALESCE(o.cart,'{}'::jsonb), '{eventDate}', to_jsonb($2::text), true)
+             FROM events e WHERE e.id = $1 AND o.id = e.order_id`,
+          [saved.event_id, d.date],
+        ).catch(() => {});
+        // Over-booked on the new day? Tell the team instead of failing silently.
+        const clash = await pool.query<{ code: string }>(
+          `SELECT h.asset_code AS code
+             FROM inventory_holds h JOIN inventory_assets a ON a.code = h.asset_code
+            WHERE h.event_id = $1 AND h.status IN ('held','reserved')
+              AND (SELECT COUNT(*) FROM inventory_holds x
+                    WHERE x.asset_code = h.asset_code AND x.status IN ('held','reserved')
+                      AND (x.expires_at IS NULL OR x.expires_at > now())
+                      AND x.starts_at < h.ends_at AND x.ends_at > h.starts_at) > a.units`,
+          [saved.event_id],
+        ).catch(() => ({ rows: [] as any[] }));
+        if (clash.rows.length) {
+          await pool.query(
+            `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+             VALUES ($1,'ops_alert','inventory_clash', now(), $2)`,
+            [saved.event_id, JSON.stringify({ eventId: saved.event_id, date: d.date, assets: clash.rows.map((c) => c.code) })],
+          ).catch(() => {});
+        }
+      }
     } else {
       // No event yet (was past-dated): if it's now upcoming, convert it so it
       // appears on the board. No-op when still past-dated.
@@ -1236,6 +1304,17 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
     void import('./staffing.js')
       .then(({ assignStaffForEvent }) => assignStaffForEvent(evId))
       .catch((e) => console.error('[finance] receipt-edit re-staff failed:', (e as Error).message));
+  }
+  // Keep the booking ORDER's total in step with its receipt for bookings made by
+  // the team (manual / converted / imported) — the receipt is where staff add
+  // extras (e.g. an 80 AED cake stand), and the refund cap reads the order.
+  // App bookings keep the amount the customer actually paid online.
+  if (saved?.order_id) {
+    await pool.query(
+      `UPDATE orders SET total_fils = $2, updated_at = now()
+        WHERE id = $1 AND source IN ('manual','converted','quickbooks_import') AND kind = 'booking'`,
+      [saved.order_id, Number(saved.total_fils) || 0],
+    ).catch(() => {});
   }
   // A receipt edit may add/remove/change a paid service — mirror it onto the
   // linked event's booked services and regenerate prep so nothing the customer

@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from './settings.js';
 import { titleCaseName } from './maintenance.js';
@@ -91,22 +90,21 @@ export async function setStaffingMode(mode: 'auto' | 'manual', updatedBy: string
   return value;
 }
 
-/** Seed the internal roster + skills. Idempotent; safe to run on every boot. */
+/**
+ * Seed the internal crew's skills. Idempotent; safe to run on every boot.
+ *
+ * Never creates (or re-activates) a team member: a member the owner deleted or
+ * disabled in the dashboard must stay gone. Skills are only written for members
+ * that already exist and are active.
+ */
 export async function seedStaffSkills(): Promise<void> {
   for (const [name, skills] of Object.entries(STAFF_SKILLS)) {
     const found = await pool.query<{ id: string }>(
-      `SELECT id FROM team_members WHERE lower(name) = lower($1) LIMIT 1`,
+      `SELECT id FROM team_members WHERE lower(name) = lower($1) AND active LIMIT 1`,
       [name],
     );
-    let id = found.rows[0]?.id;
-    if (!id) {
-      id = `TM-${randomBytes(3).toString('hex').toUpperCase()}`;
-      await pool.query(
-        `INSERT INTO team_members (id, name, role, active) VALUES ($1,$2,$3,true)
-         ON CONFLICT (id) DO NOTHING`,
-        [id, name, name === 'Marsha' ? 'Design & Remote Lead' : 'Crew'],
-      );
-    }
+    const id = found.rows[0]?.id;
+    if (!id) continue;
     for (const skill of skills) {
       await pool.query(
         `INSERT INTO staff_skills (member_id, skill) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
@@ -374,7 +372,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     `SELECT DISTINCT es.assignee_id FROM event_staff es JOIN events e2 ON e2.id = es.event_id
       WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1
         AND to_char(e2.event_date,'YYYY-MM-DD') = $2
-        AND e2.phase <> 'Cancelled'
+        AND e2.phase <> 'Cancelled' AND NOT COALESCE(e2.date_tbd, false)
         AND $3 < COALESCE(e2.base_end_time,'23:59') AND COALESCE($4::text,'23:59') > e2.start_time`,
     [eventId, ev.date, ev.start_time, ev.base_end_time],
   );
@@ -611,7 +609,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
          FROM events e1
          JOIN events e2 ON e2.event_date = e1.event_date AND e2.id <> e1.id
          JOIN event_staff es2 ON es2.event_id = e2.id AND es2.role = 'driver' AND es2.assignee_id = $2
-        WHERE e1.id = $1 AND e2.phase <> 'Cancelled'
+        WHERE e1.id = $1 AND e2.phase <> 'Cancelled' AND NOT COALESCE(e2.date_tbd, false)
           AND e1.start_time < e2.base_end_time AND e1.base_end_time > e2.start_time`,
       [eventId, driverAssign.assignee.id],
     );

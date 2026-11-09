@@ -1968,6 +1968,13 @@ export async function adminRoutes(app: FastifyInstance) {
   /** Undo an accidental cancellation, before anything was refunded. */
   app.post('/api/admin/events/:eventId/reinstate', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
+    // A refunded booking can't simply come back to life (the money is out, points
+    // reversed) — refuse; the team re-books it instead (audit 2026-11-10).
+    const refunded = await pool.query(
+      `SELECT 1 FROM refunds r JOIN events e ON e.order_id = r.order_id WHERE e.id = $1 LIMIT 1`, [eventId]);
+    if (refunded.rowCount) {
+      return reply.status(409).send({ error: 'refunded', message: 'This booking was refunded — create a new booking instead of reinstating it.' });
+    }
     const { rows } = await pool.query(
       `UPDATE events
           SET phase = 'Booking Confirmed', cancelled_at = NULL, cancellation_reason = NULL
@@ -2040,6 +2047,10 @@ export async function adminRoutes(app: FastifyInstance) {
       `INSERT INTO event_tasks (event_id, department, title) VALUES ($1,'operations',$2)`,
       [eventId, note],
     );
+    // Cancel closed every prep task — rebuild the prep list so the team sees what
+    // to prepare again (audit 2026-11-10).
+    void import('../domain/prep.js').then(({ generatePrepTasks }) => generatePrepTasks(eventId))
+      .catch((e) => console.error('[reinstate] prep regenerate failed:', (e as Error).message));
     void syncEventToCalendar(eventId);
     return { ...rows[0], reReserved, conflicts };
   });
@@ -2385,8 +2396,9 @@ export async function adminRoutes(app: FastifyInstance) {
                SELECT 1 FROM finance_receipts r
                 WHERE lower(r.commission_rep)='marsha'
                   AND r.total_fils = i.total_fils
-                  AND lower(r.customer_name) = lower(i.customer_name)
-                  AND COALESCE(r.booked_on, r.date) >= $1 AND COALESCE(r.booked_on, r.date) < $2)
+                  AND lower(r.customer_name) = lower(i.customer_name))
+                  -- any month: an invoice issued in October and paid by a receipt in
+                  -- November must not earn commission twice (audit 2026-11-10)
          UNION ALL
          SELECT r.total_fils AS gross FROM finance_receipts r
            WHERE lower(r.commission_rep)='marsha' AND r.total_fils >= $3
@@ -2776,7 +2788,8 @@ export async function adminRoutes(app: FastifyInstance) {
    * QuickBooks-imported rows are excluded (same as the live P&L) so nothing is
    * double-counted. Owner/manager (finance gate).
    */
-  app.get('/api/admin/finance/budget-suggestions', async () => {
+  app.get('/api/admin/finance/budget-suggestions', async (request) => {
+    const noSal = (request as any).staff?.role !== 'owner' ? ` AND lower(btrim(category)) <> 'salaries'` : '';
     // Month boundaries on the Dubai calendar (UTC+4, no DST). Learn from the last
     // 3 COMPLETE months; project onto next month.
     const dub = new Date(Date.now() + 4 * 3_600_000);
@@ -2806,7 +2819,7 @@ export async function adminRoutes(app: FastifyInstance) {
          FROM expenses
         WHERE COALESCE(source,'manual') <> 'quickbooks'
           AND category IS NOT NULL AND btrim(category) <> ''
-          AND spent_on >= $1 AND spent_on < $3
+          AND spent_on >= $1 AND spent_on < $3${noSal}
         GROUP BY 1`,
       [winStart, curStart, nextStart],
     );
@@ -2984,8 +2997,9 @@ const ITEMS_REQUIRED = {
       // picks/types) — not a fixed enum, so the dynamic account list works.
       category: z.string().min(1).max(80).default('other'),
       description: z.string().min(1).max(300),
-      amountFils: z.number().int().min(0),
-      vendor: z.string().max(200).optional(),
+      // Owner's rule: every expense has a vendor and a real amount (audit 2026-11-10).
+      amountFils: z.number().int().positive(),
+      vendor: z.string().trim().min(1).max(200),
       eventId: z.string().optional(),
       spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       receiptUrl: z.string().url().nullable().optional(),
@@ -3388,6 +3402,9 @@ const ITEMS_REQUIRED = {
     paidWith: z.string().max(40).optional(),
     // Celebration type id (CELEBRATION_TYPES) carried onto the converted event.
     celebrationType: z.string().max(40).nullable().optional(),
+    // BOOKING date (money-in day) for a receipt entered later than the sale —
+    // was silently dropped, so every manual receipt was booked "today" (audit).
+    bookedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   });
 
   app.get('/api/admin/finance/customers', async (request) =>
@@ -3742,6 +3759,8 @@ const ITEMS_REQUIRED = {
    */
   app.get('/api/admin/finance', async (request) => {
     const q = request.query as { month?: string };
+    // Salaries are the owner's alone (same rule as /expenses) — audit 2026-11-10.
+    const noSal = (request as any).staff?.role !== 'owner' ? ` AND lower(btrim(category)) <> 'salaries'` : '';
     const now = new Date();
     const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
       ? q.month!
@@ -3762,10 +3781,10 @@ const ITEMS_REQUIRED = {
             AND created_at >= $1 AND created_at < $2`,
         [start, end],
       ),
-      pool.query(`SELECT COALESCE(SUM(amount_fils),0) AS v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2`, [start, end]),
+      pool.query(`SELECT COALESCE(SUM(amount_fils),0) AS v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2${noSal}`, [start, end]),
       pool.query(
         `SELECT category, SUM(amount_fils) AS v FROM expenses
-          WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2 GROUP BY category ORDER BY v DESC`,
+          WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2${noSal} GROUP BY category ORDER BY v DESC`,
         [start, end],
       ),
       pool.query(
@@ -4159,7 +4178,8 @@ const ITEMS_REQUIRED = {
         // over one consistent window.
         `SELECT COALESCE(SUM(r.amount_fils),0) v, COUNT(*) c FROM refunds r
            LEFT JOIN events e ON e.id = r.event_id
-          WHERE r.created_at >= $1 AND r.created_at < $2 ${F}`,
+          WHERE (r.created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
+            AND (r.created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date ${F}`,
         params,
       ),
       pool.query(
@@ -4259,8 +4279,11 @@ const ITEMS_REQUIRED = {
     const refundSplitRow = await pool.query(
       `SELECT COALESCE(SUM(r.amount_fils) FILTER (WHERE r.reason_category IN ('quality_issue','missing_item')),0)::bigint quality,
               COALESCE(SUM(r.amount_fils) FILTER (WHERE r.reason_category NOT IN ('quality_issue','missing_item')),0)::bigint customer
-         FROM refunds r JOIN events e ON e.id = r.event_id
-        WHERE e.event_date >= $1 AND e.event_date < $2 ${F}`,
+         FROM refunds r LEFT JOIN events e ON e.id = r.event_id
+        -- Same window + join as "Total refunded" (by the refund's Dubai date), so the
+        -- quality / customer split always adds up to the total (audit 2026-11-10).
+        WHERE (r.created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
+          AND (r.created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date ${F}`,
       params,
     ).catch(() => ({ rows: [{ quality: '0', customer: '0' }] }));
     const refundQualityFils = Number(refundSplitRow.rows[0].quality);
@@ -4268,7 +4291,29 @@ const ITEMS_REQUIRED = {
     const prevRevenue = Number(prevRow.rows[0].revenue);
     const prevBookings = Number(prevRow.rows[0].bookings);
     const pct = (curr: number, prev: number) => (prev > 0 ? Math.round(((curr - prev) / prev) * 1000) / 10 : null);
-    const revenueChangePct = pct(revenue, prevRevenue);
+    // The "Revenue up/down X%" line + alert follow the owner's money rule (audit
+    // 2026-11-10): sales by BOOKING date minus refunds by refund date — the same
+    // basis as the Income card — instead of order totals by party date. With an
+    // emirate/type/package filter the event-based figures are kept (receipts can't
+    // be filtered that way).
+    let revenueChangePct = pct(revenue, prevRevenue);
+    let cmpCur = revenue, cmpPrev = prevRevenue;
+    if (!F) {
+      const netRev = async (a: string, b: string) => {
+        const r = await pool.query<{ v: string }>(
+          `SELECT (SELECT COALESCE(SUM(total_fils),0) FROM finance_receipts
+                    WHERE COALESCE(booked_on, date) >= $1::date AND COALESCE(booked_on, date) < $2::date)
+                - (SELECT COALESCE(SUM(amount_fils),0) FROM refunds
+                    WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
+                      AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date) AS v`,
+          [a, b],
+        );
+        return Number(r.rows[0]?.v ?? 0);
+      };
+      const [cur, prev] = await Promise.all([netRev(from, to), netRev(prevFrom, prevTo)]).catch(() => [0, 0]);
+      revenueChangePct = pct(cur, prev);
+      cmpCur = cur; cmpPrev = prev;
+    }
     const bookingsChangePct = pct(bookings, prevBookings);
     const repeats = Number(repeatRow.rows[0].repeats);
     const custTotal = Number(repeatRow.rows[0].total);
@@ -4281,7 +4326,7 @@ const ITEMS_REQUIRED = {
     if (revenueChangePct !== null) {
       insights.push({
         tone: revenueChangePct >= 0 ? 'good' : 'warn',
-        text: `Revenue is ${revenueChangePct >= 0 ? 'up' : 'down'} ${Math.abs(revenueChangePct)}% vs the previous ${Math.round(spanMs / 86_400_000)} days (AED ${formatAed(revenue)} vs AED ${formatAed(prevRevenue)}).`,
+        text: `Revenue is ${revenueChangePct >= 0 ? 'up' : 'down'} ${Math.abs(revenueChangePct)}% vs the previous ${Math.round(spanMs / 86_400_000)} days (AED ${formatAed(cmpCur)} vs AED ${formatAed(cmpPrev)}).`,
       });
     }
     if (byEmirate[0]) insights.push({ tone: 'info', text: `${byEmirate[0].label} is your top emirate by revenue (AED ${byEmirate[0].revenueDisplay} from ${byEmirate[0].bookings} bookings).` });

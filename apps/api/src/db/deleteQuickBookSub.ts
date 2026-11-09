@@ -7,7 +7,11 @@ const CUT = '2024-06-10';
 export async function deleteQuickBookSubFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   const gk = 'delete_qb_sub_v1';
-  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k=$1`, [gk]).catch(() => ({ rowCount: 0 }));
+  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k=$1`, [gk]).catch((e: unknown) => {
+    // A failed marker read must not look like "never ran": stop instead of re-running.
+    console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+    return { rowCount: 1 };
+  });
   if (guard.rowCount) return;
   const aed = (f: number) => (Number(f) / 100).toFixed(2);
   const MATCH = `%quick%book%`;

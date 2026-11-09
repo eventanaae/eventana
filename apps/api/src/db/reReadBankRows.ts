@@ -14,7 +14,11 @@ const AED_PER_USD = 3.6725;
 export async function reReadBankRowsFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   const tag = process.env.REREAD_BANK_TAG ?? 'v2';
-  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [`reread_bank_${tag}`]).catch(() => ({ rowCount: 0 }));
+  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [`reread_bank_${tag}`]).catch((e: unknown) => {
+    // A failed marker read must not look like "never ran": stop instead of re-running.
+    console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+    return { rowCount: 1 };
+  });
   if (guard.rowCount) return;
   const { anthropicEnabled } = await import('../integrations/anthropic.js');
   if (!anthropicEnabled()) { console.log('[reread-bank] ANTHROPIC_API_KEY not set — skipping'); return; }
