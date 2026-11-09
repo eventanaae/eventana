@@ -52,7 +52,7 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
     // method the CEO tab uses (receipts by booking date − refunds ledger by refund
     // date), so the monthly email and the dashboard always agree.
     pool.query(
-      `SELECT COALESCE(SUM(amount_fils),0) v FROM refunds WHERE created_at >= $1 AND created_at < $2`,
+      `SELECT COALESCE(SUM(amount_fils),0) v FROM refunds WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date`,
       [start, endStr],
     ),
     // Expenses = every expense spent that month (QuickBooks history INCLUDED —

@@ -115,7 +115,7 @@ export async function rescheduleEvent(args: {
 
     const endTime = formatHour24(endHour);
     await db.query(
-      `UPDATE events SET event_date = $2, start_time = $3, base_end_time = $4 WHERE id = $1`,
+      `UPDATE events SET event_date = $2, start_time = $3, base_end_time = $4, date_tbd = false WHERE id = $1`,
       [args.eventId, args.newDate, args.newStartTime, endTime],
     );
     // Keep the order cart's time snapshot in step. Customer-facing views (paylink,
@@ -124,11 +124,11 @@ export async function rescheduleEvent(args: {
     await db.query(
       `UPDATE orders o
           SET cart = jsonb_set(
-                       jsonb_set(o.cart, '{startTime}', to_jsonb($2::text), true),
+                       jsonb_set(jsonb_set(o.cart, '{startTime}', to_jsonb($2::text), true), '{eventDate}', to_jsonb($4::text), true),
                        '{endTime}', to_jsonb($3::text), false)
          FROM events e
         WHERE e.id = $1 AND e.order_id = o.id AND o.cart ? 'startTime'`,
-      [args.eventId, args.newStartTime, endTime],
+      [args.eventId, args.newStartTime, endTime, args.newDate],
     );
     // Move the still-unsent reminder emails to the NEW start moment (3-day at
     // start−3d, party-day at start−4h, feedback at start+1d) — NOT midnight of

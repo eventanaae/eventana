@@ -374,7 +374,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
     `SELECT DISTINCT es.assignee_id FROM event_staff es JOIN events e2 ON e2.id = es.event_id
       WHERE es.assignee_id IS NOT NULL AND es.event_id <> $1
         AND to_char(e2.event_date,'YYYY-MM-DD') = $2
-        AND e2.phase <> 'Cancelled'
+        AND e2.phase <> 'Cancelled' AND NOT COALESCE(e2.date_tbd, false)
         AND $3 < COALESCE(e2.base_end_time,'23:59') AND COALESCE($4::text,'23:59') > e2.start_time`,
     [eventId, ev.date, ev.start_time, ev.base_end_time],
   );
@@ -611,7 +611,7 @@ export async function assignStaffForEvent(eventId: string): Promise<StaffingPlan
          FROM events e1
          JOIN events e2 ON e2.event_date = e1.event_date AND e2.id <> e1.id
          JOIN event_staff es2 ON es2.event_id = e2.id AND es2.role = 'driver' AND es2.assignee_id = $2
-        WHERE e1.id = $1 AND e2.phase <> 'Cancelled'
+        WHERE e1.id = $1 AND e2.phase <> 'Cancelled' AND NOT COALESCE(e2.date_tbd, false)
           AND e1.start_time < e2.base_end_time AND e1.base_end_time > e2.start_time`,
       [eventId, driverAssign.assignee.id],
     );

@@ -112,7 +112,17 @@ export async function refundOrderMoney(params: {
           [orderId],
         )).rows[0];
         if (!ord) return { ok: false, error: 'not_found' };
-        const cap = Number(ord.total_fils);
+        // Cap = what the customer actually paid. The booking order keeps its ORIGINAL
+        // total, but extras added later (on the receipt, or as add-on orders merged
+        // into the event's receipt) raise what was paid — so cap at the larger of the
+        // order total and the linked receipt total (audit 2026-11-10: a 3,500 booking
+        // + an 80 cake stand could only be refunded up to 3,500).
+        const rcptTotal = Number((await db.query<{ t: string }>(
+          `SELECT COALESCE(SUM(total_fils),0)::bigint t FROM finance_receipts
+            WHERE order_id = $1 OR event_id IN (SELECT id FROM events WHERE order_id = $1)`,
+          [orderId],
+        )).rows[0].t);
+        const cap = Math.max(Number(ord.total_fils), rcptTotal);
         const already = Number((await db.query<{ s: string }>(
           `SELECT COALESCE(SUM(amount_fils),0)::bigint AS s FROM refunds WHERE order_id = $1`, [orderId],
         )).rows[0].s);
@@ -200,7 +210,7 @@ export async function refundOrderMoney(params: {
             // A cancelled event must stop emailing the customer — drop its pending
             // notifications (mirrors the provider branch's teardown).
             await db.query(
-              `UPDATE notifications SET cancelled_at = now() WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL AND template NOT IN ('refund_processed')`,
+              `UPDATE notifications SET cancelled_at = now() WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL AND template NOT IN ('refund_processed','driver_order_cancelled','order_cancelled')`,
               [ord.event_id],
             ).catch(() => {});
           }
@@ -390,7 +400,7 @@ export async function refundOrderMoney(params: {
           await db.query(
             `UPDATE notifications SET cancelled_at = now()
               WHERE event_id = $1 AND sent_at IS NULL AND cancelled_at IS NULL
-                AND template NOT IN ('refund_processed')`,
+                AND template NOT IN ('refund_processed','driver_order_cancelled','order_cancelled')`,
             [payment.event_id],
           );
           await db.query(
