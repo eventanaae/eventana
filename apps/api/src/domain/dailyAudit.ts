@@ -298,7 +298,9 @@ export const AUDIT_CHECKS: AuditCheck[] = [
     sql: `SELECT r.number AS receipt, r.source, v.slice, v.slice_order_id, ${day('v.money_day')} AS money_day, v.amount_fils,
                  'negative or zero slice' AS issue
             FROM receipt_money_by_day v JOIN finance_receipts r ON r.id = v.receipt_id
-           WHERE v.amount_fils < 0 OR (v.slice = 'addon' AND v.amount_fils = 0)
+           -- a receipt whose own total is negative is a credit note (QuickBooks
+           -- history), not a broken slice
+           WHERE (v.amount_fils < 0 AND r.total_fils >= 0) OR (v.slice = 'addon' AND v.amount_fils = 0)
           UNION ALL
           SELECT r.number, r.source, 'edit', m.order_id, ${day('m.booked_on')}, m.amount_fils, 'edit slice points at another receipt'
             FROM receipt_addon_money m JOIN finance_receipts r ON r.id = m.receipt_id
@@ -812,6 +814,9 @@ export const AUDIT_CHECKS: AuditCheck[] = [
             FROM expenses
            WHERE source <> 'quickbooks' AND spent_on >= ${TODAY} - 45 AND amount_fils > 0
            GROUP BY 1, 2, 3 HAVING count(*) > 1
+              -- copies that ALL came from separate bank-feed lines are separate
+              -- charges (e.g. a 1.05 AED fee per transfer), not duplicates
+              AND NOT bool_and(source = 'bank')
            ORDER BY spent_on DESC`,
     recommendation: 'Open each pair; if it is the same purchase (e.g. entered by hand AND approved from the Bank Inbox) delete one.',
     recommendationAr: 'افتحي كل اثنين؛ إذا نفس الشراء (مثلاً انضاف يدوي وانعتمد من صندوق البنك) احذفي واحد.',
