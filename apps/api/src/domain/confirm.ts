@@ -754,6 +754,16 @@ async function applyAddonOrder(db: PoolClient, order: any, rules: PricingRules):
         WHERE id = $1`,
       [rcpt[0].id, JSON.stringify([...existing, ...addonLines]), addonTotal],
     );
+    // Owner rule: every dirham is reported on the day it entered the system. The
+    // receipt keeps its original booked_on, so record this add-on's money as its
+    // own slice on TODAY's Dubai date — reports read receipt_money_by_day, which
+    // moves exactly this amount off the original booking day onto today.
+    await db.query(
+      `INSERT INTO receipt_addon_money (receipt_id, order_id, booked_on, amount_fils)
+       VALUES ($1, $2, (now() AT TIME ZONE 'Asia/Dubai')::date, $3)
+       ON CONFLICT (order_id) DO NOTHING`,
+      [rcpt[0].id, order.id, addonTotal],
+    );
   } else {
     // No receipt on this event yet (e.g. a converted/manual booking) — fall back
     // to a standalone sale so the add-on still shows on the Sales page.

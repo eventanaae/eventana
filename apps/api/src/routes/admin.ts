@@ -757,9 +757,11 @@ export async function adminRoutes(app: FastifyInstance) {
               AND created_at >= (date_trunc('month', now() AT TIME ZONE 'Asia/Dubai') AT TIME ZONE 'Asia/Dubai')) AS bookings_month,
            -- Owner's money rule: sales by BOOKING date in the Dubai month, minus
            -- refunds by the refund's Dubai date in the same month.
-           ((SELECT COALESCE(sum(total_fils),0)::bigint FROM finance_receipts
-              WHERE COALESCE(booked_on, date) >= date_trunc('month', now() AT TIME ZONE 'Asia/Dubai')::date
-                AND COALESCE(booked_on, date) < (date_trunc('month', now() AT TIME ZONE 'Asia/Dubai') + interval '1 month')::date)
+           -- Money by the day it entered (receipt_money_by_day: a merged add-on
+           -- counts on its own day, not the original booking's).
+           ((SELECT COALESCE(sum(amount_fils),0)::bigint FROM receipt_money_by_day
+              WHERE money_day >= date_trunc('month', now() AT TIME ZONE 'Asia/Dubai')::date
+                AND money_day < (date_trunc('month', now() AT TIME ZONE 'Asia/Dubai') + interval '1 month')::date)
             - (SELECT COALESCE(sum(amount_fils),0)::bigint FROM refunds
               WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= date_trunc('month', now() AT TIME ZONE 'Asia/Dubai')::date
                 AND (created_at AT TIME ZONE 'Asia/Dubai')::date < (date_trunc('month', now() AT TIME ZONE 'Asia/Dubai') + interval '1 month')::date)
@@ -3242,8 +3244,12 @@ const ITEMS_REQUIRED = {
         // Bookings by the BOOKING date (booked_on) — the real booking day; fall back
         // to created_at only if it's somehow missing. Matches ad spend (by month) to
         // the bookings that month's ads produced.
-        `SELECT count(*)::int n, COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts
-          WHERE COALESCE(booked_on, created_at::date) >= $1::date AND COALESCE(booked_on, created_at::date) < $2::date`,
+        // Money from receipt_money_by_day (a merged add-on counts on its own day);
+        // only base slices count as bookings — an add-on is never a new booking.
+        `SELECT count(*) FILTER (WHERE m.slice = 'base')::int n, COALESCE(SUM(m.amount_fils),0)::bigint v
+           FROM receipt_money_by_day m JOIN finance_receipts r ON r.id = m.receipt_id
+          WHERE COALESCE(m.slice_booked_on, r.created_at::date) >= $1::date
+            AND COALESCE(m.slice_booked_on, r.created_at::date) < $2::date`,
         [start, end],
       ).catch(() => ({ rows: [{ n: 0, v: '0' }] })),
     ]);
@@ -3874,8 +3880,8 @@ const ITEMS_REQUIRED = {
     // by the refund's Dubai date, both in the month.
     const [rev, exp, byCat, tipsRow, revTrend, expTrend] = await Promise.all([
       pool.query(
-        `SELECT (SELECT COALESCE(SUM(total_fils),0) FROM finance_receipts
-                  WHERE COALESCE(booked_on, date) >= $1::date AND COALESCE(booked_on, date) < $2::date)
+        `SELECT (SELECT COALESCE(SUM(amount_fils),0) FROM receipt_money_by_day
+                  WHERE money_day >= $1::date AND money_day < $2::date)
               - (SELECT COALESCE(SUM(amount_fils),0) FROM refunds
                   WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
                     AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date) AS v`,
@@ -3894,9 +3900,9 @@ const ITEMS_REQUIRED = {
       ),
       pool.query(
         `SELECT m, SUM(v) AS v FROM (
-           SELECT to_char(COALESCE(booked_on, date),'YYYY-MM') AS m, total_fils AS v
-             FROM finance_receipts
-            WHERE COALESCE(booked_on, date) >= $1::date AND COALESCE(booked_on, date) < $2::date
+           SELECT to_char(money_day,'YYYY-MM') AS m, amount_fils AS v
+             FROM receipt_money_by_day
+            WHERE money_day >= $1::date AND money_day < $2::date
            UNION ALL
            SELECT to_char((created_at AT TIME ZONE 'Asia/Dubai')::date,'YYYY-MM'), -amount_fils
              FROM refunds
@@ -4329,10 +4335,12 @@ const ITEMS_REQUIRED = {
     // receipts ledger, NOT by the event/party month. Bookings = receipts booked
     // that month. (The per-dimension breakdowns above stay event-based activity.)
     const trendRows = (await pool.query<{ m: string; v: string; n: string }>(
-      `SELECT to_char(COALESCE(booked_on, date),'YYYY-MM') m,
-              COALESCE(SUM(total_fils),0)::bigint v, count(*)::text n
-         FROM finance_receipts
-        WHERE COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2
+      // Money from receipt_money_by_day (a merged add-on lands on its own day);
+      // bookings = base slices only (an add-on is not a new booking).
+      `SELECT to_char(money_day,'YYYY-MM') m,
+              COALESCE(SUM(amount_fils),0)::bigint v, (count(*) FILTER (WHERE slice = 'base'))::text n
+         FROM receipt_money_by_day
+        WHERE money_day >= $1 AND money_day < $2
         GROUP BY 1 ORDER BY 1`,
       [from, to],
     ).catch(() => ({ rows: [] as { m: string; v: string; n: string }[] }))).rows;
@@ -4408,8 +4416,8 @@ const ITEMS_REQUIRED = {
     if (!F) {
       const netRev = async (a: string, b: string) => {
         const r = await pool.query<{ v: string }>(
-          `SELECT (SELECT COALESCE(SUM(total_fils),0) FROM finance_receipts
-                    WHERE COALESCE(booked_on, date) >= $1::date AND COALESCE(booked_on, date) < $2::date)
+          `SELECT (SELECT COALESCE(SUM(amount_fils),0) FROM receipt_money_by_day
+                    WHERE money_day >= $1::date AND money_day < $2::date)
                 - (SELECT COALESCE(SUM(amount_fils),0) FROM refunds
                     WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
                       AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date) AS v`,
@@ -4545,10 +4553,11 @@ const ITEMS_REQUIRED = {
       // Live sales since the cutoff, NET of refunds over the same window (by the
       // refund's Dubai date) — owner's money rule.
       pool.query<{ v: string }>(
-        `SELECT ((SELECT COALESCE(SUM(total_fils),0) FROM finance_receipts
-                   WHERE source <> 'quickbooks'
-                     AND COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2
-                     AND COALESCE(booked_on, date) > $3::date)
+        `SELECT ((SELECT COALESCE(SUM(m.amount_fils),0)
+                    FROM receipt_money_by_day m JOIN finance_receipts r ON r.id = m.receipt_id
+                   WHERE r.source <> 'quickbooks'
+                     AND m.money_day >= $1 AND m.money_day < $2
+                     AND m.money_day > $3::date)
                - (SELECT COALESCE(SUM(amount_fils),0) FROM refunds
                    WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
                      AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date
@@ -4592,8 +4601,11 @@ const ITEMS_REQUIRED = {
         // Income is counted by the BOOKING date (money-in), not the event date —
         // owner's rule: booked_on drives all money calculations. COALESCE keeps any
         // row with no booking date from being dropped.
-        `SELECT COALESCE(SUM(total_fils),0)::bigint v, COUNT(*)::int c FROM finance_receipts
-          WHERE COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2`,
+        // Money from receipt_money_by_day (a merged add-on counts on its own day);
+        // the sales COUNT is base slices only — an add-on is not a new sale.
+        `SELECT COALESCE(SUM(amount_fils),0)::bigint v, (COUNT(*) FILTER (WHERE slice = 'base'))::int c
+           FROM receipt_money_by_day
+          WHERE money_day >= $1 AND money_day < $2`,
         [from, to],
       ).catch(() => ({ rows: [{ v: '0', c: 0 }] })),
       pool.query<{ v: string }>(
@@ -4712,11 +4724,14 @@ const ITEMS_REQUIRED = {
       pool.query<{ theme: string; bookings: number; revenue: string }>(
         // A theme the team filled in later for an app sale (sale_themes 'app:'||event)
         // wins over the receipt's own (often blank) theme.
-        `SELECT btrim(COALESCE(NULLIF(btrim(st.theme),''), fr.theme)) AS theme, COUNT(*)::int AS bookings,
-                COALESCE(SUM(fr.total_fils),0)::bigint AS revenue
-           FROM finance_receipts fr
+        // Money by receipt_money_by_day (add-on on its own day); bookings = base slices.
+        `SELECT btrim(COALESCE(NULLIF(btrim(st.theme),''), fr.theme)) AS theme,
+                (COUNT(*) FILTER (WHERE m.slice = 'base'))::int AS bookings,
+                COALESCE(SUM(m.amount_fils),0)::bigint AS revenue
+           FROM receipt_money_by_day m
+           JOIN finance_receipts fr ON fr.id = m.receipt_id
            LEFT JOIN sale_themes st ON fr.event_id IS NOT NULL AND st.sale_key = 'app:' || fr.event_id
-          WHERE fr.source <> 'quickbooks' AND COALESCE(fr.booked_on, fr.date) >= $1 AND COALESCE(fr.booked_on, fr.date) < $2
+          WHERE fr.source <> 'quickbooks' AND m.money_day >= $1 AND m.money_day < $2
             AND COALESCE(btrim(COALESCE(NULLIF(btrim(st.theme),''), fr.theme)),'') <> ''
           GROUP BY 1`,
         [from, to],
@@ -6302,9 +6317,11 @@ const ITEMS_REQUIRED = {
           COUNT(*) FILTER (WHERE (first_message_at AT TIME ZONE 'Asia/Dubai')::date = (now() AT TIME ZONE 'Asia/Dubai')::date)::int today,
           COUNT(*) FILTER (WHERE first_message_at > now() - interval '7 days')::int week
         FROM whatsapp_leads`),
-      pool.query(`SELECT COUNT(*)::int n, COALESCE(SUM(total_fils),0)::bigint v
-        FROM finance_receipts
-        WHERE COALESCE(booked_on, date) = (now() AT TIME ZONE 'Asia/Dubai')::date`),
+      // Money in today by receipt_money_by_day (an add-on paid today counts today);
+      // n = new bookings today (base slices only).
+      pool.query(`SELECT (COUNT(*) FILTER (WHERE slice = 'base'))::int n, COALESCE(SUM(amount_fils),0)::bigint v
+        FROM receipt_money_by_day
+        WHERE money_day = (now() AT TIME ZONE 'Asia/Dubai')::date`),
       pool.query(`SELECT
           COALESCE(SUM(amount_fils) FILTER (WHERE spent_on = (now() AT TIME ZONE 'Asia/Dubai')::date),0)::bigint AS today,
           COALESCE(SUM(amount_fils) FILTER (WHERE spent_on >= date_trunc('month',(now() AT TIME ZONE 'Asia/Dubai')::date)),0)::bigint AS mtd

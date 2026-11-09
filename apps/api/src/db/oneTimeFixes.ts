@@ -15,7 +15,69 @@ export async function runOneTimeFixes(): Promise<void> {
   await reclassifyQuickBooksInvoices();
   await alignFinanceSequences();
   await syncEventCelebrationFromReceipt();
+  await backfillAddonMoneyDays();
 }
+
+/**
+ * Owner rule (final, Nov 2026): every dirham is reported on the day it entered
+ * the system. Add-ons paid before confirm.ts started writing receipt_addon_money
+ * were merged into their event's receipt with no record of their own day, so
+ * reports put that money on the ORIGINAL booking day. Give each such add-on its
+ * slice, on the Dubai day it was paid.
+ *
+ * Only add-ons whose money really was merged: a paid / (partially) refunded
+ * add-on order with no receipt of its own, whose services were applied to the
+ * event (event_services rows — applyAddonOrder ran), and whose event receipt
+ * (found the same way confirm.ts finds it) existed by then AND carries at least
+ * one of the add-on's line labels. Paid day = the first paid/captured payment
+ * transition, else the payment row's last paid/captured update, else the order's
+ * creation. ON CONFLICT DO NOTHING, so a re-run (or a row confirm.ts already
+ * wrote) is never duplicated; the app_kv marker is written only after success.
+ */
+async function backfillAddonMoneyDays(): Promise<void> {
+  const KEY = 'addon_money_days_v1';
+  try {
+    const done = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [KEY]);
+    if (done.rowCount) return;
+    const { rowCount } = await pool.query(ADDON_MONEY_BACKFILL_SQL);
+    await pool.query(`INSERT INTO app_kv (k) VALUES ($1) ON CONFLICT (k) DO NOTHING`, [KEY]);
+    console.log(`[fix] add-on money days: ${rowCount ?? 0} merged add-on(s) moved to the day they were paid`);
+  } catch (err) {
+    console.error('[fix] backfillAddonMoneyDays failed:', err);
+  }
+}
+
+export const ADDON_MONEY_BACKFILL_SQL = `
+  INSERT INTO receipt_addon_money (receipt_id, order_id, booked_on, amount_fils)
+  SELECT rc.id, o.id, (paid.at AT TIME ZONE 'Asia/Dubai')::date, o.total_fils
+    FROM orders o
+    CROSS JOIN LATERAL (
+      SELECT COALESCE(
+        (SELECT min(pe.created_at) FROM payment_events pe
+          WHERE pe.order_id = o.id AND pe.new_status IN ('paid','captured')
+            AND pe.old_status IS DISTINCT FROM pe.new_status),
+        (SELECT min(p.updated_at) FROM payments p
+          WHERE p.order_id = o.id AND p.status IN ('paid','captured')),
+        o.created_at) AS at
+    ) paid
+    JOIN LATERAL (
+      SELECT r.id FROM finance_receipts r
+       WHERE (r.event_id = o.event_id
+              OR r.order_id = (SELECT e.order_id FROM events e WHERE e.id = o.event_id))
+         AND r.created_at <= paid.at + interval '1 day'
+         AND EXISTS (
+           SELECT 1
+             FROM jsonb_array_elements(CASE WHEN jsonb_typeof(r.line_items) = 'array' THEN r.line_items ELSE '[]'::jsonb END) li,
+                  jsonb_array_elements(CASE WHEN jsonb_typeof(o.quote->'lines') = 'array' THEN o.quote->'lines' ELSE '[]'::jsonb END) ql
+            WHERE li->>'name' = ql->>'label')
+       ORDER BY (r.event_id = o.event_id) DESC, r.id
+       LIMIT 1
+    ) rc ON true
+   WHERE o.kind = 'addon' AND o.event_id IS NOT NULL
+     AND o.status IN ('paid','partially_refunded','refunded')
+     AND NOT EXISTS (SELECT 1 FROM finance_receipts own WHERE own.order_id = o.id)
+     AND EXISTS (SELECT 1 FROM event_services es WHERE es.order_id = o.id)
+  ON CONFLICT (order_id) DO NOTHING`;
 
 /**
  * Correct events whose celebration type is still the default "kids" while their
