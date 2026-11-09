@@ -56,14 +56,35 @@ async function wafeqGet(path: string, key: string): Promise<any> {
 }
 
 interface BankAccount { id: string; name: string; sub_classification?: string; currency?: string; }
-interface StatementTxn { id: string; amount: number | string; date: string; description?: string; bank_reference?: string; reference?: string; }
+interface StatementTxn { id: string; amount: number | string; date: string; description?: string; bank_reference?: string; reference?: string; category?: string; }
+
+/**
+ * A transfer between our OWN accounts (e.g. Wio → RAKBANK top-up) is not a spend
+ * — the money just moves to another of our accounts. Same rule the Zoho sync
+ * applies to 'transfer_fund': never queue it as an expense (it would wrongly cut
+ * Cash on hand). Detected by transfer wording in the description/category that
+ * names RAKBANK, another of our connected accounts, or an own-account transfer.
+ */
+function isOwnAccountTransfer(t: StatementTxn, self: BankAccount, accounts: BankAccount[]): boolean {
+  const hay = `${t.description ?? ''} ${t.category ?? ''} ${t.reference ?? ''}`.toLowerCase();
+  if (!/transfer/.test(hay)) return false;
+  if (/rak\s?bank|own account|between (?:own |my |our )?accounts|internal transfer|self transfer/.test(hay)) return true;
+  return accounts.some((a) => {
+    if (a.id === self.id) return false;
+    const name = String(a.name ?? '').toLowerCase().trim();
+    return name.length >= 4 && hay.includes(name);
+  });
+}
 
 /** One poll cycle: pull recent Wio (Wafeq) transactions into the pending queue. */
 async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
   const c = cfg();
   if (!c) return { scanned: 0, ingested: 0 };
   const verbose = c.debug; // set WAFEQ_DEBUG=true to trace shapes again
-  const cutoff = c.since ?? dubaiDaysAgo(7); // only recent txns, unless backfilling
+  // 30-day window (not 7): Wafeq/Wio can sync late (re-auth, outages), and a
+  // line older than the window would be skipped forever. Re-scanning is free —
+  // dedupe_key `wafeq|<id>` (UNIQUE) blocks any re-insert, even of ignored rows.
+  const cutoff = c.since ?? dubaiDaysAgo(30);
 
   // 1) List connected bank accounts.
   const accRes = await wafeqGet('/bank-accounts/?page_size=100', c.key);
@@ -91,6 +112,10 @@ async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
         // Only money OUT is an expense. Skip credits (incoming money / transfers)
         // — they aren't expenses and shouldn't sit in the approval queue.
         if (!Number.isFinite(amt) || amt >= 0) continue;
+        if (isOwnAccountTransfer(t, acc, accounts)) {
+          if (verbose) console.log(`[wafeq] skipped own-account transfer ${t.id}: ${String(t.description ?? '').slice(0, 60)}`);
+          continue;
+        }
         const amountFils = Math.round(Math.abs(amt) * 100);
         const direction: 'debit' | 'credit' = 'debit';
         const merchant = (t.description || acc.name || 'Wio transaction').toString();
@@ -145,7 +170,7 @@ export function startWafeqPolling(): void {
       running = false;
     }
   };
-  console.log(`[wafeq] enabled — pulling Wio transactions every ${c.hours}h (since ${c.since ?? 'last 7 days'})`);
+  console.log(`[wafeq] enabled — pulling Wio transactions every ${c.hours}h (since ${c.since ?? 'last 30 days'})`);
   setTimeout(tick, 15_000); // first run shortly after boot
   timer = setInterval(tick, intervalMs);
 }

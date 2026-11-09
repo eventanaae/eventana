@@ -146,11 +146,82 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
     else if (yyyy.length === 2) yyyy = '20' + yyyy;
     if (Number(mm) >= 1 && Number(mm) <= 12 && Number(dd) >= 1 && Number(dd) <= 31) {
       postedOn = `${yyyy}-${mm}-${dd}`;
+      // Year rollover: an alert with no year ("on 31/12") read in early January
+      // would land ~a year in the FUTURE. A bank debit can't be future-dated, so
+      // anything more than 7 days ahead of Dubai today belongs to last year.
+      if (!dm[3]) {
+        const ahead = (Date.parse(`${postedOn}T00:00:00Z`) - Date.parse(`${dubaiToday()}T00:00:00Z`)) / 86_400_000;
+        if (ahead > 7) postedOn = `${Number(yyyy) - 1}-${mm}-${dd}`;
+      }
     }
   }
   if (!postedOn) postedOn = dubaiToday();
 
   return { amountFils, direction, kind, merchant, postedOn };
+}
+
+/**
+ * Cross-feed duplicate check, shared by EVERY path that queues a pending bank row
+ * (RAKBANK alert, mailbox, Zoho, Wio/Wafeq, Stripe, manual). The same spend can
+ * arrive from several feeds (e.g. a RAKBANK alert AND the Zoho feed, or Wio via
+ * Zoho AND Wafeq), so before inserting a DEBIT we look for:
+ *   1. a customer refund payout (refunds table, amount ±1 AED, refund recorded
+ *      within a week of the bank date) — refunds already reduce cash, so the
+ *      payout must NOT also become an expense;
+ *   2. another bank row (any status except ignored) of the same amount (±1%)
+ *      within ±3 days;
+ *   3. an existing expense of the same amount (±1%) within ±3 days.
+ * Returns a short description of the match (stored in possible_dup_of), or null.
+ * It NEVER drops the row and never auto-approves/ignores — the row is still
+ * queued, just flagged for the approver. Best-effort: a failed lookup = no flag.
+ */
+export async function findPossibleDuplicate(
+  amountFils: number,
+  postedOn: string | null | undefined,
+  direction: 'debit' | 'credit',
+): Promise<string | null> {
+  if (direction !== 'debit' || !(amountFils > 0)) return null;
+  const date = postedOn && /^\d{4}-\d{2}-\d{2}$/.test(postedOn) ? postedOn : dubaiToday();
+  try {
+    const refund = await pool.query<{ order_id: string }>(
+      `SELECT order_id FROM refunds
+        WHERE abs(amount_fils - $1) <= 100
+          AND (created_at AT TIME ZONE 'Asia/Dubai')::date BETWEEN ($2::date - 7) AND ($2::date + 7)
+        ORDER BY abs((created_at AT TIME ZONE 'Asia/Dubai')::date - $2::date), id DESC
+        LIMIT 1`,
+      [amountFils, date]);
+    if (refund.rows[0]) return `customer refund (already counted) — order ${refund.rows[0].order_id}`;
+
+    const lo = Math.floor(amountFils * 0.99);
+    const hi = Math.ceil(amountFils * 1.01);
+    const bank = await pool.query<{ id: string; source: string; d: string }>(
+      `SELECT id, source, to_char(posted_on,'YYYY-MM-DD') AS d FROM bank_transactions
+        WHERE status <> 'ignored' AND direction = 'debit'
+          AND amount_fils BETWEEN $1 AND $2
+          AND posted_on BETWEEN ($3::date - 3) AND ($3::date + 3)
+        ORDER BY abs(posted_on - $3::date), id DESC
+        LIMIT 1`,
+      [lo, hi, date]);
+    if (bank.rows[0]) {
+      const b = bank.rows[0];
+      return `bank #${b.id} (${b.source}, ${b.d})`;
+    }
+
+    const exp = await pool.query<{ id: string; vendor: string | null; d: string }>(
+      `SELECT id, vendor, to_char(spent_on,'YYYY-MM-DD') AS d FROM expenses
+        WHERE amount_fils BETWEEN $1 AND $2
+          AND spent_on BETWEEN ($3::date - 3) AND ($3::date + 3)
+        ORDER BY abs(spent_on - $3::date), id DESC
+        LIMIT 1`,
+      [lo, hi, date]);
+    if (exp.rows[0]) {
+      const e = exp.rows[0];
+      return `expense #${e.id} (${(e.vendor ?? 'no vendor').slice(0, 40)}, ${e.d})`;
+    }
+  } catch (err) {
+    console.error('[bank-inbox] duplicate check failed:', (err as Error).message);
+  }
+  return null;
 }
 
 /**
@@ -169,23 +240,13 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
   // Money IN (inward transfer / deposit / refund to our account) is NOT an expense
   // — never queue it for approval. (The Zoho feed already skips the money-in side.)
   if (p?.direction === 'credit') return null;
-  // Cross-source de-dup: the Zoho bank feed is the authoritative capture of every
-  // bank debit. If this SAME debit (amount + date, ±2 days) already arrived via
-  // Zoho, don't create a second pending row from the RAKBANK alert — that was the
-  // double-expense. The alert defers to Zoho (which reconciles RAKBANK + Wio).
-  if ((p?.amountFils ?? 0) > 0) {
-    const near = await pool.query<{ id: string }>(
-      `SELECT id FROM bank_transactions
-         WHERE source = 'zoho' AND direction = 'debit' AND status <> 'ignored'
-           AND amount_fils = $1
-           AND posted_on BETWEEN ($2::date - 2) AND ($2::date + 2)
-         LIMIT 1`,
-      [p!.amountFils, p?.postedOn ?? dubaiToday()]);
-    if (near.rows[0]) return { id: String(near.rows[0].id), duplicate: true };
-  }
+  // Cross-source de-dup: the same debit may already be here from the Zoho feed
+  // (or any other source / an expense). Never drop it — queue it FLAGGED so the
+  // approver sees "possible duplicate of …" instead of approving it twice.
+  const possibleDup = await findPossibleDuplicate(p?.amountFils ?? 0, p?.postedOn ?? dubaiToday(), p?.direction ?? 'debit');
   const ins = await pool.query<{ id: string }>(
-    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending') RETURNING id`,
+    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, possible_dup_of)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING id`,
     [
       p?.postedOn ?? dubaiToday(),
       p?.amountFils ?? 0,
@@ -195,6 +256,7 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
       raw,
       source,
       dedupeKey,
+      possibleDup,
     ],
   );
   const id = String(ins.rows[0].id);
@@ -203,7 +265,8 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
   const aed = ((p?.amountFils ?? 0) / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const where = p?.merchant ? ` at ${p.merchant}` : '';
   const title = '🏦 New bank transaction — needs a receipt';
-  const bodyMsg = `AED ${aed}${where}. Open Bank Inbox, attach the receipt and approve.`;
+  const dupNote = possibleDup ? ` ⚠️ Possible duplicate of ${possibleDup} — check before approving.` : '';
+  const bodyMsg = `AED ${aed}${where}. Open Bank Inbox, attach the receipt and approve.${dupNote}`;
   const targets = await pool.query<{ id: string }>(
     `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
   );
@@ -586,9 +649,10 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     receiptUrl = await uploadBytes(new Uint8Array(att.bytes), 'eventana/receipts', att.filename).catch(() => null);
   }
 
+  const possibleDup = await findPossibleDuplicate(amountFils, postedOn, direction);
   const ins = await pool.query<{ id: string }>(
-    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING id`,
+    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url, possible_dup_of)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10) RETURNING id`,
     [
       postedOn,
       amountFils,
@@ -599,6 +663,7 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
       provider === 'other' ? source : provider,
       dedupeKey,
       receiptUrl,
+      possibleDup,
     ],
   );
   const id = String(ins.rows[0].id);
@@ -613,7 +678,8 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     const clip = receiptUrl ? ' 📎 receipt attached' : '';
     const title = '🏦 New bank transaction — needs review';
     const amtPart = amountFils > 0 ? `AED ${aed} — ` : 'amount not read — ';
-    const bodyMsg = `${tag}${amtPart}${merchant}.${clip} Open Bank Inbox to review and approve.`;
+    const dupNote = possibleDup ? ` ⚠️ Possible duplicate of ${possibleDup} — check before approving.` : '';
+    const bodyMsg = `${tag}${amtPart}${merchant}.${clip} Open Bank Inbox to review and approve.${dupNote}`;
     const targets = await pool.query<{ id: string }>(
       `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
     );
@@ -642,10 +708,11 @@ export async function ingestExternalTxn(t: {
 }): Promise<{ id: string; duplicate?: boolean }> {
   const dup = await pool.query<{ id: string }>(`SELECT id FROM bank_transactions WHERE dedupe_key = $1 LIMIT 1`, [t.dedupeKey]);
   if (dup.rows[0]) return { id: String(dup.rows[0].id), duplicate: true };
+  const possibleDup = await findPossibleDuplicate(t.amountFils, t.postedOn, t.direction);
   const ins = await pool.query<{ id: string }>(
-    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING id`,
-    [t.postedOn, t.amountFils, t.direction, t.kind, (t.merchant ?? '').slice(0, 120) || null, t.raw.slice(0, 4000), t.source, t.dedupeKey, t.receiptUrl ?? null],
+    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url, possible_dup_of)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10) RETURNING id`,
+    [t.postedOn, t.amountFils, t.direction, t.kind, (t.merchant ?? '').slice(0, 120) || null, t.raw.slice(0, 4000), t.source, t.dedupeKey, t.receiptUrl ?? null, possibleDup],
   );
   return { id: String(ins.rows[0].id) };
 }
@@ -654,6 +721,7 @@ export interface BankTxRow {
   id: string; posted_on: string | null; amount_fils: number; direction: string;
   kind: string; merchant: string | null; raw_text: string | null; status: string;
   receipt_url: string | null; expense_id: string | null; decided_by: string | null;
+  possible_dup_of: string | null;
 }
 
 /** Bank Inbox list — pending first, newest first. */
@@ -662,7 +730,7 @@ export async function listBankTransactions(status?: string): Promise<BankTxRow[]
   const params = status && status !== 'all' ? [status] : [];
   const { rows } = await pool.query<BankTxRow>(
     `SELECT id, to_char(posted_on,'YYYY-MM-DD') AS posted_on, amount_fils, direction, kind,
-            merchant, raw_text, status, receipt_url, expense_id, decided_by
+            merchant, raw_text, status, receipt_url, expense_id, decided_by, possible_dup_of
        FROM bank_transactions ${where}
       ORDER BY (status = 'pending') DESC, created_at DESC
       LIMIT 500`,
