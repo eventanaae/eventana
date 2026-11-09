@@ -12,7 +12,7 @@
  *                         booking_confirmation template. Aborts + logs why
  *                         otherwise. Never guesses.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { formatAed } from '@eventana/shared';
 import { toValidCustomerPhone } from '../domain/maintenance.js';
 import { sendWhatsAppTemplate } from '../integrations/whatsapp.js';
@@ -117,6 +117,9 @@ export async function resendMahiraFromEnv(): Promise<void> {
       g.receipt_no ? `EV-${g.receipt_no}` : g.event_id,
       formatAed(Number(g.total_fils ?? 0)),
     ];
+    // One-time per event (app_kv marker, written first) — RESEND_MAHIRA=send left
+    // set must not re-message the customer on every boot.
+    if (!(await claimOneShot(`oneshot:RESEND_MAHIRA:send:${g.event_id}`))) { P('already sent once — skipping.'); return; }
     P(`SENDING English booking_confirmation to ${to} — params: ${JSON.stringify(params)}`);
     const res = await sendWhatsAppTemplate({ to, name: 'booking_confirmation', language: 'en', params, fromStaff: true });
     P(res.ok ? `✅ SENT (messageId=${res.messageId})` : `❌ SEND FAILED: ${res.error}`);

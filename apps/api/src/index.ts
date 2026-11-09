@@ -1,7 +1,7 @@
 import { assertProductionReady, config } from './config.js';
 import { buildServer } from './server.js';
 import { startReconciliation, stopReconciliation } from './domain/reconcile.js';
-import { closePool, pool } from './db/pool.js';
+import { claimOneShot, closePool, pool } from './db/pool.js';
 import { integrationStatus } from './payments/index.js';
 
 async function main() {
@@ -367,7 +367,8 @@ async function main() {
     await deliverNowFromEnv().catch((err) => console.error('[deliver-now] failed:', err));
     // On-demand reconciliation & audit email for the CURRENT month (RECON_SEND_NOW
     // =true) — a live snapshot to the owner + Marsha on request.
-    if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true') {
+    // One-time (app_kv marker) so a flag left set doesn't re-email on every boot.
+    if (String(process.env.RECON_SEND_NOW ?? '').toLowerCase() === 'true' && await claimOneShot('oneshot:RECON_SEND_NOW:true')) {
       const now = new Date();
       const m = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const { sendReconReport } = await import('./domain/reconReport.js');
@@ -845,6 +846,7 @@ async function main() {
     (async () => {
       try {
         const month = String(process.env.SEND_FINANCE_REPORT);
+        if (!(await claimOneShot(`oneshot:SEND_FINANCE_REPORT:${month}`))) return;
         const { sendReport } = await import('./domain/financeReport.js');
         const r = await sendReport(month);
         console.log(`[finance-report] ${month} → recipients=${r.recipients} sent=${r.sent}`);
@@ -886,6 +888,7 @@ async function main() {
   if (String(process.env.FULL_RESET_EVENTDATE ?? '').toLowerCase() === 'true') {
     (async () => {
       try {
+        if (!(await claimOneShot('oneshot:FULL_RESET_EVENTDATE:true'))) return;
         const { pool } = await import('./db/pool.js');
         const r = await pool.query(
           `UPDATE finance_receipts SET booked_on = date
@@ -912,6 +915,7 @@ async function main() {
         ['EV-2026-0269', '2026-09-24'],
       ];
       try {
+        if (!(await claimOneShot('oneshot:APPLY_SEPT_BOOKDATES:true'))) return;
         const { pool } = await import('./db/pool.js');
         let ok = 0; const misses: string[] = [];
         for (const [ref, d] of PAIRS) {
@@ -942,6 +946,7 @@ async function main() {
     (async () => {
       const EVID = 'EV-2026-0215', NAME = 'Maryam Albloshi', BOOKED = '2026-09-01';
       try {
+        if (!(await claimOneShot('oneshot:FIX_MARYAM_0215:true'))) return;
         const { pool } = await import('./db/pool.js');
         const ev = await pool.query<{ cid: string; oid: string }>(
           `SELECT customer_id cid, order_id oid FROM events WHERE id = $1`, [EVID]);
@@ -962,6 +967,7 @@ async function main() {
   if (String(process.env.AUG_FIX ?? '').toLowerCase() === 'true') {
     (async () => {
       try {
+        if (!(await claimOneShot('oneshot:AUG_FIX:true'))) return;
         const { pool } = await import('./db/pool.js');
         const a = await pool.query(
           `UPDATE finance_receipts SET booked_on = '2026-08-28'::date
@@ -1272,6 +1278,7 @@ async function main() {
   if (String(process.env.DINDO_FIX ?? '').toLowerCase() === 'true') {
     (async () => {
       try {
+        if (!(await claimOneShot('oneshot:DINDO_FIX:true'))) return;
         const { pool } = await import('./db/pool.js');
         await pool.query(
           `DELETE FROM staff_days_off WHERE member_id='tm-dindo'
@@ -1299,6 +1306,7 @@ async function main() {
   if (process.env.SET_BOOKED) {
     (async () => {
       try {
+        if (!(await claimOneShot(`oneshot:SET_BOOKED:${String(process.env.SET_BOOKED).trim()}`))) return;
         const { pool } = await import('./db/pool.js');
         const pairs = String(process.env.SET_BOOKED).split(';').map((s) => s.trim()).filter(Boolean);
         for (const p of pairs) {
@@ -1372,6 +1380,7 @@ async function main() {
         ['EV-2026-0271', '2026-09-28'], ['EV-2026-0273', '2026-10-02'], ['EV-2026-0207', '2026-09-04'],
       ];
       try {
+        if (!(await claimOneShot('oneshot:APPLY_OWNER_BOOKDATES:true'))) return;
         const { pool } = await import('./db/pool.js');
         let ok = 0; const misses: string[] = [];
         for (const [evid, d] of PAIRS) {
@@ -1682,6 +1691,7 @@ async function main() {
       const phone = String(process.env.FIX_FEEDBACK_PHONE).replace(/[^\d+]/g, '');
       const evId = String(process.env.FIX_FEEDBACK_EVENT ?? '').trim();
       try {
+        if (!(await claimOneShot(`oneshot:FIX_FEEDBACK:${email}:${phone}:${evId}`))) return;
         const { pool } = await import('./db/pool.js');
         const c = await pool.query(`UPDATE customers SET phone = $2 WHERE lower(email) = $1 RETURNING id, name`, [email, phone]);
         console.log(`[fix-feedback] set phone on ${c.rowCount} customer(s) for ${email} → ${phone}`);
@@ -1710,6 +1720,7 @@ async function main() {
     (async () => {
       const oid = String(process.env.UNDO_REFUND_ORDER);
       try {
+        if (!(await claimOneShot(`oneshot:UNDO_REFUND_ORDER:${oid}`))) return;
         const { pool } = await import('./db/pool.js');
         const canc = await pool.query(
           `UPDATE notifications SET cancelled_at = now()
@@ -1753,6 +1764,7 @@ async function main() {
       const fils = Math.round(Number(process.env.REDO_REFUND_FILS));
       const label = (process.env.REDO_REFUND_LABEL || 'Tables & Chairs').trim();
       try {
+        if (!(await claimOneShot(`oneshot:REDO_REFUND_ORDER:${oid}:${fils}:${label}`))) return;
         const { pool } = await import('./db/pool.js');
         // Idempotency guard: skip if this exact refund was already recorded recently.
         const dup = await pool.query(
@@ -1962,7 +1974,7 @@ async function main() {
                     jsonb_agg(jsonb_build_object(
                       'label', item_label, 'amountFils', amount_fils,
                       'reasonCategory', reason_category,
-                      'at', to_char(created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+                      'at', to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
                     ) ORDER BY created_at) AS items
                FROM refunds GROUP BY order_id
            )
@@ -2016,6 +2028,7 @@ async function main() {
     (async () => {
       const oid = String(process.env.DELETE_REFUND_FOR_ORDER);
       try {
+        if (!(await claimOneShot(`oneshot:DELETE_REFUND_FOR_ORDER:${oid}`))) return;
         const { pool } = await import('./db/pool.js');
         const pts = await pool.query<{ customer_id: string; add_back: number }>(
           `SELECT customer_id, COALESCE(SUM(-points),0)::int AS add_back FROM loyalty_transactions

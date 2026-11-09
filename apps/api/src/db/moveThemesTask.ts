@@ -5,7 +5,7 @@
  * the photoshoot and tomorrow. Notifies the assignees and emails them (CC owner).
  * Gated MOVE_THEMES_TASK=true. Idempotent by title. Turn the flag off after.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { createManualTask } from '../domain/prep.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
@@ -42,6 +42,8 @@ function html(names: string, due: string): string {
 
 export async function moveThemesTaskFromEnv(): Promise<void> {
   if (String(process.env.MOVE_THEMES_TASK ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:MOVE_THEMES_TASK:true'))) return;
 
   // 1) Remove the themes task from Marsha, and any prior copy of the new task
   //    (so a re-run rebuilds it with the correct assignees).
