@@ -651,6 +651,8 @@ async function main() {
     await dumpBackfillImpactFromEnv().catch((err) => console.error('[bfimpact] failed:', err));
     const { linkImportedReceiptsFromEnv } = await import('./db/linkImportedReceipts.js');
     await linkImportedReceiptsFromEnv().catch((err) => console.error('[linkqb] failed:', err));
+    const { dumpOneReceiptFromEnv } = await import('./db/dumpOneReceipt.js');
+    await dumpOneReceiptFromEnv().catch((err) => console.error('[onercpt] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
