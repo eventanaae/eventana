@@ -90,8 +90,21 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
                    GROUP BY 1 ORDER BY 2 DESC LIMIT 60`, [from, to]),
     ]);
 
+    // Optional diagnostic for one booking day (?inspect=YYYY-MM-DD): how that
+    // day's receipts were created. Counts only — no names, numbers or amounts per row.
+    let inspect: unknown = undefined;
+    if (q.inspect && ISO.test(q.inspect)) {
+      const d = await pool.query(
+        `SELECT source, paid_with, date::text receipt_date, (created_at AT TIME ZONE 'Asia/Dubai')::date::text created_on,
+                (event_id IS NOT NULL) has_event, (order_id IS NOT NULL) has_order, COUNT(*)::int n
+           FROM finance_receipts WHERE booked_on = $1::date
+          GROUP BY 1,2,3,4,5,6 ORDER BY n DESC LIMIT 100`, [q.inspect]);
+      inspect = { day: q.inspect, groups: d.rows };
+    }
+
     reply.header('cache-control', 'no-store');
     return {
+      inspect,
       generatedAt: new Date().toISOString(),
       range: { from, to },
       dateBasis: 'booking entered system (finance_receipts.booked_on), not event date',
