@@ -3775,20 +3775,12 @@ const ITEMS_REQUIRED = {
     return reply.status(201).send(await finance.createReceipt({ ...p.data, commissionRep: owner ? p.data.commissionRep ?? null : null }));
   });
   app.delete('/api/admin/finance/receipts/:id', async (request, reply) => {
-    // Deleting a sale removes revenue → owner only.
-    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+    // Deleting a sale removes revenue → owner or manager only (Marsha cleans
+    // duplicates). deleteReceipt itself refuses refunded receipts and the only
+    // receipt of a live booking.
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
     const id = Number((request.params as { id: string }).id);
-    // A receipt tied to a live (not cancelled) booking is managed from the event.
-    const live = await pool.query(
-      `SELECT 1 FROM finance_receipts fr
-         JOIN events e ON (e.id = fr.event_id OR (fr.order_id IS NOT NULL AND e.order_id = fr.order_id))
-        WHERE fr.id = $1 AND e.phase IS DISTINCT FROM 'Cancelled'
-        LIMIT 1`,
-      [id],
-    );
-    if (live.rows[0]) {
-      return reply.status(409).send({ error: 'live_booking', message: 'This receipt belongs to a live booking — cancel the event instead' });
-    }
     return finance.deleteReceipt(id);
   });
 

@@ -1184,6 +1184,13 @@ export async function deleteReceipt(id: number) {
                         OR e.order_id = r.order_id
                         OR e.id = (SELECT o.event_id FROM orders o WHERE o.id = r.order_id))
                    AND e.cancelled_at IS NULL AND e.phase IS DISTINCT FROM 'Cancelled'
+              )
+              -- a duplicate receipt of the same booking may still be removed
+              AND NOT EXISTS (
+                SELECT 1 FROM finance_receipts r2
+                 WHERE r2.id <> r.id
+                   AND ((r.event_id IS NOT NULL AND r2.event_id = r.event_id)
+                        OR (r.order_id IS NOT NULL AND r2.order_id = r.order_id))
               ) AS live
          FROM finance_receipts r WHERE r.id = $1 FOR UPDATE`,
       [id],

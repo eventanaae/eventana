@@ -93,7 +93,7 @@ export async function sweepShoppingListReminders(): Promise<number> {
  */
 export async function sweepDriverShoppingList(): Promise<number> {
   const { dow, hr } = await dubaiNow();
-  if (dow !== 3 || hr < 9 || hr >= 11) return 0; // Wednesday, 09:00–10:59
+  if (dow !== 3 || hr < 10 || hr >= 12) return 0; // Wednesday, 10:00–11:59 (staff hours start 10:00)
   if (await sentToday('driver_shopping_list')) return 0;
 
   const { rows: items } = await pool.query<{ item: string; quantity: number; supplier: string | null; location: string | null }>(
@@ -129,7 +129,7 @@ export async function sweepDriverShoppingList(): Promise<number> {
 /** A warm break-and-recharge message to each member whose day off is today. */
 export async function sweepDayOffMessage(): Promise<number> {
   const { dow, hr } = await dubaiNow();
-  if (hr < 9 || hr >= 11) return 0;
+  if (hr < 10 || hr >= 12) return 0; // staff hours start 10:00 Dubai
   if (await sentToday('team_dayoff_wellbeing')) return 0;
 
   const { rows } = await pool.query<{ id: string; name: string; phone: string }>(
