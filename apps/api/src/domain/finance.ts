@@ -627,10 +627,10 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
         -- Hand. Skip any add-on whose event already carries a receipt (merged); a
         -- genuinely un-posted add-on would have a receipt under its own id and was
         -- already excluded above.
-        -- TODO(owner decision): a merged add-on keeps the receipt's ORIGINAL
-        -- booked_on, so its money is reported on the first booking's day rather
-        -- than the day the add-on was paid. Left as-is pending the owner's call
-        -- (merge happens in confirm.ts applyAddonOrder).
+        -- A merged add-on keeps the receipt's ORIGINAL booked_on, but its money is
+        -- reported on the add-on's own day (owner rule: every dirham on the day it
+        -- entered): confirm.ts applyAddonOrder writes a receipt_addon_money row and
+        -- every money report sums the receipt_money_by_day view (schema.sql).
         AND NOT (o.kind = 'addon' AND o.event_id IS NOT NULL AND EXISTS (
           SELECT 1 FROM finance_receipts r
            WHERE r.event_id = o.event_id

@@ -46,12 +46,18 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
     // month the money went back — netting refunded_fils into the booking month
     // silently rewrote past months whenever a later refund happened.
     // Receipts without booked_on fall back to their receipt date.
-    const BK = `COALESCE(booked_on, date)`;
+    // Money is summed from receipt_money_by_day (m): an add-on merged into an
+    // earlier receipt counts on the day it was PAID (owner: every dirham on the day
+    // it entered). Booking COUNTS use base slices only — an add-on is never a new
+    // booking. RBK is the receipt-level booking day (item counts, ?inspect).
+    const RBK = `COALESCE(booked_on, date)`;
+    const BK = `m.money_day`;
     const bookingsBase = `
-      FROM finance_receipts
+      FROM receipt_money_by_day m JOIN finance_receipts r ON r.id = m.receipt_id
      WHERE ${BK} BETWEEN $1::date AND $2::date
-       AND total_fils > 0`;
-    const net = `COALESCE(SUM(total_fils),0)::bigint`;
+       AND r.total_fils > 0`;
+    const net = `COALESCE(SUM(m.amount_fils),0)::bigint`;
+    const nBookings = `(COUNT(*) FILTER (WHERE m.slice = 'base'))::int`;
     // Owner rule: the Eventana Exclusive Package (a.k.a. Carnival/Carnaval Offer,
     // 3499/3500 Offer, Marwa Rateb Package) is the ONLY sale that does not come
     // from Meta ads. Everything else is attributed to Meta.
@@ -69,15 +75,15 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
        WHERE li->>'name' ~* $3)`;
 
     const [byMonth, byDay, byCelebration, byTheme, leadsByMonth, leadsByAd, leadsByDay, byPackage, refundsByMonth] = await Promise.all([
-      pool.query(`SELECT to_char(${BK},'YYYY-MM') m, COUNT(*)::int n, ${net} v,
-                         COUNT(*) FILTER (WHERE ${exclusive})::int xn,
-                         COALESCE(SUM(total_fils) FILTER (WHERE ${exclusive}),0)::bigint xv
+      pool.query(`SELECT to_char(${BK},'YYYY-MM') m, ${nBookings} n, ${net} v,
+                         COUNT(*) FILTER (WHERE m.slice = 'base' AND ${exclusive})::int xn,
+                         COALESCE(SUM(m.amount_fils) FILTER (WHERE ${exclusive}),0)::bigint xv
                     ${bookingsBase} GROUP BY 1 ORDER BY 1`, [from, to, nonMeta]),
-      pool.query(`SELECT ${BK}::text d, COUNT(*)::int n, ${net} v ${bookingsBase}
+      pool.query(`SELECT ${BK}::text d, ${nBookings} n, ${net} v ${bookingsBase}
                     AND ${BK} > $2::date - 60 GROUP BY 1 ORDER BY 1`, [from, to]),
       pool.query(`SELECT to_char(${BK},'YYYY-MM') m, COALESCE(NULLIF(celebration_type,''),'unknown') c,
-                         COUNT(*)::int n, ${net} v ${bookingsBase} GROUP BY 1,2 ORDER BY 1,2`, [from, to]),
-      pool.query(`SELECT COALESCE(NULLIF(theme,''),'unknown') t, COUNT(*)::int n, ${net} v ${bookingsBase}
+                         ${nBookings} n, ${net} v ${bookingsBase} GROUP BY 1,2 ORDER BY 1,2`, [from, to]),
+      pool.query(`SELECT COALESCE(NULLIF(theme,''),'unknown') t, ${nBookings} n, ${net} v ${bookingsBase}
                    GROUP BY 1 ORDER BY 2 DESC LIMIT 40`, [from, to]),
       pool.query(`SELECT to_char((first_message_at AT TIME ZONE 'Asia/Dubai')::date,'YYYY-MM') m,
                          COUNT(*)::int leads,
@@ -100,7 +106,7 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
                    GROUP BY 1 ORDER BY 1`, [from, to]),
       pool.query(`SELECT li->>'name' p, COUNT(DISTINCT finance_receipts.id)::int n
                     FROM finance_receipts, jsonb_array_elements(CASE WHEN jsonb_typeof(line_items)='array' THEN line_items ELSE '[]'::jsonb END) li
-                   WHERE ${BK} BETWEEN $1::date AND $2::date AND total_fils > 0
+                   WHERE ${RBK} BETWEEN $1::date AND $2::date AND total_fils > 0
                    GROUP BY 1 ORDER BY 2 DESC LIMIT 60`, [from, to]),
       pool.query(`SELECT to_char((created_at AT TIME ZONE 'Asia/Dubai')::date,'YYYY-MM') m,
                          COUNT(*)::int n, COALESCE(SUM(amount_fils),0)::bigint v
@@ -116,7 +122,7 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
       const d = await pool.query(
         `SELECT source, paid_with, date::text receipt_date, (created_at AT TIME ZONE 'Asia/Dubai')::date::text created_on,
                 (event_id IS NOT NULL) has_event, (order_id IS NOT NULL) has_order, COUNT(*)::int n
-           FROM finance_receipts WHERE ${BK} = $1::date
+           FROM finance_receipts WHERE ${RBK} = $1::date
           GROUP BY 1,2,3,4,5,6 ORDER BY n DESC LIMIT 100`, [q.inspect]);
       inspect = { day: q.inspect, groups: d.rows };
     }

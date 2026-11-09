@@ -1902,3 +1902,52 @@ CREATE INDEX IF NOT EXISTS finance_receipts_event_idx ON finance_receipts (event
 CREATE INDEX IF NOT EXISTS finance_receipts_customer_idx ON finance_receipts (customer_id);
 CREATE INDEX IF NOT EXISTS notifications_event_template_idx ON notifications (event_id, template);
 CREATE INDEX IF NOT EXISTS orders_customer_idx ON orders (customer_id);
+
+-- Owner rule (final, Nov 2026): every dirham is reported on the day it ENTERED the
+-- system. An add-on paid later on an existing event is still MERGED into that
+-- event's sales receipt (one receipt per event — confirm.ts applyAddonOrder grows
+-- its line_items / subtotal / total), but its money must count on the ADD-ON's own
+-- day, not the receipt's original booked_on. Each merged add-on leaves one row here
+-- (the add-on order id, the Dubai day it was paid, the amount merged). Deleting the
+-- receipt deletes its add-on slices with it.
+CREATE TABLE IF NOT EXISTS receipt_addon_money (
+  id          BIGSERIAL PRIMARY KEY,
+  receipt_id  BIGINT NOT NULL REFERENCES finance_receipts(id) ON DELETE CASCADE,
+  order_id    TEXT NOT NULL UNIQUE,
+  booked_on   DATE NOT NULL,
+  amount_fils BIGINT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS receipt_addon_money_booked_on_idx ON receipt_addon_money (booked_on);
+CREATE INDEX IF NOT EXISTS receipt_addon_money_receipt_idx ON receipt_addon_money (receipt_id);
+
+-- Money-in by day: one row per slice of a receipt's money. The 'base' slice is the
+-- receipt total MINUS its merged add-ons, on the receipt's booking day; each 'addon'
+-- slice is on the add-on's own day. SUM(amount_fils) over every slice of a receipt
+-- = its total_fils, so totals never change — only the day the money lands on.
+--   receipt_id      finance_receipts.id
+--   slice           'base' | 'addon' — COUNT bookings with FILTER (WHERE slice='base')
+--                   (an add-on is never a new booking)
+--   slice_order_id  the receipt's order_id (base) / the add-on order id (addon)
+--   slice_booked_on raw booking date of the slice (may be NULL for a base slice)
+--   money_day       the day reports group by: COALESCE(booked_on, date) for a base
+--                   slice (same fallback the reports always used), the add-on day
+--   amount_fils     the money in this slice (gross; refunds stay in `refunds`)
+CREATE OR REPLACE VIEW receipt_money_by_day AS
+  SELECT r.id AS receipt_id,
+         'base'::text AS slice,
+         r.order_id AS slice_order_id,
+         r.booked_on AS slice_booked_on,
+         COALESCE(r.booked_on, r.date) AS money_day,
+         (r.total_fils - COALESCE(a.addon_fils, 0))::bigint AS amount_fils
+    FROM finance_receipts r
+    LEFT JOIN (SELECT receipt_id, SUM(amount_fils) AS addon_fils
+                 FROM receipt_addon_money GROUP BY receipt_id) a ON a.receipt_id = r.id
+  UNION ALL
+  SELECT m.receipt_id,
+         'addon'::text,
+         m.order_id,
+         m.booked_on,
+         m.booked_on,
+         m.amount_fils::bigint
+    FROM receipt_addon_money m;

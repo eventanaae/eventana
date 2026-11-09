@@ -43,8 +43,10 @@ export async function computeSummary(monthStr: string): Promise<Summary> {
     // Gross sales = every sale BOOKED that month (money-in), by booked_on — owner's
     // rule: the month's income is what the customer booked/paid that month, not the
     // month the party happens. COALESCE keeps any row without a booking date.
+    // Summed from receipt_money_by_day so an add-on merged into an earlier receipt
+    // counts in the month it was PAID (owner: every dirham on the day it entered).
     pool.query(
-      `SELECT COALESCE(SUM(total_fils),0) v FROM finance_receipts WHERE COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2`,
+      `SELECT COALESCE(SUM(amount_fils),0) v FROM receipt_money_by_day WHERE money_day >= $1 AND money_day < $2`,
       [start, endStr],
     ),
     // Refunds that LEFT the account this month, by the refund's own date (created_at).
