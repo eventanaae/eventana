@@ -12,7 +12,11 @@ export async function dumpAllVendorsFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
   const guard = await pool
     .query(`SELECT 1 FROM app_kv WHERE k = 'all_vendors_dumped_v1'`)
-    .catch(() => ({ rowCount: 0 }));
+    .catch((e: unknown) => {
+      // A failed marker read must not look like "never ran": stop instead of re-running.
+      console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+      return { rowCount: 1 };
+    });
   if (guard.rowCount) return;
 
   const tot = await pool.query<{ vend: number; rows: number; blank: number }>(

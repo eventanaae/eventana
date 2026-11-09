@@ -3,7 +3,11 @@ import { pool } from './pool.js';
 const IDS = [27005,27000,2,520,1009,824,223,218,212,215,214,219,211,222,221,213,220,217,216,1131,2730,2834,2862,3761,602];
 export async function dumpBlankReceiptsFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const g = await pool.query(`SELECT 1 FROM app_kv WHERE k='blank_rcpt_v1'`).catch(() => ({ rowCount: 0 }));
+  const g = await pool.query(`SELECT 1 FROM app_kv WHERE k='blank_rcpt_v1'`).catch((e: unknown) => {
+    // A failed marker read must not look like "never ran": stop instead of re-running.
+    console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+    return { rowCount: 1 };
+  });
   if (g.rowCount) return;
   const { rows } = await pool.query<{ id: string; d: string; aed: number; url: string; sup: string; items: string }>(
     `SELECT e.id, to_char(e.spent_on,'YYYY-MM-DD') d, round(e.amount_fils/100.0)::int aed,

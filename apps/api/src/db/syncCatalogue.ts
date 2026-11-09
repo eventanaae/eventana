@@ -35,13 +35,13 @@ export async function syncCatalogueContent(): Promise<void> {
            short_description = EXCLUDED.short_description, detail = EXCLUDED.detail,
            pricing = EXCLUDED.pricing, requires_assets = EXCLUDED.requires_assets,
            is_inflatable = EXCLUDED.is_inflatable, is_food_station = EXCLUDED.is_food_station,
-           needs_admin_review = EXCLUDED.needs_admin_review,
            celebration_types = EXCLUDED.celebration_types, badge = EXCLUDED.badge,
            gradient = EXCLUDED.gradient`,
-        // NOTE: price_fils and extra_serving_fils are deliberately NOT overwritten
-        // on conflict — a price the owner set in the dashboard is the source of
-        // truth and must survive a redeploy. New services still take the code
-        // price on first insert.
+        // NOTE: price_fils, extra_serving_fils, needs_admin_review and active are
+        // deliberately NOT overwritten on conflict — they are edited in the
+        // dashboard (PATCH /api/admin/services/:id), which is the source of truth
+        // and must survive a redeploy. New services still take the code values
+        // on first insert.
         [
           s.id, s.name, s.categoryId, s.priceFils, s.shortDescription, s.detail,
           JSON.stringify(s.pricing), s.requiresAssets, s.isInflatable, s.isFoodStation,
@@ -50,21 +50,16 @@ export async function syncCatalogueContent(): Promise<void> {
       );
     }
 
-    // Package ROWS: insert any package that doesn't exist yet (e.g. a new
-    // celebration's packages) and refresh the code-authoritative fields. Name IS
-    // refreshed (same as services + the seed) so a code rename goes live; only
-    // price_fils is left to the dashboard owner and survives a redeploy.
+    // Package ROWS: INSERT-ONLY. A package missing from the database (e.g. a new
+    // celebration's packages) is created from the catalogue; an existing row is
+    // never touched, because the owner edits name / price / active in the
+    // dashboard and a boot must not revert those edits.
     for (const p of PACKAGES) {
       await pool.query(
         `INSERT INTO packages
            (id, name, price_fils, capacity, duration_hours, tag, gradient, has_castle_choice, celebration_type, active)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE)
-         ON CONFLICT (id) DO UPDATE SET
-           name = EXCLUDED.name,
-           celebration_type = EXCLUDED.celebration_type,
-           capacity = EXCLUDED.capacity, duration_hours = EXCLUDED.duration_hours,
-           tag = EXCLUDED.tag, gradient = EXCLUDED.gradient,
-           has_castle_choice = EXCLUDED.has_castle_choice`,
+         ON CONFLICT (id) DO NOTHING`,
         [p.id, p.name, p.priceFils, p.capacity, p.durationHours, p.tag, p.gradient, p.hasCastleChoice, p.celebrationType],
       );
     }

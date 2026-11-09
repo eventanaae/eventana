@@ -471,7 +471,11 @@ async function main() {
       // clean and re-prepares fresh drafts with the new templates. Sent history is
       // untouched. Guarded so it runs once.
       try {
-        const g = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'occasion_reset_20260920'`).catch(() => ({ rowCount: 0 }));
+        const g = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'occasion_reset_20260920'`).catch((e: unknown) => {
+          // A failed marker read must not look like "never ran": stop instead of re-running.
+          console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+          return { rowCount: 1 };
+        });
         if (!g.rowCount) {
           const del = await pool.query(`DELETE FROM email_campaigns WHERE source IN ('occasion','occasion_corp') AND status <> 'sent'`).catch(() => ({ rowCount: 0 }));
           await pool.query(`DELETE FROM focus_tasks WHERE link_key LIKE 'mktg|%'`).catch(() => {});
