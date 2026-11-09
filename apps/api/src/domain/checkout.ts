@@ -20,6 +20,7 @@ import {
   SHOP_READY_DAYS,
   SHOP_DIGITAL_READY_DAYS,
   SHOP_DRAWING_IDS,
+  holdMinutesFor,
   type AddonRequest,
   type CartInput,
   type Quote,
@@ -158,26 +159,48 @@ export async function previewQuote(cart: CartInput, requestedOfferToken?: string
  */
 async function applyCheckoutDiscounts(
   serverQuote: Quote,
-  args: { customerId: string; input: DiscountInput; allowStacking: boolean; byoDiscountFils: number },
+  args: {
+    customerId: string;
+    input: DiscountInput;
+    allowStacking: boolean;
+    byoDiscountFils: number;
+    /** The same cart re-priced WITHOUT the BYO discount. When stacking is off,
+     *  a reward that replaces the BYO 15% must be computed on (and the rush fee
+     *  charged on) the pre-BYO base — not on a base the dropped discount shrank. */
+    noByoQuote?: () => Quote;
+  },
 ) {
   const byoDiscountFils = args.byoDiscountFils;
-  const rushSurchargeFils = serverQuote.lines
+  const preByo =
+    !args.allowStacking && byoDiscountFils > 0 && args.noByoQuote ? args.noByoQuote() : null;
+  const base = preByo ?? serverQuote;
+  const rushSurchargeFils = base.lines
     .filter((l) => l.kind === 'surcharge')
     .reduce((sum, l) => sum + l.amountFils, 0);
-  const percentBaseFils = Math.max(0, serverQuote.totalFils - serverQuote.deliveryFils - rushSurchargeFils);
+  const percentBaseFils = Math.max(0, base.totalFils - base.deliveryFils - rushSurchargeFils);
   const applied = await computeDiscounts(pool, {
     customerId: args.customerId,
-    subtotalFils: serverQuote.totalFils,
+    subtotalFils: base.totalFils,
     input: args.input,
-    deliveryFils: serverQuote.deliveryFils,
+    deliveryFils: base.deliveryFils,
     percentBaseFils,
     allowStacking: args.allowStacking,
     byoDiscountFils,
   });
-  // No stacking + a reward out-valued the BYO 15%: remove the BYO discount line
-  // so only the single chosen discount applies. Done BEFORE the reward lines are
-  // pushed, while the BYO line is still the only null-ref discount in the quote.
-  if (applied.droppedByo && byoDiscountFils > 0) {
+  // No stacking + a reward out-valued the BYO 15%: the quote becomes the pre-BYO
+  // one (no BYO line, rush fee recomputed on the undiscounted party value) and
+  // the reward computed on it applies alone.
+  if (applied.droppedByo && byoDiscountFils > 0 && preByo) {
+    serverQuote.lines = preByo.lines;
+    serverQuote.eligibleSubtotalFils = preByo.eligibleSubtotalFils;
+    serverQuote.discountUnlocked = false;
+    serverQuote.discountFils = preByo.discountFils;
+    serverQuote.customThemeFeeFils = preByo.customThemeFeeFils;
+    serverQuote.deliveryFils = preByo.deliveryFils;
+    serverQuote.totalFils = preByo.totalFils;
+  } else if (applied.droppedByo && byoDiscountFils > 0) {
+    // Fallback (no re-quote supplied): remove the BYO discount line. Done BEFORE
+    // the reward lines are pushed, while it is the only null-ref discount.
     const i = serverQuote.lines.findIndex(
       (l) => l.kind === 'discount' && l.refId === null && l.amountFils === -byoDiscountFils,
     );
@@ -224,6 +247,7 @@ export async function previewCheckoutTotal(args: {
     input: args.discounts,
     allowStacking: cfg.rules.allowDiscountStacking,
     byoDiscountFils,
+    noByoQuote: () => computeQuote(args.cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: true }),
   });
   const promoFils = applied.promo?.amountFils ?? 0;
   const creditFils = applied.creditFils;
@@ -378,6 +402,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     input: req.discounts ?? {},
     allowStacking: cfg.rules.allowDiscountStacking,
     byoDiscountFils,
+    noByoQuote: () => computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: true }),
   });
   if (applied.totalFils > 0) {
     (cart as unknown as Record<string, unknown>).appliedDiscounts = applied;
@@ -398,6 +423,8 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   const provider = getProvider(req.provider);
   const endHour = eventEndHour(cart.startTime!, cfg.rules, 0, effectiveEventHours(cart, cfg.rules, cfg.services));
   const requiredAssets = resolveRequiredAssets(cart, cfg);
+  // A card session stays payable ~31 min, so its hold must outlive that.
+  const holdMinutes = holdMinutesFor(provider.name, cfg.rules);
 
   // (2)(3)(4) availability, hold and order in ONE transaction.
   const { orderId } = await withTransaction(async (db) => {
@@ -427,7 +454,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       eventDate: cart.eventDate!,
       startTime: cart.startTime!,
       endHour,
-      holdMinutes: cfg.rules.inventoryHoldMinutes,
+      holdMinutes,
     });
 
     // Reserve a promo/win-back code NOW (atomically, in this same transaction) so
@@ -565,7 +592,11 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     });
 
     if (!session.eligible) {
-      // The hold stays alive: the customer can still pay another way (§7).
+      // Provider declined: there is no payable session on this order, so free
+      // everything it reserved NOW. Otherwise a re-tap (or another method) finds
+      // the customer blocked by their own holds, promo reservation and spent
+      // points/credit until the 2h sweep. The re-try mints a fresh order.
+      await abandonCheckoutOrder(orderId, 'provider declined at session creation');
       return {
         orderId,
         orderToken: orderViewToken(orderId),
@@ -574,9 +605,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
         checkoutUrl: null,
         eligible: false,
         totalFils: serverQuote.totalFils,
-        holdExpiresAt: new Date(
-          Date.now() + cfg.rules.inventoryHoldMinutes * 60_000,
-        ).toISOString(),
+        holdExpiresAt: new Date().toISOString(),
         quote: serverQuote,
       };
     }
@@ -592,16 +621,14 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       publishableKey: session.publishableKey ?? null,
       eligible: true,
       totalFils: serverQuote.totalFils,
-      holdExpiresAt: new Date(Date.now() + cfg.rules.inventoryHoldMinutes * 60_000).toISOString(),
+      holdExpiresAt: new Date(Date.now() + holdMinutes * 60_000).toISOString(),
       quote: serverQuote,
     };
   } catch (err) {
-    // The provider never got a usable session — free the assets now
-    // rather than making another customer wait out the TTL.
-    await releaseHolds(pool, orderId, 'session creation failed');
-    await pool.query(`UPDATE orders SET status = 'failed', updated_at = now() WHERE id = $1`, [
-      orderId,
-    ]);
+    // The provider never got a usable session — free the assets, promo
+    // reservation and reserved points/credit now rather than making the
+    // customer (or another customer) wait out the TTL / 2h sweep.
+    await abandonCheckoutOrder(orderId, 'session creation failed');
     await recordPaymentEvent(pool, {
       orderId,
       provider: provider.name,
@@ -614,6 +641,45 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       'session_failed',
     );
   }
+}
+
+/**
+ * A checkout order that never got a payable session: release its holds, mark it
+ * failed, free its idempotency key (so a genuine retry on the same key can mint
+ * a new order past the UNIQUE index), delete its promo reservation and give back
+ * the points/credit reserved at checkout — exactly what the 2h reconcile sweep
+ * does for abandoned orders, done at once and only for this order. The
+ * discounts_reversed_at stamp makes the refund once-only (and tells confirm to
+ * re-consume should a payment ever land on it).
+ */
+async function abandonCheckoutOrder(orderId: string, reason: string): Promise<void> {
+  await withTransaction(async (db) => {
+    await releaseHolds(db, orderId, reason);
+    await db.query(
+      `UPDATE orders SET status = 'failed', idempotency_key = NULL, updated_at = now()
+        WHERE id = $1 AND status IN ('awaiting_payment','processing')`,
+      [orderId],
+    );
+    await db.query(
+      `DELETE FROM promo_redemptions pr USING orders o
+        WHERE pr.order_id = o.id AND o.id = $1 AND o.status = 'failed'`,
+      [orderId],
+    );
+    await db.query(
+      `WITH claimed AS (
+         UPDATE orders SET discounts_reversed_at = now()
+          WHERE id = $1 AND status = 'failed' AND discounts_reversed_at IS NULL
+          RETURNING customer_id,
+                    COALESCE((cart->'appliedDiscounts'->'points'->>'used')::int, 0) AS pts,
+                    COALESCE((cart->'appliedDiscounts'->>'creditFils')::bigint, 0) AS cr
+       )
+       UPDATE customers c
+          SET loyalty_points = loyalty_points + claimed.pts,
+              referral_credit_fils = referral_credit_fils + claimed.cr
+         FROM claimed WHERE c.id = claimed.customer_id`,
+      [orderId],
+    );
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1279,6 +1345,17 @@ export async function createSessionForOrder(orderId: string): Promise<{
   const order = rows[0];
   if (!order) throw new CheckoutError('Order not found.', 'not_found');
   if (order.status === 'paid') throw new CheckoutError('This order is already paid.', 'already_paid');
+  // A settled or under-review order must never be charged again via its link.
+  if (['refunded', 'partially_refunded', 'needs_review'].includes(order.status)) {
+    throw new CheckoutError('This order can no longer be paid online.', 'unavailable');
+  }
+  // An add-on to a party that has since been cancelled must not take money.
+  if (order.kind === 'addon' && order.event_id) {
+    const ev = await pool.query<{ phase: string | null }>(`SELECT phase FROM events WHERE id = $1`, [order.event_id]);
+    if (isCancelled(ev.rows[0]?.phase)) {
+      throw new CheckoutError('This event has been cancelled.', 'unavailable');
+    }
+  }
   // An invoice-balance link always charges the invoice's CURRENT balance
   // (re-priced here; refuses when nothing is due).
   if (order.kind === 'invoice_pay') {
@@ -1315,7 +1392,8 @@ export async function createSessionForOrder(orderId: string): Promise<{
             eventDate,
             startTime,
             endHour,
-            holdMinutes: cfg.rules.inventoryHoldMinutes,
+            // Stripe session: hold must outlive its 31-minute payable window.
+            holdMinutes: holdMinutesFor('stripe', cfg.rules),
           });
         }).catch((err) => {
           if (err instanceof ConflictError) {

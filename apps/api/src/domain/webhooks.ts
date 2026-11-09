@@ -15,7 +15,7 @@ import { confirmBooking } from './confirm.js';
 import { syncEventToCalendar } from '../integrations/googleCalendar.js';
 import { pushToStaff } from '../integrations/push.js';
 import { reportPurchaseToMeta } from './attribution.js';
-import { holdsStillValid, releaseHolds } from './inventory.js';
+import { ConflictError, holdsStillValid, reacquireLapsedHolds, releaseHolds } from './inventory.js';
 import {
   applyPaymentStatus,
   flagForReview,
@@ -175,16 +175,28 @@ export async function processDelivery(
   const isSuccess = verified.status === 'paid' || verified.status === 'captured';
 
   // (5) A success that arrives after the hold lapsed must never silently
-  // double-book. If the assets are gone, a human takes it from here.
-  if (isSuccess && !(await holdsStillValid(pool, payment.order_id))) {
+  // double-book. Try to re-take the same assets under lock first: if they are
+  // still free, confirm normally. Only when one is now taken does a human take
+  // it from here.
+  const flagLate = async () => {
     await flagForReview(
       pool,
       payment.order_id,
-      'Payment succeeded after the inventory hold expired — the asset may have gone to another booking. Refund or date change needed.',
+      'Payment succeeded after the inventory hold expired and the asset has gone to another booking. Refund or date change needed.',
       provider.name,
     );
     await finish(deliveryId, 'late_success');
-    return { outcome: 'late_success' };
+    return { outcome: 'late_success' as const };
+  };
+  if (isSuccess && !(await holdsStillValid(pool, payment.order_id))) {
+    const reacquired = await withTransaction((db) => reacquireLapsedHolds(db, payment.order_id)).then(
+      () => true,
+      (err) => {
+        if (err instanceof ConflictError) return false;
+        throw err;
+      },
+    );
+    if (!reacquired) return flagLate();
   }
 
   let confirmedEventId: string | null = null;
@@ -192,6 +204,7 @@ export async function processDelivery(
   let addonBooking = false;
   let paidNow = false;
   let needsCapture = false;
+  let lateConflict = false;
   const outcome = await withTransaction(async (db) => {
     const { applied } = await applyPaymentStatus(db, {
       paymentId: payment.id,
@@ -239,7 +252,16 @@ export async function processDelivery(
     }
 
     return 'accepted' as const;
+  }).catch((err) => {
+    // confirmHolds found a hold that lapsed between the check above and the
+    // confirm, and its asset is now taken: the whole confirmation rolled back.
+    if (err instanceof ConflictError) {
+      lateConflict = true;
+      return 'ignored' as const;
+    }
+    throw err;
   });
+  if (lateConflict) return flagLate();
 
   // (5b) A success that applyPaymentStatus REJECTED (outcome 'ignored') for an
   // order already in a terminal failed/cancelled state is a real late success on

@@ -219,6 +219,9 @@ export const api = {
     termsAccepted?: boolean,
     guest?: { name: string; phone: string; backupPhone: string; email: string },
     offerToken?: string | null,
+    /** Stable per checkout attempt: a re-submit of the same attempt (double tap,
+     *  lost response) is answered with the existing order, never a second one. */
+    idempotencyKey?: string,
   ) =>
     request<{
       orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
@@ -229,6 +232,7 @@ export const api = {
       body: JSON.stringify({
         cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest,
         offerToken: offerToken || undefined,
+        idempotencyKey: idempotencyKey || undefined,
         // Which ad brought them here, if any — the server reports the paid
         // booking back to Meta against it.
         attribution: attributionPayload(),

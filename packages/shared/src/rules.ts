@@ -60,6 +60,20 @@ export const DEFAULT_PRICING_RULES: PricingRules = {
   allowDiscountStacking: false,
 };
 
+/**
+ * Card (Stripe) checkout sessions stay payable for 31 minutes (Stripe's 30-minute
+ * minimum + 1 min margin), so a card hold must outlive that window — otherwise a
+ * customer paying at minute 20 lands as a "late success" on a lapsed hold.
+ */
+export const CARD_HOLD_MINUTES = 32;
+
+/** Inventory hold length for a checkout on this provider. */
+export function holdMinutesFor(provider: string | null | undefined, rules: Pick<PricingRules, 'inventoryHoldMinutes'>): number {
+  return String(provider ?? '').toLowerCase() === 'stripe'
+    ? Math.max(CARD_HOLD_MINUTES, rules.inventoryHoldMinutes)
+    : rules.inventoryHoldMinutes;
+}
+
 /** Start times Eventana offers. The midnight rule prunes this per booking. */
 export const START_TIMES = ['15:00', '16:00', '17:00', '18:00', '19:00', '20:00'] as const;
 
