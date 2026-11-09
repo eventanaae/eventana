@@ -723,8 +723,13 @@ async function main() {
   // On-demand Daily System Audit: RUN_DAILY_AUDIT=<any value> runs the full audit
   // once per value (claimOneShot marker), stores it and LOGS every result as
   // "[daily-audit] …" lines. No email / push. Fire-and-forget.
-  if (String(process.env.RUN_DAILY_AUDIT ?? '').trim()) {
-    const val = String(process.env.RUN_DAILY_AUDIT).trim();
+  // Render caps a service at 300 env vars, so the reused diagnostic key works too:
+  // SET_SHAN_LEADER=audit:<tag>.
+  const shanKey = String(process.env.SET_SHAN_LEADER ?? '').trim();
+  const auditVal = String(process.env.RUN_DAILY_AUDIT ?? '').trim()
+    || (shanKey.startsWith('audit:') ? shanKey.slice(6) : '');
+  if (auditVal) {
+    const val = auditVal;
     void import('./domain/dailyAudit.js')
       .then(({ runDailyAuditOneShot }) => runDailyAuditOneShot(val))
       .catch((e) => console.error('[daily-audit] on-demand run failed:', (e as Error).message));
