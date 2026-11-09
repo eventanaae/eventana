@@ -162,7 +162,8 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
               {/* Business pulse tiles */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <Tile icon="💬" label="Leads today" value={String(p.leadsToday)} sub={`${p.leadsWeek} this week`} fg="#2E90BE" bg={C.skySoft} />
-                <Tile icon="💰" label="Booked today" value={p.bookingsTodayAed} sub={`${p.bookingsToday} booking${p.bookingsToday === 1 ? '' : 's'}`} fg={C.mintDeep} bg={C.mintSoft} />
+                {/* The AED figure is owner-only (null for managers) — show the count instead. */}
+                <Tile icon="💰" label="Booked today" value={p.bookingsTodayAed ?? String(p.bookingsToday)} sub={p.bookingsTodayAed ? `${p.bookingsToday} booking${p.bookingsToday === 1 ? '' : 's'}` : `booking${p.bookingsToday === 1 ? '' : 's'}`} fg={C.mintDeep} bg={C.mintSoft} />
                 <Tile icon="📣" label={p.adsTodayAed ? 'Ads today' : 'Ads this month'} value={p.adsTodayAed ?? p.adsMonthAed} sub={p.adsTodayAed ? `${p.adsMonthAed} this month` : 'recorded spend'} fg="#E4703F" bg={C.peachSoft} />
                 {p.awaitingCount > 0 && (
                   <Tile icon="⏳" label="Awaiting payment" value={p.awaitingAed} sub={`${p.awaitingCount} pay-link${p.awaitingCount === 1 ? '' : 's'}`} fg={C.red} bg={C.redSoft} />
