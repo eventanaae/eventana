@@ -420,7 +420,7 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   const number = await nextReceiptNumber();
   const { rows } = await pool.query(
     `INSERT INTO finance_receipts (number, customer_id, customer_name, date, booked_on, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, message, event_for, theme, age, event_time, date_tbd, commission_rep, location_note, celebration_type)
-     VALUES ($1,$2,$3,COALESCE($4,current_date),COALESCE($20::date,current_date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
+     VALUES ($1,$2,$3,COALESCE($4,(now() AT TIME ZONE 'Asia/Dubai')::date),COALESCE($20::date,(now() AT TIME ZONE 'Asia/Dubai')::date),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
     [number, d.customerId ?? null, titleCaseName(d.customerName), d.date ?? null, JSON.stringify(d.items), subtotal, d.discountFils ?? 0, d.shippingFils ?? 0, total, d.paidWith ?? 'Cash', d.message ?? null, d.eventFor ? titleCaseName(d.eventFor) : null, d.theme ? titleCaseName(d.theme) : null, d.age ?? null, d.eventTime ?? null, d.dateTbd ?? false, d.commissionRep ?? null, d.addressNote ?? null, d.celebrationType ?? 'kids', d.bookedOn ?? null],
   );
   // An upcoming sale becomes an operational event automatically, so it shows on
@@ -542,7 +542,7 @@ export async function recordSaleFromOrder(
       `INSERT INTO finance_receipts
          (number, customer_id, customer_name, date, booked_on, line_items, subtotal_fils, discount_fils,
           shipping_fils, total_fils, paid_with, source, order_id, event_for, theme, age)
-       VALUES ($1,$2,$3,COALESCE($4::date,current_date),current_date,$5,$6,$7,$8,$9,$15,$10,$11,$12,$13,$14)
+       VALUES ($1,$2,$3,COALESCE($4::date,(now() AT TIME ZONE 'Asia/Dubai')::date),(now() AT TIME ZONE 'Asia/Dubai')::date,$5,$6,$7,$8,$9,$15,$10,$11,$12,$13,$14)
        ON CONFLICT (order_id) WHERE order_id IS NOT NULL DO NOTHING`,
       [
         number, financeCustomerId, customerName, cart.eventDate ?? null, JSON.stringify(items),

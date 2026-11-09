@@ -166,8 +166,29 @@ export async function adminRoutes(app: FastifyInstance) {
     // Owner: unrestricted. Everyone else is gated by route below.
     if (staff.role === 'owner') return;
 
-    const path = request.url.split('?')[0];
+    // SECURITY (audit 2026-11-10): the router DECODES %xx before matching a route,
+    // so checking the raw URL let "/api/admin/%6Frders/x/refund" reach the refund
+    // handler while "/api/admin/orders/x/refund" was blocked. Every check below
+    // now runs on the DECODED path, and the deny-rules also run on the matched
+    // route pattern (e.g. /api/admin/orders/:orderId/refund) — a request is
+    // gated if EITHER form says so.
+    const rawPath = request.url.split('?')[0];
+    let path = rawPath;
+    try { path = decodeURIComponent(rawPath); } catch { return reply.status(400).send({ error: 'bad_path' }); }
+    const routePath = String((request as any).routeOptions?.url ?? path);
     const method = request.method;
+    const ownerOnlyPath = (p: string) =>
+      /^\/api\/admin\/team\/[^/]+\/access$/.test(p) ||
+      p.startsWith('/api/admin/ceo') ||
+      p.startsWith('/api/admin/finance/accounting') ||
+      p === '/api/admin/finance/qb-breakdown' ||
+      p === '/api/admin/import/revenue-by-year' ||
+      p === '/api/admin/import/pnl-by-year' ||
+      p === '/api/admin/import/expenses' ||
+      p === '/api/admin/import/status';
+    if (ownerOnlyPath(path) || ownerOnlyPath(routePath)) {
+      return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+    }
 
     // Only the Owner may change team access levels / login tokens.
     if (/^\/api\/admin\/team\/[^/]+\/access$/.test(path)) {
@@ -191,7 +212,7 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     // Money, configuration, review and refunds: Manager + Owner only.
-    const managerOnly =
+    const managerOnlyPath = (path: string) =>
       path.startsWith('/api/admin/finance') ||
       path.startsWith('/api/admin/products') ||
       path.startsWith('/api/admin/suppliers') ||
@@ -223,7 +244,7 @@ export async function adminRoutes(app: FastifyInstance) {
       // via the handler, not this gate.)
       // Customer-facing messaging on any event (send/delete a message, open the
       // chat) is Manager + Owner — an employee must not message customers.
-      (request.method !== 'GET' && /^\/api\/admin\/events\/[^/]+\/(messages|chat)(\/|$)/.test(path)) ||
+      (method !== 'GET' && /^\/api\/admin\/events\/[^/]+\/(messages|chat)(\/|$)/.test(path)) ||
       path.startsWith('/api/admin/settings') ||
       path.startsWith('/api/admin/delivery-zones') ||
       path.startsWith('/api/admin/needs-review') ||
@@ -246,13 +267,14 @@ export async function adminRoutes(app: FastifyInstance) {
       path === '/api/admin/team' ||
       // Editing catalogue prices / availability / inventory is a money change:
       // only mutations (not reads) are Manager+Owner (#security-M1).
-      (request.method !== 'GET' &&
+      (method !== 'GET' &&
         (/^\/api\/admin\/services\/[^/]+$/.test(path) ||
           /^\/api\/admin\/packages\/[^/]+$/.test(path) ||
           /^\/api\/admin\/themes\/[^/]+$/.test(path) ||
           /^\/api\/admin\/inventory\/[^/]+$/.test(path))) ||
       /^\/api\/admin\/orders\/[^/]+\/(refund|audit)$/.test(path) ||
       /^\/api\/admin\/events\/[^/]+\/(cancel|reinstate)$/.test(path);
+    const managerOnly = managerOnlyPath(path) || managerOnlyPath(routePath);
     if (managerOnly && staff.role !== 'manager') {
       return reply.status(403).send({ error: 'forbidden', message: 'Managers and the owner only.' });
     }

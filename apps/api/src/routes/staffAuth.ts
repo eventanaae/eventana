@@ -57,7 +57,9 @@ export async function staffAuthRoutes(app: FastifyInstance) {
   // encapsulates hooks per plugin — so the higher-value staff login was unthrottled.
   const rlBuckets = new Map<string, { count: number; reset: number }>();
   app.addHook('onRequest', async (request, reply) => {
-    const path = request.url.split('?')[0];
+    // Decode %xx first (the router does) — otherwise "/api/%63heckout" skips the limit.
+    let path = request.url.split('?')[0];
+    try { path = decodeURIComponent(path); } catch { return reply.status(400).send({ error: 'bad_path' }); }
     if (!/^\/api\/staff\/(login|forgot|set-password)$/.test(path)) return;
     // Key on an IP the client CANNOT forge: cf-connecting-ip is trusted only when
     // the request actually transited Cloudflare (the real peer is a Cloudflare IP),

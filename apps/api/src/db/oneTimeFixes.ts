@@ -48,6 +48,11 @@ async function syncEventCelebrationFromReceipt(): Promise<void> {
  */
 async function reclassifyQuickBooksInvoices(): Promise<void> {
   try {
+    // Ran on EVERY boot and overwrote the owner's invoice edits (totals, items,
+    // names) from history. Now runs once, guarded by an app_kv marker.
+    const done = await pool.query(`SELECT 1 FROM app_kv WHERE k = 'invoices_reclassified_v1'`);
+    if (done.rowCount) return;
+    await pool.query(`INSERT INTO app_kv (k) VALUES ('invoices_reclassified_v1') ON CONFLICT (k) DO NOTHING`);
     const { reconcileInvoicesFromHistory } = await import('../domain/finance.js');
     const r = await reconcileInvoicesFromHistory();
     if (r.invoices) console.log(`[fix] reclassified ${r.invoices} QuickBooks invoice(s); removed ${r.removedReceipts} mis-filed receipt(s)`);
