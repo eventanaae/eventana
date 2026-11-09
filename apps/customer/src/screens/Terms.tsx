@@ -30,7 +30,7 @@ const EN: Section[] = [
     title: '3. Prices & payment',
     body: [
       'All prices are in UAE Dirhams (AED) and cover the items listed for the selected package or services.',
-      'The total shown at checkout — including any delivery fee, surcharge or discount — is the full amount payable, and is paid in full to confirm the booking. We do not offer part-payment or instalments unless agreed in writing.',
+      'The total shown at checkout — including any delivery fee, surcharge or discount — is the full amount payable. You can pay it in full by card / Apple Pay, or in instalments through Tabby or Tamara where offered at checkout (subject to their own approval and terms). Either way the booking is confirmed once the payment is completed. We do not otherwise offer part-payment or deposits unless agreed in writing.',
       'Payment is made securely through the app or a secure payment link. Eventana never stores your full card details.',
       'Any additional item or service requested after booking (for example an extra hour) is quoted and paid separately before it is provided.',
     ],
@@ -157,7 +157,7 @@ const AR: Section[] = [
     title: '٣. الأسعار والدفع',
     body: [
       'جميع الأسعار بالدرهم الإماراتي (AED) وتشمل العناصر المذكورة للباقة أو الخدمات المختارة.',
-      'الإجمالي الظاهر عند الدفع — شاملاً أي رسوم توصيل أو استعجال أو خصم — هو كامل المبلغ المستحق، ويُدفع بالكامل لتأكيد الحجز. لا نوفّر دفعاً جزئياً أو تقسيطاً إلا باتفاق مكتوب.',
+      'الإجمالي الظاهر عند الدفع — شاملاً أي رسوم توصيل أو استعجال أو خصم — هو كامل المبلغ المستحق. تقدر تدفعه كاملاً بالبطاقة أو Apple Pay، أو بالتقسيط عن طريق تابي (Tabby) أو تمارا (Tamara) متى ما كان متاحاً عند الدفع (حسب موافقتهم وشروطهم). وفي الحالتين يتأكد الحجز بعد إتمام الدفع. وما عدا ذلك لا نوفّر دفعاً جزئياً أو عربوناً إلا باتفاق مكتوب.',
       'يتم الدفع بأمان عبر التطبيق أو رابط دفع آمن. لا تحتفظ إيفنتانا ببيانات بطاقتك كاملة أبداً.',
       'أي عنصر أو خدمة إضافية تُطلب بعد الحجز (كساعة إضافية) تُسعّر وتُدفع بشكل منفصل قبل تقديمها.',
     ],

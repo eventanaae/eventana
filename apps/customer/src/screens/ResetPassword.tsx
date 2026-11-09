@@ -39,6 +39,7 @@ export function ResetPassword({ token, t }: { token: string; t: TFn }) {
       <input
         type="password"
         placeholder={t('reset.newPassword')}
+        aria-label={t('reset.newPassword')}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}

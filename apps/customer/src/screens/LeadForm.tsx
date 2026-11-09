@@ -72,7 +72,7 @@ export function LeadForm({ go, t, customerName }: ScreenProps) {
 
   return (
     <div style={{ padding: '10px 22px 40px', animation: 'rise .35s ease' }}>
-      <button onClick={() => go('home')} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.ink, padding: '4px 0 10px' }}>‹</button>
+      <button onClick={() => go('home')} aria-label={t('common.back').replace(/^‹\s*/, '')} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: C.ink, padding: '4px 0 10px' }}>‹</button>
       <div style={{ ...fredoka(24) }}>{t('lead.title')}</div>
       <div style={{ fontSize: 14, fontWeight: 600, color: C.muted, margin: '8px 0 22px', lineHeight: 1.6 }}>
         {t('lead.sub')}
@@ -81,19 +81,19 @@ export function LeadForm({ go, t, customerName }: ScreenProps) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <div style={label}>{t('lead.name')}</div>
-          <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
+          <input style={inputStyle} aria-label={t('lead.name')} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
         </div>
         <div>
           <div style={label}>{t('lead.phone')}</div>
-          <input style={inputStyle} type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05x xxx xxxx" maxLength={20} />
+          <input style={inputStyle} aria-label={t('lead.phone')} type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05x xxx xxxx" maxLength={20} />
         </div>
         <div>
           <div style={label}>{t('lead.email')}</div>
-          <input style={inputStyle} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email.com" maxLength={160} />
+          <input style={inputStyle} aria-label={t('lead.email')} type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email.com" maxLength={160} />
         </div>
         <div>
           <div style={label}>{t('lead.message')}</div>
-          <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} />
+          <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} aria-label={t('lead.message')} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} />
         </div>
       </div>
 
