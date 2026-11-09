@@ -286,10 +286,18 @@ export const api = {
     }),
 
   register: async (body: { name: string; email: string; phone: string; backupPhone?: string; password: string; referralCode?: string; dateOfBirth?: string }) => {
-    const res = await request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number }>(
+    const res = await request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number; claimEmailSent?: boolean; message?: string }>(
       '/api/customers/register',
       { method: 'POST', body: JSON.stringify({ ...body, attribution: attributionPayload() }) },
     );
+    // The email already holds past (guest) bookings: no account is created here.
+    // The server emailed a "finish setting up your account" link instead, so
+    // surface that as a typed outcome the callers can show — never sign in.
+    if (res?.claimEmailSent) {
+      const err = new Error(res.message ?? 'We emailed you a link to finish setting up your account.');
+      Object.assign(err, { status: 202, body: { error: 'claim_email_sent', message: res.message } });
+      throw err;
+    }
     // Middle-of-funnel conversion → Meta (pixel; the server mirrors it via CAPI).
     trackCompleteRegistration(res.customerId);
     return res;

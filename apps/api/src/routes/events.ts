@@ -30,6 +30,9 @@ import { rescheduleEvent, RescheduleError, RESCHEDULE_MIN_HOURS } from '../domai
 import { refundOrderMoney } from '../domain/refund.js';
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
 import { cancelPendingFeedbackNotifications } from '../domain/feedbackReminders.js';
+import { tabbySandboxBlocked } from './public.js';
+
+const PROVIDER_UNAVAILABLE = { error: 'provider_unavailable', message: 'This payment method is not available right now. Please choose another.' };
 
 /**
  * The customer is identified by their signed session token — never a raw
@@ -66,10 +69,13 @@ export async function eventRoutes(app: FastifyInstance) {
         ORDER BY e.event_date DESC`,
       [customerId],
     );
-    const today = new Date().toISOString().slice(0, 10);
-    const thirtyAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    // Dubai calendar days (UTC+4, no DST) — the UTC date lags by a day before 4am.
+    const dubaiYMD = (ms: number) => new Date(ms + 4 * 3_600_000).toISOString().slice(0, 10);
+    const today = dubaiYMD(Date.now());
+    const thirtyAgo = dubaiYMD(Date.now() - 30 * 86400000);
     const live = rows.map((r) => {
-      const dateStr = r.event_date ? new Date(r.event_date).toISOString().slice(0, 10) : null;
+      // event_date is a DATE: read its calendar day, not the UTC instant.
+      const dateStr = r.event_date ? eventDateYMD(r.event_date) || null : null;
       // The party is over (or started) AND still un-rated AND finished within the
       // last 30 days → the app should pop the 3-step feedback for it. Carry a
       // signed token so the same GuestFeedback wizard works for a logged-in
@@ -322,6 +328,33 @@ export async function eventRoutes(app: FastifyInstance) {
       `${eventDateYMD(ev.event_date)}T${ev.start_time}:00+04:00`,
     );
 
+  /**
+   * What the customer has actually paid (and not yet had back) for this event:
+   * the main booking order net of refunds already recorded, plus every paid
+   * add-on order bought for the same event (their own orders) net of theirs.
+   * The cancellation policy applies to the whole of it.
+   */
+  type Q = (sql: string, params: unknown[]) => Promise<{ rows: any[] }>;
+  const paidForCancel = async (q: Q, eventId: string, mainOrderId: string, mainTotalFils: number, lock = false) => {
+    const mainRefunded = Number((await q(
+      `SELECT COALESCE(SUM(amount_fils),0)::bigint s FROM refunds WHERE order_id = $1`, [mainOrderId],
+    )).rows[0]?.s ?? 0);
+    const addonRows = (await q(
+      `SELECT o.id, o.total_fils,
+              (SELECT COALESCE(SUM(r.amount_fils),0)::bigint FROM refunds r WHERE r.order_id = o.id) AS refunded
+         FROM orders o
+        WHERE o.event_id = $1 AND o.kind = 'addon' AND o.status IN ('paid','partially_refunded')
+        ORDER BY o.id${lock ? ' FOR UPDATE OF o' : ''}`,
+      [eventId],
+    )).rows;
+    const mainNet = Math.max(0, mainTotalFils - mainRefunded);
+    const addons = addonRows
+      .map((r) => ({ id: String(r.id), net: Math.max(0, Number(r.total_fils) - Number(r.refunded)) }))
+      .filter((a) => a.net > 0);
+    return { mainNet, addons, totalNet: mainNet + addons.reduce((s, a) => s + a.net, 0) };
+  };
+  const CANCELLABLE_ORDER_STATUSES = ['paid', 'partially_refunded'];
+
   const refundView = (ev: {
     event_date: unknown;
     start_time: string;
@@ -350,7 +383,7 @@ export async function eventRoutes(app: FastifyInstance) {
     if (!customerId) return reply.status(401).send({ error: 'auth_required' });
     const { eventId } = request.params as { eventId: string };
     const { rows } = await pool.query(
-      `SELECT e.phase, e.event_date, e.start_time, o.status AS order_status, o.total_fils, o.quote
+      `SELECT e.phase, e.event_date, e.start_time, o.id AS order_id, o.status AS order_status, o.total_fils, o.quote
          FROM events e JOIN orders o ON o.id = e.order_id
         WHERE e.id = $1 AND e.customer_id = $2`,
       [eventId, customerId],
@@ -361,18 +394,20 @@ export async function eventRoutes(app: FastifyInstance) {
     const alreadyCancelled = isCancelled(ev.phase);
     const started = ['Party Started', 'Event Completed'].includes(ev.phase);
     const passed = startMsOf(ev) - Date.now() <= 0;
-    const cancellable = !alreadyCancelled && ev.order_status === 'paid' && !started && !passed;
+    const orderOk = CANCELLABLE_ORDER_STATUSES.includes(ev.order_status);
+    const cancellable = !alreadyCancelled && orderOk && !started && !passed;
+    const paid = await paidForCancel((s, p) => pool.query(s, p), eventId, ev.order_id, Number(ev.total_fils));
 
     return {
       cancellable,
       reason: alreadyCancelled
         ? 'already_cancelled'
-        : ev.order_status !== 'paid'
+        : !orderOk
           ? 'not_paid'
           : started || passed
             ? 'event_started'
             : null,
-      refund: refundView(ev),
+      refund: refundView({ ...ev, total_fils: paid.totalNet }),
       refundEta: 'approximately 7 business days',
       policy: REFUND_TIERS,
     };
@@ -405,18 +440,28 @@ export async function eventRoutes(app: FastifyInstance) {
       const ev = rows[0];
       if (!ev) return { code: 404 as const, error: 'not_found' };
       if (isCancelled(ev.phase)) return { code: 409 as const, error: 'already_cancelled' };
-      if (ev.order_status !== 'paid') return { code: 409 as const, error: 'not_paid' };
+      if (!CANCELLABLE_ORDER_STATUSES.includes(ev.order_status)) return { code: 409 as const, error: 'not_paid' };
       if (['Party Started', 'Event Completed'].includes(ev.phase)) {
         return { code: 409 as const, error: 'event_started' };
       }
       if (startMsOf(ev) - Date.now() <= 0) return { code: 409 as const, error: 'event_passed' };
 
+      // The policy covers everything still held for this event: the booking
+      // (minus refunds already made) AND its paid add-on orders.
+      const paid = await paidForCancel((s, p) => db.query(s, p), eventId, ev.order_id, Number(ev.total_fils), true);
       const hoursToEvent = (startMsOf(ev) - Date.now()) / 3_600_000;
       const b = computeRefund({
         lines: ev.quote?.lines ?? [],
-        totalPaidFils: Number(ev.total_fils),
+        totalPaidFils: paid.totalNet,
         hoursToEvent,
       });
+      // Split the policy refund across the orders pro rata to what each still
+      // holds; the main booking takes the rounding remainder.
+      const addonShares = paid.addons.map((a) => ({
+        orderId: a.id,
+        amountFils: paid.totalNet > 0 ? Math.min(a.net, Math.floor((b.refundFils * a.net) / paid.totalNet)) : 0,
+      }));
+      const mainShare = Math.min(paid.mainNet, b.refundFils - addonShares.reduce((s, a) => s + a.amountFils, 0));
 
       // Freeze the event.
       await db.query(
@@ -507,7 +552,7 @@ export async function eventRoutes(app: FastifyInstance) {
         [eventId, JSON.stringify({ orderId: ev.order_id })],
       );
 
-      return { code: 200 as const, breakdown: b, refundStatus, orderId: ev.order_id };
+      return { code: 200 as const, breakdown: b, refundStatus, orderId: ev.order_id, mainShare, addonShares };
     });
 
     if (result.code !== 200) {
@@ -518,18 +563,59 @@ export async function eventRoutes(app: FastifyInstance) {
     // etc.) and email the customer. Runs after the cancellation is committed so
     // a slow/failed provider call never rolls back the cancellation; on failure
     // the refund stays 'pending'/'failed' for the team to complete by hand.
-    let refundStatus = result.refundStatus;
+    let refundStatus: string = result.refundStatus;
     if (result.refundStatus === 'pending' && result.breakdown.refundFils > 0) {
-      const r = await refundOrderMoney({
-        orderId: result.orderId,
-        amountFils: result.breakdown.refundFils,
-        reason: `Customer cancellation — ${result.breakdown.percent}% per policy`,
-        reasonCategory: 'customer_cancellation',
-        cancelEvent: true, // the customer is cancelling; the event is already frozen above
-        createdBy: 'customer',
-        source: 'customer_cancel',
-      });
-      refundStatus = r.ok ? 'processed' : 'pending';
+      const reasonText = `Customer cancellation — ${result.breakdown.percent}% per policy`;
+      let allOk = true;
+      if (result.mainShare > 0) {
+        const r = await refundOrderMoney({
+          orderId: result.orderId,
+          amountFils: result.mainShare,
+          reason: reasonText,
+          reasonCategory: 'customer_cancellation',
+          cancelEvent: true, // the customer is cancelling; the event is already frozen above
+          createdBy: 'customer',
+          source: 'customer_cancel',
+        }).catch(() => ({ ok: false as const }));
+        if (!r.ok) allOk = false;
+      }
+      // Each paid add-on order is its own provider payment — refund its share
+      // through the provider too (not record-only).
+      const failedAddons: string[] = [];
+      for (const a of result.addonShares) {
+        if (a.amountFils <= 0) continue;
+        const r = await refundOrderMoney({
+          orderId: a.orderId,
+          amountFils: a.amountFils,
+          reason: `${reasonText} (add-on)`,
+          reasonCategory: 'customer_cancellation',
+          cancelEvent: false,
+          createdBy: 'customer',
+          source: 'customer_cancel',
+        }).catch(() => ({ ok: false as const }));
+        if (!r.ok) { allOk = false; failedAddons.push(a.orderId); }
+      }
+      if (failedAddons.length) {
+        await pool.query(
+          `INSERT INTO event_tasks (event_id, department, title) VALUES ($1,'finance',$2)`,
+          [eventId, `Customer cancelled — add-on refund failed for ${failedAddons.join(', ')}; refund by hand`],
+        ).catch(() => {});
+      }
+      if (allOk && result.mainShare <= 0) {
+        // Nothing left on the booking itself (refunded earlier) — the add-on
+        // refunds settled the whole policy amount.
+        await pool.query(
+          `UPDATE cancellations SET refund_status = 'processed', processed_at = now() WHERE order_id = $1 AND refund_status = 'pending'`,
+          [result.orderId],
+        ).catch(() => {});
+      }
+      // Report the REAL state, not an optimistic guess: what the cancellation
+      // row now says, downgraded if any add-on refund did not go through.
+      const cx = await pool.query<{ refund_status: string }>(
+        `SELECT refund_status FROM cancellations WHERE order_id = $1`, [result.orderId],
+      ).catch(() => ({ rows: [] as Array<{ refund_status: string }> }));
+      const dbStatus = cx.rows[0]?.refund_status ?? (allOk ? 'processed' : 'pending');
+      refundStatus = dbStatus === 'processed' && !allOk ? 'partially_processed' : dbStatus;
     }
 
     return {
@@ -561,7 +647,7 @@ export async function eventRoutes(app: FastifyInstance) {
               -- number (EV-<number>), matching the dashboard; event_id fallback.
               (SELECT fr.number FROM finance_receipts fr
                 WHERE fr.event_id = e.id OR (e.order_id IS NOT NULL AND fr.order_id = e.order_id)
-                ORDER BY (fr.event_id = e.id) DESC, fr.id LIMIT 1) AS receipt_number,
+                ORDER BY (fr.event_id = e.id) DESC NULLS LAST, fr.id LIMIT 1) AS receipt_number,
               c.name AS contact_name, c.phone AS contact_phone, c.email AS contact_email,
               cx.cancelled_by, cx.refund_percent, cx.refund_amount_fils,
               cx.total_paid_fils AS cx_total_paid, cx.refund_status, cx.refund_reference,
@@ -676,7 +762,9 @@ export async function eventRoutes(app: FastifyInstance) {
 
     return {
       id: event.id,
-      setupPhotos: setupPhotoRows.rows,
+      // Private booking content (setup photos, chat, design proofs, contact) is
+      // for the signed-in owner only — never the forwardable feedback link.
+      setupPhotos: fullView ? setupPhotoRows.rows : [],
       // Customer-facing booking reference: EV-<sales-receipt number>, matching the
       // dashboard and all customer emails/WhatsApp; falls back to the event id.
       reference: event.receipt_number ? `EV-${event.receipt_number}` : event.id,
@@ -693,7 +781,7 @@ export async function eventRoutes(app: FastifyInstance) {
       // cancelled) the refund the server computed and its progress.
       canCancel:
         !cancelled &&
-        event.order_status === 'paid' &&
+        CANCELLABLE_ORDER_STATUSES.includes(event.order_status) &&
         !['Party Started', 'Event Completed'].includes(event.phase) &&
         startMs - Date.now() > 0,
       cancellation: event.refund_status
@@ -739,14 +827,14 @@ export async function eventRoutes(app: FastifyInstance) {
       castleVariant: event.castle_variant,
       // The customer's own contact on file (backup phone only if it was captured
       // into the cart — the customers table has no column for it).
-      contact: {
+      contact: fullView ? {
         name: event.contact_name ?? null,
         phone: fullView ? (event.contact_phone ?? null) : null,
         backupPhone: fullView
           ? ((event.cart as any)?.guest?.backupPhone ?? (event.cart as any)?.backupPhone ?? null)
           : null,
         email: fullView ? (event.contact_email ?? null) : null,
-      },
+      } : null,
       // Full price breakdown straight from the stored quote, so the receipt
       // mirrors exactly what was charged at checkout (items, discount, delivery).
       pricing: (() => {
@@ -872,9 +960,9 @@ export async function eventRoutes(app: FastifyInstance) {
         rating: rating.rows[0] ?? null,
         tipPresetsFils: [5000, 10000, 15000],
       },
-      messages: messages.rows,
+      messages: fullView ? messages.rows : [],
       chatOpen: event.chat_open,
-      designs: designs.rows,
+      designs: fullView ? designs.rows : [],
       taskProgress: tasks.rows[0],
       // Everything purchasable is emptied for a cancelled event, so a
       // stale client cannot render a buy button at all.
@@ -921,9 +1009,23 @@ export async function eventRoutes(app: FastifyInstance) {
     // Once it belongs to a REGISTERED account it must never be reassigned by a
     // forwarded link — that would let a stranger move someone's event onto
     // their own account. Such cases must go through sign-in, not claim.
-    const owner = await pool.query<{ password_hash: string | null }>(
-      `SELECT password_hash FROM customers WHERE id = $1`, [rows[0].customer_id]);
+    const owner = await pool.query<{ password_hash: string | null; email: string | null; phone: string | null }>(
+      `SELECT password_hash, email, phone FROM customers WHERE id = $1`, [rows[0].customer_id]);
     if (owner.rows[0]?.password_hash) return reply.status(409).send({ error: 'already_claimed' });
+    // The link alone is forwardable, so it is not proof of ownership: the
+    // signed-in account must also match the guest booking's contact — same email,
+    // or the same mobile (last 9 digits).
+    const acct = await pool.query<{ email: string | null; phone: string | null }>(
+      `SELECT email, phone FROM customers WHERE id = $1`, [accountId]);
+    const norm = (e: string | null | undefined) => String(e ?? '').trim().toLowerCase();
+    const last9 = (p: string | null | undefined) => String(p ?? '').replace(/\D/g, '').slice(-9);
+    const g = owner.rows[0];
+    const a = acct.rows[0];
+    const emailMatch = !!g && !!a && norm(g.email) !== '' && norm(g.email) === norm(a.email);
+    const phoneMatch = !!g && !!a && last9(g.phone).length === 9 && last9(g.phone) === last9(a.phone);
+    if (!emailMatch && !phoneMatch) {
+      return reply.status(403).send({ error: 'contact_mismatch', message: 'This booking was made with a different email or phone number. Please sign in with the account that matches the booking, or contact the Eventana team.' });
+    }
     await withTransaction(async (db) => {
       await db.query(`UPDATE events SET customer_id = $2 WHERE id = $1`, [eventId, accountId]);
       if (rows[0].order_id) await db.query(`UPDATE orders SET customer_id = $2 WHERE id = $1`, [rows[0].order_id, accountId]);
@@ -972,6 +1074,7 @@ export async function eventRoutes(app: FastifyInstance) {
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    if (tabbySandboxBlocked(request, parsed.data.provider)) return reply.status(400).send(PROVIDER_UNAVAILABLE);
 
     try {
       return await startAddonCheckout({
@@ -1112,6 +1215,8 @@ export async function eventRoutes(app: FastifyInstance) {
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
 
+    if (tabbySandboxBlocked(request, parsed.data.provider)) return reply.status(400).send(PROVIDER_UNAVAILABLE);
+
     // Effective customer: the signed-in account, or — for a guest with a valid
     // feedback token for THIS event — the event's own customer.
     let tipCustomerId = customerIdOf(request);
@@ -1183,7 +1288,8 @@ export async function eventRoutes(app: FastifyInstance) {
     const { eventId } = request.params as { eventId: string };
     const schema = z.object({
       itemKey: z.string().min(1),
-      photoUrl: z.string().url().nullable().optional(),
+      // Only our own Cloudinary uploads — never an arbitrary URL the team opens.
+      photoUrl: z.string().url().max(500).startsWith('https://res.cloudinary.com/').nullable().optional(),
       description: z.string().max(1000).optional(),
     });
     const parsed = schema.safeParse(request.body);

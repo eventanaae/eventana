@@ -68,20 +68,35 @@ export function verifyStaffSession(token: string | undefined | null): string | n
 const SETUP_TTL_MS = 3 * 24 * 60 * 60 * 1000; // invite: 3 days
 const RESET_TTL_MS = 30 * 60_000;             // forgot-password: 30 minutes
 
-export function issueStaffSetupToken(memberId: string, kind: 'setup' | 'reset'): string {
-  const body = Buffer.from(`${kind}:${memberId}:${Date.now()}`).toString('base64url');
+/** Short fingerprint of a member's CURRENT password hash ('' when none). A
+ *  setup/reset token carries the fingerprint it was issued against and is
+ *  refused once the password changes — so each link works exactly once. */
+export function staffPasswordFingerprint(passwordHash: string | null | undefined): string {
+  return createHmac('sha256', config.staffToken).update(`pwfp:${passwordHash ?? ''}`).digest('base64url').slice(0, 16);
+}
+
+/**
+ * Issue a set-password link token. Pass the member's current password_hash so
+ * the token is bound to it (single-use). Callers that don't pass it (older call
+ * sites) get a token with no fingerprint, which set-password only honours while
+ * the member still has to set a password (no hash yet / must_set_password).
+ */
+export function issueStaffSetupToken(memberId: string, kind: 'setup' | 'reset', passwordHash?: string | null): string {
+  const fp = passwordHash === undefined ? '' : staffPasswordFingerprint(passwordHash);
+  const body = Buffer.from(`${kind}:${memberId}:${Date.now()}${fp ? `:${fp}` : ''}`).toString('base64url');
   return `${body}.${sign(body)}`;
 }
-export function verifyStaffSetupToken(token: string | undefined | null): { memberId: string; kind: 'setup' | 'reset' } | null {
+export function verifyStaffSetupToken(token: string | undefined | null): { memberId: string; kind: 'setup' | 'reset'; fp: string | null } | null {
   if (!token) return null;
   const body = verify(token);
   if (!body) return null;
   try {
-    const [kind, memberId, issued] = Buffer.from(body, 'base64url').toString('utf8').split(':');
+    const [kind, memberId, issued, fp] = Buffer.from(body, 'base64url').toString('utf8').split(':');
     if ((kind !== 'setup' && kind !== 'reset') || !memberId) return null;
     const ttl = kind === 'setup' ? SETUP_TTL_MS : RESET_TTL_MS;
-    if (Date.now() - Number(issued) > ttl) return null;
-    return { memberId, kind };
+    const issuedAt = Number(issued);
+    if (!Number.isFinite(issuedAt) || Date.now() - issuedAt > ttl) return null;
+    return { memberId, kind, fp: fp || null };
   } catch {
     return null;
   }
