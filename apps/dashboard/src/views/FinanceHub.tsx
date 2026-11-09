@@ -681,6 +681,10 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   };
 
   if (rows === null) return null; // still loading
+  // Owner's rule (2026-11-10): Marsha only sees normal expenses. Rows the system
+  // isn't sure about ("close to" another payment) are shown to the OWNER only;
+  // exact duplicates and customer refund payouts never reach this list at all.
+  const shown = isOwner ? rows : rows.filter((r) => !r.possible_dup_of);
 
   const tag = (s?: string) => s === 'tabby' ? 'Tabby' : s === 'tamara' ? 'Tamara' : s === 'rakbank' ? 'RAKBANK' : s === 'wio' ? 'Wio' : s === 'manual' ? 'Manual' : null;
 
@@ -736,7 +740,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
 
   return (
     <Panel
-      title={`🧾 Expenses needing approval (${rows.length})`}
+      title={`🧾 Expenses needing approval (${shown.length})`}
       style={{ marginBottom: 14, border: `1px solid ${C.pink}` }}
       action={<button onClick={() => { setAdding((v) => !v); setErr(null); }} style={{ ...fieldStyle, fontWeight: 800, color: C.pinkDeep, borderColor: C.pink, cursor: 'pointer' }}>{adding ? 'Close' : '+ Add expense'}</button>}
     >
@@ -748,9 +752,9 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
           <button onClick={addManual} disabled={busy === 'manual'} style={{ ...fieldStyle, fontWeight: 800, color: '#fff', background: C.pink, borderColor: C.pink, cursor: 'pointer' }}>{busy === 'manual' ? 'Adding…' : 'Add for approval'}</button>
         </div>
       )}
-      {rows.length === 0 && !adding && <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>Nothing pending. Tap “+ Add expense” to log a Wio/cash spend for approval.</div>}
+      {shown.length === 0 && !adding && <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>Nothing pending. Tap “+ Add expense” to log a Wio/cash spend for approval.</div>}
       <div style={{ display: 'grid', gap: 10 }}>
-        {rows.map((r) => (
+        {shown.map((r) => (
           <div key={r.id} style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: 12 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
               {Number(r.amount_fils) > 0 ? (
@@ -772,12 +776,11 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
               <div style={{ fontSize: 12.5, color: C.muted2, fontWeight: 700 }}>📅 {fmtDate(r.posted_on)}</div>
             </div>
             {r.possible_dup_of && (
-              // Cross-feed duplicate / refund-payout flag set at ingest. Info only —
-              // nothing is auto-approved or auto-rejected; the approver decides.
+              // Owner-only: the system wasn't sure (close amount / date) — the owner decides.
               <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 800, color: '#7a5a00', background: '#fff4c2', border: '1px solid #f2d36b', borderRadius: 9, padding: '6px 10px' }}>
                 {String(r.possible_dup_of).startsWith('customer refund')
                   ? <>⚠️ This looks like a customer refund — don't approve as an expense <span style={{ fontWeight: 600 }}>({r.possible_dup_of})</span></>
-                  : <>⚠️ Possible duplicate of {r.possible_dup_of} — check it isn't already recorded before approving.</>}
+                  : <>⚠️ Owner check: {r.possible_dup_of} — same payment twice? Approve only if it's a different spend.</>}
               </div>
             )}
 

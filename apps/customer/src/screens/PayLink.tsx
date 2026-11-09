@@ -67,7 +67,9 @@ export function PayLink({
       .catch(() => setLoadErr(ar ? 'الرابط غير صالح أو منتهي.' : 'This link is invalid or has expired.'));
   }, [orderId, token]);
 
-  const isAddon = data?.kind === 'addon';
+  const isInvoice = data?.kind === 'invoice_pay';
+  // An add-on or an invoice balance needs no details — just review and pay.
+  const isAddon = data?.kind === 'addon' || isInvoice;
   // A single name is fine ("Noor") — matches the main booking flow. Requiring two
   // words silently disabled Pay for legitimate single-name customers (often
   // prefilled from the team record) with no hint why. Just need something to call them.
@@ -138,10 +140,12 @@ export function PayLink({
     <div className="scroll" style={{ height: '100%', overflowY: 'auto', background: C.cream }} dir={ar ? 'rtl' : 'ltr'}>
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '22px 18px 40px' }}>
         <div style={{ ...fredoka(22), color: C.pinkDeep }}>
-          {isAddon ? (ar ? 'إضافة على حجزك' : 'Add to your order') : (ar ? 'إتمام الحجز والدفع' : 'Complete & pay')}
+          {isInvoice ? (ar ? 'دفع الفاتورة' : 'Pay your invoice') : isAddon ? (ar ? 'إضافة على حجزك' : 'Add to your order') : (ar ? 'إتمام الحجز والدفع' : 'Complete & pay')}
         </div>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, marginTop: 4, marginBottom: 14 }}>
-          {isAddon
+          {isInvoice
+            ? (ar ? 'راجع المبلغ المتبقي وادفع بأمان.' : 'Review the balance due and pay securely.')
+            : isAddon
             ? (ar ? 'هذي إضافة على حجزك الحالي — راجعها وادفع.' : "This adds to your existing booking — review and pay.")
             : (ar ? 'راجع طلبك، عبّي بياناتك، وادفع بأمان.' : 'Review your order, add your details, and pay securely.')}
         </div>

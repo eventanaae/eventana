@@ -802,7 +802,8 @@ export async function publicRoutes(app: FastifyInstance) {
     const cart = (o.cart ?? {}) as any;
     // An add-on attaches to an existing event, so it needs no customer details —
     // only a full manual BOOKING must have its guest/location completed first.
-    if (o.kind !== 'addon' && (!cart.eventFor || !cart.mapPin || typeof cart.mapPin.lat !== 'number')) {
+    // An invoice balance (kind invoice_pay) is the same: no guest/location to fill.
+    if (o.kind !== 'addon' && o.kind !== 'invoice_pay' && (!cart.eventFor || !cart.mapPin || typeof cart.mapPin.lat !== 'number')) {
       return reply.status(422).send({ error: 'incomplete', message: 'Please complete your details before paying.' });
     }
     try {
