@@ -180,8 +180,17 @@ function wasSent(clientId: string | undefined): boolean {
 }
 
 /** Two queued JSON actions that would do exactly the same thing (a double tap while offline). */
+/** The body without the one-off `_cid` stamp, so two taps of the same action compare equal. */
+function bodyKey(body: string | null): string | null {
+  if (!body) return body;
+  try {
+    const o = JSON.parse(body);
+    if (o && typeof o === 'object' && !Array.isArray(o)) { delete o._cid; return JSON.stringify(o); }
+  } catch { /* not JSON */ }
+  return body;
+}
 function sameAction(a: OutboxItem, b: OutboxItem): boolean {
-  return a.kind === 'json' && b.kind === 'json' && a.token === b.token && a.method === b.method && a.path === b.path && a.body === b.body;
+  return a.kind === 'json' && b.kind === 'json' && a.token === b.token && a.method === b.method && a.path === b.path && bodyKey(a.body) === bodyKey(b.body);
 }
 
 // What's queued, kept in memory so saved copies can show it (a task the

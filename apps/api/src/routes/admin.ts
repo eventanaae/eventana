@@ -342,6 +342,8 @@ export async function adminRoutes(app: FastifyInstance) {
       const ins = await pool.query(`INSERT INTO app_kv (k) VALUES ($1) ON CONFLICT DO NOTHING RETURNING k`, ['cid:' + cid]);
       if (!ins.rows[0]) return reply.status(200).send({ ok: true, duplicate: true });
       (request as any).outboxCid = 'cid:' + cid;
+      // Now and then drop week-old replay ids so the table never just grows.
+      if (Math.random() < 0.02) void pool.query(`DELETE FROM app_kv WHERE k LIKE 'cid:%' AND v < now() - interval '7 days'`).catch(() => {});
     } catch { /* never block a real action on the dedupe store */ }
   });
   app.addHook('onResponse', async (request, reply) => {
@@ -3877,7 +3879,8 @@ const ITEMS_REQUIRED = {
     const sixStart = sixD.toISOString().slice(0, 10);
 
     // Revenue (owner's money rule): sales receipts by BOOKING date minus refunds
-    // by the refund's Dubai date, both in the month.
+    // by the refund's Dubai date, both in the month. Expenses count every source
+    // (QuickBooks history included) — the same sources as revenue, like the CEO P&L.
     const [rev, exp, byCat, tipsRow, revTrend, expTrend] = await Promise.all([
       pool.query(
         `SELECT (SELECT COALESCE(SUM(amount_fils),0) FROM receipt_money_by_day
@@ -3887,10 +3890,10 @@ const ITEMS_REQUIRED = {
                     AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date) AS v`,
         [start, end],
       ),
-      pool.query(`SELECT COALESCE(SUM(amount_fils),0) AS v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2${noSal}`, [start, end]),
+      pool.query(`SELECT COALESCE(SUM(amount_fils),0) AS v FROM expenses WHERE spent_on >= $1 AND spent_on < $2${noSal}`, [start, end]),
       pool.query(
         `SELECT category, SUM(amount_fils) AS v FROM expenses
-          WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2${noSal} GROUP BY category ORDER BY v DESC`,
+          WHERE spent_on >= $1 AND spent_on < $2${noSal} GROUP BY category ORDER BY v DESC`,
         [start, end],
       ),
       pool.query(
@@ -3913,7 +3916,7 @@ const ITEMS_REQUIRED = {
       ),
       pool.query(
         `SELECT to_char(date_trunc('month', spent_on),'YYYY-MM') AS m, SUM(amount_fils) AS v
-           FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2${noSal} GROUP BY 1`,
+           FROM expenses WHERE spent_on >= $1 AND spent_on < $2${noSal} GROUP BY 1`,
         [sixStart, end],
       ),
     ]);
@@ -4827,8 +4830,12 @@ const ITEMS_REQUIRED = {
     const runRateDaily = ytdRevenue / coverageDays;
     const runRateRemaining = Math.round(runRateDaily * daysRemaining);
     const marginRatio = (business?.latestYear?.marginPct ?? (revenue > 0 ? (profit / revenue) * 100 : 20)) / 100;
+    // With the QuickBooks + live booking-day YTD, money booked for future parties is
+    // already inside ytdRevenue. Without it, YTD falls back to parties already HELD
+    // (event date), so the booked-future money must be added on top.
+    const futureAdd = usingHist ? 0 : bookedFuture;
     const mkScenario = (remaining: number) => {
-      const rev = ytdRevenue + remaining;
+      const rev = ytdRevenue + futureAdd + remaining;
       const net = Math.round(rev * marginRatio);
       return { revenueFils: rev, revenueDisplay: formatAed(rev), netFils: net, netDisplay: formatAed(net) };
     };
@@ -5323,25 +5330,28 @@ const ITEMS_REQUIRED = {
       `INSERT INTO team_members (id, name, role, active, access_level, email, must_set_password)
        VALUES ($1,$2,'Crew',true,$3,$4,true)
        ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, access_level = EXCLUDED.access_level, active = true, must_set_password = true
-       RETURNING id, name, email, access_level`,
+       RETURNING id, name, email, access_level, password_hash`,
       [id, p.data.name, p.data.accessLevel, p.data.email],
     );
     const m = up.rows[0];
-    const token = issueStaffSetupToken(m.id, 'setup');
+    // Bind the link to the current password so it works once, even for a member
+    // who already has a password.
+    const token = issueStaffSetupToken(m.id, 'setup', m.password_hash ?? null);
     const sent = await sendStaffSetupEmail({ name: m.name, email: m.email, token, kind: 'setup' });
     logAudit({ actor: String((request as any).staff?.name ?? 'owner'), role: 'owner', action: 'staff_invite', target: m.id, detail: { email: m.email, accessLevel: m.access_level } });
     // The owner also gets the link back, to copy/share if email is slow.
-    return { ...m, emailSent: sent, setupLink: buildSetupLink(token) };
+    const { password_hash: _ph, ...pub } = m;
+    return { ...pub, emailSent: sent, setupLink: buildSetupLink(token) };
   });
 
   /** Owner-only: resend a set-password link to an existing member. */
   app.post('/api/admin/team/:id/setup-link', async (request, reply) => {
     if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
-    const { rows } = await pool.query(`SELECT id, name, email FROM team_members WHERE id = $1 LIMIT 1`, [id]);
+    const { rows } = await pool.query(`SELECT id, name, email, password_hash FROM team_members WHERE id = $1 LIMIT 1`, [id]);
     const m = rows[0];
     if (!m || !m.email) return reply.status(404).send({ error: 'no_email', message: 'This member has no email on file.' });
-    const token = issueStaffSetupToken(m.id, 'setup');
+    const token = issueStaffSetupToken(m.id, 'setup', m.password_hash ?? null);
     const sent = await sendStaffSetupEmail({ name: m.name, email: m.email, token, kind: 'setup' });
     return { ok: true, emailSent: sent, setupLink: buildSetupLink(token) };
   });

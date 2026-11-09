@@ -23,6 +23,8 @@ import { formatAed } from '@eventana/shared';
 const RECEIPT_FOR_ORDER_SQL = `(order_id = $1
    OR event_id IN (SELECT id FROM events WHERE order_id = $1)
    OR (NOT EXISTS (SELECT 1 FROM finance_receipts x WHERE x.order_id = $1)
+       -- a tip is the crew's money, never part of the party's sales receipt
+       AND (SELECT kind FROM orders WHERE id = $1) IS DISTINCT FROM 'tip'
        AND (event_id = (SELECT event_id FROM orders WHERE id = $1)
             OR order_id = (SELECT e.order_id FROM events e
                             WHERE e.id = (SELECT event_id FROM orders WHERE id = $1)))))`;
@@ -172,13 +174,14 @@ export async function refundOrderMoney(params: {
         // it), so the cap and the already-refunded figure are counted across the
         // whole event: the booking order + every add-on order (orders.event_id).
         // For an add-on this caps at (event receipt total − all refunds on the event).
-        const evId = ord.event_id ?? (await db.query<{ id: string }>(
+        // A tip stands alone (crew money): capped by its own total only.
+        const evId = ord.kind === 'tip' ? null : ord.event_id ?? (await db.query<{ id: string }>(
           `SELECT id FROM events WHERE order_id = $1 LIMIT 1`, [orderId],
         )).rows[0]?.id ?? null;
         const evOrders = evId
           ? (await db.query<{ id: string }>(
               `SELECT order_id AS id FROM events WHERE id = $1
-               UNION SELECT id FROM orders WHERE event_id = $1`, [evId],
+               UNION SELECT id FROM orders WHERE event_id = $1 AND kind = 'addon'`, [evId],
             )).rows.map((x) => x.id)
           : [];
         if (!evOrders.includes(orderId)) evOrders.push(orderId);

@@ -285,6 +285,7 @@ export default function App() {
   // paymentStatus) — lets the confirming screen stop spinning on a cancel.
   const [returnState, setReturnState] = useState<'cancel' | 'failure' | null>(null);
   const [stripeInfo, setStripeInfo] = useState<{ clientSecret: string; publishableKey: string } | null>(null);
+  const [payKind, setPayKind] = useState<'addon' | 'tip' | null>(null);
   const [payUrl, setPayUrl] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -664,7 +665,8 @@ export default function App() {
    * Stripe and then polls the order like any other payment.
    */
   const startExtraPayment = useCallback(
-    (o: { orderId: string; orderToken: string | null; stripe: { clientSecret: string; publishableKey: string } }) => {
+    (o: { orderId: string; orderToken: string | null; stripe: { clientSecret: string; publishableKey: string }; kind?: 'addon' | 'tip' }) => {
+      setPayKind(o.kind ?? null);
       setOrderId(o.orderId);
       setOrderToken(o.orderToken);
       setPayUrl(null);
@@ -859,7 +861,7 @@ export default function App() {
         {screen === 'lead' && <LeadForm {...shared} />}
         {screen === 'movieselect' && <MovieSelect {...shared} />}
         {screen === 'checkout' && (
-          <Checkout {...shared} onOrder={(id, embed, tok, stripe) => { setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); setStripeInfo(stripe ?? null); go('confirming'); }} />
+          <Checkout {...shared} onOrder={(id, embed, tok, stripe) => { setPayKind(null); setOrderId(id); setOrderToken(tok ?? null); setPayUrl(embed ?? null); setStripeInfo(stripe ?? null); go('confirming'); }} />
         )}
         {screen === 'confirming' && orderId && (
           <PaymentReturn
@@ -868,6 +870,7 @@ export default function App() {
             embedUrl={payUrl}
             stripe={stripeInfo}
             returnState={returnState}
+            initialKind={payKind ?? undefined}
             lang={lang}
             onConfirmed={(id, kind) => {
               setEventId(id); setPayUrl(null); setStripeInfo(null); setReturnState(null);

@@ -330,14 +330,27 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     // (session-creation error → status 'failed', holds already released) must not
     // trap a genuine retry on the same key at a dead order — skip terminal ones so
     // the customer can rebook.
-    const dupe = await pool.query<{ id: string }>(
-      `SELECT id FROM orders WHERE idempotency_key = $1 AND status NOT IN ('failed','cancelled','refunded')`,
+    const dupe = await pool.query<{ id: string; status: string }>(
+      `SELECT id, status FROM orders WHERE idempotency_key = $1 AND status NOT IN ('failed','cancelled','refunded')`,
       [req.idempotencyKey],
     );
     if (dupe.rows[0]) {
+      // Hand back what the customer needs to carry on paying the SAME order
+      // (the lost answer of the first submit): the card form secret or the
+      // provider page — so a resume never lands on a dead "waiting" screen.
+      const pay = dupe.rows[0].status === 'awaiting_payment'
+        ? (await pool.query<{ provider: string; checkout_url: string | null; cs: string | null }>(
+            `SELECT provider, checkout_url, raw->>'client_secret' AS cs FROM payments
+              WHERE order_id = $1 ORDER BY created_at DESC LIMIT 1`, [dupe.rows[0].id],
+          )).rows[0]
+        : undefined;
+      const stripeKey = pay?.provider === 'stripe' ? ((config.providers as any).stripe?.publicKey ?? null) : null;
       throw new CheckoutError('This checkout was already submitted.', 'duplicate_request', {
         orderId: dupe.rows[0].id,
         orderToken: orderViewToken(dupe.rows[0].id),
+        checkoutUrl: pay?.checkout_url ?? null,
+        clientSecret: pay?.cs ?? null,
+        publishableKey: pay?.cs ? stripeKey : null,
       });
     }
   }
@@ -426,6 +439,25 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   const requiredAssets = resolveRequiredAssets(cart, cfg);
   // A card session stays payable ~31 min, so its hold must outlive that.
   const holdMinutes = holdMinutesFor(provider.name, cfg.rules);
+
+  // The same customer starting a NEW checkout for the same party (they backed out
+  // of the card form to change method or details) must not be blocked by their
+  // own earlier, unpaid attempt's holds: retire those attempts first. A payment
+  // that still lands on one later re-takes its holds or is flagged (webhooks.ts).
+  if (customerId && cart.eventDate) {
+    const mine = await pool.query<{ id: string }>(
+      `SELECT o.id FROM orders o
+        WHERE o.customer_id = $1 AND o.kind = 'booking' AND o.status = 'awaiting_payment'
+          AND o.cart->>'eventDate' = $2 AND o.created_at > now() - interval '2 hours'
+          AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.id
+                           AND p.status IN ('paid','captured','processing'))`,
+      [customerId, cart.eventDate],
+    ).catch(() => ({ rows: [] as { id: string }[] }));
+    for (const r of mine.rows) {
+      await abandonCheckoutOrder(r.id, 'superseded by a new checkout from the same customer')
+        .catch((e) => console.error('[checkout] retire earlier attempt failed:', (e as Error).message));
+    }
+  }
 
   // (2)(3)(4) availability, hold and order in ONE transaction.
   const { orderId } = await withTransaction(async (db) => {

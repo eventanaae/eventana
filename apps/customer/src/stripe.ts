@@ -11,18 +11,23 @@ function loadStripeJs(): Promise<any> {
   if ((window as any).Stripe) return Promise.resolve((window as any).Stripe);
   if (loading) return loading;
   const SRC = 'https://js.stripe.com/v3/';
-  loading = new Promise((resolve, reject) => {
+  let settled = false;
+  let timer: number | undefined;
+  const mine: Promise<any> = new Promise((resolve, reject) => {
     // A failed load must not be cached: drop the promise and the dead <script>
     // tag so the next attempt (the "Try again" button) really re-downloads
     // Stripe.js instead of re-using the same rejected promise forever.
     const fail = (el: Element | null) => {
-      loading = null;
+      if (settled) return;
+      settled = true;
+      if (timer) window.clearTimeout(timer);
+      if (loading === mine) loading = null; // only clear OUR attempt
       try { el?.remove(); } catch { /* ignore */ }
       reject(new Error('Stripe.js failed to load'));
     };
     const existing = document.querySelector(`script[src="${SRC}"]`);
     const done = (el: Element | null) => {
-      if ((window as any).Stripe) resolve((window as any).Stripe);
+      if ((window as any).Stripe) { settled = true; if (timer) window.clearTimeout(timer); resolve((window as any).Stripe); }
       else fail(el);
     };
     if (existing) {
@@ -37,11 +42,13 @@ function loadStripeJs(): Promise<any> {
     s.onload = () => done(s);
     s.onerror = () => fail(s);
     // A blocked/hanging request never fires onerror on some mobile browsers —
-    // give up after 20s so the customer gets an error + retry, not a blank box.
-    window.setTimeout(() => { if (!(window as any).Stripe && loading) fail(s); }, 20_000);
+    // give up after 45s (slow 3G still finishes) so the customer gets an error +
+    // retry, not a blank box. Cleared as soon as the script loads or errors.
+    timer = window.setTimeout(() => { if (!(window as any).Stripe) fail(s); }, 45_000);
     document.head.appendChild(s);
   });
-  return loading;
+  loading = mine;
+  return mine;
 }
 
 export interface StripeMountHandle {

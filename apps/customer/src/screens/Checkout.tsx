@@ -5,7 +5,7 @@ import { trackInitiateCheckout } from '../attribution';
 import { trackGoogleBeginCheckout } from '../googleTag';
 import { toCart, type ScreenProps } from '../App';
 import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPreOrderCategory, dubaiToday } from '../ui';
-import { loadAccount, saveAccount, signOut, type Account } from '../account';
+import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
 import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
 import { svcName } from '../serviceAr';
@@ -559,7 +559,13 @@ export function Checkout({
       const dupe = e?.body?.error === 'duplicate_request' ? e.body.details : null;
       if (dupe?.orderId && dupe?.orderToken) {
         attemptRef.current = null;
-        onOrder(dupe.orderId, undefined, dupe.orderToken);
+        // Carry on paying the SAME order with what the server handed back.
+        if (dupe.clientSecret && dupe.publishableKey) {
+          onOrder(dupe.orderId, undefined, dupe.orderToken, { clientSecret: dupe.clientSecret, publishableKey: dupe.publishableKey });
+        } else {
+          onOrder(dupe.orderId, undefined, dupe.orderToken);
+          if (dupe.checkoutUrl) window.location.href = dupe.checkoutUrl;
+        }
         return;
       }
       // A thrown fetch (no server body) is a connection problem — show a clear,
@@ -1086,7 +1092,8 @@ export function Checkout({
             </div>
             <button
               onClick={() => {
-                signOut();
+                clearAccount();
+                try { sessionStorage.removeItem('ev_co_reg'); } catch { /* ignore */ }
                 setAccount(null);
               }}
               style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}

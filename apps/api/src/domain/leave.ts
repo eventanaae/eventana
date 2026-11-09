@@ -196,8 +196,12 @@ export async function decideLeaveRequest(
       `SELECT DISTINCT e.id FROM events e
         WHERE e.event_date BETWEEN $2 AND $3
           AND lower(e.phase) NOT LIKE '%cancel%' AND NOT COALESCE(e.date_tbd, false)
-          AND (EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = e.id AND es.assignee_id = $1)
-               OR EXISTS (SELECT 1 FROM event_team et WHERE et.event_id = e.id AND et.member_id = $1))
+          -- A LEADER row alone (e.g. Marsha as the remote leader on every staffed
+          -- party) is not on-site work and is re-derived on rebuild — don't block.
+          AND (EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = e.id AND es.assignee_id = $1 AND es.is_leader = false)
+               OR EXISTS (SELECT 1 FROM event_team et WHERE et.event_id = e.id AND et.member_id = $1
+                           AND NOT EXISTS (SELECT 1 FROM event_staff l
+                                            WHERE l.event_id = e.id AND l.assignee_id = $1 AND l.is_leader = true)))
         LIMIT 3`,
       [req.member_id, req.start_date, req.end_date],
     );

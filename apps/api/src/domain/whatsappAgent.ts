@@ -220,7 +220,19 @@ export async function respondToLead(
 ): Promise<AgentOutcome> {
   const mode = agentMode();
   if (mode === 'off') return { replied: false, handoff: false };
-  if (await staffActiveRecently(msg.phone)) return { replied: false, handoff: false };
+  // Staff are talking to this customer: the bot stays quiet, but a booking
+  // confirmation or a sensitive ask must still ALERT the team (silently).
+  if (await staffActiveRecently(msg.phone)) {
+    if (result.confirmed) {
+      await escalateToOwner(msg, 'booking confirmation');
+      return { replied: false, handoff: true };
+    }
+    if (msg.text.trim() && (await answerAssistant(msg.text)).escalated) {
+      await escalateToOwner(msg, isArabic(msg.text) ? 'طلب حسّاس (خصم/استرداد/سعر)' : 'sensitive request (refund/discount/price)');
+      return { replied: false, handoff: true };
+    }
+    return { replied: false, handoff: false };
+  }
 
   const ar = isArabic(msg.text) || !msg.text;
 

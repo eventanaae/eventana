@@ -105,7 +105,7 @@ export function GuestFeedback({
     setTipError(null);
     try {
       const res = await api.tipCheckout(event, effectiveTip, null, token);
-      if (!openExtraPayment(res, onPay)) setTipError(t('me.errCheckout'));
+      if (!openExtraPayment(res, onPay, 'tip')) setTipError(t('me.errCheckout'));
     } catch (e: any) {
       setTipError(e?.body?.message ?? e?.message ?? t('me.errTip'));
     } finally {

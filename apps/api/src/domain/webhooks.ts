@@ -188,7 +188,14 @@ export async function processDelivery(
     await finish(deliveryId, 'late_success');
     return { outcome: 'late_success' as const };
   };
-  if (isSuccess && !(await holdsStillValid(pool, payment.order_id))) {
+  // Not for an order that is already settled or cancelled — a replayed success
+  // there is a double payment / stale event and must not grab holds. A failed or
+  // expired order whose money lands late DOES become paid, so it re-takes holds.
+  const orderNow = isSuccess ? (await pool.query<{ status: string }>(
+    `SELECT status FROM orders WHERE id = $1`, [payment.order_id],
+  )).rows[0]?.status : undefined;
+  const settledOrCancelled = ['paid', 'refunded', 'partially_refunded', 'cancelled'].includes(String(orderNow));
+  if (isSuccess && !settledOrCancelled && !(await holdsStillValid(pool, payment.order_id))) {
     const reacquired = await withTransaction((db) => reacquireLapsedHolds(db, payment.order_id)).then(
       () => true,
       (err) => {
