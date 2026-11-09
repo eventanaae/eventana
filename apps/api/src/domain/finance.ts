@@ -393,8 +393,8 @@ function decorateInvoice(r: any) {
     const s = String(v);
     return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
   };
-  // Overdue if past due date and not fully paid.
-  const today = new Date().toISOString().slice(0, 10);
+  // Overdue if past due date and not fully paid. Dubai "today" (UTC+4).
+  const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
   let status = r.status as string;
   const due = ymd(r.due_date);
   if (balance <= 0) status = 'paid';
@@ -463,7 +463,27 @@ export async function recordSaleFromOrder(
     // (or email/name), so they appear in the dashboard Customers list like any
     // stored customer — and link this receipt to that profile. Never duplicated.
     let financeCustomerId: number | null = null;
-    if (cust) {
+    // A historical (QuickBooks) customer stored as "050…" / "+971 50…" is the same
+    // person as an app customer "97150…" — match on the last 9 digits first so
+    // they aren't duplicated under a differently-formatted dedupe key.
+    const digits = String(cust?.phone ?? '').replace(/\D/g, '');
+    if (cust && digits.length >= 9) {
+      const hit = await db.query<{ id: number }>(
+        `SELECT id FROM historical_customers
+          WHERE right(regexp_replace(COALESCE(phone,''),'[^0-9]','','g'),9) = $1
+             OR right(regexp_replace(COALESCE(phone_alt,''),'[^0-9]','','g'),9) = $1
+          ORDER BY id LIMIT 1`,
+        [digits.slice(-9)],
+      );
+      if (hit.rows[0]) {
+        financeCustomerId = Number(hit.rows[0].id);
+        await db.query(
+          `UPDATE historical_customers SET email = COALESCE(email, $2) WHERE id = $1`,
+          [financeCustomerId, cust.email ?? null],
+        );
+      }
+    }
+    if (cust && financeCustomerId == null) {
       const dedupe = (
         String(cust.phone ?? '').replace(/\D/g, '') ||
         String(cust.email ?? '').toLowerCase() ||
@@ -583,7 +603,7 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
   const { rows } = await pool.query(
     `SELECT o.id, o.kind, o.source, o.cart, o.quote, o.total_fils, o.customer_id
        FROM orders o
-      WHERE o.status = 'paid' AND o.kind IN ('booking','addon','shop')
+      WHERE o.status IN ('paid','partially_refunded','refunded') AND o.kind IN ('booking','addon','shop')
         -- A 'converted' order is the synthetic booking minted FROM an existing
         -- upcoming receipt; that receipt already carries the money (with a NULL
         -- order_id), so backfilling would post the same sale a second time and
@@ -607,6 +627,10 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
         -- Hand. Skip any add-on whose event already carries a receipt (merged); a
         -- genuinely un-posted add-on would have a receipt under its own id and was
         -- already excluded above.
+        -- TODO(owner decision): a merged add-on keeps the receipt's ORIGINAL
+        -- booked_on, so its money is reported on the first booking's day rather
+        -- than the day the add-on was paid. Left as-is pending the owner's call
+        -- (merge happens in confirm.ts applyAddonOrder).
         AND NOT (o.kind = 'addon' AND o.event_id IS NOT NULL AND EXISTS (
           SELECT 1 FROM finance_receipts r
            WHERE r.event_id = o.event_id
@@ -838,7 +862,15 @@ export async function ensureEventForReceipt(
   const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
   if (!dateStr || dateStr < today) return null; // only upcoming sales become events
 
+  let linkedMeanwhile = null as string | null;
   const newEventId = await withTransaction(async (db) => {
+    // Lock the receipt so two concurrent callers (create + edit, sweep) can't
+    // both mint an event + order for the same sale. Second caller sees the link.
+    const lock = await db.query<{ event_id: string | null }>(
+      `SELECT event_id FROM finance_receipts WHERE id = $1 FOR UPDATE`, [receiptId],
+    );
+    if (!lock.rows[0]) return null;
+    if (lock.rows[0].event_id) { linkedMeanwhile = lock.rows[0].event_id; return null; }
     // Customer in the app customers table (find by phone/name, else create).
     const phone = String(r.hc_phone ?? '').trim() || '00000000';
     const name = String(r.customer_name ?? 'Customer').trim() || 'Customer';
@@ -848,7 +880,11 @@ export async function ensureEventForReceipt(
     // there is no phone — two different customers can share a name (audit).
     const hasPhone = phone.replace(/\D/g, '').length >= 7 && phone !== '00000000';
     const found = hasPhone
-      ? await db.query(`SELECT id FROM customers WHERE phone = $1 LIMIT 1`, [phone])
+      // Last 9 digits of the normalised number: "+971 50…", "050…" and "97150…" are one customer.
+      ? await db.query(
+          `SELECT id FROM customers WHERE right(regexp_replace(phone,'[^0-9]','','g'),9) = right(regexp_replace($1,'[^0-9]','','g'),9) LIMIT 1`,
+          [phone],
+        )
       : await db.query(`SELECT id FROM customers WHERE lower(name) = lower($1) LIMIT 1`, [name]);
     if (found.rows[0]) customerId = found.rows[0].id;
     else {
@@ -908,9 +944,12 @@ export async function ensureEventForReceipt(
         [eventId, String(it.name ?? 'Item').slice(0, 200), Number(it.qty ?? 1) || 1, Number(it.priceFils ?? 0), orderId],
       );
     }
-    await db.query(`UPDATE finance_receipts SET event_id = $2 WHERE id = $1`, [receiptId, eventId]);
+    await db.query(`UPDATE finance_receipts SET event_id = $2 WHERE id = $1 AND event_id IS NULL`, [receiptId, eventId]);
     return eventId;
   }).catch(() => null);
+  // Another caller converted it while we waited on the lock — return its event
+  // without re-running prep/staffing/lifecycle (they already ran for it).
+  if (linkedMeanwhile) return linkedMeanwhile;
 
   // A converted sale is now a real event — give it the same automatic treatment
   // as a booked party: generate + fair-assign its preparation tasks, and assign
@@ -947,7 +986,7 @@ export async function ensureEventForReceipt(
 export async function convertUpcomingReceiptsToEvents(
   opts: { skipLifecycle?: boolean } = {},
 ): Promise<{ created: string[]; considered: number }> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10); // Dubai date
   const { rows } = await pool.query(
     `SELECT id FROM finance_receipts WHERE event_id IS NULL AND date >= $1 ORDER BY date`,
     [today],
@@ -971,6 +1010,12 @@ export async function importReceiptsFromHistory() {
     `SELECT doc_number, customer_name, to_char(txn_date, 'YYYY-MM-DD') AS txn_date, product, memo, total_fils
        FROM historical_orders
       WHERE doc_number IS NOT NULL AND doc_number <> '' AND txn_date IS NOT NULL
+        -- QuickBooks Invoices are AR (reconcileInvoicesFromHistory owns them) and
+        -- Payments are money against those invoices — neither is a sales receipt.
+        AND COALESCE(txn_type, '') NOT IN ('Invoice', 'Payment')
+        -- Never resurrect a number that is an invoice or was deliberately deleted.
+        AND NOT EXISTS (SELECT 1 FROM finance_invoices i WHERE i.number = historical_orders.doc_number)
+        AND NOT EXISTS (SELECT 1 FROM finance_deleted_docs d WHERE d.number = historical_orders.doc_number)
       ORDER BY doc_number, id`,
   );
   const groups = new Map<string, { customer: string; date: string; lines: any[] }>();
@@ -999,7 +1044,7 @@ export async function importReceiptsFromHistory() {
     const res = await pool.query(
       `INSERT INTO finance_receipts (number, customer_name, date, line_items, subtotal_fils, discount_fils, shipping_fils, total_fils, paid_with, source)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Cash','quickbooks')
-       ON CONFLICT (number) DO UPDATE SET customer_name = EXCLUDED.customer_name`,
+       ON CONFLICT (number) DO NOTHING`, // never rename/overwrite a live receipt
       [doc, g.customer, g.date, JSON.stringify(items), subtotal, discount, shipping, total],
     );
     inserted += res.rowCount ?? 0;
@@ -1128,6 +1173,27 @@ export async function deleteReceipt(id: number) {
   // are plain (not savepoint-swallowed): a genuine failure aborts and rolls back,
   // rather than silently orphaning a refund.
   await withTransaction(async (db) => {
+    // Refuse to delete a sale that still carries money movements or a live party:
+    // removing it would drop a refund from the books / leave a paid booking with
+    // no receipt (every paid booking has exactly one). Nothing is removed.
+    const guard = (await db.query<{ refunded: string; live: boolean }>(
+      `SELECT r.refunded_fils AS refunded,
+              EXISTS (
+                SELECT 1 FROM events e
+                 WHERE (e.id = r.event_id
+                        OR e.order_id = r.order_id
+                        OR e.id = (SELECT o.event_id FROM orders o WHERE o.id = r.order_id))
+                   AND e.cancelled_at IS NULL AND e.phase IS DISTINCT FROM 'Cancelled'
+              ) AS live
+         FROM finance_receipts r WHERE r.id = $1 FOR UPDATE`,
+      [id],
+    )).rows[0];
+    if (guard && Number(guard.refunded) > 0) {
+      throw Object.assign(new Error('This receipt has a refund recorded against it and cannot be deleted.'), { statusCode: 409 });
+    }
+    if (guard?.live) {
+      throw Object.assign(new Error('This receipt belongs to a live event. Cancel the event first, then delete the receipt.'), { statusCode: 409 });
+    }
     await db.query(
       `INSERT INTO finance_deleted_docs (number, doc_type)
          SELECT number, 'receipt' FROM finance_receipts WHERE id = $1
@@ -1309,11 +1375,13 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   // the team (manual / converted / imported) — the receipt is where staff add
   // extras (e.g. an 80 AED cake stand), and the refund cap reads the order.
   // App bookings keep the amount the customer actually paid online.
-  if (saved?.order_id) {
+  // A converted receipt has no order_id of its own — its order hangs off the event.
+  if (saved?.order_id || saved?.event_id) {
     await pool.query(
       `UPDATE orders SET total_fils = $2, updated_at = now()
-        WHERE id = $1 AND source IN ('manual','converted','quickbooks_import') AND kind = 'booking'`,
-      [saved.order_id, Number(saved.total_fils) || 0],
+        WHERE id = COALESCE($1::text, (SELECT order_id FROM events WHERE id = $3::text))
+          AND source IN ('manual','converted','quickbooks_import') AND kind = 'booking'`,
+      [saved.order_id ?? null, Number(saved.total_fils) || 0, saved.event_id ?? null],
     ).catch(() => {});
   }
   // A receipt edit may add/remove/change a paid service — mirror it onto the
