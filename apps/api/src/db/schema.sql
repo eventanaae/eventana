@@ -1851,3 +1851,10 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS events_reopen_on_redate ON events;
 CREATE TRIGGER events_reopen_on_redate BEFORE UPDATE ON events
   FOR EACH ROW EXECUTE FUNCTION events_reopen_on_redate();
+
+-- Staff pay: person_name is now the normalised match key (trim, collapsed
+-- spaces, lowercase); the name as typed is kept in display_name. Older rows
+-- keep their original person_name — the report normalises (and sums) at read
+-- time, so they still match.
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS display_name TEXT;
+UPDATE staff_payments SET display_name = person_name WHERE display_name IS NULL;
