@@ -188,6 +188,24 @@ export async function decideLeaveRequest(
   if (!req) return { ok: false, reason: 'Request not found.' };
   if (req.status !== 'pending') return { ok: false, reason: `This request is already ${req.status}.` };
 
+  // The person may have been rostered onto an event AFTER they requested the
+  // leave — re-check against the live roster (event_staff + event_team) before
+  // approving, so an approval never silently strands an event.
+  if (decision === 'approved') {
+    const evConf = await db.query(
+      `SELECT DISTINCT e.id FROM events e
+        WHERE e.event_date BETWEEN $2 AND $3
+          AND lower(e.phase) NOT LIKE '%cancel%' AND NOT COALESCE(e.date_tbd, false)
+          AND (EXISTS (SELECT 1 FROM event_staff es WHERE es.event_id = e.id AND es.assignee_id = $1)
+               OR EXISTS (SELECT 1 FROM event_team et WHERE et.event_id = e.id AND et.member_id = $1))
+        LIMIT 3`,
+      [req.member_id, req.start_date, req.end_date],
+    );
+    if (evConf.rowCount) {
+      return { ok: false, reason: `They’re rostered on an event in these dates (${evConf.rows.map((r: any) => r.id).join(', ')}). Reassign it first, then approve.` };
+    }
+  }
+
   await db.query(
     `UPDATE leave_requests SET status = $2, decided_by = $3, decided_at = now(), decision_note = $4 WHERE id = $1`,
     [id, decision, deciderName, (note ?? '').trim() || null],

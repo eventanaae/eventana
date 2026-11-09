@@ -279,6 +279,7 @@ export async function campaignRecipients(audience: string): Promise<{ count: num
  * next day instead of being lost.
  */
 export async function sweepWinbackCampaignAuto(): Promise<number> {
+  if (!inCustomerSendWindow()) return 0;
   if (String(process.env.WINBACK_AUTO ?? '').toLowerCase() !== 'send') return 0;
   if (!emailEnabled()) return 0;
   // Already sent a batch in the last ~20h? Then hold until tomorrow.
@@ -293,6 +294,7 @@ export async function sweepWinbackCampaignAuto(): Promise<number> {
        FROM promo_codes p JOIN customers c ON c.id = p.customer_id
       WHERE p.campaign = 'winback' AND p.active
         AND c.email IS NOT NULL AND c.email <> '' AND c.email_opt_out = FALSE
+        AND NOT EXISTS (SELECT 1 FROM email_suppression es WHERE lower(es.email) = lower(c.email))
         AND (p.expires_at IS NULL OR p.expires_at > now())
         AND (p.max_uses IS NULL OR p.uses < p.max_uses)
         AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code)
@@ -318,6 +320,7 @@ export async function sweepWinbackCampaignAuto(): Promise<number> {
  * a window, so it is safe to call as often as the sweep fires.
  */
 export async function sweepVoucherReminders(): Promise<number> {
+  if (!inCustomerSendWindow()) return 0;
   // Disabled at the owner's request (2026-09-08): the 20%-off voucher was an
   // older, separate reward and the business has standardised on the AED 600
   // win-back code, so this reminder was confusing. Re-enable with
@@ -337,6 +340,7 @@ export async function sweepVoucherReminders(): Promise<number> {
        JOIN customers c ON c.id = p.customer_id
       WHERE p.auto_reminder AND p.active
         AND c.email IS NOT NULL AND c.email <> '' AND c.email_opt_out = FALSE
+        AND NOT EXISTS (SELECT 1 FROM email_suppression es WHERE lower(es.email) = lower(c.email))
         AND (p.expires_at IS NULL OR p.expires_at > now())
         AND (p.max_uses IS NULL OR p.uses < p.max_uses)
         AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code)
@@ -385,6 +389,7 @@ export async function sweepVoucherReminders(): Promise<number> {
  * Safe to call as often as the sweep runs — the 14-day WHERE clause de-dupes.
  */
 export async function sweepWinbackReminders(): Promise<number> {
+  if (!inCustomerSendWindow()) return 0;
   if (String(process.env.WINBACK_REMINDERS ?? '').toLowerCase() !== 'send') return 0;
   if (!emailEnabled()) return 0;
   const { sendWinbackEmail } = await import('./notify.js');
@@ -396,6 +401,7 @@ export async function sweepWinbackReminders(): Promise<number> {
        JOIN customers c ON c.id = p.customer_id
       WHERE p.campaign = 'winback' AND p.auto_reminder AND p.active
         AND c.email IS NOT NULL AND c.email <> '' AND c.email_opt_out = FALSE
+        AND NOT EXISTS (SELECT 1 FROM email_suppression es WHERE lower(es.email) = lower(c.email))
         AND (p.expires_at IS NULL OR p.expires_at > now())
         AND (p.max_uses IS NULL OR p.uses < p.max_uses)
         AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code)
@@ -428,6 +434,7 @@ export async function sweepWinbackReminders(): Promise<number> {
  * campaign task handles the existing backlog.
  */
 export async function sweepPostEventWinback(): Promise<number> {
+  if (!inCustomerSendWindow()) return 0;
   if (String(process.env.WINBACK_POSTEVENT ?? '').toLowerCase() !== 'send') return 0;
   if (!emailEnabled()) return 0;
   const { sendWinbackEmail } = await import('./notify.js');
@@ -442,6 +449,7 @@ export async function sweepPostEventWinback(): Promise<number> {
         AND e.event_date <= (CURRENT_DATE - interval '3 days')
         AND e.phase <> 'Cancelled'
         AND c.email IS NOT NULL AND c.email <> '' AND c.email_opt_out = FALSE
+        AND NOT EXISTS (SELECT 1 FROM email_suppression es WHERE lower(es.email) = lower(c.email))
         AND (p.expires_at IS NULL OR p.expires_at > now())
         AND (p.max_uses IS NULL OR p.uses < p.max_uses)
         AND NOT EXISTS (SELECT 1 FROM promo_redemptions r WHERE r.code = p.code)
@@ -467,6 +475,7 @@ export async function sweepPostEventWinback(): Promise<number> {
  * (owner asked to just handle it), once per customer per year. Email only.
  */
 export async function sweepCustomerBirthdays(): Promise<number> {
+  if (!inCustomerSendWindow()) return 0;
   if (!emailEnabled()) return 0;
   const { rows } = await pool.query<{ id: string; name: string; email: string }>(
     `SELECT id, name, email FROM customers
@@ -475,6 +484,7 @@ export async function sweepCustomerBirthdays(): Promise<number> {
         -- matching the staff-birthday path.
         AND to_char(birthday,'MM-DD') = to_char((now() AT TIME ZONE 'Asia/Dubai')::date,'MM-DD')
         AND email IS NOT NULL AND email <> '' AND email_opt_out = FALSE
+        AND NOT EXISTS (SELECT 1 FROM email_suppression es WHERE lower(es.email) = lower(customers.email))
         AND (birthday_greeted_year IS NULL OR birthday_greeted_year < extract(year from (now() AT TIME ZONE 'Asia/Dubai')::date)::int)
       LIMIT 200`,
   );

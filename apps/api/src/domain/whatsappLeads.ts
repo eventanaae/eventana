@@ -79,8 +79,14 @@ function iso(d: Date): string {
  * Anything in the past, or more than 18 months out, is rejected as a
  * misreading rather than stored.
  */
-export function parseEventDate(text: string, now = new Date()): string | null {
+export function parseEventDate(text: string, nowInstant = new Date()): string | null {
   if (!text) return null;
+  // The business runs on Dubai time (UTC+4, no DST) but the server is UTC: a
+  // message at 01:00 Dubai is still "yesterday" in UTC, so "tomorrow"/"next
+  // Friday"/the year rollover would land a day off. Re-express Dubai wall-clock
+  // as a local Date so every local-time getter below reads Dubai's calendar.
+  const dz = new Date(nowInstant.getTime() + 4 * 3_600_000);
+  const now = new Date(dz.getUTCFullYear(), dz.getUTCMonth(), dz.getUTCDate(), dz.getUTCHours(), dz.getUTCMinutes(), dz.getUTCSeconds());
   const s = westernDigits(text).toLowerCase();
 
   const accept = (d: Date): string | null => {
