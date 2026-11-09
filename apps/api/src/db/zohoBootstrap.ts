@@ -22,7 +22,11 @@ export async function zohoBootstrapFromEnv(): Promise<void> {
 
   // If a refresh token is already configured (env) or stored, nothing to do.
   if (process.env.ZOHO_REFRESH_TOKEN) { console.log('[zoho-bootstrap] refresh token already in env — skipping'); return; }
-  const have = await pool.query(`SELECT 1 FROM app_secrets WHERE k = 'zoho_refresh_token'`).catch(() => ({ rowCount: 0 }));
+  const have = await pool.query(`SELECT 1 FROM app_secrets WHERE k = 'zoho_refresh_token'`).catch((e: unknown) => {
+    // A failed marker read must not look like "never ran": stop instead of re-running.
+    console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+    return { rowCount: 1 };
+  });
   if (have.rowCount) { console.log('[zoho-bootstrap] refresh token already stored — skipping'); return; }
 
   // Don't burn the same (already-tried) grant code twice.

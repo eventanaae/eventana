@@ -889,7 +889,7 @@ export async function regenerateOneOccasion(slug: string): Promise<number> {
     const isCorp = r.dedupe_key.endsWith('|corp');
     const subject = isCorp ? `${o.copy.subject} — for your organisation` : o.copy.subject;
     const body = isCorp ? buildCorporateBody(o, fresh) : buildOccasionBody(o, fresh);
-    await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1`, [r.id, subject, body]);
+    await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1 AND status = 'draft'`, [r.id, subject, body]);
     n++;
   }
   // Drop the stale learned bodies so later previews/sends use the fresh copy too.
@@ -1035,21 +1035,29 @@ export async function prepareOccasionNow(slug: string, opts?: { corporate?: bool
 }
 
 /**
- * Rebuild the subject + body of every still-editable auto occasion draft from the
- * CURRENT templates — used after a template change so drafts prepared earlier pick
- * up the new design (services list, no website link, etc.). Skips sent campaigns.
+ * Rebuild the subject + body of auto occasion drafts from the CURRENT templates -
+ * used after a template change so drafts prepared earlier pick up the new design.
+ *
+ * SAFETY (this was run from boot and the calendar sweep): there is no edited-flag
+ * or last-generated-body column on email_campaigns, so we cannot tell a generator
+ * draft from one the owner has edited. The old "stale" heuristic (body contains
+ * `<a ` etc.) matched hand-added links and rewrote scheduled/approved campaigns,
+ * silently reverting the owner's edits. So:
+ *   - default call: does nothing and logs;
+ *   - `all:true` (explicit REGEN_OCCASION_DRAFTS=on opt-in): rewrites ONLY rows
+ *     still in status 'draft' - never 'pending_approval', 'scheduled', 'approved'
+ *     or anything already sent.
  */
 export async function regenerateOccasionDrafts(opts?: { all?: boolean }): Promise<number> {
-  // By default only refresh STALE drafts — those still holding the old inline
-  // website button (`<a `), which the new template never produces. This makes it
-  // safe to run every sweep: new drafts and manual plain-text edits never match,
-  // so a person's edits are never clobbered. `all:true` rewrites every draft.
-  const staleOnly = opts?.all ? '' : `AND (body_html LIKE '%<a %' OR body_html LIKE '%Or reply to this email%' OR body_html LIKE '%students or guests%' OR body_html LIKE '%How we can help your organisation%')`;
+  if (!opts?.all) {
+    console.log('[marketing] occasion draft regeneration skipped (only runs with REGEN_OCCASION_DRAFTS=on; never touches edited/approved campaigns)');
+    return 0;
+  }
   const { rows } = await pool.query<{ id: string; dedupe_key: string }>(
     `SELECT id, dedupe_key FROM email_campaigns
       WHERE source IN ('occasion','occasion_corp')
-        AND status IN ('draft','pending_approval','scheduled')
-        AND dedupe_key IS NOT NULL ${staleOnly}`,
+        AND status = 'draft'
+        AND dedupe_key IS NOT NULL`,
   );
   let n = 0;
   for (const r of rows) {
@@ -1061,7 +1069,7 @@ export async function regenerateOccasionDrafts(opts?: { all?: boolean }): Promis
     const ov = await getOccasionOverrides(slug);
     const subject = isCorp ? `${o.copy.subject} — for your organisation` : o.copy.subject;
     const body = isCorp ? buildCorporateBody(o, ov) : buildOccasionBody(o, ov);
-    await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1`, [r.id, subject, body]);
+    await pool.query(`UPDATE email_campaigns SET subject = $2, body_html = $3 WHERE id = $1 AND status = 'draft'`, [r.id, subject, body]);
     n++;
   }
   console.log(`[marketing] regenerated ${n} occasion draft(s)`);

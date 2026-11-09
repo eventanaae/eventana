@@ -2,7 +2,11 @@
 import { pool } from './pool.js';
 export async function blankFix3FromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const g = await pool.query(`SELECT 1 FROM app_kv WHERE k='blank_fix3_v1'`).catch(() => ({ rowCount: 0 }));
+  const g = await pool.query(`SELECT 1 FROM app_kv WHERE k='blank_fix3_v1'`).catch((e: unknown) => {
+    // A failed marker read must not look like "never ran": stop instead of re-running.
+    console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+    return { rowCount: 1 };
+  });
   if (g.rowCount) return;
   await pool.query(`UPDATE expenses SET vendor='Taxi/ Uber', category='Shipping and Delivery' WHERE id = ANY($1::bigint[])`, [[1009, 2730]]);
   await pool.query(`UPDATE expenses SET vendor='Uncategorized', category='Supplies/Purchase' WHERE id = ANY($1::bigint[])`, [[3761, 602]]);

@@ -83,21 +83,19 @@ async function alignFinanceSequences(): Promise<void> {
 }
 
 /**
- * The owner set "good feedback" to 5★ only. If a stored incentive_rules row still
- * carries an older threshold (< 5), bump it so the instant reward notification
- * fires on the same rule as the money calculation. No-op if no row / already 5.
+ * The owner set "good feedback" to 5★ only — once. This USED to bump
+ * incentive_rules.goodStars back to 5 on every boot, which silently reverted any
+ * later change the owner made in the dashboard. The one-time alignment has long
+ * since happened, so it is now a pure one-shot that is treated as already done:
+ * it records its app_kv marker and never writes the setting again.
  */
 async function alignGoodStars(): Promise<void> {
   try {
-    const { rowCount } = await pool.query(
-      `UPDATE settings SET value = jsonb_set(value, '{goodStars}', '5'::jsonb)
-        WHERE key = 'incentive_rules'
-          AND (value ? 'goodStars')
-          AND (value->>'goodStars')::int < 5`,
+    await pool.query(
+      `INSERT INTO app_kv (k) VALUES ('align_good_stars_v1') ON CONFLICT (k) DO NOTHING`,
     );
-    if (rowCount) console.log('[fix] aligned incentive goodStars → 5');
   } catch (err) {
-    console.error('[fix] alignGoodStars failed:', err);
+    console.error('[fix] alignGoodStars marker failed:', err);
   }
 }
 

@@ -2,7 +2,11 @@
 import { pool } from './pool.js';
 export async function applyFinalFixesFromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const g = await pool.query(`SELECT 1 FROM app_kv WHERE k='final_fixes_v1'`).catch(() => ({ rowCount: 0 }));
+  const g = await pool.query(`SELECT 1 FROM app_kv WHERE k='final_fixes_v1'`).catch((e: unknown) => {
+    // A failed marker read must not look like "never ran": stop instead of re-running.
+    console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+    return { rowCount: 1 };
+  });
   if (g.rowCount) return;
   await pool.query(`UPDATE expenses SET vendor='Grand Al Barsha Department Store', category='Supplies/Purchase' WHERE id=3747`);
   await pool.query(`UPDATE expenses SET vendor='Uncategorized', category='Supplies/Purchase' WHERE id = ANY($1::bigint[])`, [[3784, 3825]]);

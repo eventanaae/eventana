@@ -13,7 +13,11 @@ const M: { ids: number[]; v: string; a: string }[] = [
 ];
 export async function blankFix2FromEnv(): Promise<void> {
   if (String(process.env.RUN_MIGRATIONS_ON_BOOT ?? '').toLowerCase() !== 'true') return;
-  const g = await pool.query(`SELECT 1 FROM app_kv WHERE k='blank_fix2_v1'`).catch(() => ({ rowCount: 0 }));
+  const g = await pool.query(`SELECT 1 FROM app_kv WHERE k='blank_fix2_v1'`).catch((e: unknown) => {
+    // A failed marker read must not look like "never ran": stop instead of re-running.
+    console.error('[boot] one-shot marker check failed — skipping (not re-running):', (e as Error)?.message);
+    return { rowCount: 1 };
+  });
   if (g.rowCount) return;
   let n = 0;
   for (const m of M) {

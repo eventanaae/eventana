@@ -1,11 +1,17 @@
 /**
- * Applies real theme photos on boot (idempotent, non-fatal).
+ * Applies real theme photos ONCE (app_kv marker, non-fatal).
  *
  * Each theme's cover image and its inspiration gallery are set from real
- * setup photos uploaded to Cloudinary. Two themes the catalogue didn't have
- * yet (Ballerina, Power Puff Girls) are created here so their photos have a
- * home. Authoritative: it rewrites the gallery to match THEME_GALLERY, which
- * is the single source of truth for these images.
+ * setup photos uploaded to Cloudinary. Themes the catalogue didn't have
+ * yet (Ballerina, Power Puff Girls, ...) are created here so their photos have
+ * a home.
+ *
+ * This used to run on EVERY boot and force theme active / name / cover back to
+ * the values below, silently reverting the owner's dashboard edits. It now runs
+ * at most once per database (marker THEME_GALLERY_MARKER). If the marker is
+ * missing but the gallery is already in the database (every pre-existing
+ * deployment), the marker is set and nothing is changed. To push a NEW gallery
+ * change, bump the marker version deliberately.
  */
 import { THEMES } from '@eventana/shared';
 import { pool } from './pool.js';
@@ -24,8 +30,33 @@ const NEW_THEMES: Array<{
 /** Themes retired from the app (owner request) — hidden via active = false. */
 const RETIRED_THEME_IDS = ['t6', 't20', 't22', 't23', 't38']; // Nissan Patrol, Luffy, Captain America, Iron Man, Masha & The Bear
 
+const THEME_GALLERY_MARKER = 'theme_gallery_applied_v1';
+
 export async function applyThemeGallery(): Promise<void> {
   try {
+    // A failed marker read must NOT look like "never ran" — stop instead.
+    let done: { rowCount: number | null };
+    try {
+      done = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [THEME_GALLERY_MARKER]);
+    } catch (err) {
+      console.error('[themes] marker check failed — skipping gallery apply:', (err as Error).message);
+      return;
+    }
+    if (done.rowCount) return;
+
+    // Already applied by an earlier (every-boot) version? Then the owner may have
+    // edited themes since — record the marker and change nothing.
+    const galleryIds = Object.keys(THEME_GALLERY);
+    const existing = await pool.query(
+      `SELECT 1 FROM theme_inspiration WHERE theme_id = ANY($1) LIMIT 1`,
+      [galleryIds],
+    );
+    if (existing.rowCount) {
+      await pool.query(`INSERT INTO app_kv (k) VALUES ($1) ON CONFLICT (k) DO NOTHING`, [THEME_GALLERY_MARKER]);
+      console.log('[themes] gallery already present — marker set, nothing changed');
+      return;
+    }
+
     // Retire themes the owner removed (kept in the table, just not shown).
     await pool.query(`UPDATE themes SET active = false WHERE id = ANY($1)`, [RETIRED_THEME_IDS]);
 
@@ -87,7 +118,8 @@ export async function applyThemeGallery(): Promise<void> {
       }
       applied += 1;
     }
-    console.log(`[themes] gallery applied for ${applied} theme(s)`);
+    await pool.query(`INSERT INTO app_kv (k) VALUES ($1) ON CONFLICT (k) DO NOTHING`, [THEME_GALLERY_MARKER]);
+    console.log(`[themes] gallery applied for ${applied} theme(s) (one-time)`);
   } catch (err) {
     console.error('[themes] gallery apply failed (non-fatal):', err);
   }
