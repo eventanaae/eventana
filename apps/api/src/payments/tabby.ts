@@ -189,7 +189,11 @@ export class TabbyProvider implements PaymentProvider {
     providerPaymentId: string,
     amountFils: number,
     reason: string,
+    alreadyRefundedFils?: number,
   ): Promise<RetrieveResult> {
+    // Include the refunded total so far: two EQUAL partial refunds must carry
+    // different reference_ids, or Tabby dedupes the second and it never moves.
+    const already = alreadyRefundedFils ?? (await this.retrievePayment(providerPaymentId)).refundedFils;
     await providerFetch(
       'tabby',
       `${this.cfg.baseUrl}/v2/payments/${encodeURIComponent(providerPaymentId)}/refunds`,
@@ -200,7 +204,7 @@ export class TabbyProvider implements PaymentProvider {
           amount: providerAmount(amountFils),
           reason,
           // Required idempotency key (current Tabby API reference).
-          reference_id: `${providerPaymentId}-ref-${amountFils}`,
+          reference_id: `${providerPaymentId}-ref-${already}-${amountFils}`,
         },
       },
     );

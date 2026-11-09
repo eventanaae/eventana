@@ -91,7 +91,16 @@ export async function validatePromo(
     );
     if (prior.rowCount) return { ok: false, reason: 'This code is for your first booking only.' };
   }
-  const used = await db.query(`SELECT 1 FROM promo_redemptions WHERE code = $1 AND customer_id = $2`, [norm, customerId]);
+  // Only a redemption on a PAID order counts as "used". An unpaid reservation
+  // (the customer's own abandoned / declined / in-flight checkout) must not lock
+  // them out of a retry — startCheckout's ON CONFLICT takes that reservation over.
+  // A row with no order (legacy) still counts, as the cap check does.
+  const used = await db.query(
+    `SELECT 1 FROM promo_redemptions pr LEFT JOIN orders o ON o.id = pr.order_id
+      WHERE pr.code = $1 AND pr.customer_id = $2
+        AND COALESCE(o.status, 'paid') IN ('paid','partially_refunded','refunded')`,
+    [norm, customerId],
+  );
   if (used.rowCount) return { ok: false, reason: 'You’ve already used this code.' };
 
   const amountFils =

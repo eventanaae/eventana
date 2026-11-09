@@ -106,7 +106,10 @@ export interface PaymentProvider {
 
   createSession(input: CreateSessionInput): Promise<CreateSessionResult>;
   retrievePayment(providerPaymentId: string): Promise<RetrieveResult>;
-  refund(providerPaymentId: string, amountFils: number, reason: string): Promise<RetrieveResult>;
+  /** `alreadyRefundedFils` (optional) is the total refunded BEFORE this call; it
+   *  keys the provider idempotency so equal partial refunds stay distinct. When
+   *  omitted, the adapter reads it from the provider itself. */
+  refund(providerPaymentId: string, amountFils: number, reason: string, alreadyRefundedFils?: number): Promise<RetrieveResult>;
   capture?(providerPaymentId: string, amountFils: number): Promise<RetrieveResult>;
 
   /** Constant-time verification of an inbound webhook. */

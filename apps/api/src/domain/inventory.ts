@@ -220,15 +220,101 @@ export async function acquireHolds(
   return created;
 }
 
-/** Turns this order's temporary holds into firm reservations. */
+/**
+ * Turns this order's LIVE temporary holds into firm reservations. A hold that
+ * already lapsed is never promoted blindly (the asset may have been sold to
+ * someone else since): if any asset is left without a live hold, the late-
+ * success path re-acquires it under lock — throwing ConflictError if it is
+ * taken — and the fresh hold is then promoted. Call inside a transaction.
+ */
 export async function confirmHolds(db: Db, orderId: string, eventId: string): Promise<number> {
-  const { rowCount } = await db.query(
-    `UPDATE inventory_holds
-        SET status = 'reserved', expires_at = NULL, event_id = $2
-      WHERE order_id = $1 AND status = 'held'`,
-    [orderId, eventId],
+  const promote = async () =>
+    (
+      await db.query(
+        `UPDATE inventory_holds
+            SET status = 'reserved', expires_at = NULL, event_id = $2
+          WHERE order_id = $1 AND status = 'held'
+            AND (expires_at IS NULL OR expires_at > now())`,
+        [orderId, eventId],
+      )
+    ).rowCount ?? 0;
+  let promoted = await promote();
+  if (!(await holdsStillValid(db, orderId))) {
+    await reacquireLapsedHolds(db, orderId);
+    promoted += await promote();
+  }
+  return promoted;
+}
+
+/**
+ * Late success: the order's holds lapsed before its payment landed. Re-take
+ * every asset that has no live hold for this order, over the SAME window the
+ * original hold covered, with the same lock-then-count guarantee as
+ * acquireHolds. Throws ConflictError (writing nothing the caller's rollback
+ * won't discard) when any asset is now taken. MUST run inside a transaction.
+ */
+export async function reacquireLapsedHolds(db: Db, orderId: string, holdMinutes = 10): Promise<number> {
+  // Lapsed-but-unswept rows are closed first so they never linger as 'held'.
+  await db.query(
+    `UPDATE inventory_holds SET status = 'released'
+      WHERE order_id = $1 AND status = 'held' AND expires_at IS NOT NULL AND expires_at <= now()`,
+    [orderId],
   );
-  return rowCount ?? 0;
+  const { rows: lapsed } = await db.query<{ asset_code: string; starts_at: Date; ends_at: Date }>(
+    `SELECT DISTINCT ON (asset_code) asset_code, starts_at, ends_at
+       FROM inventory_holds h
+      WHERE order_id = $1
+        AND NOT EXISTS (
+          SELECT 1 FROM inventory_holds l
+           WHERE l.order_id = h.order_id AND l.asset_code = h.asset_code
+             AND (l.status = 'reserved'
+                  OR (l.status = 'held' AND (l.expires_at IS NULL OR l.expires_at > now()))))
+      ORDER BY asset_code, id DESC`,
+    [orderId],
+  );
+  if (lapsed.length === 0) return 0;
+
+  const codes = lapsed.map((r) => r.asset_code).sort();
+  const { rows: assets } = await db.query<AssetRow>(
+    `SELECT * FROM inventory_assets WHERE code = ANY($1) ORDER BY code FOR UPDATE`,
+    [codes],
+  );
+  const expiresAt = new Date(Date.now() + holdMinutes * 60_000);
+  const conflicts: string[] = [];
+  let created = 0;
+  for (const code of codes) {
+    const asset = assets.find((a) => a.code === code);
+    const win = lapsed.find((r) => r.asset_code === code)!;
+    if (!asset || asset.status !== 'available') {
+      conflicts.push(code);
+      continue;
+    }
+    const { rows } = await db.query<{ used: number }>(
+      `SELECT count(*)::int AS used
+         FROM inventory_holds
+        WHERE asset_code = $1
+          AND order_id IS DISTINCT FROM $4
+          AND status IN ('held', 'reserved')
+          AND (expires_at IS NULL OR expires_at > now())
+          AND starts_at < $3
+          AND ends_at   > $2`,
+      [code, win.starts_at, win.ends_at, orderId],
+    );
+    if ((rows[0]?.used ?? 0) >= asset.units) {
+      conflicts.push(code);
+      continue;
+    }
+    await db.query(
+      `INSERT INTO inventory_holds (asset_code, order_id, starts_at, ends_at, expires_at, status)
+       VALUES ($1,$2,$3,$4,$5,'held')`,
+      [code, orderId, win.starts_at, win.ends_at, expiresAt],
+    );
+    created++;
+  }
+  if (conflicts.length > 0) {
+    throw new ConflictError(`Lapsed hold could not be re-acquired: ${conflicts.join(', ')}`, conflicts);
+  }
+  return created;
 }
 
 export async function releaseHolds(db: Db, orderId: string, reason = 'released'): Promise<number> {

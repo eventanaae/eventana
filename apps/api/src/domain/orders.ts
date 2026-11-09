@@ -48,7 +48,9 @@ export async function nextOrderId(db: Db): Promise<string> {
   return `EVT-ORD-${String(rows[0].n).padStart(6, '0')}`;
 }
 
-export async function nextEventId(db: Db, year = new Date().getUTCFullYear()): Promise<string> {
+// Dubai is a fixed UTC+4 (no DST): a booking confirmed 00:00–03:59 Dubai on
+// 1 January belongs to the NEW year, not the UTC one.
+export async function nextEventId(db: Db, year = new Date(Date.now() + 4 * 3_600_000).getUTCFullYear()): Promise<string> {
   const { rows } = await db.query<{ n: number }>(`SELECT nextval('event_ref_seq')::int AS n`);
   return `EV-${year}-${String(rows[0].n).padStart(4, '0')}`;
 }

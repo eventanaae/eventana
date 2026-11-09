@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { quote as computeQuote, formatAed, type CartInput, type Quote, type QuoteLine } from '@eventana/shared';
 import { pool } from '../db/pool.js';
 import { loadConfig, toPricingContext } from './settings.js';
+import { flagForReview } from './orders.js';
 
 /**
  * Manual-order "offers".
@@ -246,9 +247,24 @@ export async function offerIsOpen(token: string): Promise<boolean> {
 /** Consume an offer once its booking is paid — called from confirmBooking,
  *  inside that transaction. Idempotent. */
 export async function markOfferUsed(db: PoolClient, token: string, orderId: string): Promise<void> {
-  await db.query(
+  const { rowCount } = await db.query(
     `UPDATE manual_offers SET status = 'used', order_id = COALESCE(order_id, $2)
       WHERE token = $1 AND status <> 'used'`,
     [token, orderId],
   );
+  if (rowCount) return;
+  // Already used: fine if by THIS order (replayed confirm). If it was consumed by a
+  // DIFFERENT order, one link produced two paid bookings — a human must look.
+  const { rows } = await db.query<{ order_id: string | null }>(
+    `SELECT order_id FROM manual_offers WHERE token = $1`,
+    [token],
+  );
+  const owner = rows[0]?.order_id ?? null;
+  if (owner && owner !== orderId) {
+    await flagForReview(
+      db,
+      orderId,
+      `Manual-order offer ${token} was already used by order ${owner} — this second paid booking on the same link needs review (refund or merge).`,
+    );
+  }
 }
