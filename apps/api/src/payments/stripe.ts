@@ -118,6 +118,11 @@ export class StripeProvider implements PaymentProvider {
         // On completion Stripe returns the parent page to our confirming
         // screen, which polls the server for the real status.
         return_url: input.successUrl,
+        // Expire abandoned sessions after ~30 minutes instead of Stripe's 24h
+        // default, so an old tab can't be paid long after holds/prices moved.
+        // Stripe's minimum is 30 minutes from creation; one extra minute of
+        // margin absorbs clock skew and request latency.
+        expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
         line_items: [
           {
             price_data: {

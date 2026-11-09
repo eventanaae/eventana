@@ -32,7 +32,7 @@ import { getProvider } from '../payments/index.js';
 import { ConflictError, acquireHolds, releaseHolds, unavailableAssets } from './inventory.js';
 import { createOrder, createPayment, nextOrderId, orderViewToken, recordPaymentEvent } from './orders.js';
 import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
-import { offerIsOpen, getOfferAdjustments, applyOfferToQuote } from './offers.js';
+import { offerIsOpen, getOfferAdjustments, applyOfferToQuote, offerMatchesCart } from './offers.js';
 import { computeDiscounts, makeReferralCode, type DiscountInput } from './discounts.js';
 import { resolveStaffCode } from './staffReferral.js';
 import { toValidCustomerPhone, titleCaseName } from './maintenance.js';
@@ -122,8 +122,11 @@ export function isBnplProvider(provider?: string | null): boolean {
 }
 
 /** Read-only quote for the app's live total. Never creates anything. */
-export async function previewQuote(cart: CartInput, offerToken?: string | null, provider?: string | null): Promise<Quote & { unavailable: string[] }> {
+export async function previewQuote(cart: CartInput, requestedOfferToken?: string | null, provider?: string | null): Promise<Quote & { unavailable: string[] }> {
   const cfg = await loadConfig();
+  // Same rule as startCheckout: an offer's manual pieces only apply while the
+  // cart still holds the offer's package + services; otherwise price normally.
+  const offerToken = requestedOfferToken && (await offerMatchesCart(requestedOfferToken, cart)) ? requestedOfferToken : null;
   let taken = new Set<string>();
 
   if (cart.eventDate && cart.startTime) {
@@ -145,6 +148,97 @@ export async function previewQuote(cart: CartInput, offerToken?: string | null, 
     if (adj) applyOfferToQuote(result, adj);
   }
   return { ...result, unavailable: [...taken] };
+}
+
+/**
+ * Layer promo / store credit / points onto a server quote (mutating it), with
+ * the no-stacking rule: when stacking is off only the single biggest discount
+ * (BYO 15% included) applies. Shared by startCheckout (what is CHARGED) and
+ * previewCheckoutTotal (what the checkout screen SHOWS), so they cannot drift.
+ */
+async function applyCheckoutDiscounts(
+  serverQuote: Quote,
+  args: { customerId: string; input: DiscountInput; allowStacking: boolean; byoDiscountFils: number },
+) {
+  const byoDiscountFils = args.byoDiscountFils;
+  const rushSurchargeFils = serverQuote.lines
+    .filter((l) => l.kind === 'surcharge')
+    .reduce((sum, l) => sum + l.amountFils, 0);
+  const percentBaseFils = Math.max(0, serverQuote.totalFils - serverQuote.deliveryFils - rushSurchargeFils);
+  const applied = await computeDiscounts(pool, {
+    customerId: args.customerId,
+    subtotalFils: serverQuote.totalFils,
+    input: args.input,
+    deliveryFils: serverQuote.deliveryFils,
+    percentBaseFils,
+    allowStacking: args.allowStacking,
+    byoDiscountFils,
+  });
+  // No stacking + a reward out-valued the BYO 15%: remove the BYO discount line
+  // so only the single chosen discount applies. Done BEFORE the reward lines are
+  // pushed, while the BYO line is still the only null-ref discount in the quote.
+  if (applied.droppedByo && byoDiscountFils > 0) {
+    const i = serverQuote.lines.findIndex(
+      (l) => l.kind === 'discount' && l.refId === null && l.amountFils === -byoDiscountFils,
+    );
+    if (i >= 0) {
+      serverQuote.lines.splice(i, 1);
+      serverQuote.totalFils += byoDiscountFils;
+      serverQuote.discountFils -= byoDiscountFils;
+      serverQuote.discountUnlocked = false;
+    }
+  }
+  if (applied.totalFils > 0) {
+    serverQuote.lines.push(...applied.lines);
+    serverQuote.discountFils += applied.totalFils;
+    serverQuote.totalFils -= applied.totalFils;
+  }
+  return applied;
+}
+
+/**
+ * The amount checkout will actually charge for this cart + discount choices,
+ * computed with exactly the same pricing and discount rules as startCheckout
+ * (no order, hold or payment is created). Lets the checkout screen show the
+ * real total instead of stacking discounts locally.
+ */
+export async function previewCheckoutTotal(args: {
+  cart: CartInput;
+  provider?: string | null;
+  offerToken?: string | null;
+  customerId: string | null;
+  discounts: DiscountInput;
+}) {
+  const cfg = await loadConfig();
+  const offerToken =
+    args.offerToken && (await offerMatchesCart(args.offerToken, args.cart)) ? args.offerToken : null;
+  const q = computeQuote(args.cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: !!offerToken || isBnplProvider(args.provider) });
+  const byoDiscountFils = q.discountUnlocked ? q.discountFils : 0;
+  if (offerToken) {
+    const adj = await getOfferAdjustments(offerToken);
+    if (adj) applyOfferToQuote(q, adj);
+  }
+  const subtotalFils = q.totalFils;
+  const applied = await applyCheckoutDiscounts(q, {
+    customerId: args.customerId ?? '',
+    input: args.discounts,
+    allowStacking: cfg.rules.allowDiscountStacking,
+    byoDiscountFils,
+  });
+  const promoFils = applied.promo?.amountFils ?? 0;
+  const creditFils = applied.creditFils;
+  const pointsFils = applied.points?.amountFils ?? 0;
+  return {
+    subtotalFils,
+    totalFils: q.totalFils,
+    promoFils,
+    freeDeliveryFils: Math.max(0, applied.totalFils - promoFils - creditFils - pointsFils),
+    creditFils,
+    pointsFils,
+    byoDiscountFils,
+    droppedByo: applied.droppedByo && byoDiscountFils > 0,
+    allowStacking: cfg.rules.allowDiscountStacking,
+  };
 }
 
 export interface CheckoutResult {
@@ -185,6 +279,11 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       throw new CheckoutError('This link has already been used for a booking.', 'unavailable');
     }
   }
+  // The offer's fixed discount / delivery / custom items are tied to the items
+  // it was built for. If the customer changed the package or dropped services,
+  // the offer is not applied (nor consumed) and the cart is priced normally.
+  const offerToken =
+    req.offerToken && (await offerMatchesCart(req.offerToken, cart)) ? req.offerToken : null;
 
   // Resolve the customer: a signed-in id, or a lightweight guest customer minted
   // from the checkout contact details. A prior guest with the same email is reused
@@ -220,7 +319,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
 
   // (1) The server recomputes everything. A total submitted by the
   // device is not read at all — it is not even a parameter here.
-  const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: !!req.offerToken || isBnplProvider(req.provider) });
+  const serverQuote = computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: !!offerToken || isBnplProvider(req.provider) });
 
   // The automatic Build-Your-Own 15% the engine just applied, captured BEFORE any
   // offer/reward layering — so the no-stacking rule can weigh it against promo /
@@ -231,8 +330,8 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   // discount, a fixed delivery, a custom-theme charge) on top of the engine
   // price — identically to the live quote, so the charge matches what was shown.
   // Reference images ride onto the booking so the design team sees them.
-  if (req.offerToken) {
-    const adj = await getOfferAdjustments(req.offerToken);
+  if (offerToken) {
+    const adj = await getOfferAdjustments(offerToken);
     if (adj) {
       applyOfferToQuote(serverQuote, adj);
       // Merge the team's manual-order reference images WITH any the customer
@@ -274,37 +373,13 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   // payment actually lands. A PERCENT promo is computed on the PARTY value only
   // (total less delivery and the urgent/rush surcharge), matching the BYO
   // discount; and the no-stacking rule is enforced here (see computeDiscounts).
-  const rushSurchargeFils = serverQuote.lines
-    .filter((l) => l.kind === 'surcharge')
-    .reduce((sum, l) => sum + l.amountFils, 0);
-  const percentBaseFils = Math.max(0, serverQuote.totalFils - serverQuote.deliveryFils - rushSurchargeFils);
-  const applied = await computeDiscounts(pool, {
+  const applied = await applyCheckoutDiscounts(serverQuote, {
     customerId,
-    subtotalFils: serverQuote.totalFils,
     input: req.discounts ?? {},
-    deliveryFils: serverQuote.deliveryFils,
-    percentBaseFils,
     allowStacking: cfg.rules.allowDiscountStacking,
     byoDiscountFils,
   });
-  // No stacking + a reward out-valued the BYO 15%: remove the BYO discount line
-  // so only the single chosen discount applies. Done BEFORE the reward lines are
-  // pushed, while the BYO line is still the only null-ref discount in the quote.
-  if (applied.droppedByo && byoDiscountFils > 0) {
-    const i = serverQuote.lines.findIndex(
-      (l) => l.kind === 'discount' && l.refId === null && l.amountFils === -byoDiscountFils,
-    );
-    if (i >= 0) {
-      serverQuote.lines.splice(i, 1);
-      serverQuote.totalFils += byoDiscountFils;
-      serverQuote.discountFils -= byoDiscountFils;
-      serverQuote.discountUnlocked = false;
-    }
-  }
   if (applied.totalFils > 0) {
-    serverQuote.lines.push(...applied.lines);
-    serverQuote.discountFils += applied.totalFils;
-    serverQuote.totalFils -= applied.totalFils;
     (cart as unknown as Record<string, unknown>).appliedDiscounts = applied;
   }
 
@@ -333,7 +408,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     // the order back with it and nothing is left half-created.
     // A manual-order link produces a normal booking, just tagged 'manual' and
     // carrying its offer token so confirmation can consume the offer.
-    if (req.offerToken) (cart as unknown as Record<string, unknown>).offerToken = req.offerToken;
+    if (offerToken) (cart as unknown as Record<string, unknown>).offerToken = offerToken;
     await createOrder(db, {
       id,
       kind: 'booking',
@@ -343,7 +418,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
       quote: serverQuote,
       idempotencyKey: req.idempotencyKey ?? null,
       attribution: req.attribution ?? null,
-      source: req.offerToken ? 'manual' : null,
+      source: offerToken ? 'manual' : null,
     });
 
     await acquireHolds(db, {
@@ -1070,6 +1145,51 @@ export async function createInvoicePayLink(
 }
 
 /**
+ * Re-price an invoice-balance pay-link order to the invoice's CURRENT balance.
+ *
+ * The pay link is cached on the invoice and can be opened days later, after
+ * other payments (bank transfer, cash) or an edited invoice total. Called when
+ * the link is opened and again right before a payment session is created, so
+ * the customer is always charged total − amount_paid — never a frozen figure.
+ * Only re-prices while no money is in (awaiting / failed / cancelled); refuses
+ * when nothing is due. Returns the balance for an invoice_pay order, or null
+ * for any other order kind (untouched).
+ */
+export async function syncInvoicePayBalance(orderId: string): Promise<number | null> {
+  return withTransaction(async (db) => {
+    const { rows } = await db.query(
+      `SELECT id, kind, status, total_fils, cart FROM orders WHERE id = $1 FOR UPDATE`,
+      [orderId],
+    );
+    const o = rows[0];
+    if (!o || o.kind !== 'invoice_pay') return null;
+    const invoiceId = Number((o.cart as { invoiceId?: number } | null)?.invoiceId);
+    const { rows: invRows } = invoiceId
+      ? await db.query(`SELECT total_fils, amount_paid_fils FROM finance_invoices WHERE id = $1`, [invoiceId])
+      : { rows: [] as any[] };
+    const inv = invRows[0];
+    if (!inv) throw new CheckoutError('This invoice could not be found. Please contact us.', 'not_found');
+    const balance = Math.max(0, Number(inv.total_fils) - Number(inv.amount_paid_fils ?? 0));
+    if (balance <= 0) {
+      throw new CheckoutError('This invoice is already fully paid — there is nothing left to pay.', 'nothing_due');
+    }
+    if (balance !== Number(o.total_fils)) {
+      if (!['awaiting_payment', 'failed', 'cancelled'].includes(o.status)) {
+        throw new CheckoutError(
+          'The balance on this invoice has changed. Please ask us for an updated payment link.',
+          'balance_changed',
+        );
+      }
+      await db.query(
+        `UPDATE orders SET total_fils = $2, updated_at = now() WHERE id = $1`,
+        [orderId, balance],
+      );
+    }
+    return balance;
+  });
+}
+
+/**
  * Manager-built add-on pay link for an EXISTING booking.
  *
  * The customer already has an order/event — they just asked to add something.
@@ -1159,6 +1279,12 @@ export async function createSessionForOrder(orderId: string): Promise<{
   const order = rows[0];
   if (!order) throw new CheckoutError('Order not found.', 'not_found');
   if (order.status === 'paid') throw new CheckoutError('This order is already paid.', 'already_paid');
+  // An invoice-balance link always charges the invoice's CURRENT balance
+  // (re-priced here; refuses when nothing is due).
+  if (order.kind === 'invoice_pay') {
+    const balance = await syncInvoicePayBalance(orderId);
+    if (balance != null) order.total_fils = balance;
+  }
   if (config.providers.stripe.mode === 'disabled') {
     throw new CheckoutError('Card payment is not currently available.', 'unavailable');
   }
@@ -1203,15 +1329,16 @@ export async function createSessionForOrder(orderId: string): Promise<{
 
   const provider = getProvider('stripe');
   const customer = await loadCustomer(order.customer_id);
-  const quote = order.quote as Quote;
-  const cart = order.cart as { emirate?: string; address?: { area?: string; street?: string; villa?: string } };
+  const quote = (order.quote ?? {}) as Partial<Quote>;
+  const cart = (order.cart ?? {}) as { emirate?: string; address?: { area?: string; street?: string; villa?: string } };
   const paymentId = randomUUID();
   const session = await provider.createSession({
     orderId,
     amountFils: Number(order.total_fils),
     currency: 'AED',
     customer,
-    items: quote.lines
+    // An invoice-balance order carries an empty quote ({}): no line items.
+    items: (quote.lines ?? [])
       .filter((l) => l.kind !== 'discount' && l.kind !== 'delivery')
       .map((l) => ({ title: l.label, quantity: l.quantity, unitPriceFils: l.unitFils, referenceId: l.refId, category: 'events' as const })),
     shippingFils: quote.deliveryFils ?? 0,

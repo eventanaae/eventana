@@ -148,8 +148,22 @@ export interface QuoteResult extends Quote {
   totalDisplay: string;
 }
 
+/** Server-computed checkout total for the current cart + discount choices. */
+export interface CheckoutTotalPreview {
+  subtotalFils: number;
+  totalFils: number;
+  promoFils: number;
+  freeDeliveryFils: number;
+  creditFils: number;
+  pointsFils: number;
+  byoDiscountFils: number;
+  /** The Build-Your-Own discount was replaced by a bigger single discount. */
+  droppedByo: boolean;
+  allowStacking: boolean;
+}
+
 export const api = {
-  catalogue: () => request<Catalogue>('/api/catalogue' + (qaToken() ? `?qa=${encodeURIComponent(qaToken())}` : '')),
+  catalogue:() => request<Catalogue>('/api/catalogue' + (qaToken() ? `?qa=${encodeURIComponent(qaToken())}` : '')),
 
   socialProof: () =>
     request<{
@@ -245,6 +259,31 @@ export const api = {
       '/api/promo/check',
       { method: 'POST', body: JSON.stringify({ code, subtotalFils }) },
     ),
+
+  /**
+   * What checkout will REALLY charge for this cart + discount choices — the
+   * server runs the same pricing and no-stacking discount rule as checkout.
+   * `final` is null if the server could not price the cart.
+   */
+  previewTotal: (args: {
+    cart: unknown;
+    provider?: string | null;
+    offerToken?: string | null;
+    promoCode?: string | null;
+    useCredit?: boolean;
+    redeemPoints?: boolean;
+  }) =>
+    request<{ ok: boolean; code?: string; reason?: string; final: CheckoutTotalPreview | null }>('/api/promo/check', {
+      method: 'POST',
+      body: JSON.stringify({
+        code: args.promoCode || undefined,
+        cart: args.cart,
+        provider: args.provider || undefined,
+        offerToken: args.offerToken || undefined,
+        useCredit: args.useCredit ?? false,
+        redeemPoints: args.redeemPoints ?? false,
+      }),
+    }),
 
   register: async (body: { name: string; email: string; phone: string; backupPhone?: string; password: string; referralCode?: string; dateOfBirth?: string }) => {
     const res = await request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number }>(

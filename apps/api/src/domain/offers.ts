@@ -211,6 +211,32 @@ export async function getOfferAdjustments(token: string): Promise<(OfferAdjustme
   };
 }
 
+/**
+ * True when the submitted cart still contains everything the offer was built
+ * around: the offer's package (same id) and each of its services (same id,
+ * quantity at least the offer's). The offer's fixed discount / delivery /
+ * custom items only make sense for that selection — a customer who swaps the
+ * package or removes services on the link must not keep the manual discount.
+ * Extra items on top of the offer are fine.
+ */
+export async function offerMatchesCart(token: string, cart: CartInput): Promise<boolean> {
+  const { rows } = await pool.query(`SELECT package_id, services FROM manual_offers WHERE token = $1`, [token]);
+  const o = rows[0];
+  if (!o) return false;
+  if (o.package_id && (cart.packageId ?? null) !== o.package_id) return false;
+  const offered = (Array.isArray(o.services) ? o.services : []) as Array<{ serviceId?: string; quantity?: number }>;
+  const inCart = new Map<string, number>();
+  for (const s of cart.services ?? []) {
+    inCart.set(s.serviceId, (inCart.get(s.serviceId) ?? 0) + (Number(s.quantity) || 0));
+  }
+  for (const s of offered) {
+    const need = Number(s.quantity) || 0;
+    if (!s.serviceId || need <= 0) continue;
+    if ((inCart.get(s.serviceId) ?? 0) < need) return false;
+  }
+  return true;
+}
+
 /** True when this offer can still be booked (open, exists). */
 export async function offerIsOpen(token: string): Promise<boolean> {
   const { rows } = await pool.query(`SELECT status FROM manual_offers WHERE token = $1`, [token]);
