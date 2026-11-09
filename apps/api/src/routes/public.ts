@@ -177,7 +177,9 @@ export async function publicRoutes(app: FastifyInstance) {
     { test: /^\/api\/customers\/uploads\/sign$/, max: 25, windowMs: 60_000 },
   ];
   app.addHook('onRequest', async (request, reply) => {
-    const path = request.url.split('?')[0];
+    // Decode %xx first (the router does) — otherwise "/api/%63heckout" skips the limit.
+    let path = request.url.split('?')[0];
+    try { path = decodeURIComponent(path); } catch { return reply.status(400).send({ error: 'bad_path' }); }
     const rule = RL_RULES.find((r) => r.test.test(path));
     if (!rule) return;
     // Key on an IP the client CANNOT forge: cf-connecting-ip is trusted only when

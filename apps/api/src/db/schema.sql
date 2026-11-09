@@ -1352,7 +1352,8 @@ ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS refunded_items JSONB NOT N
 -- that drives the calendar/operations. Backfill once: a reconciled historical row's
 -- `date` already is its sale date; every other row's booking day is its creation day.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS booked_on DATE;
-UPDATE finance_receipts SET booked_on = CASE WHEN source = 'quickbooks' THEN date ELSE created_at::date END WHERE booked_on IS NULL;
+-- (The one-time booked_on backfill UPDATE was removed 2026-11-10: it re-ran on every
+-- boot and overwrote receipts whose booking date was deliberately left blank.)
 CREATE INDEX IF NOT EXISTS finance_receipts_booked_on_idx ON finance_receipts (booked_on DESC);
 
 -- Manual-order "offers": the team picks the products/package/add-ons only, and

@@ -68,11 +68,9 @@ export async function productionReconcile(): Promise<void> {
           WHERE NOT EXISTS (SELECT 1 FROM team_members WHERE lower(name) = lower($2))`,
         [id, m.name, m.role, m.color, m.access],
       );
-      await pool.query(
-        `UPDATE team_members SET role = $2, access_level = $3, active = true
-          WHERE lower(name) = lower($1)`,
-        [m.name, m.role, m.access],
-      );
+      // (Removed 2026-11-10: an UPDATE here forced role / access level /
+      // active=true on every boot, so a person the owner disabled or re-roled
+      // came back on the next deploy. The roster is now insert-only.)
       await pool.query(
         `UPDATE team_members SET access_token = $2
           WHERE lower(name) = lower($1) AND (access_token IS NULL OR access_token = '')`,

@@ -440,8 +440,9 @@ async function main() {
       // Recover campaigns left stuck 'sending' by a prior restart mid-send (#27).
       const { recoverStuckSends } = await import('./domain/marketing.js');
       await recoverStuckSends().catch((err) => console.error('[marketing] stuck-send recovery failed:', err));
-      // Remove zero-amount pending bank rows (non-transaction emails mis-captured).
-      await pool.query(`DELETE FROM bank_transactions WHERE status = 'pending' AND (amount_fils IS NULL OR amount_fils <= 0)`).catch(() => {});
+      // (Removed 2026-11-10: a boot-time DELETE of zero-amount pending bank rows —
+      // the owner's rule is every mailbox receipt shows in the inbox, and the
+      // amount can be typed in at approval.)
       // Remove junk payment-provider rows that leaked into the services catalogue
       // ("stripe" / "tamara" are payment methods, not sellable services). Delete if
       // unreferenced; otherwise just deactivate so they leave the customer catalogue.
