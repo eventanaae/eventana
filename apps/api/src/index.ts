@@ -27,7 +27,7 @@ async function main() {
     // Housekeeping: name (never the value) any leftover one-off fix flags that
     // are still set in the environment, so they can be cleared.
     {
-      const legacy = /^(FIX_FEEDBACK_|FULL_RESET_|DELETE_REFUND_|UNDO_REFUND_|REDO_REFUND_|DINDO_FIX|APPLY_SEPT_|APPLY_OWNER_|SET_BOOKED|AUG_FIX|FIX_MARYAM|RESEND_GHAYA|RESEND_MAHIRA|WA_TEST|SEND_TEAM_SCHEDULE|SEND_USER_MANUAL|SEND_BNPL_REQUEST|EMAIL_GLORIA|EMAIL_MARSHA|NOTIFY_GLORIA|ADD_MARSHA_|ADD_WWB_|CANCEL_WWB_|MOVE_THEMES_|RECON_SEND_NOW|SEND_FINANCE_REPORT|ADD_OWNER_WWB|SET_SHAN_LEADER)/;
+      const legacy = /^(FIX_FEEDBACK_|FULL_RESET_|DELETE_REFUND_|UNDO_REFUND_|REDO_REFUND_|DINDO_FIX|APPLY_SEPT_|APPLY_OWNER_|SET_BOOKED|AUG_FIX|FIX_MARYAM|RESEND_GHAYA|RESEND_MAHIRA|WA_TEST|SEND_TEAM_SCHEDULE|SEND_USER_MANUAL|SEND_BNPL_REQUEST|EMAIL_GLORIA|EMAIL_MARSHA|NOTIFY_GLORIA|ADD_MARSHA_|ADD_WWB_|CANCEL_WWB_|MOVE_THEMES_|RECON_SEND_NOW|SEND_FINANCE_REPORT|ADD_OWNER_WWB|SET_SHAN_LEADER|RUN_DAILY_AUDIT)/;
       const set = Object.keys(process.env).filter((k) => legacy.test(k) && String(process.env[k] ?? '') !== '');
       console.log(`[env-housekeeping] leftover one-off flags set: ${set.length ? set.join(',') : 'none'}`);
     }
@@ -716,6 +716,16 @@ async function main() {
 
   const app = await buildServer();
   await app.listen({ port: config.port, host: config.host });
+
+  // On-demand Daily System Audit: RUN_DAILY_AUDIT=<any value> runs the full audit
+  // once per value (claimOneShot marker), stores it and LOGS every result as
+  // "[daily-audit] …" lines. No email / push. Fire-and-forget.
+  if (String(process.env.RUN_DAILY_AUDIT ?? '').trim()) {
+    const val = String(process.env.RUN_DAILY_AUDIT).trim();
+    void import('./domain/dailyAudit.js')
+      .then(({ runDailyAuditOneShot }) => runDailyAuditOneShot(val))
+      .catch((e) => console.error('[daily-audit] on-demand run failed:', (e as Error).message));
+  }
 
   // One-time fix (2026-11-05): postponed (date TBD) events were auto-completed
   // on their old date, which also counted part-timer and driver pay. Reopen them
