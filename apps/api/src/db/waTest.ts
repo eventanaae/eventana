@@ -5,6 +5,7 @@
  * WhatsApp actually works before a batch goes out, and see the exact error if
  * it doesn't. Use the owner's own number; sends nothing to customers.
  */
+import { claimOneShot } from './pool.js';
 /**
  * Read-only: log the sending phone number's Meta status (verification, platform,
  * quality) so we can see WHY sends fail (#133010 = not registered on Cloud API).
@@ -54,6 +55,8 @@ export async function waRegisterFromEnv(): Promise<void> {
 export async function waTestFromEnv(): Promise<void> {
   const raw = String(process.env.WA_TEST ?? '').trim();
   if (!raw) return;
+  // One-time per number (app_kv marker, written first) — not on every boot.
+  if (!(await claimOneShot(`oneshot:WA_TEST:${raw}`))) return;
   try {
     const { toValidCustomerPhone } = await import('../domain/maintenance.js');
     const { sendWhatsAppTemplate, whatsappCustomerNotifyEnabled } = await import('../integrations/whatsapp.js');

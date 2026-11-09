@@ -11,7 +11,7 @@
  *   STAFF_INVITES='[{"name":"Marsha","email":"marsha@eventanauae.com","accessLevel":"manager"}]'
  */
 import { randomBytes } from 'node:crypto';
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
 
 const DASHBOARD_URL = 'https://ops.eventanauae.com';
@@ -43,18 +43,22 @@ export async function inviteStaffFromEnv(): Promise<void> {
     const level = inv.accessLevel ?? 'employee';
     const id = `tm-${inv.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 
-    // Ensure the member exists (create if missing).
-    await pool.query(
-      `INSERT INTO team_members (id, name, role, active, access_level, email)
-       SELECT $1,$2,'Crew',true,$3,$4
-        WHERE NOT EXISTS (SELECT 1 FROM team_members WHERE lower(name) = lower($2))`,
-      [id, inv.name, level, inv.email],
-    );
-    // Keep email + access level current.
-    await pool.query(
-      `UPDATE team_members SET email = $2, access_level = $3 WHERE lower(name) = lower($1)`,
-      [inv.name, inv.email, level],
-    );
+    // Create the member and set email + access level ONCE per invite entry
+    // (app_kv marker, written first). Re-applied on every boot it overwrote any
+    // access level the owner later changed in the Team tab, and re-created a
+    // member she had deleted. A changed entry (new email/level) applies once.
+    if (await claimOneShot(`invite_staff:${inv.name.toLowerCase()}:${inv.email.toLowerCase()}:${level}`)) {
+      await pool.query(
+        `INSERT INTO team_members (id, name, role, active, access_level, email)
+         SELECT $1,$2,'Crew',true,$3,$4
+          WHERE NOT EXISTS (SELECT 1 FROM team_members WHERE lower(name) = lower($2))`,
+        [id, inv.name, level, inv.email],
+      );
+      await pool.query(
+        `UPDATE team_members SET email = $2, access_level = $3 WHERE lower(name) = lower($1)`,
+        [inv.name, inv.email, level],
+      );
+    }
 
     // Read the current token; mint one if absent (or if forced to rotate).
     const { rows } = await pool.query(

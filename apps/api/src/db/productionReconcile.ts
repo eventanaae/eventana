@@ -1,5 +1,6 @@
 /**
- * Production data reconciliation (runs on every boot; fully idempotent).
+ * Production data reconciliation (runs on every boot; fully idempotent; the
+ * roster insert is one-time so a deleted member stays deleted).
  *
  * Makes the live operations team exactly the real Eventana roster and removes
  * the placeholder rows shipped by the seed plus any QA test artefacts, so
@@ -10,7 +11,7 @@
  * so staff the owner adds later from the Team tab are always safe.
  */
 import { randomBytes } from 'node:crypto';
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 
 interface CanonMember {
   name: string;
@@ -60,14 +61,28 @@ export async function productionReconcile(): Promise<void> {
   // 1) Upsert the real roster (create if missing; refresh role/level/active;
   //    mint a personal login token once so each can sign in as themselves).
   try {
+    // The roster INSERT is one-time (app_kv marker, written first): run on every
+    // boot it re-created any REAL_TEAM member the owner had deleted. An existing
+    // install (any roster member already present) only records the marker, so
+    // the first deploy of this guard doesn't resurrect anyone either.
+    let seedRoster = false;
+    if (await claimOneShot('reconcile_roster_seeded_v1')) {
+      const present = await pool.query(
+        `SELECT 1 FROM team_members WHERE lower(name) = ANY($1::text[]) LIMIT 1`,
+        [REAL_TEAM.map((m) => m.name.toLowerCase())],
+      );
+      seedRoster = present.rowCount === 0;
+    }
     for (const m of REAL_TEAM) {
       const id = `tm-${m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
-      await pool.query(
-        `INSERT INTO team_members (id, name, role, color, active, access_level)
-         SELECT $1,$2,$3,$4,true,$5
-          WHERE NOT EXISTS (SELECT 1 FROM team_members WHERE lower(name) = lower($2))`,
-        [id, m.name, m.role, m.color, m.access],
-      );
+      if (seedRoster) {
+        await pool.query(
+          `INSERT INTO team_members (id, name, role, color, active, access_level)
+           SELECT $1,$2,$3,$4,true,$5
+            WHERE NOT EXISTS (SELECT 1 FROM team_members WHERE lower(name) = lower($2))`,
+          [id, m.name, m.role, m.color, m.access],
+        );
+      }
       // (Removed 2026-11-10: an UPDATE here forced role / access level /
       // active=true on every boot, so a person the owner disabled or re-roled
       // came back on the next deploy. The roster is now insert-only.)

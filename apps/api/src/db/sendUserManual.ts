@@ -6,7 +6,7 @@
  * the crew reads English (same as the weekly schedule email). Self-contained
  * HTML (no external link needed). Turn the flag off after it sends.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
 const PINK = '#E94F9C', DEEP = '#C93A83', INK = '#3B3641', MUT = '#8B7E86', LINE = '#F0DCE7', SOFT = '#FDEFF6';
@@ -164,6 +164,8 @@ export function userManualHtml(first: string, role: Role): string {
 
 export async function sendUserManualFromEnv(): Promise<void> {
   if (String(process.env.SEND_USER_MANUAL ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:SEND_USER_MANUAL:true'))) return;
   if (!emailEnabled()) { console.log('[user-manual] email disabled'); return; }
   const { rows } = await pool.query<{ name: string; email: string | null }>(
     `SELECT name, email FROM team_members WHERE lower(name) = ANY($1)`,

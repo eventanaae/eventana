@@ -4,7 +4,7 @@
  * true. Marsha's address is resolved from team_members (fallback to the business
  * inbox). English — the crew reads English. Turn the flag off after it sends.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
 const MARSHA_FALLBACK = 'marsha@eventanauae.com';
@@ -63,6 +63,8 @@ function bodyHtml(): string {
 
 export async function sendTaskFixEmailFromEnv(): Promise<void> {
   if (String(process.env.EMAIL_MARSHA_TASKFIX ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:EMAIL_MARSHA_TASKFIX:true'))) return;
   if (!emailEnabled()) { console.log('[taskfix-email] email disabled'); return; }
   const { rows } = await pool.query<{ email: string | null }>(
     `SELECT email FROM team_members WHERE lower(name) = 'marsha' OR lower(name) LIKE 'marsha %' LIMIT 1`,

@@ -1,6 +1,7 @@
 /**
- * Applies schema.sql. Idempotent — every statement is CREATE ... IF NOT
- * EXISTS, so running it against an existing database is safe.
+ * Applies schema.sql in a single transaction. Idempotent — statements are
+ * CREATE ... IF NOT EXISTS and data backfills are one-time (app_kv markers),
+ * so running it against an existing database is safe.
  *
  *   npm run db:migrate            apply the schema
  *   npm run db:migrate -- --drop  drop everything first (development only)
@@ -32,22 +33,36 @@ export async function migrate({ drop = false } = {}): Promise<void> {
   }
   const sql = await readFile(join(here, 'schema.sql'), 'utf8');
   // The schema is all CREATE/ALTER ... IF NOT EXISTS, so re-running is safe.
-  // During a zero-downtime deploy the NEW instance applies DDL (which takes
-  // AccessExclusiveLock) while the OLD instance is still serving reads
-  // (AccessShareLock) — those can deadlock (Postgres 40P01). Uncaught, that
-  // crashes boot and FAILS the whole deploy (seen 2026-10-16). The DDL is the
-  // victim, so retry a few times with backoff and the collision self-heals.
+  // It runs as ONE transaction on a dedicated client, so a failure part-way
+  // never leaves a half-applied schema. During a zero-downtime deploy the NEW
+  // instance applies DDL (AccessExclusiveLock) while the OLD instance is still
+  // serving reads — those can deadlock (40P01, seen 2026-10-16) or queue behind
+  // a long reader. lock_timeout makes the DDL give up quickly (55P03) instead
+  // of stalling every query queued behind its lock request; both are retried
+  // with backoff so the collision self-heals instead of failing the deploy.
+  const RETRYABLE = new Set(['40P01', '55P03']);
   for (let attempt = 1; ; attempt++) {
+    const client = await pool.connect();
     try {
-      await pool.query(sql);
+      await client.query('BEGIN');
+      await client.query("SET LOCAL lock_timeout = '5s'");
+      await client.query(sql);
+      await client.query('COMMIT');
       return;
     } catch (err: any) {
-      if (err?.code === '40P01' && attempt < 5) {
-        console.warn(`[migrate] deadlock (40P01) on attempt ${attempt} — retrying in ${attempt}s…`);
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Connection is broken; releasing it below is enough.
+      }
+      if (RETRYABLE.has(err?.code) && attempt < 5) {
+        console.warn(`[migrate] ${err.code} on attempt ${attempt} — retrying in ${attempt}s…`);
         await new Promise((r) => setTimeout(r, attempt * 1000));
         continue;
       }
       throw err;
+    } finally {
+      client.release();
     }
   }
 }

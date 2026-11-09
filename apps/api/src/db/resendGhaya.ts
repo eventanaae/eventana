@@ -7,7 +7,7 @@
  * check fails it ABORTS and sends nothing, logging exactly why. Marsha is copied
  * automatically (config.email.monitorBcc / EMAIL_MONITOR_BCC) like every email.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 import { renderFinanceDocEmail } from '../domain/notify.js';
 
@@ -19,6 +19,8 @@ const EXPECT_START = '17:00';
 
 export async function resendGhayaFromEnv(): Promise<void> {
   if (process.env.RESEND_GHAYA !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:RESEND_GHAYA:true'))) return;
   if (!emailEnabled()) { P('email disabled — abort'); return; }
   try {
     const { rows } = await pool.query(`
