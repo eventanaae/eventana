@@ -587,7 +587,16 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
         -- order_id), so backfilling would post the same sale a second time and
         -- overstate Cash on Hand. Skip them.
         AND o.source IS DISTINCT FROM 'converted'
+        -- Orders minted FROM QuickBooks history (qbBacklogToEvents) carry no money
+        -- of their own: the sale is already the QuickBooks receipt. Backfilling them
+        -- posted 35 duplicate receipts (AED 107k) dated 9 Nov 2026 — never again.
+        AND o.source IS DISTINCT FROM 'quickbooks_import'
         AND NOT EXISTS (SELECT 1 FROM finance_receipts r WHERE r.order_id = o.id)
+        -- Same money already on the books through the order's EVENT (a receipt
+        -- linked by event_id, e.g. an imported or converted booking) — skip.
+        AND NOT EXISTS (
+          SELECT 1 FROM finance_receipts r JOIN events e ON e.id = r.event_id
+           WHERE e.order_id = o.id)
         -- An ADD-ON is merged into its event's EXISTING receipt (no receipt under
         -- the add-on's own order_id), so the NOT EXISTS above doesn't see it and
         -- backfill would post the add-on total a SECOND time, overstating Cash on
@@ -604,7 +613,18 @@ export async function backfillMissingSales(): Promise<{ posted: number; consider
   for (const o of rows) {
     await withTransaction(async (db) => { await recordSaleFromOrder(db, o as any); }).catch(() => {});
     const chk = await pool.query(`SELECT 1 FROM finance_receipts WHERE order_id = $1`, [o.id]);
-    if (chk.rows[0]) posted++;
+    if (chk.rows[0]) {
+      posted++;
+      // A late-posted sale is booked on the day the ORDER was placed, not the day
+      // the backfill happened to run — otherwise old sales pile up on "today".
+      await pool.query(
+        `UPDATE finance_receipts r SET booked_on = (o.created_at AT TIME ZONE 'Asia/Dubai')::date
+           FROM orders o
+          WHERE r.order_id = $1 AND o.id = r.order_id
+            AND (o.created_at AT TIME ZONE 'Asia/Dubai')::date < r.booked_on`,
+        [o.id],
+      ).catch(() => {});
+    }
   }
   return { posted, considered: rows.length };
 }
