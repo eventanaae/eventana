@@ -908,9 +908,6 @@ const GATE = () => String(process.env.MARKETING_CALENDAR ?? 'on').toLowerCase() 
 export async function sweepMarketingCalendar(): Promise<number> {
   if (!GATE()) return 0;
   const now = new Date();
-  // Self-heal any drafts still on an older template (safe: stale-only, so manual
-  // edits are never touched). Fixes drafts prepared before a template change.
-  await regenerateOccasionDrafts().catch(() => 0);
   const { pushToOwner } = await import('../integrations/push.js');
   const targets = (await pool.query<{ id: string }>(
     `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,

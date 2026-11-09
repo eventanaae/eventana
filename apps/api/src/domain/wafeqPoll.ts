@@ -18,7 +18,7 @@
  *   WAFEQ_SINCE=YYYY-MM-DD                   (optional; backfill from this date)
  *   WAFEQ_DEBUG=true                         (optional; log raw shapes once)
  */
-import { ingestExternalTxn } from './bankInbox.js';
+import { ingestExternalTxn, noteFeedSuccess, checkFeedStale } from './bankInbox.js';
 import { pool } from '../db/pool.js';
 import { pushToOwner } from '../integrations/push.js';
 
@@ -49,6 +49,7 @@ function dubaiDaysAgo(days: number): string {
 
 async function wafeqGet(path: string, key: string): Promise<any> {
   const res = await fetch(`${BASE}${path}`, {
+    signal: AbortSignal.timeout(15000),
     headers: { Authorization: `Api-Key ${key}`, Accept: 'application/json' },
   });
   if (!res.ok) throw new Error(`Wafeq ${path} → HTTP ${res.status}`);
@@ -116,10 +117,17 @@ async function pollOnce(): Promise<{ scanned: number; ingested: number }> {
           if (verbose) console.log(`[wafeq] skipped own-account transfer ${t.id}: ${String(t.description ?? '').slice(0, 60)}`);
           continue;
         }
-        const amountFils = Math.round(Math.abs(amt) * 100);
+        // Honour the account's currency: AED 1:1, USD at the fixed peg; any other
+        // currency is NOT booked at rate 1 — amount 0, flagged for review.
+        const cur = String(acc.currency ?? 'AED').trim().toUpperCase() || 'AED';
+        const rate = cur === 'AED' ? 1 : cur === 'USD' ? 3.6725 : null;
+        const amountFils = rate != null ? Math.round(Math.abs(amt) * rate * 100) : 0;
         const direction: 'debit' | 'credit' = 'debit';
         const merchant = (t.description || acc.name || 'Wio transaction').toString();
-        const raw = [t.description, t.reference].filter(Boolean).join(' · ');
+        const fxNote = cur === 'AED' ? null
+          : rate != null ? `${cur} ${Math.abs(amt).toFixed(2)} → AED ${(amountFils / 100).toFixed(2)} (converted at ${rate})`
+          : `⚠️ NEEDS REVIEW — amount is ${cur} ${Math.abs(amt).toFixed(2)}; convert it to AED and set the amount before approving.`;
+        const raw = [fxNote, t.description, t.reference].filter(Boolean).join(' · ');
         const res = await ingestExternalTxn({
           amountFils,
           direction,
@@ -163,10 +171,12 @@ export function startWafeqPolling(): void {
     running = true;
     try {
       const r = await pollOnce();
+      await noteFeedSuccess('wafeq');
       if (r.ingested > 0 || c.debug) console.log(`[wafeq] cycle: scanned ${r.scanned}, ingested ${r.ingested}`);
     } catch (err) {
       console.error('[wafeq] cycle failed:', err instanceof Error ? err.message : err);
     } finally {
+      await checkFeedStale('wafeq', 'The Wio (Wafeq) bank feed');
       running = false;
     }
   };

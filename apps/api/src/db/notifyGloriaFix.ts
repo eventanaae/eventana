@@ -3,11 +3,13 @@
  * ignore the "party themes" task she was pinged about earlier — it was
  * reassigned. Gated NOTIFY_GLORIA_FIX=true. Turn the flag off after it runs.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { pushToOwner } from '../integrations/push.js';
 
 export async function notifyGloriaFixFromEnv(): Promise<void> {
   if (String(process.env.NOTIFY_GLORIA_FIX ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:NOTIFY_GLORIA_FIX:true'))) return;
   const { rows } = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE lower(name) = 'gloria' LIMIT 1`);
   const id = rows[0]?.id;
   if (!id) { console.log('[gloria-fix] Gloria not found — skipped'); return; }

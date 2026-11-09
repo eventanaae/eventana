@@ -36,6 +36,12 @@ function qaToken(): string {
   } catch { return ''; }
 }
 
+/** `?qa=<token>` suffix for checkout calls (Tabby certification only; empty for customers). */
+function qaQs(): string {
+  const t = qaToken();
+  return t ? `?qa=${encodeURIComponent(t)}` : '';
+}
+
 /**
  * Anonymous visit ping for the website funnel. Sends a random per-browser id
  * (kept in localStorage, hashed server-side) once per session. Never throws —
@@ -219,16 +225,20 @@ export const api = {
     termsAccepted?: boolean,
     guest?: { name: string; phone: string; backupPhone: string; email: string },
     offerToken?: string | null,
+    /** Stable per checkout attempt: a re-submit of the same attempt (double tap,
+     *  lost response) is answered with the existing order, never a second one. */
+    idempotencyKey?: string,
   ) =>
     request<{
       orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
       clientSecret?: string | null; publishableKey?: string | null; eligible: boolean;
       totalFils: number; holdExpiresAt: string;
-    }>('/api/checkout', {
+    }>('/api/checkout' + qaQs(), {
       method: 'POST',
       body: JSON.stringify({
         cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest,
         offerToken: offerToken || undefined,
+        idempotencyKey: idempotencyKey || undefined,
         // Which ad brought them here, if any — the server reports the paid
         // booking back to Meta against it.
         attribution: attributionPayload(),
@@ -249,7 +259,7 @@ export const api = {
       orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
       clientSecret?: string | null; publishableKey?: string | null;
       eligible: boolean; totalFils: number; readyBy: string;
-    }>('/api/shop/checkout', {
+    }>('/api/shop/checkout' + qaQs(), {
       method: 'POST',
       body: JSON.stringify({ ...body, attribution: attributionPayload() }),
     }),
@@ -286,10 +296,18 @@ export const api = {
     }),
 
   register: async (body: { name: string; email: string; phone: string; backupPhone?: string; password: string; referralCode?: string; dateOfBirth?: string }) => {
-    const res = await request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number }>(
+    const res = await request<{ customerId: string; name: string; email: string; phone: string; token: string; referralCode: string; welcomeCreditFils: number; claimEmailSent?: boolean; message?: string }>(
       '/api/customers/register',
       { method: 'POST', body: JSON.stringify({ ...body, attribution: attributionPayload() }) },
     );
+    // The email already holds past (guest) bookings: no account is created here.
+    // The server emailed a "finish setting up your account" link instead, so
+    // surface that as a typed outcome the callers can show — never sign in.
+    if (res?.claimEmailSent) {
+      const err = new Error(res.message ?? 'We emailed you a link to finish setting up your account.');
+      Object.assign(err, { status: 202, body: { error: 'claim_email_sent', message: res.message } });
+      throw err;
+    }
     // Middle-of-funnel conversion → Meta (pixel; the server mirrors it via CAPI).
     trackCompleteRegistration(res.customerId);
     return res;
@@ -386,7 +404,7 @@ export const api = {
 
   addonCheckout: (eventId: string, body: unknown) =>
     request<{ orderId: string; checkoutUrl: string | null }>(
-      `/api/events/${eventId}/addons/checkout`,
+      `/api/events/${eventId}/addons/checkout` + qaQs(),
       { method: 'POST', body: JSON.stringify(body) },
     ),
 
@@ -458,7 +476,7 @@ export const api = {
 
   tipCheckout: (eventId: string, amountFils: number, memberId: string | null, fb?: string | null) =>
     request<{ orderId: string; checkoutUrl: string | null }>(
-      `/api/events/${eventId}/tip/checkout`,
+      `/api/events/${eventId}/tip/checkout` + qaQs(),
       // Pass the signed feedback token so an account-less customer can still tip.
       { method: 'POST', body: JSON.stringify({ amountFils, memberId, provider: 'stripe', t: fb ?? currentFb() ?? undefined }) },
     ),

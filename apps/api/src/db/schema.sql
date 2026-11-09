@@ -312,9 +312,9 @@ CREATE INDEX IF NOT EXISTS payment_events_order_idx ON payment_events (order_id,
 -- payments by order_id; event views read event_services/messages by event_id;
 -- the loyalty view reads by customer_id. Add the missing indexes.
 CREATE INDEX IF NOT EXISTS payments_order_idx ON payments (order_id);
-CREATE INDEX IF NOT EXISTS event_services_event_idx ON event_services (event_id);
-CREATE INDEX IF NOT EXISTS messages_event_idx ON messages (event_id);
-CREATE INDEX IF NOT EXISTS loyalty_tx_customer_idx ON loyalty_transactions (customer_id);
+-- (event_services / messages / loyalty_transactions indexes are created right
+-- after loyalty_transactions below — those tables do not exist yet here, which
+-- broke a fresh install.)
 
 -- Webhook receipts. The unique key makes replayed deliveries idempotent
 -- even before the payment row is looked at.
@@ -572,6 +572,11 @@ CREATE TABLE IF NOT EXISTS loyalty_transactions (
   reason      TEXT NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Hot-path indexes (2026-09-13 review), placed after their tables exist.
+CREATE INDEX IF NOT EXISTS event_services_event_idx ON event_services (event_id);
+CREATE INDEX IF NOT EXISTS messages_event_idx ON messages (event_id);
+CREATE INDEX IF NOT EXISTS loyalty_tx_customer_idx ON loyalty_transactions (customer_id);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id          BIGSERIAL PRIMARY KEY,
@@ -1250,10 +1255,17 @@ ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS source TEXT;
 -- total_fils - amount_paid_fils. status 'partial' means 0 < paid < total.
 -- Accounts Receivable counts the BALANCE, not the whole invoice.
 ALTER TABLE finance_invoices ADD COLUMN IF NOT EXISTS amount_paid_fils BIGINT NOT NULL DEFAULT 0;
--- Backfill: an invoice already marked 'paid' has been paid in full. Idempotent
--- (only touches rows still at 0), so Cash on hand doesn't drop when the partial-
--- payment column is introduced.
-UPDATE finance_invoices SET amount_paid_fils = total_fils WHERE status = 'paid' AND amount_paid_fils = 0;
+-- Backfill: an invoice already marked 'paid' has been paid in full, so Cash on
+-- hand doesn't drop when the partial-payment column is introduced. ONE-TIME
+-- (app_kv marker) — it must not rewrite amount_paid_fils on every boot.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM app_kv WHERE k = 'schema_once_invoice_amount_paid_backfill') THEN
+    UPDATE finance_invoices SET amount_paid_fils = total_fils WHERE status = 'paid' AND amount_paid_fils = 0;
+    INSERT INTO app_kv (k) VALUES ('schema_once_invoice_amount_paid_backfill') ON CONFLICT (k) DO NOTHING;
+  END IF;
+END
+$$;
 -- When true, a daily balance reminder (email + WhatsApp, with a pay link) is
 -- sent to the customer until the invoice is fully paid. Off by default — the
 -- owner turns it on per invoice, so no customer is ever dunned by accident.
@@ -1677,13 +1689,21 @@ ALTER TABLE team_members ADD COLUMN IF NOT EXISTS performance_by TEXT;
 ALTER TABLE team_members ADD COLUMN IF NOT EXISTS performance_at TIMESTAMPTZ;
 
 -- Seed canonical job titles (only where not already set, so manager edits win).
-UPDATE team_members SET job_title = 'Operations & Sales Coordinator' WHERE lower(name) = 'marsha' AND job_title IS NULL;
-UPDATE team_members SET job_title = 'Senior Balloon Artist'          WHERE lower(name) = 'dindo'  AND job_title IS NULL;
-UPDATE team_members SET job_title = 'Senior Balloon Artist'          WHERE lower(name) = 'jane'   AND job_title IS NULL;
-UPDATE team_members SET job_title = 'Junior Event Coordinator'       WHERE lower(name) = 'gloria' AND job_title IS NULL;
-UPDATE team_members SET job_title = 'Junior Event Coordinator'       WHERE lower(name) = 'diana'  AND job_title IS NULL;
-UPDATE team_members SET job_title = 'CEO'                            WHERE lower(name) = 'sheem'  AND job_title IS NULL;
-UPDATE team_members SET job_title = 'Driver & Event Support'         WHERE lower(name) = 'shan'   AND job_title IS NULL;
+-- ONE-TIME (app_kv marker): a title the manager later clears stays cleared.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM app_kv WHERE k = 'schema_once_seed_job_titles') THEN
+    UPDATE team_members SET job_title = 'Operations & Sales Coordinator' WHERE lower(name) = 'marsha' AND job_title IS NULL;
+    UPDATE team_members SET job_title = 'Senior Balloon Artist'          WHERE lower(name) = 'dindo'  AND job_title IS NULL;
+    UPDATE team_members SET job_title = 'Senior Balloon Artist'          WHERE lower(name) = 'jane'   AND job_title IS NULL;
+    UPDATE team_members SET job_title = 'Junior Event Coordinator'       WHERE lower(name) = 'gloria' AND job_title IS NULL;
+    UPDATE team_members SET job_title = 'Junior Event Coordinator'       WHERE lower(name) = 'diana'  AND job_title IS NULL;
+    UPDATE team_members SET job_title = 'CEO'                            WHERE lower(name) = 'sheem'  AND job_title IS NULL;
+    UPDATE team_members SET job_title = 'Driver & Event Support'         WHERE lower(name) = 'shan'   AND job_title IS NULL;
+    INSERT INTO app_kv (k) VALUES ('schema_once_seed_job_titles') ON CONFLICT (k) DO NOTHING;
+  END IF;
+END
+$$;
 
 -- ── Finance custom products/services (added on the fly from a receipt/invoice) ─
 -- Reusable line items the team creates while billing, beyond the catalogue
@@ -1840,7 +1860,7 @@ BEGIN
           OR NEW.base_end_time IS DISTINCT FROM OLD.base_end_time)
      AND (COALESCE(NEW.date_tbd, false)
           OR NEW.event_date > (now() AT TIME ZONE 'Asia/Dubai')::date
-          OR (NEW.base_end_time ~ '^[0-2][0-9]:[0-5][0-9]$'
+          OR (NEW.base_end_time ~ '^([01][0-9]|2[0-4]):[0-5][0-9]$'
               AND ((NEW.event_date + NEW.base_end_time::time) AT TIME ZONE 'Asia/Dubai') > now()))
   THEN
     NEW.phase := 'Booking Confirmed';
@@ -1848,8 +1868,8 @@ BEGIN
   RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS events_reopen_on_redate ON events;
-CREATE TRIGGER events_reopen_on_redate BEFORE UPDATE ON events
+-- CREATE OR REPLACE TRIGGER (Postgres 14+): no DROP window where the trigger is missing.
+CREATE OR REPLACE TRIGGER events_reopen_on_redate BEFORE UPDATE ON events
   FOR EACH ROW EXECUTE FUNCTION events_reopen_on_redate();
 
 -- Cross-feed duplicate flag on pending bank rows. Set at ingest when the same
@@ -1864,4 +1884,21 @@ ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS possible_dup_of TEXT;
 -- keep their original person_name — the report normalises (and sums) at read
 -- time, so they still match.
 ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS display_name TEXT;
-UPDATE staff_payments SET display_name = person_name WHERE display_name IS NULL;
+-- ONE-TIME backfill (app_kv marker), not an every-boot rewrite.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM app_kv WHERE k = 'schema_once_staff_payments_display_name') THEN
+    UPDATE staff_payments SET display_name = person_name WHERE display_name IS NULL;
+    INSERT INTO app_kv (k) VALUES ('schema_once_staff_payments_display_name') ON CONFLICT (k) DO NOTHING;
+  END IF;
+END
+$$;
+
+-- Missing hot-path indexes (sweep, Nov 2026).
+CREATE INDEX IF NOT EXISTS events_order_idx ON events (order_id);
+CREATE INDEX IF NOT EXISTS events_event_date_idx ON events (event_date);
+CREATE INDEX IF NOT EXISTS events_customer_idx ON events (customer_id);
+CREATE INDEX IF NOT EXISTS finance_receipts_event_idx ON finance_receipts (event_id) WHERE event_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS finance_receipts_customer_idx ON finance_receipts (customer_id);
+CREATE INDEX IF NOT EXISTS notifications_event_template_idx ON notifications (event_id, template);
+CREATE INDEX IF NOT EXISTS orders_customer_idx ON orders (customer_id);

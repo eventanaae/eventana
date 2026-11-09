@@ -17,6 +17,7 @@ import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import { formatAed, celebrationLabel } from '@eventana/shared';
 import { sendAbandonedCartReminder } from './notify.js';
+import { inCustomerSendWindow } from './marketing.js';
 
 // Names that are the team's own test accounts, never real customers.
 const INTERNAL_NAME_PARTS = ['sheem', 'shaima', 'gloria', 'dindo', 'jane', 'diana', 'marsha', 'shan', 'test', 'qa', 'demo'];
@@ -59,7 +60,13 @@ export async function findAbandonedCarts(): Promise<CartCandidate[]> {
             c.id AS customer_id, c.name, c.email
        FROM orders o JOIN customers c ON c.id = o.customer_id
       WHERE o.status = 'awaiting_payment'
+        AND o.kind = 'booking'
         AND COALESCE(o.source,'app') = 'app'
+        -- They already booked & paid since this cart → not abandoned.
+        AND NOT EXISTS (
+          SELECT 1 FROM orders p
+           WHERE p.customer_id = o.customer_id AND p.kind = 'booking' AND p.status = 'paid'
+             AND p.created_at > o.created_at)
         AND o.created_at < now() - interval '3 hours'
         AND o.created_at > now() - interval '45 days'
         AND o.total_fils > 0
@@ -99,6 +106,7 @@ export async function findAbandonedCarts(): Promise<CartCandidate[]> {
 
 /** Send reminders to every eligible cart. Idempotent per order (stamps sent). */
 export async function sendAbandonedCartReminders(): Promise<{ eligible: number; sent: number }> {
+  if (!inCustomerSendWindow()) return { eligible: 0, sent: 0 };
   const carts = await findAbandonedCarts();
   let sent = 0;
   for (const c of carts) {

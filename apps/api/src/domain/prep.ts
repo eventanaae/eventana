@@ -189,6 +189,19 @@ function classifyLabel(label: string, serviceIds: Set<string>, categories: Set<s
   return inflatable;
 }
 
+/** Members on an approved day off / leave anywhere in an event's physical prep
+ *  window (event day and the two days before). Empty when the date is unknown. */
+async function offInPrepWindow(date: string | null): Promise<Set<string>> {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return new Set();
+  const r = await pool.query<{ member_id: string }>(
+    `SELECT DISTINCT member_id FROM staff_days_off
+      WHERE status = 'approved'
+        AND start_date <= $1::date AND end_date >= ($1::date - interval '2 days')`,
+    [date],
+  ).catch(() => ({ rows: [] as Array<{ member_id: string }> }));
+  return new Set(r.rows.map((x) => x.member_id));
+}
+
 /** Resolve the internal crew (name → id) once, seeding skills if needed. */
 async function roster(): Promise<Array<{ id: string; name: string; skills: Set<string> }>> {
   const { rows } = await pool.query<{ id: string; name: string }>(
@@ -205,7 +218,8 @@ async function roster(): Promise<Array<{ id: string; name: string; skills: Set<s
  */
 export async function generatePrepTasks(eventId: string): Promise<{ eventId: string; created: number } | null> {
   const evRes = await pool.query(
-    `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS date, e.custom_theme, o.cart, p.name AS package_name
+    `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS date, e.custom_theme, o.cart, p.name AS package_name,
+            COALESCE(e.date_tbd, false) AS date_tbd
        FROM events e JOIN orders o ON o.id = e.order_id
        LEFT JOIN packages p ON p.id = e.package_id
       WHERE e.id = $1`,
@@ -217,6 +231,8 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   // `new Date("nullT00:00:00Z")` (Invalid Date → toISOString throws). Prep is
   // regenerated once the date is finalised.
   if (!ev.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(ev.date))) return null;
+  // Postponed (date TBD) events keep a placeholder date — never prep them.
+  if (ev.date_tbd) return null;
 
   // Load the catalogue lazily so we can classify services by id/category.
   const { loadConfig } = await import('./settings.js');
@@ -409,7 +425,7 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
   // Catch-all: any booked line the templates/staffing don't recognise still
   // becomes a task (or an escalation) — this is what closes the systemic
   // silent-drop for bespoke/novel items. Additive; never wipes other tasks.
-  const extra = await backfillUncoveredPrep(eventId).catch((e) => {
+  const extra = await backfillUncoveredPrep(eventId, prevAssigneeMap).catch((e) => {
     console.error('[prep] uncovered backfill failed:', (e as Error).message);
     return { created: [] as string[], escalated: [] as string[] };
   });
@@ -446,8 +462,15 @@ export async function generatePrepTasks(eventId: string): Promise<{ eventId: str
     );
     if (!ins.rows[0]) continue;
     const taskId = ins.rows[0].id;
-    if (skill) {
-      const cand = staff.filter((s) => s.skills.has(skill))
+    // Keep the owner's manual pick for this xtra_* key across a regenerate.
+    const keptXtra = (prevAssigneeMap.get(key) ?? []).filter((m) => !off.has(m));
+    if (keptXtra.length) {
+      for (const m of keptXtra) {
+        await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, m]);
+        workload.set(m, (workload.get(m) ?? 0) + 1);
+      }
+    } else if (skill) {
+      const cand = staff.filter((s) => s.skills.has(skill) && !off.has(s.id))
         .sort((a, b) => (workload.get(a.id) ?? 0) - (workload.get(b.id) ?? 0))[0];
       if (cand) {
         await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, cand.id]);
@@ -561,6 +584,7 @@ function xtraKey(label: string): string {
  */
 export async function backfillUncoveredPrep(
   eventId: string,
+  prevAssigneeMap?: Map<string, string[]>,
 ): Promise<{ created: string[]; escalated: string[] }> {
   const created: string[] = [];
   const escalated: string[] = [];
@@ -595,6 +619,7 @@ export async function backfillUncoveredPrep(
   const haveKeys = new Set(existing.rows.map((r) => r.key));
 
   const staff = await roster();
+  const off = await offInPrepWindow(date);
   const wlRes = await pool.query<{ member_id: string; c: number }>(
     `SELECT member_id, count(*)::int c FROM prep_task_staff pts JOIN prep_tasks pt ON pt.id = pts.task_id
       WHERE pt.status <> 'completed' GROUP BY member_id`);
@@ -615,8 +640,16 @@ export async function backfillUncoveredPrep(
     if (!ins.rows[0]) continue; // a task with this key already existed
     const taskId = ins.rows[0].id;
     let assignedTo: string | null = null;
-    if (skill) {
-      const cand = staff.filter((s) => s.skills.has(skill))
+    // Keep the owner's manual pick for this xtra_* key across a regenerate.
+    const kept = (prevAssigneeMap?.get(key) ?? []).filter((m) => !off.has(m));
+    if (kept.length) {
+      for (const m of kept) {
+        await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, m]);
+        wl.set(m, (wl.get(m) ?? 0) + 1);
+      }
+      assignedTo = kept.map((m) => staff.find((s) => s.id === m)?.name ?? m).join(', ');
+    } else if (skill) {
+      const cand = staff.filter((s) => s.skills.has(skill) && !off.has(s.id))
         .sort((a, b) => (wl.get(a.id) ?? 0) - (wl.get(b.id) ?? 0))[0];
       if (cand) {
         await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, cand.id]);
@@ -691,11 +724,12 @@ export async function addExtraPrepTask(
   let assignedTo: string | undefined;
   if (skill) {
     const staff = await roster();
+    const off = await offInPrepWindow(date);
     const wlRes = await pool.query<{ member_id: string; c: number }>(
       `SELECT member_id, count(*)::int c FROM prep_task_staff pts JOIN prep_tasks pt ON pt.id = pts.task_id
         WHERE pt.status <> 'completed' GROUP BY member_id`);
     const wl = new Map<string, number>(wlRes.rows.map((r) => [r.member_id, r.c]));
-    const cand = staff.filter((s) => s.skills.has(skill)).sort((a, b) => (wl.get(a.id) ?? 0) - (wl.get(b.id) ?? 0))[0];
+    const cand = staff.filter((s) => s.skills.has(skill) && !off.has(s.id)).sort((a, b) => (wl.get(a.id) ?? 0) - (wl.get(b.id) ?? 0))[0];
     if (cand) { await pool.query(`INSERT INTO prep_task_staff (task_id, member_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [taskId, cand.id]); assigned = true; assignedTo = cand.name; }
   }
   await pool.query(`INSERT INTO prep_task_log (task_id, event_id, action, detail, actor) VALUES ($1,$2,'extra',$3,$4)`, [taskId, eventId, title, opts.actor ?? 'staff']).catch(() => {});
@@ -1032,7 +1066,7 @@ export async function sweepPrepAtRisk(): Promise<number> {
         AND NOT EXISTS (
           SELECT 1 FROM prep_tasks pt JOIN events e ON e.id = pt.event_id
            WHERE pt.event_id = n.event_id
-             AND e.phase <> 'Cancelled'
+             AND e.phase <> 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
              AND e.event_date >= CURRENT_DATE
              AND e.event_date <= CURRENT_DATE + interval '3 days'
            GROUP BY pt.event_id
@@ -1044,7 +1078,7 @@ export async function sweepPrepAtRisk(): Promise<number> {
             count(*) FILTER (WHERE pt.status = 'completed')::int AS done
        FROM prep_tasks pt
        JOIN events e ON e.id = pt.event_id
-      WHERE e.phase <> 'Cancelled'
+      WHERE e.phase <> 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
         AND e.event_date >= CURRENT_DATE
         AND e.event_date <= CURRENT_DATE + interval '3 days'
       GROUP BY pt.event_id

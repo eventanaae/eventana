@@ -102,10 +102,15 @@ async function cancelEvent(eventId: string, reason: string) {
     // auto-refund (after commit) can move the money via the payment provider
     // exactly like a customer-initiated cancellation.
     let refundInfo: { orderId: string; refundFils: number; refundStatus: string } | null = null;
-    if (ev.ostatus === 'paid') {
+    if (ev.ostatus === 'paid' || ev.ostatus === 'partially_refunded') {
       const startMs = Date.parse(`${eventDateYMD(ev.event_date)}T${ev.start_time}:00+04:00`);
       const hoursToEvent = (startMs - Date.now()) / 3_600_000;
-      const b = computeRefund({ lines: (ev.quote as any)?.lines ?? [], totalPaidFils: Number(ev.total_fils), hoursToEvent });
+      // A partially-refunded booking: the policy applies only to what is still held.
+      const alreadyRefunded = Number((await db.query(
+        `SELECT COALESCE(SUM(amount_fils),0)::bigint AS v FROM refunds WHERE order_id = $1`, [ev.oid],
+      )).rows[0].v);
+      const totalPaidFils = Math.max(0, Number(ev.total_fils) - alreadyRefunded);
+      const b = computeRefund({ lines: (ev.quote as any)?.lines ?? [], totalPaidFils, hoursToEvent });
       const refundStatus = b.refundFils > 0 ? 'pending' : 'none';
       await db.query(
         `INSERT INTO cancellations
@@ -138,6 +143,11 @@ async function cancelEvent(eventId: string, reason: string) {
     return { ...ev, phase: 'Cancelled', refundInfo };
   });
 }
+
+/** Today's date in Dubai (UTC+4, no DST) as YYYY-MM-DD. */
+const dubaiTodayYmd = () => new Date(Date.now() + 4 * 3_600_000).toISOString().slice(0, 10);
+/** The current Dubai month as YYYY-MM. */
+const dubaiMonthYm = () => dubaiTodayYmd().slice(0, 7);
 
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook('preHandler', async (request, reply) => {
@@ -182,10 +192,10 @@ export async function adminRoutes(app: FastifyInstance) {
       p.startsWith('/api/admin/ceo') ||
       p.startsWith('/api/admin/finance/accounting') ||
       p === '/api/admin/finance/qb-breakdown' ||
-      p === '/api/admin/import/revenue-by-year' ||
-      p === '/api/admin/import/pnl-by-year' ||
-      p === '/api/admin/import/expenses' ||
-      p === '/api/admin/import/status';
+      // Everything under /import is owner-only (historical revenue, product
+      // totals/merge, P&L) except the ticket + row upload used by the migration.
+      ((p === '/api/admin/import' || p.startsWith('/api/admin/import/')) &&
+        p !== '/api/admin/import/ticket' && p !== '/api/admin/import/rows');
     if (ownerOnlyPath(path) || ownerOnlyPath(routePath)) {
       return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
     }
@@ -718,13 +728,19 @@ export async function adminRoutes(app: FastifyInstance) {
     const [kpis, events, tasks, inventory, approvals, shopOrders] = await Promise.all([
       pool.query(
         `SELECT
-           (SELECT count(*)::int FROM events WHERE event_date = CURRENT_DATE AND phase <> 'Cancelled') AS events_today,
+           (SELECT count(*)::int FROM events WHERE event_date = (now() AT TIME ZONE 'Asia/Dubai')::date AND phase <> 'Cancelled') AS events_today,
            (SELECT count(*)::int FROM orders WHERE status = 'paid' AND source IS DISTINCT FROM 'converted'
               AND kind = 'booking'
-              AND created_at >= date_trunc('month', now())) AS bookings_month,
-           (SELECT COALESCE(sum(total_fils),0)::bigint FROM orders WHERE status = 'paid' AND source IS DISTINCT FROM 'converted'
-              AND kind IN ('booking','addon')
-              AND created_at >= date_trunc('month', now())) AS revenue_month,
+              AND created_at >= (date_trunc('month', now() AT TIME ZONE 'Asia/Dubai') AT TIME ZONE 'Asia/Dubai')) AS bookings_month,
+           -- Owner's money rule: sales by BOOKING date in the Dubai month, minus
+           -- refunds by the refund's Dubai date in the same month.
+           ((SELECT COALESCE(sum(total_fils),0)::bigint FROM finance_receipts
+              WHERE COALESCE(booked_on, date) >= date_trunc('month', now() AT TIME ZONE 'Asia/Dubai')::date
+                AND COALESCE(booked_on, date) < (date_trunc('month', now() AT TIME ZONE 'Asia/Dubai') + interval '1 month')::date)
+            - (SELECT COALESCE(sum(amount_fils),0)::bigint FROM refunds
+              WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= date_trunc('month', now() AT TIME ZONE 'Asia/Dubai')::date
+                AND (created_at AT TIME ZONE 'Asia/Dubai')::date < (date_trunc('month', now() AT TIME ZONE 'Asia/Dubai') + interval '1 month')::date)
+           ) AS revenue_month,
            (SELECT count(*)::int FROM event_tasks WHERE status = 'open') AS open_tasks,
            (SELECT count(*)::int FROM orders WHERE status = 'needs_review') AS needs_review,
            (SELECT count(*)::int FROM orders WHERE status = 'processing') AS processing`,
@@ -748,7 +764,7 @@ export async function adminRoutes(app: FastifyInstance) {
               WHERE es.event_id = e.id AND es.source <> 'package_item'
            ) svc ON TRUE
           WHERE e.phase <> 'Cancelled'
-            AND (e.event_date >= CURRENT_DATE OR (e.event_date IS NULL AND e.date_tbd))
+            AND (e.event_date >= (now() AT TIME ZONE 'Asia/Dubai')::date OR (e.event_date IS NULL AND e.date_tbd))
           ORDER BY e.event_date NULLS FIRST, e.start_time
           LIMIT 25`,
       ),
@@ -1540,7 +1556,11 @@ export async function adminRoutes(app: FastifyInstance) {
       result.event.totalDisplay = null;
       result.event.quote = null;
       result.event.cancellation = null;
-      result.services = result.services.map((s: any) => ({ ...s, amount_fils: null }));
+      // The raw cancellation/refund columns ride along on the spread row too.
+      for (const k of ['cx_total_paid', 'cx_delivery', 'cx_non_refundable', 'cx_party_value', 'refund_percent', 'refund_amount_fils', 'refund_reference']) {
+        delete result.event[k];
+      }
+      result.services =result.services.map((s: any) => ({ ...s, amount_fils: null }));
       result.orders = result.orders.map((o: any) => ({ ...o, total_fils: null, totalDisplay: null, quote: null }));
       result.payments = [];
       result.tips = result.tips.map((t: any) => ({ ...t, amount_fils: null, amountDisplay: null }));
@@ -1889,8 +1909,10 @@ export async function adminRoutes(app: FastifyInstance) {
    * timeline collapses to Confirmed → Cancelled, and every self-service
    * purchase and location change is refused from this point.
    *
-   * Cancelling does NOT refund by itself — money is returned through the
-   * refund route, deliberately as a separate, explicit decision.
+   * For a paid booking the policy refund is RECORDED here (ledger, receipt,
+   * customer email, points) — record-only: the team returns the money by hand,
+   * nothing is reversed at the payment provider. The response carries the
+   * refund outcome (refundInfo.refundStatus: processed | failed | none).
    */
   app.post('/api/admin/events/:eventId/cancel', async (request, reply) => {
     const { eventId } = request.params as { eventId: string };
@@ -1917,7 +1939,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // OWN cancellation (routes/events.ts) refunds automatically to Tabby/Tamara/Stripe.
     const rInfo = (result as any).refundInfo as { orderId: string; refundFils: number; refundStatus: string } | null;
     if (rInfo && rInfo.refundStatus === 'pending' && rInfo.refundFils > 0) {
-      await refundOrderMoney({
+      const refund = await refundOrderMoney({
         orderId: rInfo.orderId,
         amountFils: rInfo.refundFils,
         reason: `Cancelled by team — ${parsed.data.reason}`,
@@ -1926,7 +1948,15 @@ export async function adminRoutes(app: FastifyInstance) {
         createdBy: String((request as any).staff?.name ?? 'staff'),
         source: 'admin_cancel',
         recordOnly: true,
-      }).catch(() => {});
+      }).catch((err): { ok: false; error: string } => ({ ok: false, error: (err as Error)?.message ?? 'refund_failed' }));
+      if (!refund.ok) {
+        console.error(`[cancel] recording the refund for ${rInfo.orderId} failed:`, refund.error);
+      }
+      return {
+        ...result,
+        refundInfo: { ...rInfo, refundStatus: refund.ok ? 'processed' : 'failed', error: refund.ok ? undefined : refund.error },
+        refund,
+      };
     }
     return result;
   });
@@ -1984,6 +2014,12 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     if (!rows[0]) {
       return reply.status(409).send({ error: 'not_cancelled', message: 'This event is not cancelled.' });
+    }
+    // Clear the (unrefunded) cancellation record so the booking is live again —
+    // otherwise the event still reads as cancelled-with-refund and a later
+    // cancel's ON CONFLICT DO NOTHING keeps the stale figures.
+    if (rows[0].order_id) {
+      await pool.query(`DELETE FROM cancellations WHERE order_id = $1`, [rows[0].order_id]);
     }
     // Re-enqueue the lifecycle notifications that cancel had voided — otherwise a
     // reinstated booking gets no confirmation / 3-day / event-day / feedback.
@@ -2249,10 +2285,7 @@ export async function adminRoutes(app: FastifyInstance) {
    */
   app.get('/api/admin/kpis', async (request) => {
     const q = request.query as { month?: string };
-    const now = new Date();
-    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
-      ? q.month!
-      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '') ? q.month! : dubaiMonthYm();
     const end = new Date(`${monthStr}-01T00:00:00Z`);
     end.setUTCMonth(end.getUTCMonth() + 1);
     const endStr = end.toISOString().slice(0, 10);
@@ -2621,10 +2654,7 @@ export async function adminRoutes(app: FastifyInstance) {
       };
     }
 
-    const now = new Date();
-    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
-      ? q.month!
-      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '') ? q.month! : dubaiMonthYm();
     const start = `${monthStr}-01`;
     const end = new Date(`${start}T00:00:00Z`);
     end.setUTCMonth(end.getUTCMonth() + 1);
@@ -2654,7 +2684,7 @@ export async function adminRoutes(app: FastifyInstance) {
     let where = `category IS NOT NULL AND btrim(category) <> ''`;
     if (yearNum) { params.push(yearNum); where += ` AND EXTRACT(YEAR FROM spent_on) = $${params.length}`; }
     // Salaries are sensitive — only the owner sees that account anywhere.
-    if (role !== 'owner') where += ` AND btrim(category) <> 'Salaries'`;
+    if (role !== 'owner') where += ` AND lower(btrim(category)) <> 'salaries'`;
     const { rows } = await pool.query(
       `SELECT btrim(category) AS account,
               COALESCE(NULLIF(btrim(vendor), ''), '') AS vendor,
@@ -2739,10 +2769,15 @@ export async function adminRoutes(app: FastifyInstance) {
     const newV = (b.newVendor ?? '').trim();
     const newA = (b.newAccount ?? '').trim();
     if (!newV && !newA) return reply.status(400).send({ error: 'invalid', message: 'nothing to change' });
+    // Salaries are owner-only: a non-owner may neither file into nor move salary rows.
+    if (role !== 'owner' && newA.toLowerCase() === 'salaries') {
+      return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+    }
+    const salGuard = role !== 'owner' ? ` AND lower(btrim(COALESCE(category,''))) <> 'salaries'` : '';
     const sets: string[] = []; const vals: any[] = [oldV];
     if (newV) { vals.push(newV); sets.push(`vendor = $${vals.length}`); }
     if (newA) { vals.push(newA); sets.push(`category = $${vals.length}`); }
-    const res = await pool.query(`UPDATE expenses SET ${sets.join(', ')} WHERE lower(btrim(vendor)) = lower($1)`, vals);
+    const res = await pool.query(`UPDATE expenses SET ${sets.join(', ')} WHERE lower(btrim(vendor)) = lower($1)${salGuard}`, vals);
     // keep the suppliers directory name aligned on a rename
     if (newV) await pool.query(`UPDATE suppliers SET name = $2 WHERE lower(btrim(name)) = lower($1)`, [oldV, newV]).catch(() => {});
     logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role, action: 'vendor_edit', target: oldV, detail: b });
@@ -3014,7 +3049,7 @@ const ITEMS_REQUIRED = {
     if (expenseNeedsItems(d.category) && items.length === 0) return reply.status(400).send(ITEMS_REQUIRED);
     const { rows } = await pool.query(
       `INSERT INTO expenses (category, description, amount_fils, vendor, event_id, spent_on, receipt_url, payment_method, recorded_by, line_items, extra_charges)
-       VALUES ($1,$2,$3,$4,$5,COALESCE($6, current_date),$7,$8,$9,$10::jsonb,$11::jsonb) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,COALESCE($6::date, (now() AT TIME ZONE 'Asia/Dubai')::date),$7,$8,$9,$10::jsonb,$11::jsonb) RETURNING *`,
       [
         d.category, d.description, d.amountFils, d.vendor ?? null, d.eventId ?? null,
         d.spentOn ?? null, d.receiptUrl ?? null, d.paymentMethod ?? null,
@@ -3032,8 +3067,9 @@ const ITEMS_REQUIRED = {
       // category label never fails validation.
       category: z.string().min(1).max(80).optional(),
       description: z.string().min(1).max(300).optional(),
-      amountFils: z.number().int().min(0).optional(),
-      vendor: z.string().max(200).nullable().optional(),
+      // Same rule as POST: a real (positive) amount and a non-empty vendor.
+      amountFils: z.number().int().positive().optional(),
+      vendor: z.string().trim().min(1).max(200).nullable().optional(),
       spentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional(),
       // A receipt image URL, or null to remove the attached receipt. Absent =
@@ -3051,6 +3087,13 @@ const ITEMS_REQUIRED = {
     {
       const cur = await pool.query(`SELECT category, line_items, created_at::date >= $2::date AS is_new FROM expenses WHERE id = $1`, [id, ITEMS_RULE_START]);
       const row = cur.rows[0];
+      // Salaries are owner-only: a non-owner can't see (404) or file into them.
+      if ((request as any).staff?.role !== 'owner') {
+        if (row && String(row.category ?? '').trim().toLowerCase() === 'salaries') return reply.status(404).send({ error: 'not_found' });
+        if (d.category !== undefined && d.category.trim().toLowerCase() === 'salaries') {
+          return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+        }
+      }
       if (row?.is_new) {
         const cat = d.category ?? row.category;
         const finalItems = items ?? (Array.isArray(row.line_items) ? row.line_items : []);
@@ -3077,8 +3120,13 @@ const ITEMS_REQUIRED = {
     return { ...rows[0], amountDisplay: formatAed(Number(rows[0].amount_fils)) };
   });
 
-  app.delete('/api/admin/expenses/:id', async (request) => {
+  app.delete('/api/admin/expenses/:id', async (request, reply) => {
     const id = Number((request.params as { id: string }).id);
+    // Salaries are owner-only: a non-owner gets 404 for a salary row.
+    if ((request as any).staff?.role !== 'owner') {
+      const cur = await pool.query(`SELECT lower(btrim(COALESCE(category,''))) = 'salaries' AS sal FROM expenses WHERE id = $1`, [id]);
+      if (cur.rows[0]?.sal) return reply.status(404).send({ error: 'not_found' });
+    }
     // EX5: if this expense was posted from a bank-feed row, return that row to the
     // Bank Inbox as pending BEFORE deleting. The FK ON DELETE SET NULL only nulls
     // expense_id and leaves status='approved' with its dedup key intact — so a
@@ -3117,15 +3165,26 @@ const ITEMS_REQUIRED = {
     const p = schema.safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const actor = String((request as any).staff?.name ?? 'Staff');
-    const postedOn = p.data.spentOn ?? new Date().toISOString().slice(0, 10);
+    const postedOn = p.data.spentOn ?? dubaiTodayYmd();
+    // Dedupe a double-tap: the key is amount + merchant + date + minute, and any
+    // same amount/merchant/date manual entry in the last 2 minutes is refused.
+    const keyBase = `manual|${p.data.amountFils}|${(p.data.merchant ?? '').trim().toLowerCase()}|${postedOn}|`;
+    const recent = await pool.query(
+      `SELECT id FROM bank_transactions WHERE left(dedupe_key, $2) = $1 AND created_at > now() - interval '2 minutes' LIMIT 1`,
+      [keyBase, keyBase.length],
+    );
+    if (recent.rows[0]) {
+      return reply.status(409).send({ error: 'duplicate', message: 'This entry was just logged.', id: String(recent.rows[0].id) });
+    }
     const { ingestExternalTxn } = await import('../domain/bankInbox.js');
     const res = await ingestExternalTxn({
       amountFils: p.data.amountFils, direction: 'debit', kind: 'purchase',
       merchant: p.data.merchant ?? null, postedOn,
       raw: p.data.note ?? `Manual entry by ${actor}: ${p.data.merchant ?? 'expense'} AED ${(p.data.amountFils / 100).toFixed(2)}`,
       source: p.data.source ?? 'manual',
-      dedupeKey: `manual|${actor}|${p.data.merchant ?? ''}|${p.data.amountFils}|${postedOn}|${Date.now()}`,
+      dedupeKey: `${keyBase}${Math.floor(Date.now() / 60_000)}`,
     });
+    if (res.duplicate) return reply.status(409).send({ error: 'duplicate', message: 'This entry was just logged.', id: res.id });
     return { ok: true, id: res.id };
   });
 
@@ -3140,14 +3199,14 @@ const ITEMS_REQUIRED = {
     // /finance and /today (revenue is never shown to managers/employees).
     if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
     const q = request.query as { month?: string };
-    const now = new Date();
-    const month = /^\d{4}-\d{2}$/.test(q.month ?? '') ? q.month! : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const month = /^\d{4}-\d{2}$/.test(q.month ?? '') ? q.month! : dubaiMonthYm();
     const start = `${month}-01`;
     const end = (() => { const [y, mo] = month.split('-').map(Number); const d = new Date(Date.UTC(y, mo, 1)); return d.toISOString().slice(0, 10); })();
     const [spendR, bookR] = await Promise.all([
       pool.query<{ v: string }>(
         `SELECT COALESCE(SUM(amount_fils),0)::bigint v FROM expenses
           WHERE spent_on >= $1 AND spent_on < $2
+            AND COALESCE(source,'manual') <> 'quickbooks'
             AND (COALESCE(category,'') ~* '(advertis|marketing|meta|facebook|instagram|snapchat|tiktok|google ads|\\yads\\y)')`,
         [start, end],
       ).catch(() => ({ rows: [{ v: '0' }] })),
@@ -3533,15 +3592,18 @@ const ITEMS_REQUIRED = {
   // for the "report a missing item" supplier picker. Names only — no money — so
   // it's safe for any staff member (not just owner/manager).
   app.get('/api/admin/supplier-names', async (request, reply) => {
-    // Vendor/spend directory → owner/manager only (sibling /suppliers is gated).
+    // Names only (no money) → owner, manager and employees (the inventory /
+    // missing-item picker). Drivers are already kept out by the preHandler.
     const role = (request as any).staff?.role;
-    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
+    if (role !== 'owner' && role !== 'manager' && role !== 'employee') return reply.status(403).send({ error: 'forbidden' });
+    // Non-owners never see salary payees (vendors only ever paid as Salaries).
+    const salFilter = role !== 'owner' ? ` AND lower(btrim(COALESCE(category,''))) <> 'salaries'` : '';
     // Distinct expense vendors ranked by how many times they appear (= how often
     // we buy from them), plus any saved-directory supplier not already there.
     const vend = await pool.query<{ name: string; n: string }>(
       `SELECT min(vendor) AS name, count(*) AS n
          FROM expenses
-        WHERE vendor IS NOT NULL AND btrim(vendor) <> ''
+        WHERE vendor IS NOT NULL AND btrim(vendor) <> ''${salFilter}
         GROUP BY lower(vendor)
         ORDER BY count(*) DESC, min(vendor)
         LIMIT 300`,
@@ -3554,14 +3616,16 @@ const ITEMS_REQUIRED = {
   });
 
   // ── Suppliers directory — who we buy from ──────────────────────────────────
-  app.get('/api/admin/suppliers', async () => {
+  app.get('/api/admin/suppliers', async (request) => {
     // The saved suppliers list PLUS every distinct vendor already used on an
     // expense (e.g. the QuickBooks-imported ones), so the dropdown offers the
     // names the owner actually pays without having to re-add each one.
+    // Non-owners never see salary payees (vendors only ever paid as Salaries).
+    const salFilter = (request as any).staff?.role !== 'owner' ? ` AND lower(btrim(COALESCE(category,''))) <> 'salaries'` : '';
     const sup = await pool.query(`SELECT * FROM suppliers WHERE active`);
     const vend = await pool.query(
       `SELECT min(vendor) AS name FROM expenses
-        WHERE vendor IS NOT NULL AND btrim(vendor) <> ''
+        WHERE vendor IS NOT NULL AND btrim(vendor) <> ''${salFilter}
         GROUP BY lower(vendor)`,
     );
     const existing = new Set(sup.rows.map((s: any) => String(s.name).toLowerCase()));
@@ -3710,8 +3774,15 @@ const ITEMS_REQUIRED = {
     const owner = (request as any).staff?.role === 'owner';
     return reply.status(201).send(await finance.createReceipt({ ...p.data, commissionRep: owner ? p.data.commissionRep ?? null : null }));
   });
-  app.delete('/api/admin/finance/receipts/:id', async (request) =>
-    finance.deleteReceipt(Number((request.params as { id: string }).id)));
+  app.delete('/api/admin/finance/receipts/:id', async (request, reply) => {
+    // Deleting a sale removes revenue → owner or manager only (Marsha cleans
+    // duplicates). deleteReceipt itself refuses refunded receipts and the only
+    // receipt of a live booking.
+    const role = (request as any).staff?.role;
+    if (role !== 'owner' && role !== 'manager') return reply.status(403).send({ error: 'forbidden', message: 'Owner or manager only.' });
+    const id = Number((request.params as { id: string }).id);
+    return finance.deleteReceipt(id);
+  });
 
   app.get('/api/admin/finance/accounting', async () => finance.accountingSummary());
   app.post('/api/admin/finance/import-history', async () => finance.importReceiptsFromHistory());
@@ -3761,10 +3832,7 @@ const ITEMS_REQUIRED = {
     const q = request.query as { month?: string };
     // Salaries are the owner's alone (same rule as /expenses) — audit 2026-11-10.
     const noSal = (request as any).staff?.role !== 'owner' ? ` AND lower(btrim(category)) <> 'salaries'` : '';
-    const now = new Date();
-    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '')
-      ? q.month!
-      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthStr = /^\d{4}-\d{2}$/.test(q.month ?? '') ? q.month! : dubaiMonthYm();
     const start = `${monthStr}-01`;
     const endD = new Date(`${start}T00:00:00Z`);
     endD.setUTCMonth(endD.getUTCMonth() + 1);
@@ -3774,11 +3842,15 @@ const ITEMS_REQUIRED = {
     sixD.setUTCMonth(sixD.getUTCMonth() - 5);
     const sixStart = sixD.toISOString().slice(0, 10);
 
+    // Revenue (owner's money rule): sales receipts by BOOKING date minus refunds
+    // by the refund's Dubai date, both in the month.
     const [rev, exp, byCat, tipsRow, revTrend, expTrend] = await Promise.all([
       pool.query(
-        `SELECT COALESCE(SUM(total_fils),0) AS v FROM orders
-          WHERE status IN ('paid','partially_refunded') AND kind IN ('booking','addon') AND source IS DISTINCT FROM 'converted'
-            AND created_at >= $1 AND created_at < $2`,
+        `SELECT (SELECT COALESCE(SUM(total_fils),0) FROM finance_receipts
+                  WHERE COALESCE(booked_on, date) >= $1::date AND COALESCE(booked_on, date) < $2::date)
+              - (SELECT COALESCE(SUM(amount_fils),0) FROM refunds
+                  WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
+                    AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date) AS v`,
         [start, end],
       ),
       pool.query(`SELECT COALESCE(SUM(amount_fils),0) AS v FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2${noSal}`, [start, end]),
@@ -3793,15 +3865,22 @@ const ITEMS_REQUIRED = {
         [start, end],
       ),
       pool.query(
-        `SELECT to_char(date_trunc('month', created_at),'YYYY-MM') AS m, SUM(total_fils) AS v
-           FROM orders WHERE status IN ('paid','partially_refunded') AND kind IN ('booking','addon') AND source IS DISTINCT FROM 'converted' AND created_at >= $1
-          GROUP BY 1`,
-        [sixStart],
+        `SELECT m, SUM(v) AS v FROM (
+           SELECT to_char(COALESCE(booked_on, date),'YYYY-MM') AS m, total_fils AS v
+             FROM finance_receipts
+            WHERE COALESCE(booked_on, date) >= $1::date AND COALESCE(booked_on, date) < $2::date
+           UNION ALL
+           SELECT to_char((created_at AT TIME ZONE 'Asia/Dubai')::date,'YYYY-MM'), -amount_fils
+             FROM refunds
+            WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
+              AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date
+         ) x GROUP BY 1`,
+        [sixStart, end],
       ),
       pool.query(
         `SELECT to_char(date_trunc('month', spent_on),'YYYY-MM') AS m, SUM(amount_fils) AS v
-           FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 GROUP BY 1`,
-        [sixStart],
+           FROM expenses WHERE source <> 'quickbooks' AND spent_on >= $1 AND spent_on < $2${noSal} GROUP BY 1`,
+        [sixStart, end],
       ),
     ]);
 
@@ -4333,7 +4412,10 @@ const ITEMS_REQUIRED = {
     if (byPackage[0]) insights.push({ tone: 'info', text: `Best seller: ${byPackage[0].label} (AED ${byPackage[0].revenueDisplay}).` });
     if (cancelledCount > 0) insights.push({ tone: cancelRatePct > 15 ? 'warn' : 'info', text: `${cancelledCount} cancelled (${cancelRatePct}% of events); AED ${formatAed(refundFils)} refunded.` });
     if (Number(outstandingRow.rows[0].c) > 0) insights.push({ tone: 'warn', text: `${outstandingRow.rows[0].c} order(s) with payment not settled — AED ${formatAed(Number(outstandingRow.rows[0].v))} outstanding.` });
-    insights.push({ tone: profit >= 0 ? 'good' : 'warn', text: `Net ${profit >= 0 ? 'profit' : 'loss'} of AED ${formatAed(Math.abs(profit))} (margin ${revenue > 0 ? Math.round((profit / revenue) * 1000) / 10 : 0}%) after AED ${formatAed(expenses)} expenses.` });
+    // Net profit/loss insight: filled in below from the period P&L (receipts by
+    // booking date net of refunds − all expenses), the same basis as the cards.
+    const netInsight: { tone: 'good' | 'warn' | 'info'; text: string } = { tone: 'info', text: '' };
+    insights.push(netInsight);
     if (custTotal > 0) insights.push({ tone: repeatRatePct >= 20 ? 'good' : 'info', text: `${repeatRatePct}% of customers have booked more than once (${repeats} of ${custTotal}).` });
     if (pipeline.events > 0) insights.push({ tone: 'good', text: `AED ${pipeline.revenueDisplay} in the pipeline — ${pipeline.events} upcoming confirmed event(s).` });
     if (funnel.leads > 0) insights.push({ tone: funnel.conversionPct >= 20 ? 'good' : 'info', text: `${funnel.booked} of ${funnel.leads} WhatsApp leads booked (${funnel.conversionPct}% conversion).` });
@@ -4363,10 +4445,10 @@ const ITEMS_REQUIRED = {
     } : null;
 
     // ── CEO brief extensions (all from REAL data; "Not enough data yet" where none) ──
-    const nowY = now.getUTCFullYear();
+    const todayS = dubaiTodayYmd();
+    const nowY = Number(todayS.slice(0, 4)); // the current Dubai year
     const yearStartS = `${nowY}-01-01`;
     const yearEndS = `${nowY + 1}-01-01`;
-    const todayS = isoDate(now);
     const [cashSum, cancelReasonsRes, prepEventsArr, understaffRes, latePrepRes, up7Res, bdayRes, topCustRes, ytdRes, bookedFutureRes] = await Promise.all([
       import('../domain/finance.js').then((m) => m.accountingSummary()).catch(() => null),
       pool.query(`SELECT COALESCE(NULLIF(TRIM(c.reason),''),'—') reason, COUNT(*)::int n
@@ -4411,9 +4493,20 @@ const ITEMS_REQUIRED = {
     // the live sales/expenses recorded SINCE (source<>'quickbooks', after the QB
     // coverage end — auto-detected from the data), so it updates daily and never
     // double-counts the migrated rows.
+    // The cutoff is capped at today (Dubai): a future-dated QuickBooks invoice
+    // must not push it forward and hide today's live sales. (CASE, not a bare
+    // LEAST, so "no QB rows" stays NULL → the safe zero-add below.)
     const [qbRevCutR, qbExpCutR] = await Promise.all([
-      pool.query<{ d: string | null }>(`SELECT MAX(COALESCE(booked_on, date)) d FROM finance_receipts WHERE source = 'quickbooks'`).catch(() => ({ rows: [{ d: null }] })),
-      pool.query<{ d: string | null }>(`SELECT MAX(spent_on) d FROM expenses WHERE source = 'quickbooks'`).catch(() => ({ rows: [{ d: null }] })),
+      pool.query<{ d: string | null }>(
+        `SELECT CASE WHEN MAX(COALESCE(booked_on, date)) IS NULL THEN NULL
+                     ELSE LEAST(MAX(COALESCE(booked_on, date)), (now() AT TIME ZONE 'Asia/Dubai')::date) END d
+           FROM finance_receipts WHERE source = 'quickbooks'`,
+      ).catch(() => ({ rows: [{ d: null }] })),
+      pool.query<{ d: string | null }>(
+        `SELECT CASE WHEN MAX(spent_on) IS NULL THEN NULL
+                     ELSE LEAST(MAX(spent_on), (now() AT TIME ZONE 'Asia/Dubai')::date) END d
+           FROM expenses WHERE source = 'quickbooks'`,
+      ).catch(() => ({ rows: [{ d: null }] })),
     ]);
     const [liveRevR, liveExpR] = await Promise.all([
       // NOTE: strict `> $3` (no "IS NULL OR"). When the QB cutoff is NULL — no
@@ -4421,11 +4514,17 @@ const ITEMS_REQUIRED = {
       // excludes every row and this sums to 0, so we add NOTHING on top of the
       // seed. Adding a whole year of live rows to a seed that already covers that
       // year would double-count; a zero add is the safe failure.
+      // Live sales since the cutoff, NET of refunds over the same window (by the
+      // refund's Dubai date) — owner's money rule.
       pool.query<{ v: string }>(
-        `SELECT COALESCE(SUM(total_fils),0)::bigint v FROM finance_receipts
-          WHERE source <> 'quickbooks'
-            AND COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2
-            AND COALESCE(booked_on, date) > $3::date`,
+        `SELECT ((SELECT COALESCE(SUM(total_fils),0) FROM finance_receipts
+                   WHERE source <> 'quickbooks'
+                     AND COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2
+                     AND COALESCE(booked_on, date) > $3::date)
+               - (SELECT COALESCE(SUM(amount_fils),0) FROM refunds
+                   WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date >= $1::date
+                     AND (created_at AT TIME ZONE 'Asia/Dubai')::date < $2::date
+                     AND (created_at AT TIME ZONE 'Asia/Dubai')::date > $3::date))::bigint v`,
         [yearStartS, yearEndS, qbRevCutR.rows[0].d],
       ).catch(() => ({ rows: [{ v: '0' }] })),
       pool.query<{ v: string }>(
@@ -4513,6 +4612,8 @@ const ITEMS_REQUIRED = {
     const periodIncomeFils = periodGrossIncomeFils - refundFils; // net paid revenue
     const periodExpenseFils = Number(periodExpRow.rows[0].v);
     const periodNetFils = periodIncomeFils - periodExpenseFils;  // net profit
+    netInsight.tone = periodNetFils >= 0 ? 'good' : 'warn';
+    netInsight.text = `Net ${periodNetFils >= 0 ? 'profit' : 'loss'} of AED ${formatAed(Math.abs(periodNetFils))} (margin ${periodIncomeFils > 0 ? Math.round((periodNetFils / periodIncomeFils) * 1000) / 10 : 0}%) after AED ${formatAed(periodExpenseFils)} expenses.`;
     // AOV on the paid-receipts basis (net revenue ÷ receipts), so the legacy
     // aov field stops mixing event-revenue with a receipt count.
     const periodAovFils = periodSalesCount > 0 ? Math.round(periodIncomeFils / periodSalesCount) : 0;
@@ -4581,9 +4682,14 @@ const ITEMS_REQUIRED = {
     // Plus the themes the team filled in for old QuickBooks sales (sale_themes).
     const [liveThemeRes, themeQbRes] = await Promise.all([
       pool.query<{ theme: string; bookings: number; revenue: string }>(
-        `SELECT btrim(theme) AS theme, COUNT(*)::int AS bookings, COALESCE(SUM(total_fils),0)::bigint AS revenue
-           FROM finance_receipts
-          WHERE source <> 'quickbooks' AND COALESCE(booked_on, date) >= $1 AND COALESCE(booked_on, date) < $2 AND COALESCE(btrim(theme),'') <> ''
+        // A theme the team filled in later for an app sale (sale_themes 'app:'||event)
+        // wins over the receipt's own (often blank) theme.
+        `SELECT btrim(COALESCE(NULLIF(btrim(st.theme),''), fr.theme)) AS theme, COUNT(*)::int AS bookings,
+                COALESCE(SUM(fr.total_fils),0)::bigint AS revenue
+           FROM finance_receipts fr
+           LEFT JOIN sale_themes st ON fr.event_id IS NOT NULL AND st.sale_key = 'app:' || fr.event_id
+          WHERE fr.source <> 'quickbooks' AND COALESCE(fr.booked_on, fr.date) >= $1 AND COALESCE(fr.booked_on, fr.date) < $2
+            AND COALESCE(btrim(COALESCE(NULLIF(btrim(st.theme),''), fr.theme)),'') <> ''
           GROUP BY 1`,
         [from, to],
       ).catch(() => ({ rows: [] as any[] })),
@@ -4657,7 +4763,10 @@ const ITEMS_REQUIRED = {
     // QuickBooks 2026 P&L (the app itself only holds future-dated bookings, so
     // its event-date revenue understates YTD), blended with already-booked
     // future revenue; net applies the current company margin.
-    const histYtd = business?.latestYear?.revenueFils ?? 0;
+    // Only a P&L row for the CURRENT (Dubai) year is year-to-date — last year's
+    // full-year total must never stand in for this year's YTD.
+    const histYtd = business?.latestYear && String(business.latestYear.year) === String(nowY)
+      ? business.latestYear.revenueFils : 0;
     const ytdRevenue = histYtd > 0 ? histYtd : Number(ytdRes.rows[0].v);
     const bookedFuture = Number(bookedFutureRes.rows[0].v);
     const dayOfYear = Math.max(1, Math.floor((now.getTime() - Date.UTC(nowY, 0, 1)) / 86_400_000) + 1);
@@ -4680,13 +4789,16 @@ const ITEMS_REQUIRED = {
       const net = Math.round(rev * marginRatio);
       return { revenueFils: rev, revenueDisplay: formatAed(rev), netFils: net, netDisplay: formatAed(net) };
     };
+    // ytdRevenue counts receipts by BOOKING date, so money already booked for
+    // future parties (bookedFuture) is ALREADY inside it — adding it again would
+    // double count. Scenarios are YTD + run-rate; bookedFuture is shown as info.
     const forecast = ytdRevenue > 0 ? {
       ytdRevenueFils: ytdRevenue, ytdRevenueDisplay: formatAed(ytdRevenue),
       bookedFutureFils: bookedFuture, bookedFutureDisplay: formatAed(bookedFuture),
       marginPct: Math.round(marginRatio * 1000) / 10,
-      conservative: mkScenario(bookedFuture),
-      expected: mkScenario(Math.max(bookedFuture, runRateRemaining)),
-      optimistic: mkScenario(Math.round(Math.max(bookedFuture, runRateRemaining) * 1.15)),
+      conservative: mkScenario(Math.round(runRateRemaining * 0.85)),
+      expected: mkScenario(runRateRemaining),
+      optimistic: mkScenario(Math.round(runRateRemaining * 1.15)),
     } : null;
 
     // Prioritised alerts (Critical → High → Medium → Low).
@@ -5076,7 +5188,8 @@ const ITEMS_REQUIRED = {
 
   /* ------------------------------ Team ---------------------------- */
 
-  app.get('/api/admin/team', async () => {
+  app.get('/api/admin/team', async (request) => {
+    const isOwner = (request as any).staff?.role === 'owner';
     const { rows } = await pool.query(
       `SELECT m.*,
               w.ym            AS warning_ym,
@@ -5088,16 +5201,20 @@ const ITEMS_REQUIRED = {
               w.salary_deduction_pct AS warning_salary_deduction_pct,
               (SELECT json_agg(json_build_object('eventId', et.event_id, 'date', e.event_date))
                  FROM event_team et JOIN events e ON e.id = et.event_id
-                WHERE et.member_id = m.id AND e.event_date >= CURRENT_DATE) AS assignments
+                WHERE et.member_id = m.id AND e.event_date >= (now() AT TIME ZONE 'Asia/Dubai')::date) AS assignments
          FROM team_members m
          LEFT JOIN staff_warnings w
-           ON w.member_id = m.id AND w.ym = to_char(now(),'YYYY-MM')
+           ON w.member_id = m.id AND w.ym = to_char(now() AT TIME ZONE 'Asia/Dubai','YYYY-MM')
          ORDER BY m.name`,
     );
     // Never expose auth credentials over the wire. `SELECT m.*` includes the
     // login access_token (a valid credential — a manager could auth as anyone,
     // incl. an owner) and the password_hash. Strip both before returning.
-    for (const r of rows) { delete (r as any).access_token; delete (r as any).password_hash; }
+    // Salary notes are the owner's alone.
+    for (const r of rows) {
+      delete (r as any).access_token; delete (r as any).password_hash;
+      if (!isOwner) delete (r as any).salary_increment_note;
+    }
     return rows;
   });
 
@@ -5459,7 +5576,7 @@ const ITEMS_REQUIRED = {
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const issued = p.data.issuedDate ?? null;
     // Default the points-month to the issue date's month (else the current month).
-    const ym = p.data.ym ?? (issued ? issued.slice(0, 7) : new Date().toISOString().slice(0, 7));
+    const ym = p.data.ym ?? (issued ? issued.slice(0, 7) : dubaiMonthYm());
     const affectsPoints = p.data.affectsPoints !== false; // default true
     await pool.query(
       `INSERT INTO staff_warnings (member_id, ym, reason, affects_points, wtype, issued_date, valid_until, salary_deduction_pct, created_by)
@@ -5479,7 +5596,7 @@ const ITEMS_REQUIRED = {
     const s = (request as any).staff;
     if (s?.role !== 'owner' && s?.role !== 'manager') return reply.status(403).send({ error: 'forbidden' });
     const { id } = request.params as { id: string };
-    const ym = ((request.query as any)?.ym as string) || new Date().toISOString().slice(0, 7);
+    const ym = ((request.query as any)?.ym as string) || dubaiMonthYm();
     await pool.query(`DELETE FROM staff_warnings WHERE member_id = $1 AND ym = $2`, [id, ym]);
     return { ok: true };
   });
@@ -6193,7 +6310,8 @@ const ITEMS_REQUIRED = {
         leadsToday: Number(leads.rows[0].today),
         leadsWeek: Number(leads.rows[0].week),
         bookingsToday: Number(money.rows[0].n),
-        bookingsTodayAed: formatAed(Number(money.rows[0].v)),
+        // Today's money in is company income → the owner only.
+        bookingsTodayAed: staff.role === 'owner' ? formatAed(Number(money.rows[0].v)) : null,
         adsTodayAed: adsToday > 0 ? formatAed(adsToday) : null,
         adsMonthAed: formatAed(adsMonth),
         awaitingCount: Number(awaiting.rows[0].n),
@@ -6719,7 +6837,9 @@ const ITEMS_REQUIRED = {
     const id = Number((request.params as { id: string }).id);
     const schema = z.object({
       scheduledFor: z.string().datetime().nullable().optional(),
-      status: z.enum(['draft', 'scheduled']).optional(),
+      // Only back to 'draft'. A PATCH can never schedule/approve a campaign —
+      // marketing emails go out only after the owner approves (/approve).
+      status: z.enum(['draft']).optional(),
       subject: z.string().min(1).max(300).optional(),
       bodyHtml: z.string().min(1).optional(),
       audience: z.string().max(4000).refine(
@@ -6733,9 +6853,13 @@ const ITEMS_REQUIRED = {
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     const d = parsed.data;
-    const status = d.status ?? (d.scheduledFor ? 'scheduled' : undefined);
-    // Copy edits are allowed while a campaign is still a draft or awaiting
-    // approval; schedule/status changes stay limited to draft/scheduled.
+    // Status is left unchanged unless explicitly reset to draft (a scheduledFor
+    // change alone never promotes a draft/pending campaign to 'scheduled').
+    const status = d.status;
+    // Copy edits (subject / body / audience) only while the campaign is still a
+    // draft or awaiting approval — never after the owner approved/scheduled it.
+    const copyEdit = d.subject !== undefined || d.bodyHtml !== undefined || d.audience !== undefined;
+    const allowed = copyEdit ? `('draft','pending_approval')` : `('draft','scheduled','pending_approval')`;
     const { rows } = await pool.query(
       `UPDATE email_campaigns
           SET scheduled_for = COALESCE($2, scheduled_for),
@@ -6743,7 +6867,7 @@ const ITEMS_REQUIRED = {
               subject = COALESCE($4, subject),
               body_html = COALESCE($5, body_html),
               audience = COALESCE($6, audience)
-        WHERE id = $1 AND status IN ('draft','scheduled','pending_approval') RETURNING *`,
+        WHERE id = $1 AND status IN ${allowed} RETURNING *`,
       [id, d.scheduledFor ?? null, status ?? null, d.subject ?? null, d.bodyHtml ?? null, d.audience ?? null],
     );
     if (!rows[0]) return reply.status(404).send({ error: 'not_found' });

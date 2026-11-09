@@ -270,6 +270,7 @@ export async function sendWhatsAppText(args: {
 
   try {
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
       method: 'POST',
       headers: {
         authorization: `Bearer ${config.whatsapp.accessToken}`,
@@ -314,11 +315,12 @@ export async function sendWhatsAppTemplate(args: {
     `/${config.whatsapp.phoneNumberId}/messages`;
 
   const components = args.params && args.params.length
-    ? [{ type: 'body', parameters: args.params.map((t) => ({ type: 'text', text: String(t).replace(/\s{4,}/g, '   ').slice(0, 900) })) }]
+    ? [{ type: 'body', parameters: args.params.map((t) => ({ type: 'text', text: String(t).replace(/[\r\n\t]+/g, ' • ').replace(/\s{4,}/g, '   ').slice(0, 900) })) }]
     : [];
 
   try {
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
       method: 'POST',
       headers: {
         authorization: `Bearer ${config.whatsapp.accessToken}`,

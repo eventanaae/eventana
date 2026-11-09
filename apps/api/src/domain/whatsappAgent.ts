@@ -138,7 +138,34 @@ async function aiWithinBudget(phone: string): Promise<boolean> {
       [phone],
     )
     .catch(() => ({ rows: [{ n: 0 }] }));
-  return (res.rows[0]?.n ?? 0) < 15;
+  if ((res.rows[0]?.n ?? 0) >= 15) return false;
+  // Global ceiling across ALL phones, so a burst of chats (or a loop) can't run
+  // up an unbounded AI bill. Over it, the rule-based reply is used instead.
+  const all = await pool
+    .query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM whatsapp_messages
+        WHERE direction = 'out' AND sent_by = 'agent'
+          AND created_at > now() - interval '1 hour'`,
+    )
+    .catch(() => ({ rows: [{ n: Number.MAX_SAFE_INTEGER }] }));
+  return (all.rows[0]?.n ?? 0) < AI_GLOBAL_HOURLY_CAP;
+}
+
+const AI_GLOBAL_HOURLY_CAP = 200;
+
+/** A human on the team has written to this phone in the last 24h → the bot
+ *  stays quiet so it never talks over (or contradicts) a staff conversation. */
+async function staffActiveRecently(phone: string): Promise<boolean> {
+  const res = await pool
+    .query(
+      `SELECT 1 FROM whatsapp_messages
+        WHERE phone = $1 AND direction = 'out' AND sent_by = 'staff'
+          AND created_at > now() - interval '24 hours'
+        LIMIT 1`,
+      [phone],
+    )
+    .catch(() => ({ rowCount: 1 })); // unsure → stay quiet
+  return (res.rowCount ?? 0) > 0;
 }
 
 /**
@@ -193,6 +220,7 @@ export async function respondToLead(
 ): Promise<AgentOutcome> {
   const mode = agentMode();
   if (mode === 'off') return { replied: false, handoff: false };
+  if (await staffActiveRecently(msg.phone)) return { replied: false, handoff: false };
 
   const ar = isArabic(msg.text) || !msg.text;
 

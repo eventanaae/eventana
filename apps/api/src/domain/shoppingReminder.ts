@@ -93,7 +93,7 @@ export async function sweepShoppingListReminders(): Promise<number> {
  */
 export async function sweepDriverShoppingList(): Promise<number> {
   const { dow, hr } = await dubaiNow();
-  if (dow !== 3 || hr < 9 || hr >= 11) return 0; // Wednesday, 09:00–10:59
+  if (dow !== 3 || hr < 10 || hr >= 12) return 0; // Wednesday, 10:00–11:59 (staff hours start 10:00)
   if (await sentToday('driver_shopping_list')) return 0;
 
   const { rows: items } = await pool.query<{ item: string; quantity: number; supplier: string | null; location: string | null }>(
@@ -103,8 +103,8 @@ export async function sweepDriverShoppingList(): Promise<number> {
   );
   if (items.length === 0) return 0;
 
-  const drv = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND name ILIKE 'shan%' LIMIT 1`);
-  if (!drv.rows[0]) return 0;
+  const drv = await pool.query<{ id: string }>(`SELECT id FROM team_members WHERE active AND access_level = 'driver' ORDER BY name`);
+  if (!drv.rows.length) return 0;
 
   // Group by supplier + location so each stop is one block.
   const groups = new Map<string, { supplier: string; location: string | null; lines: string[] }>();
@@ -120,16 +120,16 @@ export async function sweepDriverShoppingList(): Promise<number> {
     .join('\n\n');
   const headline = `🛒 Today's shopping run — ${items.length} item(s), sorted by shop & location:`;
 
-  await staffWhatsApp(headline, details, drv.rows[0].id);
+  for (const d of drv.rows) await staffWhatsApp(headline, details, d.id);
   await markSent('driver_shopping_list', { items: items.length });
-  console.log(`[driver-shopping] sent Shan the organised list (${items.length} item(s))`);
+  console.log(`[driver-shopping] sent ${drv.rows.length} driver(s) the organised list (${items.length} item(s))`);
   return 1;
 }
 
 /** A warm break-and-recharge message to each member whose day off is today. */
 export async function sweepDayOffMessage(): Promise<number> {
   const { dow, hr } = await dubaiNow();
-  if (hr < 9 || hr >= 11) return 0;
+  if (hr < 10 || hr >= 12) return 0; // staff hours start 10:00 Dubai
   if (await sentToday('team_dayoff_wellbeing')) return 0;
 
   const { rows } = await pool.query<{ id: string; name: string; phone: string }>(

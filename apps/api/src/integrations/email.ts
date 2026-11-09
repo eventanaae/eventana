@@ -55,6 +55,7 @@ export async function sendEmail(args: {
   ));
   try {
     const res = await fetch('https://api.resend.com/emails', {
+      signal: AbortSignal.timeout(15000),
       method: 'POST',
       headers: {
         authorization: `Bearer ${config.email.resendApiKey}`,

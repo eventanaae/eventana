@@ -30,7 +30,7 @@ import { recordSaleFromOrder } from './finance.js';
 import { markOfferUsed } from './offers.js';
 import { INCENTIVE_EXCLUDED } from './incentives.js';
 import { recordReferralEvent } from './staffReferral.js';
-import { pool } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
 
 export interface ConfirmResult {
   /** Null for orders that create no event (e.g. standalone shop orders). */
@@ -601,7 +601,9 @@ export async function confirmBooking(
     if (disc.promo) {
       await db.query(
         `INSERT INTO promo_redemptions (code, customer_id, order_id, amount_fils)
-         VALUES ($1,$2,$3,$4) ON CONFLICT (code, customer_id) DO NOTHING`,
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (code, customer_id) DO UPDATE
+           SET order_id = EXCLUDED.order_id, amount_fils = EXCLUDED.amount_fils`,
         [disc.promo.code, order.customer_id, order.id, disc.promo.amountFils],
       );
       await db.query(`UPDATE promo_codes SET uses = uses + 1 WHERE code = $1`, [disc.promo.code]);
@@ -758,20 +760,32 @@ async function applyAddonOrder(db: PoolClient, order: any, rules: PricingRules):
     await recordSaleFromOrder(db, order);
   }
 
-  if (extraHours > 0) {
-    const totalExtra = event.extra_hours + extraHours;
-    // Preserve the event's ORIGINAL base length (4h, or 6h for a decor/inflatable
-    // BYO) — don't let eventEndHour fall back to the 4h default, which would
-    // silently shrink a 6h party the customer just PAID to extend. parseEndHour
-    // so a midnight "24:00" base reads as 24, not NaN.
-    const origBase = parseEndHour(event.base_end_time) - parseHour(event.start_time) - (event.extra_hours ?? 0);
-    const baseHours = Number.isFinite(origBase) && origBase > 0 ? origBase : rules.standardEventHours;
-    const newEnd = eventEndHour(event.start_time, rules, totalExtra, baseHours);
-    if (newEnd > rules.latestEndHour) {
-      throw new Error(
-        `Add-on ${order.id} would extend event ${eventId} past ${formatHour(rules.latestEndHour)}`,
-      );
-    }
+  // Preserve the event's ORIGINAL base length (4h, or 6h for a decor/inflatable
+  // BYO) — don't let eventEndHour fall back to the 4h default, which would
+  // silently shrink a 6h party the customer just PAID to extend. parseEndHour
+  // so a midnight "24:00" base reads as 24, not NaN.
+  const totalExtra = event.extra_hours + extraHours;
+  const origBase = parseEndHour(event.base_end_time) - parseHour(event.start_time) - (event.extra_hours ?? 0);
+  const baseHours = Number.isFinite(origBase) && origBase > 0 ? origBase : rules.standardEventHours;
+  const newEnd = eventEndHour(event.start_time, rules, totalExtra, baseHours);
+  if (extraHours > 0 && newEnd > rules.latestEndHour) {
+    // The add-on is PAID — never throw (that would roll back a real payment's
+    // confirmation). Its services are recorded above; skip only the extension
+    // and hand the overrun to a human (refund the hour or agree a new time).
+    await db.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       VALUES ($1,'ops_alert','addon_overrun', now(), $2)`,
+      [
+        eventId,
+        JSON.stringify({
+          orderId: order.id,
+          eventId,
+          extraHours,
+          note: `Add-on would extend the event past ${formatHour(rules.latestEndHour)} — extension NOT applied; refund the extra hour(s) or agree a new time.`,
+        }),
+      ],
+    );
+  } else if (extraHours > 0) {
     await db.query(
       `UPDATE events SET extra_hours = $2, base_end_time = $3 WHERE id = $1`,
       [eventId, totalExtra, formatHour24(newEnd)],
@@ -884,18 +898,24 @@ export async function splitPendingPoolTips(): Promise<number> {
     const base = Math.floor(total / crew.length);
     const rem = total - base * crew.length;
     // Claim the pool row by deleting it FIRST; if the delete matched nothing,
-    // another run already split it — skip so we never double-credit.
-    const del = await pool.query(`DELETE FROM tips WHERE order_id = $1 AND member_id IS NULL`, [p.order_id]).catch(() => ({ rowCount: 0 }));
-    if (!del.rowCount) continue;
-    for (let i = 0; i < crew.length; i++) {
-      const share = base + (i < rem ? 1 : 0);
-      if (share <= 0) continue;
-      await pool.query(
-        `INSERT INTO tips (event_id, order_id, member_id, amount_fils, status, paid_at)
-         VALUES ($1,$2,$3,$4,'paid', now())`,
-        [p.event_id, i === 0 ? p.order_id : null, crew[i].id, share],
-      ).catch(() => {});
-    }
+    // another run already split it — skip so we never double-credit. Delete and
+    // the per-crew inserts commit together: a failed insert rolls the delete back
+    // (and propagates) instead of silently losing the tip.
+    const did = await withTransaction(async (db) => {
+      const del = await db.query(`DELETE FROM tips WHERE order_id = $1 AND member_id IS NULL`, [p.order_id]);
+      if (!del.rowCount) return false;
+      for (let i = 0; i < crew.length; i++) {
+        const share = base + (i < rem ? 1 : 0);
+        if (share <= 0) continue;
+        await db.query(
+          `INSERT INTO tips (event_id, order_id, member_id, amount_fils, status, paid_at)
+           VALUES ($1,$2,$3,$4,'paid', now())`,
+          [p.event_id, i === 0 ? p.order_id : null, crew[i].id, share],
+        );
+      }
+      return true;
+    });
+    if (!did) continue;
     split++;
   }
   if (split) console.log(`[tips] re-split ${split} pooled tip(s) now that crew is assigned`);

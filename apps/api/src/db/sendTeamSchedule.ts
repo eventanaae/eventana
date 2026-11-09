@@ -4,7 +4,7 @@
  * falls back to the business inbox). Logs who got it and who has no email.
  * English — the crew reads English. Turn the flag off after it sends.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
 const NAMES = ['Shan', 'Marsha', 'Jane', 'Diana', 'Gloria', 'Dindo', 'Sheem'];
@@ -67,6 +67,8 @@ function scheduleHtml(): string {
 
 export async function sendTeamScheduleFromEnv(): Promise<void> {
   if (String(process.env.SEND_TEAM_SCHEDULE ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:SEND_TEAM_SCHEDULE:true'))) return;
   if (!emailEnabled()) { console.log('[team-schedule] email disabled'); return; }
   const { rows } = await pool.query<{ name: string; email: string | null }>(
     `SELECT name, email FROM team_members WHERE lower(name) = ANY($1)`,

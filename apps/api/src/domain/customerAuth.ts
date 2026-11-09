@@ -11,7 +11,7 @@
  * lookup, no session table. It reuses the server-side staff secret so no new
  * key needs provisioning.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 
 function sign(body: string): string {
@@ -113,15 +113,29 @@ export function customerFromRequest(request: {
 
 /** How long a password-reset link stays valid. */
 const RESET_TTL_MS = 30 * 60_000;
+/** How long a "claim your account" link (guest record → real account) stays valid. */
+const CLAIM_TTL_MS = 24 * 60 * 60_000;
 
-/** A short-lived, signed password-reset token (distinct from a session token). */
-export function issueResetToken(customerId: string): string {
-  const body = Buffer.from(`reset:${customerId}:${Date.now()}`).toString('base64url');
+/**
+ * A short fingerprint of the account's CURRENT password hash ('' when none).
+ * Embedded in reset/claim tokens and re-checked on use, so a token stops
+ * working the moment a password is set — i.e. every link is single-use.
+ */
+export function passwordFingerprint(passwordHash: string | null | undefined): string {
+  return createHash('sha256').update(`pwfp:${passwordHash ?? ''}`).digest('base64url').slice(0, 16);
+}
+
+/** A short-lived, signed password-reset (or account-claim) token, bound to the
+ *  password hash at issue time (distinct from a session token). */
+export function issueResetToken(customerId: string, passwordHash: string | null, kind: 'reset' | 'claim' = 'reset'): string {
+  const body = Buffer.from(`${kind}:${customerId}:${Date.now()}:${passwordFingerprint(passwordHash)}`).toString('base64url');
   return `${body}.${sign(body)}`;
 }
 
-/** Return the customer id iff the reset token verifies and hasn't expired. */
-export function verifyResetToken(token: string | undefined | null): string | null {
+/** Return the customer id + the password fingerprint the token was issued
+ *  against iff the token verifies and hasn't expired. The caller MUST compare
+ *  `fp` with passwordFingerprint(current password_hash) before using it. */
+export function verifyResetToken(token: string | undefined | null): { customerId: string; fp: string; kind: 'reset' | 'claim' } | null {
   if (!token) return null;
   const dot = token.lastIndexOf('.');
   if (dot < 1) return null;
@@ -131,10 +145,12 @@ export function verifyResetToken(token: string | undefined | null): string | nul
   const b = Buffer.from(sign(body));
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
-    const [kind, cid, issued] = Buffer.from(body, 'base64url').toString('utf8').split(':');
-    if (kind !== 'reset' || !cid) return null;
-    if (Date.now() - Number(issued) > RESET_TTL_MS) return null;
-    return cid;
+    const [kind, cid, issued, fp] = Buffer.from(body, 'base64url').toString('utf8').split(':');
+    if ((kind !== 'reset' && kind !== 'claim') || !cid || !fp) return null;
+    const ttl = kind === 'claim' ? CLAIM_TTL_MS : RESET_TTL_MS;
+    const issuedAt = Number(issued);
+    if (!Number.isFinite(issuedAt) || Date.now() - issuedAt > ttl) return null;
+    return { customerId: cid, fp, kind };
   } catch {
     return null;
   }

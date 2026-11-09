@@ -52,6 +52,12 @@ export function mapStripeSessionStatus(status: string, paymentStatus?: string): 
   return 'needs_review';
 }
 
+/** Refunded total (fils) from a session expanded with payment_intent.latest_charge. */
+function chargeRefundedFils(session: any): number {
+  const charge = session?.payment_intent?.latest_charge;
+  return charge && typeof charge === 'object' ? Number(charge.amount_refunded ?? 0) : 0;
+}
+
 export class StripeProvider implements PaymentProvider {
   readonly name = 'stripe' as const;
   readonly label = 'Card / Apple Pay';
@@ -65,7 +71,7 @@ export class StripeProvider implements PaymentProvider {
 
   private async api(
     path: string,
-    init: { method: string; body?: Record<string, unknown> },
+    init: { method: string; body?: Record<string, unknown>; idempotencyKey?: string },
   ): Promise<any> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20_000);
@@ -80,6 +86,7 @@ export class StripeProvider implements PaymentProvider {
           // Embedded Checkout ('embedded' + Stripe.js initEmbeddedCheckout)
           // working exactly as implemented, regardless of the account default.
           'stripe-version': '2024-06-20',
+          ...(init.idempotencyKey ? { 'idempotency-key': init.idempotencyKey } : {}),
         },
         body: init.body ? formEncode(init.body).join('&') : undefined,
         signal: controller.signal,
@@ -152,16 +159,11 @@ export class StripeProvider implements PaymentProvider {
   }
 
   async retrievePayment(sessionId: string): Promise<RetrieveResult> {
-    const session = await this.api(
-      `checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=payment_intent`,
-      { method: 'GET' },
-    );
+    const session = await this.getSession(sessionId);
     const providerStatus = String(session?.status ?? 'unknown');
     const status = mapStripeSessionStatus(providerStatus, session?.payment_status);
     const amountFils = Number(session?.amount_total ?? 0);
-    const pi = session?.payment_intent;
-    const refundedFils =
-      pi && typeof pi === 'object' ? Number((pi as any).amount_refunded ?? 0) : 0;
+    const refundedFils = chargeRefundedFils(session);
     return {
       providerPaymentId: sessionId,
       providerStatus: `${providerStatus}/${session?.payment_status ?? ''}`,
@@ -173,19 +175,35 @@ export class StripeProvider implements PaymentProvider {
     };
   }
 
-  async refund(sessionId: string, amountFils: number, reason: string): Promise<RetrieveResult> {
-    // The refund is issued against the session's payment intent.
-    const session = await this.api(
-      `checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=payment_intent`,
+  /** The session with its payment intent AND that intent's charge: the refunded
+   *  total lives on the charge (`amount_refunded`), not on the PaymentIntent. */
+  private getSession(sessionId: string): Promise<any> {
+    return this.api(
+      `checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=payment_intent.latest_charge`,
       { method: 'GET' },
     );
+  }
+
+  async refund(
+    sessionId: string,
+    amountFils: number,
+    reason: string,
+    alreadyRefundedFils?: number,
+  ): Promise<RetrieveResult> {
+    // The refund is issued against the session's payment intent.
+    const session = await this.getSession(sessionId);
     const pi = session?.payment_intent;
     const paymentIntentId = typeof pi === 'string' ? pi : pi?.id;
     if (!paymentIntentId) {
       throw new ProviderError('stripe: no payment intent to refund', 'stripe', 409);
     }
+    // Keyed on the refunded total BEFORE this refund: a network retry of the same
+    // request is collapsed by Stripe, while a second, equal partial refund (taken
+    // after the first landed) carries a different key and is not swallowed.
+    const already = alreadyRefundedFils ?? chargeRefundedFils(session);
     await this.api('refunds', {
       method: 'POST',
+      idempotencyKey: `${paymentIntentId}-${already}-${amountFils}`,
       body: {
         payment_intent: paymentIntentId,
         amount: amountFils,

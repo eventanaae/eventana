@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SHOP_DRAWING_IDS, effectiveEventHours } from '@eventana/shared';
 import { api, type CheckoutTotalPreview } from '../api';
 import { trackInitiateCheckout } from '../attribution';
@@ -91,6 +91,8 @@ export function Checkout({
 }) {
   const [times, setTimes] = useState<Array<{ value: string; allowed: boolean }>>([]);
   const [paying, setPaying] = useState(false);
+  // The current checkout attempt's idempotency key (see pay()).
+  const attemptRef = useRef<{ fp: string; key: string } | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -258,7 +260,11 @@ export function Checkout({
       saveAccount(acc);
       setAccount(acc);
     } catch (e: any) {
-      setAuthError(e?.body?.message ?? e?.message ?? t('checkout.authError'));
+      setAuthError(
+        e?.body?.error === 'claim_email_sent'
+          ? t('auth.claimSent')
+          : e?.body?.message ?? e?.message ?? t('checkout.authError'),
+      );
     } finally {
       setAuthBusy(false);
     }
@@ -476,6 +482,20 @@ export function Checkout({
   const pay = async () => {
     setPaying(true);
     setError(null);
+    // One idempotency key per checkout ATTEMPT: re-tapping Pay for the same cart,
+    // method and discounts reuses it, so the server answers with the order it
+    // already created instead of minting (and charging) a second one. Any change
+    // to what is being bought starts a new attempt with a new key.
+    const cartPayload = toCart(draft);
+    const discountChoice = { promoCode: promo?.code ?? null, useCredit, redeemPoints };
+    const fp = JSON.stringify([cartPayload, draft.provider, discountChoice, draft.offerToken ?? null]);
+    if (!attemptRef.current || attemptRef.current.fp !== fp) {
+      attemptRef.current = {
+        fp,
+        key: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      };
+    }
+    const idempotencyKey = attemptRef.current.key;
     try {
       // Not signed in: either create the opt-in account first (so this booking
       // is under it and earns points + a voucher), or check out as a guest.
@@ -486,18 +506,25 @@ export function Checkout({
           backupPhone: backupN ?? reg.backupPhone.trim(), email: reg.email.trim(),
         };
         if (wantAccount) {
-          const acc = await api.register({ ...g, password: reg.password, referralCode: reg.referralCode.trim() || undefined });
-          saveAccount(acc);
-          setAccount(acc);
+          try {
+            const acc = await api.register({ ...g, password: reg.password, referralCode: reg.referralCode.trim() || undefined });
+            saveAccount(acc);
+            setAccount(acc);
+          } catch (e: any) {
+            // This email already has past bookings: we emailed a link to finish
+            // the account. Don't block the booking — continue as a guest (it
+            // joins the same record) and they set their password from the email.
+            if (e?.body?.error !== 'claim_email_sent') throw e;
+            guest = g;
+          }
         } else {
           guest = g;
         }
       }
-      const result = await api.checkout(toCart(draft), draft.provider, {
-        promoCode: promo?.code ?? null,
-        useCredit,
-        redeemPoints,
-      }, agreed, guest, draft.offerToken);
+      const result = await api.checkout(cartPayload, draft.provider, discountChoice, agreed, guest, draft.offerToken, idempotencyKey);
+      // The server answered definitively (a declined order is already failed and
+      // its key freed), so the next tap is a new attempt.
+      attemptRef.current = null;
       if (!result.eligible || (!result.embeddedUrl && !result.checkoutUrl && !result.clientSecret)) {
         setError(t('checkout.providerUnavailable', { provider: draft.provider }));
         setPaying(false);
@@ -527,8 +554,17 @@ export function Checkout({
         onOrder(result.orderId, result.embeddedUrl, result.orderToken);
       }
     } catch (e: any) {
+      // This attempt already created an order (e.g. the first response was lost):
+      // resume that order rather than starting another.
+      const dupe = e?.body?.error === 'duplicate_request' ? e.body.details : null;
+      if (dupe?.orderId && dupe?.orderToken) {
+        attemptRef.current = null;
+        onOrder(dupe.orderId, undefined, dupe.orderToken);
+        return;
+      }
       // A thrown fetch (no server body) is a connection problem — show a clear,
-      // localised message instead of the browser's raw "Load failed".
+      // localised message instead of the browser's raw "Load failed". The key is
+      // kept, so re-tapping Pay safely reuses this attempt.
       setError(e?.body?.message ?? (e?.body ? e.message : t('checkout.network')));
       setPaying(false);
     }

@@ -3,12 +3,12 @@
  *
  * Set TEAM_SEED to a JSON array of members and they are upserted (matched by
  * name) on boot — used to load real staff and their birthdays without ever
- * committing personal data to the repo. Idempotent: existing members keep
- * their id/token and just have their birthday/role refreshed.
+ * committing personal data to the repo. Each entry applies ONCE (app_kv
+ * marker): existing members keep their id/token and later in-app edits win.
  *
  *   TEAM_SEED='[{"name":"Sheem","birthday":"1995-10-12"}, ...]'
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 
 interface SeedMember {
   name: string;
@@ -40,6 +40,12 @@ export async function seedTeamFromEnv(): Promise<void> {
     const id = `tm-${m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
     const color = m.color ?? PALETTE[i % PALETTE.length];
     i++;
+
+    // One-time per seed entry (app_kv marker, written first): re-applied on
+    // every boot it overwrote phones the owner corrected in the app and
+    // re-created members she had deleted. A changed entry applies once.
+    const seedKey = `team_seed:${m.name.toLowerCase()}:${m.birthday ?? ''}:${m.phone ?? ''}:${m.accessLevel ?? ''}:${m.role ?? ''}`;
+    if (!(await claimOneShot(seedKey))) continue;
 
     // Create only if no member with this name exists yet.
     await pool.query(

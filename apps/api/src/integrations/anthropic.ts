@@ -25,6 +25,7 @@ export async function generateText(args: {
   if (!config.anthropic.apiKey) return null;
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
+      signal: AbortSignal.timeout(30000),
       method: 'POST',
       headers: {
         'x-api-key': config.anthropic.apiKey,

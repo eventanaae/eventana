@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { createHash } from 'node:crypto';
 import { config } from '../config.js';
 
 /**
@@ -36,6 +37,11 @@ export const pool = new pg.Pool({
   max: Number(process.env.DATABASE_POOL_MAX ?? 10),
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 15_000,
+  // Session time zone = Dubai (UTC+4, no DST), so current_date, now()::date,
+  // date_trunc(..., now()) and to_char(timestamptz) give the Dubai calendar day
+  // the business runs on, not UTC. timestamptz values themselves are absolute
+  // and unaffected; code that needs UTC text must say AT TIME ZONE 'UTC'.
+  options: '-c timezone=Asia/Dubai',
 });
 
 // A pooled client can die between checkouts (a managed database restart,
@@ -69,6 +75,36 @@ export async function withTransaction<T>(fn: (client: pg.PoolClient) => Promise<
     throw err;
   } finally {
     client.release();
+  }
+}
+
+/**
+ * One-time guard for env-gated boot one-shots. Claims `app_kv` key `key` by
+ * writing the marker FIRST (atomic INSERT … ON CONFLICT DO NOTHING), and returns
+ * true only to the caller that wrote it — so a one-shot whose env var is left
+ * set does not repeat on every boot/deploy, and two instances booting at once
+ * cannot both run it. Include the env value in the key so a NEW value runs once.
+ * If the marker cannot be read/written (DB error), returns false: skip, never
+ * risk a repeat.
+ */
+export async function claimOneShot(rawKey: string): Promise<boolean> {
+  // Keep the primary key short even when the env value is long (e.g. SET_BOOKED).
+  const key = rawKey.length > 200
+    ? `${rawKey.slice(0, 120)}#${createHash('sha256').update(rawKey).digest('hex')}`
+    : rawKey;
+  try {
+    const r = await pool.query(
+      `INSERT INTO app_kv (k, v) VALUES ($1, now()) ON CONFLICT (k) DO NOTHING RETURNING k`,
+      [key],
+    );
+    if (!r.rowCount) {
+      console.log(`[one-shot] ${key} already ran — skipping (unset its env var).`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`[one-shot] ${key} marker check failed — skipping:`, (err as Error).message);
+    return false;
   }
 }
 

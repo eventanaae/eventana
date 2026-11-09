@@ -6,7 +6,7 @@
  * Gated by EMAIL_GLORIA_POINTS=true; resolves her address from team_members
  * (fallback to the known gmail). Turn the flag off after it sends.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
 const GLORIA_FALLBACK = 'daphinegloria@gmail.com';
@@ -62,6 +62,8 @@ function bodyHtml(first: string): string {
 
 export async function sendGloriaPointsEmailFromEnv(): Promise<void> {
   if (String(process.env.EMAIL_GLORIA_POINTS ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:EMAIL_GLORIA_POINTS:true'))) return;
   if (!emailEnabled()) { console.log('[gloria-email] email disabled'); return; }
   const { rows } = await pool.query<{ name: string | null; email: string | null }>(
     `SELECT name, email FROM team_members WHERE lower(name) LIKE 'gloria%' OR lower(name) LIKE '% gloria%' LIMIT 1`,

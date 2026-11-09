@@ -16,7 +16,7 @@ import { clientIp } from '../util/clientIp.js';
 import { pushToOwner } from '../integrations/push.js';
 import {
   hashPassword, verifyPassword, issueStaffSession,
-  issueStaffSetupToken, verifyStaffSetupToken, passwordProblem,
+  issueStaffSetupToken, verifyStaffSetupToken, passwordProblem, staffPasswordFingerprint,
 } from '../domain/staffAuth.js';
 
 export function buildSetupLink(token: string): string {
@@ -100,12 +100,13 @@ export async function staffAuthRoutes(app: FastifyInstance) {
     const p = z.object({ email: z.string().email() }).safeParse(request.body);
     if (!p.success) return reply.status(400).send({ error: 'invalid_request' });
     const { rows } = await pool.query(
-      `SELECT id, name, email FROM team_members WHERE lower(email) = lower($1) AND active LIMIT 1`,
+      `SELECT id, name, email, password_hash FROM team_members WHERE lower(email) = lower($1) AND active LIMIT 1`,
       [p.data.email],
     );
     const m = rows[0];
     if (m) {
-      const token = issueStaffSetupToken(m.id, 'reset');
+      // Bound to the current password hash → the link is single-use.
+      const token = issueStaffSetupToken(m.id, 'reset', m.password_hash ?? null);
       await sendStaffSetupEmail({ name: m.name, email: m.email, token, kind: 'reset' });
       logAudit({ actor: m.name, action: 'password_reset_requested', target: m.id });
     }
@@ -120,15 +121,32 @@ export async function staffAuthRoutes(app: FastifyInstance) {
     if (!parsed) return reply.status(400).send({ error: 'invalid_or_expired', message: 'This link is invalid or has expired. Ask the owner for a new one.' });
     const problem = passwordProblem(p.data.password);
     if (problem) return reply.status(400).send({ error: 'weak_password', message: problem });
+    // Single-use: the token must still match the member's CURRENT password. A
+    // fingerprinted token stops working once any password is set; an older,
+    // un-fingerprinted invite only works while no password has been set yet.
+    const cur = await pool.query<{ password_hash: string | null; must_set_password: boolean }>(
+      `SELECT password_hash, must_set_password FROM team_members WHERE id = $1 AND active`,
+      [parsed.memberId],
+    );
+    const row = cur.rows[0];
+    if (!row) return reply.status(404).send({ error: 'not_found' });
+    const stillValid = parsed.fp
+      ? parsed.fp === staffPasswordFingerprint(row.password_hash)
+      : (!row.password_hash || row.must_set_password);
+    if (!stillValid) {
+      return reply.status(400).send({ error: 'invalid_or_expired', message: 'This link has already been used or has expired. Ask the owner for a new one.' });
+    }
+    // Compare-and-set on the hash we just checked, so two concurrent uses of the
+    // same link can't both succeed.
     const { rows } = await pool.query(
       `UPDATE team_members
           SET password_hash = $2, email_verified = TRUE, must_set_password = FALSE
-        WHERE id = $1 AND active
+        WHERE id = $1 AND active AND password_hash IS NOT DISTINCT FROM $3
         RETURNING id, name, email, access_level`,
-      [parsed.memberId, hashPassword(p.data.password)],
+      [parsed.memberId, hashPassword(p.data.password), row.password_hash],
     );
     const m = rows[0];
-    if (!m) return reply.status(404).send({ error: 'not_found' });
+    if (!m) return reply.status(400).send({ error: 'invalid_or_expired', message: 'This link has already been used or has expired. Ask the owner for a new one.' });
     logAudit({ actor: m.name, role: m.access_level, action: parsed.kind === 'setup' ? 'password_set' : 'password_reset', target: m.id });
 
     // Tell the owner a team member has activated their account. Shows in the

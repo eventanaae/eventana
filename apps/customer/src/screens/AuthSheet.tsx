@@ -69,6 +69,12 @@ export function AuthSheet({
       });
       onSignedIn(acc);
     } catch (e: any) {
+      if (mode === 'register' && e?.body?.error === 'claim_email_sent') {
+        // Existing guest record: we emailed a link to finish the account.
+        setForgotMsg(t('auth.claimSent'));
+        setBusy(false);
+        return;
+      }
       setError(
         mode === 'register' && e?.body?.error === 'email_taken'
           ? t('auth.emailTaken')

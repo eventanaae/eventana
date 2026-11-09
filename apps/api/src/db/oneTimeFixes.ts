@@ -1,9 +1,9 @@
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 
 /**
  * One-off, idempotent data corrections the owner approved. Safe to run on every
- * boot: each is tightly guarded so it only touches the exact rows it targets and
- * becomes a no-op once applied.
+ * boot: data rewrites are one-time (app_kv markers), so they never revert a
+ * later manual edit.
  */
 export async function runOneTimeFixes(): Promise<void> {
   // dedupeAutoReceipts() removed (owner, 2026-11-10): it silently deleted the
@@ -26,6 +26,9 @@ export async function runOneTimeFixes(): Promise<void> {
  */
 async function syncEventCelebrationFromReceipt(): Promise<void> {
   try {
+    // One-time (app_kv marker, written first): on every boot it would re-apply
+    // the receipt type over an event the owner deliberately set back to "kids".
+    if (!(await claimOneShot('fix_sync_event_celebration_v1'))) return;
     const { rowCount } = await pool.query(
       `UPDATE events e
           SET celebration_type = fr.celebration_type
@@ -64,18 +67,22 @@ async function reclassifyQuickBooksInvoices(): Promise<void> {
 /**
  * Point the invoice & sales-receipt number sequences at the real max already in
  * each table, so a newly-created document always takes the NEXT free number and
- * can never collide with a migrated QuickBooks number. Idempotent (setval to the
- * current max every boot). After a QuickBooks CSV import this re-aligns too.
+ * can never collide with a migrated QuickBooks number. Idempotent, and never
+ * moves a sequence BACKWARDS (GREATEST with its current last_value): if the
+ * highest-numbered document was deleted, its number is not handed out again.
+ * After a QuickBooks CSV import this re-aligns too.
  */
 async function alignFinanceSequences(): Promise<void> {
   try {
     await pool.query(
       `SELECT setval('finance_receipt_seq',
-         GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_receipts WHERE number ~ '^[0-9]+$'), 1), true)`,
+         GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_receipts WHERE number ~ '^[0-9]+$'), 1,
+                  (SELECT last_value FROM finance_receipt_seq)), true)`,
     );
     await pool.query(
       `SELECT setval('finance_invoice_seq',
-         GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_invoices WHERE number ~ '^[0-9]+$'), 1), true)`,
+         GREATEST((SELECT COALESCE(MAX(number::bigint),0) FROM finance_invoices WHERE number ~ '^[0-9]+$'), 1,
+                  (SELECT last_value FROM finance_invoice_seq)), true)`,
     );
   } catch (err) {
     console.error('[fix] alignFinanceSequences failed:', err);
@@ -139,6 +146,9 @@ export async function dedupeAutoReceipts(): Promise<void> {
 async function fixSeededEventTimes(): Promise<void> {
   const ids = ['EV-2026-0204', 'EV-2026-0196', 'EV-2026-0201', 'EV-2026-0202', 'EV-2026-0197', 'EV-2026-0198', 'EV-2026-0199', 'EV-2026-0200'];
   try {
+    // One-time (app_kv marker, written first): re-running on every boot reverted
+    // any of these events the owner later set back to 17:00–21:00.
+    if (!(await claimOneShot('fix_seeded_event_times_v1'))) return;
     const { rows } = await pool.query(
       `UPDATE events SET start_time = '18:00', base_end_time = '22:00'
         WHERE id = ANY($1) AND start_time = '17:00' AND base_end_time = '21:00'

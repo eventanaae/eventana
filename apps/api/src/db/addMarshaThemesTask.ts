@@ -4,7 +4,7 @@
  * email her (CC owner). Gated ADD_MARSHA_THEMES=true. Idempotent by title.
  * Turn the flag off after it runs.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { createManualTask } from '../domain/prep.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
@@ -40,6 +40,8 @@ function html(due: string): string {
 
 export async function addMarshaThemesTaskFromEnv(): Promise<void> {
   if (String(process.env.ADD_MARSHA_THEMES ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:ADD_MARSHA_THEMES:true'))) return;
   const dup = await pool.query(
     `SELECT 1 FROM prep_tasks pt JOIN prep_task_staff pts ON pts.task_id = pt.id
       WHERE pts.member_id = $1 AND pt.category = 'manual' AND pt.title = $2 LIMIT 1`,

@@ -57,6 +57,7 @@ export async function checkCalendarConnection(): Promise<{
     const token = await accessToken(creds.sa);
     const cal = encodeURIComponent(creds.calendarId);
     const res = await fetch(`${API}/${cal}/events?maxResults=1`, {
+      signal: AbortSignal.timeout(15000),
       headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
@@ -86,6 +87,7 @@ async function accessToken(sa: ServiceAccount): Promise<string> {
   const assertion = `${signingInput}.${signature}`;
 
   const res = await fetch(TOKEN_URL, {
+    signal: AbortSignal.timeout(15000),
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -196,6 +198,7 @@ export async function syncEventToCalendar(eventId: string): Promise<void> {
     const existing = ev.google_calendar_event_id as string | null;
     const url = existing ? `${API}/${cal}/events/${existing}` : `${API}/${cal}/events`;
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
       method: existing ? 'PATCH' : 'POST',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify(buildEventBody(ev)),

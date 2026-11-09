@@ -87,6 +87,7 @@ type TokenResponse = { access_token: string; refresh_token?: string; expires_in:
 
 async function postToken(body: URLSearchParams): Promise<TokenResponse> {
   const res = await fetch(TOKEN_URL, {
+    signal: AbortSignal.timeout(15000),
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
     body: body.toString(),
@@ -157,7 +158,7 @@ async function getAccessToken(): Promise<string> {
 
 async function gbGet(url: string): Promise<any> {
   const token = await getAccessToken();
-  const res = await fetch(url, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' } });
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { authorization: `Bearer ${token}`, accept: 'application/json' } });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`GET ${url} → ${res.status}: ${text.slice(0, 300)}`);
@@ -169,6 +170,7 @@ async function gbGet(url: string): Promise<any> {
 async function putReply(reviewName: string, comment: string): Promise<void> {
   const token = await getAccessToken();
   const res = await fetch(`${MYBUSINESS_V4}/${reviewName}/reply`, {
+    signal: AbortSignal.timeout(15000),
     method: 'PUT',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ comment }),
@@ -361,7 +363,7 @@ async function notifyOwnerOfDraft(row: {
         <p style="margin:0 0 14px;color:#9B8A94;font-size:13px">A new ${row.rating ?? '?'}-star Google review needs your approval before we reply.</p>
         <div style="background:#FCEEF6;border-radius:12px;padding:14px 16px;margin:0 0 14px">
           <div style="color:#EF5D95;font-size:18px">${stars}</div>
-          <div style="font-weight:600;margin:4px 0">${row.reviewer_name ?? 'Google user'}</div>
+          <div style="font-weight:600;margin:4px 0">${(row.reviewer_name ?? 'Google user').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</div>
           <div style="color:#4A3540">${(row.comment ?? '(no comment)').replace(/</g, '&lt;')}</div>
         </div>
         <p style="margin:0 0 6px;font-weight:700">الرد المقترح — Suggested reply</p>
@@ -547,7 +549,7 @@ export async function skipDraft(reviewId: string): Promise<boolean> {
 export async function disconnect(): Promise<void> {
   const conn = await getConnection();
   if (conn?.refresh_token) {
-    await fetch(`${REVOKE_URL}?token=${encodeURIComponent(conn.refresh_token)}`, { method: 'POST' }).catch(() => {});
+    await fetch(`${REVOKE_URL}?token=${encodeURIComponent(conn.refresh_token)}`, { signal: AbortSignal.timeout(15000), method: 'POST' }).catch(() => {});
   }
   await pool.query(`DELETE FROM google_oauth_connection WHERE id=1`);
 }

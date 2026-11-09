@@ -5,7 +5,7 @@
  * Member ids + emails are resolved by name from team_members. Idempotent by
  * title. Turn the flag off after it runs.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { createManualTask } from '../domain/prep.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
@@ -54,6 +54,8 @@ function html(names: string): string {
 
 export async function addWhereWeBuyTaskFromEnv(): Promise<void> {
   if (String(process.env.ADD_WWB_TASK ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:ADD_WWB_TASK:true'))) return;
 
   const { rows } = await pool.query<{ id: string; name: string; email: string | null }>(
     `SELECT id, name, email FROM team_members WHERE lower(name) = ANY($1)`,

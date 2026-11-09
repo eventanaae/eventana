@@ -9,13 +9,14 @@
  */
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
-import { ingestExternalTxn } from './bankInbox.js';
+import { ingestExternalTxn, noteFeedSuccess, checkFeedStale } from './bankInbox.js';
 
 const THROTTLE_MS = 12 * 60 * 60 * 1000;
 
 export async function syncStripeFees(): Promise<void> {
   const sk = config.providers.stripe.secretKey;
   if (!sk) return;
+  await checkFeedStale('stripe', 'The Stripe fee sync');
 
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'stripe_fee_sync_at'`).catch(() => ({ rows: [] as any[] }));
   if (last.rows[0] && Date.now() - new Date(last.rows[0].v).getTime() < THROTTLE_MS) return;
@@ -27,7 +28,7 @@ export async function syncStripeFees(): Promise<void> {
     for (let page = 0; page < 200; page++) {
       const qs = new URLSearchParams({ limit: '100' });
       if (startingAfter) qs.set('starting_after', startingAfter);
-      const res = await fetch(`https://api.stripe.com/v1/balance_transactions?${qs}`, { headers: { Authorization: `Bearer ${sk}` } });
+      const res = await fetch(`https://api.stripe.com/v1/balance_transactions?${qs}`, { signal: AbortSignal.timeout(15000), headers: { Authorization: `Bearer ${sk}` } });
       if (!res.ok) { console.error(`[stripe-sync] API ${res.status} — skipping this run`); return; }
       const j: any = await res.json();
       for (const t of j.data ?? []) {
@@ -57,6 +58,8 @@ export async function syncStripeFees(): Promise<void> {
     await pool.query(`DELETE FROM expenses WHERE vendor = 'Stripe' AND category = 'Payments/Bank fees'`).catch(() => {});
     await pool.query(`INSERT INTO app_kv (k, v) VALUES ('stripe_fees_to_pending_v1', now()) ON CONFLICT (k) DO NOTHING`).catch(() => {});
   }
+
+  await noteFeedSuccess('stripe');
 
   const curMonth = new Date(Date.now() + 4 * 3_600_000).toISOString().slice(0, 7); // Dubai current month
   let pended = 0;

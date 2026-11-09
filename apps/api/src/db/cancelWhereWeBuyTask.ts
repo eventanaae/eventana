@@ -4,7 +4,7 @@
  * a different task is coming soon. Gated CANCEL_WWB_TASK=true. Idempotent.
  * Turn the flag off after it runs.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
 const OWNER = 'sheem@eventanauae.com';
@@ -32,6 +32,8 @@ function html(names: string): string {
 
 export async function cancelWhereWeBuyTaskFromEnv(): Promise<void> {
   if (String(process.env.CANCEL_WWB_TASK ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:CANCEL_WWB_TASK:true'))) return;
 
   const found = await pool.query<{ id: number }>(
     `SELECT id FROM prep_tasks WHERE category = 'manual' AND title = $1`,

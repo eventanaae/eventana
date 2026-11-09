@@ -4,7 +4,7 @@
  * Recipients resolved from team_members (Marsha), owner falls back to the business
  * inbox. Turn the flag off after it sends.
  */
-import { pool } from './pool.js';
+import { claimOneShot, pool } from './pool.js';
 import { emailEnabled, sendEmail } from '../integrations/email.js';
 
 const PINK = '#E94F9C', INK = '#3B3641', MUT = '#8B7E86', LINE = '#F0DCE7', SOFT = '#FDEFF6';
@@ -61,6 +61,8 @@ function html(): string {
 
 export async function sendBnplRequestFromEnv(): Promise<void> {
   if (String(process.env.SEND_BNPL_REQUEST ?? '').toLowerCase() !== 'true') return;
+  // One-time (app_kv marker, written first) — a flag left set must not repeat every boot.
+  if (!(await claimOneShot('oneshot:SEND_BNPL_REQUEST:true'))) return;
   if (!emailEnabled()) { console.log('[bnpl-request] email disabled'); return; }
   const { rows } = await pool.query<{ email: string | null }>(
     `SELECT email FROM team_members WHERE lower(name) = 'marsha'`,
