@@ -18,7 +18,7 @@
  */
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
-import { ingestExternalTxn, type ParsedAlert } from './bankInbox.js';
+import { ingestExternalTxn, noteFeedSuccess, checkFeedStale, type ParsedAlert } from './bankInbox.js';
 import { pushToOwner } from '../integrations/push.js';
 
 const THROTTLE_MS = 6 * 60 * 60 * 1000;
@@ -73,7 +73,7 @@ async function accessToken(): Promise<string | null> {
     client_secret: z.clientSecret,
     grant_type: 'refresh_token',
   });
-  const res = await fetch(`https://${z.accountsHost}/oauth/v2/token?${qs}`, { method: 'POST' }).catch(() => null);
+  const res = await fetch(`https://${z.accountsHost}/oauth/v2/token?${qs}`, { signal: AbortSignal.timeout(15000), method: 'POST' }).catch(() => null);
   if (!res || !res.ok) { console.error(`[zoho-sync] token request failed: ${res?.status ?? 'network'}`); return null; }
   const j: any = await res.json().catch(() => null);
   if (!j?.access_token) { console.error('[zoho-sync] no access_token in response:', j?.error ?? 'unknown'); return null; }
@@ -81,13 +81,16 @@ async function accessToken(): Promise<string | null> {
   return cachedToken.token;
 }
 
+// Set when any Zoho GET fails during a run, so a partial run isn't counted as a success.
+let zohoGetFailed = false;
+
 async function zohoGet(path: string, token: string): Promise<any | null> {
   const z = config.zoho;
   const sep = path.includes('?') ? '&' : '?';
   const url = `https://${z.apiHost}/books/v3/${path}${sep}organization_id=${encodeURIComponent(z.organizationId ?? '')}`;
-  const res = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } }).catch(() => null);
-  if (!res || !res.ok) { console.error(`[zoho-sync] GET ${path} → ${res?.status ?? 'network'}`); return null; }
-  return res.json().catch(() => null);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: `Zoho-oauthtoken ${token}` } }).catch(() => null);
+  if (!res || !res.ok) { zohoGetFailed = true; console.error(`[zoho-sync] GET ${path} → ${res?.status ?? 'network'}`); return null; }
+  return res.json().catch(() => { zohoGetFailed = true; return null; });
 }
 
 interface ZohoAccount { account_id: string; account_name: string; account_type: string; }
@@ -128,12 +131,14 @@ function isMoneyOut(t: any): boolean {
 export async function syncZohoBank(): Promise<void> {
   const z = config.zoho;
   if (!z.organizationId || !z.clientId || !z.clientSecret) return;
+  await checkFeedStale('zoho', 'The Zoho bank feed');
 
   const last = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'zoho_bank_sync_at'`).catch(() => ({ rows: [] as any[] }));
   if (last.rows[0] && Date.now() - new Date(last.rows[0].v).getTime() < THROTTLE_MS) return;
 
   const token = await accessToken();
   if (!token) return;
+  zohoGetFailed = false;
 
   const accounts = await bankAccounts(token);
   if (!accounts.length) { console.log('[zoho-sync] no bank accounts to sync'); return; }
@@ -224,6 +229,7 @@ export async function syncZohoBank(): Promise<void> {
     }
   }
 
+  if (!zohoGetFailed) await noteFeedSuccess('zoho');
   await pool.query(`INSERT INTO app_kv (k, v) VALUES ('zoho_bank_sync_at', now()) ON CONFLICT (k) DO UPDATE SET v = now()`).catch(() => {});
   await pool.query(`INSERT INTO app_kv (k, v) VALUES ('zoho_bank_sync_since', $1) ON CONFLICT (k) DO UPDATE SET v = $1`, [dubaiToday()]).catch(() => {});
 

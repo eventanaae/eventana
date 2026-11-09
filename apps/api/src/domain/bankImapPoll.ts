@@ -6,7 +6,8 @@
  * add an IMAP npm package. This is a small IMAP-over-TLS client written with
  * Node built-ins only (node:tls) — zero new dependencies.
  *
- * WHAT it does: every few minutes it logs in, reads UNSEEN messages from INBOX,
+ * WHAT it does: every few minutes it logs in, reads messages newer than the last
+ * processed UID (bookmark + UIDVALIDITY in app_kv; UNSEEN only on first run),
  * hands each one to ingestBankAlert() (which creates a PENDING bank_transactions
  * row and notifies the owner + Marsha), then marks the message \Seen. Nothing is
  * auto-posted to expenses: the owner still approves each pending row, so an
@@ -23,6 +24,21 @@
 import * as tls from 'node:tls';
 import { ingestInboxEmail } from './bankInbox.js';
 import { pool } from '../db/pool.js';
+
+// app_kv.v is TIMESTAMPTZ, so a numeric bookmark (an IMAP UID / UIDVALIDITY) is
+// stored as epoch seconds. (Writing the number as text fails the cast.)
+async function kvNum(k: string): Promise<number | null> {
+  const r = await pool.query<{ n: string | null }>(`SELECT extract(epoch FROM v)::bigint AS n FROM app_kv WHERE k = $1`, [k])
+    .catch(() => ({ rows: [] as { n: string | null }[] }));
+  const n = Number(r.rows[0]?.n);
+  return r.rows[0] && Number.isFinite(n) ? n : null;
+}
+async function setKvNum(k: string, n: number): Promise<void> {
+  await pool.query(`INSERT INTO app_kv (k, v) VALUES ($1, to_timestamp($2)) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v`, [k, n])
+    .catch((e: unknown) => console.error(`[bank-imap] could not save ${k}:`, e instanceof Error ? e.message : e));
+}
+/** Per-UID failure counts (in memory) so one poison message can't block a feed. */
+const uidFailures = new Map<string, number>();
 
 interface ImapCfg {
   host: string;
@@ -385,23 +401,53 @@ async function pollOnce(): Promise<{ read: number; ingested: number }> {
     // pitfalls and the inline-IR path that hung on this server.
     await conn.authPlain(c.user, c.pass);
     verboseRx = false; // login worked — stop logging raw wire data (which includes email bodies)
-    await conn.cmd('SELECT INBOX');
-    const search = await conn.cmd('UID SEARCH UNSEEN');
-    const uids = parseSearchUids(search.toString('latin1')).slice(0, 25); // cap per cycle
+    const sel = await conn.cmd('SELECT INBOX');
+    // Track progress by UID (+UIDVALIDITY) in app_kv instead of relying on the
+    // UNSEEN flag — a human (or a phone mail app) opening the bank mailbox marks
+    // alerts read and they'd be skipped forever. First run / UIDVALIDITY change
+    // falls back to UNSEEN once, then follows the bookmark.
+    const validity = Number(sel.toString('latin1').match(/UIDVALIDITY\s+(\d+)/i)?.[1] ?? 0) || 0;
+    const lastUid = await kvNum('bank_imap_last_uid');
+    const lastValidity = await kvNum('bank_imap_uidvalidity');
+    const useBookmark = lastUid != null && lastUid > 0 && validity > 0 && lastValidity === validity;
+    const search = await conn.cmd(useBookmark ? `UID SEARCH UID ${lastUid + 1}:*` : 'UID SEARCH UNSEEN');
+    const uids = parseSearchUids(search.toString('latin1'))
+      .filter((u) => !useBookmark || u > lastUid) // "n:*" always returns the top UID
+      .sort((a, b) => a - b)
+      .slice(0, 25); // cap per cycle — oldest first, so the bookmark walks forward
+    let processedTo = useBookmark ? lastUid : 0;
     for (const uid of uids) {
       read++;
       try {
         const fetch = await conn.cmd(`UID FETCH ${uid} BODY.PEEK[]`);
         const rawMsg = extractLiteral(fetch);
-        if (!rawMsg) { console.warn(`[bank-imap] uid ${uid}: no body literal`); continue; }
+        if (!rawMsg) { console.warn(`[bank-imap] uid ${uid}: no body literal`); processedTo = uid; continue; }
         const email = extractEmail(rawMsg);
         const res = await ingestInboxEmail(email, 'privateemail');
         if (res && !res.duplicate) ingested++;
-        // Mark seen so we don't re-ingest it next cycle.
-        await conn.cmd(`UID STORE ${uid} +FLAGS (\\Seen)`);
+        processedTo = uid;
+        uidFailures.delete(`bank:${uid}`);
+        // Mark seen (cosmetic for whoever reads the mailbox; progress is the bookmark).
+        await conn.cmd(`UID STORE ${uid} +FLAGS (\\Seen)`).catch(() => {});
       } catch (err) {
         console.error(`[bank-imap] uid ${uid} failed:`, err instanceof Error ? err.message : err);
+        // Stop here so it is retried next cycle; a message that keeps failing is
+        // skipped after a few tries so it can't block the feed forever.
+        const n = (uidFailures.get(`bank:${uid}`) ?? 0) + 1;
+        uidFailures.set(`bank:${uid}`, n);
+        if (n >= 3) { console.error(`[bank-imap] uid ${uid} skipped after ${n} failures`); processedTo = uid; uidFailures.delete(`bank:${uid}`); continue; }
+        break;
       }
+    }
+    // Fallback cycle with nothing unread: baseline the bookmark at the current top
+    // so later cycles follow UIDs (UIDNEXT − 1 = highest UID that exists now).
+    if (!useBookmark && uids.length === 0) {
+      const uidNext = Number(sel.toString('latin1').match(/UIDNEXT\s+(\d+)/i)?.[1] ?? 0) || 0;
+      if (uidNext > 1) processedTo = uidNext - 1;
+    }
+    if (validity > 0 && processedTo > 0) {
+      await setKvNum('bank_imap_last_uid', processedTo);
+      await setKvNum('bank_imap_uidvalidity', validity);
     }
   } finally {
     conn.logout();
@@ -500,32 +546,41 @@ async function corpPollOnce(): Promise<{ read: number; matched: number }> {
     if (!allUids.length) return { read: 0, matched: 0 };
     const maxUid = Math.max(...allUids);
 
-    const kv = await pool.query<{ v: string }>(`SELECT v FROM app_kv WHERE k = 'corp_reply_last_uid'`).catch(() => ({ rows: [] as { v: string }[] }));
-    const lastUid = Number(kv.rows[0]?.v ?? 0) || 0;
+    const lastUid = (await kvNum('corp_reply_last_uid')) ?? 0;
 
     if (lastUid === 0) {
       // Baseline only — record where we are; process new mail from next cycle on.
-      await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_reply_last_uid', $1) ON CONFLICT (k) DO UPDATE SET v = $1`, [String(maxUid)]).catch(() => {});
+      await setKvNum('corp_reply_last_uid', maxUid);
       return { read: 0, matched: 0 };
     }
 
-    const fresh = allUids.filter((u) => u > lastUid).sort((a, b) => a - b).slice(-25);
+    // Oldest first, and the bookmark only advances to the highest UID actually
+    // processed — anything beyond the per-cycle cap is picked up next cycle.
+    const fresh = allUids.filter((u) => u > lastUid).sort((a, b) => a - b).slice(0, 25);
+    let processedTo = lastUid;
     for (const uid of fresh) {
       read++;
       try {
         const fetch = await conn.cmd(`UID FETCH ${uid} BODY.PEEK[]`); // PEEK: never marks \Seen
         const rawMsg = extractLiteral(fetch);
-        if (!rawMsg) continue;
-        const email = extractEmail(rawMsg);
-        const { email: fromEmail, name } = parseFrom(email.from);
-        if (!fromEmail.includes('@') || fromEmail.endsWith('@eventanauae.com')) continue;
-        const res = await processCorporateReply({ fromEmail, fromName: name, subject: email.subject, text: email.text });
-        if (res.matched) matched++;
+        if (rawMsg) {
+          const email = extractEmail(rawMsg);
+          const { email: fromEmail, name } = parseFrom(email.from);
+          if (fromEmail.includes('@') && !fromEmail.endsWith('@eventanauae.com')) {
+            const res = await processCorporateReply({ fromEmail, fromName: name, subject: email.subject, text: email.text });
+            if (res.matched) matched++;
+          }
+        }
+        processedTo = uid;
       } catch (err) {
         console.error(`[corp-reply-imap] uid ${uid} failed:`, err instanceof Error ? err.message : err);
+        const n = (uidFailures.get(`corp:${uid}`) ?? 0) + 1;
+        uidFailures.set(`corp:${uid}`, n);
+        if (n >= 3) { processedTo = uid; uidFailures.delete(`corp:${uid}`); continue; }
+        break; // retried next cycle
       }
     }
-    await pool.query(`INSERT INTO app_kv (k, v) VALUES ('corp_reply_last_uid', $1) ON CONFLICT (k) DO UPDATE SET v = $1`, [String(maxUid)]).catch(() => {});
+    if (processedTo > lastUid) await setKvNum('corp_reply_last_uid', processedTo);
   } finally {
     conn.logout();
   }
@@ -579,15 +634,18 @@ export async function rereadRecentInboxFromEnv(): Promise<void> {
   // Runs once per tag (guarded in app_kv). Bump BANK_IMAP_REREAD_TAG to force a
   // fresh run later; no env flag needed for the first run.
   const guardKey = `bank_imap_reread_${process.env.BANK_IMAP_REREAD_TAG ?? 'v16'}`;
-  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 0 }));
+  // A failed marker read is treated as "already ran" — never re-run the cleanup
+  // below on a transient DB error.
+  const guard = await pool.query(`SELECT 1 FROM app_kv WHERE k = $1`, [guardKey]).catch(() => ({ rowCount: 1 }));
   if (guard.rowCount) return;
   const c = cfg();
   if (!c) { console.warn('[bank-imap] reread: poller not configured (BANK_IMAP_POLL/PASS)'); return; }
 
   // Inward money (credits/deposits) is not an expense — drop any pending credit
-  // rows that slipped in during the brief "capture everything" window.
+  // rows that slipped in during the brief "capture everything" window. Only the
+  // RAKBANK alert feed: credits flagged for owner review elsewhere are kept.
   const delCr = await pool.query(
-    `DELETE FROM bank_transactions WHERE status = 'pending' AND direction = 'credit'`,
+    `DELETE FROM bank_transactions WHERE status = 'pending' AND direction = 'credit' AND source = 'rakbank_email'`,
   ).catch(() => ({ rowCount: 0 }));
   if (delCr.rowCount) console.log(`[bank-imap] reread: removed ${delCr.rowCount} inward/credit pending rows`);
 

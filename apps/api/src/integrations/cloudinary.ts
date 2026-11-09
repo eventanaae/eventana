@@ -46,13 +46,17 @@ export function signUpload(folder: UploadFolder): SignedUpload | null {
   const toSign = `folder=${folder}&timestamp=${timestamp}`;
   const signature = createHash('sha1').update(toSign + apiSecret).digest('hex');
 
+  // Folders a CUSTOMER can sign for (public theme refs, event setup photos) are
+  // image-only: the /image/upload endpoint refuses raw files (.html/.js/…) that
+  // /auto/upload would host as-is on our Cloudinary.
+  const imageOnly = folder === 'eventana/themes' || folder === 'eventana/setup-photos';
   return {
     cloudName,
     apiKey,
     timestamp,
     signature,
     folder,
-    uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/${imageOnly ? 'image' : 'auto'}/upload`,
   };
 }
 
@@ -73,7 +77,7 @@ export async function uploadBytes(bytes: Uint8Array, folder: UploadFolder, filen
     form.append('timestamp', String(timestamp));
     form.append('folder', folder);
     form.append('signature', signature);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: 'POST', body: form });
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: 'POST', body: form, signal: AbortSignal.timeout(15000) });
     if (!res.ok) return null;
     const j = (await res.json()) as { secure_url?: string };
     return j.secure_url ?? null;

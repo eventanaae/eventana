@@ -20,6 +20,7 @@ export interface ParsedAlert {
   kind: 'purchase' | 'withdrawal' | 'transfer' | 'other';
   merchant: string | null;
   postedOn: string | null; // YYYY-MM-DD
+  foreignCurrency?: boolean; // charged in a non-AED currency → amount 0, needs review
 }
 
 const clean = (s: string) => s.replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim();
@@ -85,20 +86,29 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   const num = '([\\d,]+(?:\\.\\d{1,2})?)';
   // PREFER the amount that sits next to the transaction verb ("AED 170.00 is
   // charged / debited / spent"), so a footer/fee number never wins over it.
-  const charged = text.match(new RegExp(`(?:${CUR})\\s*${num}\\s+(?:is|was|has been|been)?\\s*(?:charged|debited|spent|paid|withdrawn)`, 'i'));
-  const pre = text.match(new RegExp(`(?:${CUR})\\s*${num}`, 'i'));
-  const post = text.match(new RegExp(`${num}\\s*(?:${CUR})`, 'i'));
+  // Never read an amount from a running balance ("Available balance AED 5,000.00").
+  const amtText = text.replace(new RegExp(`\\bbalance\\b[^\\d\\n]{0,40}?(?:(?:${CUR})\\s*)?[\\d,]+(?:\\.\\d{1,2})?(?:\\s*(?:${CUR}))?`, 'gi'), ' ');
+  const charged = amtText.match(new RegExp(`(?:${CUR})\\s*${num}\\s+(?:is|was|has been|been)?\\s*(?:charged|debited|spent|paid|withdrawn)`, 'i'));
+  // A charge in a FOREIGN currency ("USD 25.00 is charged") must never be booked
+  // at rate 1 (nor replaced by some other AED figure in the email) — amount 0,
+  // flagged for review.
+  const FX = 'USD|US\\$|EUR|€|GBP|£|SAR|QAR|KWD|BHD|OMR|INR|PKR|EGP|JPY|CNY|CHF|CAD|AUD|SGD|HKD|TRY';
+  const fxCharged = amtText.match(new RegExp(`(?:${FX})\\s*${num}\\s+(?:is|was|has been|been)?\\s*(?:charged|debited|spent|paid|withdrawn)`, 'i'))
+    ?? amtText.match(new RegExp(`${num}\\s*(?:${FX})\\s+(?:is|was|has been|been)?\\s*(?:charged|debited|spent|paid|withdrawn)`, 'i'));
+  const pre = amtText.match(new RegExp(`(?:${CUR})\\s*${num}`, 'i'));
+  const post = amtText.match(new RegExp(`${num}\\s*(?:${CUR})`, 'i'));
   // RAKBANK's overdraft/settlement + some card emails label it "Amount: 29.16"
   // with NO currency next to the number — read that too.
-  const labeled = text.match(/\bamount\b\s*:\s*(?:AED\s*)?([\d,]+(?:\.\d{1,2})?)/i);
+  const labeled = amtText.match(/\bamount\b\s*:\s*(?:AED\s*)?([\d,]+(?:\.\d{1,2})?)/i);
   // A bare "AED <n>" (no verb next to it) is only trusted when the email clearly
   // IS a transaction — otherwise a promo/marketing "AED 99" would become a fake
   // charge. The verb-adjacent (`charged`) and labeled ("Amount:") matches are
   // always trusted.
   const hasTxnContext = /\bcharged\b|\bdebited\b|\bspent\b|withdraw|transaction|purchase|settle|date of debit/i.test(text);
-  const amountMatch = charged ?? labeled ?? (hasTxnContext ? (pre ?? post) : null);
+  const foreignCurrency = !charged && !!fxCharged;
+  const amountMatch = foreignCurrency ? fxCharged : (charged ?? labeled ?? (hasTxnContext ? (pre ?? post) : null));
   if (!amountMatch) return null;
-  const amountFils = Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100);
+  const amountFils = foreignCurrency ? 0 : Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100);
 
   const low = text.toLowerCase();
   let direction: ParsedAlert['direction'] = 'debit';
@@ -157,8 +167,11 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
   }
   if (!postedOn) postedOn = dubaiToday();
 
-  return { amountFils, direction, kind, merchant, postedOn };
+  return { amountFils, direction, kind, merchant, postedOn, ...(foreignCurrency ? { foreignCurrency: true } : {}) };
 }
+
+/** Raw-text flag for a regex-parsed foreign-currency charge (amount left at 0). */
+const FX_REVIEW_NOTE = '⚠️ NEEDS REVIEW (foreign currency) — convert it to AED and set the amount before approving.';
 
 /**
  * Cross-feed duplicate check, shared by EVERY path that queues a pending bank row
@@ -221,6 +234,7 @@ export async function findPossibleDuplicate(
     const exactExp = await pool.query<{ id: string; vendor: string | null; d: string }>(
       `SELECT id, vendor, to_char(spent_on,'YYYY-MM-DD') AS d FROM expenses
         WHERE amount_fils = $1 AND spent_on BETWEEN ($2::date - 1) AND ($2::date + 1)
+          AND COALESCE(source,'manual') <> 'bank'
         ORDER BY abs(spent_on - $2::date), id LIMIT 1`,
       [amountFils, date]);
     if (exactExp.rows[0]) {
@@ -247,6 +261,7 @@ export async function findPossibleDuplicate(
       `SELECT id, vendor, to_char(spent_on,'YYYY-MM-DD') AS d FROM expenses
         WHERE amount_fils BETWEEN $1 AND $2
           AND spent_on BETWEEN ($3::date - 3) AND ($3::date + 3)
+          AND COALESCE(source,'manual') <> 'bank'
         ORDER BY abs(spent_on - $3::date), id DESC
         LIMIT 1`,
       [lo, hi, date]);
@@ -296,7 +311,7 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
       p?.direction ?? 'debit',
       p?.kind ?? 'other',
       p?.merchant ?? null,
-      raw,
+      p?.foreignCurrency ? `${FX_REVIEW_NOTE}\n\n${raw}`.slice(0, 4000) : raw,
       source,
       dedupeKey,
       possibleDup,
@@ -504,6 +519,7 @@ export async function llmExtractTransaction(subject: string, from: string, text:
   const body = `FROM: ${from}\nSUBJECT: ${subject}\n\nBODY:\n${text}`.replace(/https?:\/\/\S+/g, ' ').slice(0, 6000);
   const system = [
     'You extract ONE bank/payment transaction from a bank-alert or receipt email for a UAE events company\'s expense book.',
+    `Today's date in Dubai is ${dubaiToday()}. UAE bank dates are written DD/MM (or DD/MM/YYYY), never MM/DD; a date with no year is in the past, closest to today.`,
     'Return ONLY minified JSON, no prose:',
     '{"isTransaction":bool,"direction":"debit"|"credit"|null,"currency":string|null,"amount":number|null,"merchant":string|null,"date":"YYYY-MM-DD"|null,"confident":bool,"note":string|null}',
     'Rules:',
@@ -542,9 +558,11 @@ export async function llmExtractTransaction(subject: string, from: string, text:
 
 /** Pick the best receipt attachment: prefer a PDF, then any, under Cloudinary's limit. */
 function pickReceiptAttachment(atts: InboxAttachment[]): InboxAttachment | null {
-  const ok = atts.filter((a) => a.bytes.length > 0 && a.bytes.length <= 10 * 1024 * 1024);
-  if (ok.length === 0) return null;
   const isPdf = (a: InboxAttachment) => /pdf/i.test(a.contentType) || /\.pdf$/i.test(a.filename);
+  const isImage = (a: InboxAttachment) => /^image\/(?:jpe?g|png|webp|gif|hei[cf])$/i.test(a.contentType) || /\.(?:jpe?g|png|webp|gif|hei[cf])$/i.test(a.filename);
+  // Only PDFs and images — never an .html/.svg/.exe etc. on our Cloudinary.
+  const ok = atts.filter((a) => a.bytes.length > 0 && a.bytes.length <= 10 * 1024 * 1024 && (isPdf(a) || isImage(a)));
+  if (ok.length === 0) return null;
   // Prefer a file that looks like the receipt, then any PDF, then anything.
   return ok.find((a) => /receipt/i.test(a.filename) && isPdf(a))
     ?? ok.find(isPdf)
@@ -629,8 +647,13 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     const looksTransactional = provider === 'rakbank'
       || /\baed\b|\bdhs?\b|\$|\bamount\b|charged|debited|\bspent\b|transaction|payment|receipt|invoice|purchase|withdraw/i.test(`${subject}\n${text}`);
     const llm = looksTransactional ? await llmExtractTransaction(subject, from, text) : null;
-    if (llm) {
-      if (!llm.isTransaction) return null; // statement / OTP / marketing / pending-only
+    if (llm && !llm.isTransaction) {
+      // Statement / OTP / marketing / pending-only per the model — but a model
+      // misread must not silently LOSE a real charge: capture at amount 0 and let
+      // the noise filter / attachment check below decide (owner reviews the rest).
+      amountFils = 0;
+      kind = 'other';
+    } else if (llm) {
       direction = llm.direction ?? 'debit';
       kind = 'purchase';
       // Only AED (1:1) and USD (fixed peg) convert automatically. ANY other
@@ -645,7 +668,14 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
         settlementNote = `⚠️ NEEDS REVIEW — amount is in ${cur}; convert it to AED and set the amount before approving.`;
       }
       if (llm.merchant) merchant = llm.merchant;
-      if (llm.date) postedOn = llm.date;
+      // Only trust the model's date inside a sane window (a DD/MM ↔ MM/DD swap or
+      // a hallucinated year lands outside it); else keep the regex-parsed date.
+      const regexDate = parseRakbankAlert(subject, text)?.postedOn ?? dubaiToday();
+      postedOn = regexDate;
+      if (llm.date) {
+        const diff = (Date.parse(`${llm.date}T00:00:00Z`) - Date.parse(`${dubaiToday()}T00:00:00Z`)) / 86_400_000;
+        if (Number.isFinite(diff) && diff >= -120 && diff <= 1) postedOn = llm.date;
+      }
       if (!llm.confident) {
         needsReview = true;
         settlementNote = `⚠️ NEEDS REVIEW — auto-read may be wrong${llm.note ? `: ${llm.note}` : ''}. Check the amount, vendor and date against the email before approving.`;
@@ -658,6 +688,7 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
         kind = p.kind;
         postedOn = p.postedOn ?? dubaiToday();
         merchant = p.merchant ?? merchant;
+        if (p.foreignCurrency) { needsReview = true; settlementNote = FX_REVIEW_NOTE; }
       }
     }
   }
@@ -764,6 +795,44 @@ export async function ingestExternalTxn(t: {
     [t.postedOn, t.amountFils, t.direction, t.kind, (t.merchant ?? '').slice(0, 120) || null, t.raw.slice(0, 4000), t.source, t.dedupeKey, t.receiptUrl ?? null, verdict.flag, verdict.status, verdict.decidedBy],
   );
   return { id: String(ins.rows[0].id) };
+}
+
+/**
+ * Feed heartbeat: each automatic feed (Zoho, Wafeq/Wio, Stripe) records its last
+ * SUCCESSFUL run in app_kv. checkFeedStale() — called on every attempt — warns
+ * owner + Marsha with the "bank feed stopped" push when the last success is more
+ * than 24h old (at most once a day per feed), so a broken token / API outage
+ * can't stop expenses flowing silently.
+ */
+const FEED_STALE_MS = 24 * 60 * 60 * 1000;
+export async function noteFeedSuccess(feed: string): Promise<void> {
+  await pool.query(`INSERT INTO app_kv (k, v) VALUES ($1, now()) ON CONFLICT (k) DO UPDATE SET v = now()`, [`feed_ok_${feed}`]).catch(() => {});
+  await pool.query(`DELETE FROM app_kv WHERE k = $1`, [`feed_stale_alert_${feed}`]).catch(() => {});
+}
+export async function checkFeedStale(feed: string, label: string): Promise<void> {
+  try {
+    // First sighting: baseline now, so a feed that NEVER succeeds still alerts.
+    await pool.query(`INSERT INTO app_kv (k, v) VALUES ($1, now()) ON CONFLICT (k) DO NOTHING`, [`feed_ok_${feed}`]);
+    const r = await pool.query<{ ok: Date; alerted: Date | null }>(
+      `SELECT (SELECT v FROM app_kv WHERE k = $1) AS ok, (SELECT v FROM app_kv WHERE k = $2) AS alerted`,
+      [`feed_ok_${feed}`, `feed_stale_alert_${feed}`]);
+    const ok = r.rows[0]?.ok ? new Date(r.rows[0].ok).getTime() : Date.now();
+    const alerted = r.rows[0]?.alerted ? new Date(r.rows[0].alerted).getTime() : 0;
+    if (Date.now() - ok <= FEED_STALE_MS || Date.now() - alerted < FEED_STALE_MS) return;
+    const hours = Math.floor((Date.now() - ok) / 3_600_000);
+    console.warn(`[feed-watch] ${label} has not synced successfully for ${hours}h — alerting owner + Marsha.`);
+    const title = '⚠️ Bank feed stopped updating';
+    const bodyMsg = `${label} hasn't synced for ${hours} hours. Expenses from it aren't reaching the Bank Inbox — check the connection.`;
+    const targets = await pool.query<{ id: string }>(
+      `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
+    );
+    for (const t of targets.rows) {
+      await pushToOwner('staff', t.id, title, bodyMsg, {}).catch(() => {});
+    }
+    await pool.query(`INSERT INTO app_kv (k, v) VALUES ($1, now()) ON CONFLICT (k) DO UPDATE SET v = now()`, [`feed_stale_alert_${feed}`]);
+  } catch (err) {
+    console.error('[feed-watch] check failed:', (err as Error).message);
+  }
 }
 
 export interface BankTxRow {
@@ -878,7 +947,9 @@ export async function ignoreBankTransaction(id: string, actor: string): Promise<
   const { rows } = await pool.query<{ status: string }>(`SELECT status FROM bank_transactions WHERE id = $1 LIMIT 1`, [id]);
   if (!rows[0]) return { ok: false, reason: 'not_found' };
   if (rows[0].status !== 'pending') return { ok: false, reason: `already_${rows[0].status}` };
-  await pool.query(`UPDATE bank_transactions SET status='ignored', decided_by=$2, decided_at=now() WHERE id=$1`, [id, actor]);
+  // Conditional on still-pending: a concurrent approve must not be overwritten.
+  const r = await pool.query(`UPDATE bank_transactions SET status='ignored', decided_by=$2, decided_at=now() WHERE id=$1 AND status='pending'`, [id, actor]);
+  if ((r.rowCount ?? 0) === 0) return { ok: false, reason: 'not_found_or_decided' };
   return { ok: true };
 }
 

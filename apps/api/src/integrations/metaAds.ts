@@ -52,7 +52,7 @@ export async function fetchAdInsights(datePreset = 'this_month'): Promise<AdInsi
   const fields = 'ad_name,campaign_name,spend,impressions,clicks,actions';
   const url = `${base}/act_${acct}/insights?level=ad&date_preset=${encodeURIComponent(datePreset)}&fields=${encodeURIComponent(fields)}&limit=100&access_token=${encodeURIComponent(token)}`;
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     const json = (await res.json()) as { data?: any[]; error?: { message?: string; code?: number; type?: string } };
     if (!res.ok || json.error) {
       console.error(`[meta-ads] insights ${res.status}: ${JSON.stringify(json.error ?? json).slice(0, 300)}`);

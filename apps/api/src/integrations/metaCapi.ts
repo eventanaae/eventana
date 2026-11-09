@@ -135,6 +135,7 @@ export async function sendMetaEvent(args: {
 
   try {
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
