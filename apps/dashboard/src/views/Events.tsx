@@ -548,7 +548,8 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.6 }}>
                         Cancelling stops live tracking, releases the reserved assets, closes the
                         preparation tasks and blocks further customer purchases. Any refund owed is
-                        handled automatically (and shown in the Refund panel below).
+                        recorded on the receipt and emailed to the customer — <b>you transfer the
+                        money to the customer by hand</b> (the system does not refund the card).
                       </div>
                       <select
                         value={cancelCategory}
