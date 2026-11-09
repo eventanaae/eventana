@@ -47,14 +47,18 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
     // Owner rule: the Eventana Exclusive Package (a.k.a. Carnival/Carnaval Offer,
     // 3499/3500 Offer, Marwa Rateb Package) is the ONLY sale that does not come
     // from Meta ads. Everything else is attributed to Meta.
+    // Also her own WhatsApp offers (2900 AED Offer, 2999 Offer). The pattern can
+    // be overridden per request with ?nonMeta=<regex> (bound as a parameter).
+    const DEFAULT_NON_META = '(exclusive|carn[ai]v[ae]l|349[89]|3500|marwa|مروة|2900|2999)';
+    const nonMeta = q.nonMeta && q.nonMeta.length <= 300 ? q.nonMeta : DEFAULT_NON_META;
     const exclusive = `EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(line_items)='array' THEN line_items ELSE '[]'::jsonb END) li
-       WHERE li->>'name' ~* '(exclusive|carn[ai]v[ae]l|349[89]|3500|marwa|مروة)')`;
+       WHERE li->>'name' ~* $3)`;
 
     const [byMonth, byDay, byCelebration, byTheme, leadsByMonth, leadsByAd, leadsByDay, byPackage] = await Promise.all([
       pool.query(`SELECT to_char(booked_on,'YYYY-MM') m, COUNT(*)::int n, ${net} v,
                          COUNT(*) FILTER (WHERE ${exclusive})::int xn,
                          COALESCE(SUM(total_fils - COALESCE(refunded_fils,0)) FILTER (WHERE ${exclusive}),0)::bigint xv
-                    ${bookingsBase} GROUP BY 1 ORDER BY 1`, [from, to]),
+                    ${bookingsBase} GROUP BY 1 ORDER BY 1`, [from, to, nonMeta]),
       pool.query(`SELECT booked_on::text d, COUNT(*)::int n, ${net} v ${bookingsBase}
                     AND booked_on > $2::date - 60 GROUP BY 1 ORDER BY 1`, [from, to]),
       pool.query(`SELECT to_char(booked_on,'YYYY-MM') m, COALESCE(NULLIF(celebration_type,''),'unknown') c,
@@ -91,7 +95,8 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
       generatedAt: new Date().toISOString(),
       range: { from, to },
       dateBasis: 'booking entered system (finance_receipts.booked_on), not event date',
-      attribution: 'all bookings are from Meta ads EXCEPT the Eventana Exclusive Package (Carnival/3499/3500 Offer, Marwa Rateb)',
+      attribution: 'all bookings are from Meta ads EXCEPT line items matching nonMetaPattern (Exclusive/Carnival/3499/3500/Marwa Rateb, 2900/2999 WhatsApp offers)',
+      nonMetaPattern: nonMeta,
       currency: 'AED',
       bookings: {
         byMonth: byMonth.rows.map((r) => ({
