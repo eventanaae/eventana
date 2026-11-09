@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { loadProfile, saveProfile } from '../profile';
 import { uaeMobile } from './ShopCheckout';
-import { C, fredoka, Notice, PrimaryButton, Spinner } from '../ui';
+import { C, fredoka, Notice, PrimaryButton, Spinner, dubaiToday } from '../ui';
 import type { Lang, TFn } from '../i18n';
 
 /**
@@ -78,13 +78,13 @@ export function EditProfileSheet({
         ) : (
           <>
             <div style={label}>{t('auth.name')}</div>
-            <input value={name} onChange={(e) => setName(e.target.value)} style={field} />
+            <input aria-label={t('auth.name')} value={name} onChange={(e) => setName(e.target.value)} style={field} />
             <div style={label}>{t('auth.phone')}</div>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" style={field} />
+            <input aria-label={t('auth.phone')} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" style={field} />
             <div style={label}>{t('auth.dob')}</div>
-            <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} max={new Date().toISOString().slice(0, 10)} style={field} />
+            <input type="date" aria-label={t('auth.dob')} value={dob} onChange={(e) => setDob(e.target.value)} max={dubaiToday()} style={field} />
             <div style={label}>{t('auth.emailReadonly')}</div>
-            <input value={email} readOnly style={{ ...field, background: '#f6f1f4', color: C.muted }} />
+            <input aria-label={t('auth.emailReadonly')} value={email} readOnly style={{ ...field, background: '#f6f1f4', color: C.muted }} />
 
             {error && <div style={{ marginBottom: 10 }}><Notice tone="error">{error}</Notice></div>}
             <PrimaryButton disabled={!canSave} onClick={save}>

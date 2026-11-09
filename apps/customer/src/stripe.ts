@@ -10,23 +10,35 @@ let loading: Promise<any> | null = null;
 function loadStripeJs(): Promise<any> {
   if ((window as any).Stripe) return Promise.resolve((window as any).Stripe);
   if (loading) return loading;
+  const SRC = 'https://js.stripe.com/v3/';
   loading = new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[src="https://js.stripe.com/v3/"]');
-    const done = () => {
+    // A failed load must not be cached: drop the promise and the dead <script>
+    // tag so the next attempt (the "Try again" button) really re-downloads
+    // Stripe.js instead of re-using the same rejected promise forever.
+    const fail = (el: Element | null) => {
+      loading = null;
+      try { el?.remove(); } catch { /* ignore */ }
+      reject(new Error('Stripe.js failed to load'));
+    };
+    const existing = document.querySelector(`script[src="${SRC}"]`);
+    const done = (el: Element | null) => {
       if ((window as any).Stripe) resolve((window as any).Stripe);
-      else reject(new Error('Stripe.js failed to load'));
+      else fail(el);
     };
     if (existing) {
-      existing.addEventListener('load', done);
-      existing.addEventListener('error', () => reject(new Error('Stripe.js failed to load')));
+      existing.addEventListener('load', () => done(existing));
+      existing.addEventListener('error', () => fail(existing));
       if ((window as any).Stripe) resolve((window as any).Stripe);
       return;
     }
     const s = document.createElement('script');
-    s.src = 'https://js.stripe.com/v3/';
+    s.src = SRC;
     s.async = true;
-    s.onload = done;
-    s.onerror = () => reject(new Error('Stripe.js failed to load'));
+    s.onload = () => done(s);
+    s.onerror = () => fail(s);
+    // A blocked/hanging request never fires onerror on some mobile browsers —
+    // give up after 20s so the customer gets an error + retry, not a blank box.
+    window.setTimeout(() => { if (!(window as any).Stripe && loading) fail(s); }, 20_000);
     document.head.appendChild(s);
   });
   return loading;

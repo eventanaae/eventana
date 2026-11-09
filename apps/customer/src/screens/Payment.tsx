@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { C, fredoka, Notice, PrimaryButton, Spinner } from '../ui';
-import type { TFn } from '../i18n';
+import type { Lang, TFn } from '../i18n';
 import { mountStripeCheckout } from '../stripe';
 import { trackGooglePurchase } from '../googleTag';
 
@@ -21,6 +21,8 @@ export function PaymentReturn({
   onConfirmed,
   onShopDone,
   onRetry,
+  returnState,
+  lang = 'en',
   t,
 }: {
   orderId: string;
@@ -30,12 +32,19 @@ export function PaymentReturn({
   embedUrl?: string | null;
   /** When set, mount Stripe's in-page embedded checkout (no redirect). */
   stripe?: { clientSecret: string; publishableKey: string } | null;
-  onConfirmed: (eventId: string) => void;
-  /** A confirmed standalone shop order has no event — just finish. */
-  onShopDone: () => void;
+  /** Called with the order kind so the app only clears the party draft after
+   *  a real booking — never after an add-on or tip payment. */
+  onConfirmed: (eventId: string, kind: string) => void;
+  /** A confirmed order with no event to open (shop order, invoice) — finish. */
+  onShopDone: (kind: string) => void;
   onRetry: (kind: string) => void;
+  /** How the provider sent the customer back, when it says so: a cancelled or
+   *  failed Tabby/Tamara/Stripe attempt must not sit on an endless spinner. */
+  returnState?: 'cancel' | 'failure' | null;
+  lang?: Lang;
   t: TFn;
 }) {
+  const ar = lang === 'ar';
   const [status, setStatus] = useState<string>('checking');
   const [eventId, setEventId] = useState<string | null>(null);
   // The number shown to the customer: EV-<receipt> (matches My Event, the receipt
@@ -84,8 +93,14 @@ export function PaymentReturn({
     const isShop = kind === 'shop';
     const isTip = kind === 'tip';
     const isAddon = kind === 'addon';
-    const heading = isShop ? t('pay.shopThanks') : isTip ? t('pay.tipThanks') : isAddon ? t('pay.addonAdded') : t('pay.booked');
-    const sub = isShop ? t('pay.shopSub') : isTip ? t('pay.tipSub') : isAddon ? t('pay.addonSub') : t('pay.bookedSub');
+    // An invoice-balance payment settles money owed on an existing booking — it
+    // must not read "Your celebration is booked!".
+    const isInvoice = kind === 'invoice_pay';
+    const heading = isShop ? t('pay.shopThanks') : isTip ? t('pay.tipThanks') : isAddon ? t('pay.addonAdded')
+      : isInvoice ? (ar ? 'تم دفع الفاتورة ✓' : 'Invoice paid ✓') : t('pay.booked');
+    const sub = isShop ? t('pay.shopSub') : isTip ? t('pay.tipSub') : isAddon ? t('pay.addonSub')
+      : isInvoice ? (ar ? 'تم تأكيد الدفع. بيوصلك إيصال على الإيميل — شكراً لك 💕' : 'Payment verified. Your receipt is on its way by email — thank you 💕')
+      : t('pay.bookedSub');
     return (
       <div style={{ padding: '60px 30px 40px', textAlign: 'center', animation: 'rise .4s ease' }}>
         <div
@@ -100,7 +115,7 @@ export function PaymentReturn({
         <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, margin: '12px 0 26px', lineHeight: 1.5 }}>
           {sub}
         </div>
-        {!isTip && !isShop && eventId && (
+        {!isTip && !isShop && !isInvoice && eventId && (
           <div style={{ background: '#fff', borderRadius: 20, padding: 16, boxShadow: C.shadowLg, display: 'inline-block', minWidth: 220 }}>
             <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 1 }}>{t('pay.eventId')}</div>
             <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 21, fontWeight: 700, marginTop: 4, letterSpacing: 1 }}>
@@ -110,27 +125,38 @@ export function PaymentReturn({
         )}
         <div style={{ marginTop: 30 }}>
           <button
-            onClick={() => (isShop || !eventId ? onShopDone() : onConfirmed(eventId))}
+            onClick={() => (isShop || isInvoice || !eventId ? onShopDone(kind) : onConfirmed(eventId, kind))}
             style={{ background: C.ink, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, padding: '15px 34px', borderRadius: 22, cursor: 'pointer' }}
           >
-            {isShop ? t('pay.shopDone') : isTip ? t('pay.backToEvent') : t('pay.viewEvent')}
+            {isShop || isInvoice || !eventId ? t('pay.shopDone') : isTip || isAddon ? t('pay.backToEvent') : t('pay.viewEvent')}
           </button>
         </div>
       </div>
     );
   }
 
-  const failed = status === 'failed' || status === 'cancelled';
   const review = status === 'needs_review';
+  // The provider told us the attempt was cancelled/declined (return URL), or the
+  // server already marked it failed. A server 'paid'/'processing' wins: polling
+  // continues underneath and flips to the confirmed screen if money did land.
+  const returnedUnpaid = Boolean(returnState) && status !== 'processing' && status !== 'paid' && !review;
+  const failed = status === 'failed' || status === 'cancelled' || returnedUnpaid;
+  const isPartyBooking = kind === 'booking';
 
   if (failed) {
     return (
       <div style={{ padding: '60px 30px', textAlign: 'center' }}>
-        <div style={{ ...fredoka(22), marginBottom: 10 }}>{t('pay.failedTitle')}</div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 24 }}>
-          {t('pay.failedBody')}
+        <div style={{ ...fredoka(22), marginBottom: 10 }}>
+          {returnState === 'cancel' && status !== 'failed'
+            ? (ar ? 'تم إلغاء الدفع' : 'Payment cancelled')
+            : t('pay.failedTitle')}
         </div>
-        <PrimaryButton onClick={() => onRetry(kind)}>{t('pay.tryAnother')}</PrimaryButton>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6, marginBottom: 24 }}>
+          {isPartyBooking || kind === 'shop'
+            ? t('pay.failedBody')
+            : (ar ? 'لم يُخصم أي مبلغ. تقدر تحاول مرة ثانية.' : 'No charge was made. You can try again.')}
+        </div>
+        <PrimaryButton onClick={() => onRetry(kind)}>{isPartyBooking ? t('pay.tryAnother') : t('common.tryAgain')}</PrimaryButton>
       </div>
     );
   }
@@ -148,7 +174,7 @@ export function PaymentReturn({
   // completion Stripe returns the page to our /?order=… screen, which polls
   // until the server confirms. The customer never leaves the app to pay.
   if (stripe) {
-    return <StripeEmbed stripe={stripe} t={t} onCancel={() => onRetry(kind)} />;
+    return <StripeEmbed stripe={stripe} t={t} ar={ar} onCancel={() => onRetry(kind)} />;
   }
 
   // In-app payment: show the provider's embedded widget in an iframe and keep
@@ -196,6 +222,23 @@ export function PaymentReturn({
           <Notice tone="info">{t('pay.stillConfirming')}</Notice>
         </div>
       )}
+      {/* A customer who closed / backed out of Tabby, Tamara or the card page
+          lands here too, and the order then never confirms. Don't trap them on a
+          spinner: after a short wait offer a way back to try again (polling keeps
+          running, so a payment that does land still confirms). */}
+      {waited >= 30 && (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10 }}>
+            {ar ? 'ما كملت الدفع أو ألغيته؟' : "Didn't finish paying, or cancelled?"}
+          </div>
+          <button
+            onClick={() => onRetry(kind)}
+            style={{ background: '#fff', color: C.pinkDeep, border: `1.5px solid ${C.pink}`, fontWeight: 700, fontSize: 13, padding: '11px 24px', borderRadius: 16, cursor: 'pointer' }}
+          >
+            {t('common.tryAgain')}
+          </button>
+        </div>
+      )}
       {waited > 60 && (
         <div style={{ marginTop: 20 }}>
           <Notice tone="warn">{t('pay.takingLong')}</Notice>
@@ -217,14 +260,19 @@ export function PaymentReturn({
 function StripeEmbed({
   stripe,
   t,
+  ar,
   onCancel,
 }: {
   stripe: { clientSecret: string; publishableKey: string };
   t: TFn;
+  ar: boolean;
   onCancel: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bumped by "Try again" to re-run the mount (the loader no longer caches a
+  // failed Stripe.js download, so a retry really re-fetches it).
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let handle: { destroy: () => void } | null = null;
@@ -238,15 +286,23 @@ function StripeEmbed({
       }).then((h) => { if (alive) handle = h; else h.destroy(); });
     }
     return () => { alive = false; handle?.destroy(); };
-  }, [stripe.clientSecret, stripe.publishableKey]);
+  }, [stripe.clientSecret, stripe.publishableKey, attempt]);
 
   return (
     <div style={{ padding: '10px 12px 24px', animation: 'rise .3s ease' }}>
       <div style={{ ...fredoka(18), textAlign: 'center', margin: '4px 0 12px' }}>{t('pay.securePay')}</div>
       {error ? (
         <div style={{ textAlign: 'center' }}>
-          <Notice tone="error">{error}</Notice>
-          <PrimaryButton onClick={onCancel} style={{ marginTop: 14 }}>{t('pay.tryAnother')}</PrimaryButton>
+          <Notice tone="error">
+            {ar ? 'تعذّر تحميل نموذج الدفع. تأكد من الاتصال بالإنترنت وحاول مرة ثانية.' : 'The payment form could not load. Check your connection and try again.'}
+          </Notice>
+          <PrimaryButton onClick={() => { setError(null); setAttempt((n) => n + 1); }} style={{ marginTop: 14 }}>{t('common.tryAgain')}</PrimaryButton>
+          <button
+            onClick={onCancel}
+            style={{ marginTop: 12, background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {t('pay.cancelPay')}
+          </button>
         </div>
       ) : (
         <>

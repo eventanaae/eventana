@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SHOP_DRAWING_IDS, SHOP_SERVICE_IDS, type CartInput } from '@eventana/shared';
 import { api, type Catalogue, type QuoteResult } from './api';
-import { C, Spinner, fredoka } from './ui';
+import { C, Spinner, dubaiToday, fredoka } from './ui';
 // Eager — the first-paint / core-navigation screens. Everything else is
 // code-split (below) so the initial JS download is just the landing path.
 import { Home } from './screens/Home';
@@ -37,7 +37,7 @@ import { landingFromPath, LANDING_ROUTES, type LandingRoute } from './landing';
  *  Dubai" page matches the home title/SEO. */
 const HOME_LANDING: LandingRoute = LANDING_ROUTES.find((r) => r.slug === 'party-organizer-dubai') ?? LANDING_ROUTES[0];
 import { useProfile } from './profile';
-import { loadAccount, loadPendingClaim, setPendingClaim, clearPendingClaim } from './account';
+import { loadAccount, loadPendingClaim, setPendingClaim, clearPendingClaim, SIGNED_OUT_EVENT, scrubDraftPersonalData } from './account';
 import { useLang, makeT, type Lang, type TFn } from './i18n';
 
 export type Screen =
@@ -139,7 +139,7 @@ function loadDraft(): Draft | null {
     if (!raw) return null;
     const d = { ...emptyDraft, ...(JSON.parse(raw) as Draft) };
     // A stale draft whose date has passed is reset to a fresh plausible date.
-    if (!d.eventDate || d.eventDate < new Date().toISOString().slice(0, 10)) d.eventDate = defaultDate();
+    if (!d.eventDate || d.eventDate < dubaiToday()) d.eventDate = defaultDate();
     return d;
   } catch {
     return null;
@@ -175,11 +175,40 @@ function saveShopCart(c: Record<string, number>): void {
   try { localStorage.setItem(SHOPCART_KEY, JSON.stringify(c)); } catch { /* storage full/unavailable */ }
 }
 
-/** Next Saturday — the app opens on a plausible party date. */
+/** Next Saturday in Dubai — the app opens on a plausible party date. Computed
+ *  on the Dubai calendar (UTC+4), not the device/UTC date, so late-night and
+ *  early-morning visitors don't get an off-by-one day. */
 function defaultDate(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7));
-  return d.toISOString().slice(0, 10);
+  const today = dubaiToday();
+  const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
+  return dubaiToday((6 - dow + 7) % 7 || 7);
+}
+
+/**
+ * Where the customer was in the booking flow, kept per tab (sessionStorage) so
+ * a refresh lands them back on the same step instead of the home screen. The
+ * selections themselves are in the saved draft above. Only screens that can be
+ * rebuilt from the draft are restored — never a payment/deep-link screen.
+ */
+const SCREEN_KEY = 'eventana.screen';
+const RESTORABLE: ReadonlySet<string> = new Set([
+  'explore', 'package', 'buildIntake', 'build', 'theme', 'custom', 'movieselect',
+  'checkout', 'shop', 'shopcheckout', 'designer', 'assistant', 'lead',
+]);
+function loadScreen(): Screen | null {
+  try {
+    const s = sessionStorage.getItem(SCREEN_KEY);
+    return s && RESTORABLE.has(s) ? (s as Screen) : null;
+  } catch { return null; }
+}
+/** An order being confirmed survives a refresh of the confirming screen. */
+const PENDING_ORDER_KEY = 'eventana.pendingOrder';
+function loadPendingOrder(): { orderId: string; token: string | null } | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_ORDER_KEY);
+    const p = raw ? JSON.parse(raw) : null;
+    return p && typeof p.orderId === 'string' ? { orderId: p.orderId, token: p.token ?? null } : null;
+  } catch { return null; }
 }
 
 /** The draft as the server's cart shape. */
@@ -234,7 +263,11 @@ export default function App() {
   const [catalogue, setCatalogue] = useState<Catalogue | null>(() => {
     try { const c = localStorage.getItem('ev_catalogue'); return c ? (JSON.parse(c) as Catalogue) : null; } catch { return null; }
   });
-  const [screen, setScreen] = useState<Screen>('home');
+  // A refresh mid-confirmation keeps polling the same order; a refresh mid-
+  // booking returns to the same step (see loadScreen). URL deep links below
+  // still take precedence.
+  const [pendingOrder] = useState(() => loadPendingOrder());
+  const [screen, setScreen] = useState<Screen>(() => (pendingOrder ? 'confirming' : loadScreen() ?? 'home'));
   // Standalone shop cart (custom printed & digital goods) — kept apart from the
   // party draft: service id → quantity.
   const [shopCart, setShopCart] = useState<Record<string, number>>(() => loadShopCart());
@@ -246,8 +279,11 @@ export default function App() {
   const [quoteError, setQuoteError] = useState(false);
   const [quoteNonce, setQuoteNonce] = useState(0);
   const retryQuote = useCallback(() => setQuoteNonce((n) => n + 1), []);
-  const [orderId, setOrderId] = useState<string | null>(null);
-  const [orderToken, setOrderToken] = useState<string | null>(null);
+  const [orderId, setOrderId] = useState<string | null>(() => pendingOrder?.orderId ?? null);
+  const [orderToken, setOrderToken] = useState<string | null>(() => pendingOrder?.token ?? null);
+  // How the provider returned the customer (?r=cancel|failure, or Tamara's own
+  // paymentStatus) — lets the confirming screen stop spinning on a cancel.
+  const [returnState, setReturnState] = useState<'cancel' | 'failure' | null>(null);
   const [stripeInfo, setStripeInfo] = useState<{ clientSecret: string; publishableKey: string } | null>(null);
   const [payUrl, setPayUrl] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
@@ -284,7 +320,9 @@ export default function App() {
   const [landing, setLanding] = useState<LandingRoute | null>(() => landingFromPath());
   // Once the visitor taps "Book" (or on a phone), we're past the desktop sales
   // page and into the app — so the desktop landing doesn't re-appear on re-render.
-  const [enteredApp, setEnteredApp] = useState(false);
+  // A refresh mid-booking (restored step / order being confirmed) is already in
+  // the app — don't bounce a desktop visitor back to the marketing page.
+  const [enteredApp, setEnteredApp] = useState(() => screen !== 'home');
   const enterFromLanding = useCallback((route: LandingRoute) => {
     setDraft((d) => ({ ...d, celebrationType: route.celebrationType, celebrationTypeChosen: true }));
     try { history.replaceState({}, '', '/'); } catch { /* file:// or a locked-down webview */ }
@@ -358,6 +396,15 @@ export default function App() {
     } else if (returned) {
       setOrderId(returned);
       setOrderToken(params.get('t'));
+      // The provider return URL is shared by success/cancel/failure. Read any
+      // outcome hint it carries: our own `r` (see the server note), Tamara's
+      // `paymentStatus`, or a generic `status`.
+      const hint = (params.get('r') || params.get('paymentStatus') || params.get('status') || '').toLowerCase();
+      setReturnState(
+        /cancel/.test(hint) ? 'cancel'
+          : /fail|declin|reject|expire/.test(hint) ? 'failure'
+          : null,
+      );
       setScreen('confirming');
       history.replaceState({}, '', location.pathname);
     } else if (openPay) {
@@ -456,6 +503,20 @@ export default function App() {
     return () => { alive = false; };
   }, []);
 
+  // Remember the current flow step for a refresh (see loadScreen), and the order
+  // being confirmed. Leaving the confirming screen forgets the order.
+  useEffect(() => {
+    try {
+      if (RESTORABLE.has(screen)) sessionStorage.setItem(SCREEN_KEY, screen);
+      else sessionStorage.removeItem(SCREEN_KEY);
+      if (screen === 'confirming' && orderId) {
+        sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify({ orderId, token: orderToken }));
+      } else if (screen !== 'confirming') {
+        sessionStorage.removeItem(PENDING_ORDER_KEY);
+      }
+    } catch { /* storage blocked */ }
+  }, [screen, orderId, orderToken]);
+
   const update = useCallback((patch: Partial<Draft>) => {
     setDraft((d) => ({ ...d, ...patch }));
   }, []);
@@ -464,6 +525,28 @@ export default function App() {
   // Debounce the draft write — on low-end phones, JSON.stringify + localStorage
   // on every keystroke (name/address) is wasteful; 400ms after the last change.
   useEffect(() => { const h = window.setTimeout(() => saveDraft(draft), 400); return () => window.clearTimeout(h); }, [draft]);
+  // ...but a refresh inside that 400ms window would drop the last change, so
+  // flush immediately when the page is being hidden/unloaded.
+  useEffect(() => {
+    const flush = () => saveDraft(draftRef.current);
+    const onVis = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', onVis); };
+  }, []);
+  // Sign-out wipes personal details (address, pin, guest-of-honour, custom-theme
+  // brief) from the in-memory draft too, so the flush above can't write them
+  // back to storage. The cart selections themselves are kept.
+  useEffect(() => {
+    const onSignOut = () => {
+      const scrubbed = scrubDraftPersonalData(draftRef.current as unknown as Record<string, unknown>) as unknown as Draft;
+      draftRef.current = scrubbed;
+      saveDraft(scrubbed);
+      setDraft(scrubbed);
+    };
+    window.addEventListener(SIGNED_OUT_EVENT, onSignOut);
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, onSignOut);
+  }, []);
   // Same for the shop basket — it used to live in memory only and vanish on refresh.
   useEffect(() => { saveShopCart(shopCart); }, [shopCart]);
 
@@ -500,6 +583,8 @@ export default function App() {
   // rather than closing over a stale copy.
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const catalogueRef = useRef(catalogue);
+  catalogueRef.current = catalogue;
 
   /**
    * Central navigation, and the single place the Build gate is enforced.
@@ -539,9 +624,24 @@ export default function App() {
   const rebook = useCallback(
     async (eventId: string) => {
       const prior = (await api.rebook(eventId)) as Partial<Draft>;
+      // Drop nulls so a missing field falls back to the fresh-draft default
+      // instead of overwriting it (e.g. `customization: null` would crash the
+      // drawing-items step). A head count of 0 means "not recorded" — use the
+      // largest per-child quantity from the old booking, else the default.
+      const clean = Object.fromEntries(Object.entries(prior).filter(([, v]) => v != null)) as Partial<Draft>;
+      const perChildQty = Math.max(0, ...Object.entries(clean.services ?? {})
+        .filter(([id]) => catalogueRef.current?.services.find((x) => x.id === id)?.pricing.kind === 'per_child')
+        .map(([, q]) => Number(q) || 0));
       setDraft({
         ...emptyDraft,
-        ...prior,
+        ...clean,
+        // Options chosen last time (kiosk colours, mascot, dolls, drawing) are
+        // carried over when the server returns them.
+        stationColors: clean.stationColors ?? {},
+        glamDolls: clean.glamDolls ?? [],
+        customization: clean.customization ?? emptyDraft.customization,
+        referenceImages: clean.referenceImages ?? [],
+        childrenCount: (clean.childrenCount ?? 0) > 0 ? clean.childrenCount! : perChildQty || emptyDraft.childrenCount,
         celebrationTypeChosen: true,
         buildAnswered: true,
         eventDate: defaultDate(),
@@ -554,6 +654,23 @@ export default function App() {
         address: { area: '', street: '', villa: '', details: '' },
       });
       go('checkout');
+    },
+    [go],
+  );
+
+  /**
+   * An add-on or tip payment that came back as an in-page Stripe session (no
+   * hosted redirect URL): show it on the normal confirming screen, which mounts
+   * Stripe and then polls the order like any other payment.
+   */
+  const startExtraPayment = useCallback(
+    (o: { orderId: string; orderToken: string | null; stripe: { clientSecret: string; publishableKey: string } }) => {
+      setOrderId(o.orderId);
+      setOrderToken(o.orderToken);
+      setPayUrl(null);
+      setStripeInfo(o.stripe);
+      setReturnState(null);
+      go('confirming');
     },
     [go],
   );
@@ -588,6 +705,17 @@ export default function App() {
     }),
     [catalogue, draft, update, quote, quoteError, retryQuote, go, reset, startBuild, profile?.name, lang, t, social, shopCart],
   );
+
+  // Terms deep link (?terms=1, e.g. from an invoice email): like the policy, it
+  // answers before the landing page / onboarding / catalogue load, which used
+  // to swallow it (a first-time or desktop visitor never saw the Terms).
+  if (showTerms) {
+    return (
+      <Suspense fallback={<ScreenFallback />}>
+        <TermsSheet lang={lang} onClose={() => setShowTerms(false)} />
+      </Suspense>
+    );
+  }
 
   // The policy answers before every other screen, onboarding included. This
   // URL is what Meta and the app stores are pointed at, and a visitor who
@@ -739,13 +867,34 @@ export default function App() {
             token={orderToken}
             embedUrl={payUrl}
             stripe={stripeInfo}
-            onConfirmed={(id) => { setEventId(id); setPayUrl(null); setStripeInfo(null); reset(); go('myevent'); }}
-            onShopDone={() => { setPayUrl(null); setStripeInfo(null); setShopCart({}); go('home'); }}
-            onRetry={(k) => { setPayUrl(null); setStripeInfo(null); go(k === 'shop' ? 'shopcheckout' : 'checkout'); }}
+            returnState={returnState}
+            lang={lang}
+            onConfirmed={(id, kind) => {
+              setEventId(id); setPayUrl(null); setStripeInfo(null); setReturnState(null);
+              // Only a party booking empties the cart — paying for an add-on or a
+              // tip must not wipe a new party the customer is building.
+              if (kind === 'booking') reset(); else setOrderId(null);
+              go(kind === 'tip' && !loadAccount()?.token && !loadPendingClaim() ? 'home' : 'myevent');
+            }}
+            onShopDone={(kind) => {
+              setPayUrl(null); setStripeInfo(null); setReturnState(null); setOrderId(null);
+              if (kind === 'shop') setShopCart({});
+              go('home');
+            }}
+            onRetry={(k) => {
+              setPayUrl(null); setStripeInfo(null); setReturnState(null); setOrderId(null);
+              go(
+                k === 'shop' ? 'shopcheckout'
+                  : k === 'addon' ? 'myevent'
+                  : k === 'tip' ? (feedbackLink ? 'feedback' : 'myevent')
+                  : k === 'invoice_pay' ? (payLink ? 'paylink' : 'home')
+                  : 'checkout',
+              );
+            }}
             t={t}
           />
         )}
-        {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} t={t} lang={lang} />}
+        {screen === 'myevent' && <MyEvent eventId={eventId} onPickEvent={setEventId} go={go} t={t} lang={lang} onPay={startExtraPayment} />}
         {screen === 'profile' && <Profile go={go} onRebook={rebook} onOpenEvent={(id) => { setEventId(id); go('myevent'); }} t={t} lang={lang} setLang={setLang} />}
         {screen === 'shop' && <Shop {...shared} />}
         {screen === 'shopcheckout' && (
@@ -755,7 +904,7 @@ export default function App() {
           <PayLink orderId={payLink.orderId} token={payLink.token} mapsKey={catalogue.mapsKey} lang={lang} t={t} />
         )}
         {screen === 'feedback' && feedbackLink && (
-          <GuestFeedback event={feedbackLink.event} token={feedbackLink.token} t={t} lang={lang} />
+          <GuestFeedback event={feedbackLink.event} token={feedbackLink.token} t={t} lang={lang} onPay={startExtraPayment} />
         )}
         </Suspense>
       </div>
@@ -776,11 +925,11 @@ export default function App() {
           <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: '100%', maxWidth: 440 }}>
             <button
               onClick={dismissAutoFeedback}
-              aria-label="Close"
+              aria-label={lang === 'ar' ? 'إغلاق' : 'Close'}
               style={{ position: 'absolute', top: 6, insetInlineEnd: 6, zIndex: 2, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.9)', color: C.muted, fontSize: 20, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,.15)' }}
             >×</button>
             <Suspense fallback={<ScreenFallback />}>
-              <GuestFeedback event={autoFeedback.event} token={autoFeedback.token} t={t} lang={lang} />
+              <GuestFeedback event={autoFeedback.event} token={autoFeedback.token} t={t} lang={lang} onPay={(o) => { setAutoFeedback(null); startExtraPayment(o); }} />
             </Suspense>
           </div>
         </div>

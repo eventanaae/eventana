@@ -101,6 +101,16 @@ export function cld(url: string | null | undefined, w: number): string | undefin
   return url.replace('/upload/', `/upload/f_auto,q_auto,w_${w},c_fill,dpr_auto/`);
 }
 
+/**
+ * Today's date in Dubai (UTC+4, no DST) as yyyy-mm-dd, optionally shifted by
+ * whole days. `new Date().toISOString()` is the UTC date, which is still
+ * "yesterday" between midnight and 4am in the UAE — date defaults and minimums
+ * must use the local Dubai calendar day instead.
+ */
+export function dubaiToday(addDays = 0): string {
+  return new Date(Date.now() + 4 * 3_600_000 + addDays * 86_400_000).toISOString().slice(0, 10);
+}
+
 /** "17:00" -> "5:00 PM" */
 export function timeLabel(t: string): string {
   const [h, m] = t.split(':').map(Number);
@@ -204,6 +214,7 @@ export function Field(props: {
   return (
     <input
       placeholder={props.placeholder}
+      aria-label={props.placeholder.replace(/\s*\*$/, '')}
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
       style={{
@@ -254,8 +265,9 @@ export function Notice({
 
 export function Spinner({ label }: { label?: string }) {
   return (
-    <div style={{ textAlign: 'center', padding: 40 }}>
+    <div role="status" aria-live="polite" style={{ textAlign: 'center', padding: 40 }}>
       <div
+        aria-hidden="true"
         style={{
           width: 26,
           height: 26,

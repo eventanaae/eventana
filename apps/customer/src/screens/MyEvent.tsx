@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { parseEndHour, parseHour } from '@eventana/shared';
 import { api } from '../api';
 import type { Screen } from '../App';
-import { C, fredoka, money, Notice, PrimaryButton, Spinner, timeLabel } from '../ui';
+import { C, dubaiToday, fredoka, money, Notice, PrimaryButton, Spinner, timeLabel } from '../ui';
 import type { Lang, TFn } from '../i18n';
 import { TermsSheet } from './Terms';
 import { pkgNameByEn } from '../pkgAr';
 import { loadAccount, currentFb } from '../account';
 import { AuthSheet } from './AuthSheet';
+import { openExtraPayment, type ExtraPayment } from '../extraPayment';
 
 // Apple Wallet is OFF until the pass is verified end-to-end (needs a valid Apple
 // Developer pass certificate + working signing on the server). The button was
@@ -53,12 +54,15 @@ export function MyEvent({
   go,
   t,
   lang,
+  onPay,
 }: {
   eventId: string | null;
   onPickEvent: (id: string) => void;
   go: (s: Screen) => void;
   t: TFn;
   lang: Lang;
+  /** Show an in-page (Stripe) add-on / tip payment on the confirming screen. */
+  onPay?: (p: ExtraPayment) => void;
 }) {
   const [list, setList] = useState<any[] | null>(null);
   const [event, setEvent] = useState<any>(null);
@@ -190,8 +194,8 @@ export function MyEvent({
   // that hasn't been auto-completed yet still counts as over.
   const eventPast = (() => {
     try {
-      const d = event.date ? new Date(event.date).toISOString().slice(0, 10) : null;
-      return d != null && d < new Date().toISOString().slice(0, 10);
+      const d = event.date ? String(event.date).slice(0, 10) : null;
+      return d != null && d < dubaiToday();
     } catch { return false; }
   })();
   const eventOver = cancelled || event.phase === 'Event Completed' || eventPast;
@@ -215,9 +219,9 @@ export function MyEvent({
         additionalHours: pending.hours,
         socksPairs: pending.socks,
         extraServings: pending.servings,
+        lang,
       });
-      if (result.checkoutUrl) window.location.href = result.checkoutUrl;
-      else setAddonError(t('me.errCheckout'));
+      if (!openExtraPayment(result, onPay)) setAddonError(t('me.errCheckout'));
     } catch (e: any) {
       setAddonError(e?.body?.message ?? e?.message ?? t('me.errAddon'));
     } finally {
@@ -622,7 +626,7 @@ export function MyEvent({
           leave a Google review + tip the crew" state and stops re-prompting the
           stars. So a happy customer can still leave a review and tip. */}
       {!cancelled && event.review?.canReview && (
-        <RateAndTip event={event} onDone={async () => setEvent(await api.event(event.id))} t={t} />
+        <RateAndTip event={event} onDone={async () => setEvent(await api.event(event.id))} t={t} lang={lang} onPay={onPay} />
       )}
 
       {/* ---------------- chat ---------------- */}
@@ -660,6 +664,7 @@ export function MyEvent({
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               placeholder={t('me.chatPlaceholder')}
+              aria-label={t('me.chatTitle')}
               value={chat}
               onChange={(e) => setChat(e.target.value)}
               style={{
@@ -669,11 +674,17 @@ export function MyEvent({
               }}
             />
             <button
+              aria-label={lang === 'ar' ? 'إرسال' : 'Send'}
               onClick={async () => {
                 if (!chat.trim()) return;
-                await api.sendMessage(event.id, chat.trim());
-                setChat('');
-                setEvent(await api.event(event.id));
+                try {
+                  await api.sendMessage(event.id, chat.trim());
+                  setChat('');
+                  setEvent(await api.event(event.id));
+                } catch {
+                  // Keep the typed message so it isn't lost; tell them it didn't go.
+                  alert(lang === 'ar' ? 'ما انرسلت الرسالة. حاول مرة ثانية.' : 'Your message was not sent. Please try again.');
+                }
               }}
               style={{ width: 40, height: 40, borderRadius: 14, border: 'none', background: C.pink, color: '#fff', fontSize: 15, cursor: 'pointer', flex: 'none' }}
             >
@@ -698,7 +709,7 @@ export function MyEvent({
           {design.image_url ? (
             <img
               src={design.image_url}
-              alt="Your design"
+              alt={lang === 'ar' ? 'تصميمك' : 'Your design'}
               style={{ width: '100%', maxHeight: 260, objectFit: 'contain', borderRadius: 16, marginBottom: 12, background: '#faf6f2' }}
             />
           ) : (
@@ -721,6 +732,7 @@ export function MyEvent({
               <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{t('me.designRequest')}</div>
               <textarea
                 placeholder={t('me.designChangePh')}
+                aria-label={t('me.designRequest')}
                 rows={3}
                 value={designNote}
                 onChange={(e) => setDesignNote(e.target.value)}
@@ -791,7 +803,7 @@ function Reschedule({ eventId, hours, t, onDone }: { eventId: string; hours?: nu
   }, [hours]);
 
   // 72h ≈ 3 days; add a day of buffer so the picked date always clears the rule.
-  const minDate = new Date(Date.now() + 4 * 86_400_000).toISOString().slice(0, 10);
+  const minDate = dubaiToday(4);
 
   const submit = async () => {
     if (!date) return;
@@ -833,6 +845,7 @@ function Reschedule({ eventId, hours, t, onDone }: { eventId: string; hours?: nu
           <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 6 }}>{t('me.rescheduleNewDate')}</div>
           <input
             type="date"
+            aria-label={t('me.rescheduleNewDate')}
             value={date}
             min={minDate}
             onChange={(e) => setDate(e.target.value)}
@@ -925,6 +938,7 @@ function SetupSpotPhotos({ eventId, photos, t }: { eventId: string; photos: Setu
       </div>
       <input
         placeholder={t('me.setupNotePh')}
+        aria-label={t('me.setupNotePh')}
         value={note}
         onChange={(e) => setNote(e.target.value)}
         style={{
@@ -959,7 +973,7 @@ function SetupSpotPhotos({ eventId, photos, t }: { eventId: string; photos: Setu
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
           {list.map((p) => (
             <div key={p.id} style={{ display: 'flex', gap: 10, alignItems: 'center', background: '#fff', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: 8 }}>
-              {p.url && <img src={p.url} alt="setup spot" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10, flex: 'none' }} />}
+              {p.url && <img src={p.url} alt={p.note || t('me.setupTitle')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10, flex: 'none' }} />}
               <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: p.note ? C.ink : C.muted, wordBreak: 'break-word' }}>
                 {p.note || t('me.setupNoNote')}
               </div>
@@ -977,7 +991,14 @@ function SetupSpotPhotos({ eventId, photos, t }: { eventId: string; photos: Setu
   );
 }
 
-function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<void>; t: TFn }) {
+function RateAndTip({ event, onDone, t, lang, onPay }: { event: any; onDone: () => Promise<void>; t: TFn; lang: Lang; onPay?: (p: ExtraPayment) => void }) {
+  // Who a tip can be aimed at. The smart-staffing `crew` rows carry NO member id
+  // (names/roles only), so filtering them on `id` hid every individual chip.
+  // Tip targets must be real event_team members (the server checks), so use
+  // the crew only when its rows have ids, else the `team` list (which does).
+  const crewWithIds = (event.crew ?? []).filter((m: any) => m?.id != null && m?.name && m?.confirmed !== false);
+  const tipTargets: Array<{ id: string; name: string }> = (crewWithIds.length ? crewWithIds : (event.team ?? []))
+    .filter((m: any) => m?.id != null && m?.name);
   const existing = event.review?.rating as { stars: number; feedback: string | null } | null;
   const presets: number[] = event.review?.tipPresetsFils ?? [5000, 10000, 15000];
 
@@ -1031,8 +1052,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
     setTipError(null);
     try {
       const res = await api.tipCheckout(event.id, effectiveTip, memberId);
-      if (res.checkoutUrl) window.location.href = res.checkoutUrl;
-      else setTipError(t('me.errCheckout'));
+      if (!openExtraPayment(res, onPay)) setTipError(t('me.errCheckout'));
     } catch (e: any) {
       setTipError(e?.body?.message ?? e?.message ?? t('me.errTip'));
     } finally {
@@ -1058,7 +1078,8 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
               fontSize: 30, lineHeight: 1, padding: 0,
               filter: n <= stars ? 'none' : 'grayscale(1) opacity(0.35)',
             }}
-            aria-label={`${n} star${n > 1 ? 's' : ''}`}
+            aria-label={lang === 'ar' ? `${n} نجوم` : `${n} star${n > 1 ? 's' : ''}`}
+            aria-pressed={n === stars}
           >
             ⭐
           </button>
@@ -1090,6 +1111,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
           )}
           <textarea
             placeholder={stars >= 1 && stars < 4 ? t('me.rateFeedbackReqPh') : t('me.rateFeedbackPh')}
+            aria-label={t('me.rateTitle')}
             rows={2}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
@@ -1130,11 +1152,9 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
         {/* who */}
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
           <TipChip label={t('me.tipWholeTeam')} active={memberId === null} onClick={() => setMemberId(null)} />
-          {((event.crew && event.crew.length ? event.crew : (event.team ?? []))
-            .filter((m: any) => m?.id != null && m?.name && m?.confirmed !== false))
-            .map((m: any) => (
-              <TipChip key={m.id} label={m.name} active={memberId === m.id} onClick={() => setMemberId(m.id)} />
-            ))}
+          {tipTargets.map((m) => (
+            <TipChip key={m.id} label={m.name} active={memberId === m.id} onClick={() => setMemberId(m.id)} />
+          ))}
         </div>
 
         {/* amount */}
@@ -1151,13 +1171,14 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
                   fontWeight: 700, fontSize: 14, padding: '12px 0', borderRadius: 14, cursor: 'pointer',
                 }}
               >
-                AED {money(f)}
+                {t('common.aed')} {money(f)}
               </button>
             );
           })}
         </div>
         <input
           placeholder={t('me.tipCustom')}
+          aria-label={t('me.tipCustom')}
           inputMode="decimal"
           value={customAed}
           onChange={(e) => setCustomAed(e.target.value.replace(/[^\d.]/g, ''))}
@@ -1177,7 +1198,7 @@ function RateAndTip({ event, onDone, t }: { event: any; onDone: () => Promise<vo
           {tipping
             ? t('me.opening')
             : memberId
-              ? t('me.tipTo', { aed: `${t('common.aed')} ${money(Number.isFinite(effectiveTip) ? effectiveTip : 0)}`, who: ((event.crew && event.crew.length ? event.crew : (event.team ?? [])).find((m: any) => m.id === memberId)?.name) ?? t('me.crew') })
+              ? t('me.tipTo', { aed: `${t('common.aed')} ${money(Number.isFinite(effectiveTip) ? effectiveTip : 0)}`, who: tipTargets.find((m) => m.id === memberId)?.name ?? t('me.crew') })
               : t('me.tipToTeam', { aed: `${t('common.aed')} ${money(Number.isFinite(effectiveTip) ? effectiveTip : 0)}` })}
         </button>
         {tipError && (
@@ -1194,6 +1215,7 @@ function TipChip({ label, active, onClick }: { label: string; active: boolean; o
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       style={{
         border: `1.5px solid ${active ? C.pink : C.pinkLine}`,
         background: active ? C.pinkSoft : '#fff', color: active ? C.pinkDeep : C.ink,
@@ -1229,11 +1251,11 @@ function Stepper({
         <div style={{ fontSize: 10.5, fontWeight: 600, color: C.muted }}>{sub}</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button onClick={() => onChange(Math.max(0, value - step))} style={stepBtn}>−</button>
-        <span style={{ fontWeight: 700, fontSize: 13, minWidth: 26, textAlign: 'center' }}>
+        <button onClick={() => onChange(Math.max(0, value - step))} aria-label={`− ${title}`} style={stepBtn}>−</button>
+        <span aria-live="polite" style={{ fontWeight: 700, fontSize: 13, minWidth: 26, textAlign: 'center' }}>
           {format ? format(value) : value}
         </span>
-        <button onClick={() => onChange(Math.min(max, value + step))} style={stepBtn}>＋</button>
+        <button onClick={() => onChange(Math.min(max, value + step))} aria-label={`+ ${title}`} style={stepBtn}>＋</button>
       </div>
     </div>
   );
