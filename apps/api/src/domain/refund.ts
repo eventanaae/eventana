@@ -62,6 +62,43 @@ async function returnSpentTenders(
   }
 }
 
+/**
+ * Tell the owner + Marsha that a refund was recorded (owner, 2026-11-10): an
+ * in-app / phone push to each, plus one email to the owner's and Marsha's
+ * inboxes. Best-effort and AFTER the refund is committed — a failed notice can
+ * never undo or repeat the refund.
+ */
+async function notifyStaffOfRefund(n: { orderId: string; amountFils: number; reason: string; byHand: boolean; createdBy: string }): Promise<void> {
+  try {
+    const info = (await pool.query<{ cust: string | null; ev: string | null; d: string | null }>(
+      `SELECT c.name AS cust, e.id AS ev, to_char(e.event_date,'DD Mon YYYY') AS d
+         FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+         LEFT JOIN events e ON e.order_id = o.id OR e.id = o.event_id
+        WHERE o.id = $1 LIMIT 1`, [n.orderId])).rows[0] ?? { cust: null, ev: null, d: null };
+    const amt = formatAed(n.amountFils);
+    const who = info.cust ?? 'Customer';
+    const how = n.byHand ? 'Transfer the money to the customer by hand.' : 'Refunded automatically to the customer\'s card / Tabby / Tamara — nothing to transfer.';
+    const title = `💸 Refund AED ${amt} — ${who}`;
+    const body = `${info.ev ? `${info.ev}${info.d ? ` (${info.d})` : ''} · ` : ''}${n.reason}. ${how}`;
+    const { pushToOwner } = await import('../integrations/push.js');
+    const targets = await pool.query<{ id: string }>(
+      `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`);
+    for (const t of targets.rows) await pushToOwner('staff', t.id, title, body, { orderId: n.orderId }).catch(() => {});
+    const { emailEnabled, sendEmail } = await import('../integrations/email.js');
+    if (emailEnabled()) {
+      const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#4A3540">
+        <h2 style="margin:0 0 8px">${title.replace(/</g, '&lt;')}</h2>
+        <p style="margin:4px 0">${body.replace(/</g, '&lt;')}</p>
+        <p style="margin:4px 0;color:#9B8A94">Order ${n.orderId} · recorded by ${n.createdBy.replace(/</g, '&lt;')}</p></div>`;
+      for (const to of ['sheem@eventanauae.com', 'marsha@eventanauae.com']) {
+        await sendEmail({ to, subject: `Eventana — ${title}`, html }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.error('[refund] staff notice failed:', (err as Error).message);
+  }
+}
+
 export async function refundOrderMoney(params: {
   orderId: string;
   amountFils: number;
@@ -89,8 +126,9 @@ export async function refundOrderMoney(params: {
   const createdBy = params.createdBy ?? 'system';
   if (amountFils <= 0) return { ok: false, error: 'nothing_to_refund' };
 
+  let notice: { amountFils: number; byHand: boolean } | null = null;
   try {
-    return await withTransaction(async (db) => {
+    const out = await withTransaction(async (db): Promise<RefundResult> => {
       const { rows } = await db.query(
         `SELECT p.*, o.total_fils, o.event_id, o.customer_id, o.kind AS order_kind
            FROM payments p JOIN orders o ON o.id = p.order_id
@@ -147,6 +185,7 @@ export async function refundOrderMoney(params: {
            VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',$8,$9)`,
           [orderId, ord.event_id, ord.customer_id, toRefund, reasonCategory, reason, !!params.cancelEvent, createdBy, itemLabel],
         );
+        notice = { amountFils: toRefund, byHand: true };
         const status: 'refunded' | 'partially_refunded' = (already + toRefund) >= cap ? 'refunded' : 'partially_refunded';
         await db.query(`UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`, [orderId, orderStatusFor(status)]).catch(() => {});
 
@@ -311,6 +350,7 @@ export async function refundOrderMoney(params: {
         [orderId, payment.event_id, payment.customer_id, toRefund, reasonCategory,
          reason, !!params.cancelEvent, verified.providerStatus ?? null, createdBy, itemLabel],
       );
+      notice = { amountFils: toRefund, byHand: false };
 
       // Everything below is a best-effort SIDE-EFFECT: the receipt reflection,
       // cancellation settle, finance task, notifications, loyalty reversal, and —
@@ -423,6 +463,12 @@ export async function refundOrderMoney(params: {
 
       return { ok: true, status: nextStatus, refundedFils: refundedTotal };
     });
+    // Committed — now tell the owner + Marsha (once per recorded refund).
+    if (out.ok && notice) {
+      const nn = notice as { amountFils: number; byHand: boolean };
+      void notifyStaffOfRefund({ orderId, amountFils: nn.amountFils, reason, byHand: nn.byHand, createdBy });
+    }
+    return out;
   } catch (err) {
     // Leave the cancellation 'pending' so the team can retry from the dashboard.
     await pool

@@ -175,11 +175,24 @@ export function parseRakbankAlert(subject: string, body: string): ParsedAlert | 
  * It NEVER drops the row and never auto-approves/ignores — the row is still
  * queued, just flagged for the approver. Best-effort: a failed lookup = no flag.
  */
+export type DupVerdict = { kind: 'refund' | 'exact' | 'fuzzy'; text: string } | null;
+
+/**
+ * Owner's rule (2026-11-10): Marsha must NOT get extra warnings to review.
+ *  - 'refund' : the debit is a customer refund payout (already counted as a refund)
+ *  - 'exact'  : the SAME amount on the same day (±1) is already here from ANOTHER
+ *               feed, or already entered as an expense
+ *  → both are filed automatically as IGNORED (kept, never deleted, with the reason)
+ *    and never reach Marsha's approval list.
+ *  - 'fuzzy'  : close but not certain (±1% amount, ±3 days) → stays pending but is
+ *               shown to the OWNER only, with the reason.
+ */
 export async function findPossibleDuplicate(
   amountFils: number,
   postedOn: string | null | undefined,
   direction: 'debit' | 'credit',
-): Promise<string | null> {
+  source?: string,
+): Promise<DupVerdict> {
   if (direction !== 'debit' || !(amountFils > 0)) return null;
   const date = postedOn && /^\d{4}-\d{2}-\d{2}$/.test(postedOn) ? postedOn : dubaiToday();
   try {
@@ -190,7 +203,30 @@ export async function findPossibleDuplicate(
         ORDER BY abs((created_at AT TIME ZONE 'Asia/Dubai')::date - $2::date), id DESC
         LIMIT 1`,
       [amountFils, date]);
-    if (refund.rows[0]) return `customer refund (already counted) — order ${refund.rows[0].order_id}`;
+    if (refund.rows[0]) return { kind: 'refund', text: `customer refund (already counted) — order ${refund.rows[0].order_id}` };
+
+    // Exact: same amount, ±1 day, from a DIFFERENT feed (two 44 AED taxis on the
+    // same RAKBANK feed are two real trips, not a duplicate).
+    const exactBank = await pool.query<{ id: string; source: string; d: string }>(
+      `SELECT id, source, to_char(posted_on,'YYYY-MM-DD') AS d FROM bank_transactions
+        WHERE status <> 'ignored' AND direction = 'debit' AND amount_fils = $1
+          AND posted_on BETWEEN ($2::date - 1) AND ($2::date + 1)
+          AND ($3::text IS NULL OR source IS DISTINCT FROM $3)
+        ORDER BY abs(posted_on - $2::date), id LIMIT 1`,
+      [amountFils, date, source ?? null]);
+    if (exactBank.rows[0]) {
+      const b = exactBank.rows[0];
+      return { kind: 'exact', text: `same payment already in the inbox — bank #${b.id} (${b.source}, ${b.d})` };
+    }
+    const exactExp = await pool.query<{ id: string; vendor: string | null; d: string }>(
+      `SELECT id, vendor, to_char(spent_on,'YYYY-MM-DD') AS d FROM expenses
+        WHERE amount_fils = $1 AND spent_on BETWEEN ($2::date - 1) AND ($2::date + 1)
+        ORDER BY abs(spent_on - $2::date), id LIMIT 1`,
+      [amountFils, date]);
+    if (exactExp.rows[0]) {
+      const e = exactExp.rows[0];
+      return { kind: 'exact', text: `already entered as expense #${e.id} (${(e.vendor ?? 'no vendor').slice(0, 40)}, ${e.d})` };
+    }
 
     const lo = Math.floor(amountFils * 0.99);
     const hi = Math.ceil(amountFils * 1.01);
@@ -199,14 +235,14 @@ export async function findPossibleDuplicate(
         WHERE status <> 'ignored' AND direction = 'debit'
           AND amount_fils BETWEEN $1 AND $2
           AND posted_on BETWEEN ($3::date - 3) AND ($3::date + 3)
+          AND ($4::text IS NULL OR source IS DISTINCT FROM $4)
         ORDER BY abs(posted_on - $3::date), id DESC
         LIMIT 1`,
-      [lo, hi, date]);
+      [lo, hi, date, source ?? null]);
     if (bank.rows[0]) {
       const b = bank.rows[0];
-      return `bank #${b.id} (${b.source}, ${b.d})`;
+      return { kind: 'fuzzy', text: `close to bank #${b.id} (${b.source}, ${b.d})` };
     }
-
     const exp = await pool.query<{ id: string; vendor: string | null; d: string }>(
       `SELECT id, vendor, to_char(spent_on,'YYYY-MM-DD') AS d FROM expenses
         WHERE amount_fils BETWEEN $1 AND $2
@@ -216,12 +252,18 @@ export async function findPossibleDuplicate(
       [lo, hi, date]);
     if (exp.rows[0]) {
       const e = exp.rows[0];
-      return `expense #${e.id} (${(e.vendor ?? 'no vendor').slice(0, 40)}, ${e.d})`;
+      return { kind: 'fuzzy', text: `close to expense #${e.id} (${(e.vendor ?? 'no vendor').slice(0, 40)}, ${e.d})` };
     }
   } catch (err) {
     console.error('[bank-inbox] duplicate check failed:', (err as Error).message);
   }
   return null;
+}
+
+/** Status + decision columns for a new bank row given the duplicate verdict. */
+function dupStatus(v: DupVerdict): { status: string; decidedBy: string | null; flag: string | null } {
+  if (v && (v.kind === 'refund' || v.kind === 'exact')) return { status: 'ignored', decidedBy: 'system (auto: duplicate / refund)', flag: v.text };
+  return { status: 'pending', decidedBy: null, flag: v?.text ?? null };
 }
 
 /**
@@ -243,10 +285,11 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
   // Cross-source de-dup: the same debit may already be here from the Zoho feed
   // (or any other source / an expense). Never drop it — queue it FLAGGED so the
   // approver sees "possible duplicate of …" instead of approving it twice.
-  const possibleDup = await findPossibleDuplicate(p?.amountFils ?? 0, p?.postedOn ?? dubaiToday(), p?.direction ?? 'debit');
+  const verdict = dupStatus(await findPossibleDuplicate(p?.amountFils ?? 0, p?.postedOn ?? dubaiToday(), p?.direction ?? 'debit', source));
+  const possibleDup = verdict.flag;
   const ins = await pool.query<{ id: string }>(
-    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, possible_dup_of)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING id`,
+    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, possible_dup_of, decided_by, decided_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$10,$9,$11, CASE WHEN $10 = 'ignored' THEN now() END) RETURNING id`,
     [
       p?.postedOn ?? dubaiToday(),
       p?.amountFils ?? 0,
@@ -257,16 +300,19 @@ export async function ingestBankAlert(subject: string, body: string, source = 'r
       source,
       dedupeKey,
       possibleDup,
+      verdict.status,
+      verdict.decidedBy,
     ],
   );
   const id = String(ins.rows[0].id);
+  // Filed automatically (exact duplicate / customer refund) — nobody is pinged.
+  if (verdict.status === 'ignored') return { id };
 
   // Notify Marsha (she attaches the receipt) — in-app + WhatsApp — and the owner.
   const aed = ((p?.amountFils ?? 0) / 100).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const where = p?.merchant ? ` at ${p.merchant}` : '';
   const title = '🏦 New bank transaction — needs a receipt';
-  const dupNote = possibleDup ? ` ⚠️ Possible duplicate of ${possibleDup} — check before approving.` : '';
-  const bodyMsg = `AED ${aed}${where}. Open Bank Inbox, attach the receipt and approve.${dupNote}`;
+  const bodyMsg = `AED ${aed}${where}. Open Bank Inbox, attach the receipt and approve.`;
   const targets = await pool.query<{ id: string }>(
     `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
   );
@@ -649,10 +695,10 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     receiptUrl = await uploadBytes(new Uint8Array(att.bytes), 'eventana/receipts', att.filename).catch(() => null);
   }
 
-  const possibleDup = await findPossibleDuplicate(amountFils, postedOn, direction);
+  const verdict = dupStatus(await findPossibleDuplicate(amountFils, postedOn, direction, provider === 'other' ? source : provider));
   const ins = await pool.query<{ id: string }>(
-    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url, possible_dup_of)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10) RETURNING id`,
+    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url, possible_dup_of, decided_by, decided_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$11,$9,$10,$12, CASE WHEN $11 = 'ignored' THEN now() END) RETURNING id`,
     [
       postedOn,
       amountFils,
@@ -663,10 +709,14 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
       provider === 'other' ? source : provider,
       dedupeKey,
       receiptUrl,
-      possibleDup,
+      verdict.flag,
+      verdict.status,
+      verdict.decidedBy,
     ],
   );
   const id = String(ins.rows[0].id);
+  // Filed automatically (exact duplicate / customer refund) — nobody is pinged.
+  if (verdict.status === 'ignored') return { id } as any;
 
   // Ping Marsha + owner when there's real money, a known provider, or a receipt
   // attached. Other captured-for-review rows sit quietly in the Bank Inbox.
@@ -678,8 +728,7 @@ export async function ingestInboxEmail(msg: InboxEmail, source = 'privateemail')
     const clip = receiptUrl ? ' 📎 receipt attached' : '';
     const title = '🏦 New bank transaction — needs review';
     const amtPart = amountFils > 0 ? `AED ${aed} — ` : 'amount not read — ';
-    const dupNote = possibleDup ? ` ⚠️ Possible duplicate of ${possibleDup} — check before approving.` : '';
-    const bodyMsg = `${tag}${amtPart}${merchant}.${clip} Open Bank Inbox to review and approve.${dupNote}`;
+    const bodyMsg = `${tag}${amtPart}${merchant}.${clip} Open Bank Inbox to review and approve.`;
     const targets = await pool.query<{ id: string }>(
       `SELECT id FROM team_members WHERE active AND (lower(name) = 'marsha' OR access_level = 'owner')`,
     );
@@ -708,11 +757,11 @@ export async function ingestExternalTxn(t: {
 }): Promise<{ id: string; duplicate?: boolean }> {
   const dup = await pool.query<{ id: string }>(`SELECT id FROM bank_transactions WHERE dedupe_key = $1 LIMIT 1`, [t.dedupeKey]);
   if (dup.rows[0]) return { id: String(dup.rows[0].id), duplicate: true };
-  const possibleDup = await findPossibleDuplicate(t.amountFils, t.postedOn, t.direction);
+  const verdict = dupStatus(await findPossibleDuplicate(t.amountFils, t.postedOn, t.direction, t.source));
   const ins = await pool.query<{ id: string }>(
-    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url, possible_dup_of)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10) RETURNING id`,
-    [t.postedOn, t.amountFils, t.direction, t.kind, (t.merchant ?? '').slice(0, 120) || null, t.raw.slice(0, 4000), t.source, t.dedupeKey, t.receiptUrl ?? null, possibleDup],
+    `INSERT INTO bank_transactions (posted_on, amount_fils, direction, kind, merchant, raw_text, source, dedupe_key, status, receipt_url, possible_dup_of, decided_by, decided_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$11,$9,$10,$12, CASE WHEN $11 = 'ignored' THEN now() END) RETURNING id`,
+    [t.postedOn, t.amountFils, t.direction, t.kind, (t.merchant ?? '').slice(0, 120) || null, t.raw.slice(0, 4000), t.source, t.dedupeKey, t.receiptUrl ?? null, verdict.flag, verdict.status, verdict.decidedBy],
   );
   return { id: String(ins.rows[0].id) };
 }
