@@ -98,39 +98,39 @@ export function Themes({
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
-            placeholder={t('themes.phTheme')}
+            placeholder={t('themes.phTheme')} aria-label={t('themes.phTheme')}
             value={brief.theme}
             onChange={(e) => setBrief((b) => ({ ...b, theme: e.target.value }))}
             style={inputStyle}
           />
           <input
-            placeholder={t('themes.phConcept')}
+            placeholder={t('themes.phConcept')} aria-label={t('themes.phConcept')}
             value={brief.concept}
             onChange={(e) => setBrief((b) => ({ ...b, concept: e.target.value }))}
             style={inputStyle}
           />
           <input
-            placeholder={t('themes.phColors')}
+            placeholder={t('themes.phColors')} aria-label={t('themes.phColors')}
             value={brief.colors}
             onChange={(e) => setBrief((b) => ({ ...b, colors: e.target.value }))}
             style={inputStyle}
           />
           <div style={{ display: 'flex', gap: 12 }}>
             <input
-              placeholder={t('themes.phChild')}
+              placeholder={t('themes.phChild')} aria-label={t('themes.phChild')}
               value={brief.child}
               onChange={(e) => setBrief({ ...brief, child: e.target.value })}
               style={{ ...inputStyle, flex: 1, minWidth: 0 }}
             />
             <input
-              placeholder={t('themes.phAge')}
+              placeholder={t('themes.phAge')} aria-label={t('themes.phAge')}
               value={brief.age}
               onChange={(e) => setBrief({ ...brief, age: e.target.value })}
               style={{ ...inputStyle, width: 80 }}
             />
           </div>
           <textarea
-            placeholder={t('themes.phNotes')}
+            placeholder={t('themes.phNotes')} aria-label={t('themes.phNotes')}
             rows={3}
             value={brief.notes}
             onChange={(e) => setBrief({ ...brief, notes: e.target.value })}
@@ -213,7 +213,7 @@ export function Themes({
       </div>
 
       <input
-        placeholder={t('themes.search')}
+        placeholder={t('themes.search')} aria-label={t('themes.search')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         style={{ ...inputStyle, borderRadius: 16, marginBottom: 10 }}

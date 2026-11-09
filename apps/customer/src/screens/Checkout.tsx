@@ -4,8 +4,8 @@ import { api, type CheckoutTotalPreview } from '../api';
 import { trackInitiateCheckout } from '../attribution';
 import { trackGoogleBeginCheckout } from '../googleTag';
 import { toCart, type ScreenProps } from '../App';
-import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPreOrderCategory } from '../ui';
-import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
+import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPreOrderCategory, dubaiToday } from '../ui';
+import { loadAccount, saveAccount, signOut, type Account } from '../account';
 import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
 import { svcName } from '../serviceAr';
@@ -521,7 +521,7 @@ export function Checkout({
           guest = g;
         }
       }
-      const result = await api.checkout(cartPayload, draft.provider, discountChoice, agreed, guest, draft.offerToken, idempotencyKey);
+      const result = await api.checkout(cartPayload, draft.provider, discountChoice, agreed, guest, draft.offerToken, idempotencyKey, lang === 'ar' ? 'ar' : 'en');
       // The server answered definitively (a declined order is already failed and
       // its key freed), so the next tap is a new attempt.
       attemptRef.current = null;
@@ -813,7 +813,7 @@ export function Checkout({
         <input
           type="date"
           value={draft.eventDate}
-          min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+          min={dubaiToday(1)}
           onChange={(e) => update({ eventDate: e.target.value })}
           style={{
             width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px',
@@ -1086,7 +1086,7 @@ export function Checkout({
             </div>
             <button
               onClick={() => {
-                clearAccount();
+                signOut();
                 setAccount(null);
               }}
               style={{ background: 'none', border: 'none', color: C.muted, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}

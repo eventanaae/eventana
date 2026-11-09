@@ -1066,7 +1066,7 @@ export async function publicRoutes(app: FastifyInstance) {
           ? s.priceFils * (s.pricing.minQuantity ?? 1)
           : s.priceFils;
     const qtyOf = (s: any) =>
-      s.pricing?.kind === 'per_child' ? childrenCount : (s.pricing?.minQuantity ?? 1);
+      s.pricing?.kind === 'per_child' ? Math.max(childrenCount, s.pricing.minChildren ?? 1) : (s.pricing?.minQuantity ?? 1);
 
     const { rows: themeRows } = await pool.query(
       `SELECT id, name FROM themes WHERE active AND celebration_type = $1 ORDER BY popular DESC, sort_order LIMIT 1`,

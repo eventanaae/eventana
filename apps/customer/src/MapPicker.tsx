@@ -323,6 +323,7 @@ export function MapPicker({
           type="text"
           dir={ar ? 'rtl' : 'ltr'}
           placeholder={ar ? 'ابحثي عن المنطقة أو الصقي رابط/كود الموقع' : 'Search area, or paste a Maps link / code'}
+          aria-label={ar ? 'ابحثي عن المنطقة أو الصقي رابط/كود الموقع' : 'Search area, or paste a Maps link / code'}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();

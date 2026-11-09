@@ -115,7 +115,7 @@ export function ShopCheckout({
       const provider =
         catalogue.paymentMethods.find((p) => p.name === 'stripe')?.name ??
         'stripe';
-      const result = await api.shopCheckout({
+      const body = {
         items,
         emirate: hasPrinted ? emirate : null,
         address: hasPrinted ? addr : null,
@@ -123,7 +123,11 @@ export function ShopCheckout({
         provider,
         termsAccepted: agreed,
         guest,
-      });
+        // The server accepts `lang` so a provider page opens in the customer's
+        // language (api.shopCheckout's type predates it; it forwards the body).
+        lang,
+      };
+      const result = await api.shopCheckout(body);
       if (
         !result.eligible ||
         (!result.checkoutUrl && !result.embeddedUrl && !result.clientSecret)
@@ -227,6 +231,7 @@ export function ShopCheckout({
         <div style={cardStyle}>
           <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{t('shopco.deliveryAddress')}</div>
           <select
+            aria-label={t('shopco.selectEmirate')}
             value={emirate ?? ''}
             onChange={(e) => setEmirate(e.target.value || null)}
             style={{ width: '100%', border: `1px solid ${C.pinkLine}`, borderRadius: 14, padding: '12px 14px', fontWeight: 600, fontSize: 12.5, background: '#fff', color: C.ink, outline: 'none', marginBottom: 9 }}
@@ -253,11 +258,11 @@ export function ShopCheckout({
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             {refs.map((url, i) => (
               <div key={i} style={{ width: 62, height: 62, borderRadius: 12, background: `#f2e7ee url(${url}) center/cover`, position: 'relative' }}>
-                <button onClick={() => setRefs((r) => r.filter((_, j) => j !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: C.ink, color: '#fff', fontSize: 12, cursor: 'pointer' }}>×</button>
+                <button aria-label={lang === 'ar' ? 'حذف الصورة' : 'Remove photo'} onClick={() => setRefs((r) => r.filter((_, j) => j !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: C.ink, color: '#fff', fontSize: 12, cursor: 'pointer' }}>×</button>
               </div>
             ))}
             {refs.length < 3 && !wantDraw && (
-              <label style={{ width: 62, height: 62, borderRadius: 12, border: `1.5px dashed ${C.pinkLine}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 22, color: C.pinkDeep }}>
+              <label aria-label={lang === 'ar' ? 'أضف صورة' : 'Add a photo'} style={{ width: 62, height: 62, borderRadius: 12, border: `1.5px dashed ${C.pinkLine}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 22, color: C.pinkDeep }}>
                 {uploadBusy ? '…' : '＋'}
                 <input type="file" accept="image/*" multiple hidden onChange={(e) => addFiles(e.target.files)} />
               </label>
@@ -295,6 +300,9 @@ export function ShopCheckout({
             : !addressReady ? t('shopco.needAddress')
             : !customizationReady ? t('shopco.needDrawing')
             : !agreed ? t('shopco.needTerms')
+            // Cart itself can't be ordered (e.g. a removed item) — say so rather
+            // than leaving a grey button with no explanation.
+            : !q.bookable ? (q.problems[0]?.message ?? t('shopco.payUnavailable'))
             : ''}
         </div>
       )}

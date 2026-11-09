@@ -228,6 +228,7 @@ export const api = {
     /** Stable per checkout attempt: a re-submit of the same attempt (double tap,
      *  lost response) is answered with the existing order, never a second one. */
     idempotencyKey?: string,
+    lang?: 'en' | 'ar',
   ) =>
     request<{
       orderId: string; orderToken: string; checkoutUrl: string | null; embeddedUrl?: string | null;
@@ -239,6 +240,7 @@ export const api = {
         cart, customerId: currentCustomerId(), provider, discounts, termsAccepted, guest,
         offerToken: offerToken || undefined,
         idempotencyKey: idempotencyKey || undefined,
+        lang: lang || undefined,
         // Which ad brought them here, if any — the server reports the paid
         // booking back to Meta against it.
         attribution: attributionPayload(),
@@ -403,7 +405,7 @@ export const api = {
     request<any>(`/api/events/${eventId}/addons/quote`, { method: 'POST', body: JSON.stringify(body) }),
 
   addonCheckout: (eventId: string, body: unknown) =>
-    request<{ orderId: string; checkoutUrl: string | null }>(
+    request<{ orderId: string; orderToken?: string; checkoutUrl: string | null; embeddedUrl?: string | null; clientSecret?: string | null; publishableKey?: string | null }>(
       `/api/events/${eventId}/addons/checkout` + qaQs(),
       { method: 'POST', body: JSON.stringify(body) },
     ),
@@ -475,7 +477,7 @@ export const api = {
     }),
 
   tipCheckout: (eventId: string, amountFils: number, memberId: string | null, fb?: string | null) =>
-    request<{ orderId: string; checkoutUrl: string | null }>(
+    request<{ orderId: string; orderToken?: string; checkoutUrl: string | null; embeddedUrl?: string | null; clientSecret?: string | null; publishableKey?: string | null }>(
       `/api/events/${eventId}/tip/checkout` + qaQs(),
       // Pass the signed feedback token so an account-less customer can still tip.
       { method: 'POST', body: JSON.stringify({ amountFils, memberId, provider: 'stripe', t: fb ?? currentFb() ?? undefined }) },

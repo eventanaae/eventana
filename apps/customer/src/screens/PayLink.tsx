@@ -79,6 +79,15 @@ export function PayLink({
   const ready = isAddon
     ? !busy
     : nameOk && phoneOk && emailOk && eventFor.trim().length > 0 && pin && agreed && !busy;
+  // Say WHY Pay is greyed out — first missing item, in form order.
+  const blockedReason = ready || busy || isAddon ? null
+    : !eventFor.trim() ? (ar ? 'اكتب اسم صاحب الحفلة.' : 'Enter the guest of honour’s name.')
+    : !nameOk ? (ar ? 'اكتب اسمك.' : 'Enter your name.')
+    : !phoneOk ? (ar ? 'اكتب رقم جوال إماراتي صحيح (05XXXXXXXX).' : 'Enter a valid UAE mobile (05XXXXXXXX).')
+    : !emailOk ? (ar ? 'اكتب إيميل صحيح.' : 'Enter a valid email.')
+    : !pin ? (ar ? 'حدّد موقع الحفلة على الخريطة.' : 'Pin the event location on the map.')
+    : !agreed ? (ar ? 'وافق على الشروط والأحكام للمتابعة.' : 'Accept the Terms & Conditions to continue.')
+    : null;
 
   const pay = async () => {
     setBusy(true);
@@ -126,14 +135,27 @@ export function PayLink({
     return (
       <div style={{ padding: 30, maxWidth: 480, margin: '0 auto', textAlign: 'center' }} dir={ar ? 'rtl' : 'ltr'}>
         <div style={{ fontSize: 44 }}>🎉</div>
-        <div style={{ ...fredoka(20), margin: '8px 0' }}>{ar ? 'تم الدفع والتأكيد!' : "You're all set!"}</div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>{ar ? 'وصلك إيميل التأكيد. نراك قريباً 💕' : 'Your confirmation email is on its way. See you soon 💕'}</div>
+        <div style={{ ...fredoka(20), margin: '8px 0' }}>
+          {isInvoice ? (ar ? 'تم دفع الفاتورة ✓' : 'Invoice paid ✓')
+            : isAddon ? (ar ? 'أُضيفت إلى حجزك ✓' : 'Added to your booking ✓')
+            : (ar ? 'تم الدفع والتأكيد!' : "You're all set!")}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>
+          {isInvoice || isAddon
+            ? (ar ? 'تم استلام الدفعة. بيوصلك الإيصال على الإيميل 💕' : 'Payment received. Your receipt is on its way by email 💕')
+            : (ar ? 'وصلك إيميل التأكيد. نراك قريباً 💕' : 'Your confirmation email is on its way. See you soon 💕')}
+        </div>
       </div>
     );
   }
 
   if (stripe) {
-    return <StripeEmbed clientSecret={stripe.clientSecret} publishableKey={stripe.publishableKey} onError={(m) => { setError(m); setStripe(null); setBusy(false); }} ar={ar} />;
+    return <StripeEmbed clientSecret={stripe.clientSecret} publishableKey={stripe.publishableKey} onError={() => {
+      // Stripe.js didn't load (blocked / offline). The loader no longer caches
+      // the failure, so tapping Pay again really retries.
+      setError(ar ? 'تعذّر تحميل نموذج الدفع. تأكد من الاتصال واضغط الدفع مرة ثانية.' : 'The payment form could not load. Check your connection and tap Pay to try again.');
+      setStripe(null); setBusy(false);
+    }} ar={ar} />;
   }
 
   return (
@@ -172,28 +194,28 @@ export function PayLink({
 
         {/* Customer details — only for a full manual booking, not an add-on. */}
         {!isAddon && (<>
-        <label style={lbl}>{ar ? 'اسم صاحب الحفلة' : 'Guest of honour'} *</label>
-        <input value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={field} placeholder={ar ? 'مثال: سارة' : 'e.g. Sara'} />
-        <label style={lbl}>{ar ? 'اسمك الكامل' : 'Your full name'} *</label>
-        <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={field} />
+        <label htmlFor="pl-honour" style={lbl}>{ar ? 'اسم صاحب الحفلة' : 'Guest of honour'} *</label>
+        <input id="pl-honour" value={eventFor} onChange={(e) => setEventFor(e.target.value)} style={field} placeholder={ar ? 'مثال: سارة' : 'e.g. Sara'} />
+        <label htmlFor="pl-name" style={lbl}>{ar ? 'اسمك الكامل' : 'Your full name'} *</label>
+        <input id="pl-name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={field} />
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <label style={lbl}>{ar ? 'الجوال (إماراتي)' : 'Mobile (UAE)'} *</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" style={field} placeholder="05XXXXXXXX" />
+            <label htmlFor="pl-phone" style={lbl}>{ar ? 'الجوال (إماراتي)' : 'Mobile (UAE)'} *</label>
+            <input id="pl-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" style={field} placeholder="05XXXXXXXX" />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={lbl}>{ar ? 'الإيميل' : 'Email'} *</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} autoCapitalize="none" inputMode="email" style={field} />
+            <label htmlFor="pl-email" style={lbl}>{ar ? 'الإيميل' : 'Email'} *</label>
+            <input id="pl-email" value={email} onChange={(e) => setEmail(e.target.value)} autoCapitalize="none" inputMode="email" style={field} />
           </div>
         </div>
 
         <label style={lbl}>{ar ? 'العنوان' : 'Address'}</label>
         <div style={{ display: 'flex', gap: 10 }}>
-          <input value={area} onChange={(e) => setArea(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'المنطقة' : 'Area'} />
-          <input value={street} onChange={(e) => setStreet(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'الشارع' : 'Street'} />
-          <input value={villa} onChange={(e) => setVilla(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'فيلا/مبنى' : 'Villa/Bldg'} />
+          <input aria-label={ar ? 'المنطقة' : 'Area'} value={area} onChange={(e) => setArea(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'المنطقة' : 'Area'} />
+          <input aria-label={ar ? 'الشارع' : 'Street'} value={street} onChange={(e) => setStreet(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'الشارع' : 'Street'} />
+          <input aria-label={ar ? 'فيلا/مبنى' : 'Villa/Bldg'} value={villa} onChange={(e) => setVilla(e.target.value)} style={{ ...field, flex: 1, minWidth: 0 }} placeholder={ar ? 'فيلا/مبنى' : 'Villa/Bldg'} />
         </div>
-        <input value={details} onChange={(e) => setDetails(e.target.value)} style={field} placeholder={ar ? 'تفاصيل إضافية (اختياري)' : 'Extra directions (optional)'} />
+        <input aria-label={ar ? 'تفاصيل إضافية' : 'Extra directions'} value={details} onChange={(e) => setDetails(e.target.value)} style={field} placeholder={ar ? 'تفاصيل إضافية (اختياري)' : 'Extra directions (optional)'} />
 
         <label style={lbl}>{ar ? 'حدّد موقع الحفلة على الخريطة' : 'Pin the exact event location'} *</label>
         <MapPicker
@@ -207,7 +229,7 @@ export function PayLink({
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: 3 }} />
           <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.5 }}>
             {ar ? 'أوافق على ' : 'I agree to the '}
-            <a onClick={(e) => { e.preventDefault(); setShowTerms(true); }} style={{ color: C.pinkDeep, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}>
+            <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTerms(true); }} style={{ color: C.pinkDeep, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}>
               {ar ? 'الشروط والأحكام' : 'Terms & Conditions'}
             </a>
           </span>
@@ -215,6 +237,9 @@ export function PayLink({
         </>)}
 
         {error && <div style={{ margin: '8px 0' }}><Notice tone="error">{error}</Notice></div>}
+        {blockedReason && !error && (
+          <div role="status" style={{ margin: '8px 0 0', fontSize: 11.5, fontWeight: 700, color: C.red, textAlign: 'center' }}>{blockedReason}</div>
+        )}
 
         <PrimaryButton disabled={!ready} onClick={pay} style={{ marginTop: 10 }}>
           {busy ? (ar ? 'جاري التحضير…' : 'Preparing…') : `${ar ? 'الدفع' : 'Pay'} AED ${data.totalDisplay}`}
@@ -230,10 +255,12 @@ function StripeEmbed({ clientSecret, publishableKey, onError, ar }: { clientSecr
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let handle: { destroy: () => void } | null = null;
+    let alive = true;
     if (ref.current) {
-      mountStripeCheckout({ el: ref.current, publishableKey, clientSecret, onError }).then((h) => { handle = h; });
+      mountStripeCheckout({ el: ref.current, publishableKey, clientSecret, onError: (m) => { if (alive) onError(m); } })
+        .then((h) => { if (alive) handle = h; else h.destroy(); });
     }
-    return () => { handle?.destroy(); };
+    return () => { alive = false; handle?.destroy(); };
   }, [clientSecret, publishableKey]);
   return (
     <div className="scroll" style={{ height: '100%', overflowY: 'auto', background: C.cream }} dir={ar ? 'rtl' : 'ltr'}>

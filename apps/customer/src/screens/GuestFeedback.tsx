@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { C, Card, Notice, Spinner, money } from '../ui';
 import type { Lang, TFn } from '../i18n';
+import { openExtraPayment, type ExtraPayment } from '../extraPayment';
 
 // Managed "Eventana Events" listing (Al Barsha, Dubai — CID 0x53cd0c2fb8998790).
 // Replaces the old duplicate-listing link so reviews land on the real profile.
@@ -23,11 +24,14 @@ export function GuestFeedback({
   token,
   t,
   lang,
+  onPay,
 }: {
   event: string;
   token: string;
   t: TFn;
   lang: Lang;
+  /** Show an in-page (Stripe) tip payment on the app's confirming screen. */
+  onPay?: (p: ExtraPayment) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [invalid, setInvalid] = useState(false);
@@ -101,8 +105,7 @@ export function GuestFeedback({
     setTipError(null);
     try {
       const res = await api.tipCheckout(event, effectiveTip, null, token);
-      if (res.checkoutUrl) window.location.href = res.checkoutUrl;
-      else setTipError(t('me.errCheckout'));
+      if (!openExtraPayment(res, onPay)) setTipError(t('me.errCheckout'));
     } catch (e: any) {
       setTipError(e?.body?.message ?? e?.message ?? t('me.errTip'));
     } finally {
@@ -151,7 +154,8 @@ export function GuestFeedback({
                     <button
                       key={n}
                       onClick={() => setStars(n)}
-                      aria-label={`${n}`}
+                      aria-label={lang === 'ar' ? `${n} نجوم` : `${n} star${n > 1 ? 's' : ''}`}
+                      aria-pressed={n === stars}
                       style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 40, lineHeight: 1, padding: 0, filter: n <= stars ? 'none' : 'grayscale(1) opacity(0.35)', transition: 'filter .15s' }}
                     >⭐</button>
                   ))}
@@ -173,6 +177,7 @@ export function GuestFeedback({
                   {TIP_PRESETS.map((a) => (
                     <button
                       key={a}
+                      aria-pressed={!customAed && amountFils === a}
                       onClick={() => { setAmountFils(a); setCustomAed(''); }}
                       style={{ flex: 1, border: `1.5px solid ${!customAed && amountFils === a ? C.pink : C.pinkLine}`, background: !customAed && amountFils === a ? C.pinkSoft : '#fff', color: C.pinkDeep, fontWeight: 800, fontSize: 14, padding: '11px 0', borderRadius: 14, cursor: 'pointer' }}
                     >{t('common.aed')} {money(a)}</button>
@@ -181,6 +186,7 @@ export function GuestFeedback({
                 <input
                   inputMode="decimal"
                   placeholder={t('me.tipCustom')}
+                  aria-label={t('me.tipCustom')}
                   value={customAed}
                   onChange={(e) => setCustomAed(e.target.value.replace(/[^0-9.]/g, ''))}
                   style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${customAed ? C.pink : C.pinkLine}`, borderRadius: 14, padding: '11px 14px', fontWeight: 700, fontSize: 13, background: C.cream, color: C.ink, outline: 'none', marginBottom: 10 }}
@@ -228,6 +234,7 @@ export function GuestFeedback({
                     <div style={{ fontSize: 11.5, fontWeight: 700, color: C.pink, marginBottom: 8, textAlign: 'center' }}>{t('me.rateWhyRequired')}</div>
                     <textarea
                       placeholder={t('me.rateFeedbackReqPh')}
+                      aria-label={t('me.gfWhyTitle')}
                       rows={4}
                       value={feedback}
                       onChange={(e) => setFeedback(e.target.value)}

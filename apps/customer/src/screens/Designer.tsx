@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import type { ScreenProps } from '../App';
 import { C, fredoka } from '../ui';
+import { clampPlanServices, glamDollsFor, missingPlanChoices } from '../planChoices';
 
 /**
  * AI Event Designer — the customer picks a theme and a budget and gets a first
@@ -49,11 +50,24 @@ export function Designer({ catalogue, draft, update, go, t, lang }: ScreenProps)
   const [d, setD] = useState<any | null>(null);
   const kidsN = Math.max(1, Number(kids.replace(/\D/g, '')) || 20);
 
+  // A typed idea that IS one of our existing themes ("Frozen", "unicorn") is
+  // that theme — not a custom design. Treating it as custom added the AED 800
+  // custom-theme fee to a party built on a ready theme.
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ').trim();
+  const typedTheme = (() => {
+    const q = norm(own);
+    if (!q) return null;
+    return themes.find((th) => norm(th.name) === q)
+      ?? themes.find((th) => { const n = norm(th.name); return n.length >= 4 && (` ${q} `).includes(` ${n} `); })
+      ?? null;
+  })();
+  const effectiveThemeId = themeId || typedTheme?.id || '';
+
   const run = async () => {
     setBusy(true); setErr(false);
     try {
       setD(await api.design({
-        celebrationType: draft.celebrationType, themeId: themeId || null, themeText: themeId ? null : own || null,
+        celebrationType: draft.celebrationType, themeId: effectiveThemeId || null, themeText: effectiveThemeId ? null : own || null,
         budgetAed: budget ? Number(budget) : null, childrenCount: kidsN, age: age || null, notes: notes || null,
         lang: lang === 'ar' ? 'ar' : 'en',
       }));
@@ -64,12 +78,19 @@ export function Designer({ catalogue, draft, update, go, t, lang }: ScreenProps)
     if (!d) return;
     const lines = [...d.core, ...(withExtras ? d.extras : [])];
     const pkg = lines.find((l: any) => l.kind === 'package');
-    const services: Record<string, number> = {};
-    for (const l of lines) if (l.kind === 'service') services[l.id] = l.qty;
+    const raw: Record<string, number> = {};
+    for (const l of lines) if (l.kind === 'service') raw[l.id] = l.qty;
+    // Raise quantities to each service's booking minimum (20-child activities).
+    const services = clampPlanServices(raw, catalogue);
+    const chosenThemeId = d.theme?.id ?? (effectiveThemeId || null);
+    // Custom (AED 800) only when the party has NO existing theme at all and the
+    // customer described their own idea.
+    const isCustom = !chosenThemeId && Boolean(own.trim());
     update({
       celebrationTypeChosen: true, buildAnswered: true, packageId: pkg?.id ?? null, services,
-      themeId: d.theme?.id ?? (themeId || null), customTheme: !d.theme && !themeId && Boolean(own),
-      ...(own && !themeId && !d.theme
+      glamDolls: glamDollsFor(services),
+      themeId: chosenThemeId, customTheme: isCustom,
+      ...(isCustom
         ? { themeBrief: { theme: own, concept: `${d.title} — ${d.story}`, colors: (d.palette ?? []).join(', '), child: '', age, notes } }
         : {}),
       childrenCount: kidsN,
@@ -91,7 +112,16 @@ export function Designer({ catalogue, draft, update, go, t, lang }: ScreenProps)
             <div style={lbl}>{T.theme}</div>
             <div className="scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
               {themes.map((th) => (
-                <div key={th.id} onClick={() => setThemeId(themeId === th.id ? '' : th.id)} style={{ flex: 'none', width: 96, cursor: 'pointer' }}>
+                <div
+                  key={th.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={themeId === th.id}
+                  aria-label={th.name}
+                  onClick={() => setThemeId(themeId === th.id ? '' : th.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setThemeId(themeId === th.id ? '' : th.id); } }}
+                  style={{ flex: 'none', width: 96, cursor: 'pointer' }}
+                >
                   <div style={{
                     height: 70, borderRadius: 14, boxShadow: C.shadow,
                     background: th.coverImageUrl ? `#f2e7ee url(${th.coverImageUrl}) center/cover no-repeat` : th.gradient,
@@ -103,14 +133,14 @@ export function Designer({ catalogue, draft, update, go, t, lang }: ScreenProps)
             </div>
           </div>
           {!themeId && (
-            <div><div style={lbl}>{T.own}</div><input style={field} value={own} onChange={(e) => setOwn(e.target.value)} placeholder={T.ownPh} /></div>
+            <div><div style={lbl}>{T.own}</div><input style={field} aria-label={T.own} value={own} onChange={(e) => setOwn(e.target.value)} placeholder={T.ownPh} /></div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}><div style={lbl}>{T.budget}</div><input style={field} inputMode="numeric" value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^\d]/g, ''))} placeholder="3000" /></div>
-            <div style={{ width: 80 }}><div style={lbl}>{T.kids}</div><input style={field} inputMode="numeric" value={kids} onChange={(e) => setKids(e.target.value.replace(/[^\d]/g, ''))} /></div>
-            <div style={{ width: 70 }}><div style={lbl}>{T.age}</div><input style={field} value={age} onChange={(e) => setAge(e.target.value.slice(0, 10))} /></div>
+            <div style={{ flex: 1 }}><div style={lbl}>{T.budget}</div><input style={field} aria-label={T.budget} inputMode="numeric" value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^\d]/g, ''))} placeholder="3000" /></div>
+            <div style={{ width: 80 }}><div style={lbl}>{T.kids}</div><input style={field} aria-label={T.kids} inputMode="numeric" value={kids} onChange={(e) => setKids(e.target.value.replace(/[^\d]/g, ''))} /></div>
+            <div style={{ width: 70 }}><div style={lbl}>{T.age}</div><input style={field} aria-label={T.age} value={age} onChange={(e) => setAge(e.target.value.slice(0, 10))} /></div>
           </div>
-          <div><div style={lbl}>{T.notes}</div><textarea style={{ ...field, minHeight: 60, resize: 'vertical' }} value={notes} onChange={(e) => setNotes(e.target.value.slice(0, 600))} placeholder={T.notesPh} /></div>
+          <div><div style={lbl}>{T.notes}</div><textarea style={{ ...field, minHeight: 60, resize: 'vertical' }} aria-label={T.notes} value={notes} onChange={(e) => setNotes(e.target.value.slice(0, 600))} placeholder={T.notesPh} /></div>
           <button
             onClick={() => void run()} disabled={busy || (!themeId && !own.trim())}
             style={{ border: 'none', background: !themeId && !own.trim() ? C.pinkLine : C.pink, color: '#fff', fontWeight: 800, fontSize: 14, padding: '13px 0', borderRadius: 14, cursor: 'pointer' }}
@@ -130,7 +160,7 @@ export function Designer({ catalogue, draft, update, go, t, lang }: ScreenProps)
           </div>
           {d.inspiration?.length > 0 && (
             <div className="scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
-              {d.inspiration.map((u: string) => <img key={u} src={u} alt="" style={{ height: 110, borderRadius: 14, flex: 'none' }} />)}
+              {d.inspiration.map((u: string, i: number) => <img key={u} src={u} alt={`${d.theme?.name ?? d.title} — ${lang === 'ar' ? 'إلهام' : 'inspiration'} ${i + 1}`} style={{ height: 110, borderRadius: 14, flex: 'none' }} />)}
             </div>
           )}
           {d.zones?.length > 0 && (
@@ -169,6 +199,17 @@ export function Designer({ catalogue, draft, update, go, t, lang }: ScreenProps)
           )}
           {d.tip && <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>💡 {d.tip}</div>}
           <div style={{ fontSize: 10.5, fontWeight: 600, color: C.faint }}>{T.note}</div>
+          {(() => {
+            const svc: Record<string, number> = {};
+            for (const l of d.core) if (l.kind === 'service') svc[l.id] = l.qty;
+            const pkg = d.core.find((l: any) => l.kind === 'package');
+            const miss = [...new Set(missingPlanChoices(svc, pkg?.id ?? null, catalogue, lang === 'ar' ? 'ar' : 'en'))];
+            return miss.length > 0 ? (
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.yellowInk, background: C.yellowSoft, borderRadius: 10, padding: '7px 10px', lineHeight: 1.45 }}>
+                {lang === 'ar' ? 'بتختارين بعدها: ' : 'You’ll still choose: '}{miss.join(lang === 'ar' ? '، ' : ', ')}
+              </div>
+            ) : null;
+          })()}
           <button onClick={() => book(false)} style={{ border: 'none', background: C.pink, color: '#fff', fontWeight: 800, fontSize: 14, padding: '13px 0', borderRadius: 14, cursor: 'pointer' }}>{T.book}</button>
           <button onClick={() => setD(null)} style={{ border: `1px solid ${C.pinkLine}`, background: '#fff', color: C.ink, fontWeight: 700, fontSize: 13, padding: '11px 0', borderRadius: 14, cursor: 'pointer' }}>{T.again}</button>
         </div>
