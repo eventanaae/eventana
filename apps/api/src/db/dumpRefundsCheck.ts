@@ -7,7 +7,9 @@
 import { pool } from './pool.js';
 
 export async function dumpRefundsCheckFromEnv(): Promise<void> {
-  if (String(process.env.SET_SHAN_LEADER ?? '').toLowerCase() !== 'refundchk') return;
+  const mode = String(process.env.SET_SHAN_LEADER ?? '').toLowerCase();
+  if (mode === 'refundchk2') return receiptSideCheck();
+  if (mode !== 'refundchk') return;
   try {
     const clean = (v: unknown) => String(v ?? '').replace(/[\s|]+/g, ' ').trim();
     const { rows } = await pool.query(
@@ -49,5 +51,37 @@ export async function dumpRefundsCheckFromEnv(): Promise<void> {
     console.log(`RFCHKSUM|refunds ${rows.length}|orders ${seen.size}|total AED ${(tot / 100).toFixed(2)}|orders on receipt ${refl}|partly ${partial}|not on receipt ${none}|no receipt linked ${noRcpt}|first ${rows[0]?.d ?? '-'}|last ${rows[rows.length - 1]?.d ?? '-'}`);
   } catch (err) {
     console.error('[refundchk] failed:', (err as Error).message);
+  }
+}
+
+/**
+ * The other direction: every receipt that shows ANY refund (amount or item line),
+ * compared with what the refunds ledger holds for it now — catches a refund that
+ * was deleted/undone but is still subtracted on the receipt, or a line shown twice.
+ */
+async function receiptSideCheck(): Promise<void> {
+  try {
+    const clean = (v: unknown) => String(v ?? '').replace(/[\s|]+/g, ' ').trim();
+    const { rows } = await pool.query(
+      `SELECT fr.number, COALESCE(fr.customer_name,'') cust, fr.order_id, fr.event_id, fr.total_fils::bigint total,
+              fr.refunded_fils::bigint rf, fr.refunded_items items,
+              (SELECT COALESCE(SUM(r.amount_fils),0)::bigint FROM refunds r
+                WHERE r.order_id = fr.order_id OR r.order_id = (SELECT order_id FROM events WHERE id = fr.event_id)) ledger,
+              (SELECT COUNT(*)::int FROM refunds r
+                WHERE r.order_id = fr.order_id OR r.order_id = (SELECT order_id FROM events WHERE id = fr.event_id)) ledger_n
+         FROM finance_receipts fr
+        WHERE fr.refunded_fils <> 0 OR jsonb_array_length(COALESCE(fr.refunded_items,'[]'::jsonb)) > 0
+        ORDER BY fr.number`,
+    );
+    let ok = 0, bad = 0;
+    for (const r of rows) {
+      const items = Array.isArray(r.items) ? r.items : [];
+      const good = Number(r.rf) === Number(r.ledger) && items.length === Number(r.ledger_n);
+      good ? ok++ : bad++;
+      console.log(`RFCHK2|rcpt ${r.number}|${clean(r.cust)}|order ${r.order_id ?? '-'}|total ${(Number(r.total) / 100).toFixed(2)}|receipt refunded ${(Number(r.rf) / 100).toFixed(2)} in ${items.length} line(s)|ledger ${(Number(r.ledger) / 100).toFixed(2)} in ${r.ledger_n}|${good ? 'MATCH' : 'MISMATCH'}|lines ${clean(JSON.stringify(items)).slice(0, 300)}`);
+    }
+    console.log(`RFCHK2SUM|receipts showing a refund ${rows.length}|match ${ok}|mismatch ${bad}`);
+  } catch (err) {
+    console.error('[refundchk2] failed:', (err as Error).message);
   }
 }
