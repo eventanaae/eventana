@@ -44,9 +44,17 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
      WHERE booked_on BETWEEN $1::date AND $2::date
        AND total_fils - COALESCE(refunded_fils,0) > 0`;
     const net = `COALESCE(SUM(total_fils - COALESCE(refunded_fils,0)),0)::bigint`;
+    // Owner rule: the Eventana Exclusive Package (a.k.a. Carnival/Carnaval Offer,
+    // 3499/3500 Offer, Marwa Rateb Package) is the ONLY sale that does not come
+    // from Meta ads. Everything else is attributed to Meta.
+    const exclusive = `EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(line_items)='array' THEN line_items ELSE '[]'::jsonb END) li
+       WHERE li->>'name' ~* '(exclusive|carn[ai]v[ae]l|349[89]|3500|marwa|مروة)')`;
 
-    const [byMonth, byDay, byCelebration, byTheme, leadsByMonth, leadsByAd, leadsByDay] = await Promise.all([
-      pool.query(`SELECT to_char(booked_on,'YYYY-MM') m, COUNT(*)::int n, ${net} v ${bookingsBase} GROUP BY 1 ORDER BY 1`, [from, to]),
+    const [byMonth, byDay, byCelebration, byTheme, leadsByMonth, leadsByAd, leadsByDay, byPackage] = await Promise.all([
+      pool.query(`SELECT to_char(booked_on,'YYYY-MM') m, COUNT(*)::int n, ${net} v,
+                         COUNT(*) FILTER (WHERE ${exclusive})::int xn,
+                         COALESCE(SUM(total_fils - COALESCE(refunded_fils,0)) FILTER (WHERE ${exclusive}),0)::bigint xv
+                    ${bookingsBase} GROUP BY 1 ORDER BY 1`, [from, to]),
       pool.query(`SELECT booked_on::text d, COUNT(*)::int n, ${net} v ${bookingsBase}
                     AND booked_on > $2::date - 60 GROUP BY 1 ORDER BY 1`, [from, to]),
       pool.query(`SELECT to_char(booked_on,'YYYY-MM') m, COALESCE(NULLIF(celebration_type,''),'unknown') c,
@@ -72,6 +80,10 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
                     FROM whatsapp_leads
                    WHERE (first_message_at AT TIME ZONE 'Asia/Dubai')::date BETWEEN GREATEST($1::date, $2::date - 60) AND $2::date
                    GROUP BY 1 ORDER BY 1`, [from, to]),
+      pool.query(`SELECT li->>'name' p, COUNT(DISTINCT finance_receipts.id)::int n
+                    FROM finance_receipts, jsonb_array_elements(CASE WHEN jsonb_typeof(line_items)='array' THEN line_items ELSE '[]'::jsonb END) li
+                   WHERE booked_on BETWEEN $1::date AND $2::date AND total_fils - COALESCE(refunded_fils,0) > 0
+                   GROUP BY 1 ORDER BY 2 DESC LIMIT 60`, [from, to]),
     ]);
 
     reply.header('cache-control', 'no-store');
@@ -79,9 +91,15 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
       generatedAt: new Date().toISOString(),
       range: { from, to },
       dateBasis: 'booking entered system (finance_receipts.booked_on), not event date',
+      attribution: 'all bookings are from Meta ads EXCEPT the Eventana Exclusive Package (Carnival/3499/3500 Offer, Marwa Rateb)',
       currency: 'AED',
       bookings: {
-        byMonth: byMonth.rows.map((r) => ({ month: r.m, bookings: r.n, revenue: fils(r.v) })),
+        byMonth: byMonth.rows.map((r) => ({
+          month: r.m, bookings: r.n, revenue: fils(r.v),
+          exclusiveBookings: r.xn, exclusiveRevenue: fils(r.xv),
+          metaBookings: r.n - r.xn, metaRevenue: fils(Number(r.v) - Number(r.xv)),
+        })),
+        lineItemNames: byPackage.rows.map((r) => ({ name: r.p, bookings: r.n })),
         byDayLast60: byDay.rows.map((r) => ({ date: r.d, bookings: r.n, revenue: fils(r.v) })),
         byMonthAndCelebration: byCelebration.rows.map((r) => ({ month: r.m, celebration: r.c, bookings: r.n, revenue: fils(r.v) })),
         topThemes: byTheme.rows.map((r) => ({ theme: r.t, bookings: r.n, revenue: fils(r.v) })),
