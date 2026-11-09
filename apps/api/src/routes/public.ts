@@ -23,7 +23,7 @@ import { config } from '../config.js';
 import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
-import { CheckoutError, createSessionForOrder, previewQuote, startCheckout, startShopCheckout } from '../domain/checkout.js';
+import { CheckoutError, createSessionForOrder, previewCheckoutTotal, previewQuote, startCheckout, startShopCheckout, syncInvoicePayBalance } from '../domain/checkout.js';
 import { getOffer } from '../domain/offers.js';
 import { orderViewTokenValid } from '../domain/orders.js';
 import { toValidCustomerPhone, titleCaseName } from '../domain/maintenance.js';
@@ -705,7 +705,9 @@ export async function publicRoutes(app: FastifyInstance) {
       // The app shows a neutral waiting state until this flips. A booking is
       // confirmed once its event exists; a shop order (no event) is confirmed
       // as soon as it is paid.
-      confirmed: order.status === 'paid' && (order.kind === 'shop' || Boolean(order.event_id)),
+      // An invoice-balance payment settles an invoice (no event), so 'paid' alone
+      // is confirmation there too.
+      confirmed: order.status === 'paid' && (order.kind === 'shop' || order.kind === 'invoice_pay' || Boolean(order.event_id)),
     };
   });
 
@@ -727,6 +729,15 @@ export async function publicRoutes(app: FastifyInstance) {
     );
     const o = rows[0];
     if (!o || o.source !== 'manual') return reply.status(404).send({ error: 'not_found' });
+    // An invoice-balance link shows (and later charges) the invoice's CURRENT
+    // balance, not the figure frozen when the link was first made. A refusal
+    // (nothing due / balance changed mid-payment) surfaces at Pay instead.
+    if (o.kind === 'invoice_pay' && o.status !== 'paid') {
+      try {
+        const balance = await syncInvoicePayBalance(orderId);
+        if (balance != null) o.total_fils = balance;
+      } catch { /* shown when the customer taps Pay */ }
+    }
     const cart = (o.cart ?? {}) as any;
     const quote = (o.quote ?? {}) as any;
     return {
@@ -735,7 +746,7 @@ export async function publicRoutes(app: FastifyInstance) {
       kind: o.kind,
       // A booking is confirmed once its event exists; an add-on attaches to an
       // existing event, so 'paid' alone is confirmation.
-      confirmed: o.status === 'paid' && (o.kind === 'addon' || Boolean(o.event_id)),
+      confirmed: o.status === 'paid' && (o.kind === 'addon' || o.kind === 'invoice_pay' || Boolean(o.event_id)),
       totalFils: Number(o.total_fils),
       totalDisplay: formatAed(Number(o.total_fils)),
       items: (quote.lines ?? [])
@@ -1241,17 +1252,46 @@ export async function publicRoutes(app: FastifyInstance) {
    * the app can show the exact saving before paying.
    */
   app.post('/api/promo/check', async (request, reply) => {
-    const schema = z.object({ code: z.string().trim().min(1).max(40), subtotalFils: z.number().int().min(0) });
+    // `code` alone keeps the original contract. With a `cart`, the response also
+    // carries `final`: the amount checkout will REALLY charge for this cart and
+    // these discount choices, computed by the same server code as checkout (incl.
+    // the no-stacking rule). `code` may then be omitted (credit / points only).
+    const schema = z.object({
+      code: z.string().trim().min(1).max(40).optional(),
+      subtotalFils: z.number().int().min(0).optional(),
+      cart: cartSchema.optional(),
+      provider: z.string().max(20).nullable().optional(),
+      offerToken: z.string().max(64).nullable().optional(),
+      useCredit: z.boolean().optional(),
+      redeemPoints: z.boolean().optional(),
+    });
     const parsed = schema.safeParse(request.body);
-    if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+    if (!parsed.success || (!parsed.data.code && !parsed.data.cart)) {
+      return reply.status(400).send({ error: 'invalid_request' });
+    }
     // Anyone can check a general code (guest checkout included). A personal
     // voucher is still scoped to its owner inside validatePromo, so a guest
     // (null id) simply can't validate someone else's personal code.
     const customerId = customerFromRequest(request);
-    const v = await validatePromo(pool, parsed.data.code, customerId, parsed.data.subtotalFils);
+    let final: Awaited<ReturnType<typeof previewCheckoutTotal>> | null = null;
+    if (parsed.data.cart) {
+      final = await previewCheckoutTotal({
+        cart: parsed.data.cart as unknown as CartInput,
+        provider: parsed.data.provider ?? null,
+        offerToken: parsed.data.offerToken ?? null,
+        customerId: customerId || null,
+        discounts: {
+          promoCode: parsed.data.code ?? null,
+          useCredit: parsed.data.useCredit,
+          redeemPoints: parsed.data.redeemPoints,
+        },
+      }).catch(() => null);
+    }
+    if (!parsed.data.code) return { ok: true, final };
+    const v = await validatePromo(pool, parsed.data.code, customerId, final?.subtotalFils ?? parsed.data.subtotalFils ?? 0);
     return v.ok
-      ? { ok: true, code: v.code, amountFils: v.amountFils, freeDelivery: v.freeDelivery }
-      : { ok: false, reason: v.reason };
+      ? { ok: true, code: v.code, amountFils: v.amountFils, freeDelivery: v.freeDelivery, final }
+      : { ok: false, reason: v.reason, final };
   });
 
   /**

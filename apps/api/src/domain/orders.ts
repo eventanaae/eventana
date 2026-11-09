@@ -309,6 +309,63 @@ export async function applyPaymentStatus(
     return { applied: false, payment };
   }
 
+  // Decide whether THIS payment may move the ORDER's status. An order can have
+  // several payment attempts (a re-opened pay link, a second Checkout tab); an
+  // old abandoned session expiring must never walk a paid order back, and a
+  // second success on an already-paid order is an extra charge for staff to
+  // refund, not a second booking.
+  const { rows: orderRows } = await db.query<{ status: string }>(
+    `SELECT status FROM orders WHERE id = $1 FOR UPDATE`,
+    [payment.order_id],
+  );
+  const orderStatus = orderRows[0]?.status ?? null;
+  const orderSettled =
+    orderStatus === 'paid' || orderStatus === 'refunded' || orderStatus === 'partially_refunded';
+  const { rows: siblingRows } = await db.query<{ newer: boolean; other_paid: boolean }>(
+    `SELECT
+        EXISTS (SELECT 1 FROM payments
+                 WHERE order_id = $1 AND id <> $2 AND created_at > $3) AS newer,
+        EXISTS (SELECT 1 FROM payments
+                 WHERE order_id = $1 AND id <> $2
+                   AND status IN ('paid','captured','partially_refunded','refunded')) AS other_paid`,
+    [payment.order_id, payment.id, payment.created_at],
+  );
+  const isLatest = !siblingRows[0]?.newer;
+  const otherPaid = Boolean(siblingRows[0]?.other_paid);
+  const nextIsSuccess = args.nextStatus === 'paid' || args.nextStatus === 'captured';
+  const nextIsRefund = args.nextStatus === 'refunded' || args.nextStatus === 'partially_refunded';
+  const currentIsSuccess = current === 'paid' || current === 'captured';
+
+  let moveOrder: boolean;
+  let doublePayment = false;
+  let skipNote: string | null = null;
+  if (nextIsSuccess) {
+    if (!currentIsSuccess && (otherPaid || orderSettled)) {
+      // A second, separate payment succeeded on an order that is already paid.
+      doublePayment = true;
+      moveOrder = false;
+      skipNote = `Second successful payment on already-${orderStatus ?? 'paid'} order — order left unchanged, ops alerted (double_payment)`;
+    } else {
+      // Real money in: the order becomes paid even if this was an older session.
+      // (paid -> captured on the same payment just keeps the order paid.)
+      moveOrder = !(orderSettled && orderStatus !== 'paid');
+    }
+  } else if (nextIsRefund) {
+    // A refund of this payment. If another payment still covers the order
+    // (e.g. refunding a double payment), the order stays as it is.
+    moveOrder = !otherPaid;
+    if (!moveOrder) skipNote = `Refund on payment ${payment.id}; another payment still covers the order — order left unchanged`;
+  } else {
+    // failed / cancelled / processing / needs_review: only the order's latest
+    // payment attempt may move it, and never once the order is paid/refunded.
+    moveOrder = isLatest && !orderSettled;
+    if (!moveOrder) {
+      skipNote = orderSettled
+        ? `Stale ${args.nextStatus} on payment ${payment.id} — order already ${orderStatus}, left unchanged`
+        : `Stale ${args.nextStatus} on superseded payment ${payment.id} — a newer payment attempt exists, order left unchanged`;
+    }
+  }
+
   const { rows: updated } = await db.query(
     `UPDATE payments
         SET status = $2,
@@ -329,10 +386,28 @@ export async function applyPaymentStatus(
     ],
   );
 
-  await db.query(
-    `UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`,
-    [payment.order_id, orderStatusFor(args.nextStatus)],
-  );
+  if (moveOrder) {
+    await db.query(
+      `UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`,
+      [payment.order_id, orderStatusFor(args.nextStatus)],
+    );
+  }
+
+  if (doublePayment) {
+    await db.query(
+      `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+       SELECT NULL, 'ops_alert', 'double_payment', now(), $1
+        WHERE NOT EXISTS (
+          SELECT 1 FROM notifications
+           WHERE template = 'double_payment' AND payload->>'orderId' = $2
+             AND payload->>'paymentId' = $3)`,
+      [
+        JSON.stringify({ orderId: payment.order_id, paymentId: payment.id, amountFils: Number(payment.amount_fils) }),
+        payment.order_id,
+        String(payment.id),
+      ],
+    );
+  }
 
   await recordPaymentEvent(db, {
     paymentId: payment.id,
@@ -344,9 +419,14 @@ export async function applyPaymentStatus(
     providerStatus: args.providerStatus,
     amountFils: payment.amount_fils,
     payload: args.payload,
-    note: args.note,
+    note: [args.note, skipNote].filter(Boolean).join(' — ') || null,
   });
 
+  // When the payment row moved but the ORDER did not (stale session expiring,
+  // or a second success on a paid order), report `applied: false` so callers
+  // skip order-level side effects: no hold release / failure push for a stale
+  // attempt, and no second confirmation / sale / capture for a double payment.
+  if (!moveOrder && !nextIsRefund) return { applied: false, payment: updated[0] };
   return { applied: true, payment: updated[0] };
 }
 
@@ -357,9 +437,14 @@ export async function flagForReview(
   reason: string,
   provider = 'system',
 ): Promise<void> {
-  await db.query(`UPDATE orders SET status = 'needs_review', updated_at = now() WHERE id = $1`, [
-    orderId,
-  ]);
+  // A paid / refunded order is never downgraded to needs_review by a problem
+  // on some OTHER (stale or extra) payment attempt — the alert below still
+  // reaches staff.
+  await db.query(
+    `UPDATE orders SET status = 'needs_review', updated_at = now()
+      WHERE id = $1 AND status NOT IN ('paid','refunded','partially_refunded')`,
+    [orderId],
+  );
   await recordPaymentEvent(db, {
     orderId,
     provider,
