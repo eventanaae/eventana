@@ -642,6 +642,8 @@ async function main() {
     await dumpMonthCheckFromEnv().catch((err) => console.error('[monthchk] failed:', err));
     const { reopenRedatedFromEnv } = await import('./db/reopenRedated.js');
     await reopenRedatedFromEnv().catch((err) => console.error('[reopenfix] failed:', err));
+    const { dumpBookedDayFromEnv } = await import('./db/dumpBookedDay.js');
+    await dumpBookedDayFromEnv().catch((err) => console.error('[bookedday] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
