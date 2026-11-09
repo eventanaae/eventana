@@ -1205,7 +1205,10 @@ export async function updateReceipt(id: number, d: DocInput & { date?: string | 
   if (saved?.event_id && (d.date !== undefined || d.eventTime !== undefined || d.dateTbd !== undefined)) {
     const evId = saved.event_id;
     await import('./lifecycle.js')
-      .then(({ reAlignPendingNotifications }) => reAlignPendingNotifications(evId))
+      .then(async ({ reopenIfMovedToFuture, reAlignPendingNotifications }) => {
+        await reopenIfMovedToFuture(evId);
+        await reAlignPendingNotifications(evId);
+      })
       .catch((e) => console.error('[finance] re-align notifications failed:', (e as Error).message));
     void import('./lifecycle.js')
       .then(({ enqueueBookingLifecycle }) => enqueueBookingLifecycle(evId))

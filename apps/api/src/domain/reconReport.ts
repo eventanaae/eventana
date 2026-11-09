@@ -144,22 +144,26 @@ export async function sendReconReport(monthStr: string, record = true): Promise<
   return { sent };
 }
 
+/** Dubai (UTC+4, no DST) calendar parts for "now". */
+function dubaiNow(): { y: number; m: number; d: number; h: number } {
+  const t = new Date(Date.now() + 4 * 3600 * 1000);
+  return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate(), h: t.getUTCHours() };
+}
+
 /**
- * Sweep: email THIS month's report once, on the LAST calendar day of the month
- * (owner's rule — "only the last day of the month"). Deduped by month in
- * recon_reports, so even though the reconcile loop runs many times that day the
- * report is sent exactly once.
+ * Sweep: email the PREVIOUS month's report once, on the 1st of the month from
+ * 10:00 Dubai time (owner, Nov 2026). It used to go out on the last day of the
+ * month at ~4am, so that whole last day (the 30th/31st) was missing from it.
+ * Deduped by month in recon_reports, so the many reconcile passes send it once.
  */
 export async function sweepReconReport(): Promise<void> {
   if (!emailEnabled()) return;
   try {
-    const now = new Date();
-    // Last day of the current month? (day-0 of next month = last day of this one.)
-    // Use UTC throughout — matching the staff-pay and finance monthly sweeps — so
-    // the report fires on the right day/month regardless of the server timezone.
-    const lastDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
-    if (now.getUTCDate() !== lastDay) return;
-    const monthStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const n = dubaiNow();
+    if (n.d !== 1 || n.h < 10) return;
+    const prevY = n.m === 1 ? n.y - 1 : n.y;
+    const prevM = n.m === 1 ? 12 : n.m - 1;
+    const monthStr = `${prevY}-${String(prevM).padStart(2, '0')}`;
     const { rowCount } = await pool.query(
       `INSERT INTO recon_reports (month, recipients) VALUES ($1, 0) ON CONFLICT (month) DO NOTHING`,
       [monthStr],

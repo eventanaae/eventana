@@ -13,7 +13,7 @@ import { eventDateYMD, eventEndHour, formatHour24, isCancelled, parseEndHour, pa
 import { pool, withTransaction } from '../db/pool.js';
 import { loadConfig } from './settings.js';
 import { eventWindow, getAssets } from './inventory.js';
-import { reAlignPendingNotifications } from './lifecycle.js';
+import { reAlignPendingNotifications, reopenIfMovedToFuture } from './lifecycle.js';
 import { syncEventToCalendar } from '../integrations/googleCalendar.js';
 
 /** Owner rule: reschedule allowed only when the event is more than this away. */
@@ -134,6 +134,7 @@ export async function rescheduleEvent(args: {
     // start−3d, party-day at start−4h, feedback at start+1d) — NOT midnight of
     // the new date. Shared helper keeps this identical to the booking lifecycle
     // and the receipt-edit path; it reads the event we just updated above.
+    await reopenIfMovedToFuture(args.eventId, db);
     await reAlignPendingNotifications(args.eventId, db);
     // Tell the assigned driver the delivery moved (new date/time → fresh row).
     await db.query(

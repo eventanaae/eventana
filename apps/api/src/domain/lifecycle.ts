@@ -36,6 +36,28 @@ export interface LifecycleResult { scheduled: string[]; skipped: string; }
  * would already be due) is CANCELLED rather than left to fire late — the same
  * "future only" rule enqueueBookingLifecycle applies when first scheduling.
  */
+/**
+ * An event that already auto-completed (its old date passed) and is then moved to
+ * a NEW date that hasn't happened yet must come back to the live list — otherwise
+ * it sits under "Past events" as "Event Completed" with a future date (Marsha's
+ * report, Nov 2026). Resets the phase to Booking Confirmed; the caller re-aligns
+ * the reminders/feedback to the new date. Never touches cancelled events, and only
+ * acts when the new end time is really in the future (or the date is TBD).
+ */
+export async function reopenIfMovedToFuture(eventId: string, db: Db = pool): Promise<boolean> {
+  const r = await db.query(
+    `UPDATE events SET phase = 'Booking Confirmed'
+      WHERE id = $1 AND phase = 'Event Completed' AND cancelled_at IS NULL
+        AND (COALESCE(date_tbd, false)
+             OR (base_end_time ~ '^[0-2][0-9]:[0-5][0-9]$'
+                 AND ((event_date + base_end_time::time) AT TIME ZONE 'Asia/Dubai') > now()))
+      RETURNING id`,
+    [eventId],
+  );
+  if (r.rowCount) console.log(`[events] ${eventId} moved to a future date — re-opened (was Event Completed)`);
+  return Boolean(r.rowCount);
+}
+
 export async function reAlignPendingNotifications(eventId: string, db: Db = pool): Promise<void> {
   const { rows } = await db.query(
     `SELECT to_char(event_date,'YYYY-MM-DD') AS d, start_time, date_tbd FROM events WHERE id = $1`,
