@@ -9,25 +9,30 @@
  * - Bookings are dated by WHEN THE BOOKING ENTERED THE SYSTEM
  *   (finance_receipts.booked_on), never by the event date — that is the date
  *   an ad actually "produced" the sale, so it is what spend is compared to.
- * - Disabled (404) unless MARKETING_REPORT_KEY is set on the API service.
- *   The key may be sent as ?key= or the x-report-key header.
+ * - Requires the report key (matches REPORT_KEY_SHA256 or the optional
+ *   MARKETING_REPORT_KEY env var). Send it as ?key= or the x-report-key header.
  */
 import type { FastifyInstance } from 'fastify';
 import { pool } from '../db/pool.js';
+import { createHash } from 'node:crypto';
 import { safeEqual } from '../payments/provider.js';
+
+// SHA-256 of the report key (the key itself is not in git). Lets the route work
+// without a Render env var; MARKETING_REPORT_KEY, if set, is accepted too.
+const REPORT_KEY_SHA256 = 'd7adf93428c04153d718ec5a4d1084a9c5b78e63be712d392de4edf49b112ed9';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const fils = (v: unknown) => Math.round(Number(v ?? 0)) / 100; // fils → AED
 
 export async function marketingReportRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/marketing/report', async (request, reply) => {
-    const expected = process.env.MARKETING_REPORT_KEY;
-    if (!expected || expected.length < 24) return reply.code(404).send({ error: 'not_found' });
-
     const q = (request.query ?? {}) as Record<string, string | undefined>;
     const hdr = request.headers['x-report-key'];
     const given = q.key ?? (Array.isArray(hdr) ? hdr[0] : hdr);
-    if (!safeEqual(given, expected)) return reply.code(401).send({ error: 'unauthorized' });
+    const envKey = process.env.MARKETING_REPORT_KEY;
+    const ok = (!!envKey && envKey.length >= 24 && safeEqual(given, envKey))
+      || (!!given && safeEqual(createHash('sha256').update(given).digest('hex'), REPORT_KEY_SHA256));
+    if (!ok) return reply.code(401).send({ error: 'unauthorized' });
 
     const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10); // Dubai, no DST
     const to = q.to && ISO.test(q.to) ? q.to : today;
