@@ -646,6 +646,8 @@ async function main() {
     await dumpBookedDayFromEnv().catch((err) => console.error('[bookedday] failed:', err));
     const { dumpBackfillTraceFromEnv } = await import('./db/dumpBackfillTrace.js');
     await dumpBackfillTraceFromEnv().catch((err) => console.error('[bftrace] failed:', err));
+    const { dumpBackfillImpactFromEnv } = await import('./db/dumpBackfillImpact.js');
+    await dumpBackfillImpactFromEnv().catch((err) => console.error('[bfimpact] failed:', err));
     // Log every account's role to confirm the owner login is `owner` (ROLE_AUDIT=true).
     const { roleAuditFromEnv } = await import('./db/roleAudit.js');
     await roleAuditFromEnv().catch((err) => console.error('[role-audit] failed:', err));
