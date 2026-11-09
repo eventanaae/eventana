@@ -192,6 +192,8 @@ export async function adminRoutes(app: FastifyInstance) {
       p.startsWith('/api/admin/ceo') ||
       p.startsWith('/api/admin/finance/accounting') ||
       p === '/api/admin/finance/qb-breakdown' ||
+      // Daily System Audit results (company money + ops findings) — owner only.
+      p === '/api/admin/audit' || p.startsWith('/api/admin/audit/') ||
       // Everything under /import is owner-only (historical revenue, product
       // totals/merge, P&L) except the ticket + row upload used by the migration.
       ((p === '/api/admin/import' || p.startsWith('/api/admin/import/')) &&
@@ -664,6 +666,15 @@ export async function adminRoutes(app: FastifyInstance) {
     if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden' });
     const action = (request.query as { action?: string }).action;
     return { rows: await listAudit({ action }) };
+  });
+
+  /** Latest Daily System Audit run (owner only). */
+  app.get('/api/admin/audit/latest', async (request, reply) => {
+    if ((request as any).staff?.role !== 'owner') return reply.status(403).send({ error: 'forbidden', message: 'Owner only.' });
+    const { latestAuditRun } = await import('../domain/dailyAudit.js');
+    const run = await latestAuditRun();
+    if (!run) return reply.status(404).send({ error: 'not_found', message: 'No audit has run yet.' });
+    return run;
   });
 
   /** Incentive reward amounts (owner-editable, so nothing is hard-coded). */
