@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { celebrationLabel, eventDateYMD, to12h, timeRange12h } from '@eventana/shared';
+import { celebrationLabel, to12h, timeRange12h } from '@eventana/shared';
 import type { View } from '../App';
 import { api } from '../api';
 import { ACCENTS, Button, C, fredoka, Panel, QuickAction, SectionHeader, Spinner } from '../ui';
+import { dubaiToday } from '../locale';
 
 /**
  * The operational home — a warm, lively landing that answers, at a glance:
@@ -24,9 +25,10 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
   const canBrief = role === 'owner' || role === 'manager';
   useEffect(() => { if (canBrief) api.morningBrief().then(setBrief).catch(() => setBrief(null)); }, [canBrief]);
 
-  // Local (Dubai) date, not UTC — toISOString() would show "yesterday" between
-  // Dubai midnight and 4 AM, hiding today's real parties.
-  const todayStr = eventDateYMD(new Date());
+  // Dubai date, not UTC — toISOString() would show "yesterday" between Dubai
+  // midnight and 4 AM, hiding today's real parties (and a device set to another
+  // timezone would drift too).
+  const todayStr = dubaiToday();
 
   if (!data) return <Spinner />;
 
@@ -125,6 +127,9 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
       {/* ☀️ Your morning brief — the CEO pulse: occasions, leads, money, ads */}
       {canBrief && brief?.pulse && (() => {
         const p = brief.pulse;
+        // Income (booked / awaiting AED) is OWNER-only. Managers run the day but
+        // must never see company income — they get the counts instead.
+        const isOwner = role === 'owner';
         const Tile = ({ icon, value, label, sub, fg, bg }: { icon: string; value: string; label: string; sub?: string; fg: string; bg: string }) => (
           <div style={{ background: bg, borderRadius: 14, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: fg, opacity: 0.85 }}>{icon} {label}</div>
@@ -162,10 +167,14 @@ export function Today({ onOpenEvent, onOpenShop, onGoto, staffName, role }: { on
               {/* Business pulse tiles */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <Tile icon="💬" label="Leads today" value={String(p.leadsToday)} sub={`${p.leadsWeek} this week`} fg="#2E90BE" bg={C.skySoft} />
-                <Tile icon="💰" label="Booked today" value={p.bookingsTodayAed} sub={`${p.bookingsToday} booking${p.bookingsToday === 1 ? '' : 's'}`} fg={C.mintDeep} bg={C.mintSoft} />
+                {isOwner && p.bookingsTodayAed != null
+                  ? <Tile icon="💰" label="Booked today" value={p.bookingsTodayAed} sub={`${p.bookingsToday} booking${p.bookingsToday === 1 ? '' : 's'}`} fg={C.mintDeep} bg={C.mintSoft} />
+                  : <Tile icon="💰" label="Booked today" value={String(p.bookingsToday ?? 0)} sub={`booking${p.bookingsToday === 1 ? '' : 's'}`} fg={C.mintDeep} bg={C.mintSoft} />}
                 <Tile icon="📣" label={p.adsTodayAed ? 'Ads today' : 'Ads this month'} value={p.adsTodayAed ?? p.adsMonthAed} sub={p.adsTodayAed ? `${p.adsMonthAed} this month` : 'recorded spend'} fg="#E4703F" bg={C.peachSoft} />
                 {p.awaitingCount > 0 && (
-                  <Tile icon="⏳" label="Awaiting payment" value={p.awaitingAed} sub={`${p.awaitingCount} pay-link${p.awaitingCount === 1 ? '' : 's'}`} fg={C.red} bg={C.redSoft} />
+                  isOwner && p.awaitingAed != null
+                    ? <Tile icon="⏳" label="Awaiting payment" value={p.awaitingAed} sub={`${p.awaitingCount} pay-link${p.awaitingCount === 1 ? '' : 's'}`} fg={C.red} bg={C.redSoft} />
+                    : <Tile icon="⏳" label="Awaiting payment" value={String(p.awaitingCount)} sub={`pay-link${p.awaitingCount === 1 ? '' : 's'}`} fg={C.red} bg={C.redSoft} />
                 )}
               </div>
 
@@ -578,6 +587,15 @@ export function OffTodayPanel({ list }: { list: any[] }) {
 function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
   const [data, setData] = useState<any>(null);
   const [staffing, setStaffing] = useState<any[]>([]);
+  // The day-off request being approved/denied — blocks a double tap.
+  const [leaveBusy, setLeaveBusy] = useState<number | null>(null);
+  const decide = async (id: number, status: 'approved' | 'denied') => {
+    if (leaveBusy != null) return;
+    setLeaveBusy(id);
+    try { await api.setDayOffStatus(id, status); load(); }
+    catch { /* the API error handler already shows a toast */ }
+    finally { setLeaveBusy(null); }
+  };
   const load = () => {
     api.alerts().then(setData).catch(() => setData(null));
     // Staffing is MANUAL by default, so an untouched event has no crew at all —
@@ -624,8 +642,8 @@ function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void 
                 {String(d.end_date).slice(0, 10) !== String(d.start_date).slice(0, 10) && ` → ${new Date(d.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}
                 {d.reason ? ` · ${d.reason}` : ''}
               </span>
-              <button onClick={async () => { await api.setDayOffStatus(d.id, 'approved'); load(); }} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.green, flex: 'none' }}>Approve</button>
-              <button onClick={async () => { await api.setDayOffStatus(d.id, 'denied'); load(); }} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.red, flex: 'none' }}>Deny</button>
+              <button disabled={leaveBusy != null} onClick={() => decide(d.id, 'approved')} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.green, flex: 'none' }}>Approve</button>
+              <button disabled={leaveBusy != null} onClick={() => decide(d.id, 'denied')} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: C.red, flex: 'none' }}>Deny</button>
             </div>
           ))}
         </Panel>

@@ -150,16 +150,51 @@ export function isQueueable(method: string, path: string): boolean {
 }
 
 export type OutboxItem =
-  | { id?: number; kind: 'json'; token: string; at: number; method: string; path: string; body: string | null }
+  | { id?: number; clientId?: string; kind: 'json'; token: string; at: number; method: string; path: string; body: string | null }
   // A photo taken offline: upload it first, then POST its URL to `path` as `field`.
-  | { id?: number; kind: 'photo'; token: string; at: number; path: string; folder: string; field: string; extra: Record<string, unknown>; file: Blob; fileName: string };
+  | { id?: number; clientId?: string; kind: 'photo'; token: string; at: number; path: string; folder: string; field: string; extra: Record<string, unknown>; file: Blob; fileName: string };
+
+/** A stable id for one queued action, so a replay can be recognised and never sent twice. */
+function newClientId(): string {
+  try { if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID(); } catch { /* fall through */ }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+/*
+ * Ids of queued actions that already reached the server. Written BEFORE the
+ * outbox row is deleted, so if the delete fails (tab closed, storage hiccup) or
+ * a second tab is replaying the same outbox, the action is skipped instead of
+ * being sent again (e.g. a duplicate damage report).
+ */
+const SENT_KEY = 'eventana.outboxSent';
+const SENT_MAX = 200;
+function readSent(): string[] {
+  try { const v = JSON.parse(localStorage.getItem(SENT_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+function markSent(clientId: string | undefined): void {
+  if (!clientId) return;
+  try { localStorage.setItem(SENT_KEY, JSON.stringify([...readSent().filter((x) => x !== clientId), clientId].slice(-SENT_MAX))); } catch { /* ignore */ }
+}
+function wasSent(clientId: string | undefined): boolean {
+  return !!clientId && readSent().includes(clientId);
+}
+
+/** Two queued JSON actions that would do exactly the same thing (a double tap while offline). */
+function sameAction(a: OutboxItem, b: OutboxItem): boolean {
+  return a.kind === 'json' && b.kind === 'json' && a.token === b.token && a.method === b.method && a.path === b.path && a.body === b.body;
+}
 
 // What's queued, kept in memory so saved copies can show it (a task the
 // employee ticked offline must stay ticked when the list reloads).
 let pendingOps: OutboxItem[] = [];
 
 export async function enqueue(item: OutboxItem): Promise<void> {
-  const saved = await tx(OUTBOX_STORE, 'readwrite', (s) => s.add(item));
+  // Idempotent: an identical action already waiting (double tap, or a retry of
+  // the same submit) is not queued a second time.
+  const waiting = (await tx<OutboxItem[]>(OUTBOX_STORE, 'readonly', (s) => s.getAll())) ?? [];
+  if (waiting.some((w) => sameAction(w, item))) { await refreshPending(); return; }
+  const withId: OutboxItem = { ...item, clientId: item.clientId ?? newClientId() };
+  const saved = await tx(OUTBOX_STORE, 'readwrite', (s) => s.add(withId));
   if (saved == null) throw new Error('This phone could not save the change offline — please try again with internet.');
   await refreshPending();
 }
@@ -221,17 +256,31 @@ export async function flushOutbox(
   let sent = 0;
   if (flushing) return { sent, failed };
   flushing = true;
-  try {
+  const run = async () => {
     const items = (await tx<OutboxItem[]>(OUTBOX_STORE, 'readonly', (s) => s.getAll())) ?? [];
-    if (!items.length) return { sent, failed };
+    if (!items.length) return;
     setState({ syncing: true });
+    const seen: OutboxItem[] = [];
     for (const item of items) {
+      // Already delivered (by an earlier flush whose delete didn't stick, or by
+      // another tab), or a duplicate of one sent in this pass → just remove it.
+      if (wasSent(item.clientId) || seen.some((s) => sameAction(s, item))) {
+        await tx(OUTBOX_STORE, 'readwrite', (s) => s.delete(item.id!));
+        continue;
+      }
       const r = await send(item);
       if (r.result === 'retry') break;
       if (r.result === 'drop') failed.push(r.message ?? 'A change could not be saved.');
-      else sent++;
+      else { sent++; markSent(item.clientId); seen.push(item); }
       await tx(OUTBOX_STORE, 'readwrite', (s) => s.delete(item.id!));
     }
+  };
+  try {
+    // One tab at a time: two open tabs replaying the same outbox would send
+    // every queued action twice. Web Locks serialise them where supported.
+    const locks = typeof navigator !== 'undefined' ? (navigator as any).locks : undefined;
+    if (locks?.request) await locks.request('eventana-outbox-flush', run);
+    else await run();
     return { sent, failed };
   } finally {
     flushing = false;
