@@ -41,89 +41,160 @@ export function deliveryPriceFils(truck: string | null, emirate: string | null):
   return p ?? null; // unknown emirate (e.g. Umm Al Quwain) → owner sets the price manually
 }
 
+/**
+ * One match key per person: trim, collapse inner whitespace, lowercase — so
+ * "Ali", " ali " and "Ali  " are the same payee in the report, the phone /
+ * driver-type lookups, the paid lookup and the stored staff_payments row.
+ */
+export function personKey(name: string | null | undefined): string {
+  return String(name ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+/** Display form of a typed name (trimmed, inner whitespace collapsed). */
+function cleanName(name: string | null | undefined): string {
+  return String(name ?? '').trim().replace(/\s+/g, ' ');
+}
+/** SQL twin of personKey(). */
+const SQL_KEY = (expr: string) => `lower(regexp_replace(btrim(${expr}), '\\s+', ' ', 'g'))`;
+
+/** Today in Dubai (UTC+4, no DST) as YYYY-MM-DD. */
+function dubaiToday(): string {
+  return new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
+}
+/** Today's date in Dubai, in SQL — "the event has happened" cut-off. */
+const SQL_DUBAI_TODAY = `(now() AT TIME ZONE 'Asia/Dubai')::date`;
+
+/** Part-timer engagements (paid entertainer roles only) on events that happened. */
+const PT_WHERE = `
+      es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
+      -- Only the paid entertainer roles belong in this tracker (clown / face
+      -- paint / balloon artist); part-time drivers show under Deliveries.
+      AND es.role IN ('clown', 'acrobat_clown', 'face_painting', 'balloon_artist', 'balloon_twisting')
+      AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
+      -- Count only events that have already happened (up to today, Dubai).
+      AND e.event_date <= ${SQL_DUBAI_TODAY}`;
+
+/**
+ * Event driver slots that name a real person — an assigned team member or a
+ * typed part-timer name (empty auto slots are NOT a payee) — excluding the
+ * salaried main driver Shan, on events that happened.
+ */
+const DRIVER_WHERE = `
+      es.role IN ('driver','pt_driver')
+      AND (tm.id IS NOT NULL OR (es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''))
+      AND (es.role = 'pt_driver' OR tm.id IS NULL OR ${SQL_KEY('tm.name')} <> 'shan')
+      AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
+      AND e.event_date <= ${SQL_DUBAI_TODAY}`;
+
+type PayState = {
+  owedFils: number; owedDisplay: string;
+  paidFils: number; balanceFils: number; balanceDisplay: string;
+  /** Fully paid: paid ≥ owed (and no delivery is missing its price). */
+  paid: boolean;
+  /** Something was paid but less than owed. */
+  partlyPaid: boolean;
+  paidDisplay: string | null;
+  statusDisplay: string | null;
+};
+
+function payState(owedFils: number, paidFils: number, priceMissing = 0): PayState {
+  const balanceFils = Math.max(0, owedFils - paidFils);
+  const paid = paidFils > 0 && paidFils >= owedFils && priceMissing === 0;
+  const partlyPaid = paidFils > 0 && !paid;
+  const missingNote = priceMissing > 0 ? ` (+ ${priceMissing} deliver${priceMissing > 1 ? 'ies' : 'y'} with price not set)` : '';
+  const statusDisplay = paid ? `Paid ${formatAed(paidFils)}`
+    : partlyPaid ? `Partly paid ${formatAed(paidFils)} — ${formatAed(balanceFils)} still owed${missingNote}`
+    : priceMissing > 0 ? `Not paid — ${formatAed(balanceFils)} owed${missingNote}`
+    : null;
+  return { owedFils, owedDisplay: formatAed(owedFils), paidFils, balanceFils, balanceDisplay: formatAed(balanceFils),
+    paid, partlyPaid, paidDisplay: paidFils > 0 ? formatAed(paidFils) : null, statusDisplay };
+}
+
 export type StaffPayReport = {
   monthLabel: string;
   month: string;
-  partTimers: Array<{ name: string; phone: string | null; entries: Array<{ date: string; emirate: string; job: string; amountDisplay: string }>; totalFils: number; totalDisplay: string; paid: boolean; paidDisplay: string | null }>;
+  partTimers: Array<{ key: string; name: string; phone: string | null; entries: Array<{ date: string; emirate: string; job: string; amountDisplay: string }>; totalFils: number; totalDisplay: string } & PayState>;
   partTimerTotalDisplay: string;
-  drivers: Array<{ id: string; eventId: string | null; name: string; date: string; emirate: string; type: string; truck: string | null; priceFils: number | null; priceDisplay: string; priceManual: boolean }>;
+  drivers: Array<{ id: string; eventId: string | null; key: string; name: string; date: string; emirate: string; type: string; payKind: 'van' | 'own_car'; truck: string | null; priceFils: number | null; priceDisplay: string; priceManual: boolean }>;
   deliveryTotalDisplay: string;
-  driverPayouts: Array<{ name: string; phone: string | null; type: string; count: number; entries: Array<{ date: string; emirate: string; truck: string | null; priceDisplay: string }>; suggestedFils: number; suggestedDisplay: string; paid: boolean; paidDisplay: string | null }>;
+  driverPayouts: Array<{ key: string; name: string; phone: string | null; type: string; count: number; priceMissing: number; entries: Array<{ date: string; emirate: string; truck: string | null; priceDisplay: string }>; suggestedFils: number; suggestedDisplay: string } & PayState>;
   driverPayoutTotalDisplay: string;
 };
 
 export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayReport> {
-  const month = monthISO ?? new Date().toISOString().slice(0, 10);
+  const month = monthISO ?? dubaiToday();
   const monthLabel = new Date(month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const monthStr = month.slice(0, 7); // YYYY-MM
 
-  // Phones + who's already been paid this month.
-  const [ptPhones, drPhones, payments] = await Promise.all([
+  // Phones + driver types + what's been paid this month. Driver type is read
+  // from ALL roster rows (not just active ones) so a driver deactivated after
+  // the month still pays at the right rate.
+  const [ptPhones, drRows, payments] = await Promise.all([
     pool.query<{ name_norm: string; phone: string | null }>(`SELECT name_norm, phone FROM part_timers WHERE active`),
-    pool.query<{ name_norm: string; phone: string | null; kind: string }>(`SELECT lower(name) AS name_norm, phone, kind FROM drivers WHERE active`),
-    pool.query<{ person_kind: string; person_name: string; amount_fils: string }>(`SELECT person_kind, lower(btrim(person_name)) AS person_name, amount_fils FROM staff_payments WHERE month = $1`, [monthStr]),
+    pool.query<{ name: string; phone: string | null; kind: string; active: boolean }>(`SELECT name, phone, kind, active FROM drivers ORDER BY active`),
+    pool.query<{ person_kind: string; person_name: string; amount_fils: string }>(`SELECT person_kind, person_name, amount_fils FROM staff_payments WHERE month = $1`, [monthStr]),
   ]);
-  const ptPhone = new Map(ptPhones.rows.map((r) => [r.name_norm, r.phone]));
-  const drPhone = new Map(drPhones.rows.map((r) => [r.name_norm, r.phone]));
-  const drKind = new Map(drPhones.rows.map((r) => [r.name_norm, r.kind]));
+  const ptPhone = new Map(ptPhones.rows.map((r) => [personKey(r.name_norm), r.phone]));
+  // ORDER BY active → active rows come last and win on a key clash.
+  const drPhone = new Map<string, string | null>();
+  const drKind = new Map<string, string>();
+  for (const r of drRows.rows) {
+    const k = personKey(r.name);
+    if (r.phone || !drPhone.get(k)) drPhone.set(k, r.phone);
+    drKind.set(k, r.kind);
+  }
   const PART_TIME_DAY_FILS = 25000; // AED 250 / day for van (part-time) drivers
-  const paidMap = new Map(payments.rows.map((r) => [`${r.person_kind}:${r.person_name}`, Number(r.amount_fils)]));
-  const paidOf = (kind: string, name: string): number | null => {
-    const v = paidMap.get(`${kind}:${(name ?? '').trim().toLowerCase()}`);
-    return v === undefined ? null : v;
-  };
+  // Sum by normalised key, so legacy rows stored under a differently-spaced or
+  // -cased name still count towards the same person.
+  const paidMap = new Map<string, number>();
+  for (const r of payments.rows) {
+    const k = `${r.person_kind}:${personKey(r.person_name)}`;
+    paidMap.set(k, (paidMap.get(k) ?? 0) + Number(r.amount_fils));
+  }
+  const paidOf = (kind: string, key: string): number => paidMap.get(`${kind}:${key}`) ?? 0;
 
   // Part-timer engagements this month (event_staff rows carrying a part-timer name).
   const pt = await pool.query<{ name: string; role: string; emirate: string | null; date: string }>(
     `SELECT btrim(es.part_time_name) AS name, es.role, e.emirate,
             to_char(e.event_date,'YYYY-MM-DD') AS date
        FROM event_staff es JOIN events e ON e.id = es.event_id
-      WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
-        -- Only the paid entertainer roles belong in this tracker (clown / face
-        -- paint / balloon artist); part-time drivers show under Deliveries.
-        AND es.role IN ('clown', 'acrobat_clown', 'face_painting', 'balloon_artist', 'balloon_twisting')
-        AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
+      WHERE ${PT_WHERE}
         AND e.event_date >= date_trunc('month', $1::date)
         AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
-        -- Count only events that have already happened (up to today) — the total
-        -- grows as each event finishes, never counts work not done yet.
-        AND e.event_date <= CURRENT_DATE
-      ORDER BY btrim(es.part_time_name), e.event_date`,
+      ORDER BY ${SQL_KEY('es.part_time_name')}, e.event_date`,
     [month],
   );
-  const byName = new Map<string, { name: string; entries: Array<{ date: string; emirate: string; job: string; amountDisplay: string }>; totalFils: number; totalDisplay: string }>();
+  const byName = new Map<string, { key: string; name: string; entries: Array<{ date: string; emirate: string; job: string; amountDisplay: string }>; totalFils: number }>();
   let grand = 0;
   for (const r of pt.rows) {
     const { job, fils } = jobOf(r.role);
-    const g = byName.get(r.name) ?? { name: r.name, entries: [], totalFils: 0, totalDisplay: '' };
+    const key = personKey(r.name);
+    const g = byName.get(key) ?? { key, name: cleanName(r.name), entries: [], totalFils: 0 };
     g.entries.push({ date: r.date, emirate: r.emirate || '—', job, amountDisplay: fils ? formatAed(fils) : '—' });
     g.totalFils += fils; grand += fils;
-    byName.set(r.name, g);
+    byName.set(key, g);
   }
-  const partTimers = [...byName.values()].map((g) => {
-    const paid = paidOf('part_timer', g.name);
-    return { ...g, totalDisplay: formatAed(g.totalFils), phone: ptPhone.get(g.name.toLowerCase()) ?? null,
-      paid: paid != null, paidDisplay: paid != null ? formatAed(paid) : null };
-  });
+  const partTimers = [...byName.values()].map((g) => ({
+    ...g, totalDisplay: formatAed(g.totalFils), phone: ptPhone.get(g.key) ?? null,
+    ...payState(g.totalFils, paidOf('part_timer', g.key)),
+  }));
 
-  // Event deliveries this month (a driver assigned, excluding salaried own-van
-  // Shan), plus any truck/price the owner set for them (deliveries table by
-  // event_id) — and MANUAL deliveries (deliveries rows with event_id NULL).
+  // Event deliveries this month (a real driver assigned — each driver counted
+  // once per event — excluding salaried Shan), plus any truck/price/driver type
+  // the owner set for them (deliveries table by event_id) — and MANUAL
+  // deliveries (deliveries rows with event_id NULL).
   const [evd, man] = await Promise.all([
-    pool.query<{ event_id: string; name: string; emirate: string | null; date: string; truck: string | null; price_fils: string | null; price_manual: boolean | null }>(
-      `SELECT e.id AS event_id, COALESCE(tm.name, btrim(es.part_time_name), 'Driver') AS name,
+    pool.query<{ event_id: string; name: string; emirate: string | null; date: string; truck: string | null; price_fils: string | null; price_manual: boolean | null; driver_type: string | null }>(
+      `SELECT DISTINCT ON (e.id, ${SQL_KEY(`COALESCE(tm.name, es.part_time_name)`)})
+              e.id AS event_id, btrim(COALESCE(tm.name, es.part_time_name)) AS name,
               e.emirate, to_char(e.event_date,'YYYY-MM-DD') AS date,
-              d.truck, d.price_fils, d.price_manual
+              d.truck, d.price_fils, d.price_manual, d.driver_type
          FROM event_staff es JOIN events e ON e.id = es.event_id
          LEFT JOIN team_members tm ON tm.id = es.assignee_id
          LEFT JOIN deliveries d ON d.event_id = e.id
-        WHERE es.role IN ('driver','pt_driver')
-          AND (es.role = 'pt_driver' OR es.assignee_id IS NULL OR lower(tm.name) <> 'shan')
-          AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
+        WHERE ${DRIVER_WHERE}
           AND e.event_date >= date_trunc('month', $1::date)
           AND e.event_date <  date_trunc('month', $1::date) + interval '1 month'
-          AND e.event_date <= CURRENT_DATE
-        ORDER BY e.event_date`,
+        ORDER BY e.id, ${SQL_KEY(`COALESCE(tm.name, es.part_time_name)`)}, es.id`,
       [month],
     ),
     pool.query<{ id: string; date: string; driver_name: string | null; driver_type: string | null; emirate: string | null; truck: string | null; price_fils: string | null; price_manual: boolean | null }>(
@@ -132,7 +203,7 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
         WHERE event_id IS NULL
           AND del_date >= date_trunc('month', $1::date)
           AND del_date <  date_trunc('month', $1::date) + interval '1 month'
-          AND del_date <= CURRENT_DATE
+          AND del_date <= ${SQL_DUBAI_TODAY}
         ORDER BY del_date`,
       [month],
     ),
@@ -140,47 +211,59 @@ export async function buildStaffPayReport(monthISO?: string): Promise<StaffPayRe
 
   const priceOf = (truck: string | null, emirate: string | null, override: string | null, manual: boolean | null): number | null =>
     (manual && override != null) ? Number(override) : deliveryPriceFils(truck, emirate);
+  // How this delivery is paid: the delivery's own driver_type wins when it is
+  // decisive ('part_time' = company van → AED 250/day; 'own_van' = their own
+  // vehicle → delivery price); otherwise ('external' / unset) the roster kind.
+  const payKindOf = (deliveryType: string | null, key: string): 'van' | 'own_car' =>
+    deliveryType === 'part_time' ? 'van' : deliveryType === 'own_van' ? 'own_car' : (drKind.get(key) === 'van' ? 'van' : 'own_car');
+  const priceText = (price: number | null) => price != null ? formatAed(price) : 'price not set';
 
   let deliveryTotal = 0;
-  const drivers = [
+  const drivers: StaffPayReport['drivers'] = [
     ...evd.rows.map((r) => {
       const price = priceOf(r.truck, r.emirate, r.price_fils, r.price_manual);
       if (price) deliveryTotal += price;
-      return { id: `event:${r.event_id}`, eventId: r.event_id, name: r.name, date: r.date, emirate: r.emirate || '—',
-        type: 'Delivery', truck: r.truck, priceFils: price, priceDisplay: price != null ? formatAed(price) : '—', priceManual: !!r.price_manual };
+      const key = personKey(r.name);
+      return { id: `event:${r.event_id}`, eventId: r.event_id, key, name: cleanName(r.name), date: r.date, emirate: r.emirate || '—',
+        type: 'Delivery', payKind: payKindOf(r.driver_type, key), truck: r.truck, priceFils: price, priceDisplay: priceText(price), priceManual: !!r.price_manual };
     }),
     ...man.rows.map((r) => {
       const price = priceOf(r.truck, r.emirate, r.price_fils, r.price_manual);
       if (price) deliveryTotal += price;
-      return { id: `manual:${r.id}`, eventId: null, name: r.driver_name || 'External driver', date: r.date, emirate: r.emirate || '—',
-        type: r.driver_type === 'own_van' ? 'Own van' : r.driver_type === 'part_time' ? 'Part-time' : 'External', truck: r.truck,
-        priceFils: price, priceDisplay: price != null ? formatAed(price) : '—', priceManual: !!r.price_manual };
+      const name = cleanName(r.driver_name) || 'External driver';
+      const key = personKey(name);
+      return { id: `manual:${r.id}`, eventId: null, key, name, date: r.date, emirate: r.emirate || '—',
+        type: r.driver_type === 'own_van' ? 'Own van' : r.driver_type === 'part_time' ? 'Part-time' : 'External',
+        payKind: payKindOf(r.driver_type, key), truck: r.truck,
+        priceFils: price, priceDisplay: priceText(price), priceManual: !!r.price_manual };
     }),
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   // Group deliveries by driver for the monthly payout (owner enters the amount
-  // she pays; the sum of delivery prices is a suggestion).
-  const payoutMap = new Map<string, { name: string; count: number; priceSumFils: number; days: Set<string>; entries: Array<{ date: string; emirate: string; truck: string | null; priceDisplay: string }> }>();
+  // she pays; the computed amount is a suggestion).
+  const payoutMap = new Map<string, { key: string; name: string; count: number; ownCarFils: number; ownCarCount: number; priceMissing: number; vanDays: Set<string>; entries: Array<{ date: string; emirate: string; truck: string | null; priceDisplay: string }> }>();
   for (const d of drivers) {
-    const key = d.name.toLowerCase();
-    const g = payoutMap.get(key) ?? { name: d.name, count: 0, priceSumFils: 0, days: new Set<string>(), entries: [] };
-    g.count += 1; g.priceSumFils += d.priceFils ?? 0; g.days.add(d.date);
+    const g = payoutMap.get(d.key) ?? { key: d.key, name: d.name, count: 0, ownCarFils: 0, ownCarCount: 0, priceMissing: 0, vanDays: new Set<string>(), entries: [] };
+    g.count += 1;
+    // Own-car drivers (Ubaid/Majeed) earn the delivery price; van/part-time
+    // drivers (Ali/Rashid/Rana) earn AED 250 per delivery DAY.
+    if (d.payKind === 'van') g.vanDays.add(d.date);
+    else { g.ownCarCount += 1; if (d.priceFils == null) g.priceMissing += 1; else g.ownCarFils += d.priceFils; }
     // Per-trip line (date + emirate), so the payout card itemises like the
     // part-timer cards do. `drivers` is already sorted by date.
     g.entries.push({ date: d.date, emirate: d.emirate, truck: d.truck, priceDisplay: d.priceDisplay });
-    payoutMap.set(key, g);
+    payoutMap.set(d.key, g);
   }
   const driverPayouts = [...payoutMap.values()].map((g) => {
-    // Own-car drivers (Ubaid/Majeed) earn the delivery price; van/part-time
-    // drivers (Ali/Rashid/Rana) earn AED 250 per delivery DAY.
-    const kind = drKind.get(g.name.toLowerCase());
-    const isVan = kind === 'van';
-    const suggestedFils = isVan ? g.days.size * PART_TIME_DAY_FILS : g.priceSumFils;
-    const paid = paidOf('driver', g.name);
-    return { name: g.name, phone: drPhone.get(g.name.toLowerCase()) ?? null,
-      type: isVan ? `Van · AED 250/day × ${g.days.size}` : 'Own car · delivery price',
-      count: g.count, entries: g.entries, suggestedFils, suggestedDisplay: formatAed(suggestedFils),
-      paid: paid != null, paidDisplay: paid != null ? formatAed(paid) : null };
+    const vanFils = g.vanDays.size * PART_TIME_DAY_FILS;
+    const suggestedFils = vanFils + g.ownCarFils;
+    const parts: string[] = [];
+    if (g.ownCarCount > 0) parts.push(`Own car · delivery price${g.priceMissing ? ` · ${g.priceMissing} price not set` : ''}`);
+    if (g.vanDays.size > 0) parts.push(`Van · AED 250/day × ${g.vanDays.size}`);
+    return { key: g.key, name: g.name, phone: drPhone.get(g.key) ?? null,
+      type: parts.join(' + '), count: g.count, priceMissing: g.priceMissing, entries: g.entries,
+      suggestedFils, suggestedDisplay: formatAed(suggestedFils),
+      ...payState(suggestedFils, paidOf('driver', g.key), g.priceMissing) };
   });
 
   const driverPayoutTotal = driverPayouts.reduce((s, d) => s + (d.suggestedFils ?? 0), 0);
@@ -197,22 +280,29 @@ export type OutstandingStaffPay = Array<{
 /**
  * Unpaid part-timer/driver dues carried over from BEFORE the given month, so the
  * tracker never lets money owed disappear just because the month rolled over —
- * it stays visible until it's marked paid (owner's rule, queue #14). Only months
- * that actually had activity are rebuilt, so this is cheap in practice.
+ * it stays visible until it's paid IN FULL (owner's rule, queue #14): a partly
+ * paid person stays with the remaining balance, and so does a delivery whose
+ * price isn't set yet. Only months that actually had activity are rebuilt.
  */
 export async function buildOutstandingStaffPay(beforeMonthISO?: string): Promise<OutstandingStaffPay> {
-  const before = (beforeMonthISO ?? new Date().toISOString().slice(0, 10)).slice(0, 7); // YYYY-MM
+  const before = (beforeMonthISO ?? dubaiToday()).slice(0, 7); // YYYY-MM
   const FLOOR = '2026-09-01'; // the tracker's start — nothing meaningful before this
+  // Same filters as the report itself, so every month the report would show
+  // money for (incl. team-member drivers) is discovered here.
   const { rows } = await pool.query<{ m: string }>(
     `SELECT DISTINCT to_char(date_trunc('month', d),'YYYY-MM') AS m
        FROM (
          SELECT e.event_date AS d
            FROM event_staff es JOIN events e ON e.id = es.event_id
-          WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
-            AND es.role IN ('clown','acrobat_clown','face_painting','balloon_artist','balloon_twisting','driver','pt_driver')
-            AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false) AND e.event_date <= CURRENT_DATE
+          WHERE ${PT_WHERE}
+         UNION ALL
+         SELECT e.event_date AS d
+           FROM event_staff es JOIN events e ON e.id = es.event_id
+           LEFT JOIN team_members tm ON tm.id = es.assignee_id
+          WHERE ${DRIVER_WHERE}
          UNION ALL
          SELECT del_date AS d FROM deliveries
+          WHERE event_id IS NULL AND del_date <= ${SQL_DUBAI_TODAY}
        ) x
       WHERE d >= $1::date AND d < date_trunc('month', ($2 || '-01')::date)
       ORDER BY m`,
@@ -221,8 +311,8 @@ export async function buildOutstandingStaffPay(beforeMonthISO?: string): Promise
   const out: OutstandingStaffPay = [];
   for (const { m } of rows) {
     const rep = await buildStaffPayReport(`${m}-01`);
-    const partTimers = rep.partTimers.filter((p) => !p.paid && p.totalFils > 0);
-    const driverPayouts = rep.driverPayouts.filter((d) => !d.paid && d.suggestedFils > 0);
+    const partTimers = rep.partTimers.filter((p) => !p.paid && p.balanceFils > 0);
+    const driverPayouts = rep.driverPayouts.filter((d) => !d.paid && (d.balanceFils > 0 || d.priceMissing > 0));
     if (partTimers.length || driverPayouts.length) {
       out.push({ month: m, monthLabel: rep.monthLabel, partTimers, driverPayouts });
     }
@@ -245,10 +335,10 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
   // Phone maps — same sources as the monthly report.
   const [ptPhones, drPhones] = await Promise.all([
     pool.query<{ name_norm: string; phone: string | null }>(`SELECT name_norm, phone FROM part_timers WHERE active`),
-    pool.query<{ name_norm: string; phone: string | null }>(`SELECT lower(name) AS name_norm, phone FROM drivers WHERE active`),
+    pool.query<{ name: string; phone: string | null }>(`SELECT name, phone FROM drivers WHERE active`),
   ]);
-  const ptPhone = new Map(ptPhones.rows.map((r) => [r.name_norm, r.phone]));
-  const drPhone = new Map(drPhones.rows.map((r) => [r.name_norm, r.phone]));
+  const ptPhone = new Map(ptPhones.rows.map((r) => [personKey(r.name_norm), r.phone]));
+  const drPhone = new Map(drPhones.rows.map((r) => [personKey(r.name), r.phone]));
 
   // A friendly event name (guest-of-honour or customer) + booking reference —
   // same derivation as the staff event brief (EV-<receipt number>, else event id).
@@ -268,12 +358,12 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
       WHERE es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''
         AND es.role IN ('clown', 'acrobat_clown', 'face_painting', 'balloon_artist', 'balloon_twisting')
         AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
-        AND e.event_date > CURRENT_DATE
+        AND e.event_date > ${SQL_DUBAI_TODAY}
       ORDER BY e.event_date, btrim(es.part_time_name)`,
   );
   const partTimers = pt.rows.map((r) => {
     const { job, fils } = jobOf(r.role);
-    return { name: r.name, role: r.role, job, priceFils: fils, phone: ptPhone.get(r.name.toLowerCase()) ?? null,
+    return { name: cleanName(r.name), role: r.role, job, priceFils: fils, phone: ptPhone.get(personKey(r.name)) ?? null,
       eventDate: r.date, eventRef: r.receipt_number ? `EV-${r.receipt_number}` : r.event_id, eventName: (r.event_name ?? '').trim() || null };
   });
 
@@ -281,7 +371,8 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
   // plus any owner-set truck/price, and future manual deliveries.
   const [evd, man] = await Promise.all([
     pool.query<{ event_id: string; name: string; emirate: string | null; date: string; truck: string | null; price_fils: string | null; price_manual: boolean | null; event_name: string | null; receipt_number: string | null }>(
-      `SELECT e.id AS event_id, COALESCE(tm.name, btrim(es.part_time_name), 'Driver') AS name,
+      `SELECT DISTINCT ON (e.event_date, e.id, ${SQL_KEY(`COALESCE(tm.name, es.part_time_name)`)})
+              e.id AS event_id, btrim(COALESCE(tm.name, es.part_time_name)) AS name,
               e.emirate, to_char(e.event_date,'YYYY-MM-DD') AS date,
               d.truck, d.price_fils, d.price_manual,
               ${EV_NAME} AS event_name, ${EV_REF} AS receipt_number
@@ -291,16 +382,17 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
          LEFT JOIN orders o ON o.id = e.order_id
          LEFT JOIN customers c ON c.id = e.customer_id
         WHERE es.role IN ('driver','pt_driver')
-          AND (es.role = 'pt_driver' OR es.assignee_id IS NULL OR lower(tm.name) <> 'shan')
+          AND (tm.id IS NOT NULL OR (es.part_time_name IS NOT NULL AND btrim(es.part_time_name) <> ''))
+          AND (es.role = 'pt_driver' OR tm.id IS NULL OR ${SQL_KEY('tm.name')} <> 'shan')
           AND e.phase IS DISTINCT FROM 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
-          AND e.event_date > CURRENT_DATE
-        ORDER BY e.event_date`,
+          AND e.event_date > ${SQL_DUBAI_TODAY}
+        ORDER BY e.event_date, e.id, ${SQL_KEY(`COALESCE(tm.name, es.part_time_name)`)}, es.id`,
     ),
     pool.query<{ id: string; date: string; driver_name: string | null; emirate: string | null; truck: string | null; price_fils: string | null; price_manual: boolean | null }>(
       `SELECT id, to_char(del_date,'YYYY-MM-DD') AS date, driver_name, emirate, truck, price_fils, price_manual
          FROM deliveries
         WHERE event_id IS NULL
-          AND del_date > CURRENT_DATE
+          AND del_date > ${SQL_DUBAI_TODAY}
         ORDER BY del_date`,
     ),
   ]);
@@ -310,12 +402,12 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
 
   const drivers = [
     ...evd.rows.map((r) => ({
-      driverName: r.name, phone: drPhone.get(r.name.toLowerCase()) ?? null, emirate: r.emirate || '—', truck: r.truck,
+      driverName: cleanName(r.name), phone: drPhone.get(personKey(r.name)) ?? null, emirate: r.emirate || '—', truck: r.truck,
       priceFils: priceOf(r.truck, r.emirate, r.price_fils, r.price_manual), eventDate: r.date,
       eventRef: r.receipt_number ? `EV-${r.receipt_number}` : r.event_id, eventName: (r.event_name ?? '').trim() || null,
     })),
     ...man.rows.map((r) => ({
-      driverName: r.driver_name || 'External driver', phone: drPhone.get((r.driver_name ?? '').toLowerCase()) ?? null, emirate: r.emirate || '—', truck: r.truck,
+      driverName: cleanName(r.driver_name) || 'External driver', phone: drPhone.get(personKey(r.driver_name)) ?? null, emirate: r.emirate || '—', truck: r.truck,
       priceFils: priceOf(r.truck, r.emirate, r.price_fils, r.price_manual), eventDate: r.date, eventRef: null, eventName: null,
     })),
   ].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
@@ -332,30 +424,41 @@ export async function buildUpcomingStaff(): Promise<UpcomingStaff> {
 export async function markStaffPaid(opts: {
   kind: 'part_timer' | 'driver'; name: string; amountFils: number; receiptUrl?: string | null; month?: string; actor?: string;
 }): Promise<{ ok: boolean; summary: string; whatsappSent: boolean }> {
-  const monthStr = (opts.month && /^\d{4}-\d{2}$/.test(opts.month)) ? opts.month : new Date().toISOString().slice(0, 7);
-  const name = (opts.name ?? '').trim();
+  const monthStr = (opts.month && /^\d{4}-\d{2}$/.test(opts.month)) ? opts.month : dubaiToday().slice(0, 7);
+  const name = cleanName(opts.name);
+  const key = personKey(name);
+  const amountFils = Math.max(0, Math.round(opts.amountFils || 0));
+  // person_name holds the normalised match key (display name kept alongside);
+  // a second payment in the same month ADDS to the first, never replaces it.
   await pool.query(
-    `INSERT INTO staff_payments (person_name, person_kind, month, amount_fils, receipt_url, paid_by)
-     VALUES ($1,$2,$3,$4,$5,$6)
+    `INSERT INTO staff_payments (person_name, display_name, person_kind, month, amount_fils, receipt_url, paid_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
      ON CONFLICT (person_kind, person_name, month) DO UPDATE
-       SET amount_fils = EXCLUDED.amount_fils, receipt_url = COALESCE(EXCLUDED.receipt_url, staff_payments.receipt_url),
+       SET amount_fils = staff_payments.amount_fils + EXCLUDED.amount_fils,
+           display_name = COALESCE(EXCLUDED.display_name, staff_payments.display_name),
+           receipt_url = COALESCE(EXCLUDED.receipt_url, staff_payments.receipt_url),
            paid_at = now(), paid_by = EXCLUDED.paid_by`,
-    [name, opts.kind, monthStr, Math.max(0, Math.round(opts.amountFils || 0)), opts.receiptUrl || null, opts.actor ?? 'owner'],
+    [key, name, opts.kind, monthStr, amountFils, opts.receiptUrl || null, opts.actor ?? 'owner'],
   );
 
   // Build the person's summary for this month.
   const rep = await buildStaffPayReport(`${monthStr}-01`);
   const label = rep.monthLabel;
-  let lines: string[] = []; let phone: string | null = null; let total = formatAed(opts.amountFils || 0);
+  let lines: string[] = []; let phone: string | null = null;
+  // This payment, plus the month's running total when it isn't the first.
+  let cumulative = amountFils;
   if (opts.kind === 'part_timer') {
-    const p = rep.partTimers.find((x) => x.name.toLowerCase() === name.toLowerCase());
-    if (p) { phone = p.phone; lines = p.entries.map((e) => `• ${e.date} — ${e.job} (${e.emirate}) ${e.amountDisplay}`); }
+    const p = rep.partTimers.find((x) => x.key === key);
+    if (p) { phone = p.phone; cumulative = p.paidFils; lines = p.entries.map((e) => `• ${e.date} — ${e.job} (${e.emirate}) ${e.amountDisplay}`); }
   } else {
-    const p = rep.driverPayouts.find((x) => x.name.toLowerCase() === name.toLowerCase());
-    if (p) phone = p.phone;
-    lines = rep.drivers.filter((d) => d.name.toLowerCase() === name.toLowerCase())
+    const p = rep.driverPayouts.find((x) => x.key === key);
+    if (p) { phone = p.phone; cumulative = p.paidFils; }
+    lines = rep.drivers.filter((d) => d.key === key)
       .map((d) => `• ${d.date} — ${d.emirate}${d.truck ? ` (${d.truck} truck)` : ''} ${d.priceDisplay}`);
   }
+  const total = cumulative > amountFils
+    ? `${formatAed(amountFils)} (total paid for ${label}: ${formatAed(cumulative)})`
+    : formatAed(amountFils);
   const summary = `Hi ${name.split(' ')[0]} 💛\n\nHere is your Eventana summary for ${label}:\n\n${lines.join('\n') || '—'}\n\nTotal paid: ${total}\n\nThank you! 🩷`;
 
   // Try WhatsApp via the staff template (English). No-op/logged if the flag is off,

@@ -1858,3 +1858,10 @@ CREATE TRIGGER events_reopen_on_redate BEFORE UPDATE ON events
 -- match (e.g. 'bank #123 (zoho, 2026-11-01)'); NULL = no match. Display only —
 -- nothing is auto-approved or auto-ignored because of it.
 ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS possible_dup_of TEXT;
+
+-- Staff pay: person_name is now the normalised match key (trim, collapsed
+-- spaces, lowercase); the name as typed is kept in display_name. Older rows
+-- keep their original person_name — the report normalises (and sums) at read
+-- time, so they still match.
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS display_name TEXT;
+UPDATE staff_payments SET display_name = person_name WHERE display_name IS NULL;
