@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SHOP_DRAWING_IDS, effectiveEventHours } from '@eventana/shared';
-import { api } from '../api';
+import { api, type CheckoutTotalPreview } from '../api';
 import { trackInitiateCheckout } from '../attribution';
 import { trackGoogleBeginCheckout } from '../googleTag';
 import { toCart, type ScreenProps } from '../App';
@@ -313,22 +313,82 @@ export function Checkout({
   const subtotalFils = quote?.totalFils ?? 0;
   const deliveryFils = quote?.deliveryFils ?? 0;
 
-  // Estimated savings, mirroring the server's priority order (promo → free
-  // delivery → credit → points), each capped so at least AED 5 stays payable.
-  // The server is authoritative at payment; this is the live preview.
+  // Discounts the customer chose at pay (promo / credit / points). The SERVER
+  // decides what is charged: unless the owner allows stacking, only the single
+  // biggest discount applies — the Build-Your-Own 15% included. We show the
+  // server's own figure (same code as checkout, via /api/promo/check) and, until
+  // it arrives, a local estimate that follows the SAME no-stacking rule — never
+  // a stacked total lower than what will be charged.
   const MIN_PAYABLE = 500;
-  let remaining = subtotalFils;
-  const promoFils = promo ? Math.min(promo.amountFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
-  remaining -= promoFils;
-  // The win-back code also waives delivery.
-  const freeDeliveryFils = promo?.freeDelivery ? Math.min(deliveryFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
-  remaining -= freeDeliveryFils;
-  const creditFils = useCredit && rewards ? Math.min(rewards.creditFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
-  remaining -= creditFils;
-  const pointsFils = redeemPoints && rewards ? Math.min(rewards.redeemableFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
-  remaining -= pointsFils;
+  const allowStacking = Boolean((catalogue.rules as { allowDiscountStacking?: boolean } | undefined)?.allowDiscountStacking);
+  const byoFils = quote?.discountUnlocked ? Math.max(0, quote.discountFils) : 0;
+  const local = (() => {
+    const out = { promoFils: 0, freeDeliveryFils: 0, creditFils: 0, pointsFils: 0, droppedByo: false };
+    if (allowStacking) {
+      // Stacking allowed: promo → free delivery → credit → points, each capped
+      // so at least AED 5 stays payable (the server's stacking order).
+      let remaining = subtotalFils;
+      out.promoFils = promo ? Math.min(promo.amountFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
+      remaining -= out.promoFils;
+      out.freeDeliveryFils = promo?.freeDelivery ? Math.min(deliveryFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
+      remaining -= out.freeDeliveryFils;
+      out.creditFils = useCredit && rewards ? Math.min(rewards.creditFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
+      remaining -= out.creditFils;
+      out.pointsFils = redeemPoints && rewards ? Math.min(rewards.redeemableFils, Math.max(0, remaining - MIN_PAYABLE)) : 0;
+      return out;
+    }
+    // No stacking: the single biggest of BYO / promo (+ its free delivery) /
+    // points / credit wins; everything else is left off.
+    const fullRoom = Math.max(0, subtotalFils - MIN_PAYABLE);
+    const promoAmt = promo ? Math.min(promo.amountFils, fullRoom) : 0;
+    const promoDel = promo?.freeDelivery && promoAmt > 0 ? Math.min(deliveryFils, Math.max(0, fullRoom - promoAmt)) : 0;
+    const promoValue = promoAmt > 0 ? promoAmt + promoDel : 0;
+    const pointsValue = redeemPoints && rewards ? Math.min(rewards.redeemableFils, fullRoom) : 0;
+    const creditValue = useCredit && rewards ? Math.min(rewards.creditFils, fullRoom) : 0;
+    const best = Math.max(byoFils, promoValue, pointsValue, creditValue);
+    if (best <= 0 || best === byoFils) return out;
+    if (promoValue === best) { out.promoFils = promoAmt; out.freeDeliveryFils = promoDel; }
+    else if (pointsValue === best) out.pointsFils = pointsValue;
+    else out.creditFils = creditValue;
+    out.droppedByo = byoFils > 0;
+    return out;
+  })();
+
+  // The server's figure for exactly these inputs (ignored once inputs change).
+  const previewKey = JSON.stringify([toCart(draft), draft.provider, draft.offerToken ?? null, promo?.code ?? null, useCredit, redeemPoints, subtotalFils, Boolean(account)]);
+  const [serverTotal, setServerTotal] = useState<{ key: string; v: CheckoutTotalPreview } | null>(null);
+  useEffect(() => {
+    if (!quote || subtotalFils <= 0) return;
+    let alive = true;
+    const timer = window.setTimeout(() => {
+      api
+        .previewTotal({ cart: toCart(draft), provider: draft.provider, offerToken: draft.offerToken, promoCode: promo?.code ?? null, useCredit, redeemPoints })
+        .then((r) => { if (alive && r.final) setServerTotal({ key: previewKey, v: r.final }); })
+        .catch(() => { /* keep the local estimate */ });
+    }, 250);
+    return () => { alive = false; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewKey, Boolean(quote)]);
+  const srv = serverTotal && serverTotal.key === previewKey ? serverTotal.v : null;
+
+  const promoFils = srv ? srv.promoFils : local.promoFils;
+  const freeDeliveryFils = srv ? srv.freeDeliveryFils : local.freeDeliveryFils;
+  const creditFils = srv ? srv.creditFils : local.creditFils;
+  const pointsFils = srv ? srv.pointsFils : local.pointsFils;
+  const droppedByo = srv ? srv.droppedByo : local.droppedByo;
   const savingsFils = promoFils + freeDeliveryFils + creditFils + pointsFils;
-  const estTotalFils = Math.max(0, subtotalFils - savingsFils);
+  const estTotalFils = srv
+    ? srv.totalFils
+    : Math.max(0, subtotalFils + (droppedByo ? byoFils : 0) - savingsFils);
+  // More than one discount was in play and only one could apply.
+  const chosenDiscounts =
+    (byoFils > 0 ? 1 : 0) + (promo ? 1 : 0) +
+    (useCredit && rewards && rewards.creditFils > 0 ? 1 : 0) +
+    (redeemPoints && rewards && rewards.redeemableFils > 0 ? 1 : 0);
+  const singleDiscountNote = !allowStacking && chosenDiscounts > 1;
+  // The BYO discount line from the live quote, hidden when a bigger discount replaced it.
+  const isByoLine = (l: { kind: string; refId: string | null; amountFils: number }) =>
+    l.kind === 'discount' && l.refId === null && byoFils > 0 && l.amountFils === -byoFils;
 
   const applyPromo = async () => {
     const code = promoInput.trim();
@@ -908,7 +968,7 @@ export function Checkout({
         <>
       {/* ---------------- summary ---------------- */}
       <div style={cardStyle}>
-        {quote?.lines.map((line, i) => (
+        {quote?.lines.filter((line) => !(droppedByo && isByoLine(line))).map((line, i) => (
           <div
             key={i}
             style={{
@@ -959,7 +1019,12 @@ export function Checkout({
             </button>
           </div>
         )}
-        {quote?.discountUnlocked && (
+        {singleDiscountNote && (
+          <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: C.muted }}>
+            {lang === 'ar' ? 'يُطبَّق خصم واحد فقط — اخترنا لك الأفضل' : 'Only one discount applies — we picked the best one for you'}
+          </div>
+        )}
+        {quote?.discountUnlocked && !droppedByo && (
           <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: C.green }}>
             {t('checkout.saved', { aed: `${t('common.aed')} ${money(quote.discountFils)}` })}
           </div>
@@ -1188,7 +1253,12 @@ export function Checkout({
             </label>
           )}
 
-          {savingsFils > 0 && (
+          {singleDiscountNote && (
+            <div style={{ marginTop: 6, fontSize: 11.5, fontWeight: 700, color: C.muted }}>
+              {lang === 'ar' ? 'يُطبَّق خصم واحد فقط — اخترنا لك الأفضل' : 'Only one discount applies — we picked the best one for you'}
+            </div>
+          )}
+          {(savingsFils > 0 || singleDiscountNote) && (
             <div style={{ borderTop: `1px solid ${C.pinkLine}`, marginTop: 8, paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 13.5, fontWeight: 700 }}>
               <span>{t('checkout.estTotal')}</span>
               <span style={{ color: C.green }}>{t('common.aed')} {money(estTotalFils)}</span>

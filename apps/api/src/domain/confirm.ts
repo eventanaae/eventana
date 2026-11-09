@@ -101,8 +101,46 @@ export async function confirmBooking(
   // webhook can never double-apply). Never posts a receipt / creates an event.
   if (order.kind === 'invoice_pay') {
     const invoiceId = Number((order.cart as { invoiceId?: number } | null)?.invoiceId);
-    const amt = Number(order.total_fils);
+    // The money actually received is the paid payment's amount (a session opened
+    // before the link was re-priced can carry an older figure than the order).
+    const { rows: paidRows } = await db.query<{ amount_fils: string }>(
+      `SELECT amount_fils FROM payments
+        WHERE order_id = $1 AND status IN ('paid','captured')
+        ORDER BY updated_at DESC LIMIT 1`,
+      [order.id],
+    );
+    const amt = paidRows[0] ? Number(paidRows[0].amount_fils) : Number(order.total_fils);
     if (invoiceId) {
+      // A payment larger than the invoice's remaining balance (paid elsewhere in
+      // the meantime, or the invoice was reduced) is still capped on the invoice
+      // below, but staff are alerted to refund the excess — never silently kept.
+      const { rows: invRows } = await db.query<{ total_fils: string; amount_paid_fils: string | null }>(
+        `SELECT total_fils, amount_paid_fils FROM finance_invoices WHERE id = $1 FOR UPDATE`,
+        [invoiceId],
+      );
+      const inv = invRows[0];
+      const { rows: already } = await db.query(
+        `SELECT 1 FROM invoice_payments WHERE order_id = $1`,
+        [order.id],
+      );
+      if (inv && !already[0]) {
+        const balance = Math.max(0, Number(inv.total_fils) - Number(inv.amount_paid_fils ?? 0));
+        if (amt > balance) {
+          await db.query(
+            `INSERT INTO notifications (event_id, channel, template, scheduled_for, payload)
+             SELECT NULL, 'ops_alert', 'double_payment', now(), $1
+              WHERE NOT EXISTS (
+                SELECT 1 FROM notifications
+                 WHERE template = 'double_payment' AND payload->>'orderId' = $2
+                   AND payload->>'invoiceId' = $3)`,
+            [
+              JSON.stringify({ orderId: order.id, invoiceId: String(invoiceId), paidFils: amt, balanceFils: balance, overpaidFils: amt - balance }),
+              order.id,
+              String(invoiceId),
+            ],
+          );
+        }
+      }
       const { rows: applied } = await db.query(
         `INSERT INTO invoice_payments (order_id, invoice_id, amount_fils)
          VALUES ($1,$2,$3) ON CONFLICT (order_id) DO NOTHING RETURNING order_id`,
