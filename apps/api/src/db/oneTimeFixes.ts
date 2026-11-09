@@ -6,7 +6,10 @@ import { pool } from './pool.js';
  * becomes a no-op once applied.
  */
 export async function runOneTimeFixes(): Promise<void> {
-  await dedupeAutoReceipts();
+  // dedupeAutoReceipts() removed (owner, 2026-11-10): it silently deleted the
+  // duplicates the sale backfill kept re-posting, which hid the real bug. The
+  // backfill no longer re-posts imported bookings and every imported booking is
+  // now linked to its receipt, so there is nothing for it to clean.
   await fixSeededEventTimes();
   await alignGoodStars();
   await reclassifyQuickBooksInvoices();
@@ -99,7 +102,8 @@ async function alignGoodStars(): Promise<void> {
  * ONLY the app-generated copy (source='app', not linked to an event) and keep
  * the QuickBooks original (linked to its event). Owner-approved.
  */
-async function dedupeAutoReceipts(): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function dedupeAutoReceipts(): Promise<void> {
   try {
     const { rowCount } = await pool.query(
       `DELETE FROM finance_receipts a
