@@ -7,6 +7,7 @@
  * and re-serialising parsed JSON changes them.
  */
 import type { FastifyInstance } from 'fastify';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 import { getProvider } from '../payments/index.js';
 import { SimulatedProvider } from '../payments/simulated.js';
@@ -41,6 +42,38 @@ async function autoReplyKnownCustomer(msg: { phone: string }): Promise<void> {
     const body = `شكراً لتواصلك معنا 💛\nهذا رقم آلي للإشعارات فقط. لأي استفسار أو مساعدة كلّمنا على ${config.contact.phoneDisplay} (واتساب/اتصال) وبنردّ عليك فوراً 🌸`;
     await sendWhatsAppText({ to: phone, body, fromStaff: true }).catch(() => {});
   } catch { /* non-fatal */ }
+}
+
+let resendSecretWarned = false;
+
+/**
+ * Svix (Resend) signature check: HMAC-SHA256 over `${id}.${timestamp}.${body}`
+ * keyed with the base64 part of the `whsec_` secret; the header carries one or
+ * more space-separated `v1,<base64 sig>` entries. Timestamps older/newer than
+ * 5 minutes are refused (replay protection).
+ */
+function verifySvixSignature(secret: string, headers: Record<string, unknown>, rawBody: string): boolean {
+  const h = (k: string) => { const v = headers[k]; return typeof v === 'string' ? v : Array.isArray(v) ? String(v[0] ?? '') : ''; };
+  const id = h('svix-id');
+  const ts = h('svix-timestamp');
+  const sigHeader = h('svix-signature');
+  if (!id || !ts || !sigHeader || !/^\d+$/.test(ts)) return false;
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 5 * 60) return false;
+  let key: Buffer;
+  try {
+    key = Buffer.from(secret.startsWith('whsec_') ? secret.slice(6) : secret, 'base64');
+  } catch {
+    return false;
+  }
+  if (key.length === 0) return false;
+  const expected = Buffer.from(createHmac('sha256', key).update(`${id}.${ts}.${rawBody}`).digest('base64'));
+  for (const part of sigHeader.split(' ')) {
+    const [version, sig] = part.split(',');
+    if (version !== 'v1' || !sig) continue;
+    const given = Buffer.from(sig);
+    if (given.length === expected.length && timingSafeEqual(given, expected)) return true;
+  }
+  return false;
 }
 
 export async function webhookRoutes(app: FastifyInstance) {
@@ -145,14 +178,26 @@ export async function webhookRoutes(app: FastifyInstance) {
    * the Resend dashboard (Webhooks). Returns 200 fast; processing is best-effort.
    */
   app.post('/api/webhooks/resend', async (request, reply) => {
+    // The /api/webhooks/* content-type parser hands us the RAW string body, so
+    // the Svix signature is verified over exactly the bytes Resend signed.
+    const rawBody = typeof request.body === 'string' ? request.body : JSON.stringify(request.body ?? {});
+    const secret = config.resendWebhookSecret;
+    if (!secret) {
+      // Fail closed: without the secret anyone could forge bounces/complaints
+      // (suppressing real customers) or inflate campaign stats.
+      if (!resendSecretWarned) {
+        resendSecretWarned = true;
+        request.log.error('RESEND_WEBHOOK_SECRET is not set — rejecting all Resend webhooks');
+      }
+      return reply.status(401).send({ error: 'webhook_not_configured' });
+    }
+    if (!verifySvixSignature(secret, request.headers, rawBody)) {
+      request.log.warn('resend webhook rejected: bad or missing signature');
+      return reply.status(401).send({ error: 'bad_signature' });
+    }
     reply.status(200).send({ ok: true });
     try {
-      // The /api/webhooks/* content-type parser hands us the RAW string body
-      // (so payment signatures verify over exact bytes), so parse it here —
-      // otherwise body.type/data are undefined and suppression never records.
-      const body = typeof request.body === 'string'
-        ? JSON.parse(request.body || '{}')
-        : (request.body as any);
+      const body = JSON.parse(rawBody || '{}');
       const type = String(body?.type ?? '');
       const data = body?.data ?? {};
       let campaignId: number | null = null;

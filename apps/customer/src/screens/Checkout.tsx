@@ -260,7 +260,11 @@ export function Checkout({
       saveAccount(acc);
       setAccount(acc);
     } catch (e: any) {
-      setAuthError(e?.body?.message ?? e?.message ?? t('checkout.authError'));
+      setAuthError(
+        e?.body?.error === 'claim_email_sent'
+          ? t('auth.claimSent')
+          : e?.body?.message ?? e?.message ?? t('checkout.authError'),
+      );
     } finally {
       setAuthBusy(false);
     }
@@ -502,9 +506,17 @@ export function Checkout({
           backupPhone: backupN ?? reg.backupPhone.trim(), email: reg.email.trim(),
         };
         if (wantAccount) {
-          const acc = await api.register({ ...g, password: reg.password, referralCode: reg.referralCode.trim() || undefined });
-          saveAccount(acc);
-          setAccount(acc);
+          try {
+            const acc = await api.register({ ...g, password: reg.password, referralCode: reg.referralCode.trim() || undefined });
+            saveAccount(acc);
+            setAccount(acc);
+          } catch (e: any) {
+            // This email already has past bookings: we emailed a link to finish
+            // the account. Don't block the booking — continue as a guest (it
+            // joins the same record) and they set their password from the email.
+            if (e?.body?.error !== 'claim_email_sent') throw e;
+            guest = g;
+          }
         } else {
           guest = g;
         }

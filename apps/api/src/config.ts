@@ -191,6 +191,13 @@ export const config = {
    *  unless it is genuinely live. */
   tabbyQaToken: env.TABBY_QA_TOKEN ?? null,
 
+  /** True when this deployment declares it takes real money. */
+  paymentModeLive: (env.EVENTANA_PAYMENT_MODE ?? '').toLowerCase() === 'live',
+
+  /** Svix signing secret ("whsec_…") for the Resend webhook. Absent → the
+   *  webhook rejects every delivery (fail closed). */
+  resendWebhookSecret: env.RESEND_WEBHOOK_SECRET ?? null,
+
   /** How often the reconciliation sweep runs, ms. */
   reconcileIntervalMs: Number(env.RECONCILE_INTERVAL_MS ?? 5 * 60_000),
   /** An order Processing longer than this is chased via retrieve-payment. */

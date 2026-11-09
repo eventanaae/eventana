@@ -3,7 +3,7 @@
  * price, approve a refund or read another customer's event.
  */
 import { designParty, designSchema } from '../domain/aiStudio.js';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import {
@@ -28,7 +28,7 @@ import { getOffer } from '../domain/offers.js';
 import { orderViewTokenValid } from '../domain/orders.js';
 import { toValidCustomerPhone, titleCaseName } from '../domain/maintenance.js';
 import { processDelivery } from '../domain/webhooks.js';
-import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken, verifyFeedbackToken } from '../domain/customerAuth.js';
+import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetToken, verifyFeedbackToken, passwordFingerprint } from '../domain/customerAuth.js';
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
 import { cancelPendingFeedbackNotifications } from '../domain/feedbackReminders.js';
 import { pushToStaff } from '../integrations/push.js';
@@ -69,16 +69,40 @@ const attributionSchema = z
 
 /** Merges the app's attribution with the request's own user agent and IP. */
 function attributionFrom(
-  request: { headers: Record<string, string | string[] | undefined>; ip: string },
+  request: FastifyRequest,
   body: unknown,
 ): Record<string, unknown> | null {
   const ua = request.headers['user-agent'];
   const merged: Record<string, unknown> = { ...((body as Record<string, unknown> | undefined) ?? {}) };
   if (typeof ua === 'string' && ua) merged.userAgent = ua.slice(0, 400);
-  if (request.ip) merged.clientIp = request.ip;
+  // trustProxy is off, so request.ip is our own edge proxy — use the real client.
+  const ip = clientIp(request);
+  if (ip) merged.clientIp = ip;
   const meaningful = Object.values(merged).some((v) => typeof v === 'string' && v.length > 0);
   return meaningful ? merged : null;
 }
+
+/**
+ * Tabby can run in a certification SANDBOX on the live site (TABBY_QA_SANDBOX).
+ * The catalogue hides it from real customers, but checkout must refuse it too —
+ * otherwise anyone posting provider 'tabby' would get a sandbox "payment" that
+ * confirms a real booking without real money. Only the partner's QA, carrying
+ * the secret token (?qa= / body qaToken / x-qa-token), may use it.
+ */
+export function tabbySandboxBlocked(request: FastifyRequest, provider: string): boolean {
+  if (provider !== 'tabby') return false;
+  if (!config.paymentModeLive || config.providers.tabby.mode !== 'sandbox') return false;
+  const q = (request.query as { qa?: unknown } | undefined)?.qa;
+  const b = (request.body as { qaToken?: unknown } | undefined)?.qaToken;
+  const h = request.headers['x-qa-token'];
+  const given = [q, b, h].find((v) => typeof v === 'string' && v.length > 0) as string | undefined;
+  return !config.tabbyQaToken || !given || given !== config.tabbyQaToken;
+}
+
+const PROVIDER_UNAVAILABLE = { error: 'provider_unavailable', message: 'This payment method is not available right now. Please choose another.' };
+
+/** Dubai (UTC+4, no DST) calendar date, YYYY-MM-DD. */
+const dubaiYMD = (ms: number = Date.now()) => new Date(ms + 4 * 3_600_000).toISOString().slice(0, 10);
 
 const cartSchema = z.object({
   celebrationType: z.enum(['kids', 'graduation', 'bride', 'baby', 'gender', 'adult', 'customc']),
@@ -245,8 +269,9 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || !/^\d{4}-\d{2}-\d{2}$/.test(q.date ?? '')) {
       return { available: false, reason: 'invalid' };
     }
+    // "Today" is the Dubai calendar day, not UTC's (they differ 00:00–04:00 Dubai).
     const daysOut = Math.round(
-      (new Date(`${q.date}T00:00:00Z`).getTime() - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime()) /
+      (new Date(`${q.date}T00:00:00Z`).getTime() - new Date(dubaiYMD() + 'T00:00:00Z').getTime()) /
         86_400_000,
     );
     if (daysOut < 0) return { available: false, reason: 'past' };
@@ -268,7 +293,10 @@ export async function publicRoutes(app: FastifyInstance) {
       const d = (await res.json()) as {
         properties?: { timeseries?: Array<{ time: string; data: any }> };
       };
-      const series = (d.properties?.timeseries ?? []).filter((t) => t.time.slice(0, 10) === q.date);
+      // met.no times are UTC; bucket them by the DUBAI local day/hour (UTC+4) so
+      // "the event day" and "noon" mean Dubai's, not Greenwich's.
+      const dubaiIso = (t: string) => { const ms = Date.parse(t); return Number.isFinite(ms) ? new Date(ms + 4 * 3_600_000).toISOString() : t; };
+      const series = (d.properties?.timeseries ?? []).filter((t) => dubaiIso(t.time).slice(0, 10) === q.date);
       if (series.length === 0) return { available: false, reason: 'too_far' };
 
       const temps = series.map((t) => t.data?.instant?.details?.air_temperature).filter((n) => typeof n === 'number');
@@ -291,7 +319,7 @@ export async function publicRoutes(app: FastifyInstance) {
         }
       }
       // Pick the symbol from around midday for a representative condition.
-      const noon = series.find((t) => t.time.slice(11, 13) === '12') ?? series[Math.floor(series.length / 2)];
+      const noon = series.find((t) => dubaiIso(t.time).slice(11, 13) === '12') ?? series[Math.floor(series.length / 2)];
       const symbol: string =
         noon?.data?.next_6_hours?.summary?.symbol_code ?? noon?.data?.next_1_hours?.summary?.symbol_code ?? 'fair_day';
       const w = describeWeather(symbol);
@@ -528,6 +556,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!customerId && !parsed.data.guest) {
       return reply.status(401).send({ error: 'auth_required', message: 'Please sign in or enter your details to complete your booking.' });
     }
+    if (tabbySandboxBlocked(request, parsed.data.provider)) return reply.status(400).send(PROVIDER_UNAVAILABLE);
 
     try {
       const result = await startCheckout({
@@ -610,6 +639,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!customerId && !parsed.data.guest) {
       return reply.status(401).send({ error: 'auth_required', message: 'Please sign in or enter your details.' });
     }
+    if (tabbySandboxBlocked(request, parsed.data.provider)) return reply.status(400).send(PROVIDER_UNAVAILABLE);
     try {
       const result = await startShopCheckout({
         items: parsed.data.items,
@@ -686,7 +716,7 @@ export async function publicRoutes(app: FastifyInstance) {
       const rr = await pool.query<{ number: string }>(
         `SELECT number FROM finance_receipts
           WHERE event_id = $1 OR order_id = $2
-          ORDER BY (event_id = $1) DESC, id LIMIT 1`,
+          ORDER BY (event_id = $1) DESC NULLS LAST, id LIMIT 1`,
         [order.event_id ?? null, order.id],
       );
       if (rr.rows[0]?.number) reference = `EV-${rr.rows[0].number}`;
@@ -774,19 +804,34 @@ export async function publicRoutes(app: FastifyInstance) {
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
     const d = parsed.data;
-    const { rows } = await pool.query(`SELECT customer_id, status, cart, source FROM orders WHERE id = $1`, [orderId]);
+    let phone = '';
+    if (d.phone && d.phone.trim()) {
+      const valid = toValidCustomerPhone(d.phone);
+      if (!valid) return reply.status(400).send({ error: 'invalid_phone', message: 'Please enter your phone number with its country code, e.g. +971 50 123 4567.' });
+      phone = valid;
+    }
+    const { rows } = await pool.query(
+      `SELECT o.customer_id, o.status, o.cart, o.source, o.kind, (c.password_hash IS NOT NULL) AS registered
+         FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = $1`,
+      [orderId],
+    );
     const o = rows[0];
     if (!o || o.source !== 'manual') return reply.status(404).send({ error: 'not_found' });
     if (o.status !== 'awaiting_payment') return reply.status(409).send({ error: 'not_editable' });
     const cart = { ...(o.cart ?? {}), eventFor: d.eventFor, address: d.address ?? (o.cart ?? {}).address ?? null, mapPin: d.mapPin };
     await pool.query(`UPDATE orders SET cart = $2, updated_at = now() WHERE id = $1`, [orderId, JSON.stringify(cart)]);
+    // The pay link is a bearer link (forwardable). It may fill in a GUEST's
+    // contact details for a booking, but must never rewrite the login email /
+    // phone of a registered account, nor touch contacts via an add-on or
+    // invoice-balance link (those attach to an existing customer).
+    const contactLocked = Boolean(o.registered) || o.kind === 'addon' || o.kind === 'invoice_pay';
     await pool.query(
       `UPDATE customers SET
           name  = COALESCE(NULLIF($2,''), name),
           email = COALESCE(NULLIF($3,''), email),
           phone = COALESCE(NULLIF($4,''), phone)
         WHERE id = $1`,
-      [o.customer_id, d.fullName ?? '', d.email ?? '', d.phone ?? ''],
+      [o.customer_id, d.fullName ?? '', contactLocked ? '' : (d.email ?? ''), contactLocked ? '' : phone],
     );
     return { ok: true };
   });
@@ -880,9 +925,9 @@ export async function publicRoutes(app: FastifyInstance) {
       if (vid && vid.length <= 200) {
         const hash = createHash('sha256').update(vid).digest('hex').slice(0, 32);
         await pool.query(
-          `INSERT INTO site_visits (visitor_hash, day) VALUES ($1, current_date)
+          `INSERT INTO site_visits (visitor_hash, day) VALUES ($1, $2::date)
            ON CONFLICT (visitor_hash, day) DO UPDATE SET hits = site_visits.hits + 1`,
-          [hash],
+          [hash, dubaiYMD()],
         );
       }
     } catch { /* analytics must never break the page */ }
@@ -1103,6 +1148,39 @@ export async function publicRoutes(app: FastifyInstance) {
     return a.length === b.length && timingSafeEqual(a, b);
   };
 
+  /**
+   * Email a signed, single-use "set your password" link. kind 'reset' is the
+   * forgot-password flow; kind 'claim' finishes setting up an account on an
+   * existing guest record (proves the registrant owns the email). Both land on
+   * the app's ?reset= screen and complete via POST /api/customers/reset.
+   */
+  const sendPasswordLinkEmail = async (
+    c: { id: string; name: string | null; password_hash: string | null },
+    to: string,
+    kind: 'reset' | 'claim',
+  ): Promise<void> => {
+    if (!emailEnabled()) return;
+    const link = `${config.publicAppUrl}/?reset=${issueResetToken(c.id, c.password_hash, kind)}`;
+    const first = String(c.name ?? 'there').split(' ')[0].replace(/[<>&"]/g, '');
+    const intro = kind === 'claim'
+      ? 'Someone (hopefully you!) asked to create an Eventana account with this email. We found your past bookings — tap below to choose your password and finish setting up your account. This link expires in 24 hours. If this wasn\'t you, you can ignore this email.'
+      : 'Tap below to set a new password. This link expires in 30 minutes. If you didn\'t ask for this, you can ignore this email.';
+    const cta = kind === 'claim' ? 'Finish setting up my account →' : 'Reset my password →';
+    await sendEmail({
+      to,
+      subject: kind === 'claim' ? 'Finish setting up your Eventana account' : 'Reset your Eventana password',
+      html: `<!doctype html><html><body style="margin:0;background:#faf6f2;font-family:'Segoe UI',Arial,sans-serif;color:#3B3641">
+          <div style="max-width:520px;margin:0 auto;padding:24px">
+            <div style="text-align:center;padding:14px 0 18px"><span style="font-size:22px;font-weight:800;color:#E94F9C">Eventana</span></div>
+            <div style="background:#fff;border-radius:18px;padding:26px 24px;line-height:1.6;font-size:15px">
+              <p style="margin:0 0 14px">Hi ${first} 👋</p>
+              <p style="margin:0 0 18px">${intro}</p>
+              <a href="${link}" style="display:inline-block;background:#E94F9C;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:12px">${cta}</a>
+            </div>
+          </div></body></html>`,
+    }).catch(() => null);
+  };
+
   app.post('/api/customers/register', async (request, reply) => {
     const schema = z.object({
       name: z.string().trim().min(2).max(120),
@@ -1157,35 +1235,23 @@ export async function publicRoutes(app: FastifyInstance) {
     // Is there already a customer record for this email?
     //  - WITH a password → a real account; ask them to sign in (409).
     //  - WITHOUT a password → a guest / QuickBooks-migrated record carrying their
-    //    PAST bookings and points. CLAIM it (set their name + password) so all of
-    //    that history stays under their new login. The row is UPDATED, never
-    //    deleted — their record is never lost.
+    //    PAST bookings and points. SECURITY: typing an email proves nothing, so we
+    //    must NOT set a password on (or sign anyone into) that record here — that
+    //    was an account takeover of every guest. Instead we email a signed,
+    //    single-use "claim your account" link to that address; only opening it
+    //    (POST /api/customers/reset) sets the password. The record is never lost.
     const existing = await pool.query(
-      'SELECT id, password_hash, referral_code FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
+      'SELECT id, name, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1', [email]);
     if (existing.rowCount) {
-      const row = existing.rows[0] as { id: string; password_hash: string | null; referral_code: string | null };
+      const row = existing.rows[0] as { id: string; name: string | null; password_hash: string | null };
       if (row.password_hash) {
         return reply.status(409).send({ error: 'email_taken', message: 'An account with this email already exists — please sign in.' });
       }
-      await pool.query(
-        `UPDATE customers
-            SET name = $2, phone = $3,
-                backup_phone  = COALESCE($4, backup_phone),
-                password_hash = $5,
-                date_of_birth = COALESCE($6, date_of_birth),
-                referral_code = COALESCE(referral_code, $7),
-                referred_by   = COALESCE(referred_by, $8)
-          WHERE id = $1`,
-        [row.id, name, validPhone, validBackup, hashPassword(password), dateOfBirth ?? null, myCode, referredBy],
-      );
-      void import('../domain/attribution.js').then(({ reportRegistrationToMeta }) =>
-        reportRegistrationToMeta({ id: row.id, name, phone, email },
-          { ...(parsed.data.attribution ?? {}), clientIp: request.ip, userAgent: request.headers['user-agent'] ?? null } as any),
-      ).catch(() => {});
-      return {
-        customerId: row.id, name, email, phone, token: issueCustomerToken(row.id),
-        referralCode: row.referral_code || myCode, welcomeCreditFils: 0, linked: true,
-      };
+      await sendPasswordLinkEmail(row, email, 'claim');
+      return reply.status(202).send({
+        claimEmailSent: true,
+        message: 'We emailed you a link to finish setting up your account. Open it to choose your password — your past bookings will be waiting.',
+      });
     }
 
     const id = `CUST-${randomBytes(4).toString('hex').toUpperCase()}`;
@@ -1199,7 +1265,7 @@ export async function publicRoutes(app: FastifyInstance) {
     void import('../domain/attribution.js').then(({ reportRegistrationToMeta }) =>
       reportRegistrationToMeta(
         { id, name, phone, email },
-        { ...(parsed.data.attribution ?? {}), clientIp: request.ip, userAgent: request.headers['user-agent'] ?? null } as any,
+        { ...(parsed.data.attribution ?? {}), clientIp: clientIp(request), userAgent: request.headers['user-agent'] ?? null } as any,
       ),
     ).catch(() => {});
     return {
@@ -1236,6 +1302,16 @@ export async function publicRoutes(app: FastifyInstance) {
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     const d = parsed.data;
+    let phone: string | null = null;
+    let backupPhone: string | null = null;
+    if (d.phone) {
+      phone = toValidCustomerPhone(d.phone);
+      if (!phone) return reply.status(400).send({ error: 'invalid_phone', message: 'Please enter your phone number with its country code, e.g. +971 50 123 4567.' });
+    }
+    if (d.backupPhone) {
+      backupPhone = toValidCustomerPhone(d.backupPhone);
+      if (!backupPhone) return reply.status(400).send({ error: 'invalid_backup_phone', message: 'Please enter the backup number with its country code, e.g. +971 50 123 4567.' });
+    }
     await pool.query(
       `UPDATE customers SET
          name = COALESCE($2, name),
@@ -1243,7 +1319,7 @@ export async function publicRoutes(app: FastifyInstance) {
          backup_phone = COALESCE($4, backup_phone),
          date_of_birth = COALESCE($5::date, date_of_birth)
        WHERE id = $1`,
-      [customerId, d.name ?? null, d.phone ?? null, d.backupPhone ?? null, d.dateOfBirth ?? null],
+      [customerId, d.name ?? null, phone, backupPhone, d.dateOfBirth ?? null],
     );
     return { ok: true };
   });
@@ -1336,26 +1412,11 @@ export async function publicRoutes(app: FastifyInstance) {
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
     const { rows } = await pool.query(
-      'SELECT id, name FROM customers WHERE lower(email) = lower($1) LIMIT 1',
+      'SELECT id, name, password_hash FROM customers WHERE lower(email) = lower($1) LIMIT 1',
       [parsed.data.email],
     );
     const c = rows[0];
-    if (c && emailEnabled()) {
-      const link = `${config.publicAppUrl}/?reset=${issueResetToken(c.id)}`;
-      await sendEmail({
-        to: parsed.data.email,
-        subject: 'Reset your Eventana password',
-        html: `<!doctype html><html><body style="margin:0;background:#faf6f2;font-family:'Segoe UI',Arial,sans-serif;color:#3B3641">
-          <div style="max-width:520px;margin:0 auto;padding:24px">
-            <div style="text-align:center;padding:14px 0 18px"><span style="font-size:22px;font-weight:800;color:#E94F9C">Eventana</span></div>
-            <div style="background:#fff;border-radius:18px;padding:26px 24px;line-height:1.6;font-size:15px">
-              <p style="margin:0 0 14px">Hi ${String(c.name).split(' ')[0]} 👋</p>
-              <p style="margin:0 0 18px">Tap below to set a new password. This link expires in 30 minutes. If you didn't ask for this, you can ignore this email.</p>
-              <a href="${link}" style="display:inline-block;background:#E94F9C;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:12px">Reset my password →</a>
-            </div>
-          </div></body></html>`,
-      }).catch(() => null);
-    }
+    if (c) await sendPasswordLinkEmail(c, parsed.data.email, 'reset');
     return { ok: true };
   });
 
@@ -1366,12 +1427,23 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: 'invalid_request', message: 'Your new password needs at least 6 characters.' });
     }
-    const cid = verifyResetToken(parsed.data.token);
-    if (!cid) return reply.status(401).send({ error: 'invalid_token', message: 'This reset link is invalid or has expired. Please request a new one.' });
-    const { rows } = await pool.query('SELECT id, name, email, phone FROM customers WHERE id = $1', [cid]);
+    const tok = verifyResetToken(parsed.data.token);
+    const invalid = { error: 'invalid_token', message: 'This link is invalid, expired or has already been used. Please request a new one.' };
+    if (!tok) return reply.status(401).send(invalid);
+    const cid = tok.customerId;
+    const { rows } = await pool.query('SELECT id, name, email, phone, password_hash FROM customers WHERE id = $1', [cid]);
     const c = rows[0];
     if (!c) return reply.status(404).send({ error: 'not_found' });
-    await pool.query('UPDATE customers SET password_hash = $2 WHERE id = $1', [cid, hashPassword(parsed.data.password)]);
+    // Single-use: the token is bound to the password hash it was issued against.
+    // A claim link is also only for a record that still has no password.
+    if (tok.fp !== passwordFingerprint(c.password_hash)) return reply.status(401).send(invalid);
+    if (tok.kind === 'claim' && c.password_hash) return reply.status(401).send(invalid);
+    // Compare-and-set so two concurrent uses of one link can't both succeed.
+    const upd = await pool.query(
+      'UPDATE customers SET password_hash = $2 WHERE id = $1 AND password_hash IS NOT DISTINCT FROM $3',
+      [cid, hashPassword(parsed.data.password), c.password_hash],
+    );
+    if (!upd.rowCount) return reply.status(401).send(invalid);
     // Sign them straight in.
     return { customerId: c.id, name: c.name, email: c.email, phone: c.phone, token: issueCustomerToken(c.id) };
   });

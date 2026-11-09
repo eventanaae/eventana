@@ -28,7 +28,11 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
   app.get('/api/marketing/report', async (request, reply) => {
     const q = (request.query ?? {}) as Record<string, string | undefined>;
     const hdr = request.headers['x-report-key'];
-    const given = q.key ?? (Array.isArray(hdr) ? hdr[0] : hdr);
+    const hdrKey = Array.isArray(hdr) ? hdr[0] : hdr;
+    // The header is the supported channel (a ?key= ends up in access logs and
+    // browser history). ?key= still works only when no header is sent.
+    const given = hdrKey || q.key;
+    if (!hdrKey && q.key) request.log.warn('marketing report: ?key= is deprecated — send the x-report-key header instead');
     const envKey = process.env.MARKETING_REPORT_KEY;
     const ok = (!!envKey && envKey.length >= 24 && safeEqual(given, envKey))
       || (!!given && safeEqual(createHash('sha256').update(given).digest('hex'), REPORT_KEY_SHA256));
@@ -38,12 +42,16 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
     const to = q.to && ISO.test(q.to) ? q.to : today;
     const from = q.from && ISO.test(q.from) ? q.from : '2025-11-01';
 
-    // Net of refunds; a fully refunded sale is not counted as a booking.
+    // GROSS by booking date. Refunds are reported separately, in the (Dubai)
+    // month the money went back — netting refunded_fils into the booking month
+    // silently rewrote past months whenever a later refund happened.
+    // Receipts without booked_on fall back to their receipt date.
+    const BK = `COALESCE(booked_on, date)`;
     const bookingsBase = `
       FROM finance_receipts
-     WHERE booked_on BETWEEN $1::date AND $2::date
-       AND total_fils - COALESCE(refunded_fils,0) > 0`;
-    const net = `COALESCE(SUM(total_fils - COALESCE(refunded_fils,0)),0)::bigint`;
+     WHERE ${BK} BETWEEN $1::date AND $2::date
+       AND total_fils > 0`;
+    const net = `COALESCE(SUM(total_fils),0)::bigint`;
     // Owner rule: the Eventana Exclusive Package (a.k.a. Carnival/Carnaval Offer,
     // 3499/3500 Offer, Marwa Rateb Package) is the ONLY sale that does not come
     // from Meta ads. Everything else is attributed to Meta.
@@ -51,17 +59,23 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
     // be overridden per request with ?nonMeta=<regex> (bound as a parameter).
     const DEFAULT_NON_META = '(exclusive|carn[ai]v[ae]l|349[89]|3500|marwa|مروة|2900|2999)';
     const nonMeta = q.nonMeta && q.nonMeta.length <= 300 ? q.nonMeta : DEFAULT_NON_META;
+    // A malformed override is the caller's mistake (400), not a server error.
+    try {
+      await pool.query(`SELECT '' ~* $1`, [nonMeta]);
+    } catch {
+      return reply.code(400).send({ error: 'invalid_nonMeta_regex' });
+    }
     const exclusive = `EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(line_items)='array' THEN line_items ELSE '[]'::jsonb END) li
        WHERE li->>'name' ~* $3)`;
 
-    const [byMonth, byDay, byCelebration, byTheme, leadsByMonth, leadsByAd, leadsByDay, byPackage] = await Promise.all([
-      pool.query(`SELECT to_char(booked_on,'YYYY-MM') m, COUNT(*)::int n, ${net} v,
+    const [byMonth, byDay, byCelebration, byTheme, leadsByMonth, leadsByAd, leadsByDay, byPackage, refundsByMonth] = await Promise.all([
+      pool.query(`SELECT to_char(${BK},'YYYY-MM') m, COUNT(*)::int n, ${net} v,
                          COUNT(*) FILTER (WHERE ${exclusive})::int xn,
-                         COALESCE(SUM(total_fils - COALESCE(refunded_fils,0)) FILTER (WHERE ${exclusive}),0)::bigint xv
+                         COALESCE(SUM(total_fils) FILTER (WHERE ${exclusive}),0)::bigint xv
                     ${bookingsBase} GROUP BY 1 ORDER BY 1`, [from, to, nonMeta]),
-      pool.query(`SELECT booked_on::text d, COUNT(*)::int n, ${net} v ${bookingsBase}
-                    AND booked_on > $2::date - 60 GROUP BY 1 ORDER BY 1`, [from, to]),
-      pool.query(`SELECT to_char(booked_on,'YYYY-MM') m, COALESCE(NULLIF(celebration_type,''),'unknown') c,
+      pool.query(`SELECT ${BK}::text d, COUNT(*)::int n, ${net} v ${bookingsBase}
+                    AND ${BK} > $2::date - 60 GROUP BY 1 ORDER BY 1`, [from, to]),
+      pool.query(`SELECT to_char(${BK},'YYYY-MM') m, COALESCE(NULLIF(celebration_type,''),'unknown') c,
                          COUNT(*)::int n, ${net} v ${bookingsBase} GROUP BY 1,2 ORDER BY 1,2`, [from, to]),
       pool.query(`SELECT COALESCE(NULLIF(theme,''),'unknown') t, COUNT(*)::int n, ${net} v ${bookingsBase}
                    GROUP BY 1 ORDER BY 2 DESC LIMIT 40`, [from, to]),
@@ -86,8 +100,13 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
                    GROUP BY 1 ORDER BY 1`, [from, to]),
       pool.query(`SELECT li->>'name' p, COUNT(DISTINCT finance_receipts.id)::int n
                     FROM finance_receipts, jsonb_array_elements(CASE WHEN jsonb_typeof(line_items)='array' THEN line_items ELSE '[]'::jsonb END) li
-                   WHERE booked_on BETWEEN $1::date AND $2::date AND total_fils - COALESCE(refunded_fils,0) > 0
+                   WHERE ${BK} BETWEEN $1::date AND $2::date AND total_fils > 0
                    GROUP BY 1 ORDER BY 2 DESC LIMIT 60`, [from, to]),
+      pool.query(`SELECT to_char((created_at AT TIME ZONE 'Asia/Dubai')::date,'YYYY-MM') m,
+                         COUNT(*)::int n, COALESCE(SUM(amount_fils),0)::bigint v
+                    FROM refunds
+                   WHERE (created_at AT TIME ZONE 'Asia/Dubai')::date BETWEEN $1::date AND $2::date
+                   GROUP BY 1 ORDER BY 1`, [from, to]),
     ]);
 
     // Optional diagnostic for one booking day (?inspect=YYYY-MM-DD): how that
@@ -97,7 +116,7 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
       const d = await pool.query(
         `SELECT source, paid_with, date::text receipt_date, (created_at AT TIME ZONE 'Asia/Dubai')::date::text created_on,
                 (event_id IS NOT NULL) has_event, (order_id IS NOT NULL) has_order, COUNT(*)::int n
-           FROM finance_receipts WHERE booked_on = $1::date
+           FROM finance_receipts WHERE ${BK} = $1::date
           GROUP BY 1,2,3,4,5,6 ORDER BY n DESC LIMIT 100`, [q.inspect]);
       inspect = { day: q.inspect, groups: d.rows };
     }
@@ -107,7 +126,7 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
       inspect,
       generatedAt: new Date().toISOString(),
       range: { from, to },
-      dateBasis: 'booking entered system (finance_receipts.booked_on), not event date',
+      dateBasis: 'booking entered system (finance_receipts.booked_on, else receipt date), not event date; revenue is GROSS — refunds are listed separately by the Dubai month they were made',
       attribution: 'all bookings are from Meta ads EXCEPT line items matching nonMetaPattern (Exclusive/Carnival/3499/3500/Marwa Rateb, 2900/2999 WhatsApp offers)',
       nonMetaPattern: nonMeta,
       currency: 'AED',
@@ -121,6 +140,9 @@ export async function marketingReportRoutes(app: FastifyInstance): Promise<void>
         byDayLast60: byDay.rows.map((r) => ({ date: r.d, bookings: r.n, revenue: fils(r.v) })),
         byMonthAndCelebration: byCelebration.rows.map((r) => ({ month: r.m, celebration: r.c, bookings: r.n, revenue: fils(r.v) })),
         topThemes: byTheme.rows.map((r) => ({ theme: r.t, bookings: r.n, revenue: fils(r.v) })),
+      },
+      refunds: {
+        byMonth: refundsByMonth.rows.map((r) => ({ month: r.m, refunds: r.n, amount: fils(r.v) })),
       },
       whatsappLeads: {
         byMonth: leadsByMonth.rows,
