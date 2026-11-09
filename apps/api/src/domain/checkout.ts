@@ -73,7 +73,8 @@ function payReturnUrls(orderId: string): { successUrl: string; cancelUrl: string
   const t = orderViewToken(orderId);
   const base = config.publicAppUrl;
   const ret = `${base}/?order=${orderId}&t=${t}`;
-  return { successUrl: ret, cancelUrl: ret, failureUrl: ret };
+  // `r` lets the customer page tell a cancelled/failed return from a success.
+  return { successUrl: ret, cancelUrl: `${ret}&r=cancel`, failureUrl: `${ret}&r=failure` };
 }
 
 export class CheckoutError extends Error {
@@ -978,6 +979,9 @@ export async function startAddonCheckout(args: {
     paymentId,
     provider: provider.name,
     checkoutUrl: session.checkoutUrl,
+    embeddedUrl: session.embeddedUrl ?? null,
+    clientSecret: session.clientSecret ?? null,
+    publishableKey: session.publishableKey ?? null,
     eligible: session.eligible,
     totalFils: addonQuote.totalFils,
     holdExpiresAt: new Date(Date.now() + cfg.rules.inventoryHoldMinutes * 60_000).toISOString(),
@@ -1096,6 +1100,9 @@ export async function startTipCheckout(args: {
     paymentId,
     provider: provider.name,
     checkoutUrl: session.checkoutUrl,
+    embeddedUrl: session.embeddedUrl ?? null,
+    clientSecret: session.clientSecret ?? null,
+    publishableKey: session.publishableKey ?? null,
     eligible: session.eligible,
     totalFils: args.amountFils,
     holdExpiresAt: new Date(Date.now() + cfg.rules.inventoryHoldMinutes * 60_000).toISOString(),

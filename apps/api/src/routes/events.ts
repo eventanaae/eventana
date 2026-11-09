@@ -262,6 +262,12 @@ export async function eventRoutes(app: FastifyInstance) {
       eventFor: cart.eventFor ?? '',
       address: cart.address ?? { area: '', street: '', villa: '', details: '' },
       mapPin: cart.mapPin ?? null,
+      // Option choices, so a rebook keeps what the customer picked last time.
+      stationColors: cart.stationColors ?? null,
+      mascotChoice: cart.mascotChoice ?? null,
+      glamDolls: cart.glamDolls ?? null,
+      customization: cart.customization ?? null,
+      referenceImages: cart.referenceImages ?? null,
     };
   });
 

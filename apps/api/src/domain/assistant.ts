@@ -14,6 +14,7 @@
 import { formatAed } from '@eventana/shared';
 import { pool } from '../db/pool.js';
 import { loadConfig } from './settings.js';
+import { config } from '../config.js';
 
 export interface AssistantAnswer {
   reply: string;
@@ -42,7 +43,7 @@ export async function answerAssistant(
   if (ESCALATE.test(q)) {
     return {
       reply:
-        'That one needs a human on the Eventana team — I can’t approve refunds, special discounts or price changes. I’ve flagged this for our customer service team; they’ll reply here shortly.',
+        `That one needs a human on the Eventana team — I can’t approve refunds, special discounts or price changes. Please message our team on WhatsApp (https://wa.me/${config.contact.whatsapp}) and they’ll help you during working hours.`,
       escalated: true,
       references: [],
     };
