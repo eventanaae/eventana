@@ -728,6 +728,27 @@ async function main() {
   const shanKey = String(process.env.SET_SHAN_LEADER ?? '').trim();
   const auditVal = String(process.env.RUN_DAILY_AUDIT ?? '').trim()
     || (shanKey.startsWith('audit:') ? shanKey.slice(6) : '');
+  // Read-only provider check of one order's payment(s): SET_SHAN_LEADER=paychk:<orderId>.
+  // Logs the provider's own status / captured / refunded amounts. Changes nothing.
+  if (shanKey.startsWith('paychk:')) {
+    const oid = shanKey.slice(7).trim();
+    void (async () => {
+      const { getProvider } = await import('./payments/index.js');
+      const { rows } = await pool.query<{ id: string; provider: string; provider_payment_id: string | null; status: string; captured_fils: string; amount_fils: string }>(
+        `SELECT id, provider, provider_payment_id, status, captured_fils, amount_fils FROM payments WHERE order_id = $1 ORDER BY created_at`, [oid]);
+      for (const p of rows) {
+        let remote = 'n/a';
+        if (p.provider_payment_id) {
+          try {
+            const r = await getProvider(p.provider).retrievePayment(p.provider_payment_id);
+            remote = `providerStatus=${r.providerStatus} mapped=${r.status} amount=${r.amountFils} captured=${r.capturedFils ?? 'n/a'} refunded=${r.refundedFils ?? 'n/a'}`;
+          } catch (e) { remote = `error: ${(e as Error).message}`; }
+        }
+        console.log(`[paychk] ${oid} ${p.provider} db_status=${p.status} db_amount=${p.amount_fils} db_captured=${p.captured_fils} | ${remote}`);
+      }
+      if (!rows.length) console.log(`[paychk] ${oid} no payments`);
+    })().catch((e) => console.error('[paychk] failed:', (e as Error).message));
+  }
   if (auditVal) {
     const val = auditVal;
     void import('./domain/dailyAudit.js')

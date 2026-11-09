@@ -358,7 +358,13 @@ export async function processDelivery(
   // finance can capture before the authorisation expires.
   if (outcome === 'accepted' && needsCapture && provider.capture) {
     try {
-      await provider.capture(payment.provider_payment_id, Number(payment.amount_fils));
+      const cap = await provider.capture(payment.provider_payment_id, Number(payment.amount_fils));
+      // Record what the provider says was collected, so finance (and the daily
+      // audit) can see the money was actually captured, not just authorised.
+      if (cap && Number(cap.capturedFils) > 0) {
+        await pool.query(`UPDATE payments SET captured_fils = $2, updated_at = now() WHERE id = $1`,
+          [payment.id, Number(cap.capturedFils)]).catch(() => {});
+      }
     } catch (err) {
       console.error(`[webhook] ${provider.name} capture failed for order ${payment.order_id}:`, (err as Error).message);
       await pool.query(
