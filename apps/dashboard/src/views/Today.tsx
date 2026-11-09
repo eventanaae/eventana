@@ -632,7 +632,7 @@ function ManagerHomeAlerts({ onOpenEvent }: { onOpenEvent: (id: string) => void 
         </Panel>
       )}
       {leave.length > 0 && (
-        <Panel title="🌴 Day OFF requests">
+        <Panel title="🌴 Day-off requests">
           {leave.map((d: any) => (
             <div key={d.id} style={rowS}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color || C.pink, flex: 'none' }} />

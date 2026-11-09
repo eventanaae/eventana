@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { api, startPreview } from '../api';
 import { Badge, Button, C, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
+import { dubaiToday } from '../locale';
 
 /** A label + control row inside a team member card. */
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -164,7 +165,7 @@ function addMonths(dateStr: string, months: number): string {
 function WarningCell({ member, onChange }: { member: any; onChange: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dubaiToday(); // Dubai date, not UTC
   const [f, setF] = useState({ wtype: 'first', issuedDate: today, validUntil: addMonths(today, 6), reason: '', affectsPoints: false, salaryDeductionPct: warnDeduction('first') });
   const warned = !!member.warning_ym;
   const wipes = member.warning_affects_points === true;

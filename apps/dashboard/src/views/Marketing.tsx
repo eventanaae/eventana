@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { api } from '../api';
 import { ACCENTS, Badge, Button, C, fredoka, Panel, SectionHeader, Spinner, StatCard } from '../ui';
@@ -129,7 +129,7 @@ export function Marketing() {
   // frequency cap left nobody eligible the backend returns status 'skipped' — say
   // so instead of claiming "Sent".
   const sendNow = async (camp: any) => {
-    if (!camp) return;
+    if (!camp || busy) return;
     setBusy(true); setMsg(null);
     try {
       const r: any = camp.status === 'approved'
@@ -719,11 +719,24 @@ function Choice({ emoji, label, sub, onClick, active }: { emoji: string; label: 
   );
 }
 
-function Action({ emoji, label, onClick, tone, disabled }: { emoji: string; label: string; onClick: () => void; tone?: 'green' | 'red'; disabled?: boolean }) {
+function Action({ emoji, label, onClick, tone, disabled }: { emoji: string; label: string; onClick: () => void | Promise<unknown>; tone?: 'green' | 'red'; disabled?: boolean }) {
   const color = tone === 'green' ? C.green : tone === 'red' ? C.red : C.ink;
+  // Busy guard: while the click's request is in flight the button is disabled,
+  // so a double tap on "Send now" / "Approve & send" can't send a campaign twice.
+  // A ref (not just state) also blocks two taps landing in the same frame.
+  const [running, setRunning] = useState(false);
+  const runningRef = useRef(false);
+  const handle = async () => {
+    if (runningRef.current || disabled) return;
+    runningRef.current = true;
+    setRunning(true);
+    try { await onClick(); } catch { /* callers surface their own errors */ }
+    finally { runningRef.current = false; setRunning(false); }
+  };
+  const off = disabled || running;
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1, textAlign: 'left', borderRadius: 12, padding: '13px 14px',
+    <button onClick={handle} disabled={off} style={{
+      cursor: off ? 'default' : 'pointer', opacity: off ? 0.5 : 1, textAlign: 'left', borderRadius: 12, padding: '13px 14px',
       display: 'flex', alignItems: 'center', gap: 12, border: `1px solid ${C.line}`, background: '#fff', color, fontWeight: 700, fontSize: 14,
     }}>
       <span style={{ fontSize: 20 }}>{emoji}</span>{label}

@@ -55,10 +55,10 @@ export function MyTasks() {
   return (
     <div style={{ display: 'grid', gap: 16, maxWidth: 760 }}>
       <Panel style={{ background: C.gradHero, border: 'none' }}>
-        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.1, textTransform: 'uppercase', color: C.pinkDeep }}>Eventana · Owner</div>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.1, textTransform: 'uppercase', color: C.pinkDeep }}>Eventana · Private list</div>
         <div style={{ fontSize: 26, fontWeight: 800, color: C.ink, margin: '6px 0 6px' }}>My Tasks 📋</div>
         <div style={{ fontSize: 14, color: C.inkSoft, maxWidth: 620 }}>
-          Your private working list. Add anything, drag the priorities to the top, tick them off.
+          Your private working list. Add anything, move the priorities to the top with ↑ ↓, tick them off.
           {doneToday > 0 && <b> {doneToday} done today ✓</b>}
         </div>
       </Panel>
