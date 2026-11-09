@@ -1911,10 +1911,10 @@ export async function adminRoutes(app: FastifyInstance) {
     logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'cancel_event', target: eventId, detail: { reason: parsed.data.reason, reasonCategory: parsed.data.reasonCategory } });
     void syncEventToCalendar(eventId);
 
-    // Auto-refund the money through the payment provider (Stripe) and email the
-    // customer — same automatic flow as a customer-initiated cancellation. Runs
-    // after the cancellation is committed; on failure the refund stays pending
-    // for the manual Refund panel.
+    // Owner's rule (2026-11-10): when the TEAM cancels, the team returns the money
+    // by hand (bank transfer) — so this only RECORDS the refund (ledger, receipt,
+    // customer email, points) and never reverses at the provider. Only a customer's
+    // OWN cancellation (routes/events.ts) refunds automatically to Tabby/Tamara/Stripe.
     const rInfo = (result as any).refundInfo as { orderId: string; refundFils: number; refundStatus: string } | null;
     if (rInfo && rInfo.refundStatus === 'pending' && rInfo.refundFils > 0) {
       await refundOrderMoney({
@@ -1925,6 +1925,7 @@ export async function adminRoutes(app: FastifyInstance) {
         cancelEvent: true, // this IS the cancel-event flow; tear the event down
         createdBy: String((request as any).staff?.name ?? 'staff'),
         source: 'admin_cancel',
+        recordOnly: true,
       }).catch(() => {});
     }
     return result;
