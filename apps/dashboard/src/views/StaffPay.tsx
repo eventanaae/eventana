@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { C, fredoka, Panel, Spinner, Badge, Button } from '../ui';
 import { Empty } from './Today';
+import { dubaiToday } from '../locale';
 
 /**
  * Part-timer & driver tracker (owner/manager). This month's clown/face-paint
@@ -9,7 +10,7 @@ import { Empty } from './Today';
  * Also emailed to the owner + Marsha on the 1st of each month.
  */
 // Today in Dubai (UTC+4, no DST) as YYYY-MM-DD — months follow Dubai time.
-const dubaiToday = () => new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
+// (shared helper — see ../locale)
 
 // "Pay" a part-timer or driver for the month: enter the amount, record it, and
 // (when WhatsApp is on) message them their summary. A second payment ADDS to

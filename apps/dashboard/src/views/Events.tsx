@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { eventDateYMD, timeRange12h, packageItemDetail, servicePackageItemNames, packageItemNames } from '@eventana/shared';
+import { timeRange12h, packageItemDetail, servicePackageItemNames, packageItemNames } from '@eventana/shared';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, money, Panel, Spinner } from '../ui';
 import { Empty, eventTitle } from './Today';
+import { dubaiToday, toAsciiDigits } from '../locale';
 
 // A short, fast journey for the team on the day (owner's call): 4 steps only.
 // 'On The Way' still notifies the customer; the dropped in-between steps just
@@ -41,7 +42,7 @@ export function Events({ onOpenEvent }: { onOpenEvent: (id: string) => void }) {
 
   // Finished events (completed, cancelled, or already past) drop into a separate
   // "Past" section so the main list is only what's still coming up / live.
-  const todayStr = eventDateYMD(new Date()); // local (Dubai) date, not UTC
+  const todayStr = dubaiToday(); // Dubai date, not UTC (nor the device's timezone)
   const isDone = (e: any) =>
     e.phase === 'Event Completed' || e.phase === 'Cancelled' ||
     // A date-not-decided (TBD) event is never "past" — it has no real date yet.
@@ -217,6 +218,10 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
   const [refundItem, setRefundItem] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [uploadingRef, setUploadingRef] = useState(false);
+  // In-flight guards so a double tap can't send the same customer message,
+  // cancel request or refund twice.
+  const [replyBusy, setReplyBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const load = async () => {
     const d = await api.event(eventId);
@@ -260,6 +265,11 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
   // the customer. Managers aren't money-hidden; employees are the leader only if
   // the API says so for this event.
   const canUpdateStatus = !!data && (!moneyHidden || data.isLeader === true);
+  // Messaging the customer (send / delete / open-close chat), cancelling,
+  // reinstating and editing booking details (incl. reference images) are
+  // Manager + Owner only on the server — an Event Leader who is an employee
+  // only advances the status. Don't show controls the server will refuse.
+  const canManage = !!data && !moneyHidden;
 
   return (
     <div
@@ -314,6 +324,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                     {data.event.age && <InfoCell label="🎂 Age" value={String(data.event.age)} />}
                   </div>
                 </div>
+                {(canManage || (data.event.referenceImages ?? []).length > 0) && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>📎 Reference images <span style={{ fontWeight: 600 }}>— what the customer wants (for the design team)</span></div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -322,17 +333,22 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         <a href={u} target="_blank" rel="noreferrer">
                           <img src={u} alt="reference" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line}` }} />
                         </a>
-                        <button type="button" onClick={() => removeReferenceImage(u)} title="Remove"
+                        {canManage && (
+                        <button type="button" onClick={() => removeReferenceImage(u)} title="Remove" disabled={uploadingRef}
                           style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, border: 'none', background: C.red, color: '#fff', fontWeight: 800, cursor: 'pointer', lineHeight: '18px', fontSize: 12 }}>×</button>
+                        )}
                       </div>
                     ))}
+                    {canManage && (
                     <label style={{ width: 64, height: 64, borderRadius: 8, border: `1.5px dashed ${C.pinkDeep}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.pinkDeep, fontWeight: 800, fontSize: 22, textAlign: 'center' }}>
                       {uploadingRef ? '…' : '＋'}
                       <input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={uploadingRef}
                         onChange={(e) => { addReferenceImage(e.target.files); e.currentTarget.value = ''; }} />
                     </label>
+                    )}
                   </div>
                 </div>
+                )}
               </div>
             </div>
 
@@ -483,15 +499,21 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         longer buy extra hours, socks or servings.
                       </div>
                     </div>
-                    {canUpdateStatus && (
+                    {canManage && (
                       <Button
                         tone="ghost"
+                        disabled={actionBusy}
                         onClick={async () => {
-                          const r: any = await api.reinstateEvent(eventId);
-                          setMessage(r?.conflicts?.length
-                            ? `Reinstated. Re-reserved ${r.reReserved} item(s). ⚠️ Not available: ${r.conflicts.join(', ')}`
-                            : `Reinstated — ${r?.reReserved ?? 0} item(s) re-reserved and available.`);
-                          load();
+                          if (actionBusy) return;
+                          setActionBusy(true);
+                          try {
+                            const r: any = await api.reinstateEvent(eventId);
+                            setMessage(r?.conflicts?.length
+                              ? `Reinstated. Re-reserved ${r.reReserved} item(s). ⚠️ Not available: ${r.conflicts.join(', ')}`
+                              : `Reinstated — ${r?.reReserved ?? 0} item(s) re-reserved and available.`);
+                            load();
+                          } catch { /* the API error handler already shows a toast */ }
+                          finally { setActionBusy(false); }
                         }}
                       >
                         Reinstate event
@@ -543,6 +565,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         Customer sees ETA: {data.event.eta}
                       </div>
                     )}
+                    {canManage && (
                     <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
                       <div style={{ ...fredoka(14), color: C.ink, marginBottom: 6 }}>Cancel this event</div>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.6 }}>
@@ -569,13 +592,18 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         />
                         <Button
                           tone="danger"
-                          disabled={!cancelReason.trim()}
+                          disabled={!cancelReason.trim() || actionBusy}
                           onClick={async () => {
-                            await api.cancelEvent(eventId, cancelReason.trim(), cancelCategory);
-                            setCancelReason('');
-                            setCancelCategory('customer_cancellation');
-                            setMessage('Event cancelled. Assets released and tasks closed.');
-                            load();
+                            if (actionBusy) return;
+                            setActionBusy(true);
+                            try {
+                              await api.cancelEvent(eventId, cancelReason.trim(), cancelCategory);
+                              setCancelReason('');
+                              setCancelCategory('customer_cancellation');
+                              setMessage('Event cancelled. Assets released and tasks closed.');
+                              load();
+                            } catch { /* the API error handler already shows a toast */ }
+                            finally { setActionBusy(false); }
                           }}
                         >
                           Cancel event
@@ -587,6 +615,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         </div>
                       )}
                     </div>
+                    )}
                   </>
                 )}
               </Panel>
@@ -607,7 +636,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                     <input
                       placeholder="Qty"
                       value={extraQty}
-                      onChange={(e) => setExtraQty(e.target.value.replace(/[^0-9]/g, ''))}
+                      onChange={(e) => setExtraQty(toAsciiDigits(e.target.value).replace(/[^0-9]/g, ''))}
                       inputMode="numeric"
                       style={{ ...inputStyle, width: 70, flex: 'none' }}
                     />
@@ -674,7 +703,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
 
               <Panel
                 title="Customer messages"
-                action={canUpdateStatus ? (
+                action={canManage ? (
                   <Button
                     tone="ghost"
                     onClick={async () => {
@@ -702,7 +731,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                       {m.body}
                       <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
                         <span>{m.author ?? 'Customer'}</span>
-                        {m.sender === 'team' && canUpdateStatus && (
+                        {m.sender === 'team' && canManage && (
                           <button
                             title="Delete this message (sent by mistake)"
                             onClick={async () => { if (window.confirm('Delete this message? It will be removed from the customer’s chat too.')) { await api.deleteMessage(eventId, m.id); load(); } }}
@@ -715,9 +744,9 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                     </div>
                   ))}
                 </div>
-                {!canUpdateStatus ? (
+                {!canManage ? (
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, background: '#faf6f9', borderRadius: 10, padding: '9px 12px', lineHeight: 1.5 }}>
-                    👑 Only the Event Leader{data.leaderName ? ` (${data.leaderName})` : ''} replies to the customer. You can read the chat here.
+                    Only a manager replies to the customer. You can read the chat here.
                   </div>
                 ) : (
                   <>
@@ -733,9 +762,13 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                           <Button
                             key={q}
                             tone="ghost"
+                            disabled={replyBusy}
                             onClick={async () => {
-                              await api.reply(eventId, q);
-                              load();
+                              if (replyBusy) return;
+                              setReplyBusy(true);
+                              try { await api.reply(eventId, q); load(); }
+                              catch { /* toast already shown */ }
+                              finally { setReplyBusy(false); }
                             }}
                           >
                             {q}
@@ -751,14 +784,19 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         style={inputStyle}
                       />
                       <Button
+                        disabled={replyBusy || !reply.trim()}
                         onClick={async () => {
-                          if (!reply.trim()) return;
-                          await api.reply(eventId, reply.trim());
-                          setReply('');
-                          load();
+                          if (!reply.trim() || replyBusy) return;
+                          setReplyBusy(true);
+                          try {
+                            await api.reply(eventId, reply.trim());
+                            setReply('');
+                            load();
+                          } catch { /* toast already shown; keep the typed text */ }
+                          finally { setReplyBusy(false); }
                         }}
                       >
-                        Send
+                        {replyBusy ? 'Sending…' : 'Send'}
                       </Button>
                     </div>
                   </>
@@ -903,13 +941,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                       value={refundAmount}
                       // Convert Arabic-Indic digits to ASCII first (our team types
                       // on an Arabic keyboard) so the amount isn't stripped to empty.
-                      onChange={(e) => setRefundAmount(
-                        e.target.value
-                          .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-                          .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-                          .replace(/٫/g, '.')
-                          .replace(/[^\d.]/g, ''),
-                      )}
+                      onChange={(e) => setRefundAmount(toAsciiDigits(e.target.value).replace(/[^\d.]/g, ''))}
                       style={inputStyle}
                     />
                   )}
@@ -933,10 +965,11 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                   <div>
                     <Button
                       tone="danger"
-                      disabled={!refundAmount || ((refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') && !refundItem)}
+                      disabled={actionBusy || !refundAmount || ((refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') && !refundItem)}
                       onClick={async () => {
+                        if (actionBusy) return;
                         const amt = Number(refundAmount);
-                        if (!amt) return;
+                        if (!amt || !Number.isFinite(amt)) return;
                         const needsItem = refundCategory === 'customer_cancellation' || refundCategory === 'missing_item';
                         if (needsItem && !refundItem) return;
                         // refundItem is the row id — resolve its label for the message + API.
@@ -959,6 +992,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         if (refundCancelEvent) lines.push('• The EVENT will also be CANCELLED (reservations released, emails stopped).');
                         lines.push('', 'This only RECORDS the refund and emails the customer — you return the money by hand. Confirm ONLY after you have actually sent the money back.');
                         if (!window.confirm(lines.join('\n'))) return;
+                        setActionBusy(true);
                         try {
                           const res = await api.refund(
                             data.event.order_id,
@@ -974,6 +1008,8 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                           load();
                         } catch (e: any) {
                           setMessage(e.message);
+                        } finally {
+                          setActionBusy(false);
                         }
                       }}
                     >

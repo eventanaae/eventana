@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { api } from '../api';
 import { Button, C, Panel, Spinner, fredoka } from '../ui';
+import { parseNumber, toAsciiDigits } from '../locale';
 
 /**
  * Manual order — product builder only.
@@ -63,7 +64,9 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
     return q ? eligibleServices.filter((s: any) => String(s.name).toLowerCase().includes(q)) : eligibleServices;
   }, [eligibleServices, search]);
 
-  const toFils = (s: string) => Math.round((Number(String(s).replace(/,/g, '')) || 0) * 100);
+  // parseNumber normalises Arabic-Indic digits (typed on an Arabic keyboard)
+  // — plain Number('٥٠') is NaN, which silently became AED 0.
+  const toFils = (s: string) => Math.round((parseNumber(s) || 0) * 100);
   const money = (fils: number) => (fils / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
   // Live estimate (authoritative price comes back from Generate).
@@ -72,7 +75,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
     const svc = Object.entries(services).filter(([, q]) => q > 0).reduce((sum, [id, q]) => {
       const s = allServices.find((x: any) => x.id === id);
       if (!s) return sum;
-      const ov = Math.round((Number(String(priceOverride[id] ?? '').replace(/,/g, '')) || 0) * 100);
+      const ov = toFils(priceOverride[id] ?? '');
       const unit = (s.priceFils === 0 && ov > 0) ? ov : (s.priceFils || 0);
       return sum + unit * (q || 1);
     }, 0);
@@ -109,7 +112,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
     // manager must type a price for any "set price" item first.
     const zero = Object.entries(services).filter(([, q]) => (q as number) > 0).find(([id]) => {
       const s = allServices.find((x: any) => x.id === id);
-      const ov = Math.round((Number(String(priceOverride[id] ?? '').replace(/,/g, '')) || 0) * 100);
+      const ov = toFils(priceOverride[id] ?? '');
       return s && (s.priceFils || 0) === 0 && ov <= 0;
     });
     if (zero) { const s = allServices.find((x: any) => x.id === zero[0]); setError(`Set a price for "${s?.name ?? 'the selected item'}" before generating.`); return; }
@@ -123,7 +126,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
       const offItems: Array<{ name: string; priceFils: number; qty: number }> = [];
       for (const [serviceId, quantity] of Object.entries(services).filter(([, q]) => q > 0)) {
         const s = allServices.find((x: any) => x.id === serviceId);
-        const ovFils = Math.round((Number(String(priceOverride[serviceId] ?? '').replace(/,/g, '')) || 0) * 100);
+        const ovFils = toFils(priceOverride[serviceId] ?? '');
         if (s && (s.active === false || s.priceFils === 0)) {
           // OFF or no-price item → custom-product path, using the typed price.
           offItems.push({ name: s.name, priceFils: ovFils > 0 ? ovFils : (s.priceFils || 0), qty: quantity });
@@ -220,7 +223,7 @@ export function NewOrder({ addonEventId }: { addonEventId?: string } = {}) {
                   {s.active === false && <span style={{ marginInlineStart: 6, fontSize: 9.5, fontWeight: 800, color: C.muted, background: C.lineSoft, padding: '2px 6px', borderRadius: 5 }}>OFF</span>}
                 </span>
                 {on && per && (
-                  <input value={qty} inputMode="numeric" onClick={(e) => e.stopPropagation()} onChange={(e) => setServices((m) => ({ ...m, [s.id]: Number(e.target.value.replace(/[^\d]/g, '')) || 0 }))} style={{ ...input, width: 64, marginBottom: 0 }} />
+                  <input value={qty} inputMode="numeric" onClick={(e) => e.stopPropagation()} onChange={(e) => setServices((m) => ({ ...m, [s.id]: Number(toAsciiDigits(e.target.value).replace(/[^\d]/g, '')) || 0 }))} style={{ ...input, width: 64, marginBottom: 0 }} />
                 )}
                 {on && s.priceFils === 0 && (
                   <input value={priceOverride[s.id] ?? ''} inputMode="decimal" placeholder="Price AED" onClick={(e) => e.stopPropagation()} onChange={(e) => setPriceOverride((m) => ({ ...m, [s.id]: e.target.value }))} style={{ ...input, width: 96, marginBottom: 0 }} />

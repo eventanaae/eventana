@@ -123,6 +123,11 @@ export default function App() {
   // tabs (CEO dashboard, Reports, cash) never flash to a manager/employee who
   // opens the app or a ?view= deep link. It snaps to the real role a beat later.
   const [role, setRole] = useState<string>('employee');
+  // True once /api/me has answered (or failed). Until then `role` is only the
+  // placeholder above, so access decisions (snapping a ?view= deep link away)
+  // must wait — otherwise an owner opening ?view=finance is bounced to Home
+  // before their real role arrives.
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [staffName, setStaffName] = useState<string>('');
   const [counts, setCounts] = useState<{ tasks: number; review: number }>({ tasks: 0, review: 0 });
   const [integrations, setIntegrations] = useState<any[]>([]);
@@ -187,7 +192,8 @@ export default function App() {
     api
       .me()
       .then((m) => { setRole(m.role); setStaffName(m.name); })
-      .catch(() => setRole('employee'));
+      .catch(() => setRole('employee'))
+      .finally(() => setRoleLoaded(true));
     const load = () =>
       api
         .today()
@@ -232,9 +238,10 @@ export default function App() {
   // Depend on `view` too, so a forbidden deep link (?view=finance as an employee)
   // is corrected even when the resolved role equals the default and never changes.
   useEffect(() => {
+    if (!roleLoaded) return; // wait for the real role before deciding access
     if (!isVisible(view)) setView(primaryNav[0]?.id ?? 'today');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, view]);
+  }, [role, view, roleLoaded]);
 
   // Hooks must run on every render, before any early return — otherwise
   // logging in (authed false→true) changes the hook count and React crashes.
@@ -256,7 +263,12 @@ export default function App() {
 
   const go = (id: View) => { setView(id); setMoreOpen(false); };
 
-  const body = error ? (
+  // Before the role is known, only render a view the least-privileged role may
+  // see; a deep-linked owner/manager view waits (spinner) instead of rendering
+  // with the placeholder role or flashing to someone who can't see it.
+  const body = !roleLoaded && !isVisible(view) ? (
+    <div style={{ padding: 40, textAlign: 'center', fontSize: 13, fontWeight: 600, color: C.muted }}>Loading…</div>
+  ) : error ? (
     <div style={{ padding: 40, textAlign: 'center' }}>
       <div style={{ ...fredoka(18), marginBottom: 8 }}>{offline ? 'No internet' : 'Can’t reach the Eventana engine'}</div>
       <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, lineHeight: 1.6 }}>{error}</div>
@@ -264,7 +276,10 @@ export default function App() {
   ) : (
     <div key={syncTick}>
       {view === 'today' && <Today onOpenEvent={openEvent} onOpenShop={setOpenShopId} onGoto={go} staffName={staffName} role={role} />}
-      {view === 'mytasks' && <MyTasks />}
+      {/* The private focus list (/api/admin/focus) is Manager+Owner on the
+          server — employees got a silent 403 and an empty, un-addable page.
+          Their "My Tasks" is their assigned prep work. */}
+      {view === 'mytasks' && (role === 'owner' || role === 'manager' ? <MyTasks /> : <Tasks role={role} />)}
       {view === 'stories' && <StoryStudio />}
       {view === 'schedule' && (role === 'driver'
         ? <DriverEvents onOpenEvent={openEvent} />

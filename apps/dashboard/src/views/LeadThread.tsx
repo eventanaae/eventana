@@ -50,6 +50,9 @@ export function LeadThread({
   const [window24, setWindow24] = useState<Window24 | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // Ref guard: Ctrl+Enter plus a tap (or a held key) could both fire before
+  // `sending` re-rendered, sending the customer the same WhatsApp twice.
+  const sendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const [ai, setAi] = useState<any | null>(null);
@@ -90,6 +93,8 @@ export function LeadThread({
   const send = async () => {
     const body = draft.trim();
     if (!body) return setError('Write a message first.');
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setError(null);
     setSending(true);
     try {
@@ -101,6 +106,7 @@ export function LeadThread({
     } catch (e: any) {
       setError(e?.message ?? 'The message could not be sent.');
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };

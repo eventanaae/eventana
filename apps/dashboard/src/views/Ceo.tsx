@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CELEBRATION_TYPES } from '@eventana/shared';
 import { api } from '../api';
 import { C, Panel, Spinner, fredoka, money } from '../ui';
+import { dubaiToday } from '../locale';
 
 /**
  * CEO Executive Dashboard — a premium, decision-first view. In under a minute:
@@ -16,9 +17,11 @@ const EMIRATES = ['Dubai', 'Abu Dhabi', 'Al Ain', 'Ajman', 'Sharjah', 'Umm Al Qu
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 function presetRange(preset: string): { from: string; to: string } {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth();
+  // Year/month from the DUBAI date — the UTC month is still last month between
+  // 00:00 and 04:00 Dubai on the 1st.
+  const today = dubaiToday();
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7)) - 1;
   const firstNextMonth = iso(new Date(Date.UTC(y, m + 1, 1)));
   const firstThisYear = iso(new Date(Date.UTC(y, 0, 1)));
   const firstNextYear = iso(new Date(Date.UTC(y + 1, 0, 1)));

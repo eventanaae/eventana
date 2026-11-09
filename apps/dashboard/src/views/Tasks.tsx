@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Badge, Button, C, fredoka, Panel, Spinner } from '../ui';
 import { Empty } from './Today';
+import { FULL_HEIGHT } from '../locale';
 
 /**
  * Pre-Event Preparation & Task Management — INTERNAL ONLY.
@@ -467,6 +468,7 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
   const [openAssign, setOpenAssign] = useState<string | null>(null);
   const [myId, setMyId] = useState<string | null>(null);
   const canManage = role === 'owner' || role === 'manager';
+  const [regenBusy, setRegenBusy] = useState(false);
   // An employee can only act on tasks assigned to them; everything else is
   // view-only. Managers and the owner can act on anything.
   const canAct = (t: any) => canManage || (!!myId && (t.assignees ?? []).some((a: any) => String(a.id) === String(myId)));
@@ -480,7 +482,9 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(59,54,65,.4)', zIndex: 20, display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(640px, 100vw)', background: C.bg, height: '100vh', overflowY: 'auto', padding: 18 }}>
+      {/* 100dvh (fallback 100vh): plain 100vh hides the bottom of the drawer
+          behind mobile Safari's toolbar. */}
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(640px, 100vw)', background: C.bg, height: FULL_HEIGHT, overflowY: 'auto', overscrollBehavior: 'contain', padding: 18, paddingBottom: 'calc(18px + env(safe-area-inset-bottom))' }}>
         {!plan ? <Spinner /> : (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -490,7 +494,14 @@ function PrepEventDrawer({ eventId, role, onClose }: { eventId: string; role?: s
                   {plan.completed} of {plan.total} done · {plan.progressPct}% ready{plan.issues > 0 ? ` · ${plan.issues} issue(s)` : ''}
                 </div>
               </div>
-              <Button tone="ghost" onClick={async () => { await api.prepGenerate(eventId); load(); }}>Re-generate</Button>
+              {/* Generating prep is Manager + Owner on the server — hide it from staff. */}
+              {canManage && (
+                <Button tone="ghost" disabled={regenBusy} onClick={async () => {
+                  if (regenBusy) return;
+                  setRegenBusy(true);
+                  try { await api.prepGenerate(eventId); load(); } catch { /* toast already shown */ } finally { setRegenBusy(false); }
+                }}>{regenBusy ? 'Generating…' : 'Re-generate'}</Button>
+              )}
               <Button tone="ghost" onClick={onClose}>Close</Button>
             </div>
 
