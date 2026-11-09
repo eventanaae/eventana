@@ -1951,3 +1951,20 @@ CREATE OR REPLACE VIEW receipt_money_by_day AS
          m.booked_on,
          m.amount_fils::bigint
     FROM receipt_addon_money m;
+
+-- Daily System Audit (owner, Nov 2026): one row per audit run — ~45 independent
+-- read-only checks (money, bookings, events, inventory, staff, notifications,
+-- expenses, bank, system health) + context totals. The 10:00 Dubai run emails the
+-- owner; an on-demand RUN_DAILY_AUDIT run only logs. results holds each check's
+-- count + up to 10 sample rows (ids / numbers / dates / amounts — never phone or
+-- email). See apps/api/src/domain/dailyAudit.ts.
+CREATE TABLE IF NOT EXISTS daily_audit_runs (
+  id        BIGSERIAL PRIMARY KEY,
+  ran_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  run_day   DATE,
+  issues    INT NOT NULL DEFAULT 0,
+  critical  INT NOT NULL DEFAULT 0,
+  results   JSONB NOT NULL DEFAULT '{}',
+  summary   TEXT
+);
+CREATE INDEX IF NOT EXISTS daily_audit_runs_ran_at_idx ON daily_audit_runs (ran_at DESC);

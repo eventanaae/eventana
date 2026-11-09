@@ -391,6 +391,13 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(async ({ sweepReconReport, sweepWeeklyReport }) => { await sweepReconReport(); await sweepWeeklyReport(); })
     .catch((err) => console.error('[recon-report] failed:', err));
 
+  // Daily System Audit — once per Dubai day at/after 10:00, claimed in app_kv
+  // before it runs (no double-send across instances). Not awaited: ~45 read-only
+  // checks must never delay email/WhatsApp delivery in this sweep.
+  void import('./dailyAudit.js')
+    .then(({ sweepDailyAudit }) => sweepDailyAudit())
+    .catch((err) => console.error('[daily-audit] failed:', err));
+
   // Monthly part-timer & driver report — emailed to owner + Marsha on the 1st.
   await import('./staffPayReport.js')
     .then(({ sweepStaffPayReport }) => sweepStaffPayReport())
