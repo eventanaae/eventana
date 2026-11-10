@@ -730,6 +730,12 @@ async function main() {
     || (shanKey.startsWith('audit:') ? shanKey.slice(6) : '');
   // Read-only provider check of one order's payment(s): SET_SHAN_LEADER=paychk:<orderId>.
   // Logs the provider's own status / captured / refunded amounts. Changes nothing.
+  // Owner's read-only name search: SET_SHAN_LEADER=find:<regex>.
+  if (shanKey.startsWith('find:')) {
+    void import('./db/findName.js')
+      .then(({ findNameFromEnv }) => findNameFromEnv(shanKey.slice(5)))
+      .catch((e) => console.error('[find] failed:', (e as Error).message));
+  }
   if (shanKey.startsWith('paychk:')) {
     const oid = shanKey.slice(7).trim();
     void (async () => {
