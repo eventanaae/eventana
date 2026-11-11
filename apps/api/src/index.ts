@@ -740,8 +740,32 @@ async function main() {
     const oid = shanKey.slice(7).trim();
     void (async () => {
       const { getProvider } = await import('./payments/index.js');
-      const { rows } = await pool.query<{ id: string; provider: string; provider_payment_id: string | null; status: string; captured_fils: string; amount_fils: string }>(
-        `SELECT id, provider, provider_payment_id, status, captured_fils, amount_fils FROM payments WHERE order_id = $1 ORDER BY created_at`, [oid]);
+      const ord = await pool.query(
+        `SELECT o.id, o.kind, o.status, o.source, o.total_fils, o.event_id,
+                to_char(o.created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS created_dubai,
+                o.cart->>'eventDate' AS event_date, c.name AS customer,
+                (SELECT string_agg(e.id || ' ' || to_char(e.event_date,'YYYY-MM-DD') || ' ' || COALESCE(e.phase,''), '; ') FROM events e WHERE e.order_id = o.id) AS events
+           FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = $1`, [oid]).catch(() => ({ rows: [] as any[] }));
+      for (const r of ord.rows) console.log(`[paychk] ORDER ${JSON.stringify(r)}`);
+      const rc = await pool.query(
+        `SELECT number, customer_name, to_char(date,'YYYY-MM-DD') AS event_date, to_char(booked_on,'YYYY-MM-DD') AS booked_on,
+                total_fils, refunded_fils, paid_with, source,
+                to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS created_dubai
+           FROM finance_receipts WHERE order_id = $1 OR event_id IN (SELECT id FROM events WHERE order_id = $1)`, [oid]).catch(() => ({ rows: [] as any[] }));
+      for (const r of rc.rows) console.log(`[paychk] RECEIPT ${JSON.stringify(r)}`);
+      const rf = await pool.query(
+        `SELECT id, amount_fils, item_label, to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS at_dubai
+           FROM refunds WHERE order_id = $1 ORDER BY created_at`, [oid]).catch(() => ({ rows: [] as any[] }));
+      for (const r of rf.rows) console.log(`[paychk] REFUND ${JSON.stringify(r)}`);
+      const pl = await pool.query(
+        `SELECT kind, status, total_fils, to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS created_dubai
+           FROM orders WHERE event_id IN (SELECT id FROM events WHERE order_id = $1) ORDER BY created_at`, [oid]).catch(() => ({ rows: [] as any[] }));
+      for (const r of pl.rows) console.log(`[paychk] LINKED_ORDER ${JSON.stringify(r)}`);
+      const { rows } = await pool.query<{ id: string; provider: string; provider_payment_id: string | null; status: string; captured_fils: string; amount_fils: string; created_dubai: string; updated_dubai: string }>(
+        `SELECT id, provider, provider_payment_id, status, captured_fils, amount_fils,
+                to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS created_dubai,
+                to_char(updated_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS updated_dubai
+           FROM payments WHERE order_id = $1 ORDER BY created_at`, [oid]);
       for (const p of rows) {
         let remote = 'n/a';
         if (p.provider_payment_id) {
@@ -750,7 +774,7 @@ async function main() {
             remote = `providerStatus=${r.providerStatus} mapped=${r.status} amount=${r.amountFils} captured=${r.capturedFils ?? 'n/a'} refunded=${r.refundedFils ?? 'n/a'}`;
           } catch (e) { remote = `error: ${(e as Error).message}`; }
         }
-        console.log(`[paychk] ${oid} ${p.provider} db_status=${p.status} db_amount=${p.amount_fils} db_captured=${p.captured_fils} | ${remote}`);
+        console.log(`[paychk] PAYMENT ${oid} ${p.provider} db_status=${p.status} db_amount=${p.amount_fils} db_captured=${p.captured_fils} created=${p.created_dubai} updated=${p.updated_dubai} | ${remote}`);
       }
       if (!rows.length) console.log(`[paychk] ${oid} no payments`);
     })().catch((e) => console.error('[paychk] failed:', (e as Error).message));
