@@ -1423,7 +1423,9 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
   const submit = async () => {
     if (busy) return;
     const amt = Number(amount);
-    if (!amt || !Number.isFinite(amt)) return;
+    // A whole-party cancellation may refund nothing (the charge is the full amount).
+    const zeroOk = category === 'whole_party' && cancelEvent && amt === 0 && amount.trim() !== '';
+    if ((!amt && !zeroOk) || !Number.isFinite(amt)) return;
     if (needsItem && !picked) return;
     if (!sumMatches) return;
     // A clear confirmation BEFORE anything happens — amount, item and reason —
@@ -1586,7 +1588,7 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
             </label>
             <Button
               tone="danger"
-              disabled={busy || !amount || (needsItem && !picked) || !sumMatches}
+              disabled={busy || amount.trim() === '' || (Number(amount) === 0 && !(category === 'whole_party' && cancelEvent)) || (needsItem && !picked) || !sumMatches}
               onClick={submit}
             >
               {busy ? '…' : '↩ Refund'}
