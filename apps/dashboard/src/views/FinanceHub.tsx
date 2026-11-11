@@ -1700,10 +1700,20 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         );
       })}
       <div style={{ marginTop: 10 }}>
-        <Row label="Subtotal" value={`AED ${money(kind === 'receipt' && rv.isRefund ? rv.shownSubtotal : doc.subtotal_fils)}`} />
-        {(kind === 'receipt' && rv.isRefund ? rv.shownDiscount : doc.discount_fils) > 0 && <Row label="Discount" value={`− AED ${money(kind === 'receipt' && rv.isRefund ? rv.shownDiscount : doc.discount_fils)}`} />}
+        {/* A refunded receipt shows what was PAID, then the refund on its own line
+            and what is left — the refund is never hidden inside "Discount". */}
+        <Row label="Subtotal" value={`AED ${money(doc.subtotal_fils)}`} />
+        {doc.discount_fils > 0 && <Row label="Discount" value={`− AED ${money(doc.discount_fils)}`} />}
         {doc.shipping_fils > 0 && <Row label="Shipping" value={`AED ${money(doc.shipping_fils)}`} />}
-        <Row label={<b>Total</b>} value={<b style={{ ...fredoka(15), color: C.pinkDeep }}>AED {kind === 'receipt' && rv.isRefund ? money(rv.shownTotal) : doc.totalDisplay}</b>} />
+        {kind === 'receipt' && rv.isRefund ? (
+          <>
+            <Row label="Total paid" value={`AED ${doc.totalDisplay}`} />
+            <Row label={<span style={{ color: C.red }}>Refunded</span>} value={<span style={{ color: C.red }}>− AED {money(rv.refundedFils)}</span>} />
+            <Row label={<b>Net after refund</b>} value={<b style={{ ...fredoka(15), color: C.pinkDeep }}>AED {money(rv.shownTotal)}</b>} />
+          </>
+        ) : (
+          <Row label={<b>Total</b>} value={<b style={{ ...fredoka(15), color: C.pinkDeep }}>AED {doc.totalDisplay}</b>} />
+        )}
       </div>
       {kind === 'invoice' && doc.status !== 'paid' && (
         <div style={{ marginTop: 14, padding: '12px 14px', background: C.pinkSoft, borderRadius: 12 }}>
