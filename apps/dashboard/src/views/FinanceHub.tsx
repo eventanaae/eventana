@@ -1703,7 +1703,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         {/* A refunded receipt shows what was PAID, then the refund on its own line
             and what is left — the refund is never hidden inside "Discount". */}
         <Row label="Subtotal" value={`AED ${money(doc.subtotal_fils)}`} />
-        {doc.discount_fils > 0 && <Row label="Discount" value={`− AED ${money(doc.discount_fils)}`} />}
+        {doc.discount_fils > 0 && <Row label={doc.discount_label ? `Discount (${doc.discount_label})` : 'Discount'} value={`− AED ${money(doc.discount_fils)}`} />}
         {doc.shipping_fils > 0 && <Row label="Shipping" value={`AED ${money(doc.shipping_fils)}`} />}
         {kind === 'receipt' && rv.isRefund ? (
           <>

@@ -1968,3 +1968,15 @@ CREATE TABLE IF NOT EXISTS daily_audit_runs (
   summary   TEXT
 );
 CREATE INDEX IF NOT EXISTS daily_audit_runs_ran_at_idx ON daily_audit_runs (ran_at DESC);
+
+-- Receipts show WHICH discount the customer got (e.g. "15% Build Your Own discount"),
+-- not just "Discount". Filled at sale time from the order's quote; back-filled once
+-- per receipt here (cheap: only discounted app receipts still missing a label).
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS discount_label TEXT;
+UPDATE finance_receipts r
+   SET discount_label = d.lbl
+  FROM (SELECT o.id, string_agg(l->>'label', ' + ') AS lbl
+          FROM orders o, jsonb_array_elements(CASE WHEN jsonb_typeof(o.quote->'lines') = 'array' THEN o.quote->'lines' ELSE '[]'::jsonb END) l
+         WHERE l->>'kind' = 'discount' AND COALESCE(l->>'label','') <> ''
+         GROUP BY o.id) d
+ WHERE r.order_id = d.id AND r.discount_label IS NULL AND r.discount_fils > 0;
