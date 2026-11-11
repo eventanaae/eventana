@@ -1145,7 +1145,10 @@ export async function listReceipts(role?: string) {
   const ownerView = role === 'owner' || role === undefined;
   const dateFilter = ownerView ? '' : `WHERE r.date >= date_trunc('month', now()) - interval '1 month'`;
   const { rows } = await pool.query(
-    `SELECT r.*, hc.id AS hc_id, hc.emirate AS city, hc.phone AS customer_phone, hc.email AS customer_email
+    `SELECT r.*, hc.id AS hc_id, hc.emirate AS city, hc.phone AS customer_phone, hc.email AS customer_email,
+            EXISTS (SELECT 1 FROM events e
+                     WHERE (e.id = r.event_id OR (r.order_id IS NOT NULL AND e.order_id = r.order_id))
+                       AND (e.phase = 'Cancelled' OR e.cancelled_at IS NOT NULL)) AS event_cancelled
        FROM finance_receipts r
        LEFT JOIN LATERAL (
          SELECT id, emirate, phone, email FROM historical_customers h
@@ -1570,7 +1573,11 @@ const escapeHtml = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&
 export async function emailDoc(kind: 'receipt' | 'invoice', id: number): Promise<{ sent: boolean; to?: string; reason?: string }> {
   if (!emailEnabled()) return { sent: false, reason: 'email_disabled' };
   const table = kind === 'receipt' ? 'finance_receipts' : 'finance_invoices';
-  const { rows } = await pool.query(`SELECT * FROM ${table} WHERE id = $1`, [id]);
+  const { rows } = await pool.query(kind === 'receipt'
+    ? `SELECT r.*, EXISTS (SELECT 1 FROM events e
+                     WHERE (e.id = r.event_id OR (r.order_id IS NOT NULL AND e.order_id = r.order_id))
+                       AND (e.phase = 'Cancelled' OR e.cancelled_at IS NOT NULL)) AS event_cancelled FROM finance_receipts r WHERE r.id = $1`
+    : `SELECT * FROM ${table} WHERE id = $1`, [id]);
   if (!rows[0]) return { sent: false, reason: 'not_found' };
   const doc = kind === 'receipt' ? decorateReceipt(rows[0]) : decorateInvoice(rows[0]);
   // Prefer the LINKED customer's email; only fall back to a name match when the

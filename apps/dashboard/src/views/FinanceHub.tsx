@@ -431,7 +431,9 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
         const receiptRow = (r: any, tbd: boolean) => {
           const refunded = Number(r.refundedFils ?? 0) || 0;
           const net = Number(r.netTotalFils ?? (Number(r.total_fils) - refunded));
-          const badge = refunded <= 0
+          const badge = r.event_cancelled
+            ? <span style={{ ...pill, background: C.redSoft, color: C.red }}>CANCELLED</span>
+            : refunded <= 0
             ? <span style={{ ...pill, background: C.greenSoft, color: C.green }}>PAID</span>
             : net <= 0
               ? <span style={{ ...pill, background: C.redSoft, color: C.red }}>REFUNDED</span>
@@ -1730,7 +1732,9 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         return (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.lineSoft}` }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{l.name}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: doc.event_cancelled ? C.muted : C.ink, textDecoration: doc.event_cancelled ? 'line-through' : undefined }}>
+                {l.name}{doc.event_cancelled && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: C.red, textDecoration: 'none', display: 'inline-block' }}>CANCELLED</span>}
+              </div>
               {l.description && String(l.description).trim() && <div style={{ fontSize: 11.5, color: C.muted2, whiteSpace: 'pre-wrap', lineHeight: 1.5, marginTop: 2 }}>{l.description}</div>}
               {/* Package contents, so the customer sees exactly what's included. */}
               {pkgItems.length > 0 && (
@@ -1760,6 +1764,11 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         {doc.shipping_fils > 0 && <Row label="Shipping" value={`AED ${money(doc.shipping_fils)}`} />}
         {kind === 'receipt' && rv.isRefund ? (
           <>
+            {doc.event_cancelled && (
+              <div style={{ margin: '6px 0', padding: '8px 10px', borderRadius: 10, background: C.redSoft, color: C.red, fontSize: 12.5, fontWeight: 800 }}>
+                ✕ Party cancelled by the customer — the items above were not delivered and nothing is reserved.
+              </div>
+            )}
             <Row label="Total paid" value={`AED ${doc.totalDisplay}`} />
             {doc.cancellation_charge_fils != null && Number(doc.cancellation_charge_fils) > 0 && (
               <Row label="Cancellation charge" value={`AED ${money(Number(doc.cancellation_charge_fils))}`} />

@@ -23,7 +23,7 @@ export async function opsStatsFromEnv(): Promise<void> {
       `SELECT to_char(m.slice_booked_on,'YYYY-MM') m, COALESCE(r.source,'-') src,
               (count(*) FILTER (WHERE m.slice = 'base'))::int n,
               (sum(m.amount_fils)
-               - sum(CASE WHEN m.slice = 'base' THEN COALESCE(r.refunded_fils,0) ELSE 0 END))::bigint net_fils
+               - sum(CASE WHEN m.slice IN ('base','cancelled') THEN COALESCE(r.refunded_fils,0) ELSE 0 END))::bigint net_fils
          FROM receipt_money_by_day m JOIN finance_receipts r ON r.id = m.receipt_id
         WHERE m.slice_booked_on >= $1 GROUP BY 1,2 ORDER BY 1,2`);
     const orders = await q(

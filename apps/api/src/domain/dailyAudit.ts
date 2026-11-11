@@ -382,7 +382,7 @@ export const AUDIT_CHECKS: AuditCheck[] = [
                    JOIN finance_receipts r ON r.id = v.receipt_id
                    LEFT JOIN orders o ON o.id = v.slice_order_id
                   WHERE v.money_day >= ${TODAY} - 7 AND v.money_day < ${TODAY}
-                    AND ((v.slice = 'base' AND r.source IN ('app','shop') AND o.id IS NOT NULL AND ${appOrder('o')})
+                    AND ((v.slice IN ('base','cancelled') AND r.source IN ('app','shop') AND o.id IS NOT NULL AND ${appOrder('o')})
                       OR (v.slice = 'addon' AND o.kind = 'addon' AND ${appOrder('o')}))
                   GROUP BY 1),
                pay AS (

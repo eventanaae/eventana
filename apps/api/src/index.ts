@@ -730,6 +730,10 @@ async function main() {
     || (shanKey.startsWith('audit:') ? shanKey.slice(6) : '');
   // Read-only provider check of one order's payment(s): SET_SHAN_LEADER=paychk:<orderId>.
   // Logs the provider's own status / captured / refunded amounts. Changes nothing.
+  if (shanKey === 'fixlatifa') {
+    void import('./db/fixLatifa2125.js').then(({ fixLatifa2125 }) => fixLatifa2125())
+      .catch((e) => console.error('[fixlatifa] failed:', (e as Error).message));
+  }
   // Owner's read-only name search: SET_SHAN_LEADER=find:<regex>.
   if (shanKey.startsWith('find:')) {
     void import('./db/findName.js')
