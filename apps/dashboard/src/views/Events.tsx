@@ -866,22 +866,9 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         {row('Refund owed', cx.refundAmountDisplay)}
                         {cx.refundReference ? row('Reference', String(cx.refundReference)) : null}
                         {cx.refundStatus === 'pending' && cx.refundAmountFils > 0 && (
-                          <Button
-                            tone="ghost"
-                            style={{ marginTop: 10, fontSize: 11.5, padding: '8px 12px' }}
-                            onClick={() => {
-                              // A policy-% refund isn't tied to one line item, so use the
-                              // free-amount path ('other') — otherwise the default
-                              // 'customer_cancellation' category requires an item and the
-                              // Refund button stays disabled.
-                              setRefundCategory('other' as any);
-                              setRefundItem('');
-                              setRefundAmount(String(cx.refundAmountFils / 100));
-                              setRefundReason(`Customer cancellation — ${cx.refundPercent}% per policy`);
-                            }}
-                          >
-                            Use policy amount ({cx.refundAmountDisplay}) →
-                          </Button>
+                          <div style={{ marginTop: 10, fontSize: 11.5, fontWeight: 700, color: C.muted2 }}>
+                            Record the refund from the sales receipt (Finance → Sales → this booking → ↩ Refund).
+                          </div>
                         )}
                       </div>
                     );
@@ -889,136 +876,8 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                 </Panel>
               )}
 
-              {!moneyHidden && data.event.order_id && (
-              <Panel title="Refund">
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
-                  First pick <b>what happened</b>. A <b>cancelled</b> or <b>missing</b> item is removed from the
-                  receipt; a <b>quality</b> refund is taken off as a discount. <b>You return the money by hand</b> —
-                  this records it and emails the customer the updated receipt. A confirmation shows the amount,
-                  item and reason before anything happens.
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* 1) What happened — this drives everything below. */}
-                  <select
-                    value={refundCategory}
-                    onChange={(e) => { setRefundCategory(e.target.value as any); setRefundItem(''); setRefundAmount(''); }}
-                    style={{ ...inputStyle, width: '100%' }}
-                  >
-                    <option value="customer_cancellation">Customer cancelled an item → remove it</option>
-                    <option value="missing_item">Missing item or service → remove it</option>
-                    <option value="quality_issue">Quality issue → take it off as a discount</option>
-                    <option value="other">Other → take it off as a discount</option>
-                  </select>
-
-                  {(refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') ? (
-                    // Remove a specific item — pick it, the amount fills automatically.
-                    <select
-                      value={refundItem}
-                      onChange={(e) => {
-                        // Key by the UNIQUE row id, not the label — two lines can
-                        // share a label (e.g. two "Extra hour") and matching by
-                        // label picked the first one's amount. Resolve the exact row.
-                        const idSel = e.target.value;
-                        setRefundItem(idSel);
-                        const svc = (data.services || []).find((s: any) => String(s.id) === idSel);
-                        setRefundAmount(svc ? String((Number(svc.amount_fils) || 0) / 100) : '');
-                      }}
-                      style={{ ...inputStyle, width: '100%' }}
-                    >
-                      <option value="">Choose the item to remove…</option>
-                      {(data.services || [])
-                        .filter((s: any) => Number(s.amount_fils) > 0 && s.source !== 'package_item')
-                        .map((s: any) => (
-                          <option key={s.id} value={String(s.id)}>
-                            {s.label} — AED {(Number(s.amount_fils) / 100).toLocaleString()}
-                          </option>
-                        ))}
-                    </select>
-                  ) : (
-                    // Quality / other → a free amount taken off as a discount.
-                    <input
-                      placeholder="Amount to take off as a discount (AED)"
-                      value={refundAmount}
-                      // Convert Arabic-Indic digits to ASCII first (our team types
-                      // on an Arabic keyboard) so the amount isn't stripped to empty.
-                      onChange={(e) => setRefundAmount(toAsciiDigits(e.target.value).replace(/[^\d.]/g, ''))}
-                      style={inputStyle}
-                    />
-                  )}
-
-                  {refundItem && (refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') && (
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
-                      Removing <b>{(data.services || []).find((s: any) => String(s.id) === refundItem)?.label ?? ''}</b> — AED {Number(refundAmount || 0).toLocaleString()} back to the customer.
-                    </div>
-                  )}
-
-                  <input
-                    placeholder="Note (optional — the specifics)"
-                    value={refundReason}
-                    onChange={(e) => setRefundReason(e.target.value)}
-                    style={inputStyle}
-                  />
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: refundCancelEvent ? C.red : C.muted2, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={refundCancelEvent} onChange={(e) => setRefundCancelEvent(e.target.checked)} />
-                    Cancel the event too (releases reservations, stops emails, moves it to Cancelled)
-                  </label>
-                  <div>
-                    <Button
-                      tone="danger"
-                      disabled={actionBusy || !refundAmount || ((refundCategory === 'customer_cancellation' || refundCategory === 'missing_item') && !refundItem)}
-                      onClick={async () => {
-                        if (actionBusy) return;
-                        const amt = Number(refundAmount);
-                        if (!amt || !Number.isFinite(amt)) return;
-                        const needsItem = refundCategory === 'customer_cancellation' || refundCategory === 'missing_item';
-                        if (needsItem && !refundItem) return;
-                        // refundItem is the row id — resolve its label for the message + API.
-                        const refundItemLabel = (data.services || []).find((s: any) => String(s.id) === refundItem)?.label ?? '';
-                        // A clear confirmation BEFORE anything happens — the amount,
-                        // what it's for, and the reason — so a stray tap can't quietly
-                        // refund a customer (and the money is always returned by hand).
-                        const reasonLabels: Record<string, string> = {
-                          customer_cancellation: 'Customer requested cancellation',
-                          quality_issue: 'Quality issue',
-                          missing_item: 'Missing item or service',
-                          other: 'Other',
-                        };
-                        const lines = [
-                          `Refund AED ${amt.toLocaleString()} on ${data.event.order_id}?`,
-                          '',
-                          `• For: ${refundItemLabel || 'no specific item (free amount)'}`,
-                          `• Reason: ${reasonLabels[refundCategory] || refundCategory}${refundReason.trim() ? ` — ${refundReason.trim()}` : ''}`,
-                        ];
-                        if (refundCancelEvent) lines.push('• The EVENT will also be CANCELLED (reservations released, emails stopped).');
-                        lines.push('', 'This only RECORDS the refund and emails the customer — you return the money by hand. Confirm ONLY after you have actually sent the money back.');
-                        if (!window.confirm(lines.join('\n'))) return;
-                        setActionBusy(true);
-                        try {
-                          const res = await api.refund(
-                            data.event.order_id,
-                            Math.round(amt * 100),
-                            { reasonCategory: refundCategory, reason: refundReason.trim() || undefined, cancelEvent: refundCancelEvent, itemLabel: refundItemLabel || undefined },
-                          );
-                          const apology = refundCategory === 'quality_issue' || refundCategory === 'missing_item';
-                          setMessage(`Refund recorded — order is now ${res.status}.${res.eventCancelled ? ' Event cancelled.' : ''} The customer has been ${apology ? 'sent an apology + the updated receipt' : 'emailed the updated receipt'}.`);
-                          setRefundAmount('');
-                          setRefundReason('');
-                          setRefundItem('');
-                          setRefundCancelEvent(false);
-                          load();
-                        } catch (e: any) {
-                          setMessage(e.message);
-                        } finally {
-                          setActionBusy(false);
-                        }
-                      }}
-                    >
-                      Refund
-                    </Button>
-                  </div>
-                </div>
-              </Panel>
-              )}
+              {/* Refunds are recorded ONLY from the sales receipt (Finance → Sales),
+                  so there is one place to refund and nothing is refunded twice. */}
             </div>
           </>
         )}
