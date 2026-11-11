@@ -226,9 +226,6 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
   const load = async () => {
     const d = await api.event(eventId);
     setData(d);
-    // The payment audit trail is a manager/owner tool (money view). Employees /
-    // drivers don't fetch it — the API forbids it and they don't need it.
-    if (d.event.order_id && d.event.totalDisplay != null) setAudit(await api.audit(d.event.order_id).catch(() => []));
   };
   useEffect(() => { load(); }, [eventId]);
 
@@ -803,37 +800,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                 )}
               </Panel>
 
-              {!moneyHidden && (
-              <Panel title="Payments &amp; audit trail">
-                {(data.orders ?? []).map((o: any) => (
-                  <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
-                    <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, flex: 1 }}>{o.id}</span>
-                    <Badge tone={o.kind === 'addon' ? 'info' : 'neutral'}>{o.kind}</Badge>
-                    <Badge tone={o.status === 'paid' ? 'ok' : o.status === 'needs_review' ? 'error' : 'warn'}>
-                      {o.status}
-                    </Badge>
-                    <span style={{ fontWeight: 700, fontSize: 12.5, minWidth: 90, textAlign: 'right' }}>
-                      AED {o.totalDisplay}
-                    </span>
-                  </div>
-                ))}
-
-                <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
-                  {audit.map((a) => (
-                    <div key={a.id} style={{ fontSize: 11.5, fontWeight: 600, color: C.muted2, padding: '3px 0', display: 'flex', gap: 8 }}>
-                      <span style={{ color: C.muted, minWidth: 130 }}>
-                        {new Date(a.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <span style={{ fontFamily: 'ui-monospace, monospace' }}>
-                        {a.old_status ?? '—'} → {a.new_status}
-                      </span>
-                      <span style={{ color: C.muted }}>[{a.source}]</span>
-                      <span style={{ flex: 1 }}>{a.note ?? ''}</span>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-              )}
+              {/* Payments & audit trail removed from the event page (owner, 2026-11-11). */}
 
               {data.event.cancellation && (
                 <Panel title="Cancellation & refund">
