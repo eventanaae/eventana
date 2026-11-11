@@ -6206,6 +6206,8 @@ const ITEMS_REQUIRED = {
       // The specific ordered item the owner picked to refund (its label), so the
       // receipt shows that line as refunded. Optional (free-amount refund).
       itemLabel: z.string().min(1).max(200).optional(),
+      // Whole-party cancellation: the charge Eventana keeps (refund + charge = paid).
+      cancellationChargeFils: z.number().int().min(0).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
@@ -6231,6 +6233,7 @@ const ITEMS_REQUIRED = {
       reasonCategory: parsed.data.reasonCategory,
       cancelEvent: parsed.data.cancelEvent,
       itemLabel,
+      cancellationChargeFils: parsed.data.cancellationChargeFils ?? null,
       createdBy: String((request as any).staff?.name ?? 'staff'),
       // The team returns the customer's money themselves (bank transfer) for every
       // booking — so record the refund + receipt + email only, never auto-reverse

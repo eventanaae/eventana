@@ -134,6 +134,9 @@ export async function refundOrderMoney(params: {
    *  reflect it on the receipt, email the customer and reverse points. Used by the
    *  manual Refund button for every payment method (card, Tabby, cash alike). */
   recordOnly?: boolean;
+  /** Whole-party cancellation: the charge kept by Eventana (refund + charge =
+   *  what was paid). Stored on the refund + receipt and shown in the email. */
+  cancellationChargeFils?: number | null;
 }): Promise<RefundResult> {
   const { orderId, amountFils, reason } = params;
   const reasonCategory: RefundReasonCategory = params.reasonCategory ?? 'other';
@@ -211,9 +214,10 @@ export async function refundOrderMoney(params: {
         await db.query(
           `INSERT INTO refunds (order_id, event_id, customer_id, amount_fils,
                                 reason_category, reason_note, event_cancelled,
-                                provider_reference, created_by, item_label)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',$8,$9)`,
-          [orderId, ord.event_id, ord.customer_id, toRefund, reasonCategory, reason, !!params.cancelEvent, createdBy, itemLabel],
+                                provider_reference, created_by, item_label, cancellation_charge_fils)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',$8,$9,$10)`,
+          [orderId, ord.event_id, ord.customer_id, toRefund, reasonCategory, reason, !!params.cancelEvent, createdBy, itemLabel,
+           params.cancellationChargeFils != null ? Math.max(0, Math.round(params.cancellationChargeFils)) : null],
         );
         notice = { amountFils: toRefund, byHand: true };
         const status: 'refunded' | 'partially_refunded' = (already + toRefund) >= cap ? 'refunded' : 'partially_refunded';
@@ -226,9 +230,11 @@ export async function refundOrderMoney(params: {
           await db.query(
             `UPDATE finance_receipts
                 SET refunded_fils = refunded_fils + $2,
-                    refunded_items = refunded_items || $3::jsonb
+                    refunded_items = refunded_items || $3::jsonb,
+                    cancellation_charge_fils = COALESCE($4::bigint, cancellation_charge_fils)
               WHERE ${RECEIPT_FOR_ORDER_SQL}`,
-            [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }])],
+            [orderId, toRefund, JSON.stringify([{ label: itemLabel, amountFils: toRefund, reasonCategory, at: new Date().toISOString() }]),
+             params.cancellationChargeFils != null ? Math.max(0, Math.round(params.cancellationChargeFils)) : null],
           );
           // Drop any still-unsent earlier refund email for this order so two
           // refunds before the sweep don't email twice — the new row carries the

@@ -721,10 +721,10 @@ export const api = {
 
   needsReview: () => request<any[]>('/api/admin/needs-review'),
   audit: (orderId: string) => request<any[]>(`/api/admin/orders/${orderId}/audit`),
-  refund: (orderId: string, amountFils: number, opts: { reasonCategory: 'customer_cancellation' | 'quality_issue' | 'missing_item' | 'other'; reason?: string; cancelEvent?: boolean; itemLabel?: string }) =>
+  refund: (orderId: string, amountFils: number, opts: { reasonCategory: 'customer_cancellation' | 'quality_issue' | 'missing_item' | 'other'; reason?: string; cancelEvent?: boolean; itemLabel?: string; cancellationChargeFils?: number }) =>
     request<any>(`/api/admin/orders/${orderId}/refund`, {
       method: 'POST',
-      body: JSON.stringify({ amountFils, reasonCategory: opts.reasonCategory, reason: opts.reason, cancelEvent: !!opts.cancelEvent, itemLabel: opts.itemLabel }),
+      body: JSON.stringify({ amountFils, reasonCategory: opts.reasonCategory, reason: opts.reason, cancelEvent: !!opts.cancelEvent, itemLabel: opts.itemLabel, cancellationChargeFils: opts.cancellationChargeFils }),
     }),
   refundsReport: () => request<any>('/api/admin/refunds'),
   customers: (q?: string) => request<any[]>(`/api/admin/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
