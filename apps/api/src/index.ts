@@ -776,6 +776,23 @@ async function main() {
         }
         console.log(`[paychk] PAYMENT ${oid} ${p.provider} db_status=${p.status} db_amount=${p.amount_fils} db_captured=${p.captured_fils} created=${p.created_dubai} updated=${p.updated_dubai} | ${remote}`);
       }
+      // Stripe: card brand / country / funding and the exact fee (read-only).
+      for (const p of rows) {
+        if (p.provider !== 'stripe' || !p.provider_payment_id || !config.providers.stripe.secretKey) continue;
+        try {
+          const qs = new URLSearchParams();
+          qs.append('expand[]', 'payment_intent.latest_charge.balance_transaction');
+          const res = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(p.provider_payment_id)}?${qs}`, {
+            signal: AbortSignal.timeout(15000), headers: { Authorization: `Bearer ${config.providers.stripe.secretKey}` } });
+          const j: any = await res.json();
+          const ch = j?.payment_intent?.latest_charge;
+          const card = ch?.payment_method_details?.card ?? {};
+          const bt = ch?.balance_transaction ?? {};
+          console.log(`[paychk] STRIPE ${oid} status=${res.status} brand=${card.brand} funding=${card.funding} country=${card.country} wallet=${card.wallet?.type ?? 'none'} `
+            + `amount=${bt.amount} fee=${bt.fee} net=${bt.net} currency=${bt.currency} fee_details=${JSON.stringify((bt.fee_details ?? []).map((f: any) => ({ type: f.type, amount: f.amount, desc: f.description })))} `
+            + `refunded=${ch?.amount_refunded}`);
+        } catch (e) { console.log(`[paychk] STRIPE ${oid} error: ${(e as Error).message}`); }
+      }
       if (!rows.length) console.log(`[paychk] ${oid} no payments`);
     })().catch((e) => console.error('[paychk] failed:', (e as Error).message));
   }
