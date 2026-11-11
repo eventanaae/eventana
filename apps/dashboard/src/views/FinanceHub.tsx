@@ -1401,6 +1401,12 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
   const [itemIdx, setItemIdx] = useState('');
   const remainingAed = remainingFils != null && remainingFils > 0 ? String(remainingFils / 100) : '';
   const [amount, setAmount] = useState(remainingAed);
+  // Whole party: refund + cancellation charge must equal what is left on the booking.
+  const [charge, setCharge] = useState('0');
+  const remaining = remainingFils != null ? Math.max(0, remainingFils) : null;
+  const refundFilsNow = Math.round((Number(amount) || 0) * 100);
+  const chargeFilsNow = Math.round((Number(charge) || 0) * 100);
+  const sumMatches = category !== 'whole_party' || remaining == null || Math.abs(refundFilsNow + chargeFilsNow - remaining) <= 1;
   const [note, setNote] = useState('');
   const [cancelEvent, setCancelEvent] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -1417,6 +1423,7 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
     const amt = Number(amount);
     if (!amt || !Number.isFinite(amt)) return;
     if (needsItem && !picked) return;
+    if (!sumMatches) return;
     // A clear confirmation BEFORE anything happens — amount, item and reason —
     // so a stray tap can't quietly refund a customer, and a reminder that the
     // money is always returned by hand. Mirrors Events.tsx exactly.
@@ -1432,6 +1439,7 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
       `• For: ${item || 'no specific item (free amount)'}`,
       `• Reason: ${reasonLabels[category] || category}${note.trim() ? ` — ${note.trim()}` : ''}`,
     ];
+    if (category === 'whole_party') lines.push(`• Cancellation charge kept: AED ${(chargeFilsNow / 100).toLocaleString()}`);
     if (cancelEvent) lines.push('• The EVENT will also be CANCELLED (reservations released, emails stopped).');
     lines.push('', 'This only RECORDS the refund and emails the customer — you return the money by hand. Confirm ONLY after you have actually sent the money back.');
     if (!window.confirm(lines.join('\n'))) return;
@@ -1443,6 +1451,7 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
         reason: note.trim() || undefined,
         cancelEvent,
         itemLabel: item || undefined,
+        cancellationChargeFils: category === 'whole_party' ? chargeFilsNow : undefined,
       });
       const apology = category === 'quality_issue' || category === 'missing_item';
       setMsg(`Refund recorded — order is now ${res.status}.${res.eventCancelled ? ' Event cancelled.' : ''} The customer has been ${apology ? 'sent an apology + the updated receipt' : 'emailed the updated receipt'}.`);
@@ -1483,6 +1492,7 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
                 const v = e.target.value as any;
                 setCategory(v); setItemIdx('');
                 setAmount(v === 'whole_party' ? remainingAed : '');
+                setCharge('0');
                 setCancelEvent(v === 'whole_party');
               }}
               style={input}
@@ -1514,21 +1524,47 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
               </select>
             ) : (
               // Whole party / quality → an amount (whole party starts at what's left).
+              <>
+              {category === 'whole_party' && <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2 }}>Refund amount (AED) — back to the customer</div>}
               <input
                 placeholder={category === 'whole_party' ? 'Amount to refund (AED) — what is left is filled in' : 'Amount to refund (AED)'}
                 value={amount}
                 // Convert Arabic-Indic digits to ASCII FIRST (our team types on an
                 // Arabic keyboard) — otherwise the \d filter strips them and the
                 // field stays empty, blocking the refund.
-                onChange={(e) => setAmount(toAsciiDigits(e.target.value).replace(/[^\d.]/g, ''))}
+                onChange={(e) => {
+                  const v = toAsciiDigits(e.target.value).replace(/[^\d.]/g, '');
+                  setAmount(v);
+                  // Whole party: the charge is whatever is left after the refund.
+                  if (category === 'whole_party' && remaining != null) setCharge(String(Math.max(0, remaining - Math.round((Number(v) || 0) * 100)) / 100));
+                }}
                 style={input}
               />
+              </>
             )}
 
-            {category === 'whole_party' && remainingFils != null && (
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
-                Still on this booking: <b>AED {money(Math.max(0, remainingFils))}</b>. Lower the amount if you keep a fee (e.g. card charges).
-              </div>
+            {category === 'whole_party' && (
+              <>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2 }}>Cancellation charge (AED) — what Eventana keeps, e.g. card fees</div>
+                <input
+                  value={charge}
+                  inputMode="decimal"
+                  onChange={(e) => {
+                    const v = toAsciiDigits(e.target.value).replace(/[^\d.]/g, '');
+                    setCharge(v);
+                    // Keep refund + charge = what's left on the booking.
+                    if (remaining != null) setAmount(String(Math.max(0, remaining - Math.round((Number(v) || 0) * 100)) / 100));
+                  }}
+                  style={input}
+                />
+                {remaining != null && (
+                  <div style={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.6, padding: '8px 10px', borderRadius: 10,
+                    background: sumMatches ? C.greenSoft : C.redSoft, color: sumMatches ? C.green : C.red }}>
+                    Refund AED {money(refundFilsNow)} + Charge AED {money(chargeFilsNow)} = AED {money(refundFilsNow + chargeFilsNow)}
+                    {sumMatches ? ' ✓ matches the booking' : ` ✗ must equal AED ${money(remaining)}`}
+                  </div>
+                )}
+              </>
             )}
             {picked && needsItem && (
               <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
@@ -1548,7 +1584,7 @@ function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose
             </label>
             <Button
               tone="danger"
-              disabled={busy || !amount || (needsItem && !picked)}
+              disabled={busy || !amount || (needsItem && !picked) || !sumMatches}
               onClick={submit}
             >
               {busy ? '…' : '↩ Refund'}
@@ -1725,6 +1761,9 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
         {kind === 'receipt' && rv.isRefund ? (
           <>
             <Row label="Total paid" value={`AED ${doc.totalDisplay}`} />
+            {doc.cancellation_charge_fils != null && Number(doc.cancellation_charge_fils) > 0 && (
+              <Row label="Cancellation charge" value={`AED ${money(Number(doc.cancellation_charge_fils))}`} />
+            )}
             <Row label={<span style={{ color: C.red }}>Refunded</span>} value={<span style={{ color: C.red }}>− AED {money(rv.refundedFils)}</span>} />
             <Row label={<b>Net after refund</b>} value={<b style={{ ...fredoka(15), color: C.pinkDeep }}>AED {money(rv.shownTotal)}</b>} />
           </>

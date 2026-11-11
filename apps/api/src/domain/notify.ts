@@ -399,6 +399,8 @@ export function renderFinanceDocEmail(
     date_tbd?: boolean; paid_with?: string | null; booked_on?: unknown; bookedOn?: unknown;
     refundedFils?: number; netTotalFils?: number;
     refundedItems?: Array<{ label?: string | null; amountFils?: number; reasonCategory?: string | null }>;
+    /** Whole-party cancellation: charge kept by Eventana (refund + charge = paid). */
+    cancellationChargeFils?: number | null;
   },
   kind: 'receipt' | 'invoice',
   // When set, the receipt is re-sent as a REFUND email: 'apology' for a quality
@@ -448,7 +450,12 @@ export function renderFinanceDocEmail(
   // cover `refunded`, so `refunded - matchedRemoval` equals extraDiscount +
   // unmatchedRemoval and the Math.max is a no-op.
   const matchedRemoval = removalPool.filter((p) => p.used).reduce((s, p) => s + p.amt, 0);
-  const shownDiscount = Number(doc.discount_fils || 0) + Math.max(extraDiscount + unmatchedRemoval, refunded - matchedRemoval);
+  // A whole-party cancellation shows the receipt as it was PAID, then a clear
+  // summary: total paid / cancellation charge / refund — never folded into Discount.
+  const cancelCharge = doc.cancellationChargeFils != null && hasRefund ? Math.max(0, Number(doc.cancellationChargeFils)) : null;
+  const shownDiscount = cancelCharge != null
+    ? Number(doc.discount_fils || 0)
+    : Number(doc.discount_fils || 0) + Math.max(extraDiscount + unmatchedRemoval, refunded - matchedRemoval);
   if (shownDiscount > 0) lines.push({ label: 'Discount', quantity: 1, amountFils: -shownDiscount });
   if (Number(doc.shipping_fils) > 0) lines.push({ label: 'Shipping & delivery', quantity: 1, amountFils: Number(doc.shipping_fils) });
 
@@ -477,7 +484,9 @@ export function renderFinanceDocEmail(
   // discount), so the receipt's own bold bottom row is the new net total — there
   // is no separate "Refunded" block any more.
 
-  const intro = isRefund
+  const intro = isRefund && cancelCharge != null
+    ? `Your booking has been cancelled and your refund has been processed. 💛 Here's your receipt with the full breakdown below.`
+    : isRefund
     ? (apology
         ? `We're truly sorry this part of your celebration didn't meet the Eventana standard. 💛 We've refunded you for it — the details are below, and your updated receipt is attached to this note.`
         : `Your refund has been processed. 💛 Here's your updated receipt with the refunded item and your new total.`)
@@ -488,7 +497,15 @@ export function renderFinanceDocEmail(
     `<p style="margin:0 0 8px;font-size:15px;line-height:1.6">${intro}</p>` +
     detailCard(detailRows) +
     `<div style="margin:20px 0 4px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${MUTED}">${kind === 'receipt' ? 'Receipt' : 'Invoice'}</div>` +
-    invoiceTable(lines, hasRefund ? netTotal : Number(doc.total_fils)) +
+    invoiceTable(lines, cancelCharge != null ? Number(doc.total_fils) : (hasRefund ? netTotal : Number(doc.total_fils))) +
+    (cancelCharge != null
+      ? `<div style="margin:20px 0 4px;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${MUTED}">Cancellation</div>` +
+        detailCard([
+          ['Total paid', aed(Number(doc.total_fils))],
+          ['Cancellation charge', aed(cancelCharge)],
+          ['Refund amount', aed(refunded)],
+        ])
+      : '') +
     (isRefund ? `<p style="margin:16px 0 0;color:${MUTED};font-size:13px;line-height:1.6">Your refund may take approximately <b>7 business days</b> to appear, depending on your bank or payment provider.</p>` : '') +
     (doc.message ? `<p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:${INK}">${doc.message}</p>` : '') +
     termsNote();
@@ -1496,7 +1513,8 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
               fr.paid_with AS r_paid_with, fr.event_for AS r_event_for, fr.theme AS r_theme,
               fr.age AS r_age, fr.event_time AS r_event_time, fr.date AS r_date, fr.date_tbd AS r_date_tbd,
               fr.booked_on AS r_booked_on,
-              fr.refunded_fils AS r_refunded, fr.refunded_items AS r_refunded_items
+              fr.refunded_fils AS r_refunded, fr.refunded_items AS r_refunded_items,
+              fr.cancellation_charge_fils AS r_cancel_charge, fr.discount_label AS r_discount_label
          FROM notifications n
          JOIN orders o    ON o.id = (n.payload->>'orderId')
          JOIN customers c ON c.id = o.customer_id
@@ -1525,6 +1543,7 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
           event_for: row.r_event_for, theme: row.r_theme, age: row.r_age, event_time: row.r_event_time,
           refundedFils: refunded, netTotalFils: total - refunded,
           refundedItems: Array.isArray(row.r_refunded_items) ? row.r_refunded_items : [],
+          cancellationChargeFils: row.r_cancel_charge != null ? Number(row.r_cancel_charge) : null,
         }, 'receipt', { refundMode: apology ? 'apology' : 'confirmation' });
       } else {
         // No linked receipt (e.g. a shop order) → the plain refund card.

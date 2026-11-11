@@ -1980,3 +1980,8 @@ UPDATE finance_receipts r
          WHERE l->>'kind' = 'discount' AND COALESCE(l->>'label','') <> ''
          GROUP BY o.id) d
  WHERE r.order_id = d.id AND r.discount_label IS NULL AND r.discount_fils > 0;
+
+-- Whole-party cancellation: the charge the business keeps (refund + charge = what
+-- was paid), so the receipt and the customer's email show both amounts.
+ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS cancellation_charge_fils BIGINT;
+ALTER TABLE refunds ADD COLUMN IF NOT EXISTS cancellation_charge_fils BIGINT;
