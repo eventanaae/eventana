@@ -1935,7 +1935,14 @@ CREATE INDEX IF NOT EXISTS receipt_addon_money_receipt_idx ON receipt_addon_mone
 --   amount_fils     the money in this slice (gross; refunds stay in `refunds`)
 CREATE OR REPLACE VIEW receipt_money_by_day AS
   SELECT r.id AS receipt_id,
-         'base'::text AS slice,
+         -- A sale whose party was CANCELLED is not a booking: its base slice is
+         -- labelled 'cancelled', so every "bookings" count (slice = 'base') skips
+         -- it while the money (paid − refunds = the cancellation charge) still counts.
+         (CASE WHEN EXISTS (
+                 SELECT 1 FROM events e
+                  WHERE (e.id = r.event_id OR (r.order_id IS NOT NULL AND e.order_id = r.order_id))
+                    AND (e.phase = 'Cancelled' OR e.cancelled_at IS NOT NULL))
+               THEN 'cancelled' ELSE 'base' END)::text AS slice,
          r.order_id AS slice_order_id,
          r.booked_on AS slice_booked_on,
          COALESCE(r.booked_on, r.date) AS money_day,

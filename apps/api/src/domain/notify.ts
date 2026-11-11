@@ -401,6 +401,8 @@ export function renderFinanceDocEmail(
     refundedItems?: Array<{ label?: string | null; amountFils?: number; reasonCategory?: string | null }>;
     /** Whole-party cancellation: charge kept by Eventana (refund + charge = paid). */
     cancellationChargeFils?: number | null;
+    /** The party itself was cancelled: items are shown as cancelled. */
+    event_cancelled?: boolean | null;
   },
   kind: 'receipt' | 'invoice',
   // When set, the receipt is re-sent as a REFUND email: 'apology' for a quality
@@ -431,11 +433,12 @@ export function renderFinanceDocEmail(
     .map((r) => ({ label: String(r.label ?? '').trim().toLowerCase(), amt: Number(r.amountFils), used: false }));
   const extraDiscount = refundedItems.filter((r) => !isRemoval(r)).reduce((s, r) => s + Number(r.amountFils), 0);
 
+  const cancelledParty = !!doc.event_cancelled;
   const lines = (doc.lineItems ?? [])
-    .map((l) => ({ label: l.name, quantity: Number(l.qty), amountFils: Math.round(Number(l.qty) * Number(l.priceFils)) }))
+    .map((l) => ({ label: cancelledParty ? `${l.name} (cancelled)` : l.name, quantity: Number(l.qty), amountFils: Math.round(Number(l.qty) * Number(l.priceFils)) }))
     .filter((line) => {
       // Drop a line that was cancelled/returned (match by name + exact amount).
-      const m = removalPool.find((p) => !p.used && p.label === String(line.label).trim().toLowerCase() && p.amt === line.amountFils);
+      const m = removalPool.find((p) => !p.used && p.label === String(line.label).replace(/ \(cancelled\)$/, '').trim().toLowerCase() && p.amt === line.amountFils);
       if (m) { m.used = true; return false; }
       return true;
     });
@@ -477,7 +480,7 @@ export function renderFinanceDocEmail(
   if (doc.theme) detailRows.push(['Theme', String(doc.theme)]);
   if (kind === 'receipt') {
     if (doc.paid_with) detailRows.push(['Paid with', String(doc.paid_with)]);
-    detailRows.push(['Status', hasRefund ? (netTotal > 0 ? 'Partially refunded ↩︎' : 'Refunded ↩︎') : 'Paid ✓']);
+    detailRows.push(['Status', cancelledParty ? 'Cancelled — refunded ↩︎' : hasRefund ? (netTotal > 0 ? 'Partially refunded ↩︎' : 'Refunded ↩︎') : 'Paid ✓']);
   } else if (doc.due_date) detailRows.push(['Payment due', longDate(doc.due_date)]);
 
   // The refund is already folded into the receipt above (removed line or added
@@ -1514,7 +1517,10 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
               fr.age AS r_age, fr.event_time AS r_event_time, fr.date AS r_date, fr.date_tbd AS r_date_tbd,
               fr.booked_on AS r_booked_on,
               fr.refunded_fils AS r_refunded, fr.refunded_items AS r_refunded_items,
-              fr.cancellation_charge_fils AS r_cancel_charge, fr.discount_label AS r_discount_label
+              fr.cancellation_charge_fils AS r_cancel_charge, fr.discount_label AS r_discount_label,
+              EXISTS (SELECT 1 FROM events e
+                       WHERE (e.id = fr.event_id OR (fr.order_id IS NOT NULL AND e.order_id = fr.order_id))
+                         AND (e.phase = 'Cancelled' OR e.cancelled_at IS NOT NULL)) AS r_event_cancelled
          FROM notifications n
          JOIN orders o    ON o.id = (n.payload->>'orderId')
          JOIN customers c ON c.id = o.customer_id
@@ -1544,6 +1550,7 @@ async function _deliverPendingNotifications(): Promise<{ emails: number; pushes:
           refundedFils: refunded, netTotalFils: total - refunded,
           refundedItems: Array.isArray(row.r_refunded_items) ? row.r_refunded_items : [],
           cancellationChargeFils: row.r_cancel_charge != null ? Number(row.r_cancel_charge) : null,
+          event_cancelled: !!row.r_event_cancelled,
         }, 'receipt', { refundMode: apology ? 'apology' : 'confirmation' });
       } else {
         // No linked receipt (e.g. a shop order) → the plain refund card.
