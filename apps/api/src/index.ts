@@ -730,6 +730,10 @@ async function main() {
     || (shanKey.startsWith('audit:') ? shanKey.slice(6) : '');
   // Read-only provider check of one order's payment(s): SET_SHAN_LEADER=paychk:<orderId>.
   // Logs the provider's own status / captured / refunded amounts. Changes nothing.
+  if (shanKey === 'applepay') {
+    void import('./db/stripeApplePay.js').then(({ stripeApplePayFromEnv }) => stripeApplePayFromEnv())
+      .catch((e) => console.error('[applepay] failed:', (e as Error).message));
+  }
   if (shanKey === 'fixlatifa') {
     void import('./db/fixLatifa2125.js').then(({ fixLatifa2125 }) => fixLatifa2125())
       .catch((e) => console.error('[fixlatifa] failed:', (e as Error).message));
