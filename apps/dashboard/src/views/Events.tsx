@@ -562,57 +562,7 @@ export function EventDrawer({ eventId, onClose, role }: { eventId: string; onClo
                         Customer sees ETA: {data.event.eta}
                       </div>
                     )}
-                    {canManage && (
-                    <div style={{ marginTop: 14, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
-                      <div style={{ ...fredoka(14), color: C.ink, marginBottom: 6 }}>Cancel this event</div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.6 }}>
-                        Cancelling stops live tracking, releases the reserved assets, closes the
-                        preparation tasks and blocks further customer purchases. Any refund owed is
-                        recorded on the receipt and emailed to the customer — <b>you transfer the
-                        money to the customer by hand</b> (the system does not refund the card).
-                      </div>
-                      <select
-                        value={cancelCategory}
-                        onChange={(e) => setCancelCategory(e.target.value as any)}
-                        style={{ ...inputStyle, marginBottom: 8, color: cancelCategory === 'quality_issue' ? C.red : C.ink }}
-                      >
-                        <option value="customer_cancellation">Customer asked to cancel</option>
-                        <option value="quality_issue">Our quality issue (our loss)</option>
-                        <option value="other">Other reason</option>
-                      </select>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input
-                          placeholder="Cancellation reason (required)"
-                          value={cancelReason}
-                          onChange={(e) => setCancelReason(e.target.value)}
-                          style={inputStyle}
-                        />
-                        <Button
-                          tone="danger"
-                          disabled={!cancelReason.trim() || actionBusy}
-                          onClick={async () => {
-                            if (actionBusy) return;
-                            setActionBusy(true);
-                            try {
-                              await api.cancelEvent(eventId, cancelReason.trim(), cancelCategory);
-                              setCancelReason('');
-                              setCancelCategory('customer_cancellation');
-                              setMessage('Event cancelled. Assets released and tasks closed.');
-                              load();
-                            } catch { /* the API error handler already shows a toast */ }
-                            finally { setActionBusy(false); }
-                          }}
-                        >
-                          Cancel event
-                        </Button>
-                      </div>
-                      {cancelCategory === 'quality_issue' && (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: C.red, marginTop: 6 }}>
-                          Logged as our loss — it will show in the Refund report under quality issues.
-                        </div>
-                      )}
-                    </div>
-                    )}
+                    {/* Cancelling is done from the sales receipt (↩ Refund → "Customer cancelled the whole party"). */}
                   </>
                 )}
               </Panel>

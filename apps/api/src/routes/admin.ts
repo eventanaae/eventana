@@ -6197,7 +6197,9 @@ const ITEMS_REQUIRED = {
   app.post('/api/admin/orders/:orderId/refund', async (request, reply) => {
     const { orderId } = request.params as { orderId: string };
     const schema = z.object({
-      amountFils: z.number().int().min(1),
+      // 0 is allowed only for a whole-party cancellation with NO refund
+      // (the cancellation charge is the full amount) — see below.
+      amountFils: z.number().int().min(0),
       reason: z.string().min(1).max(500).optional(),
       // Structured reason so refunds are trackable (customer choice vs. our
       // service problems). A refund is NOT a cancellation unless cancelEvent.
@@ -6211,6 +6213,29 @@ const ITEMS_REQUIRED = {
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'invalid_request' });
+
+    // Whole-party cancellation with NO refund: Eventana keeps everything as the
+    // cancellation charge. Cancel the event (no money recorded), close its
+    // cancellation as nothing owed, and put the charge on the receipt.
+    if (parsed.data.amountFils === 0) {
+      if (!parsed.data.cancelEvent) return reply.status(400).send({ error: 'invalid_request', message: 'Enter an amount to refund.' });
+      const ev = (await pool.query<{ id: string }>(
+        `SELECT id FROM events WHERE order_id = $1
+         UNION SELECT event_id FROM orders WHERE id = $1 AND event_id IS NOT NULL LIMIT 1`, [orderId])).rows[0];
+      if (!ev) return reply.status(404).send({ error: 'not_found' });
+      const reasonText = parsed.data.reason?.trim() || 'Customer cancelled the whole party — no refund';
+      const result = await cancelEvent(ev.id, reasonText);
+      if (!result) return reply.status(404).send({ error: 'not_found' });
+      await pool.query(
+        `UPDATE cancellations SET refund_status = 'none', refund_amount_fils = 0, processed_at = now()
+          WHERE order_id = $1 AND refund_status <> 'processed'`, [orderId]).catch(() => {});
+      await pool.query(
+        `UPDATE finance_receipts SET cancellation_charge_fils = GREATEST(0, total_fils - refunded_fils)
+          WHERE order_id = $1 OR event_id = $2`, [orderId, ev.id]).catch(() => {});
+      logAudit({ actor: String((request as any).staff?.name ?? 'staff'), role: (request as any).staff?.role, action: 'cancel_event', target: ev.id, detail: { reason: reasonText, refundFils: 0 } });
+      void syncEventToCalendar(ev.id);
+      return { orderId, status: 'cancelled', refundedFils: 0, eventCancelled: true };
+    }
 
     // One code path for every refund (customer-cancel, admin-cancel, and this
     // manual refund) — money-out, tracking, always-email, and an OPTIONAL event
