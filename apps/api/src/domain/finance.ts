@@ -515,6 +515,7 @@ export async function recordSaleFromOrder(
     // booking quote.
     const items: LineItem[] = [];
     let discount = 0, shipping = 0;
+    const discountLabels: string[] = [];
     if (Array.isArray(quote.lines) && quote.lines.length) {
       // Two quote shapes flow through here: the booking quote (label / amountFils
       // / kind, with delivery & discount as their own lines) and the shop quote
@@ -523,7 +524,7 @@ export async function recordSaleFromOrder(
         const qty = Number(l.quantity ?? 1) || 1;
         const label = l.label ?? l.name ?? 'Item';
         const amt = l.amountFils != null ? Number(l.amountFils) : Number(l.unitFils ?? 0) * qty;
-        if (l.kind === 'discount') discount += Math.abs(amt);
+        if (l.kind === 'discount') { discount += Math.abs(amt); if (l.label) discountLabels.push(String(l.label)); }
         else if (l.kind === 'delivery') shipping += amt;
         else items.push({ name: String(label).slice(0, 200), qty, priceFils: Math.round(amt / qty) });
       }
@@ -563,13 +564,14 @@ export async function recordSaleFromOrder(
     await db.query(
       `INSERT INTO finance_receipts
          (number, customer_id, customer_name, date, booked_on, line_items, subtotal_fils, discount_fils,
-          shipping_fils, total_fils, paid_with, source, order_id, event_for, theme, age)
-       VALUES ($1,$2,$3,COALESCE($4::date,(now() AT TIME ZONE 'Asia/Dubai')::date),(now() AT TIME ZONE 'Asia/Dubai')::date,$5,$6,$7,$8,$9,$15,$10,$11,$12,$13,$14)
+          shipping_fils, total_fils, paid_with, source, order_id, event_for, theme, age, discount_label)
+       VALUES ($1,$2,$3,COALESCE($4::date,(now() AT TIME ZONE 'Asia/Dubai')::date),(now() AT TIME ZONE 'Asia/Dubai')::date,$5,$6,$7,$8,$9,$15,$10,$11,$12,$13,$14,$16)
        ON CONFLICT (order_id) WHERE order_id IS NOT NULL DO NOTHING`,
       [
         number, financeCustomerId, customerName, cart.eventDate ?? null, JSON.stringify(items),
         subtotal, discount, shipping, total, source, order.id,
         cart.eventFor ?? null, theme, cart.ageBand ?? null, paidWith,
+        discountLabels.length ? discountLabels.join(' + ').slice(0, 200) : null,
       ],
     );
     await db.query('RELEASE SAVEPOINT fin_sale');
@@ -1551,7 +1553,7 @@ export function renderDocHtml(doc: any, kind: 'receipt' | 'invoice'): string {
     <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}</table>
     <table style="width:100%;margin-top:12px;font-size:14px">
       <tr><td style="color:#777">Subtotal</td><td style="text-align:right">AED ${money(doc.subtotal_fils)}</td></tr>
-      ${doc.discount_fils > 0 ? `<tr><td style="color:#777">Discount</td><td style="text-align:right">− AED ${money(doc.discount_fils)}</td></tr>` : ''}
+      ${doc.discount_fils > 0 ? `<tr><td style="color:#777">Discount${doc.discount_label ? ` <span style="font-size:12px">(${escapeHtml(String(doc.discount_label))})</span>` : ''}</td><td style="text-align:right">− AED ${money(doc.discount_fils)}</td></tr>` : ''}
       ${doc.shipping_fils > 0 ? `<tr><td style="color:#777">Shipping</td><td style="text-align:right">AED ${money(doc.shipping_fils)}</td></tr>` : ''}
       <tr><td style="font-weight:800;padding-top:8px">Total</td><td style="text-align:right;font-weight:800;color:#E94F9C;padding-top:8px">AED ${doc.totalDisplay}</td></tr>
       ${kind === 'receipt' && doc.paid_with ? `<tr><td style="color:#777;padding-top:6px">Paid with</td><td style="text-align:right;padding-top:6px;font-weight:700">${escapeHtml(String(doc.paid_with))}</td></tr>` : ''}
