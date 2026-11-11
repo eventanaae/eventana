@@ -494,6 +494,7 @@ function ReceiptsList({ isOwner }: { isOwner?: boolean }) {
           orderId={refundTarget.order_id}
           lineItems={refundTarget.lineItems ?? []}
           customerName={refundTarget.customer_name}
+          remainingFils={Number(refundTarget.total_fils ?? 0) - (Number(refundTarget.refundedFils ?? 0) || 0)}
           onDone={() => load()}
           onClose={() => setRefundTarget(null)}
         />
@@ -1383,20 +1384,25 @@ function DocForm({ kind, onClose, onSaved, initial, editId, isOwner }: { kind: '
 // the receipt; a quality / other refund is taken off as a discount. The money is
 // always returned by hand — this only records the refund and emails the customer
 // the updated receipt. Reused by the receipt modal and the top-of-page picker.
-function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
+function RefundDialog({ orderId, lineItems, customerName, remainingFils, onClose, onDone }: {
   orderId: string;
   lineItems: any[];
   customerName?: string;
+  /** What is still refundable on this sale (paid − already refunded), when known. */
+  remainingFils?: number | null;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [category, setCategory] = useState<'customer_cancellation' | 'missing_item' | 'quality_issue' | 'other'>('customer_cancellation');
+  // 'whole_party' = the customer cancelled the WHOLE party → refund what's left
+  // (pre-filled, editable e.g. to keep card fees) and cancel the event.
+  const [category, setCategory] = useState<'whole_party' | 'customer_cancellation' | 'missing_item' | 'quality_issue'>('whole_party');
   // The picked line's INDEX in `items` (as a string; '' = none). Matching by
   // name picked the wrong line when two lines share a name (e.g. two "Extra hour").
   const [itemIdx, setItemIdx] = useState('');
-  const [amount, setAmount] = useState('');
+  const remainingAed = remainingFils != null && remainingFils > 0 ? String(remainingFils / 100) : '';
+  const [amount, setAmount] = useState(remainingAed);
   const [note, setNote] = useState('');
-  const [cancelEvent, setCancelEvent] = useState(false);
+  const [cancelEvent, setCancelEvent] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -1415,10 +1421,10 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
     // so a stray tap can't quietly refund a customer, and a reminder that the
     // money is always returned by hand. Mirrors Events.tsx exactly.
     const reasonLabels: Record<string, string> = {
-      customer_cancellation: 'Customer requested cancellation',
+      whole_party: 'Customer cancelled the whole party',
+      customer_cancellation: 'Customer cancelled an item',
       quality_issue: 'Quality issue',
       missing_item: 'Missing item or service',
-      other: 'Other',
     };
     const lines = [
       `Refund AED ${amt.toLocaleString()} on ${orderId}?`,
@@ -1432,7 +1438,8 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
     setBusy(true); setMsg(null);
     try {
       const res = await api.refund(orderId, Math.round(amt * 100), {
-        reasonCategory: category,
+        // A whole-party cancellation is a customer cancellation with no single item.
+        reasonCategory: category === 'whole_party' ? 'customer_cancellation' : category,
         reason: note.trim() || undefined,
         cancelEvent,
         itemLabel: item || undefined,
@@ -1463,22 +1470,27 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
             <Badge tone="warn">Records only — pay by hand</Badge>
           </div>
           <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
-            First pick <b>what happened</b>. A <b>cancelled</b> or <b>missing</b> item is removed from the
-            receipt; a <b>quality</b> refund is taken off as a discount. <b>You return the money by hand</b> —
-            this records the refund and emails the customer the updated receipt. A confirmation shows the
-            amount, item and reason before anything happens.
+            First pick <b>what happened</b>. For a whole-party cancellation the amount still left on the
+            booking is filled in — change it if you keep a fee. For one item, pick the item. The refund shows on
+            the receipt as its own <b>Refunded</b> line. <b>You return the money by hand</b> — this records it and
+            emails the customer the updated receipt. A confirmation shows everything before anything happens.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* 1) What happened — this drives everything below. */}
             <select
               value={category}
-              onChange={(e) => { setCategory(e.target.value as any); setItemIdx(''); setAmount(''); }}
+              onChange={(e) => {
+                const v = e.target.value as any;
+                setCategory(v); setItemIdx('');
+                setAmount(v === 'whole_party' ? remainingAed : '');
+                setCancelEvent(v === 'whole_party');
+              }}
               style={input}
             >
-              <option value="customer_cancellation">Customer cancelled an item → remove it</option>
-              <option value="missing_item">Missing item or service → remove it</option>
-              <option value="quality_issue">Quality issue → take it off as a discount</option>
-              <option value="other">Other → take it off as a discount</option>
+              <option value="whole_party">Customer cancelled the whole party</option>
+              <option value="customer_cancellation">Customer cancelled one item</option>
+              <option value="missing_item">An item or service was missing</option>
+              <option value="quality_issue">Quality issue (part refund)</option>
             </select>
 
             {needsItem ? (
@@ -1501,9 +1513,9 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
                 ))}
               </select>
             ) : (
-              // Quality / other → a free amount taken off as a discount.
+              // Whole party / quality → an amount (whole party starts at what's left).
               <input
-                placeholder="Amount to take off as a discount (AED)"
+                placeholder={category === 'whole_party' ? 'Amount to refund (AED) — what is left is filled in' : 'Amount to refund (AED)'}
                 value={amount}
                 // Convert Arabic-Indic digits to ASCII FIRST (our team types on an
                 // Arabic keyboard) — otherwise the \d filter strips them and the
@@ -1513,6 +1525,11 @@ function RefundDialog({ orderId, lineItems, customerName, onClose, onDone }: {
               />
             )}
 
+            {category === 'whole_party' && remainingFils != null && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
+                Still on this booking: <b>AED {money(Math.max(0, remainingFils))}</b>. Lower the amount if you keep a fee (e.g. card charges).
+              </div>
+            )}
             {picked && needsItem && (
               <div style={{ fontSize: 12, fontWeight: 700, color: C.muted2, lineHeight: 1.5 }}>
                 Removing <b>{item}</b> — AED {Number(amount || 0).toLocaleString()} back to the customer.
@@ -1761,6 +1778,7 @@ function DocDetail({ doc, kind, onClose, onChanged, isOwner }: { doc: any; kind:
           orderId={doc.order_id}
           lineItems={doc.lineItems ?? []}
           customerName={doc.customer_name}
+          remainingFils={Number(doc.total_fils ?? 0) - (Number(doc.refundedFils ?? 0) || 0)}
           onDone={() => { refundedRef.current = true; onChanged(); }}
           onClose={() => { setRefund(false); if (refundedRef.current) onClose(); }}
         />
