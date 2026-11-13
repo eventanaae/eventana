@@ -364,7 +364,22 @@ export async function captureWebsiteLead(input: {
       for (const r of rows) {
         await pushToOwner('staff', r.id, '🌐 New website enquiry', summary).catch(() => {});
       }
-    } catch { /* push best-effort */ }
+      // Owner's rule (2026-11-13): every website lead also lands on the owner's
+      // and managers' WhatsApp with a one-tap link to chat with the customer.
+      // Staff hours apply (10:00–23:00 Dubai) — a night lead is delivered at 10:00.
+      const { staffWhatsApp } = await import('../integrations/push.js');
+      const bits = [
+        input.name.trim() || 'No name',
+        `+${phone}`,
+        input.emirate || '',
+        input.eventDate ? `Event: ${input.eventDate}` : '',
+        input.message ? `“${input.message.trim().slice(0, 200)}”` : '',
+        `Chat now: https://wa.me/${phone}`,
+      ].filter(Boolean).join(' • ');
+      for (const r of rows) {
+        await staffWhatsApp('🌐 New website lead', bits, r.id, { force: true }).catch(() => {});
+      }
+    } catch { /* push / WhatsApp best-effort */ }
     // Email the team the lead, and email the visitor their welcome code.
     try {
       const { emailEnabled, sendEmail } = await import('../integrations/email.js');

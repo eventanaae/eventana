@@ -178,8 +178,10 @@ function waPhone(raw: string | null): string | null {
  * `staff_alert` template. `memberId` targets one member; omitting it sends to
  * the whole active crew. Gated by WHATSAPP_STAFF_NOTIFY; non-fatal.
  */
-export async function staffWhatsApp(headline: string, details: string, memberId?: string): Promise<void> {
-  if (!config.whatsapp.staffNotify) return;
+export async function staffWhatsApp(headline: string, details: string, memberId?: string, opts: { force?: boolean } = {}): Promise<void> {
+  // `force`: a message the owner asked for explicitly (e.g. a website lead) goes
+  // out even when the general staff-WhatsApp switch is off.
+  if (!config.whatsapp.staffNotify && !opts.force) return;
   try {
     // Night guard (owner's rule): staff WhatsApps only 10:00–23:00 Dubai. A
     // message that fires outside that window is NOT lost — it's queued for the
@@ -194,7 +196,7 @@ export async function staffWhatsApp(headline: string, details: string, memberId?
                  THEN (date_trunc('day', now() AT TIME ZONE 'Asia/Dubai') + time '10:00') AT TIME ZONE 'Asia/Dubai'
                  ELSE (date_trunc('day', now() AT TIME ZONE 'Asia/Dubai') + interval '1 day' + time '10:00') AT TIME ZONE 'Asia/Dubai' END),
            $1::jsonb)`,
-        [JSON.stringify({ memberId: memberId ?? null, headline, details })],
+        [JSON.stringify({ memberId: memberId ?? null, headline, details, force: !!opts.force })],
       ).catch(() => {});
       return;
     }
@@ -236,12 +238,14 @@ export async function deliverStaffWhatsApp(headline: string, details: string, me
 
 /** Deliver any staff WhatsApps that were deferred overnight and are now due. */
 export async function sweepStaffWaQueue(): Promise<void> {
-  if (!config.whatsapp.staffNotify) return;
   try {
+    // With the general switch off, only the forced (owner-requested) rows go out.
     const { rows } = await pool.query<{ id: string; payload: any }>(
       `SELECT id, payload FROM notifications
         WHERE channel = 'staff_wa' AND sent_at IS NULL AND (scheduled_for IS NULL OR scheduled_for <= now())
+          AND ($1::boolean OR (payload->>'force') = 'true')
         ORDER BY scheduled_for LIMIT 50`,
+      [config.whatsapp.staffNotify],
     );
     for (const r of rows) {
       const p = r.payload || {};
