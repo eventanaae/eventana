@@ -42,12 +42,31 @@ export async function waWebhookSetupFromEnv(): Promise<void> {
       try {
         const dbg = await graph(`debug_token?input_token=${encodeURIComponent(tok)}`, appToken);
         const d = dbg.data ?? {};
-        L(`token type=${d.type} valid=${d.is_valid} expires=${d.expires_at ? new Date(d.expires_at * 1000).toISOString() : 'never'}`);
+        L(`token type=${d.type} valid=${d.is_valid} expires=${d.expires_at ? new Date(d.expires_at * 1000).toISOString() : 'never'} scopes=${(d.scopes ?? []).join(',')} granular=${JSON.stringify(d.granular_scopes ?? [])}`);
         for (const g of d.granular_scopes ?? []) if (String(g.scope).startsWith('whatsapp_business')) wabas.push(...(g.target_ids ?? []));
         wabas = [...new Set(wabas)];
       } catch (e) { L(`debug_token: ${(e as Error).message}`); }
     }
-    if (!wabas.length && config.whatsapp.phoneNumberId) L('no WABA id from the token scopes');
+    // Fallbacks: an explicit id (SET_SHAN_LEADER=wahook:<wabaId>), then the
+    // businesses the system user can see and the WABAs they own / share.
+    const explicit = String(process.env.SET_SHAN_LEADER ?? '').split(':')[1];
+    if (explicit) wabas.push(explicit.trim());
+    if (!wabas.length) {
+      try {
+        const me = await graph('me?fields=id,name', tok);
+        L(`token user: ${me.name} (${me.id})`);
+        const biz = await graph('me/businesses?fields=id,name', tok).catch((e) => { L(`me/businesses: ${(e as Error).message}`); return { data: [] }; });
+        for (const b of biz.data ?? []) {
+          L(`business: ${b.name} (${b.id})`);
+          for (const edge of ['owned_whatsapp_business_accounts', 'client_whatsapp_business_accounts']) {
+            const w = await graph(`${b.id}/${edge}?fields=id,name`, tok).catch((e) => { L(`${edge}: ${(e as Error).message}`); return { data: [] }; });
+            for (const a of w.data ?? []) { L(`${edge}: ${a.name} (${a.id})`); wabas.push(a.id); }
+          }
+        }
+      } catch (e) { L(`business lookup: ${(e as Error).message}`); }
+      wabas = [...new Set(wabas)];
+    }
+    if (!wabas.length) L('no WABA id found — pass it as SET_SHAN_LEADER=wahook:<wabaId>');
     for (const w of wabas) {
       try {
         const ph = await graph(`${w}/phone_numbers?fields=display_phone_number,verified_name,quality_rating,platform_type,status`, tok);
