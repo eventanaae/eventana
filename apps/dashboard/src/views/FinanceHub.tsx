@@ -665,6 +665,9 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   const [mAmt, setMAmt] = useState('');
   const [mMerch, setMMerch] = useState('');
   const [vendorAcct, setVendorAcct] = useState<Record<string, string>>({});
+  // Which row the last message belongs to — shown right under THAT row's
+  // buttons. All hooks stay ABOVE the loading return (a hook after it crashed).
+  const [errRow, setErrRow] = useState<number | null>(null);
 
   useEffect(() => {
     api.bankTransactions('pending').then((r) => setRows(Array.isArray(r) ? r : [])).catch(() => setRows([]));
@@ -703,9 +706,6 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
     } catch (e: any) { setErr(e?.message || 'Could not add — please try again.'); } finally { setBusy(null); }
   }
 
-  // Which row the last message belongs to — shown right under THAT row's
-  // buttons, so on a phone the reason is visible where you tapped.
-  const [errRow, setErrRow] = useState<number | null>(null);
   async function approve(r: any) {
     setErrRow(r.id);
     const category = cat[r.id] ?? '';
