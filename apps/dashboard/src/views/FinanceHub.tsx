@@ -691,6 +691,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
 
   async function addManual() {
     const fils = parseAedFils(mAmt);
+    setErrRow(null);
     if (fils <= 0) { setErr('Enter an amount.'); return; }
     setBusy('manual'); setErr(null);
     try {
@@ -702,7 +703,11 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
     } catch (e: any) { setErr(e?.message || 'Could not add — please try again.'); } finally { setBusy(null); }
   }
 
+  // Which row the last message belongs to — shown right under THAT row's
+  // buttons, so on a phone the reason is visible where you tapped.
+  const [errRow, setErrRow] = useState<number | null>(null);
   async function approve(r: any) {
+    setErrRow(r.id);
     const category = cat[r.id] ?? '';
     if (!category) { setErr('Please choose an account for each transaction before approving.'); return; }
     const v = (vendor[r.id] ?? r.merchant ?? '').trim();
@@ -722,6 +727,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
   }
   async function reject(r: any) {
     if (!isOwner) return;
+    setErrRow(r.id);
     setBusy(r.id); setErr(null);
     try {
       await api.bankTxIgnore(r.id);
@@ -729,7 +735,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
     } catch (e: any) { setErr(e?.message || 'Could not reject.'); } finally { setBusy(null); }
   }
   async function upload(r: any, file: File) {
-    setBusy(r.id); setErr(null);
+    setBusy(r.id); setErr(null); setErrRow(r.id);
     try {
       const url = await api.uploadImage(file, 'receipts');
       await api.bankTxReceipt(r.id, url);
@@ -745,7 +751,7 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
       style={{ marginBottom: 14, border: `1px solid ${C.pink}` }}
       action={<button onClick={() => { setAdding((v) => !v); setErr(null); }} style={{ ...fieldStyle, fontWeight: 800, color: C.pinkDeep, borderColor: C.pink, cursor: 'pointer' }}>{adding ? 'Close' : '+ Add expense'}</button>}
     >
-      {err && <div style={{ color: C.red, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
+      {err && errRow == null && <div style={{ color: C.red, fontWeight: 700, fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
       {adding && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', border: `1px dashed ${C.pink}`, borderRadius: 12, padding: 10, marginBottom: 10 }}>
           <input value={mMerch} onChange={(e) => setMMerch(e.target.value)} placeholder="Where (e.g. ADNOC)" style={{ ...fieldStyle, flex: 1, minWidth: 130 }} />
@@ -821,6 +827,9 @@ function BankReview({ role, categories, onApproved }: { role?: string; categorie
                   style={{ fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', borderRadius: 9, padding: '8px 12px', border: `1px solid ${C.line}`, background: '#fff', color: C.muted2 }}>🚫 Reject</button>
               )}
             </div>
+            {err && errRow === r.id && (
+              <div role="alert" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 10, background: C.redSoft, color: C.red, fontWeight: 800, fontSize: 12.5 }}>⚠️ {err}</div>
+            )}
           </div>
         ))}
       </div>
