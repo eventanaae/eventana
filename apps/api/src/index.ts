@@ -730,6 +730,10 @@ async function main() {
     || (shanKey.startsWith('audit:') ? shanKey.slice(6) : '');
   // Read-only provider check of one order's payment(s): SET_SHAN_LEADER=paychk:<orderId>.
   // Logs the provider's own status / captured / refunded amounts. Changes nothing.
+  if (shanKey === 'prices') {
+    void import('./db/dumpPrices.js').then(({ dumpPricesFromEnv }) => dumpPricesFromEnv())
+      .catch((e) => console.error('[prices] failed:', (e as Error).message));
+  }
   if (shanKey === 'wahook' || shanKey.startsWith('wahook:')) {
     void import('./db/waWebhookSetup.js').then(({ waWebhookSetupFromEnv }) => waWebhookSetupFromEnv())
       .catch((e) => console.error('[wahook] failed:', (e as Error).message));
