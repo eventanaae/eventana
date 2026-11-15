@@ -7,7 +7,7 @@
  * the reconciliation sweep can reuse the exact same call.
  */
 import { pool } from '../db/pool.js';
-import { sendPurchaseEvent, sendRegistrationEvent, metaCapiEnabled, type Attribution } from '../integrations/metaCapi.js';
+import { sendPurchaseEvent, sendRegistrationEvent, sendMetaEvent, metaCapiEnabled, type Attribution } from '../integrations/metaCapi.js';
 import { recordPaymentEvent } from './orders.js';
 import { linkOrderToLead } from './whatsappLeads.js';
 
@@ -98,5 +98,57 @@ export async function reportPurchaseToMeta(orderId: string): Promise<void> {
       source: 'system',
       note: `Meta CAPI threw: ${(err as Error).message.slice(0, 200)}`,
     }).catch(() => {});
+  }
+}
+
+/**
+ * Reports a sale entered in the Ops dashboard (a WhatsApp booking) to Meta as
+ * a Purchase, so the ad account learns which people actually book — almost
+ * every Eventana sale is closed on WhatsApp, never through the website.
+ *
+ * Owner rules: every booking comes from Meta ads EXCEPT the Eventana Exclusive
+ * Package (Carnival/Carnaval Offer, 3499/3500 Offer, Marwa Rateb) and the
+ * owner's own 2900/2999 WhatsApp offers — those are never reported.
+ * App/website orders (order_id set) are already reported by reportPurchaseToMeta.
+ *
+ * Only a SHA-256 hash of the phone/name leaves the server (see metaCapi.ts).
+ * Best-effort, never throws; a no-op until META_PIXEL_ID + token are set.
+ */
+const NON_META_LINE = /(exclusive|carn[ai]v[ae]l|349[89]|3500|marwa|مروة|2900|2999)/i;
+
+export async function reportReceiptToMeta(receiptId: string | number): Promise<void> {
+  try {
+    if (!metaCapiEnabled()) return;
+    const { rows } = await pool.query(
+      `SELECT r.id, r.number, r.total_fils, r.refunded_fils, r.order_id, r.source, r.line_items,
+              r.customer_name, r.created_at, hc.phone, hc.email
+         FROM finance_receipts r
+         LEFT JOIN historical_customers hc ON hc.id = r.customer_id
+        WHERE r.id = $1`,
+      [receiptId],
+    );
+    const r = rows[0];
+    if (!r) return;
+    if (r.order_id) return; // app order: reported on payment confirmation
+    if (r.source === 'quickbooks') return; // historical import, not a live sale
+    const items: any[] = Array.isArray(r.line_items) ? r.line_items : [];
+    if (items.some((li) => NON_META_LINE.test(String(li?.name ?? '')))) return;
+    const value = Number(r.total_fils) - Number(r.refunded_fils ?? 0);
+    if (!(value > 0)) return;
+    if (!r.phone && !r.email) return; // nothing Meta could match on
+
+    const result = await sendMetaEvent({
+      eventName: 'Purchase',
+      eventId: `receipt-${r.number}`,
+      valueFils: value,
+      currency: 'AED',
+      occurredAt: new Date(r.created_at),
+      customer: { name: r.customer_name, phone: r.phone, email: r.email },
+      actionSource: 'chat',
+      kind: 'whatsapp_booking',
+    });
+    console.log(`[meta-capi] receipt ${r.number}: ${result.ok ? `reported (${result.eventsReceived ?? 0})` : `failed ${result.error ?? ''}`}`);
+  } catch (err) {
+    console.error('[meta-capi] receipt report threw:', (err as Error).message.slice(0, 200));
   }
 }

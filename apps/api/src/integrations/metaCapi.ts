@@ -89,6 +89,8 @@ export async function sendMetaEvent(args: {
   attribution?: Attribution | null;
   /** Reported as the content category. */
   kind?: string;
+  /** Where the conversion happened. 'chat' = a sale closed on WhatsApp. */
+  actionSource?: 'website' | 'chat' | 'system_generated' | 'phone_call' | 'physical_store' | 'other';
 }): Promise<CapiResult> {
   const pixelId = config.meta.pixelId;
   const accessToken = config.meta.capiAccessToken;
@@ -121,7 +123,7 @@ export async function sendMetaEvent(args: {
     event_name: args.eventName,
     event_time: Math.floor((args.occurredAt ?? new Date()).getTime() / 1000),
     event_id: args.eventId,
-    action_source: 'website',
+    action_source: args.actionSource ?? 'website',
     ...(attr.landingUrl ? { event_source_url: attr.landingUrl } : {}),
     user_data: userData,
     custom_data: {

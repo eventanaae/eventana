@@ -428,6 +428,8 @@ export async function createReceipt(d: DocInput & { date?: string | null; paidWi
   // An upcoming sale becomes an operational event automatically, so it shows on
   // the schedule/board. No-op for past-dated receipts. Never blocks the receipt.
   void ensureEventForReceipt(rows[0].id).catch(() => {});
+  // WhatsApp sale → Meta Purchase (hashed identifiers only; no-op without CAPI creds).
+  void import('./attribution.js').then((m) => m.reportReceiptToMeta(rows[0].id)).catch(() => {});
   return decorateReceipt(rows[0]);
 }
 
