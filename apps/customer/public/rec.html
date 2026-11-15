@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>إيفنتانا · تسجيل الصوت</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800&family=Reem+Kufi:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--pink:#c9367e;--lav:#7b62e8;--mint:#1fa77a;--red:#d9435a;--ink:#2e2530;--mut:#7d6a76;--bg:#fbf6f8;--line:#f0d6e3}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:Tajawal,system-ui,sans-serif;padding:16px 16px 190px;max-width:640px;margin:auto}
+h1{font:700 26px "Reem Kufi",Tajawal,sans-serif;margin:6px 0 6px;line-height:1.3}
+.mut{color:var(--mut);font-size:15px;line-height:1.7}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.ad{background:#fff;border:2px solid var(--line);border-radius:18px;padding:14px;text-align:right;font:800 16px/1.4 Tajawal;cursor:pointer;color:var(--ink)}
+.ad small{display:block;font:700 13px Tajawal;color:var(--mut);margin-top:6px}
+.ad.done{border-color:var(--mint);background:#e9f9f1}.ad.done small{color:var(--mint)}
+#view{display:none}
+.back{background:none;border:0;color:var(--lav);font:800 16px Tajawal;padding:6px 0;cursor:pointer}
+.tip{background:#efeaff;border-radius:14px;padding:10px 14px;margin:10px 0;font:700 15px/1.6 Tajawal;color:#4b38b3}
+.ln{font:800 25px/1.55 Tajawal;padding:12px 14px;border-radius:16px;margin:8px 0;background:#fff;border:2px solid var(--line);transition:all .25s;cursor:pointer}
+.ln small{display:block;font:700 14px/1.5 Tajawal;color:var(--mut);margin-top:4px}
+.ln.cur{border-color:var(--pink);background:#ffe3ee;transform:scale(1.02)}
+.ln.past{opacity:.45}
+#bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:2px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:none}
+#bar .in{max-width:640px;margin:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#state{width:100%;display:flex;align-items:center;gap:10px;font:800 16px Tajawal;border-radius:12px;padding:8px 12px;background:#f4eef1;color:var(--mut)}
+#state.on{background:#ffe6ea;color:var(--red)}
+#state.ok{background:#e9f9f1;color:var(--mint)}
+#state.err{background:#ffe6ea;color:var(--red)}
+#dot{width:12px;height:12px;border-radius:50%;background:currentColor;flex:none}
+#state.on #dot{animation:bl 1s infinite}
+@keyframes bl{50%{opacity:.2}}
+#meter{flex:1;height:10px;border-radius:999px;background:rgba(0,0,0,.08);overflow:hidden;display:none}
+#meter i{display:block;height:100%;width:0;background:var(--red);transition:width .08s}
+#state.on #meter{display:block}
+.btn{border:0;border-radius:999px;padding:14px 22px;font:800 18px Tajawal;cursor:pointer}
+.btn:disabled{opacity:.5}
+#rec{background:var(--pink);color:#fff;flex:1}
+#rec.on{background:var(--red);animation:pul 1s infinite}
+@keyframes pul{50%{box-shadow:0 0 0 10px rgba(217,67,90,.15)}}
+#next{background:#efeaff;color:#4b38b3}
+#send{background:var(--mint);color:#fff;flex:1}
+#again{background:#f4eef1;color:var(--ink)}
+#time{font:800 18px Tajawal;color:var(--mut);min-width:54px;text-align:center;font-variant-numeric:tabular-nums}
+audio{width:100%;margin-top:10px}
+#msg{width:100%;font:700 15px Tajawal;text-align:center;min-height:1.4em}
+.err{color:var(--red)}.ok{color:var(--mint)}
+@media (prefers-reduced-motion:reduce){#rec.on,#state.on #dot{animation:none}}
+</style></head>
+<body>
+<div id="home">
+  <h1>🎙️ تسجيل صوت إعلانات إيفنتانا</h1>
+  <p class="mut">اختاري الإعلان، اضغطي «سجّلي» واقري النص كامل مرة وحدة. اضغطي «الجملة الجاية» أو على أي جملة عشان تتلون الجملة اللي تقرينها. لما تخلصين اضغطي «وقّفي»، اسمعي التسجيل، وإذا عجبج اضغطي «أرسلي» ويوصلني على طول.</p>
+  <p class="mut" id="hmsg"></p>
+  <div class="grid" id="grid"></div>
+</div>
+<div id="view">
+  <button class="back" id="backb">→ رجوع للإعلانات</button>
+  <h1 id="vt"></h1>
+  <div class="tip" id="tipx"></div>
+  <div id="lines"></div>
+  <audio id="play" controls style="display:none"></audio>
+</div>
+<div id="bar"><div class="in">
+  <div id="state"><span id="dot"></span><span id="stxt">⚪ مب قاعد يسجل</span><span id="meter"><i id="lvl"></i></span></div>
+  <button class="btn" id="rec">🎙️ سجّلي</button><span id="time">0:00</span>
+  <button class="btn" id="next">الجملة الجاية ⬇️</button>
+  <button class="btn" id="again" style="display:none">↻ أعيد</button>
+  <button class="btn" id="send" style="display:none">✅ أرسلي</button>
+  <div id="msg"></div>
+</div></div>
+<script>
+const API='https://eventana-api.onrender.com/api/voice-rec';
+const KEY=new URLSearchParams(location.search).get('k')||'';
+const ADS=[["a1", "لا تسكرين هالفيديو", "ودودة وواثقة، فيها حماس خفيف", [["ماما، إذا عيد ميلاد بنتج قرّب… لا تسكرين هالفيديو.", "قوليها كأنج توقفين صديقتج، ضغطي على \"لا تسكرين\""], ["هذي حفلة حوريات بحر سويناها في حديقة بيت هني في الإمارات.", ""], ["الخلفية، الطاولات، الستاندات، حتى علب الهدايا… كلها بنفس الثيم.", "وقفة صغيرة بعد \"حتى علب الهدايا\""], ["احنا نوصل، نركب كل شي، ونفكه بعد الحفلة.", ""], ["وأنتي؟ بس استقبلي ضيوفج، وصوري بنتج وهي فرحانة.", "ابتسمي وأنتي تقولينها"], ["ارسلي لنا كلمة \"حفلة\" على الواتساب، ونرسل لج الثيمات والأسعار.", "واضحة وبطيئة شوي"]]], ["a2", "أكثر ٦ ثيمات تنطلب", "حماسية وسريعة مثل مقدّمة برنامج", [["هذي أكثر ست ثيمات طلبوها الأمهات عندنا هالسنة… ورقم واحد بيفاجئج.", "شدّي على \"رقم واحد\""], ["رقم ستة: ستيتش.", "كل رقم بنبرة أعلى من اللي قبله"], ["رقم خمسة: الفتك… الأولاد يموتون عليه.", ""], ["رقم أربعة: ماريو.", ""], ["رقم ثلاثة: البو، الريبون الوردي.", ""], ["رقم اثنين: الفيري.", ""], ["ورقم واحد… حوريات البحر!", "وقفة قبل \"حوريات البحر\" وقوليها بفرحة"], ["وانتبهي، كي بوب ديمون قاعد يطلع بقوة هالفترة.", "كأنج تقولين سر"], ["أي ثيم تبينه؟ ارسليه لنا على الواتساب، ونرسل لج صور وأسعار.", ""]]], ["a3", "شو تاخذين بـ ٣,٥٩٩؟", "واضحة، فيها ثقة بالقيمة", [["حفلة عيد ميلاد كاملة… بثلاث آلاف وخمسمية وتسعة وتسعين درهم؟ خليني أوريج شو فيها.", "استغراب خفيف في أول الجملة"], ["خلفيتين بالونات بثيم بنتج، وستاند استقبال، وستاندين للكيك.", ""], ["طاولات وكراسي بالثيم لعشرين طفل.", ""], ["مهرجين اثنين طول الحفلة يلعبون الأطفال.", ""], ["غزل البنات وبوبكورن لأربعين طفل، وتصوير فوري، وعشر هدايا، وسماعة.", "بسرعة شوي، كأنها قائمة طويلة"], ["كل هذا في حجز واحد، أربع ساعات، واحنا نركب ونفك.", ""], ["الباقة البرونزية من إيفنتانا. ارسلي لنا على الواتساب واحجزي يومج.", ""]]], ["a4", "٣ أخطاء تخرب الحفلة", "صديقة تنصح، جادة شوي", [["ثلاث أخطاء تخرب حفلة عيد الميلاد… وأغلب الأمهات يسوونها.", ""], ["الخطأ الأول: تتعاملين ويا خمس موردين. واحد للبالونات، واحد للأكل، واحد للطاولات… ويوم الحفلة كلهم يتأخرون.", "نبرة تعب على \"كلهم يتأخرون\""], ["الخطأ الثاني: تخلين الديكور لآخر أسبوع، وتقبلين بأي شي موجود.", ""], ["الخطأ الثالث: تحجزين متأخر، وتلقين الويكند اللي تبينه راح.", ""], ["الحل؟ حجز واحد ويا إيفنتانا: الثيم، والديكور، والطاولات، والأكل، والفعاليات.", "ارتاحي في الصوت هني"], ["ارسلي لنا على الواتساب من الحين، وثبتي يوم بنتج.", ""]]], ["a5", "كي بوب ديمون", "مرحة، فيها ضحكة", [["بنتج قالت لج: أبي حفلة كي بوب ديمون؟", "قوليها بنبرة \"يا ويلي\" وضحكة خفيفة"], ["لا تحاتين… هذا أكثر ثيم ينطلب عندنا هالفترة.", ""], ["خلفية بالبنفسجي والوردي، شخصيات الفرقة، وطاولات بالثيم.", ""], ["بنتج وصديقاتها بيحسون إنهم في حفلة الفرقة نفسها.", ""], ["ارسلي لنا \"كي بوب\" على الواتساب، ونرسل لج الصور والأسعار.", ""]]], ["a6", "حفلة الفتك", "حماسية وفيها خفة دم", [["ولدكم يعرف كل موديلات الفتك؟", "ضحكة صغيرة بعدها"], ["عيد ميلاده الجاي… خلّوه فتك من أوله لآخره.", ""], ["تواير، أعلام سباق، وسيارة الفتك نفسها على الخلفية.", ""], ["وعندنا بعد ماريو، وستيتش، والفضاء، لو يحب شي ثاني.", ""], ["ارسلوا لنا ثيم ولدكم على الواتساب، ونرسل لكم الباقات.", ""]]], ["a7", "ولد… ولا بنت؟", "هادية وعاطفية، وبعدين فرحة", [["تسعة شهور… تنتظرون جواب سؤال واحد.", "بطيئة، بصوت واطي شوي"], ["ولد… ولا بنت؟", "وقفة طويلة بين الكلمتين"], ["هاللحظة تستاهل تكون أحلى لحظة في صوركم.", ""], ["باقة كشف الجنس من إيفنتانا: خلفية بالوردي والأزرق واسم الوالدين، ستاند تصويت، ستاند استقبال، وسبراي الكشف.", "نبرة فرحة هني"], ["بألف وتسعمية وتسعة وتسعين درهم.", ""], ["ارسلوا لنا على الواتساب، ونجهز لكم اللحظة.", ""]]], ["a8", "أنا شيماء", "طبيعية جداً، كأنج تكلمين صديقة. عدلي أي جملة مب دقيقة.", [["أنا شيماء، مؤسسة إيفنتانا.", "ابتسمي وأنتي تقولينها"], ["بديت إيفنتانا لأني أبي كل أم تعيش حفلة بنتها، مب تركض وراها.", ""], ["كل حفلة نسويها، نتابعها من اختيار الثيم لين آخر بالونة.", ""], ["وهذي بعض حفلاتنا الحقيقية… في حدايق بيوت هني في الإمارات.", ""], ["إذا عندكم مناسبة قريبة، ارسلوا لنا على الواتساب، وفريقي بيرد عليكم.", ""]]], ["a9", "٣ خطوات من تلفونج", "واضحة وعملية", [["تحجزين حفلة بنتج كاملة… من تلفونج، في ثلاث خطوات.", ""], ["الخطوة الأولى: ارسلي لنا على الواتساب تاريخ الحفلة والإمارة.", ""], ["الخطوة الثانية: اختاري الثيم والباقة. عندنا أكثر من أربعين ثيم، والباقات تبدا من ألفين ومية وتسعة وتسعين درهم.", ""], ["الخطوة الثالثة: يوم الحفلة، فريقنا يوصل ويركب كل شي… وأنتي بس استمتعي.", ""], ["يلا، ارسلي لنا الحين.", "بحماس"]]], ["a10", "حفلات ديسمبر", "فيها استعجال لطيف", [["إذا تخططين لحفلة في ديسمبر… لازم تسمعين هذا.", ""], ["ديسمبر أكثر شهر تنحجز فيه الحفلات عندنا.", ""], ["واللي يحجز بدري، ياخذ اليوم اللي يبيه والثيم اللي يبيه.", ""], ["حوريات البحر، الفيري، البو، الفتك، ستيتش… كلها جاهزة.", ""], ["ارسلي لنا تاريخ حفلتج على الواتساب اليوم، ونثبته لج.", ""]]]];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let done={};
+async function loadDone(){if(!KEY){$('hmsg').textContent='الرابط ناقص المفتاح، افتحي الرابط اللي طرشته لج بالضبط.';$('hmsg').className='err';return}
+  try{const r=await fetch(API+'?k='+encodeURIComponent(KEY));const j=await r.json();if(j.ok){done=j.takes||{};grid()}}catch(e){}}
+function grid(){$('grid').innerHTML=ADS.map((a,n)=>`<button class="ad${done[a[0]]?' done':''}" data-n="${n}">${n+1}. ${esc(a[1])}<small>${done[a[0]]?'✅ وصل':'لم يُسجَّل'}</small></button>`).join('');
+  document.querySelectorAll('.ad').forEach(b=>b.onclick=()=>openAd(+b.dataset.n))}
+let cur=null,idx=0,mr=null,chunks=[],blob=null,stream=null,t0=0,tick=null,actx=null,raf=0;
+function home(){stop(true);$('home').style.display='block';$('view').style.display='none';$('bar').style.display='none';grid();scrollTo(0,0)}
+$('backb').onclick=home;
+function openAd(n){cur=ADS[n];idx=0;blob=null;$('home').style.display='none';$('view').style.display='block';$('bar').style.display='block';
+  $('vt').textContent=`${n+1}. ${cur[1]}`;$('tipx').textContent='🎭 النبرة: '+cur[2];
+  $('lines').innerHTML=cur[3].map((l,i)=>`<div class="ln" data-i="${i}">${esc(l[0])}${l[1]?`<small>🎙 ${esc(l[1])}</small>`:''}</div>`).join('');
+  document.querySelectorAll('.ln').forEach(e=>e.onclick=()=>setIdx(+e.dataset.i));
+  $('play').style.display='none';reset();setIdx(0);scrollTo(0,0)}
+function setIdx(i){idx=Math.max(0,Math.min(i,cur[3].length-1));[...document.querySelectorAll('.ln')].forEach((e,j)=>{e.classList.toggle('cur',j===idx);e.classList.toggle('past',j<idx)});
+  const el=document.querySelectorAll('.ln')[idx];if(el)el.scrollIntoView({block:'center',behavior:'smooth'})}
+function msg(t,c){$('msg').textContent=t;$('msg').className=c||''}
+function state(t,c){$('stxt').textContent=t;$('state').className=c||''}
+function reset(){$('rec').style.display='';$('next').style.display='';$('time').style.display='';$('again').style.display='none';$('send').style.display='none';$('rec').textContent='🎙️ سجّلي';$('rec').classList.remove('on');$('time').textContent='0:00';msg('');state('⚪ مب قاعد يسجل')}
+function pick(){const c=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];for(const x of c){try{if(MediaRecorder.isTypeSupported(x))return x}catch(e){}}return ''}
+function meter(){try{actx=new (window.AudioContext||window.webkitAudioContext)();const src=actx.createMediaStreamSource(stream);const an=actx.createAnalyser();an.fftSize=512;src.connect(an);const d=new Uint8Array(an.fftSize);
+  let quiet=0;const loop=()=>{an.getByteTimeDomainData(d);let m=0;for(const v of d)m=Math.max(m,Math.abs(v-128));const p=Math.min(100,m/90*100);$('lvl').style.width=p+'%';
+    if(m<3)quiet++;else quiet=0;if(quiet>180)state('🔴 قاعد يسجل… بس ما أسمع صوت، قربي التلفون','on');else if(m>=3)state('🔴 قاعد يسجل، والصوت واصل','on');raf=requestAnimationFrame(loop)};loop()}catch(e){}}
+async function start(){
+  if(!KEY){msg('الرابط ناقص المفتاح، افتحي الرابط اللي طرشته لج بالضبط','err');return}
+  if(!navigator.mediaDevices||!window.MediaRecorder){state('❌ هالمتصفح ما يدعم التسجيل. افتحي الرابط في Safari أو Chrome','err');return}
+  state('⏳ قاعد أفتح المايك…');
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+  catch(e){state('❌ المايك مسكّر. اسمحي للمايك من إعدادات المتصفح وجربي مرة ثانية 🎙️','err');return}
+  const type=pick();mr=new MediaRecorder(stream,type?{mimeType:type,audioBitsPerSecond:128000}:undefined);chunks=[];
+  mr.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+  mr.onstop=()=>{blob=new Blob(chunks,{type:mr.mimeType||type||'audio/webm'});$('play').src=URL.createObjectURL(blob);$('play').style.display='block';
+    $('rec').style.display='none';$('next').style.display='none';$('again').style.display='';$('send').style.display='';
+    state('⏹️ وقف التسجيل · '+$('time').textContent);msg('اسمعي التسجيل، وإذا عجبج اضغطي «أرسلي»');$('play').scrollIntoView({block:'center',behavior:'smooth'})};
+  mr.start(250);t0=Date.now();$('rec').textContent='⏹️ وقّفي';$('rec').classList.add('on');setIdx(0);state('🔴 قاعد يسجل','on');msg('اقري الجملة الملونة، وبعدين اضغطي «الجملة الجاية»');meter();
+  tick=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);$('time').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0')},250)}
+function stop(silent){clearInterval(tick);cancelAnimationFrame(raf);if(actx){actx.close().catch(()=>{});actx=null}
+  if(mr&&mr.state!=='inactive'){if(silent)mr.onstop=null;mr.stop()}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
+$('rec').onclick=()=>{if(mr&&mr.state==='recording')stop();else start()};
+$('next').onclick=()=>setIdx(idx+1);
+$('again').onclick=()=>{blob=null;$('play').style.display='none';reset();setIdx(0)};
+$('send').onclick=async()=>{if(!blob)return;$('send').disabled=true;$('again').disabled=true;state('⏳ قاعد يرسل… لا تسكرين الصفحة');msg('');
+  try{const r=await fetch(`${API}?k=${encodeURIComponent(KEY)}&ad=${cur[0]}`,{method:'POST',headers:{'content-type':(blob.type||'audio/webm').split(';')[0]},body:blob});const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok)throw new Error(j.error||r.status);
+    done[cur[0]]={url:j.url};state('✅ وصل! انحفظ عندي','ok');msg('ترجعين للإعلانات…','ok');setTimeout(home,1800)}
+  catch(e){state('❌ ما وصل ('+e.message+')، جربي «أرسلي» مرة ثانية','err')}finally{$('send').disabled=false;$('again').disabled=false}};
+grid();loadDone();
+</script>
+</body></html>

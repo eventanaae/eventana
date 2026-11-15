@@ -22,7 +22,8 @@ export type UploadFolder =
   | 'eventana/setup-photos'
   | 'eventana/customers'
   | 'eventana/reference'
-  | 'eventana/event-photos';
+  | 'eventana/event-photos'
+  | 'eventana/ad-voice';
 
 export interface SignedUpload {
   cloudName: string;
@@ -65,7 +66,7 @@ export function signUpload(folder: UploadFolder): SignedUpload | null {
  * Cloudinary. Returns the hosted secure URL, or null if uploads aren't
  * configured / the upload fails. Signs the same way as signUpload.
  */
-export async function uploadBytes(bytes: Uint8Array, folder: UploadFolder, filename = 'receipt'): Promise<string | null> {
+export async function uploadBytes(bytes: Uint8Array, folder: UploadFolder, filename = 'receipt', timeoutMs = 15000): Promise<string | null> {
   const { cloudName, apiKey, apiSecret } = config.cloudinary;
   if (!cloudName || !apiKey || !apiSecret) return null;
   try {
@@ -77,7 +78,7 @@ export async function uploadBytes(bytes: Uint8Array, folder: UploadFolder, filen
     form.append('timestamp', String(timestamp));
     form.append('folder', folder);
     form.append('signature', signature);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: 'POST', body: form, signal: AbortSignal.timeout(15000) });
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: 'POST', body: form, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) return null;
     const j = (await res.json()) as { secure_url?: string };
     return j.secure_url ?? null;

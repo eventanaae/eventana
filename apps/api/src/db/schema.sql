@@ -1992,3 +1992,15 @@ UPDATE finance_receipts r
 -- was paid), so the receipt and the customer's email show both amounts.
 ALTER TABLE finance_receipts ADD COLUMN IF NOT EXISTS cancellation_charge_fils BIGINT;
 ALTER TABLE refunds ADD COLUMN IF NOT EXISTS cancellation_charge_fils BIGINT;
+
+-- Owner voice-overs for the ad videos, recorded at /rec.html on the customer
+-- site. One row per upload; the newest row per ad is the take in use.
+CREATE TABLE IF NOT EXISTS ad_voice_takes (
+  id          BIGSERIAL PRIMARY KEY,
+  ad          TEXT NOT NULL,
+  url         TEXT NOT NULL,
+  mime        TEXT,
+  bytes       INT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ad_voice_takes_ad_idx ON ad_voice_takes (ad, created_at DESC);
