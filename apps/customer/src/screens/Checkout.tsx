@@ -361,14 +361,16 @@ export function Checkout({
   })();
 
   // The server's figure for exactly these inputs (ignored once inputs change).
-  const previewKey = JSON.stringify([toCart(draft), draft.provider, draft.offerToken ?? null, promo?.code ?? null, useCredit, redeemPoints, subtotalFils, Boolean(account)]);
+  // A guest's email decides whether a personal (win-back) code is theirs.
+  const guestEmail = !account && emailOk ? reg.email.trim() : '';
+  const previewKey = JSON.stringify([toCart(draft), draft.provider, draft.offerToken ?? null, promo?.code ?? null, useCredit, redeemPoints, subtotalFils, Boolean(account), guestEmail]);
   const [serverTotal, setServerTotal] = useState<{ key: string; v: CheckoutTotalPreview } | null>(null);
   useEffect(() => {
     if (!quote || subtotalFils <= 0) return;
     let alive = true;
     const timer = window.setTimeout(() => {
       api
-        .previewTotal({ cart: toCart(draft), provider: draft.provider, offerToken: draft.offerToken, promoCode: promo?.code ?? null, useCredit, redeemPoints })
+        .previewTotal({ cart: toCart(draft), provider: draft.provider, offerToken: draft.offerToken, promoCode: promo?.code ?? null, useCredit, redeemPoints, email: guestEmail })
         .then((r) => { if (alive && r.final) setServerTotal({ key: previewKey, v: r.final }); })
         .catch(() => { /* keep the local estimate */ });
     }, 250);
@@ -402,7 +404,7 @@ export function Checkout({
     setPromoBusy(true);
     setPromoError(null);
     try {
-      const r = await api.checkPromo(code, subtotalFils);
+      const r = await api.checkPromo(code, subtotalFils, guestEmail);
       if (r.ok && r.code) { setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false }); setPromoError(null); }
       else { setPromo(null); setPromoError(r.reason ?? 'This code isn’t valid.'); }
     } catch {
@@ -418,7 +420,7 @@ export function Checkout({
   useEffect(() => {
     if (step !== 6 || promo || subtotalFils <= 0) { setSuggest(null); return; }
     let alive = true;
-    api.checkPromo('WELCOME10', subtotalFils)
+    api.checkPromo('WELCOME10', subtotalFils, guestEmail)
       .then((r) => {
         if (!alive) return;
         setSuggest(r.ok && r.code && ((r.amountFils ?? 0) > 0 || r.freeDelivery)
@@ -437,7 +439,7 @@ export function Checkout({
     if (!promo) return;
     let alive = true;
     api
-      .checkPromo(promo.code, subtotalFils)
+      .checkPromo(promo.code, subtotalFils, guestEmail)
       .then((r) => {
         if (!alive) return;
         if (r.ok && r.code) setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false });
@@ -446,7 +448,7 @@ export function Checkout({
       .catch(() => {});
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtotalFils, promo?.code]);
+  }, [subtotalFils, promo?.code, guestEmail]);
 
   const zone = catalogue.deliveryZones.find((z) => z.emirate === draft.emirate);
   const blocked = zone && (!zone.available || zone.feeFils === null);

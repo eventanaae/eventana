@@ -34,7 +34,7 @@ import { ConflictError, acquireHolds, releaseHolds, unavailableAssets } from './
 import { createOrder, createPayment, nextOrderId, orderViewToken, recordPaymentEvent } from './orders.js';
 import { loadConfig, toPricingContext, type LoadedConfig } from './settings.js';
 import { offerIsOpen, getOfferAdjustments, applyOfferToQuote, offerMatchesCart } from './offers.js';
-import { computeDiscounts, makeReferralCode, type DiscountInput } from './discounts.js';
+import { computeDiscounts, makeReferralCode, personalCodeOwnerByEmail, type DiscountInput } from './discounts.js';
 import { resolveStaffCode } from './staffReferral.js';
 import { toValidCustomerPhone, titleCaseName } from './maintenance.js';
 
@@ -315,7 +315,17 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
   // (never duplicated); a registered account must sign in (createGuestCustomer
   // guards that). Everything downstream keys off this id exactly as a registered
   // customer would.
-  const customerId = req.customerId ?? (req.guest ? await createGuestCustomer(req.guest) : null);
+  //
+  // Exception: a guest booking with the email a PERSONAL code (win-back / reward)
+  // was sent to may use it without signing in, even when that email has an
+  // account. The booking attaches to that customer WITHOUT touching their
+  // profile, and only the code applies, never their points or store credit.
+  const codeOwner = !req.customerId && req.guest
+    ? await personalCodeOwnerByEmail(pool, req.discounts?.promoCode, req.guest.email)
+    : null;
+  if (codeOwner) req.discounts = { ...req.discounts, useCredit: false, redeemPoints: false };
+  const customerId =
+    req.customerId ?? (req.guest ? await createGuestCustomer(req.guest, { reuseRegistered: Boolean(codeOwner) }) : null);
   if (!customerId) {
     throw new CheckoutError('Please sign in or enter your details to continue.', 'auth_required');
   }

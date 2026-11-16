@@ -32,7 +32,7 @@ import { customerFromRequest, issueCustomerToken, issueResetToken, verifyResetTo
 import { recordGoodFeedbackRewards } from '../domain/incentives.js';
 import { cancelPendingFeedbackNotifications } from '../domain/feedbackReminders.js';
 import { pushToStaff } from '../integrations/push.js';
-import { makeReferralCode, validatePromo } from '../domain/discounts.js';
+import { makeReferralCode, personalCodeOwnerByEmail, validatePromo } from '../domain/discounts.js';
 import { isImportTicketValid } from '../domain/importTicket.js';
 import { importRows } from '../domain/importData.js';
 import { sendEmail, emailEnabled } from '../integrations/email.js';
@@ -1341,15 +1341,24 @@ export async function publicRoutes(app: FastifyInstance) {
       offerToken: z.string().max(64).nullable().optional(),
       useCredit: z.boolean().optional(),
       redeemPoints: z.boolean().optional(),
+      /** Guest checkout: the email typed in the contact details. */
+      email: z.string().trim().max(200).optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success || (!parsed.data.code && !parsed.data.cart)) {
       return reply.status(400).send({ error: 'invalid_request' });
     }
     // Anyone can check a general code (guest checkout included). A personal
-    // voucher is still scoped to its owner inside validatePromo, so a guest
-    // (null id) simply can't validate someone else's personal code.
-    const customerId = customerFromRequest(request);
+    // voucher is still scoped to its owner inside validatePromo; a guest is
+    // matched to it only by booking with the email the code was sent to. That
+    // match unlocks the code alone, never the owner's points or store credit.
+    const signedIn = customerFromRequest(request);
+    const byEmail = signedIn ? null : await personalCodeOwnerByEmail(pool, parsed.data.code, parsed.data.email);
+    const customerId = signedIn || byEmail;
+    if (byEmail) {
+      parsed.data.useCredit = false;
+      parsed.data.redeemPoints = false;
+    }
     let final: Awaited<ReturnType<typeof previewCheckoutTotal>> | null = null;
     if (parsed.data.cart) {
       final = await previewCheckoutTotal({

@@ -41,6 +41,29 @@ function line(label: string, amountFils: number): QuoteLine {
 }
 
 /**
+ * Guest use of a personal code: returns the code owner's customer id when
+ * `email` is the email on that owner's record, else null. Lets a customer use
+ * their win-back / reward code without signing in, as long as they book with
+ * the same email. Only ever resolves for a customer-bound code, so it reveals
+ * nothing about an email to someone who doesn't already hold its personal code.
+ */
+export async function personalCodeOwnerByEmail(
+  db: Pool | PoolClient,
+  code: string | null | undefined,
+  email: string | null | undefined,
+): Promise<string | null> {
+  const norm = (code ?? '').trim().toUpperCase();
+  const mail = (email ?? '').trim();
+  if (!norm || !mail) return null;
+  const { rows } = await db.query<{ id: string }>(
+    `SELECT c.id FROM promo_codes p JOIN customers c ON c.id = p.customer_id
+      WHERE p.code = $1 AND p.active AND lower(c.email) = lower($2) LIMIT 1`,
+    [norm, mail],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/**
  * Validate a promo code for a customer and a subtotal. Returns the discount in
  * fils (0 if not applicable) and a reason when rejected.
  */
@@ -73,8 +96,17 @@ export async function validatePromo(
     if (staff.rowCount) return { ok: true, amountFils: 0, code: norm, freeDelivery: false };
     return { ok: false, reason: 'This code isn’t valid.' };
   }
-  // A personal voucher (e.g. a next-booking reward) belongs to one customer.
-  if (p.customer_id && p.customer_id !== customerId) return { ok: false, reason: 'This code isn’t valid.' };
+  // A personal voucher (e.g. a next-booking reward) belongs to one customer. A
+  // guest is matched to it by the email it was sent to (personalCodeOwnerByEmail),
+  // so tell them which email to use instead of a bare "not valid".
+  if (p.customer_id && p.customer_id !== customerId) {
+    return {
+      ok: false,
+      reason: customerId
+        ? 'This code is linked to a different email. Use the email the code was sent to.'
+        : 'This is a personal code. Enter the email it was sent to in your details, then apply it again.',
+    };
+  }
   if (p.expires_at && new Date(p.expires_at).getTime() < Date.now()) return { ok: false, reason: 'This code has expired.' };
   if (p.max_uses != null && p.uses >= p.max_uses) return { ok: false, reason: 'This code has been fully redeemed.' };
   if (subtotalFils < p.min_spend_fils) {
