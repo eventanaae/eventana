@@ -266,10 +266,11 @@ export const api = {
       body: JSON.stringify({ ...body, attribution: attributionPayload() }),
     }),
 
-  checkPromo: (code: string, subtotalFils: number) =>
+  /** `email`: a guest's contact email, so a personal code sent to it applies without signing in. */
+  checkPromo: (code: string, subtotalFils: number, email?: string) =>
     request<{ ok: boolean; code?: string; amountFils?: number; freeDelivery?: boolean; reason?: string }>(
       '/api/promo/check',
-      { method: 'POST', body: JSON.stringify({ code, subtotalFils }) },
+      { method: 'POST', body: JSON.stringify({ code, subtotalFils, email: email || undefined }) },
     ),
 
   /**
@@ -284,11 +285,13 @@ export const api = {
     promoCode?: string | null;
     useCredit?: boolean;
     redeemPoints?: boolean;
+    email?: string;
   }) =>
     request<{ ok: boolean; code?: string; reason?: string; final: CheckoutTotalPreview | null }>('/api/promo/check', {
       method: 'POST',
       body: JSON.stringify({
         code: args.promoCode || undefined,
+        email: args.email || undefined,
         cart: args.cart,
         provider: args.provider || undefined,
         offerToken: args.offerToken || undefined,
