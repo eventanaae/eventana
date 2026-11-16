@@ -41,7 +41,7 @@ export async function voiceRecRoutes(app: FastifyInstance) {
     const q = req.query as { k?: string; ad?: string };
     if (!keyOk(q.k)) return reply.code(403).send({ ok: false, error: 'bad_key' });
     const ad = String(q.ad ?? '');
-    if (!/^a\d{1,2}$/.test(ad)) return reply.code(400).send({ ok: false, error: 'bad_ad' });
+    if (!/^[a-z][a-z0-9]{0,11}$/.test(ad)) return reply.code(400).send({ ok: false, error: 'bad_ad' });
     const body = req.body;
     if (!Buffer.isBuffer(body) || body.length < 2000) return reply.code(400).send({ ok: false, error: 'empty_audio' });
     const mime = String(req.headers['content-type'] ?? '').slice(0, 60);
