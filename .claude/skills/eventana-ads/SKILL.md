@@ -19,8 +19,9 @@ No guessing: if a number is missing, say which and how you will get it.
 | Write actions | Windsor `execute_action` on connector `facebook` | Boosted-post ads cannot have text edited → improve by a NEW version in the same ad set, then pause the old one. Spend-starting actions need a confirmation token. |
 
 ## Owner rules (never break)
+- Professional names only (campaign, ad set, ad): objective | audience or theme | creative type | WhatsApp keyword | month. Never personal names or slogans.
 - Instagram placements ONLY. Never Facebook, Audience Network or Messenger; never automatic placements.
-- One live campaign: «واتساب - قولي إنج تبين إيفنتانا (نوفمبر)» (`120254723629840422`), ad set `120254723630330422`, CBO ≈60–64 AED/day. Hard cap: 2,000 AED per calendar month for ALL Meta campaigns together (owner, 17 Nov). Add new ads INSIDE it; do not open new campaigns unless the numbers prove the current one cannot work.
+- One live campaign: «محادثات واتساب | حفلات الأطفال | إنستقرام | ٢٠٢٦» (`120254723629840422`), ad set «الإمارات | إنستقرام فقط | كل الإعلانات» (`120254723630330422`), CBO ≈60–64 AED/day. Hard cap: 2,000 AED per calendar month for ALL Meta campaigns together (owner, 17 Nov). Add new ads INSIDE it; do not open new campaigns unless the numbers prove the current one cannot work.
 - Gulf Arabic, addressing mums. Hooks built on the mum's PAIN.
 - Eventana does not provide cakes. Never write stand counts («٢ ستاند»): write «ستاند رئيسي بالثيم اللي يحبه طفلج» or «خلفية الثيم».
 - Real prices only (check the live catalogue). Bow theme 20% off is a standing offer (owner, 17 Nov). We do NOT deliver to Al Gharbia — never say "all Emirates".
