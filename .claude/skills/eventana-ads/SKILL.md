@@ -40,6 +40,11 @@ No guessing: if a number is missing, say which and how you will get it.
 4. **Bookings**: chats → bookings rate per month (≈ 10% in Oct–Nov 2026). Until per-ad tracking exists, never claim an ad "doesn't book".
 5. **Decide**: keep / improve (new version from the SAME footage, fixing the measured drop) / pause. Write the number next to every decision.
 
+## Content method (owner rule, 17 Nov — every ad, reel and story)
+- Research first: vidIQ outlier search (Instagram + TikTok, our niche, last 12 months) → watch 2+ outliers per pattern → list their strengths. Name the proven pattern each part of the script uses.
+- Never copy one ad's structure into another. Each new ad tests a DIFFERENT strategy (hook type, motion, content, close) so the numbers tell us which approach wins.
+- Every script: hook in the first 1–3 s, clear value, strong close/CTA that holds viewers to the last second.
+
 ## Improving an ad (same ad, new version)
 - Use the original footage; change only what the curve says (first second, middle pace, CTA).
 - Build reels with `eventana-ads/reels/*` (HTML+JS frame renderer; clip page overflow) or ffmpeg cuts.
