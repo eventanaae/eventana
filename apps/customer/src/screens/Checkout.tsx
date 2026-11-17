@@ -574,7 +574,17 @@ export function Checkout({
       // A thrown fetch (no server body) is a connection problem — show a clear,
       // localised message instead of the browser's raw "Load failed". The key is
       // kept, so re-tapping Pay safely reuses this attempt.
-      setError(e?.body?.message ?? (e?.body ? e.message : t('checkout.network')));
+      // Show WHY the booking can't go through (map pin, sold-out item, date…),
+      // in the customer's language when we know the reason.
+      const codes: string[] = [
+        ...((e?.body?.details?.problems as { code: string }[] | undefined)?.map((p) => p.code) ?? []),
+        ...(e?.body?.error === 'invalid_request' ? ['invalid_request'] : []),
+      ];
+      const known = codes
+        .map((c) => `checkout.problem.${c}`)
+        .map((k) => { const v = t(k as never); return v && v !== k ? v : null; })
+        .filter(Boolean) as string[];
+      setError(known.length ? [...new Set(known)].join(' ') : e?.body?.message ?? (e?.body ? e.message : t('checkout.network')));
       setPaying(false);
     }
   };

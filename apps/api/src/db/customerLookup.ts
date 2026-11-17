@@ -56,7 +56,23 @@ export async function customerLookupFromEnv(): Promise<void> {
       );
       P(`   receipts: ${recs.rowCount || 'none'}`);
       for (const r of recs.rows) P(`     • #${r.number} · ${r.d} · AED ${aed(r.total_fils)} · ${r.paid_with} · ${r.source}`);
+      const codes = await pool.query(
+        `SELECT code, campaign, active, uses, max_uses, to_char(expires_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') exp,
+                to_char(last_reminded_at,'YYYY-MM-DD') sent
+           FROM promo_codes WHERE customer_id = $1 ORDER BY created_at`,
+        [c.id],
+      );
+      P(`   promo codes: ${codes.rowCount || 'none'}`);
+      for (const k of codes.rows) P(`     • ${k.code} [${k.campaign ?? '-'}] active=${k.active} uses=${k.uses}/${k.max_uses ?? '∞'} expires=${k.exp ?? '-'} emailed=${k.sent ?? 'no'}`);
     }
+    // Promo codes whose text matches the term (e.g. a code a customer says was rejected).
+    const byCode = await pool.query(
+      `SELECT code, campaign, active, uses, max_uses, customer_id, to_char(expires_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') exp
+         FROM promo_codes WHERE lower(code) LIKE $1 ORDER BY created_at LIMIT 20`,
+      [like],
+    );
+    P(`promo codes matching text: ${byCode.rowCount}`);
+    for (const k of byCode.rows) P(`   • ${k.code} [${k.campaign ?? '-'}] active=${k.active} uses=${k.uses}/${k.max_uses ?? '∞'} expires=${k.exp ?? '-'} owner=${k.customer_id ?? 'public'}`);
     // QuickBooks / historical receipts by name (for people with no live account).
     const qb = await pool.query(
       `SELECT number, customer_name, to_char(date,'YYYY-MM-DD') d, total_fils, source
