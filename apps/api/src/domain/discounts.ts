@@ -139,8 +139,9 @@ export async function validatePromo(
     p.kind === 'percent'
       ? Math.min(subtotalFils, Math.round((percentBaseFils * p.value) / 100))
       : Math.min(subtotalFils, p.value);
-  // The win-back "come back" code also makes delivery free (owner's rule).
-  return { ok: true, amountFils, code: norm, freeDelivery: p.campaign === 'winback' };
+  // The win-back "come back" code and the Instagram comment code also make
+  // delivery free (owner's rules).
+  return { ok: true, amountFils, code: norm, freeDelivery: p.campaign === 'winback' || p.campaign === 'igcomment' };
 }
 
 /**
