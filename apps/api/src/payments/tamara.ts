@@ -160,13 +160,31 @@ export class TamaraProvider implements PaymentProvider {
   }
 
   async capture(providerPaymentId: string, amountFils: number): Promise<RetrieveResult> {
+    // Tamara's flow is approved → authorise → capture. An order left 'approved'
+    // (never authorised) cannot be captured and eventually expires, so authorise
+    // it first. Already-authorised orders are fine; a failure here is surfaced by
+    // the capture call below.
+    const current = await this.retrievePayment(providerPaymentId).catch(() => null);
+    if (current && current.providerStatus.toLowerCase() === 'approved') {
+      await providerFetch(
+        'tamara',
+        `${this.cfg.baseUrl}/orders/${encodeURIComponent(providerPaymentId)}/authorise`,
+        { method: 'POST', headers: this.auth(), body: {} },
+      ).catch((err) => console.error('[tamara] authorise failed:', (err as Error).message));
+    }
     await providerFetch(
       'tamara',
       `${this.cfg.baseUrl}/payments/capture`,
       {
         method: 'POST',
         headers: this.auth(),
-        body: { order_id: providerPaymentId, total_amount: money(amountFils) },
+        body: {
+          order_id: providerPaymentId,
+          total_amount: money(amountFils),
+          // Tamara requires shipping details on capture; a party is a service
+          // delivered by our own team on the event day.
+          shipping_info: { shipped_at: new Date().toISOString(), shipping_company: 'Eventana' },
+        },
       },
     );
     return this.retrievePayment(providerPaymentId);
