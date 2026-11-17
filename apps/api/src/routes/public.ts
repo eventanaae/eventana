@@ -126,6 +126,16 @@ const cartSchema = z.object({
     })
     .optional(),
   mapPin: z.object({ lat: z.number(), lng: z.number() }).nullable().optional(),
+  /** "I'll pin the exact location later": book on emirate + address, pin follows.
+   *  Without this key zod stripped the tick, so every such booking was refused
+   *  for a missing map pin ("This booking cannot be completed yet"). */
+  locationTbd: z.boolean().optional(),
+  /** Photos the customer attached for the team (Cloudinary uploads only). */
+  referenceImages: z
+    .array(z.string().max(500))
+    .max(12)
+    .optional()
+    .transform((a) => a?.filter((u) => u.startsWith('https://res.cloudinary.com/'))),
   /** Who the celebration is for — distinct from the account holder. */
   eventFor: z.string().max(120).optional(),
   /** Exact age of the guest of honour (e.g. "6" or "Adult"). */
@@ -549,7 +559,17 @@ export async function publicRoutes(app: FastifyInstance) {
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+      // Field paths + zod codes only (no values, so no personal data in the log):
+      // tells us which field the app sent wrong when customers hit this.
+      request.log.warn(
+        { badFields: parsed.error.issues.map((i) => `${i.path.join('.')}:${i.code}`) },
+        'checkout invalid_request',
+      );
+      return reply.status(400).send({
+        error: 'invalid_request',
+        message: 'Some booking details are missing or not valid. Please check your details and try again.',
+        details: parsed.error.flatten(),
+      });
     }
 
     const customerId = customerFromRequest(request);
@@ -578,7 +598,15 @@ export async function publicRoutes(app: FastifyInstance) {
     } catch (err) {
       if (err instanceof CheckoutError) {
         const status = err.code === 'unavailable' ? 409 : err.code === 'not_found' ? 404 : 422;
-        return reply.status(status).send({ error: err.code, message: err.message, details: err.details });
+        const problems = (err.details as { problems?: { code: string; message: string; refId?: string }[] } | undefined)?.problems;
+        request.log.warn(
+          { checkoutError: err.code, problems: problems?.map((p) => `${p.code}${p.refId ? `:${p.refId}` : ''}`) },
+          'checkout refused',
+        );
+        // Tell the customer WHAT is blocking the booking (e.g. the map pin, a
+        // sold-out item), not just that it can't be completed.
+        const message = problems?.length ? problems.map((p) => p.message).join(' ') : err.message;
+        return reply.status(status).send({ error: err.code, message, details: err.details });
       }
       request.log.error({ err }, 'checkout failed');
       return reply.status(500).send({ error: 'checkout_failed' });
