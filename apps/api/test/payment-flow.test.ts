@@ -111,6 +111,7 @@ describe('3. abandoned checkout', () => {
   it('expires the hold at its TTL and makes the asset bookable again', async () => {
     const date = uniqueDate();
     const result = await startCheckout({
+    termsAccepted: true,
       cart: cart({ eventDate: date, services: [{ serviceId: 'bubblehouse', quantity: 1 }] }),
       customerId: 'CUST-4471',
       provider: 'tabby',
@@ -253,6 +254,7 @@ describe('7. tampered client total', () => {
     // The checkout API has no parameter for a client-supplied total, so
     // "tampering" means sending one and proving it is ignored.
     const result = await startCheckout({
+    termsAccepted: true,
       cart: {
         ...cart({ eventDate: uniqueDate(), packageId: 'golden', services: [] }),
         // Fields a hostile client might inject:
@@ -307,6 +309,7 @@ describe('8. concurrent checkout for the single Bubble House', () => {
 
     const attempt = (customerId: string) =>
       startCheckout({
+    termsAccepted: true,
         cart: cart({
           eventDate: date,
           services: [{ serviceId: 'bubblehouse', quantity: 1 }],
@@ -344,11 +347,13 @@ describe('8. concurrent checkout for the single Bubble House', () => {
     const other = await ensureCustomer('CUST-COLOUR');
 
     const lime = await startCheckout({
+    termsAccepted: true,
       cart: cart({ eventDate: date, services: [{ serviceId: 'castle', quantity: 1 }], castleVariant: 'castle-lime' }),
       customerId: 'CUST-4471',
       provider: 'tabby',
     });
     const cotton = await startCheckout({
+    termsAccepted: true,
       cart: cart({ eventDate: date, services: [{ serviceId: 'castle', quantity: 1 }], castleVariant: 'castle-cotton' }),
       customerId: other,
       provider: 'tabby',
@@ -363,6 +368,7 @@ describe('8. concurrent checkout for the single Bubble House', () => {
     // But the same colour twice is refused.
     await expect(
       startCheckout({
+    termsAccepted: true,
         cart: cart({ eventDate: date, services: [{ serviceId: 'castle', quantity: 1 }], castleVariant: 'castle-lime' }),
         customerId: other,
         provider: 'tabby',
