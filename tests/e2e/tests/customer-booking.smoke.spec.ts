@@ -51,11 +51,11 @@ test.describe('Customer website — booking journey', () => {
       const c = page.getByText(colour, { exact: true });
       if (await c.isVisible().catch(() => false)) { await c.click(); break; }
     }
-    await page.getByRole('button', { name: /continue — choose theme/i }).click();
+    await page.getByRole('button', { name: /theme/i }).first().click();
 
-    await page.getByText('Snow White').first().click();
-    await page.getByRole('button', { name: /select this theme/i }).click();
-    await page.getByRole('button', { name: /continue — review & pay/i }).click();
+    await page.getByText('Barbie', { exact: true }).first().click();
+    await page.getByRole('button', { name: /this theme/i }).click();
+    await page.getByRole('button', { name: /review|pay/i }).first().click();
 
     // Step 1 → fill the wizard up to the add-ons step.
     await expect(page.getByText(/step 1 of 6/i)).toBeVisible();
