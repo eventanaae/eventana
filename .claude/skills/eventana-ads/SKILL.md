@@ -20,7 +20,7 @@ No guessing: if a number is missing, say which and how you will get it.
 
 ## Owner rules (never break)
 - Instagram placements ONLY. Never Facebook, Audience Network or Messenger; never automatic placements.
-- One live campaign: «واتساب - قولي إنج تبين إيفنتانا (نوفمبر)» (`120254723629840422`), ad set `120254723630330422`, CBO 65 AED/day (≈ 2,000 AED/month approved). Add new ads INSIDE it; do not open new campaigns unless the numbers prove the current one cannot work.
+- One live campaign: «واتساب - قولي إنج تبين إيفنتانا (نوفمبر)» (`120254723629840422`), ad set `120254723630330422`, CBO ≈60–64 AED/day. Hard cap: 2,000 AED per calendar month for ALL Meta campaigns together (owner, 17 Nov). Add new ads INSIDE it; do not open new campaigns unless the numbers prove the current one cannot work.
 - Gulf Arabic, addressing mums. Hooks built on the mum's PAIN.
 - Eventana does not provide cakes. Never write stand counts («٢ ستاند»): write «ستاند رئيسي بالثيم اللي يحبه طفلج» or «خلفية الثيم».
 - Real prices only (check the live catalogue). Bow theme 20% off is a standing offer (owner, 17 Nov). We do NOT deliver to Al Gharbia — never say "all Emirates".
