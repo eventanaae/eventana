@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.local
+*.tsbuildinfo
+*.log
+apps/*/dist/
+packages/*/dist/
+sd.csv

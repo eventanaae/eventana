@@ -1,0 +1,72 @@
+name: QA
+
+# Eventana automated QA: type-check gate + API unit tests + customer E2E.
+# Runs on every push/PR to main, on a daily schedule, and on demand.
+# The E2E suite is read-only and stops before payment (see tests/e2e).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *' # daily 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Customer site to run E2E against'
+        required: false
+        default: 'https://eventanauae.com'
+
+concurrency:
+  group: qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-and-unit:
+    name: Type-check + API unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build shared
+        run: npm run build -w @eventana/shared
+      - name: Type-check (the gate Render builds on)
+        run: |
+          npx tsc -b apps/api
+          npx tsc -b apps/customer
+          npx tsc -b apps/dashboard
+      - name: API unit tests (vitest)
+        run: npm run test -w @eventana/api -- --passWithNoTests
+
+  e2e-customer:
+    name: Customer E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install E2E deps
+        working-directory: tests/e2e
+        run: npm install --no-audit --no-fund
+      - name: Install Playwright browsers
+        working-directory: tests/e2e
+        run: npx playwright install --with-deps chromium
+      - name: Run customer E2E
+        working-directory: tests/e2e
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url || 'https://eventanauae.com' }}
+          CI: 'true'
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report
+          retention-days: 14
