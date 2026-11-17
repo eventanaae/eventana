@@ -1374,7 +1374,15 @@ export async function publicRoutes(app: FastifyInstance) {
       }).catch(() => null);
     }
     if (!parsed.data.code) return { ok: true, final };
-    const v = await validatePromo(pool, parsed.data.code, customerId, final?.subtotalFils ?? parsed.data.subtotalFils ?? 0);
+    // Judge the code on the same bases checkout uses (pre-BYO price for min spend,
+    // party value for percent codes) so the preview never disagrees with the charge.
+    const v = await validatePromo(
+      pool,
+      parsed.data.code,
+      customerId,
+      final?.minSpendBaseFils ?? final?.subtotalFils ?? parsed.data.subtotalFils ?? 0,
+      final?.percentBaseFils ?? final?.minSpendBaseFils ?? parsed.data.subtotalFils ?? 0,
+    );
     return v.ok
       ? { ok: true, code: v.code, amountFils: v.amountFils, freeDelivery: v.freeDelivery, final }
       : { ok: false, reason: v.reason, final };

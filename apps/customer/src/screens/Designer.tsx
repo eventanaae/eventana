@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import type { ScreenProps } from '../App';
-import { C, fredoka } from '../ui';
+import { C, fredoka, asciiDigits } from '../ui';
 import { clampPlanServices, glamDollsFor, missingPlanChoices } from '../planChoices';
 
 /**
@@ -48,7 +48,7 @@ export function Designer({ catalogue, draft, update, go, t, lang }: ScreenProps)
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(false);
   const [d, setD] = useState<any | null>(null);
-  const kidsN = Math.max(1, Number(kids.replace(/\D/g, '')) || 20);
+  const kidsN = Math.max(1, Number(asciiDigits(kids).replace(/\D/g, '')) || 20);
 
   // A typed idea that IS one of our existing themes ("Frozen", "unicorn") is
   // that theme — not a custom design. Treating it as custom added the AED 800

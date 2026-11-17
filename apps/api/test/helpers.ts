@@ -48,6 +48,7 @@ export async function checkout(
   opts: { provider?: string; customerId?: string } = {},
 ) {
   return startCheckout({
+    termsAccepted: true,
     cart: cart({ eventDate: uniqueDate(), ...overrides }),
     customerId: opts.customerId ?? 'CUST-4471',
     provider: opts.provider ?? 'tabby',

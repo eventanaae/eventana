@@ -81,11 +81,14 @@ describe('2. rejection flow', () => {
     expect(result.eligible).toBe(false);
     expect(result.checkoutUrl).toBeNull();
 
-    // The hold stays alive so the customer can pay another way — but no
-    // booking exists and the order is not paid.
+    // A decline at session creation abandons the order at once (1c5d639):
+    // holds, promo reservation and points are freed so the customer is not
+    // blocked by their own hold; a retry with another method mints a new order.
     expect(await eventsForOrder(result.orderId)).toHaveLength(0);
     const order = await orderRow(result.orderId);
-    expect(order.status).toBe('awaiting_payment');
+    expect(order.status).toBe('failed');
+    const holds = await holdsForOrder(result.orderId);
+    expect(holds.every((h) => h.status === 'released')).toBe(true);
 
     const audit = await auditFor(result.orderId);
     expect(audit.some((a) => a.new_status === 'failed' && /declined/i.test(a.note ?? ''))).toBe(true);
@@ -111,6 +114,7 @@ describe('3. abandoned checkout', () => {
   it('expires the hold at its TTL and makes the asset bookable again', async () => {
     const date = uniqueDate();
     const result = await startCheckout({
+    termsAccepted: true,
       cart: cart({ eventDate: date, services: [{ serviceId: 'bubblehouse', quantity: 1 }] }),
       customerId: 'CUST-4471',
       provider: 'tabby',
@@ -150,9 +154,13 @@ describe('4. duplicate webhook delivery', () => {
     const paymentId = paymentIdOf(result);
     sim().advance(paymentId, 'success');
 
-    const first = await deliverWebhook('tabby', paymentId);
-    const second = await deliverWebhook('tabby', paymentId);
-    const third = await deliverWebhook('tabby', paymentId);
+    // Replay the SAME delivery byte-for-byte. (Re-reading the simulator after
+    // the first delivery would not be a replay: the confirmed BNPL payment is
+    // captured, so the provider now reports a new status — CLOSED.)
+    const body = sim().webhookBody(paymentId);
+    const first = await deliverWebhook('tabby', paymentId, { body });
+    const second = await deliverWebhook('tabby', paymentId, { body });
+    const third = await deliverWebhook('tabby', paymentId, { body });
 
     expect(first.outcome).toBe('accepted');
     // The de-duplication index catches the replays at the door.
@@ -253,6 +261,7 @@ describe('7. tampered client total', () => {
     // The checkout API has no parameter for a client-supplied total, so
     // "tampering" means sending one and proving it is ignored.
     const result = await startCheckout({
+    termsAccepted: true,
       cart: {
         ...cart({ eventDate: uniqueDate(), packageId: 'golden', services: [] }),
         // Fields a hostile client might inject:
@@ -307,6 +316,7 @@ describe('8. concurrent checkout for the single Bubble House', () => {
 
     const attempt = (customerId: string) =>
       startCheckout({
+    termsAccepted: true,
         cart: cart({
           eventDate: date,
           services: [{ serviceId: 'bubblehouse', quantity: 1 }],
@@ -344,11 +354,13 @@ describe('8. concurrent checkout for the single Bubble House', () => {
     const other = await ensureCustomer('CUST-COLOUR');
 
     const lime = await startCheckout({
+    termsAccepted: true,
       cart: cart({ eventDate: date, services: [{ serviceId: 'castle', quantity: 1 }], castleVariant: 'castle-lime' }),
       customerId: 'CUST-4471',
       provider: 'tabby',
     });
     const cotton = await startCheckout({
+    termsAccepted: true,
       cart: cart({ eventDate: date, services: [{ serviceId: 'castle', quantity: 1 }], castleVariant: 'castle-cotton' }),
       customerId: other,
       provider: 'tabby',
@@ -363,6 +375,7 @@ describe('8. concurrent checkout for the single Bubble House', () => {
     // But the same colour twice is refused.
     await expect(
       startCheckout({
+    termsAccepted: true,
         cart: cart({ eventDate: date, services: [{ serviceId: 'castle', quantity: 1 }], castleVariant: 'castle-lime' }),
         customerId: other,
         provider: 'tabby',
@@ -401,14 +414,25 @@ describe('9. invalid webhook signature', () => {
 
 describe('late success after the hold expired', () => {
   it('does not double-book — it flags for human review', async () => {
-    const result = await checkout({ services: [{ serviceId: 'bubblehouse', quantity: 1 }] });
+    const date = uniqueDate();
+    const result = await checkout({ eventDate: date, services: [{ serviceId: 'bubblehouse', quantity: 1 }] });
     const paymentId = paymentIdOf(result);
 
-    // The hold lapsed while the customer was on the provider's page.
+    // The hold lapsed while the customer was on the provider's page…
     await pool.query(
       `UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`,
       [result.orderId],
     );
+    // …and another customer took the single Bubble House in the meantime.
+    // (If the asset were still free, the engine re-acquires the hold and
+    // confirms normally — see the next test.)
+    const rival = await ensureCustomer('CUST-LATE-RIVAL');
+    await startCheckout({
+      termsAccepted: true,
+      cart: cart({ eventDate: date, services: [{ serviceId: 'bubblehouse', quantity: 1 }] }),
+      customerId: rival,
+      provider: 'tabby',
+    });
 
     sim().advance(paymentId, 'success');
     const delivery = await deliverWebhook('tabby', paymentId);
@@ -417,10 +441,28 @@ describe('late success after the hold expired', () => {
     expect((await orderRow(result.orderId)).status).toBe('needs_review');
     expect(await eventsForOrder(result.orderId)).toHaveLength(0);
   });
+
+  it('re-takes the lapsed hold and confirms when the asset is still free', async () => {
+    const result = await checkout({ services: [{ serviceId: 'bubblehouse', quantity: 1 }] });
+    const paymentId = paymentIdOf(result);
+    await pool.query(
+      `UPDATE inventory_holds SET status = 'released' WHERE order_id = $1`,
+      [result.orderId],
+    );
+
+    sim().advance(paymentId, 'success');
+    const delivery = await deliverWebhook('tabby', paymentId);
+
+    expect(delivery.outcome).toBe('accepted');
+    expect((await orderRow(result.orderId)).status).toBe('paid');
+    expect(await eventsForOrder(result.orderId)).toHaveLength(1);
+  });
 });
 
-describe('all three providers', () => {
-  it.each(['tabby', 'tamara', 'ziina'] as const)(
+describe('every offered provider', () => {
+  // Ziina was retired in favour of Stripe (config.ts: `disabled: true`); it is
+  // kept only to refund/reconcile historical orders and is never offered.
+  it.each(['tabby', 'tamara', 'stripe'] as const)(
     'runs the whole flow through %s',
     async (provider) => {
       const result = await checkout({ packageId: 'movie' }, { provider });
@@ -435,4 +477,10 @@ describe('all three providers', () => {
       expect(await eventsForOrder(result.orderId)).toHaveLength(1);
     },
   );
+
+  it('refuses a new checkout through the retired Ziina', async () => {
+    await expect(checkout({ packageId: 'movie' }, { provider: 'ziina' })).rejects.toBeInstanceOf(
+      CheckoutError,
+    );
+  });
 });

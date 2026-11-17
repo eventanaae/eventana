@@ -11,8 +11,21 @@ import { pool } from '../db/pool.js';
  * unambiguous. Returns the normalised value + whether it changed, or null when
  * the number can't be fixed with confidence (must stay for manual review).
  */
+/**
+ * Arabic phone keyboards type Arabic-Indic (٠١٢…) or Persian (۰۱۲…) digits, and
+ * iOS may add invisible direction marks when a number is pasted. Fold both to
+ * plain ASCII so «٠٥٠١٢٣٤٥٦٧» is the same number as 0501234567.
+ */
+export function asciiDigits(raw: string): string {
+  return raw
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069\u00A0]/g, '')
+    .replace(/\uFF0B/g, '+');
+}
+
 export function normalizeUaePhone(raw: string | null | undefined): { value: string; changed: boolean } | null {
-  const original = String(raw ?? '').trim();
+  const original = asciiDigits(String(raw ?? '')).trim();
   if (!original) return null;
   const digits = original.replace(/\D/g, '');
   let e164: string | null = null;
@@ -32,7 +45,7 @@ export function normalizeUaePhone(raw: string | null | undefined): { value: stri
   } else {
     return null; // landline / too short / unknown — do NOT touch
   }
-  return { value: e164, changed: e164 !== original };
+  return { value: e164, changed: e164 !== String(raw ?? '').trim() };
 }
 
 /**
@@ -42,7 +55,7 @@ export function normalizeUaePhone(raw: string | null | undefined): { value: stri
  * value to store, or null when the number has no usable key (reject it).
  */
 export function toValidCustomerPhone(raw: string | null | undefined): string | null {
-  const original = String(raw ?? '').trim();
+  const original = asciiDigits(String(raw ?? '')).trim();
   if (!original) return null;
   const uae = normalizeUaePhone(original);
   if (uae) return uae.value; // UAE mobile (already-correct or 05X/5X/… variants)

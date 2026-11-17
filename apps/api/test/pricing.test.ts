@@ -169,7 +169,7 @@ describe('catalogue minimums', () => {
     expect(billableQuantity(cupcake, 12, 12)).toBe(20);
     expect(billableQuantity(cupcake, 30, 30)).toBe(30);
 
-    const q = quote(base({ services: [{ serviceId: 'cupcake', quantity: 12 }] }), ctx);
+    const q = quote(base({ services: [{ serviceId: 'cupcake', quantity: 12 }], childrenCount: 12 }), ctx);
     expect(q.lines[0].quantity).toBe(20);
     expect(q.lines[0].amountFils).toBe(aed(95) * 20);
     expect(q.problems.some((p) => p.code === 'below_minimum')).toBe(true);

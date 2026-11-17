@@ -4,7 +4,7 @@ import { api, type CheckoutTotalPreview } from '../api';
 import { trackInitiateCheckout } from '../attribution';
 import { trackGoogleBeginCheckout } from '../googleTag';
 import { toCart, type ScreenProps } from '../App';
-import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPreOrderCategory, dubaiToday } from '../ui';
+import { C, Chip, Field, fredoka, money, Notice, PrimaryButton, timeLabel, isPreOrderCategory, dubaiToday, asciiDigits } from '../ui';
 import { loadAccount, saveAccount, clearAccount, type Account } from '../account';
 import { loadProfile } from '../profile';
 import { MapPicker } from '../MapPicker';
@@ -398,13 +398,14 @@ export function Checkout({
   const isByoLine = (l: { kind: string; refId: string | null; amountFils: number }) =>
     l.kind === 'discount' && l.refId === null && byoFils > 0 && l.amountFils === -byoFils;
 
+  const promoCtx = () => ({ cart: toCart(draft), provider: draft.provider, offerToken: draft.offerToken });
   const applyPromo = async () => {
     const code = promoInput.trim();
     if (!code) return;
     setPromoBusy(true);
     setPromoError(null);
     try {
-      const r = await api.checkPromo(code, subtotalFils, guestEmail);
+      const r = await api.checkPromo(code, subtotalFils, guestEmail, promoCtx());
       if (r.ok && r.code) { setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false }); setPromoError(null); }
       else { setPromo(null); setPromoError(r.reason ?? 'This code isn’t valid.'); }
     } catch {
@@ -420,7 +421,7 @@ export function Checkout({
   useEffect(() => {
     if (step !== 6 || promo || subtotalFils <= 0) { setSuggest(null); return; }
     let alive = true;
-    api.checkPromo('WELCOME10', subtotalFils, guestEmail)
+    api.checkPromo('WELCOME10', subtotalFils, guestEmail, promoCtx())
       .then((r) => {
         if (!alive) return;
         setSuggest(r.ok && r.code && ((r.amountFils ?? 0) > 0 || r.freeDelivery)
@@ -439,7 +440,7 @@ export function Checkout({
     if (!promo) return;
     let alive = true;
     api
-      .checkPromo(promo.code, subtotalFils, guestEmail)
+      .checkPromo(promo.code, subtotalFils, guestEmail, promoCtx())
       .then((r) => {
         if (!alive) return;
         if (r.ok && r.code) setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false });
@@ -880,7 +881,7 @@ export function Checkout({
             <Field
               placeholder="25"
               value={String(draft.childrenCount)}
-              onChange={(v) => update({ childrenCount: Math.max(0, Number(v.replace(/\D/g, '')) || 0) })}
+              onChange={(v) => update({ childrenCount: Math.max(0, Number(asciiDigits(v).replace(/\D/g, '')) || 0) })}
             />
           </div>
         )}
@@ -1139,8 +1140,26 @@ export function Checkout({
                   </div>
                 )}
                 <Field placeholder={`${t('checkout.phEmail')} *`} value={reg.email} onChange={(v) => setReg((r) => ({ ...r, email: v }))} style={{ marginBottom: 9 }} />
+                {/* Say what's wrong instead of silently greying out Next. */}
+                {reg.email.trim().length > 3 && !emailOk && (
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.red, margin: '-6px 0 9px 2px' }}>
+                    {lang === 'ar' ? 'تأكدي من الإيميل، مثال: name@gmail.com' : 'Check the email, e.g. name@gmail.com'}
+                  </div>
+                )}
                 <Field placeholder={`${t('checkout.phMobile')} *`} value={reg.phone} onChange={(v) => setReg((r) => ({ ...r, phone: v }))} style={{ marginBottom: 9 }} />
+                {reg.phone.trim().length >= 4 && !phoneN && (
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.red, margin: '-6px 0 9px 2px' }}>
+                    {lang === 'ar' ? 'اكتبي رقم موبايل إماراتي، مثال: 050 123 4567' : 'Enter a UAE mobile, e.g. 050 123 4567'}
+                  </div>
+                )}
                 <Field placeholder={`${t('checkout.phBackup')} (${lang === 'ar' ? 'اختياري' : 'optional'})`} value={reg.backupPhone} onChange={(v) => setReg((r) => ({ ...r, backupPhone: v }))} style={{ marginBottom: 9 }} />
+                {reg.backupPhone.trim().length >= 4 && !backupOk && (
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.red, margin: '-6px 0 9px 2px' }}>
+                    {backupN && backupN === phoneN
+                      ? (lang === 'ar' ? 'الرقم الاحتياطي لازم يكون غير الرقم الأول، أو خليه فاضي' : 'The backup number must differ from the first, or leave it empty')
+                      : (lang === 'ar' ? 'اكتبي رقم موبايل إماراتي، أو خليه فاضي' : 'Enter a UAE mobile, or leave it empty')}
+                  </div>
+                )}
 
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, cursor: 'pointer', margin: '4px 0 0' }}>
                   <input type="checkbox" checked={wantAccount} onChange={(e) => setWantAccount(e.target.checked)} style={{ marginTop: 2, width: 16, height: 16, accentColor: C.pink, flexShrink: 0 }} />

@@ -187,6 +187,9 @@ ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS last_reminded_at TIMESTAMPTZ;
 -- email copy differ from the 20%-off next-booking voucher.
 ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS campaign TEXT;
 CREATE INDEX IF NOT EXISTS promo_codes_customer_idx ON promo_codes (customer_id);
+-- Instagram comment offer (campaign 'igcomment'): the IG handle the code was issued to.
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS ig_username TEXT;
+CREATE INDEX IF NOT EXISTS promo_codes_ig_idx ON promo_codes (campaign, ig_username);
 
 -- One redemption per customer per code (also the audit trail).
 CREATE TABLE IF NOT EXISTS promo_redemptions (
