@@ -10,6 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { isCancelled } from '@eventana/shared';
 import { closePool, pool } from '../src/db/pool.js';
 import { CheckoutError, startAddonCheckout } from '../src/domain/checkout.js';
+import { issueCustomerToken } from '../src/domain/customerAuth.js';
 import { checkout, deliverWebhook, eventsForOrder, paymentIdOf, sim } from './helpers.js';
 
 afterAll(async () => {
@@ -62,7 +63,7 @@ describe('a cancelled event', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/events/${eventId}`,
-      headers: { 'x-customer-id': 'CUST-4471' },
+      headers: { authorization: `Bearer ${issueCustomerToken('CUST-4471')}` },
     });
     const body = res.json();
 
@@ -125,7 +126,7 @@ describe('a cancelled event', () => {
     const quoteRes = await app.inject({
       method: 'POST',
       url: `/api/events/${eventId}/addons/quote`,
-      headers: { 'x-customer-id': 'CUST-4471' },
+      headers: { authorization: `Bearer ${issueCustomerToken('CUST-4471')}` },
       payload: { additionalHours: 1, socksPairs: 0, extraServings: {} },
     });
     expect(quoteRes.statusCode).toBe(409);
@@ -134,7 +135,7 @@ describe('a cancelled event', () => {
     const photoRes = await app.inject({
       method: 'POST',
       url: `/api/events/${eventId}/setup-photos`,
-      headers: { 'x-customer-id': 'CUST-4471' },
+      headers: { authorization: `Bearer ${issueCustomerToken('CUST-4471')}` },
       payload: { itemKey: 'backdrop', description: 'move it to the garden' },
     });
     expect(photoRes.statusCode).toBe(409);
