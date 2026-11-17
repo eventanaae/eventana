@@ -66,7 +66,10 @@ export async function receiveWebhook(args: {
     const providerCfg = (config.providers as Record<string, { webhookSecret: string | null } | undefined>)[
       args.providerName
     ];
-    const hasSecret = Boolean(providerCfg?.webhookSecret);
+    // The simulator ALWAYS has a shared secret (a stable dev default when none
+    // is configured), so a mismatch there is a genuine bad signature — it must
+    // never fall through to the "provider issues no secret" path below.
+    const hasSecret = Boolean(providerCfg?.webhookSecret) || provider.mode === 'simulated';
     if (hasSecret) {
       // A shared secret IS configured but the signature didn't match — reject.
       await recordPaymentEvent(pool, {
