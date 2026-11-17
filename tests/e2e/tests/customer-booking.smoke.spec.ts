@@ -45,8 +45,12 @@ test.describe('Customer website — booking journey', () => {
     // Pick a package → castle colour → theme → checkout.
     await page.getByText('Golden Birthday Package').first().click();
     // Some packages need a bouncy-castle colour before continuing.
-    const snow = page.getByText('Snow', { exact: true });
-    if (await snow.isVisible().catch(() => false)) await snow.click();
+    // Packages with a bouncy castle need a colour first (the continue button
+    // stays disabled until one is picked). Pick whichever offered colour shows.
+    for (const colour of ['Lime', 'Snow', 'Pink', 'Blue']) {
+      const c = page.getByText(colour, { exact: true });
+      if (await c.isVisible().catch(() => false)) { await c.click(); break; }
+    }
     await page.getByRole('button', { name: /continue — choose theme/i }).click();
 
     await page.getByText('Snow White').first().click();
@@ -55,6 +59,10 @@ test.describe('Customer website — booking journey', () => {
 
     // Step 1 → fill the wizard up to the add-ons step.
     await expect(page.getByText(/step 1 of 6/i)).toBeVisible();
+    // Step 1 asks for the child's name and age before Next is enabled.
+    const s1 = page.locator('input:visible');
+    await s1.nth(0).fill('QA Test');
+    await s1.nth(1).fill('6');
     await page.getByRole('button', { name: /next/i }).click();
 
     // Step 2 — emirate + "pin later".
