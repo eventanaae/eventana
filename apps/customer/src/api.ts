@@ -267,10 +267,22 @@ export const api = {
     }),
 
   /** `email`: a guest's contact email, so a personal code sent to it applies without signing in. */
-  checkPromo: (code: string, subtotalFils: number, email?: string) =>
+  checkPromo: (code: string, subtotalFils: number, email?: string, ctx?: { cart: unknown; provider?: string | null; offerToken?: string | null }) =>
     request<{ ok: boolean; code?: string; amountFils?: number; freeDelivery?: boolean; reason?: string }>(
       '/api/promo/check',
-      { method: 'POST', body: JSON.stringify({ code, subtotalFils, email: email || undefined }) },
+      {
+        method: 'POST',
+        // With the cart, the server judges the code on the same bases checkout uses
+        // (pre-BYO price for min spend, party value for percent codes).
+        body: JSON.stringify({
+          code,
+          subtotalFils,
+          email: email || undefined,
+          cart: ctx?.cart,
+          provider: ctx?.provider || undefined,
+          offerToken: ctx?.offerToken || undefined,
+        }),
+      },
     ),
 
   /**

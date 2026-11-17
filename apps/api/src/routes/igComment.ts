@@ -54,7 +54,7 @@ export async function igCommentRoutes(app: FastifyInstance) {
       const code = `HAFLA-${stem}-${suffix}`;
       const r = await pool.query<{ code: string; expires_at: Date }>(
         `INSERT INTO promo_codes (code, kind, value, min_spend_fils, max_uses, active, expires_at, campaign, ig_username)
-         VALUES ($1, 'fixed', $2, $3, 1, TRUE, now() + make_interval(days => $4), $5, $6)
+         VALUES ($1, 'fixed', $2, $3, 1, TRUE, ((date_trunc('day', now() AT TIME ZONE 'Asia/Dubai') + make_interval(days => $4 + 1) - interval '1 second') AT TIME ZONE 'Asia/Dubai'), $5, $6)
          ON CONFLICT (code) DO NOTHING
          RETURNING code, expires_at`,
         [code, IG_COMMENT_OFFER.amountFils, IG_COMMENT_OFFER.minSpendFils, IG_COMMENT_OFFER.validDays, IG_COMMENT_CAMPAIGN, handle],

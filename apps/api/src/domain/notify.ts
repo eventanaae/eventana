@@ -280,7 +280,7 @@ export async function sendWinbackEmail(o: {
   customerId?: string;
 }): Promise<boolean> {
   const expiry = o.expiresAt
-    ? new Date(o.expiresAt).toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(o.expiresAt).toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Dubai' })
     : null;
   // One-click unsubscribe — deterministic HMAC token, matching /api/unsubscribe.
   const base = (config.email.publicBaseUrl || config.publicAppUrl || 'https://eventanauae.com').replace(/\/$/, '');

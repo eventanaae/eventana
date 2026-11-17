@@ -34,7 +34,12 @@ export interface AppliedDiscounts {
   /** When stacking is off and a reward out-valued the Build-Your-Own 15%, the
    *  caller must strip the BYO discount line (only one discount may apply). */
   droppedByo: boolean;
+  /** A promo code was entered but is not valid for this booking (the reason). */
+  promoRejected?: string;
 }
+
+/** Dubai (UTC+4, no DST) calendar date, YYYY-MM-DD. */
+const dubaiDate = (ms: number) => new Date(ms + 4 * 3_600_000).toISOString().slice(0, 10);
 
 function line(label: string, amountFils: number): QuoteLine {
   return { kind: 'discount', refId: null, label, quantity: 1, unitFils: -amountFils, amountFils: -amountFils, discountEligible: false };
@@ -107,7 +112,11 @@ export async function validatePromo(
         : 'This is a personal code. Enter the email it was sent to in your details, then apply it again.',
     };
   }
-  if (p.expires_at && new Date(p.expires_at).getTime() < Date.now()) return { ok: false, reason: 'This code has expired.' };
+  // A code is valid through the whole of its last day in Dubai (the email and the
+  // profile show a date, not a time): compare Dubai calendar dates, not instants.
+  if (p.expires_at && dubaiDate(new Date(p.expires_at).getTime()) < dubaiDate(Date.now())) {
+    return { ok: false, reason: 'This code has expired.' };
+  }
   if (p.max_uses != null && p.uses >= p.max_uses) return { ok: false, reason: 'This code has been fully redeemed.' };
   if (subtotalFils < p.min_spend_fils) {
     return { ok: false, reason: `Spend at least AED ${Math.round(p.min_spend_fils / 100)} to use this code.` };
@@ -183,6 +192,7 @@ export async function computeDiscounts(
     // 1) promo code
     if (args.input.promoCode) {
       const v = await validatePromo(db, args.input.promoCode, args.customerId, args.subtotalFils, percentBase);
+      if (!v.ok) out.promoRejected = v.reason;
       if (v.ok && v.amountFils > 0) {
         const amt = Math.min(v.amountFils, room());
         if (amt > 0) {
@@ -244,6 +254,7 @@ export async function computeDiscounts(
   let promoCand: { code: string; amountFils: number; deliveryFils: number } | null = null;
   if (args.input.promoCode) {
     const v = await validatePromo(db, args.input.promoCode, args.customerId, args.subtotalFils, percentBase);
+    if (!v.ok) out.promoRejected = v.reason;
     if (v.ok && v.amountFils > 0) {
       const amt = Math.min(v.amountFils, fullRoom);
       const del =

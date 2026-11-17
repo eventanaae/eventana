@@ -398,13 +398,14 @@ export function Checkout({
   const isByoLine = (l: { kind: string; refId: string | null; amountFils: number }) =>
     l.kind === 'discount' && l.refId === null && byoFils > 0 && l.amountFils === -byoFils;
 
+  const promoCtx = () => ({ cart: toCart(draft), provider: draft.provider, offerToken: draft.offerToken });
   const applyPromo = async () => {
     const code = promoInput.trim();
     if (!code) return;
     setPromoBusy(true);
     setPromoError(null);
     try {
-      const r = await api.checkPromo(code, subtotalFils, guestEmail);
+      const r = await api.checkPromo(code, subtotalFils, guestEmail, promoCtx());
       if (r.ok && r.code) { setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false }); setPromoError(null); }
       else { setPromo(null); setPromoError(r.reason ?? 'This code isn’t valid.'); }
     } catch {
@@ -420,7 +421,7 @@ export function Checkout({
   useEffect(() => {
     if (step !== 6 || promo || subtotalFils <= 0) { setSuggest(null); return; }
     let alive = true;
-    api.checkPromo('WELCOME10', subtotalFils, guestEmail)
+    api.checkPromo('WELCOME10', subtotalFils, guestEmail, promoCtx())
       .then((r) => {
         if (!alive) return;
         setSuggest(r.ok && r.code && ((r.amountFils ?? 0) > 0 || r.freeDelivery)
@@ -439,7 +440,7 @@ export function Checkout({
     if (!promo) return;
     let alive = true;
     api
-      .checkPromo(promo.code, subtotalFils, guestEmail)
+      .checkPromo(promo.code, subtotalFils, guestEmail, promoCtx())
       .then((r) => {
         if (!alive) return;
         if (r.ok && r.code) setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false });

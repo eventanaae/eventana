@@ -30,6 +30,7 @@ export type WebhookOutcome =
   | 'duplicate'
   | 'unsigned'
   | 'unparseable'
+  | 'ignored'
   | 'unknown_payment'
   | 'amount_mismatch'
   | 'late_success'
@@ -99,7 +100,9 @@ export async function receiveWebhook(args: {
   }
 
   const parsed = provider.parseWebhook(body);
-  if (!parsed) return { httpStatus: 400, outcome: 'unparseable' };
+  // A signed event we don't act on (e.g. Stripe payment_intent.* / charge.*):
+  // acknowledge it, or the provider retries it and may disable the endpoint.
+  if (!parsed) return { httpStatus: 200, outcome: 'ignored' };
 
   // (3) Idempotency at the door: the unique index means a replayed
   // delivery inserts nothing and is acknowledged without reprocessing.

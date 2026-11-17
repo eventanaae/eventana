@@ -73,7 +73,7 @@ export async function issueWinbackCode(
     const ins = await db.query(
       `INSERT INTO promo_codes
          (code, kind, value, min_spend_fils, max_uses, active, expires_at, customer_id, auto_reminder, campaign)
-       VALUES ($1, 'fixed', $2, $3, 1, TRUE, now() + interval '${WINBACK_VALID_MONTHS} months', $4, TRUE, 'winback')
+       VALUES ($1, 'fixed', $2, $3, 1, TRUE, ((date_trunc('day', now() AT TIME ZONE 'Asia/Dubai') + interval '${WINBACK_VALID_MONTHS} months 1 day' - interval '1 second') AT TIME ZONE 'Asia/Dubai'), $4, TRUE, 'winback')
        ON CONFLICT (code) DO NOTHING
        RETURNING code`,
       [code, WINBACK_AMOUNT_FILS, WINBACK_MIN_SPEND_FILS, customerId],

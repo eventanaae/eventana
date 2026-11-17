@@ -243,6 +243,14 @@ export async function previewCheckoutTotal(args: {
     if (adj) applyOfferToQuote(q, adj);
   }
   const subtotalFils = q.totalFils;
+  // The bases checkout's promo check really uses: with stacking off a reward is
+  // judged on the pre-BYO price (min spend) and party value (percent codes).
+  const baseQ = !cfg.rules.allowDiscountStacking && byoDiscountFils > 0
+    ? computeQuote(args.cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: true })
+    : q;
+  const rushFils = baseQ.lines.filter((l) => l.kind === 'surcharge').reduce((sum, l) => sum + l.amountFils, 0);
+  const minSpendBaseFils = baseQ.totalFils;
+  const percentBaseFils = Math.max(0, baseQ.totalFils - baseQ.deliveryFils - rushFils);
   const applied = await applyCheckoutDiscounts(q, {
     customerId: args.customerId ?? '',
     input: args.discounts,
@@ -263,6 +271,8 @@ export async function previewCheckoutTotal(args: {
     byoDiscountFils,
     droppedByo: applied.droppedByo && byoDiscountFils > 0,
     allowStacking: cfg.rules.allowDiscountStacking,
+    minSpendBaseFils,
+    percentBaseFils,
   };
 }
 
@@ -325,7 +335,7 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     : null;
   if (codeOwner) req.discounts = { ...req.discounts, useCredit: false, redeemPoints: false };
   const customerId =
-    req.customerId ?? (req.guest ? await createGuestCustomer(req.guest, { reuseRegistered: Boolean(codeOwner) }) : null);
+    req.customerId ?? codeOwner ?? (req.guest ? await createGuestCustomer(req.guest, { reuseRegistered: false }) : null);
   if (!customerId) {
     throw new CheckoutError('Please sign in or enter your details to continue.', 'auth_required');
   }
@@ -428,6 +438,12 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     byoDiscountFils,
     noByoQuote: () => computeQuote(cart, { ...toPricingContext(cfg), nowMs: Date.now(), noByoDiscount: true }),
   });
+  // A code the customer entered that turns out invalid at pay time must not be
+  // dropped silently (she would be charged more than the screen showed): stop and
+  // tell her why. Losing to a bigger discount (no stacking) is not a rejection.
+  if (req.discounts?.promoCode && applied.promoRejected) {
+    throw new CheckoutError(applied.promoRejected, 'promo_invalid');
+  }
   if (applied.totalFils > 0) {
     (cart as unknown as Record<string, unknown>).appliedDiscounts = applied;
   }
