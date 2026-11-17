@@ -125,6 +125,8 @@ async function main() {
     // is off. Marsha is BCC'd automatically.
     const { resendGhayaFromEnv } = await import('./db/resendGhaya.js');
     await resendGhayaFromEnv().catch((err) => console.error('[resend-ghaya] failed:', err));
+    const { resendCodeFixedFromEnv } = await import('./db/resendCodeFixed.js');
+    await resendCodeFixedFromEnv().catch((err) => console.error('[code-fixed] failed:', err));
     // Read-only customer-data integrity audit (DATA_AUDIT=true) — per-event
     // verdict across event/receipt/cart/customer; the pre-send safety gate.
     const { dataIntegrityAuditFromEnv } = await import('./db/dataIntegrityAudit.js');
