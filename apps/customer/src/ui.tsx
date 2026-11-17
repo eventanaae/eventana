@@ -86,8 +86,17 @@ export const fredoka = (size: number, weight = 600): CSSProperties => ({
   fontSize: size,
 });
 
+/** Arabic-Indic (٠١٢) and Persian (۰۱۲) digits → ASCII, so numbers typed on an Arabic keyboard are read. */
+export const asciiDigits = (raw: string) =>
+  (raw || '')
+    .replace(/[\u0660-\u0669]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (c) => String(c.charCodeAt(0) - 0x06f0));
+
 export const money = (fils: number) =>
-  (fils / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  // Whole dirhams stay clean ("5,999"); any fils show two decimals ("599.90", never "599.9").
+  (fils / 100).toLocaleString('en-US', fils % 100 === 0
+    ? { maximumFractionDigits: 0 }
+    : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * Cloudinary on-the-fly transform so a 1–3 MB original isn't downloaded into a

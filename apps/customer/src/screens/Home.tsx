@@ -19,8 +19,10 @@ export function Home({ catalogue, draft, shopCart, update, go, customerName, t, 
     try { sessionStorage.setItem('eventana_welcome_promo_v1', '1'); } catch { /* ignore */ }
   };
   const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
-  const firstName = (customerName || '').trim().split(' ')[0] || t('common.friend');
-  const initial = firstName.charAt(0).toUpperCase() || '☺';
+  const realName = (customerName || '').trim().split(' ')[0];
+  // No name yet: a warm welcome instead of "Good morning there" / a "T" avatar.
+  const firstName = realName || (lang === 'ar' ? 'أهلاً فيج' : 'Welcome');
+  const initial = realName ? realName.charAt(0).toUpperCase() : '🎈';
 
   // "Pick up where you left off": both carts persist across a refresh, so surface
   // them here — a party in progress (package/services chosen) and/or shop items —

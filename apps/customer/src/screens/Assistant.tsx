@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { api } from '../api';
 import type { ScreenProps } from '../App';
-import { C, fredoka, money } from '../ui';
+import { C, fredoka, money, asciiDigits } from '../ui';
 import { clampPlanServices, glamDollsFor, missingPlanChoices } from '../planChoices';
 
 const WHATSAPP_URL = 'https://wa.me/971564500777';
@@ -78,8 +78,8 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
     try {
       const p = await api.plan({
         celebrationType: draft.celebrationType,
-        childrenCount: Math.max(1, Number(kids.replace(/\D/g, '')) || 20),
-        budgetFils: budget ? Math.round(Number(budget.replace(/\D/g, '')) * 100) : null,
+        childrenCount: Math.max(1, Number(asciiDigits(kids).replace(/\D/g, '')) || 20),
+        budgetFils: budget ? Math.round(Number(asciiDigits(budget).replace(/\D/g, '')) * 100) : null,
         age: draft.ageBand ?? undefined,
       });
       setPlan(p);
@@ -108,7 +108,7 @@ export function Assistant({ catalogue, draft, update, go, customerName, t, lang 
       glamDolls: glamDollsFor(planServices),
       themeId: plan.themeId,
       customTheme: false,
-      childrenCount: Math.max(1, Number(kids.replace(/\D/g, '')) || 20),
+      childrenCount: Math.max(1, Number(asciiDigits(kids).replace(/\D/g, '')) || 20),
     });
     go(plan.packageId ? 'package' : 'build');
   };

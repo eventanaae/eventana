@@ -13,7 +13,12 @@ import { TermsSheet } from './Terms';
  * Emirati number and to compare the primary against the backup.
  */
 export function uaeMobile(raw: string): string | null {
-  let d = (raw || '').replace(/\D/g, '');
+  // Arabic keyboards type ٠٥٠… (Arabic-Indic) or ۰۵۰… (Persian) digits; fold them
+  // to ASCII first, or every digit is stripped and the number reads as invalid.
+  const ascii = (raw || '')
+    .replace(/[\u0660-\u0669]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (c) => String(c.charCodeAt(0) - 0x06f0));
+  let d = ascii.replace(/\D/g, '');
   if (d.startsWith('971')) d = d.slice(3);
   if (d.startsWith('0')) d = d.slice(1);
   return /^5\d{8}$/.test(d) ? d : null;
