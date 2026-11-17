@@ -14,7 +14,22 @@ import { renderCodeFixedEmail } from '../domain/notify.js';
 const P = (s: string) => console.log(`[code-fixed] ${s}`);
 
 export async function resendCodeFixedFromEnv(): Promise<void> {
-  const code = String(process.env.RESEND_CODE_FIXED ?? '').trim().toUpperCase();
+  await sendCodeFixed(String(process.env.RESEND_CODE_FIXED ?? ''));
+}
+
+/**
+ * Queue path (the service is at its env-var limit): an owner-approved send is
+ * queued as an app_secrets row `queue:code_fixed:<CODE>`; the 5-minute sweep
+ * picks it up, removes it and sends once (the one-shot marker still guards).
+ */
+export async function sweepCodeFixedQueue(): Promise<void> {
+  const { rows } = await pool.query<{ k: string }>(
+    `DELETE FROM app_secrets WHERE k LIKE 'queue:code_fixed:%' RETURNING k`);
+  for (const r of rows) await sendCodeFixed(r.k.slice('queue:code_fixed:'.length));
+}
+
+async function sendCodeFixed(raw: string): Promise<void> {
+  const code = raw.trim().toUpperCase();
   if (!code) return;
   if (!emailEnabled()) { P('email disabled — abort'); return; }
   if (!(await claimOneShot(`oneshot:RESEND_CODE_FIXED:${code}`))) { P(`${code} already sent — skip`); return; }

@@ -262,6 +262,11 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
   // Nudge customers about an unused 20%-off reward every ~6 months.
   await sweepVoucherReminders().catch((err) => console.error('[marketing] voucher reminders failed:', err));
 
+  // Owner-approved one-off "your code works now" emails queued in app_secrets.
+  await import('../db/resendCodeFixed.js')
+    .then((m) => m.sweepCodeFixedQueue())
+    .catch((err) => console.error('[code-fixed] queue failed:', err));
+
   // Continue the win-back campaign one daily batch at a time (gated WINBACK_AUTO=send).
   await sweepWinbackCampaignAuto()
     .then((n) => { if (n) console.log(`[marketing] winback auto-campaign sent ${n}`); })
