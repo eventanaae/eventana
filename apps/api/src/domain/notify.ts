@@ -323,6 +323,47 @@ export async function sendWinbackEmail(o: {
   return res.ok;
 }
 
+/**
+ * Personal "your code works now" note, in the win-back email's look: for a
+ * customer whose personal code was refused by the checkout bug fixed 17 Nov.
+ * Owner-approved per customer; Marsha is BCC'd like every one-to-one email.
+ */
+export function renderCodeFixedEmail(o: { firstName: string; code: string; expiresAt?: Date | string | null }): { subject: string; html: string } {
+  const expiry = o.expiresAt
+    ? new Date(o.expiresAt).toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Dubai' })
+    : null;
+  const first = o.firstName || '';
+  const bodyHtml = `
+    <p style="margin:0 0 12px;font-size:15px;line-height:1.6">هلا <bdi>${first}</bdi> 👋</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.95">نعتذر منج عن المشكلة اللي صارت لج مع كود الخصم وقت الحجز 🙏 تم إصلاحها، وكودج شغّال الحين 💕</p>
+    <div style="background:${PANEL};border:2px dashed #F3B6D2;border-radius:18px;padding:22px 18px;text-align:center;margin:18px 0">
+      <div style="font-size:12px;font-weight:700;color:#c98bb0;letter-spacing:1px;margin-bottom:8px">🎁 هديتج الخاصة</div>
+      <div style="font-family:${DISPLAY};font-size:38px;font-weight:800;color:${BRAND};line-height:1.25">600 درهم خصم</div>
+      <div style="margin:16px auto 4px">
+        <span style="display:inline-block;background:#EAF8F6;color:#2f9488;border-radius:14px;padding:9px 16px;font-size:14px;font-weight:700;margin:4px">🚚 توصيل مجاني</span>
+        <span style="display:inline-block;background:#FFF4DA;color:#c79218;border-radius:14px;padding:9px 16px;font-size:14px;font-weight:700;margin:4px">💛 لج وحدج</span>
+      </div>
+      <div style="margin:16px auto 0;max-width:300px;background:linear-gradient(135deg,#FFEFD4,#FFDCEA);border-radius:16px;padding:13px">
+        <div style="font-size:11.5px;font-weight:700;color:#b3679a;letter-spacing:1px;margin-bottom:4px">كودج</div>
+        <div style="font-family:${DISPLAY};font-size:25px;font-weight:800;color:${BRAND};letter-spacing:1.5px;direction:ltr">${o.code}</div>
+      </div>
+    </div>
+    <p style="margin:0 0 6px;font-size:14.5px;line-height:1.95"><b style="color:#c0356f">طريقة الاستخدام:</b> عند الدفع اكتبي نفس الإيميل اللي وصلج عليه هذا الإيميل، وبعدين حطي الكود ✨</p>
+    <p style="margin:6px 0 0;font-size:13.5px;line-height:1.9;color:${MUTED}">على أي حجز فوق <b style="color:${BRAND}">3,000 درهم</b>${expiry ? ` — صالح <b style="color:${BRAND}">حتى ${expiry}</b>` : ''}، ويُستخدم مرة وحدة 🌸</p>`;
+  const html = shell({
+    first: first || 'حبيبتنا',
+    emoji: '💌',
+    eyebrow: 'كودج شغّال 💕',
+    // The shell's heading/greeting are left-to-right; keep a Latin-script name
+    // out of them (it reorders the Arabic) and greet inside the RTL body instead.
+    heading: 'كودج جاهز 💕',
+    greeting: '',
+    bodyHtml: `<div dir="rtl" style="text-align:right">${bodyHtml}</div>`,
+    cta: { href: (config.publicAppUrl || 'https://eventanauae.com').replace(/\/$/, ''), label: 'احجزي الحين 🎉' },
+  });
+  return { subject: 'كودج شغّال 🎁 خصم 600 درهم + توصيل مجاني', html };
+}
+
 /** "16:00" → "4:00 PM" — friendly 12-hour time for customers. */
 function time12(hhmm: string | null | undefined): string {
   if (!hhmm) return '';
