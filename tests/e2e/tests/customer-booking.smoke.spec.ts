@@ -21,8 +21,11 @@ async function skipOnboarding(page: Page) {
 
 /** Dismiss the welcome-discount popup if it is up. */
 async function dismissPromo(page: Page) {
-  const later = page.getByText(/maybe later/i);
-  if (await later.isVisible().catch(() => false)) await later.click();
+  // The popup mounts a moment after the page (it reads sessionStorage in an
+  // effect), so wait briefly for it instead of checking once and racing it.
+  const close = page.getByRole('button', { name: 'close' });
+  await close.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+  if (await close.isVisible().catch(() => false)) await close.click();
 }
 
 test.describe('Customer website — booking journey', () => {
