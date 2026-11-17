@@ -11,6 +11,7 @@ import { marketingReportRoutes } from './routes/marketingReport.js';
 import { voiceRecRoutes } from './routes/voiceRec.js';
 import { igCommentRoutes } from './routes/igComment.js';
 import { opsReadOnlyRoutes } from './routes/opsReadOnly.js';
+import { opsWriteRoutes } from './routes/opsWrite.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -85,6 +86,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(voiceRecRoutes);
   await app.register(igCommentRoutes);
   await app.register(opsReadOnlyRoutes);
+  await app.register(opsWriteRoutes);
 
   return app;
 }

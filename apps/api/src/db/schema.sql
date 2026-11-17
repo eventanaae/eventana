@@ -2007,3 +2007,19 @@ CREATE TABLE IF NOT EXISTS ad_voice_takes (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ad_voice_takes_ad_idx ON ad_voice_takes (ad, created_at DESC);
+
+-- Audit trail for the support assistant's data access (/api/ops/rw-query):
+-- every dry run and committed change, with a copy of rows before an UPDATE or
+-- DELETE so any change can be put back.
+CREATE TABLE IF NOT EXISTS ops_sql_audit (
+  id           BIGSERIAL PRIMARY KEY,
+  at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sql          TEXT NOT NULL,
+  params       JSONB,
+  kind         TEXT NOT NULL,
+  committed    BOOLEAN NOT NULL,
+  row_count    INT,
+  before_rows  JSONB,
+  note         TEXT
+);
+CREATE INDEX IF NOT EXISTS ops_sql_audit_at_idx ON ops_sql_audit (at DESC);
