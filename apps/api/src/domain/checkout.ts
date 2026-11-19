@@ -118,6 +118,8 @@ export function resolveRequiredAssets(cart: CartInput, cfg: LoadedConfig): strin
 
 /** Tabby / Tamara are Buy-Now-Pay-Later: they charge Eventana a provider fee, so
  *  the automatic 15% Build-Your-Own discount is not given on those payments. */
+export const PROMO_FULL_PAYMENT_ONLY =
+  'Discount codes work with full payment only (Apple Pay or card). They do not work with Tabby, Tamara or any instalment plan.';
 export function isBnplProvider(provider?: string | null): boolean {
   const p = String(provider ?? '').toLowerCase();
   return p === 'tabby' || p === 'tamara';
@@ -424,6 +426,14 @@ export async function startCheckout(req: CheckoutRequest): Promise<CheckoutResul
     throw new CheckoutError('This booking cannot be completed yet.', 'not_bookable', {
       problems: serverQuote.problems,
     });
+  }
+
+  // Owner rule (19 Nov 2026): discount codes (WELCOME10, personal / win-back
+  // codes, every promo) apply to FULL payment only — never with Tabby, Tamara or
+  // any instalment plan. A crew referral code gives no discount, so it stays allowed.
+  if (req.discounts?.promoCode?.trim() && isBnplProvider(req.provider)) {
+    const staff = await resolveStaffCode(pool, req.discounts.promoCode).catch(() => null);
+    if (!staff) throw new CheckoutError(PROMO_FULL_PAYMENT_ONLY, 'promo_invalid');
   }
 
   // Apply promo / store credit / point redemption, server-validated. Recorded
