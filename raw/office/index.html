@@ -328,7 +328,7 @@ function initScene(){
   box(RW+.9,.3,RD+.9,M(0x8a8276),0,-.16,0);
   room();
   for(const k of ["mkt","ops","sales","sys"])teamArea(k);
-  reception();meetingRoom();lounge();
+  reception();meetingRoom();lounge();buildGrid();
   new ResizeObserver(resize).observe(vp);window.addEventListener("resize",resize);resize();controls();
 }
 const WH=2.9;
@@ -359,14 +359,39 @@ function pendant(x,z,len){cyl(.006,.006,1.0,MAT.black,x-len/2+.2,2.4,z,null,4);c
 function stoneTable(cx,cz,len,wid){box(len,.09,wid,MAT.top,cx,.76,cz);box(len*.62,.71,wid*.5,MAT.walnut,cx,.355,cz);pendant(cx,cz,Math.min(len*.8,4))}
 function vase(x,z){cyl(.09,.13,.24,M(0x3a3a3a,{roughness:.3}),x,.92,z);const b=new THREE.Mesh(new THREE.IcosahedronGeometry(.22,0),M(0x5B8C5A,{flatShading:true}));b.position.set(x,1.16,z);scene.add(b)}
 const SEAT={},DESK={};
+/* walkable floor: everything solid is registered here, people path around it (A*) */
+const OBS=[];function obs(x0,z0,x1,z1){OBS.push([Math.min(x0,x1),Math.min(z0,z1),Math.max(x0,x1),Math.max(z0,z1)])}
+let GRID=null;const CELL=.2,PAD=.28;
+function buildGrid(){const RW=1200/K,RD=916/K,nx=Math.ceil(RW/CELL),nz=Math.ceil(RD/CELL),g=new Uint8Array(nx*nz);
+  for(let iz=0;iz<nz;iz++)for(let ix=0;ix<nx;ix++){const x=-RW/2+(ix+.5)*CELL,z=-RD/2+(iz+.5)*CELL;
+    let b=x<-RW/2+.35||x>RW/2-.35||z<-RD/2+.35||z>RD/2-.35;
+    if(!b)for(const o of OBS){if(x>o[0]-PAD&&x<o[2]+PAD&&z>o[1]-PAD&&z<o[3]+PAD){b=true;break}}g[iz*nx+ix]=b?1:0}
+  GRID={nx,nz,g,RW,RD}}
+const cellOf=(x,z)=>[Math.max(0,Math.min(GRID.nx-1,Math.floor((x+GRID.RW/2)/CELL))),Math.max(0,Math.min(GRID.nz-1,Math.floor((z+GRID.RD/2)/CELL)))];
+const ctr=(ix,iz)=>({x:-GRID.RW/2+(ix+.5)*CELL,z:-GRID.RD/2+(iz+.5)*CELL});
+const free=(ix,iz)=>ix>=0&&iz>=0&&ix<GRID.nx&&iz<GRID.nz&&!GRID.g[iz*GRID.nx+ix];
+function nearestFree(ix,iz){if(free(ix,iz))return [ix,iz];for(let r=1;r<40;r++)for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;if(free(ix+dx,iz+dz))return [ix+dx,iz+dz]}return [ix,iz]}
+function los(a,b){const d=Math.hypot(b.x-a.x,b.z-a.z),n=Math.ceil(d/(CELL*.5));for(let i=1;i<n;i++){const x=a.x+(b.x-a.x)*i/n,z=a.z+(b.z-a.z)*i/n;const [cx,cz]=cellOf(x,z);if(!free(cx,cz))return false}return true}
+function findPath(a,b){if(!GRID)return [b];
+  const [sx0,sz0]=cellOf(a.x,a.z),[tx0,tz0]=cellOf(b.x,b.z);const [sx,sz]=nearestFree(sx0,sz0),[tx,tz]=nearestFree(tx0,tz0);
+  const N=GRID.nx*GRID.nz,gs=new Float32Array(N).fill(1e9),came=new Int32Array(N).fill(-1),closed=new Uint8Array(N),open=[];
+  const id=(x,z)=>z*GRID.nx+x,h=(x,z)=>Math.hypot(x-tx,z-tz);gs[id(sx,sz)]=0;open.push([h(sx,sz),sx,sz]);
+  while(open.length){let bi=0;for(let i=1;i<open.length;i++)if(open[i][0]<open[bi][0])bi=i;const [,x,z]=open.splice(bi,1)[0];const ci=id(x,z);if(closed[ci])continue;closed[ci]=1;
+    if(x===tx&&z===tz)break;
+    for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){const nx=x+dx,nz=z+dz;if(!free(nx,nz))continue;if(dx&&dz&&(!free(x+dx,z)||!free(x,z+dz)))continue;
+      const ni=id(nx,nz),ng=gs[ci]+(dx&&dz?1.414:1);if(ng<gs[ni]){gs[ni]=ng;came[ni]=ci;open.push([ng+h(nx,nz),nx,nz])}}}
+  const cells=[];let c=id(tx,tz);if(came[c]===-1&&c!==id(sx,sz))return [b];while(c!==-1){cells.push(c);c=came[c]}cells.reverse();
+  const pts=cells.map(ci=>ctr(ci%GRID.nx,Math.floor(ci/GRID.nx)));
+  const out=[a];let i=0;while(i<pts.length-1){let j=pts.length-1;while(j>i+1&&!los(out[out.length-1],pts[j]))j--;out.push(pts[j]);i=j}
+  out.push(b);return out.slice(1)}
 // one long table per team; everyone sits around it facing the middle
 function teamArea(k){
   const z=Z[k],staff=T.filter(p=>p.z===k),n=staff.length,per=Math.ceil(n/2);
   const cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2)+.4,len=Math.max(2.6,per*1.15+.7),wid=1.4;
-  stoneTable(cx,cz,len,wid);vase(cx,cz);
+  stoneTable(cx,cz,len,wid);vase(cx,cz);obs(cx-len/2,cz-wid/2,cx+len/2,cz+wid/2);
   // team wall: walnut divider with linen panel, frames and brass name
   const x0=WX(z.x),x1=WX(z.x+z.w),zb=WZ(z.y)+.25,dw=Math.min(x1-x0-.6,len+2.6);
-  if(k!=="mkt"){box(dw,1.7,.14,MAT.walnut,cx,.85,zb);box(dw-.3,.95,.03,MAT.linen,cx,1.12,zb+.085);box(dw-.3,.02,.04,MAT.led,cx,1.62,zb+.09);
+  if(k!=="mkt"){obs(cx-dw/2,zb-.07,cx+dw/2,zb+.07);box(dw,1.7,.14,MAT.walnut,cx,.85,zb);box(dw-.3,.95,.03,MAT.linen,cx,1.12,zb+.085);box(dw-.3,.02,.04,MAT.led,cx,1.62,zb+.09);
     const m=Math.max(1,Math.floor((dw-1.2)/.7));for(let i=0;i<m;i++){const fr=new THREE.Mesh(new THREE.PlaneGeometry(.42,.5),new THREE.MeshStandardMaterial({map:frameTexture(i%3),roughness:.8}));fr.position.set(cx-(m-1)*.35+i*.7,1.08,zb+.1);scene.add(fr)}}
   const sY=k==="mkt"?2.15:1.95,sZ=k==="mkt"?WZ(z.y)-0.0:zb;   // marketing signs on the real back wall
   const sw=Math.min(3.6,dw*.8),sign=new THREE.Mesh(new THREE.PlaneGeometry(sw,sw*160/1024),new THREE.MeshBasicMaterial({map:signTexture(z.name),transparent:true}));sign.position.set(cx,k==="mkt"?2.75:sY,(k==="mkt"?-RDH+.12:sZ+.1));scene.add(sign);
@@ -381,16 +406,21 @@ function laptop(x,z,rot){const g=new THREE.Group();box(.42,.02,.3,M(0xB8BCC2,{me
   const scrM=M(0x111111,{emissive:0x000000,roughness:.3});const scr=box(.38,.25,.005,scrM,0,.15,.01,lid);lid.rotation.x=-.25;
   g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);return {scr}}
 function reception(){const z=Z.sec,cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2);
-  box(2.6,.95,.6,MAT.walnut,cx,.475,cz);box(2.7,.05,.7,MAT.top,cx,.97,cz);box(2.5,.02,.02,MAT.led,cx,.06,cz+.31);
+  obs(cx-1.35,cz-.35,cx+1.35,cz+.35);box(2.6,.95,.6,MAT.walnut,cx,.475,cz);box(2.7,.05,.7,MAT.top,cx,.97,cz);box(2.5,.02,.02,MAT.led,cx,.06,cz+.31);
   const p=T.find(q=>q.z==="sec");if(p){SEAT[p.id]={x:PX(cx),y:PY(cz-.75)};p.face=0;upChair(cx,cz-.75,Math.PI);DESK[p.id]=laptop(cx,cz-.12,0)}
   vase(cx+1,cz);}
+const MEETSEATS=[];
 function meetingRoom(){const z=Z.meet,x0=WX(z.x),x1=WX(z.x+z.w),z0=WZ(z.y),z1=WZ(z.y+z.h),cx=(x0+x1)/2,cz=(z0+z1)/2;
-  box(x1-x0,2.4,.05,MAT.glass,cx,1.2,z1);box(.05,2.4,z1-z0,MAT.glass,x0,1.2,cz);box(x1-x0,.05,.08,MAT.black,cx,2.42,z1);box(.08,.05,z1-z0,MAT.black,x0,2.42,cz);
-  stoneTable(cx,cz,3.4,1.0);vase(cx,cz);for(let i=-1;i<=1;i++){upChair(cx+i*1.05,cz-.88,Math.PI);upChair(cx+i*1.05,cz+.88,0)}
+  const d0=x0+.25,d1=x0+1.35;
+  box(x1-d1,2.4,.05,MAT.glass,(d1+x1)/2,1.2,z1);obs(d1,z1-.03,x1,z1+.03);box(.05,2.4,z1-z0,MAT.glass,x0,1.2,cz);obs(x0-.03,z0,x0+.03,z1);
+  box(x1-d1,.05,.08,MAT.black,(d1+x1)/2,2.42,z1);box(.08,.05,z1-z0,MAT.black,x0,2.42,cz);box(d1-d0,.05,.08,MAT.black,(d0+d1)/2,2.42,z1);box(.04,2.4,.06,MAT.black,d1,1.2,z1);
+  stoneTable(cx,cz,3.4,1.0);vase(cx,cz);obs(cx-1.7,cz-.5,cx+1.7,cz+.5);
+  for(let i=-1;i<=1;i++){upChair(cx+i*1.05,cz-.88,Math.PI);upChair(cx+i*1.05,cz+.88,0);MEETSEATS.push([PX(cx+i*1.05),PY(cz-.95),0],[PX(cx+i*1.05),PY(cz+.95),Math.PI])}
   box(2.4,1.2,.06,M(0x20242c,{emissive:0x2d3a4f,emissiveIntensity:.5}),cx,1.45,z0+.15);
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.6*160/1024),new THREE.MeshBasicMaterial({map:signTexture(z.name),transparent:true}));sign.position.set(cx,2.25,z0+.2);scene.add(sign)}
 function lounge(){const z=Z.cafe,cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2);
   const rug=new THREE.Mesh(new THREE.CircleGeometry(1.5,40),M(0xE9E2D6,{roughness:1}));rug.rotation.x=-Math.PI/2;rug.position.set(cx-.6,.01,cz+.1);rug.receiveShadow=true;scene.add(rug);
+  obs(cx-1.2,cz-.5,cx,cz+.7);obs(cx-1.8,cz+.75,cx+.6,cz+1.6);obs(cx+.9,WZ(z.y)+.25,cx+2.7,WZ(z.y)+.95);
   cyl(.6,.6,.06,MAT.top,cx-.6,.5,cz+.1,null,32);cyl(.06,.2,.48,MAT.walnut,cx-.6,.24,cz+.1);
   box(2.4,.42,.75,MAT.fabric,cx-.6,.21,cz+1.15);box(2.4,.55,.2,MAT.fabric,cx-.6,.55,cz+1.45);
   upChair(cx-1.7,cz+.1,-Math.PI/2);upChair(cx+.5,cz+.1,Math.PI/2);
@@ -434,8 +464,11 @@ function makeFigure(p,i){
   g.userData={legL,legR,armL,armR,head};
   g.scale.setScalar(1.12);g.traverse(o=>{if(o.isMesh){o.castShadow=true}});scene.add(g);return g}
 function setDesk(p){if(!p.el)return;const d=DESK[p.id];if(d){const c={work:0x5DA9C9,team:0x5DA9C9,wait:0xE0A93C,stop:0x9B3030}[p.st];d.scr.material.emissive.setHex(c||0x000000);d.scr.material.emissiveIntensity=c?.9:0}}
-function place(p,x,y,instant){p.x=x;p.y=y;p.target={x:WX(x),z:WZ(y)};if(instant||!p.pos){p.pos={x:p.target.x,z:p.target.z};p.from={...p.pos};p.t0=0}else{p.from={x:p.pos.x,z:p.pos.z};p.t0=performance.now()}}
-async function walk(p,x,y){place(p,x,y);await sleep(reduce?50:1950)}
+function place(p,x,y,instant){p.x=x;p.y=y;p.target={x:WX(x),z:WZ(y)};
+  if(instant||!p.pos){p.pos={x:p.target.x,z:p.target.z};p.t0=0;p.path=null;return}
+  const pts=[{x:p.pos.x,z:p.pos.z},...findPath(p.pos,p.target)];let L=0;const cum=[0];for(let i=1;i<pts.length;i++){L+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].z-pts[i-1].z);cum.push(L)}
+  p.path={pts,cum,L};p.dur=reduce?40:Math.max(500,L/1.5*1000);p.t0=performance.now()}
+async function walk(p,x,y){place(p,x,y);await sleep((p.t0?p.dur:0)+60)}
 async function say(p,text,ms=3200){await sleep(ms)} /* owner: no speech bubbles on the floor; talk shows in the side log */
 if(HAS3D)initScene(); else floor.insertAdjacentHTML("beforeend",'<p class="note" style="padding:20px">ما قدرت أحمّل العرض الثلاثي الأبعاد، جربي تحدّثين الصفحة.</p>');
 const MOODS={happy:["😊","مستانس"],sad:["😞","زعلان"],busy:["💻","مشغول"],stressed:["😰","مضغوط"],free:["☕","فري"],need:["🙋","محتاج شي"]};
@@ -477,9 +510,10 @@ function frame(now){
     if(!p.fig&&p.el&&p.pos){p.fig=makeFigure(p,7)}
     const f=p.fig;if(!f)continue;const U=f.userData;
     const hidden=p.el.style.display==="none";f.visible=!hidden&&!p.away;
-    let t=1;if(p.t0){t=Math.min(1,(now-p.t0)/1900);if(t>=1)p.t0=0}
-    const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
-    const nx=p.from.x+(p.target.x-p.from.x)*e,nz=p.from.z+(p.target.z-p.from.z)*e;
+    let nx=p.pos.x,nz=p.pos.z;
+    if(p.t0&&p.path){const t=Math.min(1,(now-p.t0)/p.dur),dist=t*p.path.L,P=p.path;let i=1;while(i<P.cum.length-1&&P.cum[i]<dist)i++;
+      const seg=P.cum[i]-P.cum[i-1]||1,u=Math.min(1,(dist-P.cum[i-1])/seg);nx=P.pts[i-1].x+(P.pts[i].x-P.pts[i-1].x)*u;nz=P.pts[i-1].z+(P.pts[i].z-P.pts[i-1].z)*u;
+      if(t>=1){p.t0=0;p.path=null;nx=p.target.x;nz=p.target.z}}
     const dx=nx-p.pos.x,dz=nz-p.pos.z,moving=Math.abs(dx)+Math.abs(dz)>1e-3;
     if(moving){const want=Math.atan2(dx,dz);let d=want-f.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));f.rotation.y+=d*Math.min(1,dt*10)}
     p.pos.x=nx;p.pos.z=nz;
@@ -523,7 +557,7 @@ async function conversation([ai,bi,qa,qb]){
 }
 async function meeting(m){
   const ps=m.who.map(byId); if(ps.some(p=>p.busy))return; ps.forEach(p=>{p.busy=true;setDesk(p)});
-  const z=Z.meet,spots=[[z.x+70,z.y+70],[z.x+300,z.y+70],[z.x+150,z.y+70],[z.x+225,z.y+70]];
+  const spots=MEETSEATS.length?MEETSEATS:[[600,458]];
   await Promise.all(ps.map((p,i)=>walk(p,spots[i][0],spots[i][1])));
   log(ps[0],null,m.topic); await say(ps[0],m.topic,3000);
   for(const p of ps.slice(1)){await say(p,"عندي رايي من شغلي…",1600)}
@@ -561,8 +595,8 @@ function renderMeeting(){
 async function playMeeting(){
   const m=meetingData; if(!m||meetingBusy)return; const sh=byId("shamma"); if(sh.busy)return;
   meetingBusy=true;sh.busy=true;setDesk(sh);
-  const z=Z.meet; SHAIMA.el.style.display=""; place(SHAIMA,z.x+120,z.y+70,true);
-  place(sh,z.x+250,z.y+70,true);
+  const ms=MEETSEATS.length?MEETSEATS:[[600,458],[640,458]]; SHAIMA.el.style.display=""; place(SHAIMA,ms[0][0],ms[0][1],true);
+  place(sh,ms[1][0],ms[1][1],true);
   log(sh,SHAIMA,"اجتماع اليوم مع شيماء");
   const tts=await getTts();
   for(const [k,t] of meetingLines(m)){const line=`${k}: ${t}`;const sp=tts?tts.speak(line,{language:"ar",voice:"airy"}).catch(()=>{}):null;await say(sh,line,3600);if(sp)await sp}
@@ -700,7 +734,7 @@ document.getElementById("meetBtn").onclick=()=>{
   go.onclick=async()=>{const idea=P.querySelector("#idea").value.trim();const sel=[...P.querySelectorAll('.pick[aria-pressed="true"]')].map(b=>byId(b.dataset.id));if(!idea||!sel.length)return;
     min.innerHTML=`<div class="note">الفريق يتناقش…</div>`;go.disabled=true;
     const ps=sel.slice(0,4).filter(p=>!p.busy);ps.forEach(p=>{p.busy=true;setDesk(p)});
-    const z=Z.meet,spots=[[z.x+70,z.y+70],[z.x+300,z.y+70],[z.x+150,z.y+70],[z.x+225,z.y+70]];ps.forEach((p,i)=>walk(p,spots[i][0],spots[i][1]));
+    const spots=MEETSEATS.length?MEETSEATS:[[600,458]];ps.forEach((p,i)=>walk(p,spots[i%spots.length][0],spots[i%spots.length][1]));
     try{const s=await getSample();
       const res=await s.json(`${CONTEXT}\nاجتماع. الحضور:\n${sel.map(p=>`- ${p.name} (${p.role}): ${p.does.join("، ")}`).join("\n")}\nفكرة شيماء: ${idea}\nكل واحد يعطي رايه من تخصصه بجملتين أو ثلاث، وبعدها شمّا تكتب خلاصة وقرارات مقترحة تحتاج موافقة شيماء. رجّع JSON فقط: {"turns":[{"name":"...","text":"..."}],"summary":"..."}`,{modelTier:"default"});
       min.innerHTML="";for(const t of (res.turns||[])){min.insertAdjacentHTML("beforeend",`<div class="turn"><b>${esc(t.name||"")}</b><br>${esc(t.text||"")}</div>`);const p=T.find(x=>x.name===t.name);if(p){log(p,null,t.text||"");say(p,(t.text||"").slice(0,90),3500)}}
