@@ -94,6 +94,15 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     const tasks = (await pool.query(`SELECT split_part(tm.name,' ',1) AS name, COUNT(*)::int AS n
          FROM prep_tasks pt JOIN prep_task_staff s ON s.task_id = pt.id JOIN team_members tm ON tm.id = s.member_id
         WHERE pt.category = 'manual' AND pt.status <> 'completed' GROUP BY tm.name`).catch(() => ({ rows: [] }))).rows;
+    const learn = await one(`SELECT
+        to_char(MIN(created_at) FILTER (WHERE direction = 'out' AND sent_by = 'staff') AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') AS since,
+        COUNT(*) FILTER (WHERE direction = 'out' AND sent_by = 'staff')::int AS team_replies,
+        COUNT(*) FILTER (WHERE direction = 'out' AND sent_by = 'staff' AND created_at > now() - interval '7 days')::int AS team_week,
+        COUNT(*) FILTER (WHERE direction = 'out' AND sent_by = 'agent')::int AS bot_replies,
+        COUNT(*) FILTER (WHERE direction = 'in')::int AS customer_msgs,
+        COUNT(DISTINCT phone)::int AS chats
+       FROM whatsapp_messages`).catch(() => ({}));
+    const mode = await one(`SELECT value FROM settings WHERE key = 'whatsapp_agent_mode'`).catch(() => ({}));
     const aed = (f: unknown) => Math.round(Number(f ?? 0)) / 100;
     const office = {
       money: { todayAed: aed(money.today_fils), todayBookings: Number(money.today_n ?? 0), monthAed: aed(money.month_fils), monthBookings: Number(money.month_n ?? 0) },
@@ -103,6 +112,15 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       ratings30d: { avg: ratings.avg ?? null, count: Number(ratings.n ?? 0) },
       leaveRequests: leaveReq,
       manualTasks: tasks,
+      whatsappLearning: {
+        mode: typeof mode.value === 'string' ? mode.value : (process.env.WHATSAPP_AGENT_MODE ?? 'off'),
+        since: learn.since ?? null,
+        teamReplies: Number(learn.team_replies ?? 0),
+        teamRepliesWeek: Number(learn.team_week ?? 0),
+        botReplies: Number(learn.bot_replies ?? 0),
+        customerMessages: Number(learn.customer_msgs ?? 0),
+        chats: Number(learn.chats ?? 0),
+      },
     };
     return {
       today,
