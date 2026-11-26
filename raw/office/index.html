@@ -102,6 +102,10 @@ button{font-family:inherit;cursor:pointer}
 .log li{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--c) 7%,transparent);border-inline-start:3px solid var(--c);animation:in .35s ease}
 @keyframes in{from{opacity:0;transform:translateY(-6px)}}
 .log .meta{font-size:12px;color:var(--muted)} .log .txt{font-size:14px}
+.mcard{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:14px;background:var(--brass-soft);border:1px solid var(--brass)}
+.mcard #mlines{display:flex;flex-direction:column;gap:4px;font-size:14px}
+.mcard .ln b{color:var(--brass)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--brass);align-self:flex-start}
 .btn{background:var(--ink);color:var(--ground);border:0;border-radius:999px;padding:9px 18px;font-weight:600;font-size:14px}
 
 .scrim{position:fixed;inset:0;background:rgba(10,16,28,.45);z-index:20}
@@ -144,6 +148,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
     </section>
     <aside class="log" aria-labelledby="log-h">
       <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
+      <div class="mcard" id="mcard"><b>اجتماعج مع شمّا</b><span class="note" id="mstate">كل يوم الساعة 5:30 المسا، بس إذا فيه شي مهم.</span><div id="mlines"></div><button class="btn ghost" id="mplay" type="button" hidden>شوفي الاجتماع</button></div>
       <ul id="feed" aria-live="polite"></ul>
     </aside>
   </div>
@@ -291,6 +296,47 @@ function director(){
   if(r<.72){conversation(TALKS[ti++%TALKS.length])} else if(r<.86){meeting(MEETS[mi++%MEETS.length])} else {coffee()}
 }
 director();setTimeout(director,1500);setInterval(director,reduce?7000:4200);
+
+/* ---- the owner's meeting with the secretary (data written by Claude into the page's store) ---- */
+const SHAIMA={id:"shaima",z:"meet",g:"f",real:1,name:"شيماء",role:"المالكة",st:"team",task:"",does:[]};
+SHAIMA.el=add(`<div class="p f real" aria-hidden="true" style="--c:var(--brass);--skin:var(--skin1);--s:var(--brass);display:none">
+  <span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span><span class="st"></span><span class="typing"></span><span class="name">شيماء</span><span class="bub"></span></div>`);
+let meetingData=null,meetingBusy=false;
+const todayDubai=()=>new Date(Date.now()+4*3600e3).toISOString().slice(0,10);
+function meetingLines(m){return [...(m.done||[]).map(t=>["خلص",t]),...(m.doing||[]).map(t=>["شغالين",t]),...(m.ask||[]).map(t=>["يحتاج ردّج",t])]}
+function renderMeeting(){
+  const st=document.getElementById("mstate"),box=document.getElementById("mlines"),btn=document.getElementById("mplay");
+  box.textContent="";btn.hidden=true;
+  const m=meetingData;
+  if(!m||m.date!==todayDubai()){st.textContent="كل يوم الساعة 5:30 المسا، بس إذا فيه شي مهم.";return}
+  if(m.status==="none"){st.textContent="ما فيه اجتماع اليوم، كل شي ماشي.";return}
+  if(m.status==="scheduled"){st.textContent="عندج اجتماع معاي الساعة 5:30، وبعطيج التحديث.";return}
+  st.textContent="محضر اجتماع اليوم";
+  for(const [k,t] of meetingLines(m)){const d=document.createElement("div");d.className="ln";const b=document.createElement("b");b.textContent=k+": ";d.append(b,document.createTextNode(String(t)));box.appendChild(d)}
+  btn.hidden=false;
+}
+async function playMeeting(){
+  const m=meetingData; if(!m||meetingBusy)return; const sh=byId("shamma"); if(sh.busy)return;
+  meetingBusy=true;sh.busy=true;setDesk(sh);
+  const z=Z.meet; SHAIMA.el.style.display=""; place(SHAIMA,z.x+120,z.y+70,true);
+  await walk(sh,z.x+250,z.y+70);
+  log(sh,SHAIMA,"اجتماع اليوم مع شيماء");
+  for(const [k,t] of meetingLines(m)){await say(sh,`${k}: ${t}`,3600)}
+  await say(sh,"هذا كل شي اليوم",1800);
+  await walk(sh,SEAT.shamma.x,SEAT.shamma.y); SHAIMA.el.style.display="none";
+  sh.busy=false;setDesk(sh);meetingBusy=false;
+}
+document.getElementById("mplay").onclick=playMeeting;
+(async()=>{
+  const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
+  if(!db)return;
+  let first=true;
+  db.doc("meetings/today").onSnapshot(snap=>{
+    meetingData=snap.exists?snap.data():null;renderMeeting();
+    if(first&&meetingData&&meetingData.date===todayDubai()&&meetingData.status==="done"){setTimeout(playMeeting,2500)}
+    first=false;
+  },()=>{});
+})();
 
 /* header + approvals */
 const cnt=k=>T.filter(p=>p.st===k).length;
