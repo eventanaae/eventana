@@ -1,0 +1,776 @@
+<title>طابق إيفنتانا</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+/* Layout: one live top-down office floor (people walk, meet, talk) beside a running office log; approvals strip on top; details open in one side panel — no tabs. */
+:root{
+  --ground:#EBEEF2; --floor:#F7F5F0; --wood:#E4D7C1; --ink:#16223A; --muted:#5D6880;
+  --brass:#A8834B; --brass-soft:#EFE5D2; --glass:rgba(110,160,200,.16); --card:#FFFFFF; --line:#D6DBE3;
+  --ok:#2E9A6B; --wait:#C98A1B; --stop:#C24D4D; --idle:#9AA3B2;
+  --ev:#7A2E64; --mz:#1F7A80; --od:#3F5BA9; --mt:#C0761F; --hq:#8A6A2F;
+  --kandura:#FBFBF9; --abaya:#1D1F26; --skin1:#D7A98A; --skin2:#B98466;
+  --display:"El Messiri","Noto Kufi Arabic",serif;
+  --body:"IBM Plex Sans Arabic","Noto Sans Arabic",system-ui,sans-serif;
+  --shadow:0 14px 34px -20px rgba(22,34,58,.5);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--ground:#0D1422;--floor:#1A2131;--wood:#2B2A2A;--ink:#EEF1F6;--muted:#9AA6BC;--brass:#CFAE73;--brass-soft:#352E22;
+  --glass:rgba(120,170,210,.12);--card:#1C2539;--line:#2C3852;--idle:#6C778C;
+  --ev:#C46BA8;--mz:#3FB3B9;--od:#7D97E6;--mt:#E3A04E;--hq:#CFAE73;--kandura:#F1F1EC;--abaya:#05060A;--shadow:0 14px 34px -18px rgba(0,0,0,.75);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--ground:#0D1422;--floor:#1A2131;--wood:#2B2A2A;--ink:#EEF1F6;--muted:#9AA6BC;--brass:#CFAE73;--brass-soft:#352E22;
+  --glass:rgba(120,170,210,.12);--card:#1C2539;--line:#2C3852;--idle:#6C778C;
+  --ev:#C46BA8;--mz:#3FB3B9;--od:#7D97E6;--mt:#E3A04E;--hq:#CFAE73;--kandura:#F1F1EC;--abaya:#05060A;--shadow:0 14px 34px -18px rgba(0,0,0,.75);
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;
+  padding-block:18px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:8px}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}
+.brand h1{font-size:clamp(30px,4vw,44px)}
+.brand p{margin:0;color:var(--muted)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px}
+.chip b{font-variant-numeric:tabular-nums}
+.clock{font-family:var(--display);font-size:22px;color:var(--brass);font-variant-numeric:tabular-nums}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.ask{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
+.ask::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--c)}
+.ask .who{font-size:12px;color:var(--muted)} .ask .what{font-weight:600} .ask .how{font-size:13px;color:var(--muted)}
+.sec-h{display:flex;align-items:baseline;gap:10px} .sec-h h2{font-size:20px} .sec-h span{font-size:13px;color:var(--muted)}
+
+.main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.stage{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:12px;box-shadow:var(--shadow);overflow:hidden}
+.viewport{position:relative;width:100%}
+.iso{position:absolute;left:0;top:0;width:1500px;height:1000px;transform-origin:top left}
+.floor{position:absolute;top:70px;left:150px;width:1200px;height:916px;transform-origin:50% 50%;transform:rotateX(55deg) rotateZ(-45deg);transform-style:preserve-3d;direction:ltr;
+  background:var(--floor);border-radius:14px;
+  background-image:repeating-linear-gradient(90deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px),
+                   repeating-linear-gradient(0deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px)}
+.zone{transform-style:preserve-3d;position:absolute;border:3px solid var(--brass);border-radius:16px;background:color-mix(in srgb,var(--c) 5%,transparent)}
+.zone .lbl{position:absolute;top:-15px;right:18px;background:var(--floor);padding:0 10px;font-family:var(--display);font-size:20px;color:var(--c);direction:rtl;white-space:nowrap}
+.zone .sub{position:absolute;bottom:-11px;right:18px;background:var(--floor);padding:0 8px;font-size:12px;color:var(--muted);direction:rtl}
+.zone.meet{background:var(--glass);border-style:solid}
+.table{position:absolute;border-radius:50%;background:var(--wood);border:2px solid var(--brass)}
+.desk{transform-style:preserve-3d;transform:translateZ(18px);box-shadow:0 0 0 1px rgba(0,0,0,.08);position:absolute;width:74px;height:40px;border-radius:8px;background:var(--wood);border:1px solid color-mix(in srgb,var(--brass) 45%,transparent)}
+.desk .scr{transform-origin:50% 100%;transform:rotateX(-90deg);position:absolute;left:50%;top:4px;width:34px;height:16px;margin-left:-17px;border-radius:3px;background:#2B3346;border:2px solid #3B455C}
+.desk.on .scr{background:linear-gradient(180deg,#9FD3E8,#5DA9C9);box-shadow:0 0 10px rgba(110,190,230,.6)}
+.desk.wait .scr{background:linear-gradient(180deg,#F4D58D,#E0A93C);box-shadow:0 0 10px rgba(230,170,60,.55)}
+.desk.stop .scr{background:#6B2C2C}
+.plant{position:absolute;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#86C08A,#3D7A49);box-shadow:0 0 0 4px rgba(61,122,73,.15)}
+.sofa{position:absolute;border-radius:12px;background:color-mix(in srgb,var(--brass) 35%,var(--floor))}
+.coffee{position:absolute;width:34px;height:34px;border-radius:8px;background:#3B2E25;border:2px solid var(--brass)}
+
+.p{transform-style:preserve-3d;position:absolute;left:0;top:0;width:58px;height:76px;margin:-60px 0 0 -29px;transition:transform 1.9s cubic-bezier(.45,.05,.4,1);z-index:3;cursor:pointer;background:none;border:0;padding:0}
+.p .fig{position:absolute;inset:0}
+.p .body{position:absolute;left:12px;top:29px;width:34px;height:40px;border-radius:17px 17px 8px 8px;background:var(--kandura);border:1px solid rgba(0,0,0,.12)}
+.p.f .body{background:var(--abaya);border-color:rgba(255,255,255,.08)}
+.p .head{position:absolute;left:16px;top:5px;width:26px;height:26px;border-radius:50%;background:var(--skin)}
+.p.m .head::before{content:"";position:absolute;inset:-3px -3px 6px -3px;border-radius:10px 10px 4px 4px;background:var(--kandura);border:1px solid rgba(0,0,0,.12);z-index:-1}
+.p.m .head::after{content:"";position:absolute;left:-3px;right:-3px;top:-3px;height:4px;border-radius:3px;background:#1B1B1B}
+.p.f .head{box-shadow:0 0 0 4px var(--abaya)}
+.p .badge{position:absolute;left:22px;top:45px;width:14px;height:14px;border-radius:50%;background:var(--c);border:2px solid var(--kandura)}
+.p .name{position:absolute;top:76px;left:50%;transform:translateX(-50%);font-size:15px;font-weight:600;white-space:nowrap;direction:rtl;
+  background:color-mix(in srgb,var(--card) 85%,transparent);padding:0 6px;border-radius:6px;color:var(--ink)}
+.p .st{position:absolute;right:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--s);border:2px solid var(--floor)}
+.p.x .body{background:var(--ev);border-color:rgba(0,0,0,.15)}
+.p.real .name{background:var(--brass-soft);outline:1px solid var(--brass)}
+.p.real .badge{background:var(--brass);border-color:var(--brass-soft)}
+.p.walk .fig{animation:bob .38s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-3px)}}
+.p .typing{position:absolute;left:50%;top:-12px;transform:translateX(-50%);display:none;gap:3px}
+.p.typingon .typing{display:flex}
+.typing i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:tp 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes tp{50%{opacity:.25}}
+.bub{position:absolute;bottom:84px;left:50%;transform:translateX(-50%) scale(.9);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+  width:max-content;max-width:270px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:8px 12px;font-size:15px;line-height:1.5;
+  direction:rtl;box-shadow:var(--shadow);z-index:5}
+.bub::after{content:"";position:absolute;bottom:-6px;left:50%;margin-left:-6px;width:12px;height:12px;background:var(--card);border-right:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg)}
+.p.talk .bub{opacity:1;transform:translateX(-50%) scale(1)}
+.p.talk{z-index:6}
+
+.log{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:10px;max-height:min(78vh,900px);box-shadow:var(--shadow)}
+.log ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.log li{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--c) 7%,transparent);border-inline-start:3px solid var(--c);animation:in .35s ease}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}}
+.log .meta{font-size:12px;color:var(--muted)} .log .txt{font-size:14px}
+.talk{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--floor)}
+.talk .thread{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
+.talk .msg.me{align-self:flex-start}.talk .msg.them{align-self:flex-end;background:var(--card)}
+.talk .tbar{display:flex;gap:6px;flex-wrap:wrap}
+.mcard{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:14px;background:var(--brass-soft);border:1px solid var(--brass)}
+.mcard #mlines{display:flex;flex-direction:column;gap:4px;font-size:14px}
+.mcard .ln b{color:var(--brass)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--brass);align-self:flex-start}
+.btn{background:var(--ink);color:var(--ground);border:0;border-radius:999px;padding:9px 18px;font-weight:600;font-size:14px}
+
+.scrim{position:fixed;inset:0;background:rgba(10,16,28,.45);z-index:20}
+.panel{position:fixed;z-index:21;inset-block:0;inset-inline-end:0;width:min(440px,100%);background:var(--card);border-inline-start:1px solid var(--line);
+  padding:calc(20px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.panel .x{align-self:flex-start;background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:4px 12px}
+.ph h2{font-size:26px} .ph .note{margin-top:-2px}
+.sec{display:flex;flex-direction:column;gap:6px} .sec h4{margin:0;font-size:12px;color:var(--muted);font-weight:600} .sec ul{margin:0;padding-inline-start:18px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;border-radius:999px;padding:2px 10px;background:color-mix(in srgb,var(--s) 15%,transparent)}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--s)}
+textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);background:var(--floor);border:1px solid var(--line);border-radius:12px;padding:10px 12px;resize:vertical}
+.chat{display:flex;flex-direction:column;gap:8px}.msg{border-radius:12px;padding:8px 12px;font-size:14px;white-space:pre-wrap}
+.msg.me{background:var(--brass-soft)}.msg.them{background:var(--floor);border:1px solid var(--line)}
+.note{font-size:12px;color:var(--muted)}
+.picks{display:flex;flex-wrap:wrap;gap:6px}.pick{border:1px solid var(--line);background:var(--floor);color:var(--ink);border-radius:999px;padding:4px 12px;font-size:13px}
+.pick[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.turn{background:var(--floor);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px}.summary{background:var(--brass-soft);border-radius:12px;padding:10px 14px;font-size:14px}
+
+@media (max-width:1000px){.main{grid-template-columns:1fr}.log{max-height:420px}}
+@media (max-width:640px){.cards{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:78%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}.ask{scroll-snap-align:start}}
+.cards{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+@media (prefers-reduced-motion:reduce){.p{transition:none}.p.walk .fig,.typing i{animation:none}.log li{animation:none}}
+.p .up{position:absolute;inset:0;transform-origin:50% 80%;transform:rotateZ(45deg) rotateX(-55deg)}
+.zone .lbl{transform-origin:50% 100%;transform:translateZ(70px) rotateZ(45deg) rotateX(-55deg);box-shadow:0 4px 14px -6px rgba(0,0,0,.35);border-radius:8px}
+.zone .sub{transform-origin:50% 100%;transform:rotateZ(45deg) rotateX(-55deg)}
+.wall{position:absolute;background:linear-gradient(180deg,color-mix(in srgb,var(--c) 18%,var(--card)),var(--card));border:1px solid color-mix(in srgb,var(--brass) 60%,transparent);transform-origin:0 0;pointer-events:none}
+.wall.top{height:56px;transform:rotateX(90deg)}
+.wall.right{width:56px;transform-origin:0 0;transform:rotateY(-90deg)}
+.desk::before{content:"";position:absolute;inset:0;border-radius:8px;background:color-mix(in srgb,var(--wood) 70%,#000);transform:translateZ(-18px)}
+.plant{transform:translateZ(14px)}
+/* 3D floor overlay */
+.viewport{position:relative;width:100%;border-radius:14px;overflow:hidden;touch-action:none}
+.viewport canvas.gl{display:block;width:100%;cursor:grab;border-radius:14px}
+.overlay{position:absolute;inset:0;pointer-events:none;direction:rtl}
+.overlay .p{all:unset;position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform}
+.overlay .p .card{display:flex;flex-direction:column;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px 7px 3px;box-shadow:0 4px 12px rgba(0,0,0,.10);position:relative;min-width:54px}
+.overlay .p.real .card{border-color:var(--brass);background:var(--brass-soft)}
+.overlay .p .name{position:static;transform:none;background:none;font-size:11.5px;font-weight:700;line-height:1.25;color:var(--ink);padding:0}
+.overlay .p .rl{font-size:9.5px;color:var(--muted);line-height:1.2;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}
+.overlay .p .st{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--s);border:0}
+.overlay .p .typing{position:static;transform:none;display:none;gap:3px;order:-1}
+.overlay .p.typingon .typing{display:flex}
+.overlay .p .bub{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%) scale(.9);font-size:13px;max-width:240px}
+.overlay .p.talk .bub{opacity:1;transform:translateX(-50%) scale(1)}
+.overlay .p:focus-visible .card{outline:2px solid var(--brass)}
+.overlay .zl{position:absolute;left:0;top:0;font-family:var(--display);font-size:15px;color:var(--c);background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);border-radius:999px;padding:1px 12px;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+.overlay .p .mood{font-size:20px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));background:color-mix(in srgb,var(--card) 80%,transparent);border-radius:999px;padding:3px 4px}
+.overlay .p.real .mood{font-size:14px}
+.overlay .p .pop{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);flex-direction:column;align-items:flex-start;gap:2px;min-width:170px;max-width:230px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.16);text-align:right}
+.overlay .p.open .pop{display:flex}
+.overlay .p.open{z-index:99999!important}
+.overlay .p .pop .name{font-size:15px}
+.overlay .p .pop .rl{font-size:12px;max-width:none;white-space:normal}
+.overlay .p .pop .ml{font-size:12px;background:var(--brass-soft);border-radius:999px;padding:0 8px}
+.overlay .p .pop .tk{font-size:12px;color:var(--ink);white-space:normal;line-height:1.5}
+.overlay .p .pop .more{font-size:12px;color:var(--brass);text-decoration:underline;cursor:pointer}
+.overlay .p .bub,.overlay .p .typing,.overlay .p .card{display:none!important}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12.5px;color:var(--muted);padding:2px 4px 8px}
+.stage{position:relative}
+.viewbar{position:absolute;z-index:5;top:20px;left:20px;display:flex;gap:6px;flex-wrap:wrap}
+.viewbar button{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--card) 92%,transparent);color:var(--ink);font-size:20px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.viewbar button:active{transform:scale(.96)}
+.stage:fullscreen{padding:0;border-radius:0;background:var(--card)}
+.stage:fullscreen .viewport,.stage:fullscreen canvas.gl{border-radius:0}
+body.big .main{grid-template-columns:1fr}
+body.big .log{display:none}
+</style>
+
+<div class="wrap" dir="rtl">
+  <header class="top">
+    <div class="brand"><h1>طابق إيفنتانا</h1><p>فريق إيفنتانا كامل، والسكرتيرة هي اللي تكلمج</p></div>
+    <div class="chips" id="chips"></div>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <section aria-labelledby="ask-h" style="display:flex;flex-direction:column;gap:8px">
+    <div class="sec-h"><h2 id="ask-h">شمّا تسألج</h2><span>بس اللي فعلاً يحتاج ردّج</span></div>
+    <div class="cards" id="asks"></div>
+  </section>
+
+  <div class="main">
+    <section class="stage" id="stage" aria-label="المكتب">
+      <div class="viewbar" id="viewbar" role="toolbar" aria-label="التحكم بالمنظر"><button type="button" data-v="in" aria-label="قرّبي">＋</button><button type="button" data-v="out" aria-label="بعّدي">－</button><button type="button" data-v="left" aria-label="لفّي يمين">⟲</button><button type="button" data-v="right" aria-label="لفّي يسار">⟳</button><button type="button" data-v="home" aria-label="رجّعي المنظر">⌂</button><button type="button" data-v="full" aria-label="ملء الشاشة">⛶</button></div><div class="legend" id="opsU"></div><div class="viewport" id="vp"><div class="overlay" id="floor"></div></div>
+    </section>
+    <aside class="log" aria-labelledby="log-h">
+      <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
+      <div class="mcard" id="mcard"><b>اجتماعج مع شمّا</b><span class="note" id="mstate">كل يوم الساعة 5:30 المسا، بس إذا فيه شي مهم.</span><div id="mlines"></div><button class="btn ghost" id="mplay" type="button" hidden>شوفي الاجتماع</button></div>
+      <div class="talk" aria-label="كلمي شمّا">
+        <b>كلمي شمّا</b>
+        <div class="thread" id="thread"><div class="msg them">أنا شمّا، قولي لي اللي تبينه وأنا أوصله للفريق.</div></div>
+        <textarea id="sayBox" rows="2" placeholder="اكتبي لشمّا، أو اضغطي تكلمي"></textarea>
+        <div class="tbar"><button class="btn" id="sendS" type="button">أرسلي</button><button class="btn ghost" id="mic" type="button" hidden>تكلمي</button><button class="btn ghost" id="listen" type="button" hidden>اسمعي آخر رد</button></div>
+        <span class="note" id="tnote"></span>
+      </div>
+      <ul id="feed" aria-live="polite"></ul>
+    </aside>
+  </div>
+</div>
+<div id="layer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const ST={team:{t:"فريق حقيقي",c:"var(--brass)"},soon:{t:"يبدأ بعد موافقتج",c:"var(--idle)"},work:{t:"شغّال",c:"var(--ok)"},wait:{t:"ينتظرج",c:"var(--wait)"},stop:{t:"متوقف",c:"var(--stop)"},idle:{t:"متفرغ",c:"var(--idle)"},new:{t:"ينتظر تعريف المشروع",c:"var(--idle)"}};
+const Z={ /* x,y,w,h on a 1200x1020 floor — Eventana only */
+  mkt:{name:"التسويق",sub:"إعلانات · محتوى · إنتاج · مراجعة",c:"var(--ev)",x:24,y:24,w:760,h:300,cols:6},
+  sec:{name:"مكتب السكرتيرة",sub:"هي اللي تكلمج",c:"var(--hq)",x:808,y:24,w:368,h:140,cols:1},
+  meet:{name:"غرفة الاجتماعات",sub:"زجاج",c:"var(--brass)",x:808,y:184,w:368,h:140},
+  ops:{name:"العمليات",sub:"مارشا والفريق الميداني بإطار ذهبي",c:"var(--mt)",x:24,y:348,w:760,h:300,cols:6},
+  sales:{name:"المبيعات والعملاء",sub:"متابعة · شركات · خدمات جديدة",c:"var(--od)",x:808,y:348,w:368,h:300,cols:2},
+  sys:{name:"الأنظمة والحسابات",sub:"مواقع · ربط وأرشيف · مالية",c:"var(--mz)",x:24,y:672,w:760,h:220,cols:3},
+  cafe:{name:"الاستراحة",sub:"قهوة وسوالف",c:"var(--brass)",x:808,y:672,w:368,h:220},
+};
+const T=[
+ {id:"shamma",z:"sec",g:"f",name:"شمّا",role:"السكرتيرة",st:"work",task:"تجمع شغل الكل وترسل لج تحديث واحد بالمسا",does:["الوحيدة اللي تكلمج","رسالة وحدة قصيرة كل مسا: خلص، شغالين، يحتاج ردّج","ما تعيد سؤال جاوبتيه"]},
+ {id:"hamdan",z:"mkt",g:"m",name:"حمدان",role:"مدير إعلانات ميتا",st:"work",task:"يقرأ الأرقام ويقرر بنفسه ضمن 2,000 درهم بالشهر",does:["يدير إعلانات انستقرام","يحلل كل إعلان ثانية بثانية","يطوّر الإعلانات الموجودة"]},
+ {id:"maitha",z:"mkt",g:"f",name:"ميثا",role:"كاتبة المحتوى والباحثة",st:"work",task:"تبحث بالترند وتحلل ريلاتنا وبعدها تكتب",does:["بحث عميق قبل الكتابة","الهوك والسيناريو والكابشن","ملف «صوت إيفنتانا»"]},
+ {id:"kafu",z:"mkt",g:"m",name:"كفو",role:"إنتاج الريلات",st:"work",task:"ريل الحديقة ينزل بكرة الصبح",does:["ريل كل يوم","صور وفيديو بالذكاء الاصطناعي من أغراضنا الحقيقية","موسيقى وصوت ومونتاج"]},
+ {id:"mahra",z:"mkt",g:"f",name:"مهرة",role:"إنتاج الستوري",st:"stop",task:"النشر التلقائي للستوري معلّق",does:["10 ستوريات مترابطة الساعة 10 الصبح","تحليل كل ليلة وتطوير الأفكار"]},
+ {id:"majid",z:"mkt",g:"m",name:"مايد",role:"لقطات الحفلات الحقيقية",st:"soon",task:"قائمة لقطات للفريق الميداني لكل حفلة",does:["قائمة لقطات قصيرة لكل حفلة","يجمع اللقطات ويرتبها بالأرشيف"]},
+ {id:"saeed",z:"mkt",g:"m",name:"سعيد",role:"المراجع",st:"work",task:"ما يطلع شي إلا بعد ما يعديه",does:["قائمة فيها كل غلط صححتيه","يرجع الغلط لصاحبه مو لج"]},
+ {id:"marsha",z:"ops",g:"f",real:1,name:"مارشا",role:"العمليات والتصميم",st:"team",task:"تصاميم كل حجز قبل الحفلة بخمس أيام",does:["قص الاسم والشخصيات بالكريكت","ورق الصحون وملصقات الماي","تصميم ستاند الدخول والستاند الرئيسي الفخم للثيمات الجديدة","تصميم الهدايا وطباعتها","تطبع بطابعتنا، والباقي ترسله للمطبعة بالواتساب"]},
+ {id:"sheikha",z:"ops",g:"f",name:"شيخة",role:"مساعدة مارشا ومدققة الحفلات",st:"soon",task:"تصمم لكل حفلة وتسأل مارشا: أوكي ولا أعدّل؟",does:["مسودات التصاميم بالاسم والثيم","قبل كل حفلة بيومين تتأكد إن كل شي جاهز"]},
+ {id:"dindo",z:"ops",g:"m",real:1,name:"دندو",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["الستاند الرئيسي الفخم","ستاندات الكيك","النطاطيات والفوم","البالونات"]},
+ {id:"diana",z:"ops",g:"f",real:1,name:"ديانا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["النطاطيات","البوبكورن وغزل البنات","ترتيب الطاولات","البالونات"]},
+ {id:"gloria",z:"ops",g:"f",real:1,name:"قلوريا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["أزياء الشخصيات","الطاولات والكراسي","السماعات والفوم"]},
+ {id:"jane",z:"ops",g:"f",real:1,name:"جين",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["تجهيز الرسم على الوجه","ستاند الدخول","الهدايا والكاميرا الفورية"]},
+ {id:"hessa",z:"sales",g:"f",name:"حصة",role:"متابعة العملاء والتعليقات",st:"soon",task:"منو حجز ومنو ما حجز، والرد على التعليقات",does:["تقرير يومي بالعملاء","ردود بقوالب موافق عليها","تقييم وصور بعد كل حفلة"]},
+ {id:"matar",z:"sales",g:"m",name:"مطر",role:"الشركات والعقود",st:"soon",task:"يجمع شركات ومدارس ويجهز العروض",does:["أول إيميل لكل فئة","عروض أسعار وعقود"]},
+ {id:"nouf",z:"sales",g:"f",name:"نوف",role:"ابتكار الخدمات",st:"soon",task:"ثلاث أفكار كل شهر بتكلفتها",does:["خدمات وباقات جديدة","مع الربح المتوقع وطريقة التجربة"]},
+ {id:"dhiab",z:"sys",g:"m",name:"ذياب",role:"تطوير المواقع والجودة",st:"wait",task:"تحديث الموقع 100 والسكيلات ينتظرون «موافقة»",does:["موقع الحجز ولوحة التشغيل","الفحص اليومي","صفحات البحث بالموقع"]},
+ {id:"sultan",z:"sys",g:"m",name:"سلطان",role:"ربط الأنظمة والأرشيف",st:"work",task:"يشتغل على نشر الستوري التلقائي",does:["يربط الأدوات ببعض","يربط الحجز بالإعلان","يحفظ كل شي بالأرشيف"]},
+ {id:"khalifa",z:"sys",g:"m",name:"خليفة",role:"المحلل المالي",st:"soon",task:"أول مهمة: تكلفة كل حفلة وصرف الإعلانات",does:["ربح كل حفلة وكل باقة","تقرير شهري بتوصيات"]},
+];
+const RULES={ev:["ما نغيّر ثيم الحفلة ولا نشيل أي شخصية","ما فيه كيك، بس ستاندات الكيك","نقول «ستاند بالون رئيسي فخم» مو «خلفية»","المهرج ما يتكلم، وحورية البحر فلبينية بلبس محتشم","ميزانية الإعلانات 2,000 درهم بالشهر"],
+ hq:["ما نرسل لأي عميل بدون موافقة شيماء","ولا كلمات سر ولا بيانات بطاقات"],mz:["كفو ونص يشتغل مع كفو"],od:[],mt:[]};
+const ASKS=[
+ {who:"shamma",what:"تحديث الموقع 100 والسكيلات",how:"ينزلون بعد كلمة «موافقة»"},
+ {who:"shamma",what:"ياسين",how:"شخص بالفريق؟ ولا قصدج «إحنا»؟"},
+];
+const TALKS=[
+ ["hamdan","maitha","التخطي فوق 60% والتعليقات صفر، نبي هوك يخلي الناس تعلّق","بسوي فكرة فيها تصويت مثل «أنقذوا عيد ميلاد سيف»"],
+ ["maitha","kafu","السيناريو جاهز، والهوك من أول فريم","أبدأ الإنتاج بعد ما يعديه سعيد"],
+ ["saeed","kafu","النطاطية بالنص وبمقاسها الحقيقي 4×4","تمام، والأطفال داخلها من أول ثانية"],
+ ["saeed","kafu","البالونات لازم تبقى داخل البابل","كلها داخل الحين"],
+ ["kafu","mahra","ريل الحديقة ينزل بكرة الصبح","والستوري الساعة 10، بس النشر التلقائي معلّق"],
+ ["mahra","sultan","نشر الستوري التلقائي ما يشتغل","أشتغل على طريقة ثانية وأبلغج"],
+ ["majid","marsha","قائمة لقطات قصيرة لكل حفلة للفريق الميداني",null],
+ ["sheikha","marsha","أول ما ينأكد حجز، أجهّز لج مسودات التصاميم تراجعينها",null],
+ ["hessa","shamma","أي رد على عميل أجهّزه وأعطيج إياه","وأرفعه لشيماء مع الباقي برسالة المسا"],
+ ["khalifa","hamdan","تكلفة الحفلة وصرف الإعلانات ما ينحفظون، نحتاجهم للربح","أعطيك صرف كل شهر من تاريخ الحساب"],
+ ["matar","dhiab","نظام جلب الشركات موجود، شغّال بالموقع؟","أتأكد وأرد لك"],
+ ["nouf","khalifa","عندي فكرة خدمة جديدة، أبي تكلفتها","أحسبها تقريبية لين تنحفظ التكاليف"],
+ ["shamma","hamdan","عندك شي يحتاج شيماء اليوم؟","لا، قرارات الإعلانات عندي وأكتبها بالسجل"],
+ ["dhiab","shamma","تحديث الموقع 100 ينتظر «موافقة»","أضيفه لرسالة المسا"],
+ ["sultan","majid","كل لقطة توصل تنحفظ بالأرشيف نفس اليوم","ما نبي شي يضيع مرة ثانية"],
+ ["saeed","maitha","ممنوع «خلفية»، نقول «ستاند بالون رئيسي فخم»","وصلت، وما نكتب عدد الستاندات"],
+];
+const MEETS=[
+ {who:["hamdan","maitha","kafu","saeed"],topic:"اجتماع: ريل بكرة"},
+ {who:["shamma","hamdan","khalifa","dhiab"],topic:"اجتماع: تحديث المسا لشيماء"},
+];
+/* ===== 3D office, interior-designed (three.js): stone floor, walnut + linen walls with frames, LED coves,
+   city windows, backlit shelves, one long stone table per team, upholstered chairs, linear pendants ===== */
+const vp=document.getElementById("vp"),floor=document.getElementById("floor");
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const add=(h,parent=floor)=>{const t=document.createElement("template");t.innerHTML=h.trim();const n=t.content.firstChild;parent.appendChild(n);return n};
+const byId=id=>T.find(p=>p.id===id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const K=62, WX=x=>(x-600)/K, WZ=y=>(y-458)/K, PX=x=>x*K+600, PY=z=>z*K+458;
+const HAS3D=typeof THREE!=="undefined";
+let scene,camera,renderer;const WALLS=[];
+const HOME={yaw:Math.PI/4,pitch:.7,r:17,tx:-.3,tz:.2};const RDH=916/K/2+.3;
+const cam={...HOME},goal={...HOME};
+const M=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.7,metalness:.04},o));
+function box(w,h,d,mat,x,y,z,parent){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;(parent||scene).add(m);return m}
+function cyl(rt,rb,h,mat,x,y,z,parent,seg=16){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;(parent||scene).add(m);return m}
+function tex(w,h,draw,rep){const c=document.createElement("canvas");c.width=w;c.height=h;draw(c.getContext("2d"),w,h);const t=new THREE.CanvasTexture(c);t.anisotropy=4;if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1])}return t}
+const rnd=(a,b)=>a+Math.random()*(b-a);
+// materials (interior palette: warm stone, walnut, linen, black metal, brass)
+let MAT;
+function materials(){const RW0=1200/K,RD0=916/K;
+  const stone=tex(1024,1024,(g,w,h)=>{g.fillStyle="#7A5534";g.fillRect(0,0,w,h);const pw=128,ph=32;
+    for(let y=-pw;y<h+pw;y+=ph){for(let x=-pw*2;x<w+pw;x+=pw*2){[[0,1],[1,-1]].forEach(([o,dir])=>{g.save();g.translate(x+o*pw+(y/ph%2)*0,y);g.rotate(dir*Math.PI/4);
+      const t=rnd(-14,14);g.fillStyle=`rgb(${168+t},${120+t},${78+t})`;g.fillRect(0,0,pw,ph-2);g.fillStyle="rgba(90,60,30,.18)";for(let k=0;k<5;k++)g.fillRect(0,4+k*6,pw,1);g.restore()})}}
+  },[RW0/2.2,RD0/2.2]);
+  const walnut=tex(512,512,(g,w,h)=>{g.fillStyle="#5A3B28";g.fillRect(0,0,w,h);for(let i=0;i<220;i++){g.strokeStyle=`rgba(${rnd(30,60)},${rnd(18,35)},${rnd(10,22)},.35)`;g.lineWidth=rnd(1,3);g.beginPath();const x=rnd(0,w);g.moveTo(x,0);g.bezierCurveTo(x+rnd(-20,20),h*.3,x+rnd(-20,20),h*.6,x+rnd(-10,10),h);g.stroke()}},[2,1]);
+  const linen=tex(256,256,(g,w,h)=>{g.fillStyle="#CFC8BE";g.fillRect(0,0,w,h);for(let i=0;i<9000;i++){g.fillStyle=`rgba(${rnd(150,200)},${rnd(140,190)},${rnd(130,175)},.25)`;g.fillRect(rnd(0,w),rnd(0,h),rnd(1,4),1)}},[6,2]);
+  const top=tex(512,256,(g,w,h)=>{g.fillStyle="#B7B0A6";g.fillRect(0,0,w,h);for(let i=0;i<8000;i++){const v=rnd(-25,25);g.fillStyle=`rgba(${160+v},${155+v},${148+v},.25)`;g.fillRect(rnd(0,w),rnd(0,h),rnd(1,3),rnd(1,2))}});
+  MAT={stone:M(0xffffff,{map:stone,roughness:.5}),walnut:M(0xffffff,{map:walnut,roughness:.6}),linen:M(0xffffff,{map:linen,roughness:.95}),top:M(0xffffff,{map:top,roughness:.45}),
+    black:M(0x1c1c1f,{roughness:.4,metalness:.3}),fabric:M(0xA9A196,{roughness:.95}),glass:M(0xCFE3F0,{transparent:true,opacity:.28,roughness:.05}),
+    led:new THREE.MeshBasicMaterial({color:0xFFE9C4}),brass:M(0xB89558,{metalness:.6,roughness:.35}),white:M(0xF4F1EC)};
+}
+function cityTexture(){return tex(1024,512,(g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,"#9CC4E4");gr.addColorStop(1,"#E8EEF2");g.fillStyle=gr;g.fillRect(0,0,w,h);
+  for(let i=0;i<34;i++){const bw=rnd(30,80),bh=rnd(120,430),x=rnd(-20,w);g.fillStyle=`rgba(${rnd(110,150)},${rnd(130,165)},${rnd(160,190)},.85)`;g.fillRect(x,h-bh,bw,bh);g.fillStyle="rgba(255,255,255,.18)";for(let y=h-bh+8;y<h;y+=14)g.fillRect(x+4,y,bw-8,3)}
+  g.fillStyle="rgba(120,140,160,.9)";g.beginPath();g.moveTo(w*.62,h);g.lineTo(w*.64,h*.08);g.lineTo(w*.66,h);g.fill()})}
+function frameTexture(kind){return tex(256,320,(g,w,h)=>{g.fillStyle="#FAF8F4";g.fillRect(0,0,w,h);g.strokeStyle="#2b2b2b";g.lineWidth=10;g.strokeRect(5,5,w-10,h-10);
+  if(kind===0){const cols=["#F2B544","#8FC4E8","#B9B4AE","#F7D27A","#9DB8D9","#E9A8C7"];for(let i=0;i<26;i++){g.fillStyle=cols[i%6];g.beginPath();g.arc(rnd(40,w-40),rnd(60,h-90),rnd(14,30),0,7);g.fill()}g.fillStyle="#E8DCC6";g.fillRect(70,h-90,w-140,50)}
+  else if(kind===1){g.strokeStyle="#6b6b6b";g.lineWidth=2;for(let i=0;i<9;i++)g.strokeRect(rnd(30,120),rnd(40,200),rnd(40,100),rnd(30,80));g.beginPath();g.moveTo(30,h-50);g.lineTo(w-30,h-50);g.stroke()}
+  else {const sw=["#C9A27A","#8E6F55","#D8D2C8","#A7A39C","#E6C79A"];sw.forEach((c,i)=>{g.fillStyle=c;g.fillRect(30+i*40,60,34,h-120)})}})}
+/* real Eventana party photos on the boards */
+const BOARD=[];let photoIdx=0;const PHOTO_N=16,photoTex={};
+function photoFrame(parent,x,y,z,w,h){const n=(photoIdx++%PHOTO_N)+1;
+  if(!photoTex[n]){photoTex[n]=new THREE.TextureLoader().load(`img/p${n}.jpg`);photoTex[n].encoding=THREE.sRGBEncoding;photoTex[n].anisotropy=4}
+  const back=new THREE.Mesh(new THREE.BoxGeometry(w+.06,h+.06,.025),MAT.black);back.position.set(x,y,z-.005);parent.add(back);
+  const ph=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:photoTex[n],roughness:.7}));ph.position.set(x,y,z+.01);parent.add(ph);BOARD.push(back,ph)}
+function signTexture(text){return tex(1024,160,(g,w,h)=>{g.clearRect(0,0,w,h);g.fillStyle="#C8A464";g.font="700 96px 'El Messiri','Noto Kufi Arabic',serif";g.textAlign="center";g.textBaseline="middle";g.direction="rtl";g.fillText(text,w/2,h/2+6)})}
+function initScene(){
+  renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.8;
+  renderer.domElement.className="gl";vp.prepend(renderer.domElement);
+  scene=new THREE.Scene();scene.background=new THREE.Color(0xE2DED8);
+  camera=new THREE.PerspectiveCamera(38,1.6,.1,400);materials();
+  scene.add(new THREE.HemisphereLight(0xfffaf2,0x7a6550,.42));
+  const sun=new THREE.DirectionalLight(0xfff0d8,.95);sun.position.set(-12,28,-16);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+  Object.assign(sun.shadow.camera,{left:-20,right:20,top:20,bottom:-20,near:1,far:90});sun.shadow.bias=-.0004;scene.add(sun);
+  const fill=new THREE.DirectionalLight(0xffe7c7,.25);fill.position.set(14,18,12);scene.add(fill);
+  // floor: large-format warm stone
+  const RW=1200/K,RD=916/K;const fl=new THREE.Mesh(new THREE.PlaneGeometry(RW+.4,RD+.4),MAT.stone);fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;scene.add(fl);
+  box(RW+.9,.3,RD+.9,M(0x8a8276),0,-.16,0);
+  room();
+  for(const k of ["mkt","ops","sales","sys"])teamArea(k);
+  reception();meetingRoom();lounge();buildGrid();
+  new ResizeObserver(resize).observe(vp);window.addEventListener("resize",resize);resize();controls();
+}
+const WH=2.9;
+// a wall = walnut base + linen upper with LED cove, frames; hidden automatically when the camera is on its outer side
+function wall(len,x,z,rotY,normal,opts={}){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotY;scene.add(g);
+  box(len,WH,.2,MAT.walnut,0,WH/2,0,g);
+  if(opts.window){const w=opts.window;const city=new THREE.Mesh(new THREE.PlaneGeometry(w,2.1),new THREE.MeshBasicMaterial({map:cityTexture()}));city.position.set(opts.wx||0,1.5,.11);g.add(city);
+    for(let i=0;i<=4;i++)box(.05,2.15,.06,MAT.black,(opts.wx||0)-w/2+i*w/4,1.5,.14,g);box(w,.06,.06,MAT.black,opts.wx||0,2.56,.14,g);box(w,.06,.06,MAT.black,opts.wx||0,.44,.14,g)}
+  if(opts.linen){const L=opts.linen;BOARD.push(box(L.w,1.55,.04,MAT.linen,L.x,1.75,.12,g));box(L.w,.03,.06,MAT.led,L.x,2.56,.14,g);
+    const n=Math.floor(L.w/.75);for(let i=0;i<n;i++){const fw=rnd(.45,.6),fh=rnd(.55,.75);photoFrame(g,L.x-L.w/2+.45+i*.75,1.75+rnd(-.12,.12),.145,fw,fh)}}
+  if(opts.shelves){const S=opts.shelves;for(let r=0;r<4;r++){box(S.w,.05,.42,MAT.walnut,S.x,.7+r*.5,.3,g);box(S.w,.02,.02,MAT.led,S.x,.67+r*.5,.48,g);
+      for(let i=0;i<5;i++){const c=[0xE9C98A,0x8FC4E8,0xF2B5C8,0xD8D2C8,0x9FE3AE][(i+r)%5];box(rnd(.25,.4),rnd(.2,.32),.25,M(c),S.x-S.w/2+.35+i*(S.w-.6)/4,.84+r*.5,.3,g)}}}
+  WALLS.push({g,normal});return g}
+function room(){
+  const RW=1200/K,RD=916/K;
+  wall(RW+.4,0,-RD/2-.3,0,new THREE.Vector3(0,0,-1),{window:RW*.42,wx:-RW*.22,linen:{w:RW*.32,x:RW*.25}});
+  wall(RD+.4,-RW/2-.3,0,Math.PI/2,new THREE.Vector3(-1,0,0),{shelves:{w:RD*.3,x:-RD*.22},linen:{w:RD*.38,x:RD*.2}});
+  wall(RW+.4,0,RD/2+.3,Math.PI,new THREE.Vector3(0,0,1),{linen:{w:RW*.4,x:0}});
+  wall(RD+.4,RW/2+.3,0,-Math.PI/2,new THREE.Vector3(1,0,0),{window:RD*.4,wx:RD*.1});
+}
+function upChair(x,z,rot){const g=new THREE.Group();
+  const seat=new THREE.Mesh(new THREE.CylinderGeometry(.3,.28,.12,18),MAT.fabric);seat.position.y=.47;seat.castShadow=true;g.add(seat);
+  const back=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.5,18,1,true,Math.PI*.15,Math.PI*.7),MAT.fabric);back.material.side=THREE.DoubleSide;back.position.set(0,.74,0);back.rotation.y=Math.PI;back.castShadow=true;g.add(back);
+  [[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]].forEach(([a,b])=>{const l=cyl(.015,.015,.46,MAT.black,a,.23,b,g,6);l.rotation.z=a*.25;l.rotation.x=-b*.25});
+  g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);return g}
+function pendant(x,z,len){cyl(.006,.006,1.0,MAT.black,x-len/2+.2,2.4,z,null,4);cyl(.006,.006,1.0,MAT.black,x+len/2-.2,2.4,z,null,4);box(len,.06,.08,MAT.black,x,1.9,z);box(len-.05,.012,.05,MAT.led,x,1.866,z)}
+function stoneTable(cx,cz,len,wid){box(len,.09,wid,MAT.top,cx,.76,cz);box(len*.62,.71,wid*.5,MAT.walnut,cx,.355,cz);pendant(cx,cz,Math.min(len*.8,4))}
+function vase(x,z){cyl(.09,.13,.24,M(0x3a3a3a,{roughness:.3}),x,.92,z);const b=new THREE.Mesh(new THREE.IcosahedronGeometry(.22,0),M(0x5B8C5A,{flatShading:true}));b.position.set(x,1.16,z);scene.add(b)}
+const SEAT={},DESK={};
+/* walkable floor: everything solid is registered here, people path around it (A*) */
+const OBS=[];function obs(x0,z0,x1,z1){OBS.push([Math.min(x0,x1),Math.min(z0,z1),Math.max(x0,x1),Math.max(z0,z1)])}
+let GRID=null;const CELL=.2,PAD=.28;
+function buildGrid(){const RW=1200/K,RD=916/K,nx=Math.ceil(RW/CELL),nz=Math.ceil(RD/CELL),g=new Uint8Array(nx*nz);
+  for(let iz=0;iz<nz;iz++)for(let ix=0;ix<nx;ix++){const x=-RW/2+(ix+.5)*CELL,z=-RD/2+(iz+.5)*CELL;
+    let b=x<-RW/2+.35||x>RW/2-.35||z<-RD/2+.35||z>RD/2-.35;
+    if(!b)for(const o of OBS){if(x>o[0]-PAD&&x<o[2]+PAD&&z>o[1]-PAD&&z<o[3]+PAD){b=true;break}}g[iz*nx+ix]=b?1:0}
+  GRID={nx,nz,g,RW,RD}}
+const cellOf=(x,z)=>[Math.max(0,Math.min(GRID.nx-1,Math.floor((x+GRID.RW/2)/CELL))),Math.max(0,Math.min(GRID.nz-1,Math.floor((z+GRID.RD/2)/CELL)))];
+const ctr=(ix,iz)=>({x:-GRID.RW/2+(ix+.5)*CELL,z:-GRID.RD/2+(iz+.5)*CELL});
+const free=(ix,iz)=>ix>=0&&iz>=0&&ix<GRID.nx&&iz<GRID.nz&&!GRID.g[iz*GRID.nx+ix];
+function nearestFree(ix,iz){if(free(ix,iz))return [ix,iz];for(let r=1;r<40;r++)for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;if(free(ix+dx,iz+dz))return [ix+dx,iz+dz]}return [ix,iz]}
+function los(a,b){const d=Math.hypot(b.x-a.x,b.z-a.z),n=Math.ceil(d/(CELL*.5));for(let i=1;i<n;i++){const x=a.x+(b.x-a.x)*i/n,z=a.z+(b.z-a.z)*i/n;const [cx,cz]=cellOf(x,z);if(!free(cx,cz))return false}return true}
+function findPath(a,b){if(!GRID)return [b];
+  const [sx0,sz0]=cellOf(a.x,a.z),[tx0,tz0]=cellOf(b.x,b.z);const [sx,sz]=nearestFree(sx0,sz0),[tx,tz]=nearestFree(tx0,tz0);
+  const N=GRID.nx*GRID.nz,gs=new Float32Array(N).fill(1e9),came=new Int32Array(N).fill(-1),closed=new Uint8Array(N),open=[];
+  const id=(x,z)=>z*GRID.nx+x,h=(x,z)=>Math.hypot(x-tx,z-tz);gs[id(sx,sz)]=0;open.push([h(sx,sz),sx,sz]);
+  while(open.length){let bi=0;for(let i=1;i<open.length;i++)if(open[i][0]<open[bi][0])bi=i;const [,x,z]=open.splice(bi,1)[0];const ci=id(x,z);if(closed[ci])continue;closed[ci]=1;
+    if(x===tx&&z===tz)break;
+    for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){const nx=x+dx,nz=z+dz;if(!free(nx,nz))continue;if(dx&&dz&&(!free(x+dx,z)||!free(x,z+dz)))continue;
+      const ni=id(nx,nz),ng=gs[ci]+(dx&&dz?1.414:1);if(ng<gs[ni]){gs[ni]=ng;came[ni]=ci;open.push([ng+h(nx,nz),nx,nz])}}}
+  const cells=[];let c=id(tx,tz);if(came[c]===-1&&c!==id(sx,sz))return [b];while(c!==-1){cells.push(c);c=came[c]}cells.reverse();
+  const pts=cells.map(ci=>ctr(ci%GRID.nx,Math.floor(ci/GRID.nx)));
+  const out=[a];let i=0;while(i<pts.length-1){let j=pts.length-1;while(j>i+1&&!los(out[out.length-1],pts[j]))j--;out.push(pts[j]);i=j}
+  out.push(b);return out.slice(1)}
+// one long table per team; everyone sits around it facing the middle
+function teamArea(k){
+  const z=Z[k],staff=T.filter(p=>p.z===k),n=staff.length,per=Math.ceil(n/2);
+  const cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2)+.4,len=Math.max(2.6,per*1.15+.7),wid=1.4;
+  stoneTable(cx,cz,len,wid);vase(cx,cz);obs(cx-len/2,cz-wid/2,cx+len/2,cz+wid/2);
+  // team wall: walnut divider with linen panel, frames and brass name
+  const x0=WX(z.x),x1=WX(z.x+z.w),zb=WZ(z.y)+.25,dw=Math.min(x1-x0-.6,len+2.6);
+  if(k!=="mkt"){obs(cx-dw/2,zb-.07,cx+dw/2,zb+.07);box(dw,1.7,.14,MAT.walnut,cx,.85,zb);BOARD.push(box(dw-.3,.95,.03,MAT.linen,cx,1.12,zb+.085));box(dw-.3,.02,.04,MAT.led,cx,1.62,zb+.09);
+    const m=Math.max(1,Math.floor((dw-1.2)/.7));for(let i=0;i<m;i++){photoFrame(scene,cx-(m-1)*.35+i*.7,1.08,zb+.1,.42,.53)}}
+  const sY=k==="mkt"?2.15:1.95,sZ=k==="mkt"?WZ(z.y)-0.0:zb;   // marketing signs on the real back wall
+  const sw=Math.min(3.6,dw*.8),sign=new THREE.Mesh(new THREE.PlaneGeometry(sw,sw*160/1024),new THREE.MeshBasicMaterial({map:signTexture(z.name),transparent:true}));sign.position.set(cx,k==="mkt"?2.75:sY,(k==="mkt"?-RDH+.12:sZ+.1));scene.add(sign);
+  if(k!=="mkt")box(sw+.3,.38,.03,MAT.walnut,cx,sY,sZ+.075);
+  staff.forEach((p,i)=>{const side=i<per?-1:1,j=side<0?i:i-per,cnt=side<0?per:n-per;
+    const x=cx-(cnt-1)*1.15/2+j*1.15,zz=cz+side*(wid/2+.42);
+    SEAT[p.id]={x:PX(x),y:PY(zz)};p.face=side<0?0:Math.PI;upChair(x,zz,side<0?Math.PI:0);
+    DESK[p.id]=laptop(x,cz+side*(wid/2-.32),side<0?0:Math.PI)});
+}
+function laptop(x,z,rot){const g=new THREE.Group();box(.42,.02,.3,M(0xB8BCC2,{metalness:.5,roughness:.3}),0,.81,0,g);
+  const lid=new THREE.Group();lid.position.set(0,.82,-.15);g.add(lid);box(.42,.3,.015,M(0xB8BCC2,{metalness:.5,roughness:.3}),0,.15,0,lid);
+  const scrM=M(0x111111,{emissive:0x000000,roughness:.3});const scr=box(.38,.25,.005,scrM,0,.15,.01,lid);lid.rotation.x=-.25;
+  g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);return {scr}}
+function reception(){const z=Z.sec,cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2);
+  obs(cx-1.35,cz-.35,cx+1.35,cz+.35);box(2.6,.95,.6,MAT.walnut,cx,.475,cz);box(2.7,.05,.7,MAT.top,cx,.97,cz);box(2.5,.02,.02,MAT.led,cx,.06,cz+.31);
+  const p=T.find(q=>q.z==="sec");if(p){SEAT[p.id]={x:PX(cx),y:PY(cz-.75)};p.face=0;upChair(cx,cz-.75,Math.PI);DESK[p.id]=laptop(cx,cz-.12,0)}
+  vase(cx+1,cz);}
+const MEETSEATS=[];
+function meetingRoom(){const z=Z.meet,x0=WX(z.x),x1=WX(z.x+z.w),z0=WZ(z.y),z1=WZ(z.y+z.h),cx=(x0+x1)/2,cz=(z0+z1)/2;
+  const d0=x0+.25,d1=x0+1.35;
+  box(x1-d1,2.4,.05,MAT.glass,(d1+x1)/2,1.2,z1);obs(d1,z1-.03,x1,z1+.03);box(.05,2.4,z1-z0,MAT.glass,x0,1.2,cz);obs(x0-.03,z0,x0+.03,z1);
+  box(x1-d1,.05,.08,MAT.black,(d1+x1)/2,2.42,z1);box(.08,.05,z1-z0,MAT.black,x0,2.42,cz);box(d1-d0,.05,.08,MAT.black,(d0+d1)/2,2.42,z1);box(.04,2.4,.06,MAT.black,d1,1.2,z1);
+  stoneTable(cx,cz,3.4,1.0);vase(cx,cz);obs(cx-1.7,cz-.5,cx+1.7,cz+.5);
+  for(let i=-1;i<=1;i++){upChair(cx+i*1.05,cz-.88,Math.PI);upChair(cx+i*1.05,cz+.88,0);MEETSEATS.push([PX(cx+i*1.05),PY(cz-.95),0],[PX(cx+i*1.05),PY(cz+.95),Math.PI])}
+  box(2.4,1.2,.06,M(0x20242c,{emissive:0x2d3a4f,emissiveIntensity:.5}),cx,1.45,z0+.15);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.6*160/1024),new THREE.MeshBasicMaterial({map:signTexture(z.name),transparent:true}));sign.position.set(cx,2.25,z0+.2);scene.add(sign)}
+function lounge(){const z=Z.cafe,cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2);
+  const rug=new THREE.Mesh(new THREE.CircleGeometry(1.5,40),M(0xE9E2D6,{roughness:1}));rug.rotation.x=-Math.PI/2;rug.position.set(cx-.6,.01,cz+.1);rug.receiveShadow=true;scene.add(rug);
+  obs(cx-1.2,cz-.5,cx,cz+.7);obs(cx-1.8,cz+.75,cx+.6,cz+1.6);obs(cx+.9,WZ(z.y)+.25,cx+2.7,WZ(z.y)+.95);
+  cyl(.6,.6,.06,MAT.top,cx-.6,.5,cz+.1,null,32);cyl(.06,.2,.48,MAT.walnut,cx-.6,.24,cz+.1);
+  box(2.4,.42,.75,MAT.fabric,cx-.6,.21,cz+1.15);box(2.4,.55,.2,MAT.fabric,cx-.6,.55,cz+1.45);
+  upChair(cx-1.7,cz+.1,-Math.PI/2);upChair(cx+.5,cz+.1,Math.PI/2);
+  box(1.8,.95,.6,MAT.walnut,cx+1.8,.475,WZ(z.y)+.6);box(1.9,.04,.65,MAT.top,cx+1.8,.97,WZ(z.y)+.6);box(.3,.4,.28,MAT.black,cx+1.8,1.2,WZ(z.y)+.6);
+  [[cx+2.4,cz+1.2],[cx-2.5,cz-1.1]].forEach(([x,zz])=>{cyl(.3,.24,.55,M(0xEDE6DA),x,.27,zz);const f=new THREE.Mesh(new THREE.IcosahedronGeometry(.6,1),M(0x3F7D55,{flatShading:true}));f.position.set(x,1.1,zz);f.castShadow=true;scene.add(f)})}
+function resize(){if(!renderer)return;const full=document.fullscreenElement||document.body.classList.contains("big");const w=vp.clientWidth,h=full?Math.max(320,window.innerHeight-(document.fullscreenElement?0:140)):Math.max(420,Math.round(w*.7));
+  renderer.setSize(w,h);vp.style.height=h+"px";camera.aspect=w/h;camera.updateProjectionMatrix()}
+function controls(){
+  const el=renderer.domElement,pts=new Map();let last=null;
+  let downAt=null;el.addEventListener("pointerdown",e=>{el.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});last=null;downAt={x:e.clientX,y:e.clientY,n:pts.size}});
+  el.addEventListener("pointermove",e=>{if(!pts.has(e.pointerId))return;const prev=pts.get(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===1){const dx=e.clientX-prev.x,dy=e.clientY-prev.y;
+      if(e.shiftKey||e.buttons===2){pan(dx,dy)}else{goal.yaw-=dx*.008;goal.pitch=Math.min(1.45,Math.max(.12,goal.pitch+dy*.006))}}
+    else if(pts.size===2){const [a,b]=[...pts.values()];const d=Math.hypot(a.x-b.x,a.y-b.y),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+      if(last){goal.r=Math.min(60,Math.max(3.5,goal.r*last.d/d));pan(mx-last.mx,my-last.my)}last={d,mx,my}}});
+  const end=e=>{const wasTap=downAt&&downAt.n===1&&Math.hypot(e.clientX-downAt.x,e.clientY-downAt.y)<7;pts.delete(e.pointerId);last=null;
+    if(wasTap&&e.type==="pointerup"){const r=el.getBoundingClientRect(),m=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
+      const rc=new THREE.Raycaster();rc.setFromCamera(m,camera);const hit=rc.intersectObjects(BOARD.filter(o=>{let v=true;o.traverseAncestors(a=>{if(a.visible===false)v=false});return v}),false)[0];if(hit)openBoard()}downAt=null};el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);
+  el.addEventListener("contextmenu",e=>e.preventDefault());
+  el.addEventListener("wheel",e=>{e.preventDefault();goal.r=Math.min(60,Math.max(3.5,goal.r*(e.deltaY>0?1.12:.89)))},{passive:false});
+  el.addEventListener("dblclick",()=>Object.assign(goal,HOME));
+}
+function pan(dx,dy){const s=goal.r*.0016;const cx=Math.cos(goal.yaw),sx=Math.sin(goal.yaw);goal.tx-=(dx*cx-dy*sx)*s;goal.tz-=(-dx*sx-dy*cx)*s;goal.tx=Math.max(-9,Math.min(9,goal.tx));goal.tz=Math.max(-7,Math.min(7,goal.tz))}
+function focusOn(p){if(!p.pos)return;Object.assign(goal,{tx:p.pos.x,tz:p.pos.z,r:7,pitch:.45})}
+// people with limbs (walk cycle, sitting, typing)
+const SKINS=[0xD7A98A,0xB98466,0xE3BC9C];
+function limb(len,r,mat,parent,x,y){const pv=new THREE.Group();pv.position.set(x,y,0);cyl(r,r*.9,len,mat,0,-len/2,0,pv,10);parent.add(pv);return pv}
+function makeFigure(p,i){
+  const g=new THREE.Group(),skin=M(SKINS[i%3],{roughness:.6});
+  const owner=p.id==="shaima",staff=p.real&&!owner,man=p.g==="m"&&!p.real;
+  const robe=M(staff?0x6E2A5A:(man?0xF5F4EF:0x17181d),{roughness:.85});
+  const pants=M(staff?0x2c2c34:(man?0xEDEDE6:0x15161b));
+  const legL=limb(.46,.075,pants,g,-.1,.47),legR=limb(.46,.075,pants,g,.1,.47);
+  [legL,legR].forEach(l=>box(.13,.06,.22,M(staff?0x222222:0x8a6a4a),0,-.47,.05,l));
+  cyl(.2,.29,.78,robe,0,.82,0,g);
+  const armL=limb(.46,.06,robe,g,-.27,1.12),armR=limb(.46,.06,robe,g,.27,1.12);
+  [armL,armR].forEach(a=>{const h=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),skin);h.position.y=-.48;a.add(h)});
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.21,18,14),skin);head.position.set(0,1.42,0);g.add(head);
+  if(staff){const hair=new THREE.Mesh(new THREE.SphereGeometry(.225,16,10,0,Math.PI*2,0,Math.PI*.55),M(0x2a1d16));hair.position.copy(head.position);g.add(hair)}
+  else if(man){cyl(.25,.3,.42,M(0xFBFBF8),0,1.36,-.03,g,16);const top=new THREE.Mesh(new THREE.SphereGeometry(.235,16,10,0,Math.PI*2,0,Math.PI*.5),M(0xFBFBF8));top.position.set(0,1.46,0);g.add(top);
+    const agal=new THREE.Mesh(new THREE.TorusGeometry(.2,.035,8,20),M(0x161616));agal.rotation.x=Math.PI/2;agal.position.set(0,1.58,0);g.add(agal);head.position.z=.06}
+  else {const sh=new THREE.Mesh(new THREE.SphereGeometry(.26,16,12),M(0x15161b));sh.position.set(0,1.44,-.05);sh.scale.set(1,1.05,1.05);g.add(sh);cyl(.24,.28,.35,M(0x15161b),0,1.22,-.05,g);head.position.z=.08;head.scale.set(.92,.95,.9)}
+  g.userData={legL,legR,armL,armR,head};
+  g.scale.setScalar(1.12);g.traverse(o=>{if(o.isMesh){o.castShadow=true}});scene.add(g);return g}
+function setDesk(p){if(!p.el)return;const d=DESK[p.id];if(d){const c={work:0x5DA9C9,team:0x5DA9C9,wait:0xE0A93C,stop:0x9B3030}[p.st];d.scr.material.emissive.setHex(c||0x000000);d.scr.material.emissiveIntensity=c?.9:0}}
+function place(p,x,y,instant){p.x=x;p.y=y;p.target={x:WX(x),z:WZ(y)};
+  if(instant||!p.pos){p.pos={x:p.target.x,z:p.target.z};p.t0=0;p.path=null;return}
+  const pts=[{x:p.pos.x,z:p.pos.z},...findPath(p.pos,p.target)];let L=0;const cum=[0];for(let i=1;i<pts.length;i++){L+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].z-pts[i-1].z);cum.push(L)}
+  p.path={pts,cum,L};p.dur=reduce?40:Math.max(500,L/1.5*1000);p.t0=performance.now()}
+async function walk(p,x,y){place(p,x,y);await sleep((p.t0?p.dur:0)+60)}
+async function say(p,text,ms=3200){await sleep(ms)} /* owner: no speech bubbles on the floor; talk shows in the side log */
+if(HAS3D)initScene(); else floor.insertAdjacentHTML("beforeend",'<p class="note" style="padding:20px">ما قدرت أحمّل العرض الثلاثي الأبعاد، جربي تحدّثين الصفحة.</p>');
+const MOODS={happy:["😊","مستانس"],sad:["😞","زعلان"],busy:["💻","مشغول"],stressed:["😰","مضغوط"],free:["☕","فري"],need:["🙋","محتاج شي"]};
+const MOOD={shamma:"happy",hamdan:"busy",maitha:"busy",kafu:"busy",mahra:"stressed",majid:"free",saeed:"busy",sheikha:"free",hessa:"free",matar:"free",nouf:"free",dhiab:"need",sultan:"busy",khalifa:"free"};
+const moodOf=p=>p.real?null:(MOOD[p.id]||{work:"busy",wait:"need",stop:"stressed"}[p.st]||"free");
+function closePops(except){T.forEach(q=>{if(q!==except)q.el.classList.remove("open")})}
+document.addEventListener("pointerdown",e=>{if(!e.target.closest(".overlay .p"))closePops()});
+T.forEach((p,i)=>{
+  const md=moodOf(p),mi=md?MOODS[md]:null;
+  const busy=md==="busy"||md==="stressed"||md==="need";
+  if(!SEAT[p.id])SEAT[p.id]={x:600,y:458};
+  p.el=add(`<button type="button" class="p ${p.real?"real":""}" aria-label="${esc(p.name)}، ${esc(p.role)}${mi?"، "+mi[1]:""}">
+    <span class="mood" aria-hidden="true">${mi?mi[0]:"✨"}</span>
+    <span class="pop"><b class="name">${esc(p.name)}</b><span class="rl">${esc(p.role)}</span>
+      <span class="ml">${mi?mi[0]+" "+mi[1]:"من الفريق الحقيقي"}</span>
+      <span class="tk">${p.real?esc(p.task):(busy?"شغله الحين: ":"ما عنده شغل الحين. ")+esc(p.task)}</span>
+      <span class="more">تفاصيل</span></span><span class="bub"></span></button>`);
+  p.el.onclick=e=>{if(e.target.closest(".more")){openPerson(p);return}const o=!p.el.classList.contains("open");closePops(p);p.el.classList.toggle("open",o);if(o)focusOn(p)};
+  if(HAS3D)p.fig=makeFigure(p,i);
+  place(p,SEAT[p.id].x,SEAT[p.id].y,true);setDesk(p);
+});
+const vb=document.getElementById("viewbar");
+if(vb){vb.querySelector("[data-v=in]").onclick=()=>{goal.r=Math.max(3.5,goal.r*.75)};vb.querySelector("[data-v=out]").onclick=()=>{goal.r=Math.min(60,goal.r*1.33)};
+  vb.querySelector("[data-v=left]").onclick=()=>{goal.yaw+=Math.PI/4};vb.querySelector("[data-v=right]").onclick=()=>{goal.yaw-=Math.PI/4};
+  vb.querySelector("[data-v=home]").onclick=()=>Object.assign(goal,HOME);
+  vb.querySelector("[data-v=full]").onclick=()=>{const st=document.getElementById("stage");if(document.fullscreenElement){document.exitFullscreen()}else if(st.requestFullscreen){st.requestFullscreen().catch(()=>{document.body.classList.toggle("big");resize()})}else{document.body.classList.toggle("big");resize()}};
+  document.addEventListener("fullscreenchange",()=>setTimeout(resize,60));}
+const _v=HAS3D?new THREE.Vector3():null;
+function project(x,y,z){_v.set(x,y,z).project(camera);const w=vp.clientWidth,h=vp.clientHeight;return [(_v.x*.5+.5)*w,(-_v.y*.5+.5)*h,_v.z]}
+let lastT=performance.now();
+function frame(now){
+  if(!HAS3D)return;requestAnimationFrame(frame);
+  const dt=Math.min(.05,(now-lastT)/1000);lastT=now;const k=reduce?1:1-Math.pow(.0015,dt);
+  for(const key of ["yaw","pitch","r","tx","tz"])cam[key]+=(goal[key]-cam[key])*k;
+  camera.position.set(cam.tx+Math.sin(cam.yaw)*Math.cos(cam.pitch)*cam.r,Math.sin(cam.pitch)*cam.r,cam.tz+Math.cos(cam.yaw)*Math.cos(cam.pitch)*cam.r);camera.lookAt(cam.tx,.8,cam.tz);
+  for(const w of WALLS){const toCam=new THREE.Vector3(camera.position.x-w.g.position.x,0,camera.position.z-w.g.position.z);w.g.visible=toCam.dot(w.normal)<0}
+  const everyone=[...T,typeof SHAIMA!=="undefined"?SHAIMA:null].filter(Boolean);
+  for(const p of everyone){
+    if(!p.fig&&p.el&&p.pos){p.fig=makeFigure(p,7)}
+    const f=p.fig;if(!f)continue;const U=f.userData;
+    const hidden=p.el.style.display==="none";f.visible=!hidden&&!p.away;
+    let nx=p.pos.x,nz=p.pos.z;
+    if(p.t0&&p.path){const t=Math.min(1,(now-p.t0)/p.dur),dist=t*p.path.L,P=p.path;let i=1;while(i<P.cum.length-1&&P.cum[i]<dist)i++;
+      const seg=P.cum[i]-P.cum[i-1]||1,u=Math.min(1,(dist-P.cum[i-1])/seg);nx=P.pts[i-1].x+(P.pts[i].x-P.pts[i-1].x)*u;nz=P.pts[i-1].z+(P.pts[i].z-P.pts[i-1].z)*u;
+      if(t>=1){p.t0=0;p.path=null;nx=p.target.x;nz=p.target.z}}
+    const dx=nx-p.pos.x,dz=nz-p.pos.z,moving=Math.abs(dx)+Math.abs(dz)>1e-3;
+    if(moving){const want=Math.atan2(dx,dz);let d=want-f.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));f.rotation.y+=d*Math.min(1,dt*10)}
+    p.pos.x=nx;p.pos.z=nz;
+    const home=SEAT[p.id],seated=home&&Math.abs(p.x-home.x)<1&&Math.abs(p.y-home.y)<1&&!p.t0&&p.face!==undefined;
+    if(seated){let d=p.face-f.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));f.rotation.y+=d*Math.min(1,dt*8)}
+    const ph=now/1000*9,sw=moving&&!reduce?Math.sin(ph)*.6:0;
+    if(seated){U.legL.rotation.x=U.legR.rotation.x=-1.45;U.armL.rotation.x=U.armR.rotation.x=-1.0;U.armL.rotation.z=.12;U.armR.rotation.z=-.12;
+      const typing=(p.st==="work"||p.st==="team")&&!reduce&&!p.real;
+      if(typing){U.armL.rotation.x=-1.0+Math.sin(now/90)*.08;U.armR.rotation.x=-1.0+Math.sin(now/90+1.6)*.08;U.head.rotation.x=.12+Math.sin(now/700)*.03}}
+    else{U.legL.rotation.x=sw;U.legR.rotation.x=-sw;U.armL.rotation.x=-sw*.8;U.armR.rotation.x=sw*.8;U.armL.rotation.z=U.armR.rotation.z=0;U.head.rotation.x=0}
+    const bob=moving&&!reduce?Math.abs(Math.sin(ph))*.05:0;
+    f.position.set(p.pos.x,(seated?-.02:0)+bob,p.pos.z);
+    const [sx,sy,sz]=project(p.pos.x,2.1,p.pos.z);
+    p.el.style.visibility=f.visible&&sz<1?"":"hidden";
+    p.el.style.transform=`translate(${sx}px,${sy}px) translate(-50%,-100%)`;
+    p.el.style.zIndex=String(1000+Math.round((1-sz)*1e5));
+  }
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(frame);
+
+
+
+
+/* feed */
+const feed=document.getElementById("feed");
+function log(a,b,text){
+  const z=Z[a.z];const t=new Date().toLocaleTimeString("ar-AE",{hour:"numeric",minute:"2-digit",timeZone:"Asia/Dubai"});
+  const li=document.createElement("li");li.style.setProperty("--c",z.c);
+  li.innerHTML=`<span class="meta">${t} · ${esc(a.name)}${b?" ← "+esc(b.name):""}</span><span class="txt">${esc(text)}</span>`;
+  feed.prepend(li);while(feed.children.length>40)feed.lastChild.remove();
+}
+
+/* director */
+let ti=0,mi=0;
+async function conversation([ai,bi,qa,qb]){
+  const a=byId(ai),b=byId(bi); if(a.busy||b.busy)return; a.busy=b.busy=true;setDesk(a);setDesk(b);
+  const s=SEAT[b.id]; await walk(a,s.x+(a.x>s.x?46:-46),s.y);
+  log(a,b,qa); await say(a,qa); if(qb){log(b,a,qb); await say(b,qb);} else {await sleep(400)}
+  await walk(a,SEAT[a.id].x,SEAT[a.id].y); a.busy=b.busy=false;setDesk(a);setDesk(b);
+}
+async function meeting(m){
+  const ps=m.who.map(byId); if(ps.some(p=>p.busy))return; ps.forEach(p=>{p.busy=true;setDesk(p)});
+  const spots=MEETSEATS.length?MEETSEATS:[[600,458]];
+  await Promise.all(ps.map((p,i)=>walk(p,spots[i][0],spots[i][1])));
+  log(ps[0],null,m.topic); await say(ps[0],m.topic,3000);
+  for(const p of ps.slice(1)){await say(p,"عندي رايي من شغلي…",1600)}
+  await Promise.all(ps.map(p=>walk(p,SEAT[p.id].x,SEAT[p.id].y)));
+  ps.forEach(p=>{p.busy=false;setDesk(p)});
+}
+async function coffee(){
+  const free=T.filter(p=>!p.busy&&p.st!=="new"&&!p.real); if(!free.length)return; const p=free[Math.floor(Math.random()*free.length)];
+  p.busy=true;setDesk(p); await walk(p,Z.cafe.x+136,Z.cafe.y+70); await say(p,"قهوة سريعة وأرجع",2200);
+  await walk(p,SEAT[p.id].x,SEAT[p.id].y); p.busy=false;setDesk(p);
+}
+function director(){
+  const r=Math.random();
+  if(r<.72){conversation(TALKS[ti++%TALKS.length])} else if(r<.86){meeting(MEETS[mi++%MEETS.length])} else {coffee()}
+}
+director();setTimeout(director,1500);setInterval(director,reduce?7000:4200);
+
+/* ---- the owner's meeting with the secretary (data written by Claude into the page's store) ---- */
+const SHAIMA={id:"shaima",z:"meet",g:"f",real:1,name:"شيماء",role:"المالكة",st:"team",task:"",does:[]};
+SHAIMA.el=add(`<div class="p real" aria-hidden="true" style="--c:var(--brass);--s:var(--brass);display:none"><span class="mood">⭐</span><span class="bub"></span></div>`);
+let meetingData=null,meetingBusy=false;
+const todayDubai=()=>new Date(Date.now()+4*3600e3).toISOString().slice(0,10);
+function meetingLines(m){return [...(m.done||[]).map(t=>["خلص",t]),...(m.doing||[]).map(t=>["شغالين",t]),...(m.ask||[]).map(t=>["يحتاج ردّج",t])]}
+function renderMeeting(){
+  const st=document.getElementById("mstate"),box=document.getElementById("mlines"),btn=document.getElementById("mplay");
+  box.textContent="";btn.hidden=true;
+  const m=meetingData;
+  if(!m||m.date!==todayDubai()){st.textContent="كل يوم الساعة 5:30 المسا، بس إذا فيه شي مهم.";return}
+  if(m.status==="none"){st.textContent="ما فيه اجتماع اليوم، كل شي ماشي.";return}
+  if(m.status==="scheduled"){st.textContent="عندج اجتماع معاي الساعة 5:30، وبعطيج التحديث.";return}
+  st.textContent="محضر اجتماع اليوم";
+  for(const [k,t] of meetingLines(m)){const d=document.createElement("div");d.className="ln";const b=document.createElement("b");b.textContent=k+": ";d.append(b,document.createTextNode(String(t)));box.appendChild(d)}
+  btn.hidden=false;
+}
+async function playMeeting(){
+  const m=meetingData; if(!m||meetingBusy)return; const sh=byId("shamma"); if(sh.busy)return;
+  meetingBusy=true;sh.busy=true;setDesk(sh);
+  const ms=MEETSEATS.length?MEETSEATS:[[600,458],[640,458]]; SHAIMA.el.style.display=""; place(SHAIMA,ms[0][0],ms[0][1],true);
+  place(sh,ms[1][0],ms[1][1],true);
+  log(sh,SHAIMA,"اجتماع اليوم مع شيماء");
+  const tts=await getTts();
+  for(const [k,t] of meetingLines(m)){const line=`${k}: ${t}`;const sp=tts?tts.speak(line,{language:"ar",voice:"airy"}).catch(()=>{}):null;await say(sh,line,3600);if(sp)await sp}
+  await say(sh,"هذا كل شي اليوم",1800);
+  place(sh,SEAT.shamma.x,SEAT.shamma.y,true); SHAIMA.el.style.display="none";
+  sh.busy=false;setDesk(sh);meetingBusy=false;
+}
+document.getElementById("mplay").onclick=playMeeting;
+const OCC={birthday:"عيد ميلاد",baby_shower:"استقبال مولود",gender_reveal:"كشف جنس المولود",graduation:"تخرج",bride_to_be:"حفلة عروس",corporate:"شركات"};
+function openBoard(){
+  const list=OPS_UP;
+  const P=shell(`<h2>الحفلات الجاية</h2><div class="note">من لوحة التشغيل، لأسبوعين قدام.</div><div id="upl" style="display:flex;flex-direction:column;gap:8px"></div>`);
+  const box=P.querySelector("#upl");
+  if(!list){box.innerHTML='<div class="note">تطلع هني أول ما ينزل تحديث النظام رقم 100 ويتزامن الطابق مع لوحة التشغيل.</div>';return}
+  if(!list.length){box.innerHTML='<div class="note">ما فيه حفلات بالأسبوعين الجايين.</div>';return}
+  let lastDay="";
+  for(const e of list){
+    if(e.date!==lastDay){lastDay=e.date;const h=document.createElement("b");h.textContent=dayAr(e.date);h.style.marginTop="6px";box.appendChild(h)}
+    const d=document.createElement("div");d.className="turn";
+    const occ=OCC[String(e.occasion||"").toLowerCase()]||String(e.occasion||"حفلة");
+    const TH={mickey:"ميكي",minnie:"ميني",barbie:"باربي",mermaid:"حورية البحر",bow:"الفيونكة",princess:"الأميرات",frozen:"فروزن",safari:"سفاري",dinosaur:"الديناصورات",unicorn:"يونيكورن",spiderman:"سبايدرمان",cars:"السيارات"};
+    const PK=[[/gold/i,"باقة الجولدن"],[/silver/i,"باقة السلفر"],[/bronze/i,"باقة البرونز"],[/summer|splash/i,"باقة الصيف"],[/spa/i,"باقة السبا"]];
+    const CREW={marsha:"مارشا",dindo:"دندو",diana:"ديانا",gloria:"قلوريا",jane:"جين"};
+    const tn=String(e.theme||"");const thAr=TH[tn.toLowerCase().trim()]||tn;
+    const theme=thAr||(e.customTheme?"ثيم جديد":"");
+    const pk=e.package?((PK.find(([r])=>r.test(e.package))||[])[1]||e.package):"";
+    const crew=(e.crew||[]).map(n=>CREW[String(n).toLowerCase()]||n);
+    d.textContent=[hhmm(e.time),emirAr(e.emirate),occ,theme&&("ثيم "+theme),pk,crew.length?("الفريق: "+crew.join("، ")):""].filter(Boolean).join(" · ");
+    box.appendChild(d)}
+}
+
+/* ---- real team from Eventana Ops: parties, prep, days off (synced into the store daily) ---- */
+const OPSNAME={marsha:"Marsha",dindo:"Dindo",diana:"Diana",gloria:"Gloria",jane:"Jane"};
+const EMIR={dubai:"دبي","abu dhabi":"أبوظبي",abudhabi:"أبوظبي",sharjah:"الشارقة",ajman:"عجمان","ras al khaimah":"رأس الخيمة",rak:"رأس الخيمة",fujairah:"الفجيرة","umm al quwain":"أم القيوين",alain:"العين","al ain":"العين"};
+const emirAr=e=>EMIR[String(e||"").toLowerCase().trim()]||String(e||"");
+function hhmm(t){const m=/^(\d{1,2}):(\d{2})/.exec(String(t||""));if(!m)return "";let h=+m[1];const ap=h<12?"الصبح":(h<16?"الظهر":(h<19?"العصر":"المسا"));h=h%12||12;return `${h}:${m[2]} ${ap}`}
+function dayAr(d){return new Date(d+"T00:00:00Z").toLocaleDateString("ar-AE",{weekday:"long",day:"numeric",month:"long",timeZone:"UTC"})}
+let OPS_UP=null;
+function applyOps(doc){if(doc&&Array.isArray(doc.upcoming))OPS_UP=doc.upcoming;
+  if(!doc||!Array.isArray(doc.team))return;
+  const today=todayDubai(),nowMin=(()=>{const d=new Date(Date.now()+4*3600e3);return d.getUTCHours()*60+d.getUTCMinutes()})();
+  for(const p of T.filter(q=>q.real)){
+    const row=doc.team.find(r=>String(r.name||"").toLowerCase()===String(OPSNAME[p.id]||"").toLowerCase());if(!row)continue;
+    const off=(row.daysOff||[]).some(o=>o.from<=today&&o.to>=today);
+    const evToday=(row.events||[]).filter(e=>e.date===today);
+    const next=(row.events||[]).filter(e=>e.date>today)[0];
+    let icon="☕",label="فري",line="ما عنده حفلة ولا تجهيز اليوم.";p.away=false;
+    if(off){icon="🌴";label="إجازة";line="إجازة اليوم.";p.away=true}
+    else if(evToday.length){const e=evToday[0];const m=/^(\d{1,2}):(\d{2})/.exec(e.time||"");const st=m?(+m[1])*60+(+m[2]):null;
+      const live=st!==null&&nowMin>=st-90&&nowMin<=st+300;icon="🎉";label=live?"في حفلة الحين":"عنده حفلة اليوم";
+      line=`حفلة ${hhmm(e.time)} · ${emirAr(e.emirate)}${e.leader?" · قائد الحفلة":""}${evToday.length>1?` (+${evToday.length-1} حفلة ثانية)`:""}`;p.away=live}
+    else if(row.prepOpen>0){icon="🛠️";label="يجهّز";line=`عنده ${row.prepOpen} مهمة تجهيز لليوم وبكرة.`}
+    if(next&&!evToday.length)line+=` الحفلة الجاية: ${dayAr(next.date)} ${hhmm(next.time)} · ${emirAr(next.emirate)}`;
+    p.el.querySelector(".mood").textContent=icon;
+    p.el.querySelector(".ml").textContent=icon+" "+label;
+    p.el.querySelector(".tk").textContent=line;
+    p.el.setAttribute("aria-label",`${p.name}، ${p.role}، ${label}`);
+  }
+  const u=document.getElementById("opsU");if(u)u.textContent=doc.syncedAt?`اضغطي على أي لوحة صور تشوفين الحفلات الجاية · حالة الفريق من لوحة التشغيل · آخر تحديث ${new Date(doc.syncedAt).toLocaleString("ar-AE",{timeZone:"Asia/Dubai",weekday:"short",hour:"numeric",minute:"2-digit"})}`:"";
+}
+(async()=>{const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;if(!db)return;
+  db.doc("team/today").onSnapshot(snap=>{if(snap.exists)applyOps(snap.data())},()=>{});})();
+
+/* ---- talk to Shamma inside the floor: text or voice; she answers by voice ---- */
+let ttsP=null,dictP=null;
+const getTts=()=>ttsP||(ttsP=(window.claude&&window.claude.use)?window.claude.use("tts").catch(()=>null):Promise.resolve(null));
+const getDict=()=>dictP||(dictP=(window.claude&&window.claude.use)?window.claude.use("dictation").catch(()=>null):Promise.resolve(null));
+const thread=document.getElementById("thread"),sayBox=document.getElementById("sayBox"),sendS=document.getElementById("sendS"),mic=document.getElementById("mic"),listen=document.getElementById("listen"),tnote=document.getElementById("tnote");
+let inboxRef=null,lastShamma="",spokenReplies=new Set(),firstInbox=true;
+function bubble(cls,text,label){const d=document.createElement("div");d.className="msg "+cls;if(label){const b=document.createElement("b");b.textContent=label+" ";d.appendChild(b)}d.appendChild(document.createTextNode(String(text)));thread.appendChild(d)}
+async function speakShamma(text){lastShamma=text;listen.hidden=false;const t=await getTts();if(!t)return;try{await t.speak(text,{language:"ar",voice:"airy"})}catch(e){}}
+function teamStatus(){return T.filter(p=>!p.real).map(p=>`${p.name} (${p.role}): ${p.task}`).join("\n")}
+(async()=>{
+  const d=await getDict(); if(d){mic.hidden=false;
+    d.onFinal(({text})=>{if(text)sayBox.value=(sayBox.value?sayBox.value+" ":"")+text});
+    d.onState(({state})=>{mic.textContent=state==="idle"?"تكلمي":"وقّفي"});}
+  const t=await getTts(); if(!t) tnote.textContent="الصوت يشتغل من متصفح قوقل كروم أو تطبيق Claude على الكمبيوتر. بالجوال تطلع الردود مكتوبة.";
+  const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
+  if(!db){tnote.textContent="افتحي الطابق من حسابج عشان تكلمين شمّا.";sendS.disabled=true;return}
+  inboxRef=db.collection("inbox");
+  inboxRef.orderBy("at","asc").limit(60).onSnapshot(qs=>{
+    thread.textContent="";bubble("them","أنا شمّا، قولي لي اللي تبينه وأنا أوصله للفريق.");
+    for(const doc of qs.docs){const m=doc.data()||{};
+      if(m.from==="shamma"){bubble("them",m.text||"","شمّا:");continue}
+      bubble("me",m.text||"");
+      if(m.quick)bubble("them",m.quick,"شمّا:");
+      if(m.reply){bubble("them",m.reply,"شمّا (بعد ما خلص الفريق):");
+        if(!spokenReplies.has(doc.id)){spokenReplies.add(doc.id);if(!firstInbox)speakShamma(m.reply);else{lastShamma=m.reply;listen.hidden=false}}}
+    }
+    if(firstInbox)qs.docs.forEach(d=>{const m=d.data()||{};if(m.from==="shamma"){lastShamma=m.text;listen.hidden=false}});
+    firstInbox=false;thread.scrollTop=thread.scrollHeight;
+  },()=>{tnote.textContent="ما قدرت أحمّل المحادثة الحين."});
+})();
+mic.onclick=()=>{getDict().then(d=>{if(!d)return;if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}})};
+// keep the mic call synchronous inside the click when the namespace is already resolved
+getDict().then(d=>{if(d)mic.onclick=()=>{if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}}});
+listen.onclick=()=>{if(lastShamma)speakShamma(lastShamma)};
+sendS.onclick=async()=>{
+  const text=sayBox.value.trim();if(!text||!inboxRef)return;sayBox.value="";sendS.disabled=true;
+  try{
+    const ref=await inboxRef.add({at:Date.now(),text,status:"new"});
+    const s=await getSample();let quick="وصلني، بوصله للفريق وأرد عليج.";
+    if(s){try{const r=await s(`${CONTEXT}\nأنت شمّا، سكرتيرة شيماء والوحيدة اللي تكلمها. ردّي بجملة أو جملتين بس، بصوت هادي ومختصر. إذا كلامها طلب شغل أو قرار، قولي لها إنج وصلتيه للفريق وبترجعين لها أول ما يخلص ولا تدّعين إنه خلص. إذا سؤال عن الوضع، جاوبي من هالمعلومات بس:\nحالة الفريق:\n${teamStatus()}\nاجتماع اليوم: ${JSON.stringify(meetingData||{})}\nكلام شيماء: ${text}`,{modelTier:"quick",cache:false});quick=r.text.trim()||quick}catch(e){}}
+    await ref.update({quick});
+    speakShamma(quick);
+  }catch(e){tnote.textContent="ما وصلت الرسالة، جربي مرة ثانية."}
+  sendS.disabled=false;
+};
+(async()=>{
+  const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
+  if(!db)return;
+  let first=true;
+  db.doc("meetings/today").onSnapshot(snap=>{
+    meetingData=snap.exists?snap.data():null;renderMeeting();
+    if(first&&meetingData&&meetingData.date===todayDubai()&&meetingData.status==="done"){setTimeout(playMeeting,2500)}
+    first=false;
+  },()=>{});
+})();
+
+/* header + approvals */
+const cnt=k=>T.filter(p=>p.st===k).length;
+document.getElementById("chips").innerHTML=`<span class="chip">الفريق الحقيقي <b>${T.filter(p=>p.real).length}</b></span><span class="chip">موظفين الذكاء الاصطناعي <b>${T.filter(p=>!p.real).length}</b></span><span class="chip">شغّالين <b>${cnt("work")}</b></span><span class="chip">ينتظرونج <b>${ASKS.length}</b></span>`;
+document.getElementById("asks").innerHTML=ASKS.map(a=>{const p=byId(a.who);return `<article class="ask" style="--c:${Z[p.z].c}"><span class="who">${esc(Z[p.z].name)} · ${esc(p.name)}</span><span class="what">${esc(a.what)}</span><span class="how">${esc(a.how)}</span></article>`}).join("");
+function tick(){const d=new Date();document.getElementById("clock").textContent=d.toLocaleTimeString("ar-AE",{hour:"numeric",minute:"2-digit",timeZone:"Asia/Dubai"})+" · "+d.toLocaleDateString("ar-AE",{weekday:"long",day:"numeric",month:"long",timeZone:"Asia/Dubai"})}
+tick();setInterval(tick,30000);
+
+/* side panel: person + meeting (Claude sampling when available) */
+let sp=null;const getSample=()=>sp||(sp=(window.claude&&window.claude.use)?window.claude.use("sample").catch(()=>null):Promise.resolve(null));
+const CONTEXT=`أنت موظف في مكتب افتراضي لشيماء، صاحبة إيفنتانا (حفلات أطفال في الإمارات). أنت في طابق إيفنتانا. تكلم باللهجة الخليجية فقط بدون أي كلمة إنجليزية، بجمل قصيرة. لا تخترع أرقام أو حقائق، قل «أحتاج أتأكد». قواعد إيفنتانا: ${RULES.ev.join("، ")}. التنفيذ الفعلي يصير لما شيماء ترد بالمحادثة الرئيسية.`;
+function closeLayer(){document.getElementById("layer").innerHTML=""}
+function shell(inner){const L=document.getElementById("layer");
+  L.innerHTML=`<div class="scrim"></div><aside class="panel" dir="rtl" role="dialog" aria-modal="true"><button class="x" type="button">إغلاق</button>${inner}</aside>`;
+  L.querySelector(".scrim").onclick=closeLayer;L.querySelector(".x").onclick=closeLayer;return L.querySelector(".panel")}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeLayer()});
+function openPerson(p){
+  const z=Z[p.z],rules=[...RULES.ev,...RULES.hq];
+  const P=shell(`<div class="ph"><h2 style="color:${z.c}">${esc(p.name)}</h2><div class="note">${esc(p.role)} · ${esc(z.name)}</div></div>
+   <div class="sec"><h4>الحين</h4><div><span class="pill" style="--s:${ST[p.st].c}">${ST[p.st].t}</span></div><div>${esc(p.task)}</div></div>
+   <div class="sec"><h4>شغله</h4><ul>${p.does.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+   <div class="sec"><h4>القواعد</h4><ul>${rules.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+   ${p.real?`<div class="note">من فريق إيفنتانا الحقيقي. موظفين الذكاء الاصطناعي يجهّزون لها الشغل، وهي تراجع وترسل.</div>`:""}<div class="sec" ${p.real?"hidden":""}><h4>اسأليه</h4><div class="chat" id="chat"></div><textarea id="q" rows="2" placeholder="اكتبي سؤالج"></textarea>
+   <div><button class="btn" id="send" type="button">أرسلي</button></div><div class="note" id="sn">رد للمشورة. التنفيذ والصرف بعد ردّج علي بالمحادثة.</div></div>`);
+  const chat=P.querySelector("#chat"),q=P.querySelector("#q"),send=P.querySelector("#send"),sn=P.querySelector("#sn");
+  getSample().then(s=>{if(!s){sn.textContent="الدردشة تشتغل لما تفتحين الصفحة من حسابج.";send.disabled=true}});
+  send.onclick=async()=>{const text=q.value.trim();if(!text)return;q.value="";
+    chat.insertAdjacentHTML("beforeend",`<div class="msg me">${esc(text)}</div>`);const out=document.createElement("div");out.className="msg them";out.textContent="يفكّر…";chat.appendChild(out);send.disabled=true;
+    try{const s=await getSample();const r=await s(`${CONTEXT}\nأنت ${p.name}، ${p.role} في ${z.name}. شغلك: ${p.does.join("، ")}. شغلك الحالي: ${p.task}.\nشيماء تسألك: ${text}\nرد بأقل من 80 كلمة.`,{modelTier:"quick",cache:false,onText:({text})=>{out.textContent=text}});out.textContent=r.text}
+    catch(e){out.textContent=e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"ما قدرت أرد الحين."}
+    send.disabled=false};
+}
+document.getElementById("meetBtn").onclick=()=>{
+  const P=shell(`<h2>اجتماع جديد</h2><div class="sec"><h4>الفكرة</h4><textarea id="idea" rows="3" placeholder="اكتبي الفكرة"></textarea></div>
+   <div class="sec"><h4>مين يحضر</h4><div class="picks">${T.filter(p=>p.st!=="new"&&!p.real).map(p=>`<button type="button" class="pick" data-id="${p.id}" aria-pressed="${["shamma","kafu","hamdan","saeed","maitha"].includes(p.id)}">${esc(p.name)}</button>`).join("")}</div></div>
+   <div><button class="btn" id="go" type="button">ابدأوا</button></div><div class="note" id="mn">كل واحد يعطي رايه من تخصصه، وشمّا تطلع الخلاصة. القرار لج.</div><div id="min" style="display:flex;flex-direction:column;gap:8px"></div>`);
+  P.querySelectorAll(".pick").forEach(b=>b.onclick=()=>b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true"));
+  const go=P.querySelector("#go"),min=P.querySelector("#min"),mn=P.querySelector("#mn");
+  getSample().then(s=>{if(!s){mn.textContent="الاجتماع يشتغل لما تفتحين الصفحة من حسابج.";go.disabled=true}});
+  go.onclick=async()=>{const idea=P.querySelector("#idea").value.trim();const sel=[...P.querySelectorAll('.pick[aria-pressed="true"]')].map(b=>byId(b.dataset.id));if(!idea||!sel.length)return;
+    min.innerHTML=`<div class="note">الفريق يتناقش…</div>`;go.disabled=true;
+    const ps=sel.slice(0,4).filter(p=>!p.busy);ps.forEach(p=>{p.busy=true;setDesk(p)});
+    const spots=MEETSEATS.length?MEETSEATS:[[600,458]];ps.forEach((p,i)=>walk(p,spots[i%spots.length][0],spots[i%spots.length][1]));
+    try{const s=await getSample();
+      const res=await s.json(`${CONTEXT}\nاجتماع. الحضور:\n${sel.map(p=>`- ${p.name} (${p.role}): ${p.does.join("، ")}`).join("\n")}\nفكرة شيماء: ${idea}\nكل واحد يعطي رايه من تخصصه بجملتين أو ثلاث، وبعدها شمّا تكتب خلاصة وقرارات مقترحة تحتاج موافقة شيماء. رجّع JSON فقط: {"turns":[{"name":"...","text":"..."}],"summary":"..."}`,{modelTier:"default"});
+      min.innerHTML="";for(const t of (res.turns||[])){min.insertAdjacentHTML("beforeend",`<div class="turn"><b>${esc(t.name||"")}</b><br>${esc(t.text||"")}</div>`);const p=T.find(x=>x.name===t.name);if(p){log(p,null,t.text||"");say(p,(t.text||"").slice(0,90),3500)}}
+      if(res.summary)min.insertAdjacentHTML("beforeend",`<div class="summary"><b>خلاصة شمّا</b><br>${esc(res.summary)}</div>`);
+    }catch(e){min.innerHTML=`<div class="note">${e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"ما قدرنا نكمل الاجتماع الحين."}</div>`}
+    await sleep(3600);await Promise.all(ps.map(p=>walk(p,SEAT[p.id].x,SEAT[p.id].y)));ps.forEach(p=>{p.busy=false;setDesk(p)});go.disabled=false};
+};
+</script>
