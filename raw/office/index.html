@@ -50,17 +50,18 @@ button{font-family:inherit;cursor:pointer}
 .main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
 .stage{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:12px;box-shadow:var(--shadow);overflow:hidden}
 .viewport{position:relative;width:100%}
-.floor{position:absolute;top:0;left:0;width:1200px;height:916px;transform-origin:top left;direction:ltr;
+.iso{position:absolute;left:0;top:0;width:1500px;height:1000px;transform-origin:top left}
+.floor{position:absolute;top:70px;left:150px;width:1200px;height:916px;transform-origin:50% 50%;transform:rotateX(55deg) rotateZ(-45deg);transform-style:preserve-3d;direction:ltr;
   background:var(--floor);border-radius:14px;
   background-image:repeating-linear-gradient(90deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px),
                    repeating-linear-gradient(0deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px)}
-.zone{position:absolute;border:3px solid var(--brass);border-radius:16px;background:color-mix(in srgb,var(--c) 5%,transparent)}
+.zone{transform-style:preserve-3d;position:absolute;border:3px solid var(--brass);border-radius:16px;background:color-mix(in srgb,var(--c) 5%,transparent)}
 .zone .lbl{position:absolute;top:-15px;right:18px;background:var(--floor);padding:0 10px;font-family:var(--display);font-size:20px;color:var(--c);direction:rtl;white-space:nowrap}
 .zone .sub{position:absolute;bottom:-11px;right:18px;background:var(--floor);padding:0 8px;font-size:12px;color:var(--muted);direction:rtl}
 .zone.meet{background:var(--glass);border-style:solid}
 .table{position:absolute;border-radius:50%;background:var(--wood);border:2px solid var(--brass)}
-.desk{position:absolute;width:74px;height:40px;border-radius:8px;background:var(--wood);border:1px solid color-mix(in srgb,var(--brass) 45%,transparent)}
-.desk .scr{position:absolute;left:50%;top:5px;width:34px;height:16px;margin-left:-17px;border-radius:3px;background:#2B3346;border:2px solid #3B455C}
+.desk{transform-style:preserve-3d;transform:translateZ(18px);box-shadow:0 0 0 1px rgba(0,0,0,.08);position:absolute;width:74px;height:40px;border-radius:8px;background:var(--wood);border:1px solid color-mix(in srgb,var(--brass) 45%,transparent)}
+.desk .scr{transform-origin:50% 100%;transform:rotateX(-90deg);position:absolute;left:50%;top:4px;width:34px;height:16px;margin-left:-17px;border-radius:3px;background:#2B3346;border:2px solid #3B455C}
 .desk.on .scr{background:linear-gradient(180deg,#9FD3E8,#5DA9C9);box-shadow:0 0 10px rgba(110,190,230,.6)}
 .desk.wait .scr{background:linear-gradient(180deg,#F4D58D,#E0A93C);box-shadow:0 0 10px rgba(230,170,60,.55)}
 .desk.stop .scr{background:#6B2C2C}
@@ -68,7 +69,7 @@ button{font-family:inherit;cursor:pointer}
 .sofa{position:absolute;border-radius:12px;background:color-mix(in srgb,var(--brass) 35%,var(--floor))}
 .coffee{position:absolute;width:34px;height:34px;border-radius:8px;background:#3B2E25;border:2px solid var(--brass)}
 
-.p{position:absolute;left:0;top:0;width:58px;height:76px;margin:-60px 0 0 -29px;transition:transform 1.9s cubic-bezier(.45,.05,.4,1);z-index:3;cursor:pointer;background:none;border:0;padding:0}
+.p{transform-style:preserve-3d;position:absolute;left:0;top:0;width:58px;height:76px;margin:-60px 0 0 -29px;transition:transform 1.9s cubic-bezier(.45,.05,.4,1);z-index:3;cursor:pointer;background:none;border:0;padding:0}
 .p .fig{position:absolute;inset:0}
 .p .body{position:absolute;left:12px;top:29px;width:34px;height:40px;border-radius:17px 17px 8px 8px;background:var(--kandura);border:1px solid rgba(0,0,0,.12)}
 .p.f .body{background:var(--abaya);border-color:rgba(255,255,255,.08)}
@@ -132,6 +133,14 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 @media (max-width:640px){.cards{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:78%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}.ask{scroll-snap-align:start}}
 .cards{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
 @media (prefers-reduced-motion:reduce){.p{transition:none}.p.walk .fig,.typing i{animation:none}.log li{animation:none}}
+.p .up{position:absolute;inset:0;transform-origin:50% 80%;transform:rotateZ(45deg) rotateX(-55deg)}
+.zone .lbl{transform-origin:50% 100%;transform:translateZ(70px) rotateZ(45deg) rotateX(-55deg);box-shadow:0 4px 14px -6px rgba(0,0,0,.35);border-radius:8px}
+.zone .sub{transform-origin:50% 100%;transform:rotateZ(45deg) rotateX(-55deg)}
+.wall{position:absolute;background:linear-gradient(180deg,color-mix(in srgb,var(--c) 18%,var(--card)),var(--card));border:1px solid color-mix(in srgb,var(--brass) 60%,transparent);transform-origin:0 0;pointer-events:none}
+.wall.top{height:56px;transform:rotateX(90deg)}
+.wall.right{width:56px;transform-origin:0 0;transform:rotateY(-90deg)}
+.desk::before{content:"";position:absolute;inset:0;border-radius:8px;background:color-mix(in srgb,var(--wood) 70%,#000);transform:translateZ(-18px)}
+.plant{transform:translateZ(14px)}
 </style>
 
 <div class="wrap" dir="rtl">
@@ -148,7 +157,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 
   <div class="main">
     <section class="stage" aria-label="المكتب">
-      <div class="viewport" id="vp"><div class="floor" id="floor"></div></div>
+      <div class="viewport" id="vp"><div class="iso" id="iso"><div class="floor" id="floor"></div></div></div>
     </section>
     <aside class="log" aria-labelledby="log-h">
       <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
@@ -228,7 +237,8 @@ const MEETS=[
 ];
 const floor=document.getElementById("floor"),vp=document.getElementById("vp");
 const W=1200,H=916;
-function fit(){const s=vp.clientWidth/W;floor.style.transform=`scale(${s})`;vp.style.height=(H*s)+"px"}
+const IW=1500,IH=1000,iso=document.getElementById("iso");
+function fit(){const s=vp.clientWidth/IW;iso.style.transform=`scale(${s})`;vp.style.height=(IH*s)+"px"}
 new ResizeObserver(fit).observe(vp);
 const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
 const add=(h,parent=floor)=>{const t=document.createElement("template");t.innerHTML=h.trim();const n=t.content.firstChild;parent.appendChild(n);return n};
@@ -237,6 +247,8 @@ const byId=id=>T.find(p=>p.id===id);
 /* build rooms */
 for(const [k,z] of Object.entries(Z)){
   add(`<div class="zone ${k==="meet"?"meet":""}" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;--c:${z.c}"><span class="lbl">${esc(z.name)}</span><span class="sub">${esc(z.sub)}</span></div>`);
+  add(`<div class="wall top" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;--c:${z.c}"></div>`);
+  add(`<div class="wall right" style="left:${z.x+z.w}px;top:${z.y}px;height:${z.h}px;--c:${z.c}"></div>`);
 }
 const mz=Z.meet; add(`<div class="table" style="left:${mz.x+104}px;top:${mz.y+76}px;width:160px;height:44px"></div>`);
 const cz=Z.cafe; add(`<div class="coffee" style="left:${cz.x+120}px;top:${cz.y+20}px"></div>`);add(`<div class="sofa" style="left:${cz.x+18}px;top:${cz.y+96}px;width:110px;height:30px"></div>`);
@@ -258,8 +270,8 @@ const SK=["var(--skin1)","var(--skin2)"];
 T.forEach((p,i)=>{
   const z=Z[p.z];
   p.el=add(`<button type="button" class="p ${p.real?"x real":p.g}" aria-label="${esc(p.name)}، ${esc(p.role)}" style="--c:${z.c};--skin:${SK[i%2]};--s:${ST[p.st].c}">
-    <span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span>
-    <span class="st"></span><span class="typing"><i></i><i></i><i></i></span><span class="name">${esc(p.name)}</span><span class="bub"></span></button>`);
+    <span class="up"><span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span>
+    <span class="st"></span><span class="typing"><i></i><i></i><i></i></span><span class="name">${esc(p.name)}</span><span class="bub"></span></span></button>`);
   p.el.onclick=()=>openPerson(p);
   place(p,SEAT[p.id].x,SEAT[p.id].y,true);
   setDesk(p);
@@ -311,7 +323,7 @@ director();setTimeout(director,1500);setInterval(director,reduce?7000:4200);
 /* ---- the owner's meeting with the secretary (data written by Claude into the page's store) ---- */
 const SHAIMA={id:"shaima",z:"meet",g:"f",real:1,name:"شيماء",role:"المالكة",st:"team",task:"",does:[]};
 SHAIMA.el=add(`<div class="p f real" aria-hidden="true" style="--c:var(--brass);--skin:var(--skin1);--s:var(--brass);display:none">
-  <span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span><span class="st"></span><span class="typing"></span><span class="name">شيماء</span><span class="bub"></span></div>`);
+  <span class="up"><span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span><span class="st"></span><span class="typing"></span><span class="name">شيماء</span><span class="bub"></span></span></div>`);
 let meetingData=null,meetingBusy=false;
 const todayDubai=()=>new Date(Date.now()+4*3600e3).toISOString().slice(0,10);
 function meetingLines(m){return [...(m.done||[]).map(t=>["خلص",t]),...(m.doing||[]).map(t=>["شغالين",t]),...(m.ask||[]).map(t=>["يحتاج ردّج",t])]}

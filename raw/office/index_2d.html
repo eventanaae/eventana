@@ -1,0 +1,448 @@
+<title>طابق إيفنتانا</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+/* Layout: one live top-down office floor (people walk, meet, talk) beside a running office log; approvals strip on top; details open in one side panel — no tabs. */
+:root{
+  --ground:#EBEEF2; --floor:#F7F5F0; --wood:#E4D7C1; --ink:#16223A; --muted:#5D6880;
+  --brass:#A8834B; --brass-soft:#EFE5D2; --glass:rgba(110,160,200,.16); --card:#FFFFFF; --line:#D6DBE3;
+  --ok:#2E9A6B; --wait:#C98A1B; --stop:#C24D4D; --idle:#9AA3B2;
+  --ev:#7A2E64; --mz:#1F7A80; --od:#3F5BA9; --mt:#C0761F; --hq:#8A6A2F;
+  --kandura:#FBFBF9; --abaya:#1D1F26; --skin1:#D7A98A; --skin2:#B98466;
+  --display:"El Messiri","Noto Kufi Arabic",serif;
+  --body:"IBM Plex Sans Arabic","Noto Sans Arabic",system-ui,sans-serif;
+  --shadow:0 14px 34px -20px rgba(22,34,58,.5);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--ground:#0D1422;--floor:#1A2131;--wood:#2B2A2A;--ink:#EEF1F6;--muted:#9AA6BC;--brass:#CFAE73;--brass-soft:#352E22;
+  --glass:rgba(120,170,210,.12);--card:#1C2539;--line:#2C3852;--idle:#6C778C;
+  --ev:#C46BA8;--mz:#3FB3B9;--od:#7D97E6;--mt:#E3A04E;--hq:#CFAE73;--kandura:#F1F1EC;--abaya:#05060A;--shadow:0 14px 34px -18px rgba(0,0,0,.75);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--ground:#0D1422;--floor:#1A2131;--wood:#2B2A2A;--ink:#EEF1F6;--muted:#9AA6BC;--brass:#CFAE73;--brass-soft:#352E22;
+  --glass:rgba(120,170,210,.12);--card:#1C2539;--line:#2C3852;--idle:#6C778C;
+  --ev:#C46BA8;--mz:#3FB3B9;--od:#7D97E6;--mt:#E3A04E;--hq:#CFAE73;--kandura:#F1F1EC;--abaya:#05060A;--shadow:0 14px 34px -18px rgba(0,0,0,.75);
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;
+  padding-block:18px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:8px}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}
+.brand h1{font-size:clamp(30px,4vw,44px)}
+.brand p{margin:0;color:var(--muted)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px}
+.chip b{font-variant-numeric:tabular-nums}
+.clock{font-family:var(--display);font-size:22px;color:var(--brass);font-variant-numeric:tabular-nums}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.ask{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
+.ask::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--c)}
+.ask .who{font-size:12px;color:var(--muted)} .ask .what{font-weight:600} .ask .how{font-size:13px;color:var(--muted)}
+.sec-h{display:flex;align-items:baseline;gap:10px} .sec-h h2{font-size:20px} .sec-h span{font-size:13px;color:var(--muted)}
+
+.main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.stage{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:12px;box-shadow:var(--shadow);overflow:hidden}
+.viewport{position:relative;width:100%}
+.floor{position:absolute;top:0;left:0;width:1200px;height:916px;transform-origin:top left;direction:ltr;
+  background:var(--floor);border-radius:14px;
+  background-image:repeating-linear-gradient(90deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px),
+                   repeating-linear-gradient(0deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px)}
+.zone{position:absolute;border:3px solid var(--brass);border-radius:16px;background:color-mix(in srgb,var(--c) 5%,transparent)}
+.zone .lbl{position:absolute;top:-15px;right:18px;background:var(--floor);padding:0 10px;font-family:var(--display);font-size:20px;color:var(--c);direction:rtl;white-space:nowrap}
+.zone .sub{position:absolute;bottom:-11px;right:18px;background:var(--floor);padding:0 8px;font-size:12px;color:var(--muted);direction:rtl}
+.zone.meet{background:var(--glass);border-style:solid}
+.table{position:absolute;border-radius:50%;background:var(--wood);border:2px solid var(--brass)}
+.desk{position:absolute;width:74px;height:40px;border-radius:8px;background:var(--wood);border:1px solid color-mix(in srgb,var(--brass) 45%,transparent)}
+.desk .scr{position:absolute;left:50%;top:5px;width:34px;height:16px;margin-left:-17px;border-radius:3px;background:#2B3346;border:2px solid #3B455C}
+.desk.on .scr{background:linear-gradient(180deg,#9FD3E8,#5DA9C9);box-shadow:0 0 10px rgba(110,190,230,.6)}
+.desk.wait .scr{background:linear-gradient(180deg,#F4D58D,#E0A93C);box-shadow:0 0 10px rgba(230,170,60,.55)}
+.desk.stop .scr{background:#6B2C2C}
+.plant{position:absolute;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#86C08A,#3D7A49);box-shadow:0 0 0 4px rgba(61,122,73,.15)}
+.sofa{position:absolute;border-radius:12px;background:color-mix(in srgb,var(--brass) 35%,var(--floor))}
+.coffee{position:absolute;width:34px;height:34px;border-radius:8px;background:#3B2E25;border:2px solid var(--brass)}
+
+.p{position:absolute;left:0;top:0;width:58px;height:76px;margin:-60px 0 0 -29px;transition:transform 1.9s cubic-bezier(.45,.05,.4,1);z-index:3;cursor:pointer;background:none;border:0;padding:0}
+.p .fig{position:absolute;inset:0}
+.p .body{position:absolute;left:12px;top:29px;width:34px;height:40px;border-radius:17px 17px 8px 8px;background:var(--kandura);border:1px solid rgba(0,0,0,.12)}
+.p.f .body{background:var(--abaya);border-color:rgba(255,255,255,.08)}
+.p .head{position:absolute;left:16px;top:5px;width:26px;height:26px;border-radius:50%;background:var(--skin)}
+.p.m .head::before{content:"";position:absolute;inset:-3px -3px 6px -3px;border-radius:10px 10px 4px 4px;background:var(--kandura);border:1px solid rgba(0,0,0,.12);z-index:-1}
+.p.m .head::after{content:"";position:absolute;left:-3px;right:-3px;top:-3px;height:4px;border-radius:3px;background:#1B1B1B}
+.p.f .head{box-shadow:0 0 0 4px var(--abaya)}
+.p .badge{position:absolute;left:22px;top:45px;width:14px;height:14px;border-radius:50%;background:var(--c);border:2px solid var(--kandura)}
+.p .name{position:absolute;top:76px;left:50%;transform:translateX(-50%);font-size:15px;font-weight:600;white-space:nowrap;direction:rtl;
+  background:color-mix(in srgb,var(--card) 85%,transparent);padding:0 6px;border-radius:6px;color:var(--ink)}
+.p .st{position:absolute;right:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--s);border:2px solid var(--floor)}
+.p.x .body{background:var(--ev);border-color:rgba(0,0,0,.15)}
+.p.real .name{background:var(--brass-soft);outline:1px solid var(--brass)}
+.p.real .badge{background:var(--brass);border-color:var(--brass-soft)}
+.p.walk .fig{animation:bob .38s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-3px)}}
+.p .typing{position:absolute;left:50%;top:-12px;transform:translateX(-50%);display:none;gap:3px}
+.p.typingon .typing{display:flex}
+.typing i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:tp 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes tp{50%{opacity:.25}}
+.bub{position:absolute;bottom:84px;left:50%;transform:translateX(-50%) scale(.9);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+  width:max-content;max-width:270px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:8px 12px;font-size:15px;line-height:1.5;
+  direction:rtl;box-shadow:var(--shadow);z-index:5}
+.bub::after{content:"";position:absolute;bottom:-6px;left:50%;margin-left:-6px;width:12px;height:12px;background:var(--card);border-right:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg)}
+.p.talk .bub{opacity:1;transform:translateX(-50%) scale(1)}
+.p.talk{z-index:6}
+
+.log{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:10px;max-height:min(78vh,900px);box-shadow:var(--shadow)}
+.log ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.log li{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--c) 7%,transparent);border-inline-start:3px solid var(--c);animation:in .35s ease}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}}
+.log .meta{font-size:12px;color:var(--muted)} .log .txt{font-size:14px}
+.talk{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--floor)}
+.talk .thread{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
+.talk .msg.me{align-self:flex-start}.talk .msg.them{align-self:flex-end;background:var(--card)}
+.talk .tbar{display:flex;gap:6px;flex-wrap:wrap}
+.mcard{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:14px;background:var(--brass-soft);border:1px solid var(--brass)}
+.mcard #mlines{display:flex;flex-direction:column;gap:4px;font-size:14px}
+.mcard .ln b{color:var(--brass)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--brass);align-self:flex-start}
+.btn{background:var(--ink);color:var(--ground);border:0;border-radius:999px;padding:9px 18px;font-weight:600;font-size:14px}
+
+.scrim{position:fixed;inset:0;background:rgba(10,16,28,.45);z-index:20}
+.panel{position:fixed;z-index:21;inset-block:0;inset-inline-end:0;width:min(440px,100%);background:var(--card);border-inline-start:1px solid var(--line);
+  padding:calc(20px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.panel .x{align-self:flex-start;background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:4px 12px}
+.ph h2{font-size:26px} .ph .note{margin-top:-2px}
+.sec{display:flex;flex-direction:column;gap:6px} .sec h4{margin:0;font-size:12px;color:var(--muted);font-weight:600} .sec ul{margin:0;padding-inline-start:18px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;border-radius:999px;padding:2px 10px;background:color-mix(in srgb,var(--s) 15%,transparent)}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--s)}
+textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);background:var(--floor);border:1px solid var(--line);border-radius:12px;padding:10px 12px;resize:vertical}
+.chat{display:flex;flex-direction:column;gap:8px}.msg{border-radius:12px;padding:8px 12px;font-size:14px;white-space:pre-wrap}
+.msg.me{background:var(--brass-soft)}.msg.them{background:var(--floor);border:1px solid var(--line)}
+.note{font-size:12px;color:var(--muted)}
+.picks{display:flex;flex-wrap:wrap;gap:6px}.pick{border:1px solid var(--line);background:var(--floor);color:var(--ink);border-radius:999px;padding:4px 12px;font-size:13px}
+.pick[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.turn{background:var(--floor);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px}.summary{background:var(--brass-soft);border-radius:12px;padding:10px 14px;font-size:14px}
+
+@media (max-width:1000px){.main{grid-template-columns:1fr}.log{max-height:420px}}
+@media (max-width:640px){.cards{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:78%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}.ask{scroll-snap-align:start}}
+.cards{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+@media (prefers-reduced-motion:reduce){.p{transition:none}.p.walk .fig,.typing i{animation:none}.log li{animation:none}}
+</style>
+
+<div class="wrap" dir="rtl">
+  <header class="top">
+    <div class="brand"><h1>طابق إيفنتانا</h1><p>فريق إيفنتانا كامل، والسكرتيرة هي اللي تكلمج</p></div>
+    <div class="chips" id="chips"></div>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <section aria-labelledby="ask-h" style="display:flex;flex-direction:column;gap:8px">
+    <div class="sec-h"><h2 id="ask-h">شمّا تسألج</h2><span>بس اللي فعلاً يحتاج ردّج</span></div>
+    <div class="cards" id="asks"></div>
+  </section>
+
+  <div class="main">
+    <section class="stage" aria-label="المكتب">
+      <div class="viewport" id="vp"><div class="floor" id="floor"></div></div>
+    </section>
+    <aside class="log" aria-labelledby="log-h">
+      <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
+      <div class="mcard" id="mcard"><b>اجتماعج مع شمّا</b><span class="note" id="mstate">كل يوم الساعة 5:30 المسا، بس إذا فيه شي مهم.</span><div id="mlines"></div><button class="btn ghost" id="mplay" type="button" hidden>شوفي الاجتماع</button></div>
+      <div class="talk" aria-label="كلمي شمّا">
+        <b>كلمي شمّا</b>
+        <div class="thread" id="thread"><div class="msg them">أنا شمّا، قولي لي اللي تبينه وأنا أوصله للفريق.</div></div>
+        <textarea id="sayBox" rows="2" placeholder="اكتبي لشمّا، أو اضغطي تكلمي"></textarea>
+        <div class="tbar"><button class="btn" id="sendS" type="button">أرسلي</button><button class="btn ghost" id="mic" type="button" hidden>تكلمي</button><button class="btn ghost" id="listen" type="button" hidden>اسمعي آخر رد</button></div>
+        <span class="note" id="tnote"></span>
+      </div>
+      <ul id="feed" aria-live="polite"></ul>
+    </aside>
+  </div>
+</div>
+<div id="layer"></div>
+
+<script>
+const ST={team:{t:"فريق حقيقي",c:"var(--brass)"},soon:{t:"يبدأ بعد موافقتج",c:"var(--idle)"},work:{t:"شغّال",c:"var(--ok)"},wait:{t:"ينتظرج",c:"var(--wait)"},stop:{t:"متوقف",c:"var(--stop)"},idle:{t:"متفرغ",c:"var(--idle)"},new:{t:"ينتظر تعريف المشروع",c:"var(--idle)"}};
+const Z={ /* x,y,w,h on a 1200x1020 floor — Eventana only */
+  mkt:{name:"التسويق",sub:"إعلانات · محتوى · إنتاج · مراجعة",c:"var(--ev)",x:24,y:24,w:760,h:300,cols:6},
+  sec:{name:"مكتب السكرتيرة",sub:"هي اللي تكلمج",c:"var(--hq)",x:808,y:24,w:368,h:140,cols:1},
+  meet:{name:"غرفة الاجتماعات",sub:"زجاج",c:"var(--brass)",x:808,y:184,w:368,h:140},
+  ops:{name:"العمليات",sub:"مارشا والفريق الميداني بإطار ذهبي",c:"var(--mt)",x:24,y:348,w:760,h:300,cols:6},
+  sales:{name:"المبيعات والعملاء",sub:"متابعة · شركات · خدمات جديدة",c:"var(--od)",x:808,y:348,w:368,h:300,cols:2},
+  sys:{name:"الأنظمة والحسابات",sub:"مواقع · ربط وأرشيف · مالية",c:"var(--mz)",x:24,y:672,w:760,h:220,cols:3},
+  cafe:{name:"الاستراحة",sub:"قهوة وسوالف",c:"var(--brass)",x:808,y:672,w:368,h:220},
+};
+const T=[
+ {id:"shamma",z:"sec",g:"f",name:"شمّا",role:"السكرتيرة",st:"work",task:"تجمع شغل الكل وترسل لج تحديث واحد بالمسا",does:["الوحيدة اللي تكلمج","رسالة وحدة قصيرة كل مسا: خلص، شغالين، يحتاج ردّج","ما تعيد سؤال جاوبتيه"]},
+ {id:"hamdan",z:"mkt",g:"m",name:"حمدان",role:"مدير إعلانات ميتا",st:"work",task:"يقرأ الأرقام ويقرر بنفسه ضمن 2,000 درهم بالشهر",does:["يدير إعلانات انستقرام","يحلل كل إعلان ثانية بثانية","يطوّر الإعلانات الموجودة"]},
+ {id:"maitha",z:"mkt",g:"f",name:"ميثا",role:"كاتبة المحتوى والباحثة",st:"work",task:"تبحث بالترند وتحلل ريلاتنا وبعدها تكتب",does:["بحث عميق قبل الكتابة","الهوك والسيناريو والكابشن","ملف «صوت إيفنتانا»"]},
+ {id:"kafu",z:"mkt",g:"m",name:"كفو",role:"إنتاج الريلات",st:"work",task:"ريل الحديقة ينزل بكرة الصبح",does:["ريل كل يوم","صور وفيديو بالذكاء الاصطناعي من أغراضنا الحقيقية","موسيقى وصوت ومونتاج"]},
+ {id:"mahra",z:"mkt",g:"f",name:"مهرة",role:"إنتاج الستوري",st:"stop",task:"النشر التلقائي للستوري معلّق",does:["10 ستوريات مترابطة الساعة 10 الصبح","تحليل كل ليلة وتطوير الأفكار"]},
+ {id:"majid",z:"mkt",g:"m",name:"مايد",role:"لقطات الحفلات الحقيقية",st:"soon",task:"قائمة لقطات للفريق الميداني لكل حفلة",does:["قائمة لقطات قصيرة لكل حفلة","يجمع اللقطات ويرتبها بالأرشيف"]},
+ {id:"saeed",z:"mkt",g:"m",name:"سعيد",role:"المراجع",st:"work",task:"ما يطلع شي إلا بعد ما يعديه",does:["قائمة فيها كل غلط صححتيه","يرجع الغلط لصاحبه مو لج"]},
+ {id:"marsha",z:"ops",g:"f",real:1,name:"مارشا",role:"العمليات والتصميم",st:"team",task:"تصاميم كل حجز قبل الحفلة بخمس أيام",does:["قص الاسم والشخصيات بالكريكت","ورق الصحون وملصقات الماي","تصميم ستاند الدخول والستاند الرئيسي الفخم للثيمات الجديدة","تصميم الهدايا وطباعتها","تطبع بطابعتنا، والباقي ترسله للمطبعة بالواتساب"]},
+ {id:"sheikha",z:"ops",g:"f",name:"شيخة",role:"مساعدة مارشا ومدققة الحفلات",st:"soon",task:"تصمم لكل حفلة وتسأل مارشا: أوكي ولا أعدّل؟",does:["مسودات التصاميم بالاسم والثيم","قبل كل حفلة بيومين تتأكد إن كل شي جاهز"]},
+ {id:"dindo",z:"ops",g:"m",real:1,name:"دندو",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["الستاند الرئيسي الفخم","ستاندات الكيك","النطاطيات والفوم","البالونات"]},
+ {id:"diana",z:"ops",g:"f",real:1,name:"ديانا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["النطاطيات","البوبكورن وغزل البنات","ترتيب الطاولات","البالونات"]},
+ {id:"gloria",z:"ops",g:"f",real:1,name:"قلوريا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["أزياء الشخصيات","الطاولات والكراسي","السماعات والفوم"]},
+ {id:"jane",z:"ops",g:"f",real:1,name:"جين",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["تجهيز الرسم على الوجه","ستاند الدخول","الهدايا والكاميرا الفورية"]},
+ {id:"hessa",z:"sales",g:"f",name:"حصة",role:"متابعة العملاء والتعليقات",st:"soon",task:"منو حجز ومنو ما حجز، والرد على التعليقات",does:["تقرير يومي بالعملاء","ردود بقوالب موافق عليها","تقييم وصور بعد كل حفلة"]},
+ {id:"matar",z:"sales",g:"m",name:"مطر",role:"الشركات والعقود",st:"soon",task:"يجمع شركات ومدارس ويجهز العروض",does:["أول إيميل لكل فئة","عروض أسعار وعقود"]},
+ {id:"nouf",z:"sales",g:"f",name:"نوف",role:"ابتكار الخدمات",st:"soon",task:"ثلاث أفكار كل شهر بتكلفتها",does:["خدمات وباقات جديدة","مع الربح المتوقع وطريقة التجربة"]},
+ {id:"dhiab",z:"sys",g:"m",name:"ذياب",role:"تطوير المواقع والجودة",st:"wait",task:"تحديث الموقع 100 والسكيلات ينتظرون «موافقة»",does:["موقع الحجز ولوحة التشغيل","الفحص اليومي","صفحات البحث بالموقع"]},
+ {id:"sultan",z:"sys",g:"m",name:"سلطان",role:"ربط الأنظمة والأرشيف",st:"work",task:"يشتغل على نشر الستوري التلقائي",does:["يربط الأدوات ببعض","يربط الحجز بالإعلان","يحفظ كل شي بالأرشيف"]},
+ {id:"khalifa",z:"sys",g:"m",name:"خليفة",role:"المحلل المالي",st:"soon",task:"أول مهمة: تكلفة كل حفلة وصرف الإعلانات",does:["ربح كل حفلة وكل باقة","تقرير شهري بتوصيات"]},
+];
+const RULES={ev:["ما نغيّر ثيم الحفلة ولا نشيل أي شخصية","ما فيه كيك، بس ستاندات الكيك","نقول «ستاند بالون رئيسي فخم» مو «خلفية»","المهرج ما يتكلم، وحورية البحر فلبينية بلبس محتشم","ميزانية الإعلانات 2,000 درهم بالشهر"],
+ hq:["ما نرسل لأي عميل بدون موافقة شيماء","ولا كلمات سر ولا بيانات بطاقات"],mz:["كفو ونص يشتغل مع كفو"],od:[],mt:[]};
+const ASKS=[
+ {who:"shamma",what:"تحديث الموقع 100 والسكيلات",how:"ينزلون بعد كلمة «موافقة»"},
+ {who:"shamma",what:"ياسين",how:"شخص بالفريق؟ ولا قصدج «إحنا»؟"},
+];
+const TALKS=[
+ ["hamdan","maitha","التخطي فوق 60% والتعليقات صفر، نبي هوك يخلي الناس تعلّق","بسوي فكرة فيها تصويت مثل «أنقذوا عيد ميلاد سيف»"],
+ ["maitha","kafu","السيناريو جاهز، والهوك من أول فريم","أبدأ الإنتاج بعد ما يعديه سعيد"],
+ ["saeed","kafu","النطاطية بالنص وبمقاسها الحقيقي 4×4","تمام، والأطفال داخلها من أول ثانية"],
+ ["saeed","kafu","البالونات لازم تبقى داخل البابل","كلها داخل الحين"],
+ ["kafu","mahra","ريل الحديقة ينزل بكرة الصبح","والستوري الساعة 10، بس النشر التلقائي معلّق"],
+ ["mahra","sultan","نشر الستوري التلقائي ما يشتغل","أشتغل على طريقة ثانية وأبلغج"],
+ ["majid","marsha","قائمة لقطات قصيرة لكل حفلة للفريق الميداني",null],
+ ["sheikha","marsha","أول ما ينأكد حجز، أجهّز لج مسودات التصاميم تراجعينها",null],
+ ["hessa","shamma","أي رد على عميل أجهّزه وأعطيج إياه","وأرفعه لشيماء مع الباقي برسالة المسا"],
+ ["khalifa","hamdan","تكلفة الحفلة وصرف الإعلانات ما ينحفظون، نحتاجهم للربح","أعطيك صرف كل شهر من تاريخ الحساب"],
+ ["matar","dhiab","نظام جلب الشركات موجود، شغّال بالموقع؟","أتأكد وأرد لك"],
+ ["nouf","khalifa","عندي فكرة خدمة جديدة، أبي تكلفتها","أحسبها تقريبية لين تنحفظ التكاليف"],
+ ["shamma","hamdan","عندك شي يحتاج شيماء اليوم؟","لا، قرارات الإعلانات عندي وأكتبها بالسجل"],
+ ["dhiab","shamma","تحديث الموقع 100 ينتظر «موافقة»","أضيفه لرسالة المسا"],
+ ["sultan","majid","كل لقطة توصل تنحفظ بالأرشيف نفس اليوم","ما نبي شي يضيع مرة ثانية"],
+ ["saeed","maitha","ممنوع «خلفية»، نقول «ستاند بالون رئيسي فخم»","وصلت، وما نكتب عدد الستاندات"],
+];
+const MEETS=[
+ {who:["hamdan","maitha","kafu","saeed"],topic:"اجتماع: ريل بكرة"},
+ {who:["shamma","hamdan","khalifa","dhiab"],topic:"اجتماع: تحديث المسا لشيماء"},
+];
+const floor=document.getElementById("floor"),vp=document.getElementById("vp");
+const W=1200,H=916;
+function fit(){const s=vp.clientWidth/W;floor.style.transform=`scale(${s})`;vp.style.height=(H*s)+"px"}
+new ResizeObserver(fit).observe(vp);
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const add=(h,parent=floor)=>{const t=document.createElement("template");t.innerHTML=h.trim();const n=t.content.firstChild;parent.appendChild(n);return n};
+const byId=id=>T.find(p=>p.id===id);
+
+/* build rooms */
+for(const [k,z] of Object.entries(Z)){
+  add(`<div class="zone ${k==="meet"?"meet":""}" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;--c:${z.c}"><span class="lbl">${esc(z.name)}</span><span class="sub">${esc(z.sub)}</span></div>`);
+}
+const mz=Z.meet; add(`<div class="table" style="left:${mz.x+104}px;top:${mz.y+76}px;width:160px;height:44px"></div>`);
+const cz=Z.cafe; add(`<div class="coffee" style="left:${cz.x+120}px;top:${cz.y+20}px"></div>`);add(`<div class="sofa" style="left:${cz.x+18}px;top:${cz.y+96}px;width:110px;height:30px"></div>`);
+[[792,336],[792,660],[30,660],[1150,660]].forEach(([x,y])=>add(`<div class="plant" style="left:${x}px;top:${y}px"></div>`));
+
+/* desks + people */
+const SEAT={};
+for(const k of ["mkt","sec","ops","sales","sys"]){
+  const z=Z[k],staff=T.filter(p=>p.z===k),cols=z.cols,rows=Math.ceil(staff.length/cols);
+  const cw=z.w/cols,rh=(z.h-30)/Math.max(rows,1);
+  staff.forEach((p,i)=>{
+    const c=cols-1-(i%cols),r=Math.floor(i/cols);       // fill right-to-left
+    const cx=z.x+cw*c+cw/2, cy=z.y+28+rh*r+Math.min(rh,150)/2-10;
+    const d=add(`<div class="desk" style="left:${cx-37}px;top:${cy-34}px"><span class="scr"></span></div>`);
+    p.desk=d; SEAT[p.id]={x:cx,y:cy+24};
+  });
+}
+const SK=["var(--skin1)","var(--skin2)"];
+T.forEach((p,i)=>{
+  const z=Z[p.z];
+  p.el=add(`<button type="button" class="p ${p.real?"x real":p.g}" aria-label="${esc(p.name)}، ${esc(p.role)}" style="--c:${z.c};--skin:${SK[i%2]};--s:${ST[p.st].c}">
+    <span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span>
+    <span class="st"></span><span class="typing"><i></i><i></i><i></i></span><span class="name">${esc(p.name)}</span><span class="bub"></span></button>`);
+  p.el.onclick=()=>openPerson(p);
+  place(p,SEAT[p.id].x,SEAT[p.id].y,true);
+  setDesk(p);
+});
+function setDesk(p){p.desk.classList.toggle("on",p.st==="work"||p.st==="team");p.desk.classList.toggle("wait",p.st==="wait");p.desk.classList.toggle("stop",p.st==="stop");p.el.classList.toggle("typingon",p.st==="work"&&!p.busy)}
+function place(p,x,y,instant){ if(instant){p.el.style.transition="none"} p.el.style.transform=`translate(${x}px,${y}px)`; if(instant){p.el.offsetWidth;p.el.style.transition=""} p.x=x;p.y=y }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+async function walk(p,x,y){p.el.classList.add("walk");p.el.classList.remove("typingon");place(p,x,y);await sleep(reduce?50:1950);p.el.classList.remove("walk")}
+async function say(p,text,ms=3200){p.el.querySelector(".bub").textContent=text;p.el.classList.add("talk");await sleep(ms);p.el.classList.remove("talk")}
+
+/* feed */
+const feed=document.getElementById("feed");
+function log(a,b,text){
+  const z=Z[a.z];const t=new Date().toLocaleTimeString("ar-AE",{hour:"numeric",minute:"2-digit",timeZone:"Asia/Dubai"});
+  const li=document.createElement("li");li.style.setProperty("--c",z.c);
+  li.innerHTML=`<span class="meta">${t} · ${esc(a.name)}${b?" ← "+esc(b.name):""}</span><span class="txt">${esc(text)}</span>`;
+  feed.prepend(li);while(feed.children.length>40)feed.lastChild.remove();
+}
+
+/* director */
+let ti=0,mi=0;
+async function conversation([ai,bi,qa,qb]){
+  const a=byId(ai),b=byId(bi); if(a.busy||b.busy)return; a.busy=b.busy=true;setDesk(a);setDesk(b);
+  const s=SEAT[b.id]; await walk(a,s.x+(a.x>s.x?46:-46),s.y);
+  log(a,b,qa); await say(a,qa); if(qb){log(b,a,qb); await say(b,qb);} else {await sleep(400)}
+  await walk(a,SEAT[a.id].x,SEAT[a.id].y); a.busy=b.busy=false;setDesk(a);setDesk(b);
+}
+async function meeting(m){
+  const ps=m.who.map(byId); if(ps.some(p=>p.busy))return; ps.forEach(p=>{p.busy=true;setDesk(p)});
+  const z=Z.meet,spots=[[z.x+70,z.y+70],[z.x+300,z.y+70],[z.x+150,z.y+70],[z.x+225,z.y+70]];
+  await Promise.all(ps.map((p,i)=>walk(p,spots[i][0],spots[i][1])));
+  log(ps[0],null,m.topic); await say(ps[0],m.topic,3000);
+  for(const p of ps.slice(1)){await say(p,"عندي رايي من شغلي…",1600)}
+  await Promise.all(ps.map(p=>walk(p,SEAT[p.id].x,SEAT[p.id].y)));
+  ps.forEach(p=>{p.busy=false;setDesk(p)});
+}
+async function coffee(){
+  const free=T.filter(p=>!p.busy&&p.st!=="new"&&!p.real); if(!free.length)return; const p=free[Math.floor(Math.random()*free.length)];
+  p.busy=true;setDesk(p); await walk(p,Z.cafe.x+136,Z.cafe.y+70); await say(p,"قهوة سريعة وأرجع",2200);
+  await walk(p,SEAT[p.id].x,SEAT[p.id].y); p.busy=false;setDesk(p);
+}
+function director(){
+  const r=Math.random();
+  if(r<.72){conversation(TALKS[ti++%TALKS.length])} else if(r<.86){meeting(MEETS[mi++%MEETS.length])} else {coffee()}
+}
+director();setTimeout(director,1500);setInterval(director,reduce?7000:4200);
+
+/* ---- the owner's meeting with the secretary (data written by Claude into the page's store) ---- */
+const SHAIMA={id:"shaima",z:"meet",g:"f",real:1,name:"شيماء",role:"المالكة",st:"team",task:"",does:[]};
+SHAIMA.el=add(`<div class="p f real" aria-hidden="true" style="--c:var(--brass);--skin:var(--skin1);--s:var(--brass);display:none">
+  <span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span><span class="st"></span><span class="typing"></span><span class="name">شيماء</span><span class="bub"></span></div>`);
+let meetingData=null,meetingBusy=false;
+const todayDubai=()=>new Date(Date.now()+4*3600e3).toISOString().slice(0,10);
+function meetingLines(m){return [...(m.done||[]).map(t=>["خلص",t]),...(m.doing||[]).map(t=>["شغالين",t]),...(m.ask||[]).map(t=>["يحتاج ردّج",t])]}
+function renderMeeting(){
+  const st=document.getElementById("mstate"),box=document.getElementById("mlines"),btn=document.getElementById("mplay");
+  box.textContent="";btn.hidden=true;
+  const m=meetingData;
+  if(!m||m.date!==todayDubai()){st.textContent="كل يوم الساعة 5:30 المسا، بس إذا فيه شي مهم.";return}
+  if(m.status==="none"){st.textContent="ما فيه اجتماع اليوم، كل شي ماشي.";return}
+  if(m.status==="scheduled"){st.textContent="عندج اجتماع معاي الساعة 5:30، وبعطيج التحديث.";return}
+  st.textContent="محضر اجتماع اليوم";
+  for(const [k,t] of meetingLines(m)){const d=document.createElement("div");d.className="ln";const b=document.createElement("b");b.textContent=k+": ";d.append(b,document.createTextNode(String(t)));box.appendChild(d)}
+  btn.hidden=false;
+}
+async function playMeeting(){
+  const m=meetingData; if(!m||meetingBusy)return; const sh=byId("shamma"); if(sh.busy)return;
+  meetingBusy=true;sh.busy=true;setDesk(sh);
+  const z=Z.meet; SHAIMA.el.style.display=""; place(SHAIMA,z.x+120,z.y+70,true);
+  place(sh,z.x+250,z.y+70,true);
+  log(sh,SHAIMA,"اجتماع اليوم مع شيماء");
+  const tts=await getTts();
+  for(const [k,t] of meetingLines(m)){const line=`${k}: ${t}`;const sp=tts?tts.speak(line,{language:"ar",voice:"airy"}).catch(()=>{}):null;await say(sh,line,3600);if(sp)await sp}
+  await say(sh,"هذا كل شي اليوم",1800);
+  place(sh,SEAT.shamma.x,SEAT.shamma.y,true); SHAIMA.el.style.display="none";
+  sh.busy=false;setDesk(sh);meetingBusy=false;
+}
+document.getElementById("mplay").onclick=playMeeting;
+
+/* ---- talk to Shamma inside the floor: text or voice; she answers by voice ---- */
+let ttsP=null,dictP=null;
+const getTts=()=>ttsP||(ttsP=(window.claude&&window.claude.use)?window.claude.use("tts").catch(()=>null):Promise.resolve(null));
+const getDict=()=>dictP||(dictP=(window.claude&&window.claude.use)?window.claude.use("dictation").catch(()=>null):Promise.resolve(null));
+const thread=document.getElementById("thread"),sayBox=document.getElementById("sayBox"),sendS=document.getElementById("sendS"),mic=document.getElementById("mic"),listen=document.getElementById("listen"),tnote=document.getElementById("tnote");
+let inboxRef=null,lastShamma="",spokenReplies=new Set(),firstInbox=true;
+function bubble(cls,text,label){const d=document.createElement("div");d.className="msg "+cls;if(label){const b=document.createElement("b");b.textContent=label+" ";d.appendChild(b)}d.appendChild(document.createTextNode(String(text)));thread.appendChild(d)}
+async function speakShamma(text){lastShamma=text;listen.hidden=false;const t=await getTts();if(!t)return;try{await t.speak(text,{language:"ar",voice:"airy"})}catch(e){}}
+function teamStatus(){return T.filter(p=>!p.real).map(p=>`${p.name} (${p.role}): ${p.task}`).join("\n")}
+(async()=>{
+  const d=await getDict(); if(d){mic.hidden=false;
+    d.onFinal(({text})=>{if(text)sayBox.value=(sayBox.value?sayBox.value+" ":"")+text});
+    d.onState(({state})=>{mic.textContent=state==="idle"?"تكلمي":"وقّفي"});}
+  const t=await getTts(); if(!t) tnote.textContent="الصوت يشتغل من متصفح قوقل كروم أو تطبيق Claude على الكمبيوتر. بالجوال تطلع الردود مكتوبة.";
+  const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
+  if(!db){tnote.textContent="افتحي الطابق من حسابج عشان تكلمين شمّا.";sendS.disabled=true;return}
+  inboxRef=db.collection("inbox");
+  inboxRef.orderBy("at","asc").limit(60).onSnapshot(qs=>{
+    thread.textContent="";bubble("them","أنا شمّا، قولي لي اللي تبينه وأنا أوصله للفريق.");
+    for(const doc of qs.docs){const m=doc.data()||{};
+      if(m.from==="shamma"){bubble("them",m.text||"","شمّا:");continue}
+      bubble("me",m.text||"");
+      if(m.quick)bubble("them",m.quick,"شمّا:");
+      if(m.reply){bubble("them",m.reply,"شمّا (بعد ما خلص الفريق):");
+        if(!spokenReplies.has(doc.id)){spokenReplies.add(doc.id);if(!firstInbox)speakShamma(m.reply);else{lastShamma=m.reply;listen.hidden=false}}}
+    }
+    if(firstInbox)qs.docs.forEach(d=>{const m=d.data()||{};if(m.from==="shamma"){lastShamma=m.text;listen.hidden=false}});
+    firstInbox=false;thread.scrollTop=thread.scrollHeight;
+  },()=>{tnote.textContent="ما قدرت أحمّل المحادثة الحين."});
+})();
+mic.onclick=()=>{getDict().then(d=>{if(!d)return;if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}})};
+// keep the mic call synchronous inside the click when the namespace is already resolved
+getDict().then(d=>{if(d)mic.onclick=()=>{if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}}});
+listen.onclick=()=>{if(lastShamma)speakShamma(lastShamma)};
+sendS.onclick=async()=>{
+  const text=sayBox.value.trim();if(!text||!inboxRef)return;sayBox.value="";sendS.disabled=true;
+  try{
+    const ref=await inboxRef.add({at:Date.now(),text,status:"new"});
+    const s=await getSample();let quick="وصلني، بوصله للفريق وأرد عليج.";
+    if(s){try{const r=await s(`${CONTEXT}\nأنت شمّا، سكرتيرة شيماء والوحيدة اللي تكلمها. ردّي بجملة أو جملتين بس، بصوت هادي ومختصر. إذا كلامها طلب شغل أو قرار، قولي لها إنج وصلتيه للفريق وبترجعين لها أول ما يخلص ولا تدّعين إنه خلص. إذا سؤال عن الوضع، جاوبي من هالمعلومات بس:\nحالة الفريق:\n${teamStatus()}\nاجتماع اليوم: ${JSON.stringify(meetingData||{})}\nكلام شيماء: ${text}`,{modelTier:"quick",cache:false});quick=r.text.trim()||quick}catch(e){}}
+    await ref.update({quick});
+    speakShamma(quick);
+  }catch(e){tnote.textContent="ما وصلت الرسالة، جربي مرة ثانية."}
+  sendS.disabled=false;
+};
+(async()=>{
+  const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
+  if(!db)return;
+  let first=true;
+  db.doc("meetings/today").onSnapshot(snap=>{
+    meetingData=snap.exists?snap.data():null;renderMeeting();
+    if(first&&meetingData&&meetingData.date===todayDubai()&&meetingData.status==="done"){setTimeout(playMeeting,2500)}
+    first=false;
+  },()=>{});
+})();
+
+/* header + approvals */
+const cnt=k=>T.filter(p=>p.st===k).length;
+document.getElementById("chips").innerHTML=`<span class="chip">الفريق الحقيقي <b>${T.filter(p=>p.real).length}</b></span><span class="chip">موظفين الذكاء الاصطناعي <b>${T.filter(p=>!p.real).length}</b></span><span class="chip">شغّالين <b>${cnt("work")}</b></span><span class="chip">ينتظرونج <b>${ASKS.length}</b></span>`;
+document.getElementById("asks").innerHTML=ASKS.map(a=>{const p=byId(a.who);return `<article class="ask" style="--c:${Z[p.z].c}"><span class="who">${esc(Z[p.z].name)} · ${esc(p.name)}</span><span class="what">${esc(a.what)}</span><span class="how">${esc(a.how)}</span></article>`}).join("");
+function tick(){const d=new Date();document.getElementById("clock").textContent=d.toLocaleTimeString("ar-AE",{hour:"numeric",minute:"2-digit",timeZone:"Asia/Dubai"})+" · "+d.toLocaleDateString("ar-AE",{weekday:"long",day:"numeric",month:"long",timeZone:"Asia/Dubai"})}
+tick();setInterval(tick,30000);
+
+/* side panel: person + meeting (Claude sampling when available) */
+let sp=null;const getSample=()=>sp||(sp=(window.claude&&window.claude.use)?window.claude.use("sample").catch(()=>null):Promise.resolve(null));
+const CONTEXT=`أنت موظف في مكتب افتراضي لشيماء، صاحبة إيفنتانا (حفلات أطفال في الإمارات). أنت في طابق إيفنتانا. تكلم باللهجة الخليجية فقط بدون أي كلمة إنجليزية، بجمل قصيرة. لا تخترع أرقام أو حقائق، قل «أحتاج أتأكد». قواعد إيفنتانا: ${RULES.ev.join("، ")}. التنفيذ الفعلي يصير لما شيماء ترد بالمحادثة الرئيسية.`;
+function closeLayer(){document.getElementById("layer").innerHTML=""}
+function shell(inner){const L=document.getElementById("layer");
+  L.innerHTML=`<div class="scrim"></div><aside class="panel" dir="rtl" role="dialog" aria-modal="true"><button class="x" type="button">إغلاق</button>${inner}</aside>`;
+  L.querySelector(".scrim").onclick=closeLayer;L.querySelector(".x").onclick=closeLayer;return L.querySelector(".panel")}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeLayer()});
+function openPerson(p){
+  const z=Z[p.z],rules=[...RULES.ev,...RULES.hq];
+  const P=shell(`<div class="ph"><h2 style="color:${z.c}">${esc(p.name)}</h2><div class="note">${esc(p.role)} · ${esc(z.name)}</div></div>
+   <div class="sec"><h4>الحين</h4><div><span class="pill" style="--s:${ST[p.st].c}">${ST[p.st].t}</span></div><div>${esc(p.task)}</div></div>
+   <div class="sec"><h4>شغله</h4><ul>${p.does.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+   <div class="sec"><h4>القواعد</h4><ul>${rules.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+   ${p.real?`<div class="note">من فريق إيفنتانا الحقيقي. موظفين الذكاء الاصطناعي يجهّزون لها الشغل، وهي تراجع وترسل.</div>`:""}<div class="sec" ${p.real?"hidden":""}><h4>اسأليه</h4><div class="chat" id="chat"></div><textarea id="q" rows="2" placeholder="اكتبي سؤالج"></textarea>
+   <div><button class="btn" id="send" type="button">أرسلي</button></div><div class="note" id="sn">رد للمشورة. التنفيذ والصرف بعد ردّج علي بالمحادثة.</div></div>`);
+  const chat=P.querySelector("#chat"),q=P.querySelector("#q"),send=P.querySelector("#send"),sn=P.querySelector("#sn");
+  getSample().then(s=>{if(!s){sn.textContent="الدردشة تشتغل لما تفتحين الصفحة من حسابج.";send.disabled=true}});
+  send.onclick=async()=>{const text=q.value.trim();if(!text)return;q.value="";
+    chat.insertAdjacentHTML("beforeend",`<div class="msg me">${esc(text)}</div>`);const out=document.createElement("div");out.className="msg them";out.textContent="يفكّر…";chat.appendChild(out);send.disabled=true;
+    try{const s=await getSample();const r=await s(`${CONTEXT}\nأنت ${p.name}، ${p.role} في ${z.name}. شغلك: ${p.does.join("، ")}. شغلك الحالي: ${p.task}.\nشيماء تسألك: ${text}\nرد بأقل من 80 كلمة.`,{modelTier:"quick",cache:false,onText:({text})=>{out.textContent=text}});out.textContent=r.text}
+    catch(e){out.textContent=e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"ما قدرت أرد الحين."}
+    send.disabled=false};
+}
+document.getElementById("meetBtn").onclick=()=>{
+  const P=shell(`<h2>اجتماع جديد</h2><div class="sec"><h4>الفكرة</h4><textarea id="idea" rows="3" placeholder="اكتبي الفكرة"></textarea></div>
+   <div class="sec"><h4>مين يحضر</h4><div class="picks">${T.filter(p=>p.st!=="new"&&!p.real).map(p=>`<button type="button" class="pick" data-id="${p.id}" aria-pressed="${["shamma","kafu","hamdan","saeed","maitha"].includes(p.id)}">${esc(p.name)}</button>`).join("")}</div></div>
+   <div><button class="btn" id="go" type="button">ابدأوا</button></div><div class="note" id="mn">كل واحد يعطي رايه من تخصصه، وشمّا تطلع الخلاصة. القرار لج.</div><div id="min" style="display:flex;flex-direction:column;gap:8px"></div>`);
+  P.querySelectorAll(".pick").forEach(b=>b.onclick=()=>b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true"));
+  const go=P.querySelector("#go"),min=P.querySelector("#min"),mn=P.querySelector("#mn");
+  getSample().then(s=>{if(!s){mn.textContent="الاجتماع يشتغل لما تفتحين الصفحة من حسابج.";go.disabled=true}});
+  go.onclick=async()=>{const idea=P.querySelector("#idea").value.trim();const sel=[...P.querySelectorAll('.pick[aria-pressed="true"]')].map(b=>byId(b.dataset.id));if(!idea||!sel.length)return;
+    min.innerHTML=`<div class="note">الفريق يتناقش…</div>`;go.disabled=true;
+    const ps=sel.slice(0,4).filter(p=>!p.busy);ps.forEach(p=>{p.busy=true;setDesk(p)});
+    const z=Z.meet,spots=[[z.x+70,z.y+70],[z.x+300,z.y+70],[z.x+150,z.y+70],[z.x+225,z.y+70]];ps.forEach((p,i)=>walk(p,spots[i][0],spots[i][1]));
+    try{const s=await getSample();
+      const res=await s.json(`${CONTEXT}\nاجتماع. الحضور:\n${sel.map(p=>`- ${p.name} (${p.role}): ${p.does.join("، ")}`).join("\n")}\nفكرة شيماء: ${idea}\nكل واحد يعطي رايه من تخصصه بجملتين أو ثلاث، وبعدها شمّا تكتب خلاصة وقرارات مقترحة تحتاج موافقة شيماء. رجّع JSON فقط: {"turns":[{"name":"...","text":"..."}],"summary":"..."}`,{modelTier:"default"});
+      min.innerHTML="";for(const t of (res.turns||[])){min.insertAdjacentHTML("beforeend",`<div class="turn"><b>${esc(t.name||"")}</b><br>${esc(t.text||"")}</div>`);const p=T.find(x=>x.name===t.name);if(p){log(p,null,t.text||"");say(p,(t.text||"").slice(0,90),3500)}}
+      if(res.summary)min.insertAdjacentHTML("beforeend",`<div class="summary"><b>خلاصة شمّا</b><br>${esc(res.summary)}</div>`);
+    }catch(e){min.innerHTML=`<div class="note">${e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"ما قدرنا نكمل الاجتماع الحين."}</div>`}
+    await sleep(3600);await Promise.all(ps.map(p=>walk(p,SEAT[p.id].x,SEAT[p.id].y)));ps.forEach(p=>{p.busy=false;setDesk(p)});go.disabled=false};
+};
+</script>
