@@ -77,6 +77,11 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
         COALESCE(SUM(total_fils) FILTER (WHERE COALESCE(booked_on, date) >= date_trunc('month',$1::date)),0)::bigint AS month_fils,
         COUNT(*) FILTER (WHERE COALESCE(booked_on, date) >= date_trunc('month',$1::date))::int AS month_n
        FROM finance_receipts WHERE total_fils > 0 AND source <> 'quickbooks'`).catch(() => ({}));
+    // Bookings MADE this month/today (by when they booked, whatever the party date).
+    const booked = await one(`SELECT
+        COUNT(*) FILTER (WHERE (e.created_at AT TIME ZONE 'Asia/Dubai')::date = $1::date)::int AS today_n,
+        COUNT(*) FILTER (WHERE (e.created_at AT TIME ZONE 'Asia/Dubai')::date >= date_trunc('month',$1::date))::int AS month_n
+       FROM events e WHERE e.phase <> 'Cancelled'`).catch(() => ({}));
     const leads = await one(`SELECT
         COUNT(*) FILTER (WHERE (first_message_at AT TIME ZONE 'Asia/Dubai')::date = $1::date)::int AS new_today,
         COUNT(*) FILTER (WHERE status = 'new')::int AS new_open,
@@ -106,7 +111,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     const mode = await one(`SELECT value FROM settings WHERE key = 'whatsapp_agent_mode'`).catch(() => ({}));
     const aed = (f: unknown) => Math.round(Number(f ?? 0)) / 100;
     const office = {
-      money: { todayAed: aed(money.today_fils), todayBookings: Number(money.today_n ?? 0), monthAed: aed(money.month_fils), monthBookings: Number(money.month_n ?? 0) },
+      money: { todayAed: aed(money.today_fils), todayBookings: Number(money.today_n ?? 0), monthAed: aed(money.month_fils), monthBookings: Number(money.month_n ?? 0), bookedToday: Number(booked.today_n ?? 0), bookedMonth: Number(booked.month_n ?? 0) },
       leads: { newToday: Number(leads.new_today ?? 0), newOpen: Number(leads.new_open ?? 0), quotedOpen: Number(leads.quoted_open ?? 0), bookedWeek: Number(leads.booked_week ?? 0) },
       unpaidCheckouts7d: Number(carts.n ?? 0),
       alerts: { prepIssues: Number(alerts.prep_issues ?? 0), partiesAtRisk: Number(alerts.at_risk ?? 0), crewOpen3d: Number(alerts.crew_open ?? 0) },
