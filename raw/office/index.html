@@ -1,4 +1,4 @@
-<title>مكتب شيماء</title>
+<title>طابق إيفنتانا</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,7 +50,7 @@ button{font-family:inherit;cursor:pointer}
 .main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
 .stage{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:12px;box-shadow:var(--shadow);overflow:hidden}
 .viewport{position:relative;width:100%}
-.floor{position:absolute;top:0;left:0;width:1200px;height:1020px;transform-origin:top left;direction:ltr;
+.floor{position:absolute;top:0;left:0;width:1200px;height:916px;transform-origin:top left;direction:ltr;
   background:var(--floor);border-radius:14px;
   background-image:repeating-linear-gradient(90deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px),
                    repeating-linear-gradient(0deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px)}
@@ -128,13 +128,13 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 
 <div class="wrap" dir="rtl">
   <header class="top">
-    <div class="brand"><h1>مكتب شيماء</h1><p>أربع شركات وفريق واحد يشتغل قدامج</p></div>
+    <div class="brand"><h1>طابق إيفنتانا</h1><p>فريق إيفنتانا كامل، والسكرتيرة هي اللي تكلمج</p></div>
     <div class="chips" id="chips"></div>
     <div class="clock" id="clock"></div>
   </header>
 
   <section aria-labelledby="ask-h" style="display:flex;flex-direction:column;gap:8px">
-    <div class="sec-h"><h2 id="ask-h">ينتظرون ردّج</h2><span>ردّي علي بالمحادثة وأنا أنفّذ</span></div>
+    <div class="sec-h"><h2 id="ask-h">شمّا تسألج</h2><span>بس اللي فعلاً يحتاج ردّج</span></div>
     <div class="cards" id="asks"></div>
   </section>
 
@@ -152,101 +152,66 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 
 <script>
 const ST={team:{t:"فريق حقيقي",c:"var(--brass)"},soon:{t:"يبدأ بعد موافقتج",c:"var(--idle)"},work:{t:"شغّال",c:"var(--ok)"},wait:{t:"ينتظرج",c:"var(--wait)"},stop:{t:"متوقف",c:"var(--stop)"},idle:{t:"متفرغ",c:"var(--idle)"},new:{t:"ينتظر تعريف المشروع",c:"var(--idle)"}};
-const Z={ /* x,y,w,h on a 1200x860 floor */
-  ev:{name:"إيفنتانا",sub:"العمليات والتسويق · الفريق الحقيقي بإطار ذهبي",c:"var(--ev)",x:24,y:24,w:1152,h:420,cols:9},
-  mz:{name:"مذاكرتي",sub:"منصة مذاكرة",c:"var(--mz)",x:24,y:470,w:552,h:220,cols:4},
-  meet:{name:"غرفة الاجتماعات",sub:"زجاج",c:"var(--brass)",x:600,y:470,w:360,h:220},
-  cafe:{name:"الاستراحة",sub:"قهوة وسوالف",c:"var(--brass)",x:984,y:470,w:192,h:220},
-  hq:{name:"الإدارة",sub:"تنسيق وحسابات وأمان",c:"var(--hq)",x:24,y:716,w:372,h:280,cols:2},
-  od:{name:"أودلي",sub:"المكاتب جاهزة",c:"var(--od)",x:420,y:716,w:370,h:280,cols:2},
-  mt:{name:"مطبخي",sub:"المكاتب جاهزة",c:"var(--mt)",x:814,y:716,w:362,h:280,cols:2},
+const Z={ /* x,y,w,h on a 1200x1020 floor — Eventana only */
+  mkt:{name:"التسويق",sub:"إعلانات · محتوى · إنتاج · مراجعة",c:"var(--ev)",x:24,y:24,w:760,h:300,cols:6},
+  sec:{name:"مكتب السكرتيرة",sub:"هي اللي تكلمج",c:"var(--hq)",x:808,y:24,w:368,h:140,cols:1},
+  meet:{name:"غرفة الاجتماعات",sub:"زجاج",c:"var(--brass)",x:808,y:184,w:368,h:140},
+  ops:{name:"العمليات",sub:"مارشا والفريق الميداني بإطار ذهبي",c:"var(--mt)",x:24,y:348,w:760,h:300,cols:6},
+  sales:{name:"المبيعات والعملاء",sub:"متابعة · شركات · خدمات جديدة",c:"var(--od)",x:808,y:348,w:368,h:300,cols:2},
+  sys:{name:"الأنظمة والحسابات",sub:"مواقع · ربط وأرشيف · مالية",c:"var(--mz)",x:24,y:672,w:760,h:220,cols:3},
+  cafe:{name:"الاستراحة",sub:"قهوة وسوالف",c:"var(--brass)",x:808,y:672,w:368,h:220},
 };
 const T=[
- // الإدارة
- {id:"shamma",z:"hq",g:"f",name:"شمّا",role:"مديرة المكتب",st:"work",task:"تنسّق بين الفرق وترفع لج القرارات",does:["توزّع الشغل وتتابعه","ترفع لج اللي يحتاج قرارج","تتابع التكاليف قبل أي صرف"]},
- {id:"khalifa",z:"hq",g:"m",name:"خليفة",role:"المحاسب",st:"idle",task:"يتابع مصاريف الإعلانات والذكاء الاصطناعي",does:["يتابع ميزانية الإعلانات","يسجّل تكلفة كل فيديو وصورة","يطلع لج تقارير الحسابات"]},
- {id:"sultan",z:"hq",g:"m",name:"سلطان",role:"مسؤول الأمان",st:"work",task:"يحمي المفاتيح وبيانات العملاء",does:["ما أحد يدخل كلمات سر ولا بيانات بطاقات","المفاتيح ما تنشارك أبد","بيانات العملاء خاصة"]},
- {id:"alia",z:"hq",g:"f",name:"عليا",role:"أمينة الأرشيف",st:"work",task:"تحفظ كل الشغل عشان ما يضيع",does:["تحفظ الفيديوهات والصور بالأرشيف","ترتّب ملفات كل شركة","ترجع أي نسخة قديمة وقت الحاجة"]},
- // إيفنتانا · الفريق الحقيقي
- {id:"marsha",z:"ev",g:"f",real:1,name:"مارشا",role:"العمليات والتصميم",st:"team",task:"تصاميم كل حجز قبل الحفلة بخمس أيام",does:["قص الاسم والشخصيات بالكريكت","ورق الصحون وملصقات الماي","تصميم ستاند الدخول والستاند الرئيسي الفخم للثيمات الجديدة","تصميم الهدايا وطباعتها","تطبع بطابعتنا، والباقي ترسله للمطبعة بالواتساب","تمسك المكتب وتوافق على الإجازات وتدخل المصاريف"]},
- {id:"dindo",z:"ev",g:"m",real:1,name:"دندو",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["الستاند الرئيسي الفخم","ستاندات الكيك","النطاطيات والفوم","مكينة الآيس كريم","البالونات"]},
- {id:"diana",z:"ev",g:"f",real:1,name:"ديانا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["النطاطيات","البوبكورن وغزل البنات","ترتيب الطاولات","محطات الأكل","البالونات"]},
- {id:"gloria",z:"ev",g:"f",real:1,name:"قلوريا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["أزياء الشخصيات","الطاولات والكراسي","السماعات والفوم","باديكير الأطفال"]},
- {id:"jane",z:"ev",g:"f",real:1,name:"جين",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["تجهيز الرسم على الوجه","ستاند الدخول","ترتيب الطاولات والهدايا","الكاميرا الفورية","مانيكير الأطفال"]},
- // إيفنتانا · الذكاء الاصطناعي
- {id:"sheikha",z:"ev",g:"f",name:"شيخة",role:"مساعدة التصميم",st:"soon",task:"تجهّز لمارشا مسودات التصاميم",does:["أول ما ينأكد الحجز تجهّز مسودات بالاسم والثيم والألوان","ورق الصحون وملصقات الماي ولوحة الدخول والهدايا","مارشا تراجع وتعدّل بدال ما تبدأ من الصفر"]},
- {id:"matar",z:"ev",g:"m",name:"مطر",role:"منسق الطباعة والموردين",st:"soon",task:"قائمة الطباعة كل صباح",does:["كل صباح: شو ينطبع بطابعتنا وشو يروح للمطبعة، ولأي حفلة، وآخر موعد","يجهّز رسالة الواتساب للمطبعة ومارشا ترسلها","يحط للفريق موعد الاستلام من المطبعة ويتابع","يتأكد إن كل مصروف عليه اسم المورد"]},
- {id:"hamad",z:"ev",g:"m",name:"حمد",role:"مدقق الحفلات",st:"soon",task:"يدقق كل حفلة قبلها بيومين",does:["يقارن الحجز بالمهام والفريق","ينبّه مارشا لو شي ناقص أو تصميم متأخر"]},
- {id:"kafu",z:"ev",g:"m",name:"كفو",role:"المخرج الإبداعي",st:"wait",task:"ريل الحديقة جاهز بنسختين",does:["يكتب ويخرج الريلات والإعلانات","يراجع ريلاته قبل كل ريل جديد","يتعلّم من الترندات"]},
- {id:"hamdan",z:"ev",g:"m",name:"حمدان",role:"مدير الإعلانات",st:"wait",task:"إعلان أورانوس ينتظر قرارج",does:["يدير إعلانات انستقرام","يحلل الأرقام ثانية بثانية","يقترح الميزانية والجمهور"]},
- {id:"maitha",z:"ev",g:"f",name:"ميثا",role:"كاتبة المحتوى",st:"work",task:"تكتب كابشن ريل الحديقة",does:["الهوكات والكابشنات","نصوص الإعلانات","كلام الستوري"]},
- {id:"majid",z:"ev",g:"m",name:"مايد",role:"المونتير",st:"work",task:"يجهّز نسخ ريل الحديقة",does:["المونتاج والمؤثرات","الموسيقى والأصوات","يضبط الكلام بالمنطقة الآمنة"]},
- {id:"nouf",z:"ev",g:"f",name:"نوف",role:"المصممة",st:"idle",task:"جاهزة لتصاميم الأسبوع",does:["الصور والتصاميم","الشخصيات الكرتونية","اللوقو الملوّن بس"]},
- {id:"saeed",z:"ev",g:"m",name:"سعيد",role:"محلل الأرقام",st:"work",task:"يراجع أداء الريلات",does:["يحلل المشاهدات والتخطي","يقارن الريلات ببعض","يطلع نقاط القوة والضعف"]},
- {id:"mahra",z:"ev",g:"f",name:"مهرة",role:"مسؤولة الستوري",st:"stop",task:"النشر التلقائي متوقف",does:["تحلل الستوري كل ليلة","10 ستوريات مترابطة الساعة 10 الصبح"]},
- {id:"hessa",z:"ev",g:"f",name:"حصة",role:"خدمة العملاء",st:"idle",task:"تجهّز الردود وتنتظر موافقتج",does:["تجهّز ردود الواتساب","ما ترسل لأي عميل بدون موافقتج"]},
- {id:"dhiab",z:"ev",g:"m",name:"ذياب",role:"الجودة والموقع",st:"wait",task:"تحديث الموقع رقم 100 ينتظر «موافقة»",does:["يفحص موقع الحجز ولوحة التشغيل","يصلّح الأخطاء بأمان","ما يدمج بدون موافقتج"]},
- // مذاكرتي
- {id:"kafu2",z:"mz",g:"m",name:"كفو ونص",role:"مدير النمو",st:"idle",task:"جاهز لخطة الأسبوع",does:["خطة النشر والريلات","الإعلانات والقمع","يطلب من كفو فيديوهات"]},
- {id:"rawdha",z:"mz",g:"f",name:"روضة",role:"صانعة المحتوى",st:"idle",task:"تنتظر خطة الأسبوع",does:["ريلات تعليمية","ستوري يومي"]},
- {id:"hazza",z:"mz",g:"m",name:"هزاع",role:"مدير الإعلانات",st:"idle",task:"جاهز لحملات التسجيل",does:["إعلانات التسجيل","يقيس تكلفة كل تسجيل"]},
- {id:"latifa",z:"mz",g:"f",name:"لطيفة",role:"محللة البيانات",st:"idle",task:"جاهزة لتقرير الأرقام",does:["التسجيلات والزيارات","وش ينفع ووش لا"]},
- // أودلي ومطبخي
- {id:"abdulla",z:"od",g:"m",name:"عبدالله",role:"صانع المحتوى",st:"new",task:"ينتظر تعريف المشروع",does:["يبدأ بعد ما تعرّفينا على أودلي"]},
- {id:"fatima",z:"od",g:"f",name:"فاطمة",role:"مديرة الإعلانات",st:"new",task:"تنتظر تعريف المشروع",does:["تبدأ بعد ما تعرّفينا على أودلي"]},
- {id:"humaid",z:"od",g:"m",name:"حميد",role:"خدمة العملاء",st:"new",task:"ينتظر تعريف المشروع",does:["يبدأ بعد ما تعرّفينا على أودلي"]},
- {id:"amna",z:"mt",g:"f",name:"آمنة",role:"مصوّرة الأكل",st:"new",task:"تنتظر تعريف المشروع",does:["تبدأ بعد ما تعرّفينا على مطبخي"]},
- {id:"obaid",z:"mt",g:"m",name:"عبيد",role:"صانع المحتوى",st:"new",task:"ينتظر تعريف المشروع",does:["يبدأ بعد ما تعرّفينا على مطبخي"]},
- {id:"aisha",z:"mt",g:"f",name:"عائشة",role:"مديرة الطلبات",st:"new",task:"تنتظر تعريف المشروع",does:["تبدأ بعد ما تعرّفينا على مطبخي"]},
+ {id:"shamma",z:"sec",g:"f",name:"شمّا",role:"السكرتيرة",st:"work",task:"تجمع شغل الكل وترسل لج تحديث واحد بالمسا",does:["الوحيدة اللي تكلمج","رسالة وحدة قصيرة كل مسا: خلص، شغالين، يحتاج ردّج","ما تعيد سؤال جاوبتيه"]},
+ {id:"hamdan",z:"mkt",g:"m",name:"حمدان",role:"مدير إعلانات ميتا",st:"work",task:"يقرأ الأرقام ويقرر بنفسه ضمن 2,000 درهم بالشهر",does:["يدير إعلانات انستقرام","يحلل كل إعلان ثانية بثانية","يطوّر الإعلانات الموجودة"]},
+ {id:"maitha",z:"mkt",g:"f",name:"ميثا",role:"كاتبة المحتوى والباحثة",st:"work",task:"تبحث بالترند وتحلل ريلاتنا وبعدها تكتب",does:["بحث عميق قبل الكتابة","الهوك والسيناريو والكابشن","ملف «صوت إيفنتانا»"]},
+ {id:"kafu",z:"mkt",g:"m",name:"كفو",role:"إنتاج الريلات",st:"work",task:"ريل الحديقة ينزل بكرة الصبح",does:["ريل كل يوم","صور وفيديو بالذكاء الاصطناعي من أغراضنا الحقيقية","موسيقى وصوت ومونتاج"]},
+ {id:"mahra",z:"mkt",g:"f",name:"مهرة",role:"إنتاج الستوري",st:"stop",task:"النشر التلقائي للستوري معلّق",does:["10 ستوريات مترابطة الساعة 10 الصبح","تحليل كل ليلة وتطوير الأفكار"]},
+ {id:"majid",z:"mkt",g:"m",name:"مايد",role:"لقطات الحفلات الحقيقية",st:"soon",task:"قائمة لقطات للفريق الميداني لكل حفلة",does:["قائمة لقطات قصيرة لكل حفلة","يجمع اللقطات ويرتبها بالأرشيف"]},
+ {id:"saeed",z:"mkt",g:"m",name:"سعيد",role:"المراجع",st:"work",task:"ما يطلع شي إلا بعد ما يعديه",does:["قائمة فيها كل غلط صححتيه","يرجع الغلط لصاحبه مو لج"]},
+ {id:"marsha",z:"ops",g:"f",real:1,name:"مارشا",role:"العمليات والتصميم",st:"team",task:"تصاميم كل حجز قبل الحفلة بخمس أيام",does:["قص الاسم والشخصيات بالكريكت","ورق الصحون وملصقات الماي","تصميم ستاند الدخول والستاند الرئيسي الفخم للثيمات الجديدة","تصميم الهدايا وطباعتها","تطبع بطابعتنا، والباقي ترسله للمطبعة بالواتساب"]},
+ {id:"sheikha",z:"ops",g:"f",name:"شيخة",role:"مساعدة مارشا ومدققة الحفلات",st:"soon",task:"تصمم لكل حفلة وتسأل مارشا: أوكي ولا أعدّل؟",does:["مسودات التصاميم بالاسم والثيم","قبل كل حفلة بيومين تتأكد إن كل شي جاهز"]},
+ {id:"dindo",z:"ops",g:"m",real:1,name:"دندو",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["الستاند الرئيسي الفخم","ستاندات الكيك","النطاطيات والفوم","البالونات"]},
+ {id:"diana",z:"ops",g:"f",real:1,name:"ديانا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["النطاطيات","البوبكورن وغزل البنات","ترتيب الطاولات","البالونات"]},
+ {id:"gloria",z:"ops",g:"f",real:1,name:"قلوريا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["أزياء الشخصيات","الطاولات والكراسي","السماعات والفوم"]},
+ {id:"jane",z:"ops",g:"f",real:1,name:"جين",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["تجهيز الرسم على الوجه","ستاند الدخول","الهدايا والكاميرا الفورية"]},
+ {id:"hessa",z:"sales",g:"f",name:"حصة",role:"متابعة العملاء والتعليقات",st:"soon",task:"منو حجز ومنو ما حجز، والرد على التعليقات",does:["تقرير يومي بالعملاء","ردود بقوالب موافق عليها","تقييم وصور بعد كل حفلة"]},
+ {id:"matar",z:"sales",g:"m",name:"مطر",role:"الشركات والعقود",st:"soon",task:"يجمع شركات ومدارس ويجهز العروض",does:["أول إيميل لكل فئة","عروض أسعار وعقود"]},
+ {id:"nouf",z:"sales",g:"f",name:"نوف",role:"ابتكار الخدمات",st:"soon",task:"ثلاث أفكار كل شهر بتكلفتها",does:["خدمات وباقات جديدة","مع الربح المتوقع وطريقة التجربة"]},
+ {id:"dhiab",z:"sys",g:"m",name:"ذياب",role:"تطوير المواقع والجودة",st:"wait",task:"تحديث الموقع 100 والسكيلات ينتظرون «موافقة»",does:["موقع الحجز ولوحة التشغيل","الفحص اليومي","صفحات البحث بالموقع"]},
+ {id:"sultan",z:"sys",g:"m",name:"سلطان",role:"ربط الأنظمة والأرشيف",st:"work",task:"يشتغل على نشر الستوري التلقائي",does:["يربط الأدوات ببعض","يربط الحجز بالإعلان","يحفظ كل شي بالأرشيف"]},
+ {id:"khalifa",z:"sys",g:"m",name:"خليفة",role:"المحلل المالي",st:"soon",task:"أول مهمة: تكلفة كل حفلة وصرف الإعلانات",does:["ربح كل حفلة وكل باقة","تقرير شهري بتوصيات"]},
 ];
 const RULES={ev:["ما نغيّر ثيم الحفلة ولا نشيل أي شخصية","ما فيه كيك، بس ستاندات الكيك","نقول «ستاند بالون رئيسي فخم» مو «خلفية»","المهرج ما يتكلم، وحورية البحر فلبينية بلبس محتشم","ميزانية الإعلانات 2,000 درهم بالشهر"],
  hq:["ما نرسل لأي عميل بدون موافقة شيماء","ولا كلمات سر ولا بيانات بطاقات"],mz:["كفو ونص يشتغل مع كفو"],od:[],mt:[]};
 const ASKS=[
- {who:"kafu",what:"ريل الحديقة",how:"نسختين بميكي: أي بداية ننزّل أول؟"},
- {who:"kafu",what:"إعلان «أنقذوا عيد ميلاد سيف»",how:"أبدأ؟ حوالي 3,500 نقطة"},
- {who:"hamdan",what:"إعلان أورانوس",how:"الرد بالتعليقات ولا الواتساب؟ ممول ولا عادي؟"},
- {who:"dhiab",what:"تحديث الموقع رقم 100",how:"أدمجه؟ يحتاج كلمة «موافقة»"},
- {who:"mahra",what:"النشر التلقائي",how:"نفتح جلسة جديدة عشان يرجع يشتغل؟"},
- {who:"shamma",what:"فريق العمليات الجديد",how:"شيخة ومطر وحمد يساعدون مارشا: نبدأ فيهم؟"},
- {who:"shamma",what:"أودلي ومطبخي",how:"عرّفينا على المشروعين عشان يبدأ فريقهم"},
+ {who:"shamma",what:"تحديث الموقع 100 والسكيلات",how:"ينزلون بعد كلمة «موافقة»"},
+ {who:"shamma",what:"ياسين",how:"شخص بالفريق؟ ولا قصدج «إحنا»؟"},
 ];
-/* conversations built from real work in progress */
 const TALKS=[
- ["kafu","hamdan","ريل الحديقة جاهز بنسختين، أي وحدة نجرب أول؟","ننزّل الثنتين تجربة، واللي تمسك المشاهدين أكثر نعتمدها"],
- ["saeed","kafu","ريلاتنا تعليقاتها صفر، نحتاج فكرة فيها تصويت","«أنقذوا عيد ميلاد سيف»، الناس تصوّت بالتعليقات"],
- ["mahra","shamma","النشر التلقائي يتعطل من هالجلسة","رفعتها لشيماء، ننتظر ردها"],
- ["dhiab","shamma","تحديث الموقع 100 جاهز","ما ندمج إلا بكلمة «موافقة» من شيماء"],
- ["khalifa","hamdan","تذكير: 2,000 درهم بالشهر لكل الحملات","تمام، وأي زيادة نقول لشيماء قبل"],
- ["majid","kafu","رفعت الكلام فوق أزرار انستقرام","زين، وخل الساعة تمشي من الظهر للعصر"],
- ["maitha","hamdan","الكابشن: لو عطيتينا حديقتج بكرة… أي ثيم تختارين؟","حلو، والسعر بالكابشن مو بالفيديو"],
- ["sultan","alia","المفاتيح ما تنحط بأي ملف بالأرشيف","أكيد، الأرشيف فيه الفيديوهات والصور بس"],
- ["alia","majid","حفظت ريل الحديقة كله بالأرشيف","زين، ريّحتيني"],
- ["nouf","kafu","اللوقو الملوّن بس، بدون مربع أبيض","صح، وثبّتيه بالنهاية مع «احجزي الحين»"],
- ["hessa","shamma","أي رد على عميل أجهّزه وأرفعه لشيماء","بالضبط، ما يطلع شي بدون موافقتها"],
- ["kafu","nouf","ثيم الحفلة يبقى مثل ما هو، ميكي يعني ميكي","وصلت، ما نغيّر أي ثيم"],
- ["saeed","majid","الناس تتخطى بأول ثانيتين","عشان كذا الكلام يطلع من أول فريم"],
- ["kafu2","rawdha","نجهّز خطة الأسبوع لمذاكرتي","أبي أعرف وش المواد اللي نركّز عليها"],
- ["hazza","latifa","أبي أعرف تكلفة كل تسجيل","أطلع لك التقرير أول ما توصلنا الأرقام"],
- ["kafu2","kafu","نحتاج فيديوهات لمذاكرتي","خلني أخلّص ريل الحديقة وأجيك"],
- ["shamma","abdulla","فريق أودلي ينتظر تعريف المشروع","جاهزين أول ما تعطينا شيماء التفاصيل"],
- ["shamma","amna","فريق مطبخي بعد ينتظر","وأنا مجهّزة الكاميرا"],
- ["matar","marsha","قائمة اليوم: اللي ينطبع عندنا، واللي يروح المطبعة، ورسالة الواتساب جاهزة",null],
- ["sheikha","marsha","جهزت مسودة ورق الصحون وملصقات الماي بالاسم والثيم، تحتاج مراجعتج",null],
- ["matar","dindo","استلام من المطبعة قبل الحفلة، الموعد مكتوب بالمهمة",null],
- ["hamad","shamma","قبل كل حفلة بيومين أقارن الحجز بالمهام والفريق","وأي نقص يروح لمارشا على طول"],
- ["hamad","matar","إذا تأخر تصميم، الطباعة تتأخر، نبّهني أول","أول ما يتأخر شي أبلغك"],
- ["matar","khalifa","كل مصروف مطبعة لازم عليه اسم المورد","أكيد، بدون اسم المورد ما ينحفظ"],
- ["sheikha","nouf","ألوان الثيم من الحجز نفسه، ما نغيّر شي","صح، والاسم بالخط اللي تختاره مارشا"],
- ["mahra","maitha","الستوري يبي 10 مترابطة، أول وحدة لازم تشد","أكتب لج سطر عاطفي للأمهات، هذا جاب أول رد"],
+ ["hamdan","maitha","التخطي فوق 60% والتعليقات صفر، نبي هوك يخلي الناس تعلّق","بسوي فكرة فيها تصويت مثل «أنقذوا عيد ميلاد سيف»"],
+ ["maitha","kafu","السيناريو جاهز، والهوك من أول فريم","أبدأ الإنتاج بعد ما يعديه سعيد"],
+ ["saeed","kafu","النطاطية بالنص وبمقاسها الحقيقي 4×4","تمام، والأطفال داخلها من أول ثانية"],
+ ["saeed","kafu","البالونات لازم تبقى داخل البابل","كلها داخل الحين"],
+ ["kafu","mahra","ريل الحديقة ينزل بكرة الصبح","والستوري الساعة 10، بس النشر التلقائي معلّق"],
+ ["mahra","sultan","نشر الستوري التلقائي ما يشتغل","أشتغل على طريقة ثانية وأبلغج"],
+ ["majid","marsha","قائمة لقطات قصيرة لكل حفلة للفريق الميداني",null],
+ ["sheikha","marsha","أول ما ينأكد حجز، أجهّز لج مسودات التصاميم تراجعينها",null],
+ ["hessa","shamma","أي رد على عميل أجهّزه وأعطيج إياه","وأرفعه لشيماء مع الباقي برسالة المسا"],
+ ["khalifa","hamdan","تكلفة الحفلة وصرف الإعلانات ما ينحفظون، نحتاجهم للربح","أعطيك صرف كل شهر من تاريخ الحساب"],
+ ["matar","dhiab","نظام جلب الشركات موجود، شغّال بالموقع؟","أتأكد وأرد لك"],
+ ["nouf","khalifa","عندي فكرة خدمة جديدة، أبي تكلفتها","أحسبها تقريبية لين تنحفظ التكاليف"],
+ ["shamma","hamdan","عندك شي يحتاج شيماء اليوم؟","لا، قرارات الإعلانات عندي وأكتبها بالسجل"],
+ ["dhiab","shamma","تحديث الموقع 100 ينتظر «موافقة»","أضيفه لرسالة المسا"],
+ ["sultan","majid","كل لقطة توصل تنحفظ بالأرشيف نفس اليوم","ما نبي شي يضيع مرة ثانية"],
+ ["saeed","maitha","ممنوع «خلفية»، نقول «ستاند بالون رئيسي فخم»","وصلت، وما نكتب عدد الستاندات"],
 ];
 const MEETS=[
- {who:["kafu","hamdan","saeed","majid"],topic:"اجتماع: أي بداية نعتمد لريل الحديقة؟"},
- {who:["kafu","maitha","nouf","saeed"],topic:"اجتماع: فكرة «أنقذوا عيد ميلاد سيف»"},
- {who:["kafu2","rawdha","hazza","latifa"],topic:"اجتماع: خطة مذاكرتي للأسبوع"},
+ {who:["hamdan","maitha","kafu","saeed"],topic:"اجتماع: ريل بكرة"},
+ {who:["shamma","hamdan","khalifa","dhiab"],topic:"اجتماع: تحديث المسا لشيماء"},
 ];
-
 const floor=document.getElementById("floor"),vp=document.getElementById("vp");
-const W=1200,H=1020;
+const W=1200,H=916;
 function fit(){const s=vp.clientWidth/W;floor.style.transform=`scale(${s})`;vp.style.height=(H*s)+"px"}
 new ResizeObserver(fit).observe(vp);
 const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
@@ -257,13 +222,13 @@ const byId=id=>T.find(p=>p.id===id);
 for(const [k,z] of Object.entries(Z)){
   add(`<div class="zone ${k==="meet"?"meet":""}" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;--c:${z.c}"><span class="lbl">${esc(z.name)}</span><span class="sub">${esc(z.sub)}</span></div>`);
 }
-const mz=Z.meet; add(`<div class="table" style="left:${mz.x+110}px;top:${mz.y+48}px;width:140px;height:64px"></div>`);
+const mz=Z.meet; add(`<div class="table" style="left:${mz.x+104}px;top:${mz.y+76}px;width:160px;height:44px"></div>`);
 const cz=Z.cafe; add(`<div class="coffee" style="left:${cz.x+120}px;top:${cz.y+20}px"></div>`);add(`<div class="sofa" style="left:${cz.x+18}px;top:${cz.y+96}px;width:110px;height:30px"></div>`);
-[[588,456],[404,1004],[800,1004],[30,456]].forEach(([x,y])=>add(`<div class="plant" style="left:${x}px;top:${y}px"></div>`));
+[[792,336],[792,660],[30,660],[1150,660]].forEach(([x,y])=>add(`<div class="plant" style="left:${x}px;top:${y}px"></div>`));
 
 /* desks + people */
 const SEAT={};
-for(const k of ["ev","mz","hq","od","mt"]){
+for(const k of ["mkt","sec","ops","sales","sys"]){
   const z=Z[k],staff=T.filter(p=>p.z===k),cols=z.cols,rows=Math.ceil(staff.length/cols);
   const cw=z.w/cols,rh=(z.h-30)/Math.max(rows,1);
   staff.forEach((p,i)=>{
@@ -309,7 +274,7 @@ async function conversation([ai,bi,qa,qb]){
 }
 async function meeting(m){
   const ps=m.who.map(byId); if(ps.some(p=>p.busy))return; ps.forEach(p=>{p.busy=true;setDesk(p)});
-  const z=Z.meet,spots=[[z.x+95,z.y+62],[z.x+275,z.y+62],[z.x+150,z.y+130],[z.x+225,z.y+130]];
+  const z=Z.meet,spots=[[z.x+70,z.y+70],[z.x+300,z.y+70],[z.x+150,z.y+70],[z.x+225,z.y+70]];
   await Promise.all(ps.map((p,i)=>walk(p,spots[i][0],spots[i][1])));
   log(ps[0],null,m.topic); await say(ps[0],m.topic,3000);
   for(const p of ps.slice(1)){await say(p,"عندي رايي من شغلي…",1600)}
@@ -336,14 +301,14 @@ tick();setInterval(tick,30000);
 
 /* side panel: person + meeting (Claude sampling when available) */
 let sp=null;const getSample=()=>sp||(sp=(window.claude&&window.claude.use)?window.claude.use("sample").catch(()=>null):Promise.resolve(null));
-const CONTEXT=`أنت موظف في مكتب افتراضي لشيماء، صاحبة إيفنتانا (حفلات أطفال في الإمارات) ومذاكرتي وأودلي ومطبخي. تكلم باللهجة الخليجية فقط بدون أي كلمة إنجليزية، بجمل قصيرة. لا تخترع أرقام أو حقائق، قل «أحتاج أتأكد». قواعد إيفنتانا: ${RULES.ev.join("، ")}. التنفيذ الفعلي يصير لما شيماء ترد بالمحادثة الرئيسية.`;
+const CONTEXT=`أنت موظف في مكتب افتراضي لشيماء، صاحبة إيفنتانا (حفلات أطفال في الإمارات). أنت في طابق إيفنتانا. تكلم باللهجة الخليجية فقط بدون أي كلمة إنجليزية، بجمل قصيرة. لا تخترع أرقام أو حقائق، قل «أحتاج أتأكد». قواعد إيفنتانا: ${RULES.ev.join("، ")}. التنفيذ الفعلي يصير لما شيماء ترد بالمحادثة الرئيسية.`;
 function closeLayer(){document.getElementById("layer").innerHTML=""}
 function shell(inner){const L=document.getElementById("layer");
   L.innerHTML=`<div class="scrim"></div><aside class="panel" dir="rtl" role="dialog" aria-modal="true"><button class="x" type="button">إغلاق</button>${inner}</aside>`;
   L.querySelector(".scrim").onclick=closeLayer;L.querySelector(".x").onclick=closeLayer;return L.querySelector(".panel")}
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeLayer()});
 function openPerson(p){
-  const z=Z[p.z],rules=[...(RULES[p.z]||[]),...RULES.hq];
+  const z=Z[p.z],rules=[...RULES.ev,...RULES.hq];
   const P=shell(`<div class="ph"><h2 style="color:${z.c}">${esc(p.name)}</h2><div class="note">${esc(p.role)} · ${esc(z.name)}</div></div>
    <div class="sec"><h4>الحين</h4><div><span class="pill" style="--s:${ST[p.st].c}">${ST[p.st].t}</span></div><div>${esc(p.task)}</div></div>
    <div class="sec"><h4>شغله</h4><ul>${p.does.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
@@ -368,7 +333,7 @@ document.getElementById("meetBtn").onclick=()=>{
   go.onclick=async()=>{const idea=P.querySelector("#idea").value.trim();const sel=[...P.querySelectorAll('.pick[aria-pressed="true"]')].map(b=>byId(b.dataset.id));if(!idea||!sel.length)return;
     min.innerHTML=`<div class="note">الفريق يتناقش…</div>`;go.disabled=true;
     const ps=sel.slice(0,4).filter(p=>!p.busy);ps.forEach(p=>{p.busy=true;setDesk(p)});
-    const z=Z.meet,spots=[[z.x+95,z.y+62],[z.x+275,z.y+62],[z.x+150,z.y+130],[z.x+225,z.y+130]];ps.forEach((p,i)=>walk(p,spots[i][0],spots[i][1]));
+    const z=Z.meet,spots=[[z.x+70,z.y+70],[z.x+300,z.y+70],[z.x+150,z.y+70],[z.x+225,z.y+70]];ps.forEach((p,i)=>walk(p,spots[i][0],spots[i][1]));
     try{const s=await getSample();
       const res=await s.json(`${CONTEXT}\nاجتماع. الحضور:\n${sel.map(p=>`- ${p.name} (${p.role}): ${p.does.join("، ")}`).join("\n")}\nفكرة شيماء: ${idea}\nكل واحد يعطي رايه من تخصصه بجملتين أو ثلاث، وبعدها شمّا تكتب خلاصة وقرارات مقترحة تحتاج موافقة شيماء. رجّع JSON فقط: {"turns":[{"name":"...","text":"..."}],"summary":"..."}`,{modelTier:"default"});
       min.innerHTML="";for(const t of (res.turns||[])){min.insertAdjacentHTML("beforeend",`<div class="turn"><b>${esc(t.name||"")}</b><br>${esc(t.text||"")}</div>`);const p=T.find(x=>x.name===t.name);if(p){log(p,null,t.text||"");say(p,(t.text||"").slice(0,90),3500)}}
