@@ -780,7 +780,7 @@ function teamStatus(){return T.filter(p=>!p.real).map(p=>`${p.name} (${p.role}):
   const d=await getDict(); if(d){mic.hidden=false;
     d.onFinal(({text})=>{if(text)sayBox.value=(sayBox.value?sayBox.value+" ":"")+text});
     d.onState(({state})=>{mic.textContent=state==="idle"?"تكلمي":"وقّفي"});}
-  const t=await getTts(); if(!t) tnote.textContent="الصوت يشتغل من متصفح قوقل كروم أو تطبيق Claude على الكمبيوتر. بالجوال تطلع الردود مكتوبة.";
+  const t=await getTts(); if(!t) tnote.textContent="الصوت يشتغل من متصفح قوقل كروم أو تطبيق كلود على الكمبيوتر. بالجوال تطلع الردود مكتوبة.";
   const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
   if(!db){tnote.textContent="افتحي الطابق من حسابج عشان تكلمين شمّا.";sendS.disabled=true;return}
   inboxRef=db.collection("inbox");
