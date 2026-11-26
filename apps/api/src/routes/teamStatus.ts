@@ -52,7 +52,11 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       `SELECT to_char(e.event_date,'YYYY-MM-DD') AS date, e.start_time AS time, e.emirate, e.celebration_type AS occasion,
               pk.name AS package, th.name AS theme, COALESCE(e.custom_theme,false) AS custom_theme,
               COALESCE((SELECT json_agg(DISTINCT split_part(tm.name,' ',1)) FROM event_staff es JOIN team_members tm ON tm.id = es.assignee_id
-                         WHERE es.event_id = e.id), '[]') AS crew
+                         WHERE es.event_id = e.id), '[]') AS crew,
+              (SELECT count(*) FROM prep_tasks pt WHERE pt.event_id = e.id)::int AS prep_total,
+              (SELECT count(*) FROM prep_tasks pt WHERE pt.event_id = e.id AND pt.status = 'completed')::int AS prep_done,
+              (SELECT count(*) FROM prep_tasks pt WHERE pt.event_id = e.id AND pt.category = 'design' AND pt.status <> 'completed')::int AS design_open,
+              (SELECT count(*) FROM event_staff es2 WHERE es2.event_id = e.id AND es2.assignee_id IS NULL AND COALESCE(es2.part_time_name,'') = '')::int AS crew_open
          FROM events e
          LEFT JOIN packages pk ON pk.id = e.package_id
          LEFT JOIN themes th ON th.id = e.theme_id
@@ -65,7 +69,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     return {
       today,
       team: rows.map((r) => ({ name: String(r.name).split(' ')[0], events: r.events, prepOpen: Number(r.prep_open), daysOff: r.days_off })),
-      upcoming: up.rows.map((r) => ({ date: r.date, time: r.time, emirate: r.emirate, occasion: r.occasion, package: r.package, theme: r.theme, customTheme: r.custom_theme, crew: r.crew })),
+      upcoming: up.rows.map((r) => ({ date: r.date, time: r.time, emirate: r.emirate, occasion: r.occasion, package: r.package, theme: r.theme, customTheme: r.custom_theme, crew: r.crew, prepTotal: Number(r.prep_total), prepDone: Number(r.prep_done), designOpen: Number(r.design_open), crewOpen: Number(r.crew_open) })),
     };
   });
 }
