@@ -736,7 +736,9 @@ async function main() {
     void import('./db/dumpPrices.js').then(({ dumpPricesFromEnv }) => dumpPricesFromEnv())
       .catch((e) => console.error('[prices] failed:', (e as Error).message));
   }
-  if (shanKey === 'wahook' || shanKey.startsWith('wahook:')) {
+  // Subscribing the app to the WABA is idempotent; do it on every boot when the
+  // WABA id is known so customers' messages keep reaching the webhook.
+  if (shanKey === 'wahook' || shanKey.startsWith('wahook:') || process.env.WHATSAPP_WABA_ID) {
     void import('./db/waWebhookSetup.js').then(({ waWebhookSetupFromEnv }) => waWebhookSetupFromEnv())
       .catch((e) => console.error('[wahook] failed:', (e as Error).message));
   }
