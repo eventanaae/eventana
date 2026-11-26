@@ -47,6 +47,25 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
         ORDER BY tm.name`,
       [today],
     );
-    return { today, team: rows.map((r) => ({ name: String(r.name).split(' ')[0], events: r.events, prepOpen: Number(r.prep_open), daysOff: r.days_off })) };
+    // Upcoming parties (next 14 days) for the office board: no customer details.
+    const up = await pool.query(
+      `SELECT to_char(e.event_date,'YYYY-MM-DD') AS date, e.start_time AS time, e.emirate, e.celebration_type AS occasion,
+              pk.name AS package, th.name AS theme, COALESCE(e.custom_theme,false) AS custom_theme,
+              COALESCE((SELECT json_agg(DISTINCT split_part(tm.name,' ',1)) FROM event_staff es JOIN team_members tm ON tm.id = es.assignee_id
+                         WHERE es.event_id = e.id), '[]') AS crew
+         FROM events e
+         LEFT JOIN packages pk ON pk.id = e.package_id
+         LEFT JOIN themes th ON th.id = e.theme_id
+        WHERE e.phase <> 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
+          AND e.event_date BETWEEN $1::date AND $1::date + 13
+        ORDER BY e.event_date, e.start_time
+        LIMIT 60`,
+      [today],
+    );
+    return {
+      today,
+      team: rows.map((r) => ({ name: String(r.name).split(' ')[0], events: r.events, prepOpen: Number(r.prep_open), daysOff: r.days_off })),
+      upcoming: up.rows.map((r) => ({ date: r.date, time: r.time, emirate: r.emirate, occasion: r.occasion, package: r.package, theme: r.theme, customTheme: r.custom_theme, crew: r.crew })),
+    };
   });
 }
