@@ -17,6 +17,9 @@ const REPORT_KEY_SHA256 = 'd7adf93428c04153d718ec5a4d1084a9c5b78e63be712d392de4e
 
 function keyOk(given: string | undefined): boolean {
   const envKey = process.env.MARKETING_REPORT_KEY;
+  // OFFICE_SYNC_KEY: a separate key only for the owner's virtual office sync.
+  const officeKey = process.env.OFFICE_SYNC_KEY;
+  if (!!officeKey && officeKey.length >= 24 && safeEqual(given, officeKey)) return true;
   return (!!envKey && envKey.length >= 24 && safeEqual(given, envKey))
     || (!!given && safeEqual(createHash('sha256').update(given).digest('hex'), REPORT_KEY_SHA256));
 }
