@@ -399,6 +399,11 @@ export function Checkout({
     l.kind === 'discount' && l.refId === null && byoFils > 0 && l.amountFils === -byoFils;
 
   const promoCtx = () => ({ cart: toCart(draft), provider: draft.provider, offerToken: draft.offerToken });
+  // Owner rule (19 Nov 2026): discount codes work with full payment only — never Tabby / Tamara / instalments.
+  const fullPayOnlyMsg = lang === 'ar'
+    ? 'كود الخصم يشتغل على الدفع الكامل بس (أبل باي أو البطاقة)، وما يشتغل مع تابي أو تمارا أو أي خطة تقسيط.'
+    : 'Discount codes work with full payment only (Apple Pay or card) — not with Tabby, Tamara or any instalment plan.';
+  const promoReason = (r: { reason?: string } & Record<string, unknown>) => (r.fullPaymentOnly ? fullPayOnlyMsg : (r.reason ?? null));
   const applyPromo = async () => {
     const code = promoInput.trim();
     if (!code) return;
@@ -407,7 +412,7 @@ export function Checkout({
     try {
       const r = await api.checkPromo(code, subtotalFils, guestEmail, promoCtx());
       if (r.ok && r.code) { setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false }); setPromoError(null); }
-      else { setPromo(null); setPromoError(r.reason ?? 'This code isn’t valid.'); }
+      else { setPromo(null); setPromoError(promoReason(r as any) ?? 'This code isn’t valid.'); }
     } catch {
       setPromoError('Couldn’t check that code. Try again.');
     } finally {
@@ -444,12 +449,12 @@ export function Checkout({
       .then((r) => {
         if (!alive) return;
         if (r.ok && r.code) setPromo({ code: r.code, amountFils: r.amountFils ?? 0, freeDelivery: r.freeDelivery ?? false });
-        else { setPromo(null); setPromoError(r.reason ?? null); }
+        else { setPromo(null); setPromoError(promoReason(r as any)); }
       })
       .catch(() => {});
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtotalFils, promo?.code, guestEmail]);
+  }, [subtotalFils, promo?.code, guestEmail, draft.provider]);
 
   const zone = catalogue.deliveryZones.find((z) => z.emirate === draft.emirate);
   const blocked = zone && (!zone.available || zone.feeFils === null);
@@ -1306,6 +1311,9 @@ export function Checkout({
             </div>
           )}
           {promoError && <div style={{ fontSize: 11, fontWeight: 600, color: C.red, marginBottom: 6 }}>{promoError}</div>}
+          {promoError !== fullPayOnlyMsg && (
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 8, lineHeight: 1.45 }}>ⓘ {fullPayOnlyMsg}</div>
+          )}
 
           {/* store credit */}
           {rewards && rewards.creditFils > 0 && (

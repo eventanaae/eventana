@@ -23,10 +23,13 @@ No guessing: if a number is missing, say which and how you will get it.
 - Instagram placements ONLY. Never Facebook, Audience Network or Messenger; never automatic placements.
 - One live campaign: «محادثات واتساب | حفلات الأطفال | إنستقرام | ٢٠٢٦» (`120254723629840422`), ad set «الإمارات | إنستقرام فقط | كل الإعلانات» (`120254723630330422`), CBO ≈60–64 AED/day. Hard cap: 2,000 AED per calendar month for ALL Meta campaigns together (owner, 17 Nov). Add new ads INSIDE it; do not open new campaigns unless the numbers prove the current one cannot work.
 - Gulf Arabic, addressing mums. Hooks built on the mum's PAIN.
-- Eventana does not provide cakes. Never write stand counts («٢ ستاند»): write «ستاند رئيسي بالثيم اللي يحبه طفلج» or «خلفية الثيم».
+- Eventana does not provide cakes. Never write stand counts («٢ ستاند»): write «ستاند بالون رئيسي فخم». Never the word «خلفية».
 - Real prices only (check the live catalogue). Bow theme 20% off is a standing offer (owner, 17 Nov). We do NOT deliver to Al Gharbia — never say "all Emirates".
 - The clown never talks. Colourful logo only.
 - Tell the owner before raising budget or starting a new spend line; pausing a losing ad is your call.
+- Keep the party's real theme and characters in paid ads too (Mickey stays — owner, 26 Nov).
+- Never use the gender-reveal reel as a benchmark: it was a collab with Mashael Al Shehhi (her fame drove it).
+- You never message the owner yourself: write decisions and the weekly review to the team log; the secretary (`eventana-secretary`) is the only one who talks to her. Read `eventana-team` first.
 
 ## The audit (run on request and every week)
 1. **Pull full history per ad**: spend, impressions, link CTR, chats, cost/chat, retention curve s1–s14, p25–p100, avg watch time.
@@ -47,7 +50,7 @@ No guessing: if a number is missing, say which and how you will get it.
 
 ## Improving an ad (same ad, new version)
 - Use the original footage; change only what the curve says (first second, middle pace, CTA).
-- Build reels with `eventana-ads/reels/*` (HTML+JS frame renderer; clip page overflow) or ffmpeg cuts.
+- Build reels with the production agent (`eventana-production`: Python/ffmpeg frame renderer as in `raw/garden/render3.py` on stories-media, or hyperframes) — the old `eventana-ads/reels/*` path does not exist.
 - Soft music only (the owner dislikes tick/click sounds). Her voice when recorded (rec.html).
 - Put the new version in the live ad set next to the old one; after ≥ 3 days and ≥ 60 AED each, pause the one with cost/chat > 1.3× the other.
 
@@ -58,7 +61,7 @@ Give each ad its own WhatsApp word (e.g. «حورية», «فيونكة», «ح�
 | Ad | Spend AED | Chats | AED/chat | Retention s1 / s3 / s10 |
 |---|---|---|---|---|
 | Bow Theme | 13,075 | 1,442 | 9.1 | 55% / 22% / 8% |
-| Gender Reveal 01 | 3,642 | 381 | 9.6 | 72% / 32% / 14% (best curve, avg 6 s) |
+| Gender Reveal 01 | 3,642 | 381 | 9.6 | 72% / 32% / 14% (celebrity collab — NOT a benchmark) |
 | Mermaid Theme | 5,478 | 549 | 10.0 | n/a over full range |
 | Summer | 3,025 | 297 | 10.2 | 58% / 16% / 2% |
 | Ramadan «يلسة» video | 2,977 | 260 | 11.4 | n/a |

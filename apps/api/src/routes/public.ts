@@ -23,7 +23,8 @@ import { config } from '../config.js';
 import { checkCalendarConnection } from '../integrations/googleCalendar.js';
 import { verifyUnsub } from '../domain/marketing.js';
 import { loadConfig } from '../domain/settings.js';
-import { CheckoutError, createSessionForOrder, previewCheckoutTotal, previewQuote, startCheckout, startShopCheckout, syncInvoicePayBalance } from '../domain/checkout.js';
+import { CheckoutError, PROMO_FULL_PAYMENT_ONLY, isBnplProvider, createSessionForOrder, previewCheckoutTotal, previewQuote, startCheckout, startShopCheckout, syncInvoicePayBalance } from '../domain/checkout.js';
+import { resolveStaffCode } from '../domain/staffReferral.js';
 import { getOffer } from '../domain/offers.js';
 import { orderViewTokenValid } from '../domain/orders.js';
 import { toValidCustomerPhone, titleCaseName } from '../domain/maintenance.js';
@@ -1402,6 +1403,10 @@ export async function publicRoutes(app: FastifyInstance) {
       }).catch(() => null);
     }
     if (!parsed.data.code) return { ok: true, final };
+    // Codes apply to full payment only (owner rule 19 Nov): with Tabby / Tamara selected the code is refused.
+    if (isBnplProvider(parsed.data.provider) && !(await resolveStaffCode(pool, parsed.data.code).catch(() => null))) {
+      return { ok: false, reason: PROMO_FULL_PAYMENT_ONLY, fullPaymentOnly: true, final };
+    }
     // Judge the code on the same bases checkout uses (pre-BYO price for min spend,
     // party value for percent codes) so the preview never disagrees with the charge.
     const v = await validatePromo(
