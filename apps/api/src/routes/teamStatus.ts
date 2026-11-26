@@ -95,6 +95,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
          FROM prep_tasks pt JOIN prep_task_staff s ON s.task_id = pt.id JOIN team_members tm ON tm.id = s.member_id
         WHERE pt.category = 'manual' AND pt.status <> 'completed' GROUP BY tm.name`).catch(() => ({ rows: [] }))).rows;
     const learn = await one(`SELECT
+        to_char(MIN(created_at) AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') AS listening_since,
         to_char(MIN(created_at) FILTER (WHERE direction = 'out' AND sent_by = 'staff') AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') AS since,
         COUNT(*) FILTER (WHERE direction = 'out' AND sent_by = 'staff')::int AS team_replies,
         COUNT(*) FILTER (WHERE direction = 'out' AND sent_by = 'staff' AND created_at > now() - interval '7 days')::int AS team_week,
@@ -114,6 +115,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       manualTasks: tasks,
       whatsappLearning: {
         mode: typeof mode.value === 'string' ? mode.value : (process.env.WHATSAPP_AGENT_MODE ?? 'off'),
+        listeningSince: learn.listening_since ?? null,
         since: learn.since ?? null,
         teamReplies: Number(learn.team_replies ?? 0),
         teamRepliesWeek: Number(learn.team_week ?? 0),
