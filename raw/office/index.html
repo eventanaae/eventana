@@ -184,6 +184,12 @@ body.big .log{display:none}
   .top .chips{display:none}.brand p{display:none}.brand h1{font-size:28px}.clock{font-size:16px}
   .stage{padding:6px;border-radius:16px}.viewbar{top:12px;left:12px}.viewbar button{width:36px;height:36px;font-size:18px}
 }
+.ovw{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ovw .t{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.ovw .t b{font-size:22px;font-family:var(--display);font-variant-numeric:tabular-nums}
+.ovw .t span{font-size:12.5px;color:var(--muted)}
+.ovw .t.warn{border-color:var(--wait)} .ovw .t.bad{border-color:var(--stop)}
+.ovl{font-size:13.5px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
 </style>
 
 <div class="wrap" dir="rtl">
@@ -196,6 +202,12 @@ body.big .log{display:none}
   <section aria-labelledby="ask-h" style="display:flex;flex-direction:column;gap:8px">
     <div class="sec-h"><h2 id="ask-h">شمّا تسألج</h2><span>بس اللي فعلاً يحتاج ردّج</span></div>
     <div class="cards" id="asks"></div>
+  </section>
+
+  <section aria-labelledby="ov-h" id="ovS" hidden style="display:flex;flex-direction:column;gap:8px">
+    <div class="sec-h"><h2 id="ov-h">ملخص إيفنتانا اليوم</h2><span id="ovT">من لوحة التشغيل</span></div>
+    <div class="ovw" id="ovw"></div>
+    <div class="ovl" id="ovl"></div>
   </section>
 
   <div class="main">
@@ -704,7 +716,7 @@ function openBoard(){
   const list=OPS_UP;
   const P=shell(`<h2>الحفلات الجاية</h2><div class="note">من لوحة التشغيل، لأسبوعين قدام.</div><div id="upl" style="display:flex;flex-direction:column;gap:8px"></div>`);
   const box=P.querySelector("#upl");
-  if(!list){box.innerHTML='<div class="note">تطلع هني أول ما ينزل تحديث النظام رقم 100 ويتزامن الطابق مع لوحة التشغيل.</div>';return}
+  if(!list){box.innerHTML='<div class="note">تطلع هني أول ما يتزامن الطابق مع لوحة التشغيل.</div>';return}
   if(!list.length){box.innerHTML='<div class="note">ما فيه حفلات بالأسبوعين الجايين.</div>';return}
   let lastDay="";
   for(const e of list){
@@ -740,7 +752,27 @@ function applyStaff(doc){if(!doc||!doc.people)return;
     p.el.querySelector(".tk").textContent=(busy?"شغله الحين: ":"ما عنده شغل الحين. ")+(s.task||p.task);p.el.setAttribute("aria-label",`${p.name}، ${p.role}، ${mi[1]}`)}}
 (async()=>{const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;if(!db)return;
   db.doc("staff/status").onSnapshot(snap=>{if(snap.exists)applyStaff(snap.data())},()=>{})})();
-function applyOps(doc){if(doc&&Array.isArray(doc.upcoming))OPS_UP=doc.upcoming;
+function applyOffice(o){const S=document.getElementById("ovS");if(!o||!S)return;S.hidden=false;
+  const n=v=>Number(v||0).toLocaleString("ar-AE");const W=document.getElementById("ovw");W.innerHTML="";
+  const tile=(val,lab,cls)=>{const d=document.createElement("div");d.className="t"+(cls?" "+cls:"");const b=document.createElement("b");b.textContent=val;const sp=document.createElement("span");sp.textContent=lab;d.append(b,sp);W.appendChild(d)};
+  const m=o.money||{},l=o.leads||{},a=o.alerts||{},r=o.ratings30d||{};
+  tile(n(m.todayAed)+" درهم",`دخل اليوم · ${n(m.todayBookings)} حجز`);
+  tile(n(m.monthAed)+" درهم",`دخل الشهر · ${n(m.monthBookings)} حجز`);
+  tile(n(l.newToday),`رسايل جديدة اليوم · ${n(l.newOpen)} ما انردّ عليها`,l.newOpen>0?"warn":"");
+  tile(n(l.quotedOpen),"عطيناهم سعر وما حجزوا");
+  tile(n(l.bookedWeek),"حجزوا من الواتساب هالأسبوع");
+  tile(n(o.unpaidCheckouts7d),"بدوا الحجز بالموقع وما دفعوا",o.unpaidCheckouts7d>0?"warn":"");
+  tile(n(a.partiesAtRisk),"حفلات خلال 3 أيام تجهيزها ما خلص",a.partiesAtRisk>0?"warn":"");
+  tile(n(a.crewOpen3d),"أماكن بالفريق فاضية خلال 3 أيام",a.crewOpen3d>0?"bad":"");
+  tile(n(a.prepIssues),"مشاكل بالتجهيز",a.prepIssues>0?"bad":"");
+  tile(r.count?`${r.avg} ⭐`:"—",`تقييم الأهالي آخر شهر · ${n(r.count)} تقييم`);
+  const L=document.getElementById("ovl");L.innerHTML="";
+  const CREW={marsha:"مارشا",dindo:"دندو",diana:"ديانا",gloria:"قلوريا",jane:"جين"};const nm=x=>CREW[String(x||"").toLowerCase()]||x;
+  const line=t=>{const d=document.createElement("div");d.textContent=t;L.appendChild(d)};
+  if((o.leaveRequests||[]).length)line("طلبات إجازة تنتظر: "+o.leaveRequests.map(q=>`${nm(q.name)} (${dayAr(q.from)}${q.to!==q.from?" إلى "+dayAr(q.to):""})`).join("، "));
+  if((o.manualTasks||[]).length)line("مهام مفتوحة: "+o.manualTasks.map(q=>`${nm(q.name)} ${n(q.n)}`).join("، "));
+}
+function applyOps(doc){if(doc&&doc.office)applyOffice(doc.office);if(doc&&Array.isArray(doc.upcoming))OPS_UP=doc.upcoming;
   if(!doc||!Array.isArray(doc.team))return;
   const today=todayDubai(),nowMin=(()=>{const d=new Date(Date.now()+4*3600e3);return d.getUTCHours()*60+d.getUTCMinutes()})();
   for(const p of T.filter(q=>q.real)){
