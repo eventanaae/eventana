@@ -280,10 +280,10 @@ const add=(h,parent=floor)=>{const t=document.createElement("template");t.innerH
 const byId=id=>T.find(p=>p.id===id);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
-const K=52, WX=x=>(x-600)/K, WZ=y=>(y-458)/K, PX=x=>x*K+600, PY=z=>z*K+458;
+const K=62, WX=x=>(x-600)/K, WZ=y=>(y-458)/K, PX=x=>x*K+600, PY=z=>z*K+458;
 const HAS3D=typeof THREE!=="undefined";
 let scene,camera,renderer;const WALLS=[];
-const HOME={yaw:Math.PI/4,pitch:.78,r:25,tx:-.5,tz:0};const RDH=916/52/2+.3;
+const HOME={yaw:Math.PI/4,pitch:.7,r:17,tx:-.3,tz:.2};const RDH=916/K/2+.3;
 const cam={...HOME},goal={...HOME};
 const M=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.7,metalness:.04},o));
 function box(w,h,d,mat,x,y,z,parent){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;(parent||scene).add(m);return m}
@@ -292,13 +292,15 @@ function tex(w,h,draw,rep){const c=document.createElement("canvas");c.width=w;c.
 const rnd=(a,b)=>a+Math.random()*(b-a);
 // materials (interior palette: warm stone, walnut, linen, black metal, brass)
 let MAT;
-function materials(){
-  const stone=tex(1024,1024,(g,w,h)=>{g.fillStyle="#C9C1B5";g.fillRect(0,0,w,h);for(let i=0;i<26000;i++){const v=rnd(-22,22);g.fillStyle=`rgba(${120+v},${112+v},${100+v},.10)`;g.fillRect(rnd(0,w),rnd(0,h),rnd(1,3),rnd(1,3))}
-    g.strokeStyle="rgba(105,96,84,.75)";g.lineWidth=3;for(let x=0;x<=w;x+=256)g.strokeRect(x,0,256,512),g.strokeRect(x,512,256,512)},[6,4.8]);
+function materials(){const RW0=1200/K,RD0=916/K;
+  const stone=tex(1024,1024,(g,w,h)=>{g.fillStyle="#7A5534";g.fillRect(0,0,w,h);const pw=128,ph=32;
+    for(let y=-pw;y<h+pw;y+=ph){for(let x=-pw*2;x<w+pw;x+=pw*2){[[0,1],[1,-1]].forEach(([o,dir])=>{g.save();g.translate(x+o*pw+(y/ph%2)*0,y);g.rotate(dir*Math.PI/4);
+      const t=rnd(-14,14);g.fillStyle=`rgb(${168+t},${120+t},${78+t})`;g.fillRect(0,0,pw,ph-2);g.fillStyle="rgba(90,60,30,.18)";for(let k=0;k<5;k++)g.fillRect(0,4+k*6,pw,1);g.restore()})}}
+  },[RW0/2.2,RD0/2.2]);
   const walnut=tex(512,512,(g,w,h)=>{g.fillStyle="#5A3B28";g.fillRect(0,0,w,h);for(let i=0;i<220;i++){g.strokeStyle=`rgba(${rnd(30,60)},${rnd(18,35)},${rnd(10,22)},.35)`;g.lineWidth=rnd(1,3);g.beginPath();const x=rnd(0,w);g.moveTo(x,0);g.bezierCurveTo(x+rnd(-20,20),h*.3,x+rnd(-20,20),h*.6,x+rnd(-10,10),h);g.stroke()}},[2,1]);
   const linen=tex(256,256,(g,w,h)=>{g.fillStyle="#CFC8BE";g.fillRect(0,0,w,h);for(let i=0;i<9000;i++){g.fillStyle=`rgba(${rnd(150,200)},${rnd(140,190)},${rnd(130,175)},.25)`;g.fillRect(rnd(0,w),rnd(0,h),rnd(1,4),1)}},[6,2]);
   const top=tex(512,256,(g,w,h)=>{g.fillStyle="#B7B0A6";g.fillRect(0,0,w,h);for(let i=0;i<8000;i++){const v=rnd(-25,25);g.fillStyle=`rgba(${160+v},${155+v},${148+v},.25)`;g.fillRect(rnd(0,w),rnd(0,h),rnd(1,3),rnd(1,2))}});
-  MAT={stone:M(0xffffff,{map:stone,roughness:.55}),walnut:M(0xffffff,{map:walnut,roughness:.6}),linen:M(0xffffff,{map:linen,roughness:.95}),top:M(0xffffff,{map:top,roughness:.45}),
+  MAT={stone:M(0xffffff,{map:stone,roughness:.5}),walnut:M(0xffffff,{map:walnut,roughness:.6}),linen:M(0xffffff,{map:linen,roughness:.95}),top:M(0xffffff,{map:top,roughness:.45}),
     black:M(0x1c1c1f,{roughness:.4,metalness:.3}),fabric:M(0xA9A196,{roughness:.95}),glass:M(0xCFE3F0,{transparent:true,opacity:.28,roughness:.05}),
     led:new THREE.MeshBasicMaterial({color:0xFFE9C4}),brass:M(0xB89558,{metalness:.6,roughness:.35}),white:M(0xF4F1EC)};
 }
@@ -384,16 +386,16 @@ function reception(){const z=Z.sec,cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2);
   vase(cx+1,cz);}
 function meetingRoom(){const z=Z.meet,x0=WX(z.x),x1=WX(z.x+z.w),z0=WZ(z.y),z1=WZ(z.y+z.h),cx=(x0+x1)/2,cz=(z0+z1)/2;
   box(x1-x0,2.4,.05,MAT.glass,cx,1.2,z1);box(.05,2.4,z1-z0,MAT.glass,x0,1.2,cz);box(x1-x0,.05,.08,MAT.black,cx,2.42,z1);box(.08,.05,z1-z0,MAT.black,x0,2.42,cz);
-  stoneTable(cx,cz,4.2,1.3);vase(cx,cz);for(let i=-1.5;i<=1.5;i++){upChair(cx+i*1.05,cz-1.05,Math.PI);upChair(cx+i*1.05,cz+1.05,0)}
+  stoneTable(cx,cz,3.4,1.0);vase(cx,cz);for(let i=-1;i<=1;i++){upChair(cx+i*1.05,cz-.88,Math.PI);upChair(cx+i*1.05,cz+.88,0)}
   box(2.4,1.2,.06,M(0x20242c,{emissive:0x2d3a4f,emissiveIntensity:.5}),cx,1.45,z0+.15);
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.6*160/1024),new THREE.MeshBasicMaterial({map:signTexture(z.name),transparent:true}));sign.position.set(cx,2.25,z0+.2);scene.add(sign)}
 function lounge(){const z=Z.cafe,cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2);
-  const rug=new THREE.Mesh(new THREE.CircleGeometry(2.3,40),M(0xE9E2D6,{roughness:1}));rug.rotation.x=-Math.PI/2;rug.position.set(cx-.6,.01,cz+.4);rug.receiveShadow=true;scene.add(rug);
-  cyl(.7,.7,.06,MAT.top,cx-.6,.5,cz+.4,null,32);cyl(.06,.2,.48,MAT.walnut,cx-.6,.24,cz+.4);
-  box(2.6,.42,.8,MAT.fabric,cx-.6,.21,cz+1.75);box(2.6,.55,.22,MAT.fabric,cx-.6,.55,cz+2.08);
-  upChair(cx-2.2,cz+.4,-Math.PI/2);upChair(cx+1,cz+.4,Math.PI/2);
+  const rug=new THREE.Mesh(new THREE.CircleGeometry(1.5,40),M(0xE9E2D6,{roughness:1}));rug.rotation.x=-Math.PI/2;rug.position.set(cx-.6,.01,cz+.1);rug.receiveShadow=true;scene.add(rug);
+  cyl(.6,.6,.06,MAT.top,cx-.6,.5,cz+.1,null,32);cyl(.06,.2,.48,MAT.walnut,cx-.6,.24,cz+.1);
+  box(2.4,.42,.75,MAT.fabric,cx-.6,.21,cz+1.15);box(2.4,.55,.2,MAT.fabric,cx-.6,.55,cz+1.45);
+  upChair(cx-1.7,cz+.1,-Math.PI/2);upChair(cx+.5,cz+.1,Math.PI/2);
   box(1.8,.95,.6,MAT.walnut,cx+1.8,.475,WZ(z.y)+.6);box(1.9,.04,.65,MAT.top,cx+1.8,.97,WZ(z.y)+.6);box(.3,.4,.28,MAT.black,cx+1.8,1.2,WZ(z.y)+.6);
-  [[cx+2.6,cz+2],[cx-2.8,cz-1.4]].forEach(([x,zz])=>{cyl(.3,.24,.55,M(0xEDE6DA),x,.27,zz);const f=new THREE.Mesh(new THREE.IcosahedronGeometry(.6,1),M(0x3F7D55,{flatShading:true}));f.position.set(x,1.1,zz);f.castShadow=true;scene.add(f)})}
+  [[cx+2.4,cz+1.2],[cx-2.5,cz-1.1]].forEach(([x,zz])=>{cyl(.3,.24,.55,M(0xEDE6DA),x,.27,zz);const f=new THREE.Mesh(new THREE.IcosahedronGeometry(.6,1),M(0x3F7D55,{flatShading:true}));f.position.set(x,1.1,zz);f.castShadow=true;scene.add(f)})}
 function resize(){if(!renderer)return;const full=document.fullscreenElement||document.body.classList.contains("big");const w=vp.clientWidth,h=full?Math.max(320,window.innerHeight-(document.fullscreenElement?0:140)):Math.max(420,Math.round(w*.7));
   renderer.setSize(w,h);vp.style.height=h+"px";camera.aspect=w/h;camera.updateProjectionMatrix()}
 function controls(){
@@ -409,7 +411,7 @@ function controls(){
   el.addEventListener("wheel",e=>{e.preventDefault();goal.r=Math.min(60,Math.max(3.5,goal.r*(e.deltaY>0?1.12:.89)))},{passive:false});
   el.addEventListener("dblclick",()=>Object.assign(goal,HOME));
 }
-function pan(dx,dy){const s=goal.r*.0016;const cx=Math.cos(goal.yaw),sx=Math.sin(goal.yaw);goal.tx-=(dx*cx-dy*sx)*s;goal.tz-=(-dx*sx-dy*cx)*s;goal.tx=Math.max(-12,Math.min(12,goal.tx));goal.tz=Math.max(-9,Math.min(9,goal.tz))}
+function pan(dx,dy){const s=goal.r*.0016;const cx=Math.cos(goal.yaw),sx=Math.sin(goal.yaw);goal.tx-=(dx*cx-dy*sx)*s;goal.tz-=(-dx*sx-dy*cx)*s;goal.tx=Math.max(-9,Math.min(9,goal.tx));goal.tz=Math.max(-7,Math.min(7,goal.tz))}
 function focusOn(p){if(!p.pos)return;Object.assign(goal,{tx:p.pos.x,tz:p.pos.z,r:7,pitch:.45})}
 // people with limbs (walk cycle, sitting, typing)
 const SKINS=[0xD7A98A,0xB98466,0xE3BC9C];
@@ -430,7 +432,7 @@ function makeFigure(p,i){
     const agal=new THREE.Mesh(new THREE.TorusGeometry(.2,.035,8,20),M(0x161616));agal.rotation.x=Math.PI/2;agal.position.set(0,1.58,0);g.add(agal);head.position.z=.06}
   else {const sh=new THREE.Mesh(new THREE.SphereGeometry(.26,16,12),M(0x15161b));sh.position.set(0,1.44,-.05);sh.scale.set(1,1.05,1.05);g.add(sh);cyl(.24,.28,.35,M(0x15161b),0,1.22,-.05,g);head.position.z=.08;head.scale.set(.92,.95,.9)}
   g.userData={legL,legR,armL,armR,head};
-  g.scale.setScalar(1.15);g.traverse(o=>{if(o.isMesh){o.castShadow=true}});scene.add(g);return g}
+  g.scale.setScalar(1.12);g.traverse(o=>{if(o.isMesh){o.castShadow=true}});scene.add(g);return g}
 function setDesk(p){if(!p.el)return;const d=DESK[p.id];if(d){const c={work:0x5DA9C9,team:0x5DA9C9,wait:0xE0A93C,stop:0x9B3030}[p.st];d.scr.material.emissive.setHex(c||0x000000);d.scr.material.emissiveIntensity=c?.9:0}}
 function place(p,x,y,instant){p.x=x;p.y=y;p.target={x:WX(x),z:WZ(y)};if(instant||!p.pos){p.pos={x:p.target.x,z:p.target.z};p.from={...p.pos};p.t0=0}else{p.from={x:p.pos.x,z:p.pos.z};p.t0=performance.now()}}
 async function walk(p,x,y){place(p,x,y);await sleep(reduce?50:1950)}
