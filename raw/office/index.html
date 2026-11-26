@@ -168,6 +168,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 .overlay .p .pop .tk{font-size:12px;color:var(--ink);white-space:normal;line-height:1.5}
 .overlay .p .pop .more{font-size:12px;color:var(--brass);text-decoration:underline;cursor:pointer}
 .overlay .p .bub,.overlay .p .typing,.overlay .p .card{display:none!important}
+.overlay .p.away .mood{font-size:24px;background:var(--brass-soft);outline:2px solid var(--brass)}
 .legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12.5px;color:var(--muted);padding:2px 4px 8px}
 .stage{position:relative}
 .viewbar{position:absolute;z-index:5;top:20px;left:20px;display:flex;gap:6px;flex-wrap:wrap}
@@ -620,7 +621,7 @@ function frame(now){
     const bob=moving&&!reduce?Math.abs(Math.sin(ph))*.05:0;
     f.position.set(p.pos.x,(seated?-.02:0)+bob,p.pos.z);
     const [sx,sy,sz]=project(p.pos.x,2.1,p.pos.z);
-    p.el.style.visibility=f.visible&&sz<1?"":"hidden";
+    p.el.style.visibility=(f.visible||(p.away&&!hidden))&&sz<1?"":"hidden";p.el.classList.toggle("away",!!p.away);
     p.el.style.transform=`translate(${sx}px,${sy}px) translate(-50%,-100%)`;
     p.el.style.zIndex=String(1000+Math.round((1-sz)*1e5));
   }
