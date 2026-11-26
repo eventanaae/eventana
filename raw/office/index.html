@@ -102,6 +102,10 @@ button{font-family:inherit;cursor:pointer}
 .log li{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--c) 7%,transparent);border-inline-start:3px solid var(--c);animation:in .35s ease}
 @keyframes in{from{opacity:0;transform:translateY(-6px)}}
 .log .meta{font-size:12px;color:var(--muted)} .log .txt{font-size:14px}
+.talk{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--floor)}
+.talk .thread{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
+.talk .msg.me{align-self:flex-start}.talk .msg.them{align-self:flex-end;background:var(--card)}
+.talk .tbar{display:flex;gap:6px;flex-wrap:wrap}
 .mcard{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:14px;background:var(--brass-soft);border:1px solid var(--brass)}
 .mcard #mlines{display:flex;flex-direction:column;gap:4px;font-size:14px}
 .mcard .ln b{color:var(--brass)}
@@ -149,6 +153,13 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
     <aside class="log" aria-labelledby="log-h">
       <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
       <div class="mcard" id="mcard"><b>اجتماعج مع شمّا</b><span class="note" id="mstate">كل يوم الساعة 5:30 المسا، بس إذا فيه شي مهم.</span><div id="mlines"></div><button class="btn ghost" id="mplay" type="button" hidden>شوفي الاجتماع</button></div>
+      <div class="talk" aria-label="كلمي شمّا">
+        <b>كلمي شمّا</b>
+        <div class="thread" id="thread"><div class="msg them">أنا شمّا، قولي لي اللي تبينه وأنا أوصله للفريق.</div></div>
+        <textarea id="sayBox" rows="2" placeholder="اكتبي لشمّا، أو اضغطي تكلمي"></textarea>
+        <div class="tbar"><button class="btn" id="sendS" type="button">أرسلي</button><button class="btn ghost" id="mic" type="button" hidden>تكلمي</button><button class="btn ghost" id="listen" type="button" hidden>اسمعي آخر رد</button></div>
+        <span class="note" id="tnote"></span>
+      </div>
       <ul id="feed" aria-live="polite"></ul>
     </aside>
   </div>
@@ -321,12 +332,59 @@ async function playMeeting(){
   const z=Z.meet; SHAIMA.el.style.display=""; place(SHAIMA,z.x+120,z.y+70,true);
   place(sh,z.x+250,z.y+70,true);
   log(sh,SHAIMA,"اجتماع اليوم مع شيماء");
-  for(const [k,t] of meetingLines(m)){await say(sh,`${k}: ${t}`,3600)}
+  const tts=await getTts();
+  for(const [k,t] of meetingLines(m)){const line=`${k}: ${t}`;const sp=tts?tts.speak(line,{language:"ar",voice:"airy"}).catch(()=>{}):null;await say(sh,line,3600);if(sp)await sp}
   await say(sh,"هذا كل شي اليوم",1800);
   place(sh,SEAT.shamma.x,SEAT.shamma.y,true); SHAIMA.el.style.display="none";
   sh.busy=false;setDesk(sh);meetingBusy=false;
 }
 document.getElementById("mplay").onclick=playMeeting;
+
+/* ---- talk to Shamma inside the floor: text or voice; she answers by voice ---- */
+let ttsP=null,dictP=null;
+const getTts=()=>ttsP||(ttsP=(window.claude&&window.claude.use)?window.claude.use("tts").catch(()=>null):Promise.resolve(null));
+const getDict=()=>dictP||(dictP=(window.claude&&window.claude.use)?window.claude.use("dictation").catch(()=>null):Promise.resolve(null));
+const thread=document.getElementById("thread"),sayBox=document.getElementById("sayBox"),sendS=document.getElementById("sendS"),mic=document.getElementById("mic"),listen=document.getElementById("listen"),tnote=document.getElementById("tnote");
+let inboxRef=null,lastShamma="",spokenReplies=new Set(),firstInbox=true;
+function bubble(cls,text,label){const d=document.createElement("div");d.className="msg "+cls;if(label){const b=document.createElement("b");b.textContent=label+" ";d.appendChild(b)}d.appendChild(document.createTextNode(String(text)));thread.appendChild(d)}
+async function speakShamma(text){lastShamma=text;listen.hidden=false;const t=await getTts();if(!t)return;try{await t.speak(text,{language:"ar",voice:"airy"})}catch(e){}}
+function teamStatus(){return T.filter(p=>!p.real).map(p=>`${p.name} (${p.role}): ${p.task}`).join("\n")}
+(async()=>{
+  const d=await getDict(); if(d){mic.hidden=false;
+    d.onFinal(({text})=>{if(text)sayBox.value=(sayBox.value?sayBox.value+" ":"")+text});
+    d.onState(({state})=>{mic.textContent=state==="idle"?"تكلمي":"وقّفي"});}
+  const t=await getTts(); if(!t) tnote.textContent="الصوت يشتغل من متصفح قوقل كروم أو تطبيق Claude على الكمبيوتر. بالجوال تطلع الردود مكتوبة.";
+  const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
+  if(!db){tnote.textContent="افتحي الطابق من حسابج عشان تكلمين شمّا.";sendS.disabled=true;return}
+  inboxRef=db.collection("inbox");
+  inboxRef.orderBy("at","asc").limit(60).onSnapshot(qs=>{
+    thread.textContent="";bubble("them","أنا شمّا، قولي لي اللي تبينه وأنا أوصله للفريق.");
+    for(const doc of qs.docs){const m=doc.data()||{};
+      if(m.from==="shamma"){bubble("them",m.text||"","شمّا:");continue}
+      bubble("me",m.text||"");
+      if(m.quick)bubble("them",m.quick,"شمّا:");
+      if(m.reply){bubble("them",m.reply,"شمّا (بعد ما خلص الفريق):");
+        if(!spokenReplies.has(doc.id)){spokenReplies.add(doc.id);if(!firstInbox)speakShamma(m.reply);else{lastShamma=m.reply;listen.hidden=false}}}
+    }
+    if(firstInbox)qs.docs.forEach(d=>{const m=d.data()||{};if(m.from==="shamma"){lastShamma=m.text;listen.hidden=false}});
+    firstInbox=false;thread.scrollTop=thread.scrollHeight;
+  },()=>{tnote.textContent="ما قدرت أحمّل المحادثة الحين."});
+})();
+mic.onclick=()=>{getDict().then(d=>{if(!d)return;if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}})};
+// keep the mic call synchronous inside the click when the namespace is already resolved
+getDict().then(d=>{if(d)mic.onclick=()=>{if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}}});
+listen.onclick=()=>{if(lastShamma)speakShamma(lastShamma)};
+sendS.onclick=async()=>{
+  const text=sayBox.value.trim();if(!text||!inboxRef)return;sayBox.value="";sendS.disabled=true;
+  try{
+    const ref=await inboxRef.add({at:Date.now(),text,status:"new"});
+    const s=await getSample();let quick="وصلني، بوصله للفريق وأرد عليج.";
+    if(s){try{const r=await s(`${CONTEXT}\nأنت شمّا، سكرتيرة شيماء والوحيدة اللي تكلمها. ردّي بجملة أو جملتين بس، بصوت هادي ومختصر. إذا كلامها طلب شغل أو قرار، قولي لها إنج وصلتيه للفريق وبترجعين لها أول ما يخلص ولا تدّعين إنه خلص. إذا سؤال عن الوضع، جاوبي من هالمعلومات بس:\nحالة الفريق:\n${teamStatus()}\nاجتماع اليوم: ${JSON.stringify(meetingData||{})}\nكلام شيماء: ${text}`,{modelTier:"quick",cache:false});quick=r.text.trim()||quick}catch(e){}}
+    await ref.update({quick});
+    speakShamma(quick);
+  }catch(e){tnote.textContent="ما وصلت الرسالة، جربي مرة ثانية."}
+  sendS.disabled=false;
+};
 (async()=>{
   const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
   if(!db)return;
