@@ -157,6 +157,18 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 .overlay .p.talk .bub{opacity:1;transform:translateX(-50%) scale(1)}
 .overlay .p:focus-visible .card{outline:2px solid var(--brass)}
 .overlay .zl{position:absolute;left:0;top:0;font-family:var(--display);font-size:15px;color:var(--c);background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);border-radius:999px;padding:1px 12px;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+.overlay .p .mood{font-size:20px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));background:color-mix(in srgb,var(--card) 80%,transparent);border-radius:999px;padding:3px 4px}
+.overlay .p.real .mood{font-size:14px}
+.overlay .p .pop{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);flex-direction:column;align-items:flex-start;gap:2px;min-width:170px;max-width:230px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.16);text-align:right}
+.overlay .p.open .pop{display:flex}
+.overlay .p.open{z-index:99999!important}
+.overlay .p .pop .name{font-size:15px}
+.overlay .p .pop .rl{font-size:12px;max-width:none;white-space:normal}
+.overlay .p .pop .ml{font-size:12px;background:var(--brass-soft);border-radius:999px;padding:0 8px}
+.overlay .p .pop .tk{font-size:12px;color:var(--ink);white-space:normal;line-height:1.5}
+.overlay .p .pop .more{font-size:12px;color:var(--brass);text-decoration:underline;cursor:pointer}
+.overlay .p .bub,.overlay .p .typing,.overlay .p .card{display:none!important}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12.5px;color:var(--muted);padding:2px 4px 8px}
 </style>
 
 <div class="wrap" dir="rtl">
@@ -173,7 +185,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 
   <div class="main">
     <section class="stage" aria-label="المكتب">
-      <div class="viewport" id="vp"><div class="overlay" id="floor"></div></div>
+      <div class="legend" id="legend"></div><div class="viewport" id="vp"><div class="overlay" id="floor"></div></div>
     </section>
     <aside class="log" aria-labelledby="log-h">
       <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
@@ -335,11 +347,11 @@ function makeFigure(p,i){
   const badge=new THREE.Mesh(new THREE.SphereGeometry(.07,10,8),M(0xffffff,{emissive:new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue("--brass").trim()||"#A8834B"),emissiveIntensity:.4}));badge.position.set(.1,.85,-.24);g.add(badge);
   g.scale.setScalar(1.35);g.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(g);return g}
 const SEAT={},DESK={};
-function setDesk(p){const d=DESK[p.id];if(d){const c={work:0x5DA9C9,team:0x5DA9C9,wait:0xE0A93C,stop:0x9B3030}[p.st];d.scr.material.emissive.setHex(c||0x000000);d.scr.material.emissiveIntensity=c?.9:0}
+function setDesk(p){if(!p.el)return;const d=DESK[p.id];if(d){const c={work:0x5DA9C9,team:0x5DA9C9,wait:0xE0A93C,stop:0x9B3030}[p.st];d.scr.material.emissive.setHex(c||0x000000);d.scr.material.emissiveIntensity=c?.9:0}
   p.el.classList.toggle("typingon",p.st==="work"&&!p.busy)}
 function place(p,x,y,instant){p.x=x;p.y=y;p.target={x:WX(x),z:WZ(y)};if(instant||!p.pos){p.pos={x:p.target.x,z:p.target.z};p.from={...p.pos};p.t0=0}else{p.from={x:p.pos.x,z:p.pos.z};p.t0=performance.now()}}
 async function walk(p,x,y){p.el.classList.add("walk");p.el.classList.remove("typingon");place(p,x,y);await sleep(reduce?50:1950);p.el.classList.remove("walk")}
-async function say(p,text,ms=3200){p.el.querySelector(".bub").textContent=text;p.el.classList.add("talk");await sleep(ms);p.el.classList.remove("talk")}
+async function say(p,text,ms=3200){await sleep(ms)} /* owner: no speech bubbles on the floor; talk shows in the side log */
 // seats from the same floor plan
 for(const k of ["mkt","sec","ops","sales","sys"]){
   const z=Z[k],staff=T.filter(p=>p.z===k),cols=z.cols,rows=Math.ceil(staff.length/cols);
@@ -347,11 +359,22 @@ for(const k of ["mkt","sec","ops","sales","sys"]){
   staff.forEach((p,i)=>{const c=cols-1-(i%cols),r=Math.floor(i/cols);const cx=z.x+cw*c+cw/2,cy=z.y+40+rh*r+Math.min(rh,150)/2-10;SEAT[p.id]={x:cx,y:cy+30}; p.deskXY={x:cx,y:cy}});
 }
 if(HAS3D)initScene(); else floor.insertAdjacentHTML("beforeend",'<p class="note" style="padding:20px">ما قدرت أحمّل العرض الثلاثي الأبعاد، جربي تحدّثين الصفحة.</p>');
+const MOODS={happy:["😊","مستانس"],sad:["😞","زعلان"],busy:["💻","مشغول"],stressed:["😰","مضغوط"],free:["☕","فري"],need:["🙋","محتاج شي"]};
+const MOOD={shamma:"happy",hamdan:"busy",maitha:"busy",kafu:"busy",mahra:"stressed",majid:"free",saeed:"busy",sheikha:"free",hessa:"free",matar:"free",nouf:"free",dhiab:"need",sultan:"busy",khalifa:"free"};
+(()=>{const L=document.getElementById("legend");for(const [k,[e,t]] of Object.entries({happy:["😊","مستانس"],busy:["💻","مشغول"],stressed:["😰","مضغوط"],need:["🙋","محتاج شي"],free:["☕","فري"],sad:["😞","زعلان"]})){const s=document.createElement("span");s.textContent=e+" "+t;L.appendChild(s)}const r=document.createElement("span");r.textContent="✨ الفريق الحقيقي · اضغطي على أي واحد تعرفين اسمه وشغله";L.appendChild(r)})();
+const moodOf=p=>p.real?null:(MOOD[p.id]||{work:"busy",wait:"need",stop:"stressed"}[p.st]||"free");
+function closePops(except){T.forEach(q=>{if(q!==except)q.el.classList.remove("open")})}
+document.addEventListener("pointerdown",e=>{if(!e.target.closest(".overlay .p"))closePops()});
 T.forEach((p,i)=>{
-  const z=Z[p.z];
-  p.el=add(`<button type="button" class="p ${p.real?"real":""}" aria-label="${esc(p.name)}، ${esc(p.role)}" style="--c:${z.c};--s:${ST[p.st].c}">
-    <span class="card"><span class="st"></span><b class="name">${esc(p.name)}</b><span class="rl">${esc(p.role)}</span></span><span class="typing"><i></i><i></i><i></i></span><span class="bub"></span></button>`);
-  p.el.onclick=()=>openPerson(p);
+  const z=Z[p.z],md=moodOf(p),mi=md?MOODS[md]:null;
+  const busy=md==="busy"||md==="stressed"||md==="need";
+  p.el=add(`<button type="button" class="p ${p.real?"real":""}" aria-label="${esc(p.name)}، ${esc(p.role)}${mi?"، "+mi[1]:""}" style="--c:${z.c};--s:${ST[p.st].c}">
+    <span class="mood" aria-hidden="true">${mi?mi[0]:"✨"}</span>
+    <span class="pop"><b class="name">${esc(p.name)}</b><span class="rl">${esc(p.role)}</span>
+      <span class="ml">${mi?mi[0]+" "+mi[1]:"من الفريق الحقيقي"}</span>
+      <span class="tk">${p.real?esc(p.task):(busy?"شغله الحين: ":"ما عنده شغل الحين. ")+esc(p.task)}</span>
+      <span class="more">تفاصيل</span></span><span class="bub"></span></button>`);
+  p.el.onclick=e=>{if(e.target.closest(".more")){openPerson(p);return}const o=!p.el.classList.contains("open");closePops(p);p.el.classList.toggle("open",o)};
   if(HAS3D){DESK[p.id]=deskAt(WX(p.deskXY.x),WZ(p.deskXY.y),p);p.fig=makeFigure(p,i)}
   place(p,SEAT[p.id].x,SEAT[p.id].y,true);setDesk(p);
 });
@@ -423,7 +446,7 @@ director();setTimeout(director,1500);setInterval(director,reduce?7000:4200);
 
 /* ---- the owner's meeting with the secretary (data written by Claude into the page's store) ---- */
 const SHAIMA={id:"shaima",z:"meet",g:"f",real:1,name:"شيماء",role:"المالكة",st:"team",task:"",does:[]};
-SHAIMA.el=add(`<div class="p real" aria-hidden="true" style="--c:var(--brass);--s:var(--brass);display:none"><span class="card"><span class="st"></span><b class="name">شيماء</b><span class="rl">المالكة</span></span><span class="typing"></span><span class="bub"></span></div>`);
+SHAIMA.el=add(`<div class="p real" aria-hidden="true" style="--c:var(--brass);--s:var(--brass);display:none"><span class="mood">⭐</span><span class="bub"></span></div>`);
 let meetingData=null,meetingBusy=false;
 const todayDubai=()=>new Date(Date.now()+4*3600e3).toISOString().slice(0,10);
 function meetingLines(m){return [...(m.done||[]).map(t=>["خلص",t]),...(m.doing||[]).map(t=>["شغالين",t]),...(m.ask||[]).map(t=>["يحتاج ردّج",t])]}
