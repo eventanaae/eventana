@@ -1,0 +1,302 @@
+<title>مكتب شيماء</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+/* Layout: a top-down architectural floor plan — four business wings around a glass meeting room; approvals sit in a strip above the plan, everything on one screen, no tabs. */
+:root{
+  --ground:#EEF1F4;        /* polished stone floor */
+  --plan:#F8F9FB;          /* room floor */
+  --ink:#16223A;           /* deep navy text */
+  --muted:#5D6880;
+  --brass:#A8834B;         /* walls, rings, accents */
+  --brass-soft:#E9DFCC;
+  --glass:rgba(120,160,190,.14);
+  --card:#FFFFFF;
+  --line:#D9DEE6;
+  --ok:#2E9A6B; --wait:#C98A1B; --stop:#C24D4D; --idle:#9AA3B2;
+  --ev:#7A2E64;  /* إيفنتانا */
+  --mz:#1F7A80;  /* مذاكرتي */
+  --od:#3F5BA9;  /* أودلي */
+  --mt:#C0761F;  /* مطبخي */
+  --hq:#16223A;
+  --display:"El Messiri","Noto Kufi Arabic",serif;
+  --body:"IBM Plex Sans Arabic","Noto Sans Arabic",system-ui,sans-serif;
+  --shadow:0 10px 30px -18px rgba(22,34,58,.45);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --ground:#0E1524;--plan:#141D30;--ink:#EEF1F6;--muted:#9AA6BC;--brass:#CFAE73;--brass-soft:#3A3323;
+  --glass:rgba(120,170,210,.10);--card:#1A2438;--line:#2A3650;--idle:#6C778C;
+  --ev:#C46BA8;--mz:#3FB3B9;--od:#7D97E6;--mt:#E3A04E;--hq:#CFAE73;--shadow:0 12px 30px -16px rgba(0,0,0,.7);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0E1524;--plan:#141D30;--ink:#EEF1F6;--muted:#9AA6BC;--brass:#CFAE73;--brass-soft:#3A3323;
+  --glass:rgba(120,170,210,.10);--card:#1A2438;--line:#2A3650;--idle:#6C778C;
+  --ev:#C46BA8;--mz:#3FB3B9;--od:#7D97E6;--mt:#E3A04E;--hq:#CFAE73;--shadow:0 12px 30px -16px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:8px}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.brand h1{font-size:clamp(30px,4vw,44px);letter-spacing:.2px}
+.brand p{margin:2px 0 0;color:var(--muted)}
+.clock{font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums;color:var(--brass)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px}
+.chip b{font-variant-numeric:tabular-nums}
+
+/* approvals */
+.inbox{display:flex;flex-direction:column;gap:10px}
+.inbox-head{display:flex;align-items:baseline;gap:10px}
+.inbox-head h2{font-size:20px}
+.inbox-head span{color:var(--muted);font-size:13px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ask{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+.ask::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--c)}
+.ask .who{font-size:12px;color:var(--muted)}
+.ask .what{font-weight:600}
+.ask .how{font-size:13px;color:var(--muted)}
+
+/* floor plan */
+.floor{background:var(--plan);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow);
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:44px 44px;background-position:-1px -1px}
+.plan{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"ev mz" "meet meet" "od mt";gap:16px}
+.room{background:var(--plan);border:2px solid var(--brass);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px;position:relative}
+.room::after{content:"";position:absolute;top:-2px;inset-inline-start:28px;width:54px;height:2px;background:var(--plan)} /* door gap */
+.room-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.room-h h3{font-size:20px;color:var(--c)}
+.room-h small{color:var(--muted);font-size:12px}
+.desks{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.desk{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  transition:transform .15s ease,box-shadow .15s ease;color:var(--ink)}
+.desk:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.desk .monitor{width:46px;height:5px;border-radius:3px;background:var(--line)}
+.medal{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-size:22px;color:#fff;background:var(--c);
+  box-shadow:0 0 0 3px var(--card),0 0 0 5px var(--brass);position:relative}
+.dot{position:absolute;bottom:0;inset-inline-end:-2px;width:14px;height:14px;border-radius:50%;border:2px solid var(--card);background:var(--s)}
+.dot.live{animation:pulse 1.8s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--s) 60%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.desk .nm{font-weight:600;line-height:1.2}
+.desk .rl{font-size:12px;color:var(--muted);line-height:1.3}
+.desk .tk{font-size:12px;background:color-mix(in srgb,var(--s) 12%,transparent);color:var(--ink);border-radius:8px;padding:4px 8px;width:100%;line-height:1.4}
+.desk.empty{border-style:dashed;background:transparent;opacity:.85}
+.desk.empty .medal{background:transparent;color:var(--c);box-shadow:0 0 0 2px var(--c)}
+.plant{position:absolute;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#7FB77E,#3E7D4A);inset-block-end:8px;inset-inline-end:8px}
+
+/* meeting room */
+.meet{grid-area:meet;background:var(--glass);border:2px solid var(--brass);border-radius:16px;padding:14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:24px;backdrop-filter:blur(2px)}
+.table{width:150px;height:84px;border-radius:50%;background:var(--brass-soft);border:2px solid var(--brass);position:relative;flex:none}
+.table i{position:absolute;width:16px;height:16px;border-radius:50%;background:var(--card);border:2px solid var(--brass)}
+.meet-txt{display:flex;flex-direction:column;gap:6px;max-width:420px}
+.meet-txt h3{font-size:22px}
+.meet-txt p{margin:0;color:var(--muted);font-size:14px}
+.btn{background:var(--ink);color:var(--ground);border:0;border-radius:999px;padding:10px 20px;font-weight:600;font-size:15px}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+
+/* drawer & dialog */
+.scrim{position:fixed;inset:0;background:rgba(10,16,28,.45);z-index:20}
+.panel{position:fixed;z-index:21;inset-block:0;inset-inline-end:0;width:min(440px,100%);background:var(--card);border-inline-start:1px solid var(--line);
+  padding:calc(20px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) 20px;
+  overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.panel .x{align-self:flex-start;background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:4px 12px}
+.who-h{display:flex;align-items:center;gap:14px}
+.who-h h2{font-size:24px}
+.sec{display:flex;flex-direction:column;gap:6px}
+.sec h4{margin:0;font-size:12px;letter-spacing:.3px;color:var(--muted);font-weight:600}
+.sec ul{margin:0;padding-inline-start:18px}
+.status-pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;border-radius:999px;padding:2px 10px;background:color-mix(in srgb,var(--s) 15%,transparent);color:var(--ink)}
+.status-pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--s)}
+textarea,input{width:100%;font-family:inherit;font-size:15px;color:var(--ink);background:var(--plan);border:1px solid var(--line);border-radius:12px;padding:10px 12px;resize:vertical}
+.chat{display:flex;flex-direction:column;gap:8px}
+.msg{border-radius:12px;padding:8px 12px;font-size:14px;white-space:pre-wrap}
+.msg.me{background:var(--brass-soft);align-self:flex-start}
+.msg.them{background:var(--plan);border:1px solid var(--line)}
+.note{font-size:12px;color:var(--muted)}
+.picks{display:flex;flex-wrap:wrap;gap:6px}
+.pick{border:1px solid var(--line);background:var(--plan);color:var(--ink);border-radius:999px;padding:4px 12px;font-size:13px}
+.pick[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.minutes{display:flex;flex-direction:column;gap:10px}
+.turn{display:flex;gap:10px;align-items:flex-start}
+.turn .medal{width:36px;height:36px;font-size:16px;flex:none;box-shadow:0 0 0 2px var(--card),0 0 0 3px var(--brass)}
+.turn div{background:var(--plan);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px}
+.summary{background:var(--brass-soft);border-radius:12px;padding:10px 14px;font-size:14px}
+
+@media (max-width:760px){.plan{grid-template-columns:1fr;grid-template-areas:"ev" "meet" "mz" "od" "mt"}}
+@media (prefers-reduced-motion:reduce){.dot.live{animation:none}.desk{transition:none}}
+</style>
+
+<div class="wrap" dir="rtl">
+  <header class="top">
+    <div class="brand">
+      <h1>مكتب شيماء</h1>
+      <p>أربع شركات، فريق واحد، وكل شي قدامج بنظرة وحدة</p>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="clock" id="clock" aria-live="off"></div>
+  </header>
+
+  <section class="inbox" aria-labelledby="inbox-h">
+    <div class="inbox-head"><h2 id="inbox-h">ينتظرون ردّج</h2><span>ردّي علي بالمحادثة وأنا أنفّذ</span></div>
+    <div class="cards" id="asks"></div>
+  </section>
+
+  <section class="floor" aria-label="مخطط المكتب">
+    <div class="plan" id="plan"></div>
+  </section>
+</div>
+
+<div id="layer"></div>
+
+<script>
+const S={work:{t:"شغّال",c:"var(--ok)",live:true},wait:{t:"ينتظرج",c:"var(--wait)",live:true},stop:{t:"متوقف",c:"var(--stop)"},idle:{t:"متفرغ",c:"var(--idle)"}};
+const BIZ=[
+ {id:"ev",name:"إيفنتانا",tag:"حفلات أطفال · الإمارات",c:"var(--ev)",area:"ev"},
+ {id:"mz",name:"مذاكرتي",tag:"منصة مذاكرة",c:"var(--mz)",area:"mz"},
+ {id:"od",name:"أودلي",tag:"المكاتب جاهزة",c:"var(--od)",area:"od"},
+ {id:"mt",name:"مطبخي",tag:"المكاتب جاهزة",c:"var(--mt)",area:"mt"},
+];
+const TEAM=[
+ {id:"sanad",biz:"hq",name:"سند",role:"مدير المكتب",c:"var(--hq)",st:"work",
+  task:"يرتّب المكتب الجديد ويوزّع الشغل",
+  does:["ينسّق بين كل الموظفين والشركات","يرفع لج اللي يحتاج قرارج","يتابع التكاليف ويقول لج قبل أي صرف كبير"],
+  rules:["ما يرسل لأي عميل بدون موافقتج","ما يدخل كلمات سر ولا بيانات بطاقات"]},
+ {id:"kafu",biz:"ev",name:"كفو",role:"المخرج الإبداعي وصانع المحتوى",st:"wait",
+  task:"ريل الحديقة بميكي جاهز بنسختين",
+  does:["يكتب ويخرج الريلات والإعلانات","يسوي الصور والفيديوهات بالذكاء الاصطناعي","يراجع ريلاته السابقة قبل كل ريل جديد"],
+  rules:["ما يغيّر ثيم الحفلة ولا يشيل أي شخصية","المهرج ما يتكلم، وحورية البحر فلبينية بلبس محتشم","ما فيه كيك، بس ستاندات الكيك","ما يكتب «خلفية»، يقول «ستاند بالون رئيسي فخم»"]},
+ {id:"rashid",biz:"ev",name:"راشد",role:"مدير الإعلانات",st:"wait",
+  task:"إعلان أورانوس جاهز وينتظر قرارج",
+  does:["يدير إعلانات انستقرام","يحلل الأرقام ثانية بثانية","يقترح الميزانية والجمهور"],
+  rules:["الميزانية 2,000 درهم بالشهر لكل الحملات","انستقرام بس","يقول لج قبل أي زيادة بالميزانية","ما يعتمد على ريل الجندر ريفيل كمقياس"]},
+ {id:"maryam",biz:"ev",name:"مريم",role:"مسؤولة الستوري",st:"stop",
+  task:"النشر التلقائي متوقف من هالجلسة",
+  does:["تحلل الستوري كل ليلة","تنزّل 10 ستوريات مترابطة الساعة 10 الصبح"],
+  rules:["بدون صور معدّلة بفيس آب","اللوقو الملوّن بس"]},
+ {id:"fahad",biz:"ev",name:"فهد",role:"مسؤول الجودة والموقع",st:"wait",
+  task:"تحديث الموقع رقم 100 ينتظر «موافقة»",
+  does:["يفحص موقع الحجز ولوحة التشغيل","يصلّح الأخطاء بأمان","ما يدمج أي تحديث بدون موافقتج"],
+  rules:["ما يكمل أي دفع حقيقي","ما يلمس بيانات العملاء"]},
+ {id:"kafu2",biz:"mz",name:"كفو ونص",role:"مدير النمو والتسويق",st:"idle",
+  task:"جاهز لخطة الأسبوع الجاية",
+  does:["خطة النشر والريلات","إعلانات ميتا والقمع والروابط","يقيس الأرقام ويطلب من كفو فيديوهات"],
+  rules:["يشتغل مع كفو، ما يحل محله"]},
+];
+const SUGGEST={od:["صانع محتوى","مدير إعلانات","خدمة عملاء"],mt:["مصوّر أكل","صانع محتوى","مدير الطلبات"]};
+const ASKS=[
+ {who:"kafu",what:"ريل الحديقة",how:"نسختين بميكي: أي بداية ننزّل أول؟"},
+ {who:"kafu",what:"إعلان «أنقذوا عيد ميلاد سيف»",how:"أبدأ؟ حوالي 3,500 نقطة"},
+ {who:"rashid",what:"إعلان أورانوس",how:"الرد بالتعليقات ولا الواتساب؟ ممول ولا عادي؟"},
+ {who:"fahad",what:"تحديث الموقع رقم 100",how:"أدمجه؟ يحتاج كلمة «موافقة»"},
+ {who:"maryam",what:"النشر التلقائي",how:"نفتح جلسة جديدة عشان يرجع يشتغل؟"},
+];
+const bizOf=id=>BIZ.find(b=>b.id===id);
+const colorOf=p=>p.c||(bizOf(p.biz)||{}).c;
+const el=(h)=>{const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild};
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+
+function medal(p,small){return `<span class="medal" style="--c:${colorOf(p)}">${esc(p.name[0])}${small?"":`<span class="dot ${S[p.st].live?"live":""}" style="--s:${S[p.st].c}"></span>`}</span>`}
+
+function render(){
+  const cnt=k=>TEAM.filter(p=>p.st===k).length;
+  document.getElementById("chips").innerHTML=
+   `<span class="chip">الموظفين <b>${TEAM.length}</b></span><span class="chip" style="--s:var(--ok)">شغّالين <b>${cnt("work")}</b></span><span class="chip">ينتظرونج <b>${ASKS.length}</b></span>`;
+  document.getElementById("asks").innerHTML=ASKS.map(a=>{const p=TEAM.find(t=>t.id===a.who);const b=bizOf(p.biz);
+   return `<article class="ask" style="--c:${colorOf(p)}"><span class="who">${esc(b?b.name:"الإدارة")} · ${esc(p.name)}</span><span class="what">${esc(a.what)}</span><span class="how">${esc(a.how)}</span></article>`}).join("");
+  const plan=document.getElementById("plan");plan.innerHTML="";
+  BIZ.forEach(b=>{
+    const staff=TEAM.filter(p=>p.biz===b.id);
+    const room=el(`<section class="room" style="grid-area:${b.area};--c:${b.c}" aria-label="${esc(b.name)}"><div class="room-h"><h3>${esc(b.name)}</h3><small>${esc(b.tag)}</small></div><div class="desks"></div><span class="plant"></span></section>`);
+    const desks=room.querySelector(".desks");
+    staff.forEach(p=>desks.appendChild(deskEl(p)));
+    (SUGGEST[b.id]||[]).forEach(r=>desks.appendChild(el(`<div class="desk empty" style="--c:${b.c}"><span class="monitor"></span><span class="medal">+</span><span class="nm">${esc(r)}</span><span class="rl">مقترح · نعيّنه بعد ما تعرّفيني على ${esc(b.name)}</span></div>`)));
+    plan.appendChild(room);
+  });
+  const sanad=TEAM.find(p=>p.id==="sanad");
+  const meet=el(`<section class="meet" style="grid-area:meet"><div class="table">${[[8,-8],[66,-10],[124,-8],[8,76],[66,78],[124,76]].map(([x,y])=>`<i style="left:${x}px;top:${y}px"></i>`).join("")}</div>
+   <div class="meet-txt"><h3>غرفة الاجتماعات</h3><p>اكتبي فكرة، اختاري مين يحضر، وكل موظف يعطيج رايه من تخصصه، وسند يطلع لج الخلاصة.</p>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="startMeet">ابدئي اجتماع</button></div></div></section>`);
+  const sd=deskEl(sanad);sd.style.maxWidth="170px";meet.prepend(sd);
+  plan.appendChild(meet);
+  document.getElementById("startMeet").onclick=openMeeting;
+}
+function deskEl(p){
+  const d=el(`<button class="desk" type="button"><span class="monitor"></span>${medal(p)}<span class="nm">${esc(p.name)}</span><span class="rl">${esc(p.role)}</span><span class="tk" style="--s:${S[p.st].c}">${esc(p.task)}</span></button>`);
+  d.onclick=()=>openPerson(p);return d;
+}
+
+/* ---- Claude sampling (optional; page works without it) ---- */
+let samplePromise=null;
+function getSample(){ if(!samplePromise) samplePromise=(window.claude&&window.claude.use)?window.claude.use("sample").catch(()=>null):Promise.resolve(null); return samplePromise; }
+const CONTEXT=`أنت موظف في مكتب افتراضي لشيماء، صاحبة إيفنتانا (حفلات أطفال في الإمارات)، ومذاكرتي، وأودلي، ومطبخي. تكلم باللهجة الخليجية فقط، بدون أي كلمة إنجليزية، بجمل قصيرة وواضحة. لا تخترع أرقام أو حقائق ما تعرفها، قل «أحتاج أتأكد». قواعد إيفنتانا: ما فيه كيك (بس ستاندات كيك)، ما نقول «خلفية» نقول «ستاند بالون رئيسي فخم»، المهرج ما يتكلم، حورية البحر فلبينية بلبس محتشم، اللوقو الملون بس، ميزانية الإعلانات 2,000 درهم بالشهر، ما نغير ثيم الحفلة. التنفيذ الفعلي يصير لما شيماء ترد بالمحادثة الرئيسية.`;
+
+function closeLayer(){document.getElementById("layer").innerHTML=""}
+function shell(inner){
+  const L=document.getElementById("layer");
+  L.innerHTML=`<div class="scrim"></div><aside class="panel" role="dialog" aria-modal="true"><button class="x" type="button">إغلاق</button>${inner}</aside>`;
+  L.querySelector(".scrim").onclick=closeLayer;L.querySelector(".x").onclick=closeLayer;
+  document.addEventListener("keydown",function k(e){if(e.key==="Escape"){closeLayer();document.removeEventListener("keydown",k)}});
+  return L.querySelector(".panel");
+}
+function openPerson(p){
+  const b=bizOf(p.biz);
+  const P=shell(`<div class="who-h">${medal(p,true)}<div><h2>${esc(p.name)}</h2><div class="note">${esc(p.role)} · ${esc(b?b.name:"الإدارة")}</div></div></div>
+   <div class="sec"><h4>الحين</h4><div><span class="status-pill" style="--s:${S[p.st].c}">${S[p.st].t}</span></div><div>${esc(p.task)}</div></div>
+   <div class="sec"><h4>شغله</h4><ul>${p.does.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+   <div class="sec"><h4>قواعده</h4><ul>${p.rules.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+   <div class="sec"><h4>اسأليه</h4><div class="chat" id="chat"></div>
+     <textarea id="q-${p.id}" rows="2" placeholder="مثلاً: شو رايك نسوي ريل عن…"></textarea>
+     <div><button class="btn" id="send" type="button">أرسلي</button></div>
+     <div class="note" id="sn">رد سريع للمشورة. أي تنفيذ أو صرف يصير بعد ما تردين علي بالمحادثة.</div></div>`);
+  const chat=P.querySelector("#chat"),q=P.querySelector("textarea"),send=P.querySelector("#send"),note=P.querySelector("#sn");
+  getSample().then(s=>{if(!s){note.textContent="الدردشة تشتغل لما تفتحين الصفحة من حسابج في Claude.";send.disabled=true}});
+  send.onclick=async()=>{
+    const text=q.value.trim();if(!text)return;q.value="";
+    chat.appendChild(el(`<div class="msg me">${esc(text)}</div>`));
+    const out=el(`<div class="msg them">يفكّر…</div>`);chat.appendChild(out);send.disabled=true;
+    try{const s=await getSample();
+      const r=await s(`${CONTEXT}\nأنت ${p.name}، ${p.role}${b?" في "+b.name:""}. شغلك: ${p.does.join("، ")}. قواعدك: ${p.rules.join("، ")}. شغلك الحالي: ${p.task}.\nشيماء تسألك: ${text}\nرد عليها بأقل من 80 كلمة.`,{modelTier:"quick",cache:false,onText:({text})=>{out.textContent=text}});
+      out.textContent=r.text;
+    }catch(e){out.textContent=e&&e.code==="rate_limited"?"الطلبات كثيرة شوي، جربي بعد دقيقة.":"ما قدرت أرد الحين."}
+    send.disabled=false;
+  };
+}
+function openMeeting(){
+  const people=TEAM.slice();
+  const P=shell(`<h2>اجتماع جديد</h2>
+   <div class="sec"><h4>الفكرة</h4><textarea id="idea" rows="3" placeholder="مثلاً: نسوي إعلان «أنقذوا عيد ميلاد سيف» بالكرتون"></textarea></div>
+   <div class="sec"><h4>مين يحضر</h4><div class="picks">${people.map(p=>`<button type="button" class="pick" data-id="${p.id}" aria-pressed="${p.biz==="ev"||p.id==="sanad"}">${esc(p.name)}</button>`).join("")}</div></div>
+   <div><button class="btn" id="go" type="button">ابدأوا الاجتماع</button></div>
+   <div class="note" id="mn">كل واحد يعطي رايه من تخصصه، والقرار لج.</div>
+   <div class="minutes" id="min"></div>`);
+  P.querySelectorAll(".pick").forEach(b=>b.onclick=()=>b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true"));
+  const go=P.querySelector("#go"),min=P.querySelector("#min"),note=P.querySelector("#mn");
+  getSample().then(s=>{if(!s){note.textContent="الاجتماع يشتغل لما تفتحين الصفحة من حسابج في Claude.";go.disabled=true}});
+  go.onclick=async()=>{
+    const idea=P.querySelector("#idea").value.trim();if(!idea)return;
+    const sel=[...P.querySelectorAll('.pick[aria-pressed="true"]')].map(b=>TEAM.find(t=>t.id===b.dataset.id));
+    if(!sel.length)return;
+    min.innerHTML=`<div class="note">الفريق يتناقش…</div>`;go.disabled=true;
+    try{const s=await getSample();
+      const roster=sel.map(p=>`- ${p.name} (${p.role}): ${p.does.join("، ")}`).join("\n");
+      const res=await s.json(`${CONTEXT}\nهذا اجتماع. الحضور:\n${roster}\nفكرة شيماء: ${idea}\nكل واحد يعطي رايه من تخصصه بجملتين أو ثلاث، وبعدها سند يكتب خلاصة وقرارات مقترحة تحتاج موافقتها. رجّع JSON بالشكل: {"turns":[{"name":"...","text":"..."}],"summary":"..."} وبدون أي نص ثاني.`,{modelTier:"default"});
+      min.innerHTML="";
+      (res.turns||[]).forEach(t=>{const p=TEAM.find(x=>x.name===t.name)||{name:t.name||"؟",c:"var(--brass)"};
+        min.appendChild(el(`<div class="turn">${medal(p,true)}<div><b>${esc(p.name)}</b><br>${esc(t.text||"")}</div></div>`))});
+      if(res.summary)min.appendChild(el(`<div class="summary"><b>خلاصة سند</b><br>${esc(res.summary)}</div>`));
+    }catch(e){min.innerHTML=`<div class="note">${e&&e.code==="rate_limited"?"الطلبات كثيرة شوي، جربي بعد دقيقة.":"ما قدرنا نكمل الاجتماع الحين."}</div>`}
+    go.disabled=false;
+  };
+}
+function tick(){const d=new Date();document.getElementById("clock").textContent=d.toLocaleTimeString("ar-AE",{hour:"numeric",minute:"2-digit",timeZone:"Asia/Dubai"})+" · "+d.toLocaleDateString("ar-AE",{weekday:"long",day:"numeric",month:"long",timeZone:"Asia/Dubai"})}
+render();tick();setInterval(tick,30000);
+</script>
