@@ -14,9 +14,12 @@ import { pool } from '../db/pool.js';
 import { safeEqual } from '../payments/provider.js';
 
 const REPORT_KEY_SHA256 = 'd7adf93428c04153d718ec5a4d1084a9c5b78e63be712d392de4edf49b112ed9';
+const OFFICE_KEY_SHA256 = '7aea653830487eb7c8005bc03c32942b0ede599427388a205112a31d22972653';
 
 function keyOk(given: string | undefined): boolean {
   const envKey = process.env.MARKETING_REPORT_KEY;
+  // A separate key only for the owner's virtual office sync (only its SHA-256 lives here).
+  if (!!given && safeEqual(createHash('sha256').update(given).digest('hex'), OFFICE_KEY_SHA256)) return true;
   return (!!envKey && envKey.length >= 24 && safeEqual(given, envKey))
     || (!!given && safeEqual(createHash('sha256').update(given).digest('hex'), REPORT_KEY_SHA256));
 }
