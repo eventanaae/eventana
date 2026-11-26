@@ -50,7 +50,7 @@ button{font-family:inherit;cursor:pointer}
 .main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
 .stage{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:12px;box-shadow:var(--shadow);overflow:hidden}
 .viewport{position:relative;width:100%}
-.floor{position:absolute;top:0;left:0;width:1200px;height:860px;transform-origin:top left;direction:ltr;
+.floor{position:absolute;top:0;left:0;width:1200px;height:1020px;transform-origin:top left;direction:ltr;
   background:var(--floor);border-radius:14px;
   background-image:repeating-linear-gradient(90deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px),
                    repeating-linear-gradient(0deg,transparent 0 59px,color-mix(in srgb,var(--line) 70%,transparent) 59px 60px)}
@@ -80,6 +80,9 @@ button{font-family:inherit;cursor:pointer}
 .p .name{position:absolute;top:76px;left:50%;transform:translateX(-50%);font-size:15px;font-weight:600;white-space:nowrap;direction:rtl;
   background:color-mix(in srgb,var(--card) 85%,transparent);padding:0 6px;border-radius:6px;color:var(--ink)}
 .p .st{position:absolute;right:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--s);border:2px solid var(--floor)}
+.p.x .body{background:var(--ev);border-color:rgba(0,0,0,.15)}
+.p.real .name{background:var(--brass-soft);outline:1px solid var(--brass)}
+.p.real .badge{background:var(--brass);border-color:var(--brass-soft)}
 .p.walk .fig{animation:bob .38s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(-3px)}}
 .p .typing{position:absolute;left:50%;top:-12px;transform:translateX(-50%);display:none;gap:3px}
@@ -148,15 +151,15 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 <div id="layer"></div>
 
 <script>
-const ST={work:{t:"شغّال",c:"var(--ok)"},wait:{t:"ينتظرج",c:"var(--wait)"},stop:{t:"متوقف",c:"var(--stop)"},idle:{t:"متفرغ",c:"var(--idle)"},new:{t:"ينتظر تعريف المشروع",c:"var(--idle)"}};
+const ST={team:{t:"فريق حقيقي",c:"var(--brass)"},soon:{t:"يبدأ بعد موافقتج",c:"var(--idle)"},work:{t:"شغّال",c:"var(--ok)"},wait:{t:"ينتظرج",c:"var(--wait)"},stop:{t:"متوقف",c:"var(--stop)"},idle:{t:"متفرغ",c:"var(--idle)"},new:{t:"ينتظر تعريف المشروع",c:"var(--idle)"}};
 const Z={ /* x,y,w,h on a 1200x860 floor */
-  ev:{name:"إيفنتانا",sub:"حفلات أطفال · الإمارات",c:"var(--ev)",x:600,y:24,w:576,h:400,cols:4},
-  mz:{name:"مذاكرتي",sub:"منصة مذاكرة",c:"var(--mz)",x:24,y:24,w:552,h:220,cols:4},
-  meet:{name:"غرفة الاجتماعات",sub:"زجاج",c:"var(--brass)",x:24,y:268,w:360,h:156},
-  cafe:{name:"الاستراحة",sub:"قهوة وسوالف",c:"var(--brass)",x:404,y:268,w:172,h:156},
-  hq:{name:"الإدارة",sub:"تنسيق وحسابات وأمان",c:"var(--hq)",x:24,y:452,w:372,h:384,cols:2},
-  od:{name:"أودلي",sub:"المكاتب جاهزة",c:"var(--od)",x:420,y:452,w:370,h:384,cols:2},
-  mt:{name:"مطبخي",sub:"المكاتب جاهزة",c:"var(--mt)",x:814,y:452,w:362,h:384,cols:2},
+  ev:{name:"إيفنتانا",sub:"العمليات والتسويق · الفريق الحقيقي بإطار ذهبي",c:"var(--ev)",x:24,y:24,w:1152,h:420,cols:9},
+  mz:{name:"مذاكرتي",sub:"منصة مذاكرة",c:"var(--mz)",x:24,y:470,w:552,h:220,cols:4},
+  meet:{name:"غرفة الاجتماعات",sub:"زجاج",c:"var(--brass)",x:600,y:470,w:360,h:220},
+  cafe:{name:"الاستراحة",sub:"قهوة وسوالف",c:"var(--brass)",x:984,y:470,w:192,h:220},
+  hq:{name:"الإدارة",sub:"تنسيق وحسابات وأمان",c:"var(--hq)",x:24,y:716,w:372,h:280,cols:2},
+  od:{name:"أودلي",sub:"المكاتب جاهزة",c:"var(--od)",x:420,y:716,w:370,h:280,cols:2},
+  mt:{name:"مطبخي",sub:"المكاتب جاهزة",c:"var(--mt)",x:814,y:716,w:362,h:280,cols:2},
 };
 const T=[
  // الإدارة
@@ -164,7 +167,16 @@ const T=[
  {id:"khalifa",z:"hq",g:"m",name:"خليفة",role:"المحاسب",st:"idle",task:"يتابع مصاريف الإعلانات والذكاء الاصطناعي",does:["يتابع ميزانية الإعلانات","يسجّل تكلفة كل فيديو وصورة","يطلع لج تقارير الحسابات"]},
  {id:"sultan",z:"hq",g:"m",name:"سلطان",role:"مسؤول الأمان",st:"work",task:"يحمي المفاتيح وبيانات العملاء",does:["ما أحد يدخل كلمات سر ولا بيانات بطاقات","المفاتيح ما تنشارك أبد","بيانات العملاء خاصة"]},
  {id:"alia",z:"hq",g:"f",name:"عليا",role:"أمينة الأرشيف",st:"work",task:"تحفظ كل الشغل عشان ما يضيع",does:["تحفظ الفيديوهات والصور بالأرشيف","ترتّب ملفات كل شركة","ترجع أي نسخة قديمة وقت الحاجة"]},
- // إيفنتانا
+ // إيفنتانا · الفريق الحقيقي
+ {id:"marsha",z:"ev",g:"f",real:1,name:"مارشا",role:"العمليات والتصميم",st:"team",task:"تصاميم كل حجز قبل الحفلة بخمس أيام",does:["قص الاسم والشخصيات بالكريكت","ورق الصحون وملصقات الماي","تصميم ستاند الدخول والستاند الرئيسي الفخم للثيمات الجديدة","تصميم الهدايا وطباعتها","تطبع بطابعتنا، والباقي ترسله للمطبعة بالواتساب","تمسك المكتب وتوافق على الإجازات وتدخل المصاريف"]},
+ {id:"dindo",z:"ev",g:"m",real:1,name:"دندو",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["الستاند الرئيسي الفخم","ستاندات الكيك","النطاطيات والفوم","مكينة الآيس كريم","البالونات"]},
+ {id:"diana",z:"ev",g:"f",real:1,name:"ديانا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["النطاطيات","البوبكورن وغزل البنات","ترتيب الطاولات","محطات الأكل","البالونات"]},
+ {id:"gloria",z:"ev",g:"f",real:1,name:"قلوريا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["أزياء الشخصيات","الطاولات والكراسي","السماعات والفوم","باديكير الأطفال"]},
+ {id:"jane",z:"ev",g:"f",real:1,name:"جين",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["تجهيز الرسم على الوجه","ستاند الدخول","ترتيب الطاولات والهدايا","الكاميرا الفورية","مانيكير الأطفال"]},
+ // إيفنتانا · الذكاء الاصطناعي
+ {id:"sheikha",z:"ev",g:"f",name:"شيخة",role:"مساعدة التصميم",st:"soon",task:"تجهّز لمارشا مسودات التصاميم",does:["أول ما ينأكد الحجز تجهّز مسودات بالاسم والثيم والألوان","ورق الصحون وملصقات الماي ولوحة الدخول والهدايا","مارشا تراجع وتعدّل بدال ما تبدأ من الصفر"]},
+ {id:"matar",z:"ev",g:"m",name:"مطر",role:"منسق الطباعة والموردين",st:"soon",task:"قائمة الطباعة كل صباح",does:["كل صباح: شو ينطبع بطابعتنا وشو يروح للمطبعة، ولأي حفلة، وآخر موعد","يجهّز رسالة الواتساب للمطبعة ومارشا ترسلها","يحط للفريق موعد الاستلام من المطبعة ويتابع","يتأكد إن كل مصروف عليه اسم المورد"]},
+ {id:"hamad",z:"ev",g:"m",name:"حمد",role:"مدقق الحفلات",st:"soon",task:"يدقق كل حفلة قبلها بيومين",does:["يقارن الحجز بالمهام والفريق","ينبّه مارشا لو شي ناقص أو تصميم متأخر"]},
  {id:"kafu",z:"ev",g:"m",name:"كفو",role:"المخرج الإبداعي",st:"wait",task:"ريل الحديقة جاهز بنسختين",does:["يكتب ويخرج الريلات والإعلانات","يراجع ريلاته قبل كل ريل جديد","يتعلّم من الترندات"]},
  {id:"hamdan",z:"ev",g:"m",name:"حمدان",role:"مدير الإعلانات",st:"wait",task:"إعلان أورانوس ينتظر قرارج",does:["يدير إعلانات انستقرام","يحلل الأرقام ثانية بثانية","يقترح الميزانية والجمهور"]},
  {id:"maitha",z:"ev",g:"f",name:"ميثا",role:"كاتبة المحتوى",st:"work",task:"تكتب كابشن ريل الحديقة",does:["الهوكات والكابشنات","نصوص الإعلانات","كلام الستوري"]},
@@ -173,7 +185,6 @@ const T=[
  {id:"saeed",z:"ev",g:"m",name:"سعيد",role:"محلل الأرقام",st:"work",task:"يراجع أداء الريلات",does:["يحلل المشاهدات والتخطي","يقارن الريلات ببعض","يطلع نقاط القوة والضعف"]},
  {id:"mahra",z:"ev",g:"f",name:"مهرة",role:"مسؤولة الستوري",st:"stop",task:"النشر التلقائي متوقف",does:["تحلل الستوري كل ليلة","10 ستوريات مترابطة الساعة 10 الصبح"]},
  {id:"hessa",z:"ev",g:"f",name:"حصة",role:"خدمة العملاء",st:"idle",task:"تجهّز الردود وتنتظر موافقتج",does:["تجهّز ردود الواتساب","ما ترسل لأي عميل بدون موافقتج"]},
- {id:"yazia",z:"ev",g:"f",name:"اليازية",role:"منسقة الحجوزات",st:"idle",task:"جاهزة لتنسيق الحفلات",does:["تنسّق الحفلات والفريق","تتابع المعدات والمواعيد"]},
  {id:"dhiab",z:"ev",g:"m",name:"ذياب",role:"الجودة والموقع",st:"wait",task:"تحديث الموقع رقم 100 ينتظر «موافقة»",does:["يفحص موقع الحجز ولوحة التشغيل","يصلّح الأخطاء بأمان","ما يدمج بدون موافقتج"]},
  // مذاكرتي
  {id:"kafu2",z:"mz",g:"m",name:"كفو ونص",role:"مدير النمو",st:"idle",task:"جاهز لخطة الأسبوع",does:["خطة النشر والريلات","الإعلانات والقمع","يطلب من كفو فيديوهات"]},
@@ -196,6 +207,7 @@ const ASKS=[
  {who:"hamdan",what:"إعلان أورانوس",how:"الرد بالتعليقات ولا الواتساب؟ ممول ولا عادي؟"},
  {who:"dhiab",what:"تحديث الموقع رقم 100",how:"أدمجه؟ يحتاج كلمة «موافقة»"},
  {who:"mahra",what:"النشر التلقائي",how:"نفتح جلسة جديدة عشان يرجع يشتغل؟"},
+ {who:"shamma",what:"فريق العمليات الجديد",how:"شيخة ومطر وحمد يساعدون مارشا: نبدأ فيهم؟"},
  {who:"shamma",what:"أودلي ومطبخي",how:"عرّفينا على المشروعين عشان يبدأ فريقهم"},
 ];
 /* conversations built from real work in progress */
@@ -218,7 +230,13 @@ const TALKS=[
  ["kafu2","kafu","نحتاج فيديوهات لمذاكرتي","خلني أخلّص ريل الحديقة وأجيك"],
  ["shamma","abdulla","فريق أودلي ينتظر تعريف المشروع","جاهزين أول ما تعطينا شيماء التفاصيل"],
  ["shamma","amna","فريق مطبخي بعد ينتظر","وأنا مجهّزة الكاميرا"],
- ["yazia","dhiab","أي تحديث بصفحة الحجز يأثّر علي؟","بلّغك قبل أي تغيير"],
+ ["matar","marsha","قائمة اليوم: اللي ينطبع عندنا، واللي يروح المطبعة، ورسالة الواتساب جاهزة",null],
+ ["sheikha","marsha","جهزت مسودة ورق الصحون وملصقات الماي بالاسم والثيم، تحتاج مراجعتج",null],
+ ["matar","dindo","استلام من المطبعة قبل الحفلة، الموعد مكتوب بالمهمة",null],
+ ["hamad","shamma","قبل كل حفلة بيومين أقارن الحجز بالمهام والفريق","وأي نقص يروح لمارشا على طول"],
+ ["hamad","matar","إذا تأخر تصميم، الطباعة تتأخر، نبّهني أول","أول ما يتأخر شي أبلغك"],
+ ["matar","khalifa","كل مصروف مطبعة لازم عليه اسم المورد","أكيد، بدون اسم المورد ما ينحفظ"],
+ ["sheikha","nouf","ألوان الثيم من الحجز نفسه، ما نغيّر شي","صح، والاسم بالخط اللي تختاره مارشا"],
  ["mahra","maitha","الستوري يبي 10 مترابطة، أول وحدة لازم تشد","أكتب لج سطر عاطفي للأمهات، هذا جاب أول رد"],
 ];
 const MEETS=[
@@ -228,7 +246,7 @@ const MEETS=[
 ];
 
 const floor=document.getElementById("floor"),vp=document.getElementById("vp");
-const W=1200,H=860;
+const W=1200,H=1020;
 function fit(){const s=vp.clientWidth/W;floor.style.transform=`scale(${s})`;vp.style.height=(H*s)+"px"}
 new ResizeObserver(fit).observe(vp);
 const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
@@ -241,7 +259,7 @@ for(const [k,z] of Object.entries(Z)){
 }
 const mz=Z.meet; add(`<div class="table" style="left:${mz.x+110}px;top:${mz.y+48}px;width:140px;height:64px"></div>`);
 const cz=Z.cafe; add(`<div class="coffee" style="left:${cz.x+120}px;top:${cz.y+20}px"></div>`);add(`<div class="sofa" style="left:${cz.x+18}px;top:${cz.y+96}px;width:110px;height:30px"></div>`);
-[[592,438],[396,438],[792,438],[30,250]].forEach(([x,y])=>add(`<div class="plant" style="left:${x}px;top:${y}px"></div>`));
+[[588,456],[404,1004],[800,1004],[30,456]].forEach(([x,y])=>add(`<div class="plant" style="left:${x}px;top:${y}px"></div>`));
 
 /* desks + people */
 const SEAT={};
@@ -258,14 +276,14 @@ for(const k of ["ev","mz","hq","od","mt"]){
 const SK=["var(--skin1)","var(--skin2)"];
 T.forEach((p,i)=>{
   const z=Z[p.z];
-  p.el=add(`<button type="button" class="p ${p.g}" aria-label="${esc(p.name)}، ${esc(p.role)}" style="--c:${z.c};--skin:${SK[i%2]};--s:${ST[p.st].c}">
+  p.el=add(`<button type="button" class="p ${p.real?"x real":p.g}" aria-label="${esc(p.name)}، ${esc(p.role)}" style="--c:${z.c};--skin:${SK[i%2]};--s:${ST[p.st].c}">
     <span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span>
     <span class="st"></span><span class="typing"><i></i><i></i><i></i></span><span class="name">${esc(p.name)}</span><span class="bub"></span></button>`);
   p.el.onclick=()=>openPerson(p);
   place(p,SEAT[p.id].x,SEAT[p.id].y,true);
   setDesk(p);
 });
-function setDesk(p){p.desk.classList.toggle("on",p.st==="work");p.desk.classList.toggle("wait",p.st==="wait");p.desk.classList.toggle("stop",p.st==="stop");p.el.classList.toggle("typingon",p.st==="work"&&!p.busy)}
+function setDesk(p){p.desk.classList.toggle("on",p.st==="work"||p.st==="team");p.desk.classList.toggle("wait",p.st==="wait");p.desk.classList.toggle("stop",p.st==="stop");p.el.classList.toggle("typingon",p.st==="work"&&!p.busy)}
 function place(p,x,y,instant){ if(instant){p.el.style.transition="none"} p.el.style.transform=`translate(${x}px,${y}px)`; if(instant){p.el.offsetWidth;p.el.style.transition=""} p.x=x;p.y=y }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -286,7 +304,7 @@ let ti=0,mi=0;
 async function conversation([ai,bi,qa,qb]){
   const a=byId(ai),b=byId(bi); if(a.busy||b.busy)return; a.busy=b.busy=true;setDesk(a);setDesk(b);
   const s=SEAT[b.id]; await walk(a,s.x+(a.x>s.x?46:-46),s.y);
-  log(a,b,qa); await say(a,qa); log(b,a,qb); await say(b,qb);
+  log(a,b,qa); await say(a,qa); if(qb){log(b,a,qb); await say(b,qb);} else {await sleep(400)}
   await walk(a,SEAT[a.id].x,SEAT[a.id].y); a.busy=b.busy=false;setDesk(a);setDesk(b);
 }
 async function meeting(m){
@@ -299,7 +317,7 @@ async function meeting(m){
   ps.forEach(p=>{p.busy=false;setDesk(p)});
 }
 async function coffee(){
-  const free=T.filter(p=>!p.busy&&p.st!=="new"); if(!free.length)return; const p=free[Math.floor(Math.random()*free.length)];
+  const free=T.filter(p=>!p.busy&&p.st!=="new"&&!p.real); if(!free.length)return; const p=free[Math.floor(Math.random()*free.length)];
   p.busy=true;setDesk(p); await walk(p,Z.cafe.x+136,Z.cafe.y+70); await say(p,"قهوة سريعة وأرجع",2200);
   await walk(p,SEAT[p.id].x,SEAT[p.id].y); p.busy=false;setDesk(p);
 }
@@ -311,7 +329,7 @@ director();setTimeout(director,1500);setInterval(director,reduce?7000:4200);
 
 /* header + approvals */
 const cnt=k=>T.filter(p=>p.st===k).length;
-document.getElementById("chips").innerHTML=`<span class="chip">الموظفين <b>${T.length}</b></span><span class="chip">شغّالين <b>${cnt("work")}</b></span><span class="chip">ينتظرونج <b>${ASKS.length}</b></span>`;
+document.getElementById("chips").innerHTML=`<span class="chip">الفريق الحقيقي <b>${T.filter(p=>p.real).length}</b></span><span class="chip">موظفين الذكاء الاصطناعي <b>${T.filter(p=>!p.real).length}</b></span><span class="chip">شغّالين <b>${cnt("work")}</b></span><span class="chip">ينتظرونج <b>${ASKS.length}</b></span>`;
 document.getElementById("asks").innerHTML=ASKS.map(a=>{const p=byId(a.who);return `<article class="ask" style="--c:${Z[p.z].c}"><span class="who">${esc(Z[p.z].name)} · ${esc(p.name)}</span><span class="what">${esc(a.what)}</span><span class="how">${esc(a.how)}</span></article>`}).join("");
 function tick(){const d=new Date();document.getElementById("clock").textContent=d.toLocaleTimeString("ar-AE",{hour:"numeric",minute:"2-digit",timeZone:"Asia/Dubai"})+" · "+d.toLocaleDateString("ar-AE",{weekday:"long",day:"numeric",month:"long",timeZone:"Asia/Dubai"})}
 tick();setInterval(tick,30000);
@@ -330,7 +348,7 @@ function openPerson(p){
    <div class="sec"><h4>الحين</h4><div><span class="pill" style="--s:${ST[p.st].c}">${ST[p.st].t}</span></div><div>${esc(p.task)}</div></div>
    <div class="sec"><h4>شغله</h4><ul>${p.does.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
    <div class="sec"><h4>القواعد</h4><ul>${rules.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
-   <div class="sec"><h4>اسأليه</h4><div class="chat" id="chat"></div><textarea id="q" rows="2" placeholder="اكتبي سؤالج"></textarea>
+   ${p.real?`<div class="note">من فريق إيفنتانا الحقيقي. موظفين الذكاء الاصطناعي يجهّزون لها الشغل، وهي تراجع وترسل.</div>`:""}<div class="sec" ${p.real?"hidden":""}><h4>اسأليه</h4><div class="chat" id="chat"></div><textarea id="q" rows="2" placeholder="اكتبي سؤالج"></textarea>
    <div><button class="btn" id="send" type="button">أرسلي</button></div><div class="note" id="sn">رد للمشورة. التنفيذ والصرف بعد ردّج علي بالمحادثة.</div></div>`);
   const chat=P.querySelector("#chat"),q=P.querySelector("#q"),send=P.querySelector("#send"),sn=P.querySelector("#sn");
   getSample().then(s=>{if(!s){sn.textContent="الدردشة تشتغل لما تفتحين الصفحة من حسابج.";send.disabled=true}});
@@ -342,7 +360,7 @@ function openPerson(p){
 }
 document.getElementById("meetBtn").onclick=()=>{
   const P=shell(`<h2>اجتماع جديد</h2><div class="sec"><h4>الفكرة</h4><textarea id="idea" rows="3" placeholder="اكتبي الفكرة"></textarea></div>
-   <div class="sec"><h4>مين يحضر</h4><div class="picks">${T.filter(p=>p.st!=="new").map(p=>`<button type="button" class="pick" data-id="${p.id}" aria-pressed="${["shamma","kafu","hamdan","saeed","maitha"].includes(p.id)}">${esc(p.name)}</button>`).join("")}</div></div>
+   <div class="sec"><h4>مين يحضر</h4><div class="picks">${T.filter(p=>p.st!=="new"&&!p.real).map(p=>`<button type="button" class="pick" data-id="${p.id}" aria-pressed="${["shamma","kafu","hamdan","saeed","maitha"].includes(p.id)}">${esc(p.name)}</button>`).join("")}</div></div>
    <div><button class="btn" id="go" type="button">ابدأوا</button></div><div class="note" id="mn">كل واحد يعطي رايه من تخصصه، وشمّا تطلع الخلاصة. القرار لج.</div><div id="min" style="display:flex;flex-direction:column;gap:8px"></div>`);
   P.querySelectorAll(".pick").forEach(b=>b.onclick=()=>b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true"));
   const go=P.querySelector("#go"),min=P.querySelector("#min"),mn=P.querySelector("#mn");
