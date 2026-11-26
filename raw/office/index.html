@@ -141,6 +141,22 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 .wall.right{width:56px;transform-origin:0 0;transform:rotateY(-90deg)}
 .desk::before{content:"";position:absolute;inset:0;border-radius:8px;background:color-mix(in srgb,var(--wood) 70%,#000);transform:translateZ(-18px)}
 .plant{transform:translateZ(14px)}
+/* 3D floor overlay */
+.viewport{position:relative;width:100%;border-radius:14px;overflow:hidden;touch-action:none}
+.viewport canvas.gl{display:block;width:100%;cursor:grab;border-radius:14px}
+.overlay{position:absolute;inset:0;pointer-events:none;direction:rtl}
+.overlay .p{all:unset;position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform}
+.overlay .p .card{display:flex;flex-direction:column;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px 7px 3px;box-shadow:0 4px 12px rgba(0,0,0,.10);position:relative;min-width:54px}
+.overlay .p.real .card{border-color:var(--brass);background:var(--brass-soft)}
+.overlay .p .name{position:static;transform:none;background:none;font-size:11.5px;font-weight:700;line-height:1.25;color:var(--ink);padding:0}
+.overlay .p .rl{font-size:9.5px;color:var(--muted);line-height:1.2;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}
+.overlay .p .st{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--s);border:0}
+.overlay .p .typing{position:static;transform:none;display:none;gap:3px;order:-1}
+.overlay .p.typingon .typing{display:flex}
+.overlay .p .bub{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%) scale(.9);font-size:13px;max-width:240px}
+.overlay .p.talk .bub{opacity:1;transform:translateX(-50%) scale(1)}
+.overlay .p:focus-visible .card{outline:2px solid var(--brass)}
+.overlay .zl{position:absolute;left:0;top:0;font-family:var(--display);font-size:15px;color:var(--c);background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);border-radius:999px;padding:1px 12px;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.08)}
 </style>
 
 <div class="wrap" dir="rtl">
@@ -157,7 +173,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 
   <div class="main">
     <section class="stage" aria-label="المكتب">
-      <div class="viewport" id="vp"><div class="iso" id="iso"><div class="floor" id="floor"></div></div></div>
+      <div class="viewport" id="vp"><div class="overlay" id="floor"></div></div>
     </section>
     <aside class="log" aria-labelledby="log-h">
       <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
@@ -175,6 +191,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 </div>
 <div id="layer"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const ST={team:{t:"فريق حقيقي",c:"var(--brass)"},soon:{t:"يبدأ بعد موافقتج",c:"var(--idle)"},work:{t:"شغّال",c:"var(--ok)"},wait:{t:"ينتظرج",c:"var(--wait)"},stop:{t:"متوقف",c:"var(--stop)"},idle:{t:"متفرغ",c:"var(--idle)"},new:{t:"ينتظر تعريف المشروع",c:"var(--idle)"}};
 const Z={ /* x,y,w,h on a 1200x1020 floor — Eventana only */
@@ -235,53 +252,137 @@ const MEETS=[
  {who:["hamdan","maitha","kafu","saeed"],topic:"اجتماع: ريل بكرة"},
  {who:["shamma","hamdan","khalifa","dhiab"],topic:"اجتماع: تحديث المسا لشيماء"},
 ];
-const floor=document.getElementById("floor"),vp=document.getElementById("vp");
-const W=1200,H=916;
-const IW=1500,IH=1000,iso=document.getElementById("iso");
-function fit(){const s=vp.clientWidth/IW;iso.style.transform=`scale(${s})`;vp.style.height=(IH*s)+"px"}
-new ResizeObserver(fit).observe(vp);
+/* ===== real 3D floor (three.js): low-poly people, desks, chairs, rugs, windows ===== */
+const vp=document.getElementById("vp"),floor=document.getElementById("floor");
 const esc=s=>String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
 const add=(h,parent=floor)=>{const t=document.createElement("template");t.innerHTML=h.trim();const n=t.content.firstChild;parent.appendChild(n);return n};
 const byId=id=>T.find(p=>p.id===id);
-
-/* build rooms */
-for(const [k,z] of Object.entries(Z)){
-  add(`<div class="zone ${k==="meet"?"meet":""}" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;--c:${z.c}"><span class="lbl">${esc(z.name)}</span><span class="sub">${esc(z.sub)}</span></div>`);
-  add(`<div class="wall top" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;--c:${z.c}"></div>`);
-  add(`<div class="wall right" style="left:${z.x+z.w}px;top:${z.y}px;height:${z.h}px;--c:${z.c}"></div>`);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const K=40, WX=x=>(x-600)/K, WZ=y=>(y-458)/K;
+const HAS3D=typeof THREE!=="undefined";
+let scene,camera,renderer,yaw=Math.PI/4,pitch=0.62,zoom=1.15;
+const ZONECOL={mkt:0xC9A2D9,sec:0xE9C98A,ops:0xF7C48C,sales:0x8DB6F5,sys:0x9FE3AE,meet:0xC9DCEB,cafe:0xD9C6AE};
+const M=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.75,metalness:.05},o));
+function box(w,h,d,mat,x,y,z,parent){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;(parent||scene).add(m);return m}
+function cyl(rt,rb,h,mat,x,y,z,parent,seg=14){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);m.position.set(x,y,z);m.castShadow=true;(parent||scene).add(m);return m}
+function woodTexture(){const c=document.createElement("canvas");c.width=512;c.height=512;const g=c.getContext("2d");
+  for(let r=0;r<16;r++){const y=r*32;for(let x=-(r%3)*90;x<512;x+=220){const t=168+Math.floor(Math.random()*22);g.fillStyle=`rgb(${t+38},${t+8},${t-48})`;g.fillRect(x,y,218,31);g.fillStyle="rgba(120,80,40,.10)";for(let i=0;i<6;i++){g.fillRect(x,y+4+i*5,218,1)}}}
+  g.fillStyle="rgba(110,75,35,.35)";for(let r=0;r<=16;r++)g.fillRect(0,r*32-1,512,1);
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(4,3);return t}
+function initScene(){
+  renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.domElement.className="gl";vp.prepend(renderer.domElement);
+  scene=new THREE.Scene();scene.background=new THREE.Color(getComputedStyle(document.body).backgroundColor||"#EBEEF2");
+  camera=new THREE.OrthographicCamera(-20,20,12,-12,-200,200);
+  scene.add(new THREE.HemisphereLight(0xffffff,0xc9b38f,.62));
+  const sun=new THREE.DirectionalLight(0xfff4e0,.75);sun.position.set(-14,26,-10);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+  Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,near:1,far:80});scene.add(sun);
+  // floor + walls with windows (cutaway on the near sides)
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(31,24),M(0xffffff,{map:woodTexture(),roughness:.85}));fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;scene.add(fl);
+  const wallM=M(0xEFEDEA),trimM=M(0xC49A6C),glass=M(0xBEE3F8,{emissive:0x9cc9e8,emissiveIntensity:.35,roughness:.2});
+  box(31,2.6,.25,wallM,0,1.3,-12.1);box(.25,2.6,24,wallM,-15.6,1.3,0);
+  for(let i=0;i<5;i++){box(3.2,1.3,.05,glass,-11+i*5.5,1.55,-11.95);box(3.4,.08,.12,trimM,-11+i*5.5,.86,-11.93)}
+  for(let i=0;i<3;i++){box(.05,1.3,3.2,glass,-15.45,1.55,-7+i*6)}
+  // rugs + zone labels
+  for(const [k,z] of Object.entries(Z)){
+    const w=z.w/K-.5,d=z.h/K-.5,cx=WX(z.x+z.w/2),cz=WZ(z.y+z.h/2);
+    const rug=new THREE.Mesh(new THREE.PlaneGeometry(w,d),M(ZONECOL[k]||0xeeeeee,{roughness:1}));rug.rotation.x=-Math.PI/2;rug.position.set(cx,.012,cz);rug.receiveShadow=true;scene.add(rug);
+    z.lbl=add(`<div class="zl" style="--c:${z.c}">${esc(z.name)}</div>`);z.lblPos=new THREE.Vector3(cx,0,WZ(z.y)+.6);
+  }
+  // meeting room: glass partition + long table + chairs + screen
+  const mz=Z.meet,mx=WX(mz.x+mz.w/2),mzz=WZ(mz.y+mz.h/2);
+  const pane=M(0xd6e9f5,{transparent:true,opacity:.35,roughness:.1});
+  box(mz.w/K,1.4,.05,pane,mx,.7,WZ(mz.y+mz.h));box(.05,1.4,mz.h/K,pane,WX(mz.x),.7,mzz);
+  box(5.2,.12,1.4,M(0x8D5B4C),mx,.78,mzz+.3);[-1.8,1.8].forEach(dx=>box(.12,.72,.12,M(0x3a3a3a),mx+dx,.36,mzz+.3));
+  for(let i=-2;i<=2;i++){chair(mx+i*1.05,mzz-.75,0);chair(mx+i*1.05,mzz+1.35,Math.PI)}
+  box(2.6,1.2,.06,M(0xffffff,{emissive:0xffffff,emissiveIntensity:.1}),mx,1.5,WZ(mz.y)+.12);
+  // lounge: round table, sofa, coffee bar, plants
+  const cz=Z.cafe,ccx=WX(cz.x+cz.w/2),ccz=WZ(cz.y+cz.h/2);
+  cyl(.8,.8,.08,M(0xffffff),ccx-1,.7,ccz+.6,null,24);cyl(.08,.08,.7,M(0x444444),ccx-1,.35,ccz+.6);
+  box(3,.45,.9,M(0xB98A5B),ccx-1,.25,ccz+2);box(3,.6,.25,M(0xA77A4E),ccx-1,.6,ccz+2.4);
+  box(1.6,1,.6,M(0x3B2E25),ccx+2.6,.5,WZ(cz.y)+.6);box(.35,.45,.3,M(0x222222),ccx+2.6,1.22,WZ(cz.y)+.6);
+  [[WX(30),WZ(30)],[WX(1170),WZ(30)],[WX(30),WZ(890)],[WX(590),WZ(458)],[WX(1170),WZ(660)],[ccx+3,ccz+2.4]].forEach(([x,z])=>plant(x,z));
+  window.addEventListener("resize",resize);new ResizeObserver(resize).observe(vp);resize();
+  // drag to turn, wheel/pinch to zoom
+  let drag=null;renderer.domElement.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,yaw,pitch};renderer.domElement.setPointerCapture(e.pointerId)});
+  renderer.domElement.addEventListener("pointermove",e=>{if(!drag)return;yaw=drag.yaw-(e.clientX-drag.x)*.006;pitch=Math.min(1.2,Math.max(.35,drag.pitch+(e.clientY-drag.y)*.004))});
+  renderer.domElement.addEventListener("pointerup",()=>drag=null);
+  renderer.domElement.addEventListener("wheel",e=>{e.preventDefault();zoom=Math.min(2.4,Math.max(.7,zoom*(e.deltaY<0?1.1:.9)))},{passive:false});
 }
-const mz=Z.meet; add(`<div class="table" style="left:${mz.x+104}px;top:${mz.y+76}px;width:160px;height:44px"></div>`);
-const cz=Z.cafe; add(`<div class="coffee" style="left:${cz.x+120}px;top:${cz.y+20}px"></div>`);add(`<div class="sofa" style="left:${cz.x+18}px;top:${cz.y+96}px;width:110px;height:30px"></div>`);
-[[792,336],[792,660],[30,660],[1150,660]].forEach(([x,y])=>add(`<div class="plant" style="left:${x}px;top:${y}px"></div>`));
-
-/* desks + people */
-const SEAT={};
+function chair(x,z,rot){const g=new THREE.Group();const m=M(0x2B2B2B);box(.55,.08,.55,m,0,.46,0,g);box(.55,.6,.07,m,0,.78,.26,g);cyl(.04,.04,.42,M(0x555555),0,.22,0,g,8);g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);return g}
+function plant(x,z){cyl(.28,.22,.5,M(0xEDE6DA),x,.25,z);const f=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,0),M(0x40916C,{flatShading:true}));f.position.set(x,.95,z);f.castShadow=true;scene.add(f)}
+function resize(){if(!renderer)return;const w=vp.clientWidth,h=Math.max(380,Math.round(w*.66));renderer.setSize(w,h);vp.style.height=h+"px";
+  const a=w/h,v=13;camera.left=-v*a;camera.right=v*a;camera.top=v;camera.bottom=-v;camera.updateProjectionMatrix()}
+function deskAt(x,z,p){const top=M(0xF1F3F5),leg=M(0x2f2f35);const g=new THREE.Group();
+  box(1.7,.08,.85,top,0,.76,0,g);[[-.78,-.36],[.78,-.36],[-.78,.36],[.78,.36]].forEach(([a,b])=>box(.05,.74,.05,leg,a,.37,b,g));
+  const scrM=M(0x1E1E1E,{emissive:0x000000,roughness:.3});box(.78,.46,.04,M(0x1E1E1E),0,1.13,-.25,g);const scr=box(.72,.4,.01,scrM,0,1.13,-.225,g);
+  box(.08,.18,.08,M(0xbfc3c8),0,.88,-.27,g);box(.5,.02,.16,M(0x2b2b2b),0,.81,.12,g);
+  g.position.set(x,0,z);scene.add(g);chair(x,z+.75,Math.PI);return {scr}}
+// people
+const SKINS=[0xD7A98A,0xB98466,0xE3BC9C];
+function makeFigure(p,i){
+  const g=new THREE.Group(),skin=M(SKINS[i%3]);
+  const robe=(p.real&&p.id!=="shaima")?M(0x7A2E64):(p.g==="m"?M(0xF7F7F2):M(0x1D1F26));
+  const body=cyl(.2,.3,.95,robe,0,.62,0,g);g.userData.body=body;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.21,16,12),skin);head.position.set(0,1.28,0);head.castShadow=true;g.add(head);g.userData.head=head;
+  if(p.real&&p.id!=="shaima"){const hair=new THREE.Mesh(new THREE.SphereGeometry(.225,16,10,0,Math.PI*2,0,Math.PI*.55),M(0x2a1d16));hair.position.copy(head.position);g.add(hair)}
+  else if(p.g==="m"&&!p.real){cyl(.25,.3,.42,M(0xFBFBF8),0,1.22,.03,g,16);const top=new THREE.Mesh(new THREE.SphereGeometry(.235,16,10,0,Math.PI*2,0,Math.PI*.5),M(0xFBFBF8));top.position.set(0,1.32,0);g.add(top);
+    const agal=new THREE.Mesh(new THREE.TorusGeometry(.2,.035,8,20),M(0x161616));agal.rotation.x=Math.PI/2;agal.position.set(0,1.44,0);g.add(agal);
+    head.position.z=-.06;}
+  else {const sh=new THREE.Mesh(new THREE.SphereGeometry(.26,16,12),M(0x15161b));sh.position.set(0,1.3,.05);sh.scale.set(1,1.05,1.05);g.add(sh);cyl(.24,.28,.35,M(0x15161b),0,1.08,.05,g);head.position.z=-.08;head.scale.set(.92,.95,.9)}
+  const badge=new THREE.Mesh(new THREE.SphereGeometry(.07,10,8),M(0xffffff,{emissive:new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue("--brass").trim()||"#A8834B"),emissiveIntensity:.4}));badge.position.set(.1,.85,-.24);g.add(badge);
+  g.scale.setScalar(1.35);g.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(g);return g}
+const SEAT={},DESK={};
+function setDesk(p){const d=DESK[p.id];if(d){const c={work:0x5DA9C9,team:0x5DA9C9,wait:0xE0A93C,stop:0x9B3030}[p.st];d.scr.material.emissive.setHex(c||0x000000);d.scr.material.emissiveIntensity=c?.9:0}
+  p.el.classList.toggle("typingon",p.st==="work"&&!p.busy)}
+function place(p,x,y,instant){p.x=x;p.y=y;p.target={x:WX(x),z:WZ(y)};if(instant||!p.pos){p.pos={x:p.target.x,z:p.target.z};p.from={...p.pos};p.t0=0}else{p.from={x:p.pos.x,z:p.pos.z};p.t0=performance.now()}}
+async function walk(p,x,y){p.el.classList.add("walk");p.el.classList.remove("typingon");place(p,x,y);await sleep(reduce?50:1950);p.el.classList.remove("walk")}
+async function say(p,text,ms=3200){p.el.querySelector(".bub").textContent=text;p.el.classList.add("talk");await sleep(ms);p.el.classList.remove("talk")}
+// seats from the same floor plan
 for(const k of ["mkt","sec","ops","sales","sys"]){
   const z=Z[k],staff=T.filter(p=>p.z===k),cols=z.cols,rows=Math.ceil(staff.length/cols);
   const cw=z.w/cols,rh=(z.h-30)/Math.max(rows,1);
-  staff.forEach((p,i)=>{
-    const c=cols-1-(i%cols),r=Math.floor(i/cols);       // fill right-to-left
-    const cx=z.x+cw*c+cw/2, cy=z.y+28+rh*r+Math.min(rh,150)/2-10;
-    const d=add(`<div class="desk" style="left:${cx-37}px;top:${cy-34}px"><span class="scr"></span></div>`);
-    p.desk=d; SEAT[p.id]={x:cx,y:cy+24};
-  });
+  staff.forEach((p,i)=>{const c=cols-1-(i%cols),r=Math.floor(i/cols);const cx=z.x+cw*c+cw/2,cy=z.y+40+rh*r+Math.min(rh,150)/2-10;SEAT[p.id]={x:cx,y:cy+30}; p.deskXY={x:cx,y:cy}});
 }
-const SK=["var(--skin1)","var(--skin2)"];
+if(HAS3D)initScene(); else floor.insertAdjacentHTML("beforeend",'<p class="note" style="padding:20px">ما قدرت أحمّل العرض الثلاثي الأبعاد، جربي تحدّثين الصفحة.</p>');
 T.forEach((p,i)=>{
   const z=Z[p.z];
-  p.el=add(`<button type="button" class="p ${p.real?"x real":p.g}" aria-label="${esc(p.name)}، ${esc(p.role)}" style="--c:${z.c};--skin:${SK[i%2]};--s:${ST[p.st].c}">
-    <span class="up"><span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span>
-    <span class="st"></span><span class="typing"><i></i><i></i><i></i></span><span class="name">${esc(p.name)}</span><span class="bub"></span></span></button>`);
+  p.el=add(`<button type="button" class="p ${p.real?"real":""}" aria-label="${esc(p.name)}، ${esc(p.role)}" style="--c:${z.c};--s:${ST[p.st].c}">
+    <span class="card"><span class="st"></span><b class="name">${esc(p.name)}</b><span class="rl">${esc(p.role)}</span></span><span class="typing"><i></i><i></i><i></i></span><span class="bub"></span></button>`);
   p.el.onclick=()=>openPerson(p);
-  place(p,SEAT[p.id].x,SEAT[p.id].y,true);
-  setDesk(p);
+  if(HAS3D){DESK[p.id]=deskAt(WX(p.deskXY.x),WZ(p.deskXY.y),p);p.fig=makeFigure(p,i)}
+  place(p,SEAT[p.id].x,SEAT[p.id].y,true);setDesk(p);
 });
-function setDesk(p){p.desk.classList.toggle("on",p.st==="work"||p.st==="team");p.desk.classList.toggle("wait",p.st==="wait");p.desk.classList.toggle("stop",p.st==="stop");p.el.classList.toggle("typingon",p.st==="work"&&!p.busy)}
-function place(p,x,y,instant){ if(instant){p.el.style.transition="none"} p.el.style.transform=`translate(${x}px,${y}px)`; if(instant){p.el.offsetWidth;p.el.style.transition=""} p.x=x;p.y=y }
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
-async function walk(p,x,y){p.el.classList.add("walk");p.el.classList.remove("typingon");place(p,x,y);await sleep(reduce?50:1950);p.el.classList.remove("walk")}
-async function say(p,text,ms=3200){p.el.querySelector(".bub").textContent=text;p.el.classList.add("talk");await sleep(ms);p.el.classList.remove("talk")}
+const _v=HAS3D?new THREE.Vector3():null;
+function project(x,y,z){_v.set(x,y,z).project(camera);const w=vp.clientWidth,h=vp.clientHeight;return [(_v.x*.5+.5)*w,(-_v.y*.5+.5)*h]}
+function frame(now){
+  if(!HAS3D)return;requestAnimationFrame(frame);
+  const R=40;camera.position.set(Math.sin(yaw)*Math.cos(pitch)*R,Math.sin(pitch)*R,Math.cos(yaw)*Math.cos(pitch)*R);camera.lookAt(0,0,0);camera.zoom=zoom;camera.updateProjectionMatrix();
+  const everyone=[...T,typeof SHAIMA!=="undefined"?SHAIMA:null].filter(Boolean);
+  for(const p of everyone){
+    if(!p.fig&&p.el&&p.pos){p.fig=makeFigure(p,7)}
+    const f=p.fig;if(!f)continue;
+    const hidden=p.el.style.display==="none";f.visible=!hidden;
+    let k=1;if(p.t0){k=Math.min(1,(now-p.t0)/1900);if(k>=1)p.t0=0}
+    const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    const nx=p.from.x+(p.target.x-p.from.x)*e,nz=p.from.z+(p.target.z-p.from.z)*e;
+    const dx=nx-p.pos.x,dz=nz-p.pos.z;if(Math.abs(dx)+Math.abs(dz)>1e-4)f.rotation.y=Math.atan2(dx,dz);
+    p.pos.x=nx;p.pos.z=nz;
+    const home=SEAT[p.id],atHome=home&&Math.abs(p.x-home.x)<1&&Math.abs(p.y-home.y)<1&&!p.t0;
+    if(atHome)f.rotation.y=Math.PI; // face the desk
+    const walking=!!p.t0&&!reduce, seated=atHome;
+    f.position.set(p.pos.x,(seated?-.18:0)+(walking?Math.abs(Math.sin(now/120))*.07:0),p.pos.z+(seated?.05:0));
+    if(f.userData.head&&p.st==="work"&&seated&&!reduce)f.userData.head.position.y=1.28+Math.sin(now/260+p.x)*.012;
+    const [sx,sy]=project(p.pos.x,2.25,p.pos.z);p.el.style.transform=`translate(${sx}px,${sy}px) translate(-50%,-100%)`;
+    p.el.style.zIndex=String(1000+Math.round((p.pos.z+p.pos.x)*10));
+  }
+  for(const z of Object.values(Z)){if(!z.lbl)continue;const [sx,sy]=project(z.lblPos.x,2.9,z.lblPos.z);z.lbl.style.transform=`translate(${sx}px,${sy}px) translate(-50%,-50%)`}
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(frame);
+
 
 /* feed */
 const feed=document.getElementById("feed");
@@ -322,8 +423,7 @@ director();setTimeout(director,1500);setInterval(director,reduce?7000:4200);
 
 /* ---- the owner's meeting with the secretary (data written by Claude into the page's store) ---- */
 const SHAIMA={id:"shaima",z:"meet",g:"f",real:1,name:"شيماء",role:"المالكة",st:"team",task:"",does:[]};
-SHAIMA.el=add(`<div class="p f real" aria-hidden="true" style="--c:var(--brass);--skin:var(--skin1);--s:var(--brass);display:none">
-  <span class="up"><span class="fig"><span class="body"></span><span class="head"></span><span class="badge"></span></span><span class="st"></span><span class="typing"></span><span class="name">شيماء</span><span class="bub"></span></span></div>`);
+SHAIMA.el=add(`<div class="p real" aria-hidden="true" style="--c:var(--brass);--s:var(--brass);display:none"><span class="card"><span class="st"></span><b class="name">شيماء</b><span class="rl">المالكة</span></span><span class="typing"></span><span class="bub"></span></div>`);
 let meetingData=null,meetingBusy=false;
 const todayDubai=()=>new Date(Date.now()+4*3600e3).toISOString().slice(0,10);
 function meetingLines(m){return [...(m.done||[]).map(t=>["خلص",t]),...(m.doing||[]).map(t=>["شغالين",t]),...(m.ask||[]).map(t=>["يحتاج ردّج",t])]}
