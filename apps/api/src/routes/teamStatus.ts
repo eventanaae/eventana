@@ -70,7 +70,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       [today],
     );
     // Office overview: money, leads, alerts, leave requests, ratings. Totals and staff first names only.
-    const one = async (sql: string) => (await pool.query(sql, [today])).rows[0] ?? {};
+    const one = async (sql: string) => (await pool.query(sql, sql.includes('$1') ? [today] : [])).rows[0] ?? {};
     const money = await one(`SELECT
         COALESCE(SUM(total_fils) FILTER (WHERE COALESCE(booked_on, date) = $1::date),0)::bigint AS today_fils,
         COUNT(*) FILTER (WHERE COALESCE(booked_on, date) = $1::date)::int AS today_n,
