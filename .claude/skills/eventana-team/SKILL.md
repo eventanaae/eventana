@@ -24,6 +24,11 @@ Built from everything the owner said and everything that exists in the systems
 | Systems integration (`eventana-systems`) | Connects tools and data; owns the archive. | All, Secretary |
 | Service innovation (`eventana-innovation`) | Monthly new service/package ideas with cost and margin. | Finance, Secretary |
 | Website dev & QA (`eventana-qa`) | Customer site, Ops dashboard, API — safe fixes via PR. | Systems, Secretary |
+| Party footage lead (in `eventana-production`) | Gives the field team a short shot list per party, collects real clips into the archive — real footage beats AI. | Field team (via Marsha), Production |
+| Comments & DMs (in `eventana-followup`) | Drafts fast replies to Instagram comments/DMs from approved templates; feeds questions to Content. | Content, Secretary |
+| Customer experience (in `eventana-followup`) | After each party: rating, photos with the family's consent, Google review request. | Content, Finance |
+| Search pages (in `eventana-qa`) | Keeps the 20 landing pages (`apps/customer/src/seo.json`) fresh monthly. | Content |
+| Party readiness auditor (in `eventana-marsha-design`) | Two days before each party: designs done, prints ready, crew assigned; tells Marsha. | Marsha, Secretary |
 
 Real people (never speak for them, never put words in their mouths): Shaima (owner),
 Marsha (operations + design; in-house printer, sends other items to a print shop on
@@ -67,3 +72,17 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - Content → Reviewer → Production → Reviewer → publish. Ads reads published results.
 - Finance numbers feed Ads and Innovation. Systems fixes what blocks anyone.
 - The secretary reads the log and is the only one who reaches the owner.
+
+## Access (owner, 26 Nov: every agent must reach the whole Eventana system and GitHub)
+Everyone may READ everything: the full eventana repo and skills, the Ops/API data through
+the read-only DB window, reports, finance, ads and Instagram numbers. WRITE only where the
+role needs it:
+| Write access | Who | Gate |
+|---|---|---|
+| Code / website / deploy (GitHub branch + PR, Render) | Website dev & QA, Systems | merge only after the owner's «موافقة» |
+| DB writes (`.rw_db_key` window) | Systems | owner approves the specific write |
+| Meta ads changes | Ads manager | budget rules |
+| Instagram publishing | Production | reviewer PASS |
+| Emails to customers / companies | Follow-up, B2B | owner-approved templates |
+| Emails to Marsha | Marsha's design assistant | — |
+| QuickBooks | Finance (read only) | — |
