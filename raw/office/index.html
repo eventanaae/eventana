@@ -319,11 +319,11 @@ async function playMeeting(){
   const m=meetingData; if(!m||meetingBusy)return; const sh=byId("shamma"); if(sh.busy)return;
   meetingBusy=true;sh.busy=true;setDesk(sh);
   const z=Z.meet; SHAIMA.el.style.display=""; place(SHAIMA,z.x+120,z.y+70,true);
-  await walk(sh,z.x+250,z.y+70);
+  place(sh,z.x+250,z.y+70,true);
   log(sh,SHAIMA,"اجتماع اليوم مع شيماء");
   for(const [k,t] of meetingLines(m)){await say(sh,`${k}: ${t}`,3600)}
   await say(sh,"هذا كل شي اليوم",1800);
-  await walk(sh,SEAT.shamma.x,SEAT.shamma.y); SHAIMA.el.style.display="none";
+  place(sh,SEAT.shamma.x,SEAT.shamma.y,true); SHAIMA.el.style.display="none";
   sh.busy=false;setDesk(sh);meetingBusy=false;
 }
 document.getElementById("mplay").onclick=playMeeting;
