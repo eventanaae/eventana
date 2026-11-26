@@ -4,3 +4,5 @@
 RULE (owner 26 Nov): Keep the party's real theme (e.g. Mickey) in BOTH organic reels and paid ads. She has run Mickey ads before with no problem. Never strip or replace a theme/character without her explicit ask. Paid version of the garden reel = the Mickey v3 files (eventana_garden_reel_v3.mp4 / _v3_hookB.mp4); the no-character "paid" files are discarded.
 
 EVENTANA OPS (owner 26 Nov): Marsha = operations + design (Cricut, plate papers, water labels, entrance/backdrop designs, giveaways). In-house printer prints most items; the rest she sends to an outside print shop on WhatsApp; the field team (Dindo, Diana, Gloria, Jane) collects from the print shop. Proposed AI helpers for her (not built yet, need owner OK): design-draft assistant, print & suppliers coordinator (daily print list split in-house vs print shop + WhatsApp draft for Marsha + pickup task), event auditor (2 days before).
+
+SECRETARY (owner 26 Nov): daily meeting with the secretary at 5:30 pm Dubai (scheduled task fires ~5:25). Only the secretary contacts the owner.
