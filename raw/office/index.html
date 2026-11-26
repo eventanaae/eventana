@@ -311,6 +311,12 @@ function frameTexture(kind){return tex(256,320,(g,w,h)=>{g.fillStyle="#FAF8F4";g
   if(kind===0){const cols=["#F2B544","#8FC4E8","#B9B4AE","#F7D27A","#9DB8D9","#E9A8C7"];for(let i=0;i<26;i++){g.fillStyle=cols[i%6];g.beginPath();g.arc(rnd(40,w-40),rnd(60,h-90),rnd(14,30),0,7);g.fill()}g.fillStyle="#E8DCC6";g.fillRect(70,h-90,w-140,50)}
   else if(kind===1){g.strokeStyle="#6b6b6b";g.lineWidth=2;for(let i=0;i<9;i++)g.strokeRect(rnd(30,120),rnd(40,200),rnd(40,100),rnd(30,80));g.beginPath();g.moveTo(30,h-50);g.lineTo(w-30,h-50);g.stroke()}
   else {const sw=["#C9A27A","#8E6F55","#D8D2C8","#A7A39C","#E6C79A"];sw.forEach((c,i)=>{g.fillStyle=c;g.fillRect(30+i*40,60,34,h-120)})}})}
+/* real Eventana party photos on the boards */
+const BOARD=[];let photoIdx=0;const PHOTO_N=16,photoTex={};
+function photoFrame(parent,x,y,z,w,h){const n=(photoIdx++%PHOTO_N)+1;
+  if(!photoTex[n]){photoTex[n]=new THREE.TextureLoader().load(`img/p${n}.jpg`);photoTex[n].encoding=THREE.sRGBEncoding;photoTex[n].anisotropy=4}
+  const back=new THREE.Mesh(new THREE.BoxGeometry(w+.06,h+.06,.025),MAT.black);back.position.set(x,y,z-.005);parent.add(back);
+  const ph=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:photoTex[n],roughness:.7}));ph.position.set(x,y,z+.01);parent.add(ph);BOARD.push(back,ph)}
 function signTexture(text){return tex(1024,160,(g,w,h)=>{g.clearRect(0,0,w,h);g.fillStyle="#C8A464";g.font="700 96px 'El Messiri','Noto Kufi Arabic',serif";g.textAlign="center";g.textBaseline="middle";g.direction="rtl";g.fillText(text,w/2,h/2+6)})}
 function initScene(){
   renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));
@@ -338,8 +344,8 @@ function wall(len,x,z,rotY,normal,opts={}){
   box(len,WH,.2,MAT.walnut,0,WH/2,0,g);
   if(opts.window){const w=opts.window;const city=new THREE.Mesh(new THREE.PlaneGeometry(w,2.1),new THREE.MeshBasicMaterial({map:cityTexture()}));city.position.set(opts.wx||0,1.5,.11);g.add(city);
     for(let i=0;i<=4;i++)box(.05,2.15,.06,MAT.black,(opts.wx||0)-w/2+i*w/4,1.5,.14,g);box(w,.06,.06,MAT.black,opts.wx||0,2.56,.14,g);box(w,.06,.06,MAT.black,opts.wx||0,.44,.14,g)}
-  if(opts.linen){const L=opts.linen;box(L.w,1.55,.04,MAT.linen,L.x,1.75,.12,g);box(L.w,.03,.06,MAT.led,L.x,2.56,.14,g);
-    const n=Math.floor(L.w/.75);for(let i=0;i<n;i++){const fw=rnd(.45,.6),fh=rnd(.55,.75);const fr=new THREE.Mesh(new THREE.PlaneGeometry(fw,fh),new THREE.MeshStandardMaterial({map:frameTexture(i%3),roughness:.8}));fr.position.set(L.x-L.w/2+.45+i*.75,1.75+rnd(-.15,.2),.145);g.add(fr)}}
+  if(opts.linen){const L=opts.linen;BOARD.push(box(L.w,1.55,.04,MAT.linen,L.x,1.75,.12,g));box(L.w,.03,.06,MAT.led,L.x,2.56,.14,g);
+    const n=Math.floor(L.w/.75);for(let i=0;i<n;i++){const fw=rnd(.45,.6),fh=rnd(.55,.75);photoFrame(g,L.x-L.w/2+.45+i*.75,1.75+rnd(-.12,.12),.145,fw,fh)}}
   if(opts.shelves){const S=opts.shelves;for(let r=0;r<4;r++){box(S.w,.05,.42,MAT.walnut,S.x,.7+r*.5,.3,g);box(S.w,.02,.02,MAT.led,S.x,.67+r*.5,.48,g);
       for(let i=0;i<5;i++){const c=[0xE9C98A,0x8FC4E8,0xF2B5C8,0xD8D2C8,0x9FE3AE][(i+r)%5];box(rnd(.25,.4),rnd(.2,.32),.25,M(c),S.x-S.w/2+.35+i*(S.w-.6)/4,.84+r*.5,.3,g)}}}
   WALLS.push({g,normal});return g}
@@ -391,8 +397,8 @@ function teamArea(k){
   stoneTable(cx,cz,len,wid);vase(cx,cz);obs(cx-len/2,cz-wid/2,cx+len/2,cz+wid/2);
   // team wall: walnut divider with linen panel, frames and brass name
   const x0=WX(z.x),x1=WX(z.x+z.w),zb=WZ(z.y)+.25,dw=Math.min(x1-x0-.6,len+2.6);
-  if(k!=="mkt"){obs(cx-dw/2,zb-.07,cx+dw/2,zb+.07);box(dw,1.7,.14,MAT.walnut,cx,.85,zb);box(dw-.3,.95,.03,MAT.linen,cx,1.12,zb+.085);box(dw-.3,.02,.04,MAT.led,cx,1.62,zb+.09);
-    const m=Math.max(1,Math.floor((dw-1.2)/.7));for(let i=0;i<m;i++){const fr=new THREE.Mesh(new THREE.PlaneGeometry(.42,.5),new THREE.MeshStandardMaterial({map:frameTexture(i%3),roughness:.8}));fr.position.set(cx-(m-1)*.35+i*.7,1.08,zb+.1);scene.add(fr)}}
+  if(k!=="mkt"){obs(cx-dw/2,zb-.07,cx+dw/2,zb+.07);box(dw,1.7,.14,MAT.walnut,cx,.85,zb);BOARD.push(box(dw-.3,.95,.03,MAT.linen,cx,1.12,zb+.085));box(dw-.3,.02,.04,MAT.led,cx,1.62,zb+.09);
+    const m=Math.max(1,Math.floor((dw-1.2)/.7));for(let i=0;i<m;i++){photoFrame(scene,cx-(m-1)*.35+i*.7,1.08,zb+.1,.42,.53)}}
   const sY=k==="mkt"?2.15:1.95,sZ=k==="mkt"?WZ(z.y)-0.0:zb;   // marketing signs on the real back wall
   const sw=Math.min(3.6,dw*.8),sign=new THREE.Mesh(new THREE.PlaneGeometry(sw,sw*160/1024),new THREE.MeshBasicMaterial({map:signTexture(z.name),transparent:true}));sign.position.set(cx,k==="mkt"?2.75:sY,(k==="mkt"?-RDH+.12:sZ+.1));scene.add(sign);
   if(k!=="mkt")box(sw+.3,.38,.03,MAT.walnut,cx,sY,sZ+.075);
@@ -430,13 +436,15 @@ function resize(){if(!renderer)return;const full=document.fullscreenElement||doc
   renderer.setSize(w,h);vp.style.height=h+"px";camera.aspect=w/h;camera.updateProjectionMatrix()}
 function controls(){
   const el=renderer.domElement,pts=new Map();let last=null;
-  el.addEventListener("pointerdown",e=>{el.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});last=null});
+  let downAt=null;el.addEventListener("pointerdown",e=>{el.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});last=null;downAt={x:e.clientX,y:e.clientY,n:pts.size}});
   el.addEventListener("pointermove",e=>{if(!pts.has(e.pointerId))return;const prev=pts.get(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(pts.size===1){const dx=e.clientX-prev.x,dy=e.clientY-prev.y;
       if(e.shiftKey||e.buttons===2){pan(dx,dy)}else{goal.yaw-=dx*.008;goal.pitch=Math.min(1.45,Math.max(.12,goal.pitch+dy*.006))}}
     else if(pts.size===2){const [a,b]=[...pts.values()];const d=Math.hypot(a.x-b.x,a.y-b.y),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
       if(last){goal.r=Math.min(60,Math.max(3.5,goal.r*last.d/d));pan(mx-last.mx,my-last.my)}last={d,mx,my}}});
-  const end=e=>{pts.delete(e.pointerId);last=null};el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);
+  const end=e=>{const wasTap=downAt&&downAt.n===1&&Math.hypot(e.clientX-downAt.x,e.clientY-downAt.y)<7;pts.delete(e.pointerId);last=null;
+    if(wasTap&&e.type==="pointerup"){const r=el.getBoundingClientRect(),m=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
+      const rc=new THREE.Raycaster();rc.setFromCamera(m,camera);const hit=rc.intersectObjects(BOARD.filter(o=>{let v=true;o.traverseAncestors(a=>{if(a.visible===false)v=false});return v}),false)[0];if(hit)openBoard()}downAt=null};el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);
   el.addEventListener("contextmenu",e=>e.preventDefault());
   el.addEventListener("wheel",e=>{e.preventDefault();goal.r=Math.min(60,Math.max(3.5,goal.r*(e.deltaY>0?1.12:.89)))},{passive:false});
   el.addEventListener("dblclick",()=>Object.assign(goal,HOME));
@@ -605,6 +613,28 @@ async function playMeeting(){
   sh.busy=false;setDesk(sh);meetingBusy=false;
 }
 document.getElementById("mplay").onclick=playMeeting;
+const OCC={birthday:"عيد ميلاد",baby_shower:"استقبال مولود",gender_reveal:"كشف جنس المولود",graduation:"تخرج",bride_to_be:"حفلة عروس",corporate:"شركات"};
+function openBoard(){
+  const list=OPS_UP;
+  const P=shell(`<h2>الحفلات الجاية</h2><div class="note">من لوحة التشغيل، لأسبوعين قدام.</div><div id="upl" style="display:flex;flex-direction:column;gap:8px"></div>`);
+  const box=P.querySelector("#upl");
+  if(!list){box.innerHTML='<div class="note">تطلع هني أول ما ينزل تحديث النظام رقم 100 ويتزامن الطابق مع لوحة التشغيل.</div>';return}
+  if(!list.length){box.innerHTML='<div class="note">ما فيه حفلات بالأسبوعين الجايين.</div>';return}
+  let lastDay="";
+  for(const e of list){
+    if(e.date!==lastDay){lastDay=e.date;const h=document.createElement("b");h.textContent=dayAr(e.date);h.style.marginTop="6px";box.appendChild(h)}
+    const d=document.createElement("div");d.className="turn";
+    const occ=OCC[String(e.occasion||"").toLowerCase()]||String(e.occasion||"حفلة");
+    const TH={mickey:"ميكي",minnie:"ميني",barbie:"باربي",mermaid:"حورية البحر",bow:"الفيونكة",princess:"الأميرات",frozen:"فروزن",safari:"سفاري",dinosaur:"الديناصورات",unicorn:"يونيكورن",spiderman:"سبايدرمان",cars:"السيارات"};
+    const PK=[[/gold/i,"باقة الجولدن"],[/silver/i,"باقة السلفر"],[/bronze/i,"باقة البرونز"],[/summer|splash/i,"باقة الصيف"],[/spa/i,"باقة السبا"]];
+    const CREW={marsha:"مارشا",dindo:"دندو",diana:"ديانا",gloria:"قلوريا",jane:"جين"};
+    const tn=String(e.theme||"");const thAr=TH[tn.toLowerCase().trim()]||tn;
+    const theme=thAr||(e.customTheme?"ثيم جديد":"");
+    const pk=e.package?((PK.find(([r])=>r.test(e.package))||[])[1]||e.package):"";
+    const crew=(e.crew||[]).map(n=>CREW[String(n).toLowerCase()]||n);
+    d.textContent=[hhmm(e.time),emirAr(e.emirate),occ,theme&&("ثيم "+theme),pk,crew.length?("الفريق: "+crew.join("، ")):""].filter(Boolean).join(" · ");
+    box.appendChild(d)}
+}
 
 /* ---- real team from Eventana Ops: parties, prep, days off (synced into the store daily) ---- */
 const OPSNAME={marsha:"Marsha",dindo:"Dindo",diana:"Diana",gloria:"Gloria",jane:"Jane"};
@@ -612,7 +642,8 @@ const EMIR={dubai:"دبي","abu dhabi":"أبوظبي",abudhabi:"أبوظبي",sh
 const emirAr=e=>EMIR[String(e||"").toLowerCase().trim()]||String(e||"");
 function hhmm(t){const m=/^(\d{1,2}):(\d{2})/.exec(String(t||""));if(!m)return "";let h=+m[1];const ap=h<12?"الصبح":(h<16?"الظهر":(h<19?"العصر":"المسا"));h=h%12||12;return `${h}:${m[2]} ${ap}`}
 function dayAr(d){return new Date(d+"T00:00:00Z").toLocaleDateString("ar-AE",{weekday:"long",day:"numeric",month:"long",timeZone:"UTC"})}
-function applyOps(doc){
+let OPS_UP=null;
+function applyOps(doc){if(doc&&Array.isArray(doc.upcoming))OPS_UP=doc.upcoming;
   if(!doc||!Array.isArray(doc.team))return;
   const today=todayDubai(),nowMin=(()=>{const d=new Date(Date.now()+4*3600e3);return d.getUTCHours()*60+d.getUTCMinutes()})();
   for(const p of T.filter(q=>q.real)){
@@ -632,7 +663,7 @@ function applyOps(doc){
     p.el.querySelector(".tk").textContent=line;
     p.el.setAttribute("aria-label",`${p.name}، ${p.role}، ${label}`);
   }
-  const u=document.getElementById("opsU");if(u)u.textContent=doc.syncedAt?`حالة الفريق الحقيقي من لوحة التشغيل · آخر تحديث ${new Date(doc.syncedAt).toLocaleString("ar-AE",{timeZone:"Asia/Dubai",weekday:"short",hour:"numeric",minute:"2-digit"})}`:"";
+  const u=document.getElementById("opsU");if(u)u.textContent=doc.syncedAt?`اضغطي على أي لوحة صور تشوفين الحفلات الجاية · حالة الفريق من لوحة التشغيل · آخر تحديث ${new Date(doc.syncedAt).toLocaleString("ar-AE",{timeZone:"Asia/Dubai",weekday:"short",hour:"numeric",minute:"2-digit"})}`:"";
 }
 (async()=>{const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;if(!db)return;
   db.doc("team/today").onSnapshot(snap=>{if(snap.exists)applyOps(snap.data())},()=>{});})();
