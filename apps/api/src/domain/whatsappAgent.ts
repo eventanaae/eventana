@@ -79,6 +79,39 @@ export async function agentKnowledge(): Promise<string> {
   }
 }
 
+/**
+ * Learning from the team: the most recent real exchanges where a customer wrote
+ * and a HUMAN on the team answered (sent_by = 'staff'). Fed to the AI as
+ * examples so it answers the way our team does. Phone numbers and emails are
+ * stripped; prices in these examples never override the live FACTS.
+ */
+export async function teamExamples(limit = 20): Promise<Array<{ q: string; a: string }>> {
+  try {
+    const r = await pool.query<{ q: string; a: string }>(
+      `SELECT i.body AS q, o.body AS a
+         FROM whatsapp_messages o
+         JOIN LATERAL (SELECT body FROM whatsapp_messages i
+                        WHERE i.phone = o.phone AND i.direction = 'in' AND i.created_at < o.created_at
+                          AND COALESCE(i.body, '') <> ''
+                        ORDER BY i.created_at DESC LIMIT 1) i ON true
+        WHERE o.direction = 'out' AND o.sent_by = 'staff'
+          AND length(COALESCE(o.body, '')) BETWEEN 2 AND 700
+          AND o.created_at > now() - interval '120 days'
+        ORDER BY o.created_at DESC
+        LIMIT $1`,
+      [limit],
+    );
+    const clean = (t: string) =>
+      String(t ?? '')
+        .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[email]')
+        .replace(/\+?\d[\d\s-]{6,}\d/g, '[number]')
+        .slice(0, 500);
+    return r.rows.map((x) => ({ q: clean(x.q), a: clean(x.a) }));
+  } catch {
+    return [];
+  }
+}
+
 /** Compact, live catalogue facts for the AI — never lets it invent a price. */
 async function catalogueFacts(): Promise<string> {
   const cfg = await loadConfig();
@@ -106,6 +139,7 @@ async function aiAnswer(question: string, ar: boolean): Promise<string | null> {
   if (!anthropicEnabled()) return null;
   const facts = await catalogueFacts();
   const knowledge = await agentKnowledge();
+  const examples = await teamExamples();
   const appUrl = String(config.publicAppUrl).replace(/\/$/, '');
   const system = [
     'You are the WhatsApp assistant for Eventana Events — a warm, upscale kids-party & celebrations company in the UAE, Arabic-first, run by women.',
@@ -119,6 +153,10 @@ async function aiAnswer(question: string, ar: boolean): Promise<string | null> {
     '',
     facts,
     knowledge ? `\nHOUSE KNOWLEDGE (from the owner):\n${knowledge}` : '',
+    examples.length
+      ? '\nHOW OUR TEAM REALLY ANSWERS (recent real exchanges — copy the tone, length and wording style; never copy a price, discount or date from them, FACTS win):\n' +
+        examples.map((e) => `Customer: ${e.q}\nTeam: ${e.a}`).join('\n---\n')
+      : '',
   ].join('\n');
   const out = await generateText({ system, prompt: question.slice(0, 1500), maxTokens: 350 });
   return out?.trim() || null;

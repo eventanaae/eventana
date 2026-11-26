@@ -70,13 +70,18 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       [today],
     );
     // Office overview: money, leads, alerts, leave requests, ratings. Totals and staff first names only.
-    const one = async (sql: string) => (await pool.query(sql, [today])).rows[0] ?? {};
+    const one = async (sql: string) => (await pool.query(sql, sql.includes('$1') ? [today] : [])).rows[0] ?? {};
     const money = await one(`SELECT
         COALESCE(SUM(total_fils) FILTER (WHERE COALESCE(booked_on, date) = $1::date),0)::bigint AS today_fils,
         COUNT(*) FILTER (WHERE COALESCE(booked_on, date) = $1::date)::int AS today_n,
         COALESCE(SUM(total_fils) FILTER (WHERE COALESCE(booked_on, date) >= date_trunc('month',$1::date)),0)::bigint AS month_fils,
         COUNT(*) FILTER (WHERE COALESCE(booked_on, date) >= date_trunc('month',$1::date))::int AS month_n
        FROM finance_receipts WHERE total_fils > 0 AND source <> 'quickbooks'`).catch(() => ({}));
+    // Bookings MADE this month/today (by when they booked, whatever the party date).
+    const booked = await one(`SELECT
+        COUNT(*) FILTER (WHERE (e.created_at AT TIME ZONE 'Asia/Dubai')::date = $1::date)::int AS today_n,
+        COUNT(*) FILTER (WHERE (e.created_at AT TIME ZONE 'Asia/Dubai')::date >= date_trunc('month',$1::date))::int AS month_n
+       FROM events e WHERE e.phase <> 'Cancelled'`).catch(() => ({}));
     const leads = await one(`SELECT
         COUNT(*) FILTER (WHERE (first_message_at AT TIME ZONE 'Asia/Dubai')::date = $1::date)::int AS new_today,
         COUNT(*) FILTER (WHERE status = 'new')::int AS new_open,
@@ -94,15 +99,35 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     const tasks = (await pool.query(`SELECT split_part(tm.name,' ',1) AS name, COUNT(*)::int AS n
          FROM prep_tasks pt JOIN prep_task_staff s ON s.task_id = pt.id JOIN team_members tm ON tm.id = s.member_id
         WHERE pt.category = 'manual' AND pt.status <> 'completed' GROUP BY tm.name`).catch(() => ({ rows: [] }))).rows;
+    const learn = await one(`SELECT
+        to_char(MIN(created_at) AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') AS listening_since,
+        to_char(MIN(created_at) FILTER (WHERE direction = 'out' AND sent_by = 'staff') AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD') AS since,
+        COUNT(*) FILTER (WHERE direction = 'out' AND sent_by = 'staff')::int AS team_replies,
+        COUNT(*) FILTER (WHERE direction = 'out' AND sent_by = 'staff' AND created_at > now() - interval '7 days')::int AS team_week,
+        COUNT(*) FILTER (WHERE direction = 'out' AND sent_by = 'agent')::int AS bot_replies,
+        COUNT(*) FILTER (WHERE direction = 'in')::int AS customer_msgs,
+        COUNT(DISTINCT phone)::int AS chats
+       FROM whatsapp_messages`).catch(() => ({}));
+    const mode = await one(`SELECT value FROM settings WHERE key = 'whatsapp_agent_mode'`).catch(() => ({}));
     const aed = (f: unknown) => Math.round(Number(f ?? 0)) / 100;
     const office = {
-      money: { todayAed: aed(money.today_fils), todayBookings: Number(money.today_n ?? 0), monthAed: aed(money.month_fils), monthBookings: Number(money.month_n ?? 0) },
+      money: { todayAed: aed(money.today_fils), todayBookings: Number(money.today_n ?? 0), monthAed: aed(money.month_fils), monthBookings: Number(money.month_n ?? 0), bookedToday: Number(booked.today_n ?? 0), bookedMonth: Number(booked.month_n ?? 0) },
       leads: { newToday: Number(leads.new_today ?? 0), newOpen: Number(leads.new_open ?? 0), quotedOpen: Number(leads.quoted_open ?? 0), bookedWeek: Number(leads.booked_week ?? 0) },
       unpaidCheckouts7d: Number(carts.n ?? 0),
       alerts: { prepIssues: Number(alerts.prep_issues ?? 0), partiesAtRisk: Number(alerts.at_risk ?? 0), crewOpen3d: Number(alerts.crew_open ?? 0) },
       ratings30d: { avg: ratings.avg ?? null, count: Number(ratings.n ?? 0) },
       leaveRequests: leaveReq,
       manualTasks: tasks,
+      whatsappLearning: {
+        mode: typeof mode.value === 'string' ? mode.value : (process.env.WHATSAPP_AGENT_MODE ?? 'off'),
+        listeningSince: learn.listening_since ?? null,
+        since: learn.since ?? null,
+        teamReplies: Number(learn.team_replies ?? 0),
+        teamRepliesWeek: Number(learn.team_week ?? 0),
+        botReplies: Number(learn.bot_replies ?? 0),
+        customerMessages: Number(learn.customer_msgs ?? 0),
+        chats: Number(learn.chats ?? 0),
+      },
     };
     return {
       today,

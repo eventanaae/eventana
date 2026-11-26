@@ -51,6 +51,10 @@ export async function waWebhookSetupFromEnv(): Promise<void> {
     // businesses the system user can see and the WABAs they own / share.
     const explicit = String(process.env.SET_SHAN_LEADER ?? '').split(':')[1];
     if (explicit) wabas.push(explicit.trim());
+    // The WABA the templates already use: the token can't list businesses, so
+    // without this the app was never subscribed and no inbound ever arrived.
+    if (process.env.WHATSAPP_WABA_ID) wabas.push(process.env.WHATSAPP_WABA_ID.trim());
+    wabas = [...new Set(wabas)];
     if (!wabas.length) {
       try {
         const me = await graph('me?fields=id,name', tok);
