@@ -1,0 +1,397 @@
+From 3892fafa10fff6570c538ce25143b10c52532915 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 26 Nov 2026 15:33:04 +0000
+Subject: [PATCH] =?UTF-8?q?WIP=20(paused=20by=20owner):=20Marsha=20morning?=
+ =?UTF-8?q?=20brief=20=E2=80=94=20not=20for=20merge?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RpnLCvGnFFjpdTAksJQmm8
+---
+ apps/api/src/domain/marshaBrief.ts     |  95 +++++++++++++++
+ apps/api/src/domain/marshaBriefCore.ts | 154 +++++++++++++++++++++++++
+ apps/api/src/domain/prep.ts            |   2 +-
+ apps/api/src/domain/reconcile.ts       |   6 +
+ apps/api/test/marsha-brief.test.ts     |  75 ++++++++++++
+ 5 files changed, 331 insertions(+), 1 deletion(-)
+ create mode 100644 apps/api/src/domain/marshaBrief.ts
+ create mode 100644 apps/api/src/domain/marshaBriefCore.ts
+ create mode 100644 apps/api/test/marsha-brief.test.ts
+
+diff --git a/apps/api/src/domain/marshaBrief.ts b/apps/api/src/domain/marshaBrief.ts
+new file mode 100644
+index 0000000..0595e3b
+--- /dev/null
++++ b/apps/api/src/domain/marshaBrief.ts
+@@ -0,0 +1,95 @@
++/**
++ * Marsha's morning brief — database + scheduling part. See marshaBriefCore.ts.
++ *
++ * Once per Dubai day at/after 08:00 the reconcile sweep calls sweepMarshaBrief():
++ * it claims `marsha_brief:<YYYY-MM-DD>` in app_kv FIRST (atomic insert, so
++ * several instances can never send twice), reads the prep plan READ-ONLY and
++ * emails Marsha one English brief. If there is nothing to report it sends
++ * nothing. It never changes a task and never contacts a customer or supplier.
++ */
++import { pool } from '../db/pool.js';
++import { eventMetaFor } from './prep.js';
++import { buildMarshaBrief, renderMarshaBriefHtml, type BriefReadiness, type BriefTask, type MarshaBrief } from './marshaBriefCore.js';
++
++const MARSHA_EMAIL = 'marsha@eventanauae.com';
++
++function dubaiDay(now = Date.now()): { day: string; hour: number } {
++  const d = new Date(now + 4 * 3_600_000);
++  return { day: d.toISOString().slice(0, 10), hour: d.getUTCHours() };
++}
++
++/** Read the open design work and the 2-day readiness, then build the brief. */
++export async function loadMarshaBrief(today: string): Promise<MarshaBrief> {
++  const tasksQ = await pool.query<{ event_id: string; key: string; title: string; due: string | null; status: string; event_date: string }>(
++    `SELECT pt.event_id, pt.key, pt.title, to_char(pt.due_date,'YYYY-MM-DD') AS due, pt.status,
++            to_char(e.event_date,'YYYY-MM-DD') AS event_date
++       FROM prep_tasks pt
++       JOIN events e ON e.id = pt.event_id
++      WHERE pt.category = 'design' AND pt.status <> 'completed'
++        AND e.phase <> 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
++        AND e.event_date >= $1::date AND e.event_date <= $1::date + 7
++      ORDER BY e.event_date, pt.due_date NULLS LAST, pt.id`,
++    [today],
++  );
++  const readyQ = await pool.query<{ id: string; event_date: string; open_prep: number; unassigned_prep: number; open_crew: number }>(
++    `SELECT e.id, to_char(e.event_date,'YYYY-MM-DD') AS event_date,
++            (SELECT count(*) FROM prep_tasks pt WHERE pt.event_id = e.id AND pt.status <> 'completed')::int AS open_prep,
++            (SELECT count(*) FROM prep_tasks pt WHERE pt.event_id = e.id AND pt.status <> 'completed'
++                AND NOT EXISTS (SELECT 1 FROM prep_task_staff s WHERE s.task_id = pt.id))::int AS unassigned_prep,
++            (SELECT count(*) FROM event_staff es WHERE es.event_id = e.id
++                AND es.assignee_id IS NULL AND COALESCE(es.part_time_name, '') = '')::int AS open_crew
++       FROM events e
++      WHERE e.phase <> 'Cancelled' AND NOT COALESCE(e.date_tbd, false)
++        AND e.event_date >= $1::date AND e.event_date <= $1::date + 2
++      ORDER BY e.event_date`,
++    [today],
++  );
++
++  const meta = await eventMetaFor([...tasksQ.rows.map((r) => r.event_id), ...readyQ.rows.map((r) => r.id)]);
++  const tasks: BriefTask[] = tasksQ.rows.map((r) => {
++    const m = meta.get(r.event_id);
++    return {
++      eventId: r.event_id, reference: m?.reference ?? r.event_id, eventDate: r.event_date,
++      babyName: m?.babyName ?? null, theme: m?.theme ?? null, celebration: m?.celebrationType ?? null,
++      key: r.key, title: r.title, dueDate: r.due, status: r.status,
++    };
++  });
++  const readiness: BriefReadiness[] = readyQ.rows.map((r) => {
++    const m = meta.get(r.id);
++    return {
++      eventId: r.id, reference: m?.reference ?? r.id, eventDate: r.event_date,
++      babyName: m?.babyName ?? null, theme: m?.theme ?? null,
++      openPrep: Number(r.open_prep), unassignedPrep: Number(r.unassigned_prep), openCrew: Number(r.open_crew),
++    };
++  });
++  return buildMarshaBrief(today, tasks, readiness);
++}
++
++let briefRunning = false;
++
++/** Called from the periodic reconcile sweep. Once per Dubai day, at/after 08:00. */
++export async function sweepMarshaBrief(): Promise<void> {
++  if (briefRunning) return;
++  const { day, hour } = dubaiDay();
++  if (hour < 8) return;
++  briefRunning = true;
++  try {
++    const claim = await pool.query(
++      `INSERT INTO app_kv (k, v) VALUES ($1, now()) ON CONFLICT (k) DO NOTHING RETURNING k`, [`marsha_brief:${day}`],
++    );
++    if (!claim.rowCount) return;
++    const brief = await loadMarshaBrief(day);
++    if (brief.isEmpty) { console.log(`[marsha-brief] ${day} nothing to report`); return; }
++    const { emailEnabled, sendEmail } = await import('../integrations/email.js');
++    if (!emailEnabled()) { console.log(`[marsha-brief] ${day} email disabled`); return; }
++    const late = brief.printList.filter((t) => t.overdue).length;
++    const subject = `Eventana — Morning brief ${day}: ${brief.printList.length} to print/cut${late ? ` (${late} late)` : ''}, ${brief.readiness.length} part${brief.readiness.length === 1 ? 'y' : 'ies'} to check`;
++    const res = await sendEmail({ to: MARSHA_EMAIL, subject, html: renderMarshaBriefHtml(brief) });
++    console.log(`[marsha-brief] ${day} print=${brief.printList.length} cards=${brief.designCards.length} readiness=${brief.readiness.length} emailed=${res.ok}`);
++    if (!res.ok) console.error('[marsha-brief] email failed:', res.error);
++  } catch (err) {
++    console.error('[marsha-brief] sweep failed:', (err as Error).message);
++  } finally {
++    briefRunning = false;
++  }
++}
+diff --git a/apps/api/src/domain/marshaBriefCore.ts b/apps/api/src/domain/marshaBriefCore.ts
+new file mode 100644
+index 0000000..8ffd736
+--- /dev/null
++++ b/apps/api/src/domain/marshaBriefCore.ts
+@@ -0,0 +1,154 @@
++/**
++ * Marsha's morning brief — pure part (no database, no network).
++ *
++ * Owner-approved (26 Nov 2026): three helpers for Marsha, delivered as ONE
++ * English email each morning:
++ *   1. Print list  — design/print work due today or tomorrow (or overdue).
++ *   2. Design cards — every party in the next 7 days that still has design work,
++ *      with the name / theme / occasion she designs from.
++ *   3. Readiness   — parties in the next 2 days with open prep, prep nobody is
++ *      assigned to, or crew slots still empty.
++ * Everything here only READS what the prep engine already created; it never
++ * changes a task and never contacts a customer or a supplier.
++ */
++
++export interface BriefTask {
++  eventId: string;
++  reference: string;
++  eventDate: string;          // YYYY-MM-DD
++  babyName: string | null;
++  theme: string | null;
++  celebration: string | null;
++  key: string;                // prep template key, e.g. design_plate_papers
++  title: string;
++  dueDate: string | null;     // YYYY-MM-DD
++  status: string;
++}
++
++export interface BriefReadiness {
++  eventId: string;
++  reference: string;
++  eventDate: string;
++  babyName: string | null;
++  theme: string | null;
++  openPrep: number;
++  unassignedPrep: number;
++  openCrew: number;
++}
++
++export type PrintKind = 'print' | 'cricut' | 'design';
++
++/** Which kind of work a design task is (so the list says "print" vs "cut"). */
++export function printKind(key: string): PrintKind {
++  if (key === 'design_cricut') return 'cricut';
++  if (['design_plate_papers', 'design_water_labels', 'design_entrance_stand', 'design_giveaways', 'design_new_backdrop'].includes(key)) return 'print';
++  return 'design';
++}
++
++export interface DesignCard {
++  eventId: string;
++  reference: string;
++  eventDate: string;
++  babyName: string | null;
++  theme: string | null;
++  celebration: string | null;
++  items: { title: string; kind: PrintKind; dueDate: string | null; overdue: boolean }[];
++}
++
++export interface MarshaBrief {
++  today: string;
++  printList: (BriefTask & { kind: PrintKind; overdue: boolean })[];
++  designCards: DesignCard[];
++  readiness: BriefReadiness[];
++  isEmpty: boolean;
++}
++
++function addDays(day: string, n: number): string {
++  const d = new Date(`${day}T00:00:00Z`);
++  d.setUTCDate(d.getUTCDate() + n);
++  return d.toISOString().slice(0, 10);
++}
++
++/** Build the brief from rows. `today` is the Dubai calendar day (YYYY-MM-DD). */
++export function buildMarshaBrief(today: string, tasks: BriefTask[], readiness: BriefReadiness[]): MarshaBrief {
++  const tomorrow = addDays(today, 1);
++  const open = tasks.filter((t) => t.status !== 'completed');
++
++  const printList = open
++    .filter((t) => t.dueDate !== null && t.dueDate <= tomorrow)
++    .map((t) => ({ ...t, kind: printKind(t.key), overdue: (t.dueDate as string) < today }))
++    .sort((a, b) => (a.dueDate as string).localeCompare(b.dueDate as string) || a.eventDate.localeCompare(b.eventDate));
++
++  const byEvent = new Map<string, DesignCard>();
++  for (const t of open) {
++    let card = byEvent.get(t.eventId);
++    if (!card) {
++      card = { eventId: t.eventId, reference: t.reference, eventDate: t.eventDate, babyName: t.babyName, theme: t.theme, celebration: t.celebration, items: [] };
++      byEvent.set(t.eventId, card);
++    }
++    card.items.push({ title: t.title, kind: printKind(t.key), dueDate: t.dueDate, overdue: t.dueDate !== null && t.dueDate < today });
++  }
++  const designCards = [...byEvent.values()].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
++
++  const ready = readiness
++    .filter((r) => r.openPrep > 0 || r.unassignedPrep > 0 || r.openCrew > 0)
++    .sort((a, b) => a.eventDate.localeCompare(b.eventDate));
++
++  return { today, printList, designCards, readiness: ready, isEmpty: !printList.length && !designCards.length && !ready.length };
++}
++
++const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] as string));
++
++function prettyDay(day: string | null): string {
++  if (!day) return 'no due date';
++  return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
++}
++
++const KIND_LABEL: Record<PrintKind, string> = { print: 'Print', cricut: 'Cricut cut', design: 'Design' };
++
++/** The English email Marsha receives. */
++export function renderMarshaBriefHtml(b: MarshaBrief): string {
++  const who = (x: { babyName: string | null; reference: string }) => `${esc(x.babyName || 'Party')} · ${esc(x.reference)}`;
++  const theme = (x: { theme: string | null; celebration?: string | null }) =>
++    [x.celebration, x.theme].filter(Boolean).map(esc).join(' · ') || 'Theme not set';
++
++  const printRows = b.printList.length
++    ? b.printList.map((t) => `<tr>
++        <td style="padding:6px 8px;border-bottom:1px solid #EEE"><b>${esc(t.title)}</b><br><span style="color:#8A7F88;font-size:12px">${KIND_LABEL[t.kind]}</span></td>
++        <td style="padding:6px 8px;border-bottom:1px solid #EEE">${who(t)}<br><span style="color:#8A7F88;font-size:12px">${theme(t)} · party ${prettyDay(t.eventDate)}</span></td>
++        <td style="padding:6px 8px;border-bottom:1px solid #EEE;white-space:nowrap;${t.overdue ? 'color:#B3261E;font-weight:700' : ''}">${t.overdue ? 'Late · ' : ''}${prettyDay(t.dueDate)}</td></tr>`).join('')
++    : `<tr><td style="padding:8px;color:#5B8A5B">Nothing due today or tomorrow.</td></tr>`;
++
++  const cards = b.designCards.length
++    ? b.designCards.map((c) => `<div style="border:1px solid #EADCE4;border-radius:12px;padding:10px 12px;margin:0 0 8px">
++        <div style="font-weight:700">${who(c)} — party ${prettyDay(c.eventDate)}</div>
++        <div style="color:#8A7F88;font-size:13px;margin-bottom:4px">${theme(c)}</div>
++        <ul style="margin:0;padding-left:18px">${c.items.map((i) => `<li>${esc(i.title)} <span style="color:#8A7F88">(${KIND_LABEL[i.kind]}, due ${prettyDay(i.dueDate)}${i.overdue ? ', <b style="color:#B3261E">late</b>' : ''})</span></li>`).join('')}</ul></div>`).join('')
++    : `<p style="color:#5B8A5B;margin:0">No open design work in the next 7 days.</p>`;
++
++  const ready = b.readiness.length
++    ? b.readiness.map((r) => {
++        const notes = [
++          r.openPrep ? `${r.openPrep} prep task${r.openPrep > 1 ? 's' : ''} not finished` : '',
++          r.unassignedPrep ? `${r.unassignedPrep} with nobody assigned` : '',
++          r.openCrew ? `${r.openCrew} crew slot${r.openCrew > 1 ? 's' : ''} empty` : '',
++        ].filter(Boolean).join(' · ');
++        return `<li style="margin:0 0 6px"><b>${who(r)}</b> — party ${prettyDay(r.eventDate)}<br><span style="color:#8A7F88">${esc(notes)}</span></li>`;
++      }).join('')
++    : `<li style="color:#5B8A5B">All parties in the next 2 days look ready.</li>`;
++
++  return `<!doctype html><html><body style="margin:0;background:#F7F3F5;font-family:Arial,Helvetica,sans-serif;color:#3B3641">
++  <div style="max-width:640px;margin:0 auto;padding:20px">
++    <div style="background:#fff;border-radius:16px;padding:20px">
++      <h1 style="font-size:20px;margin:0 0 4px">Good morning Marsha 💛</h1>
++      <p style="margin:0 0 16px;color:#8A7F88">Your brief for ${prettyDay(b.today)}. Read-only summary from the prep plan — nothing was changed.</p>
++      <h2 style="font-size:16px;margin:0 0 6px">1. Print &amp; cut list (today / tomorrow)</h2>
++      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:18px">${printRows}</table>
++      <h2 style="font-size:16px;margin:0 0 6px">2. Design cards (next 7 days)</h2>
++      <div style="font-size:14px;margin-bottom:18px">${cards}</div>
++      <h2 style="font-size:16px;margin:0 0 6px">3. Party readiness (next 2 days)</h2>
++      <ul style="padding-left:18px;margin:0;font-size:14px">${ready}</ul>
++      <p style="margin:18px 0 0;font-size:11px;color:#9B8A94">Automatic morning brief for Marsha. Mark tasks done in the Ops app as usual.</p>
++    </div>
++  </div></body></html>`;
++}
+diff --git a/apps/api/src/domain/prep.ts b/apps/api/src/domain/prep.ts
+index 7b750ad..59daf70 100644
+--- a/apps/api/src/domain/prep.ts
++++ b/apps/api/src/domain/prep.ts
+@@ -942,7 +942,7 @@ export type EventMeta = {
+  * id), the party date, who it's for, the celebration type and the theme. The
+  * team should read the party, not an internal id, on every prep screen.
+  */
+-async function eventMetaFor(eventIds: string[]): Promise<Map<string, EventMeta>> {
++export async function eventMetaFor(eventIds: string[]): Promise<Map<string, EventMeta>> {
+   const ids = Array.from(new Set(eventIds.filter(Boolean)));
+   if (ids.length === 0) return new Map();
+   const { rows } = await pool.query<{
+diff --git a/apps/api/src/domain/reconcile.ts b/apps/api/src/domain/reconcile.ts
+index e3ca6f5..730597e 100644
+--- a/apps/api/src/domain/reconcile.ts
++++ b/apps/api/src/domain/reconcile.ts
+@@ -403,6 +403,12 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
+     .then(({ sweepDailyAudit }) => sweepDailyAudit())
+     .catch((err) => console.error('[daily-audit] failed:', err));
+ 
++  // Marsha's morning brief — once per Dubai day at/after 08:00 (print/cut list,
++  // design cards, 2-day readiness). Read-only; claimed in app_kv before sending.
++  void import('./marshaBrief.js')
++    .then(({ sweepMarshaBrief }) => sweepMarshaBrief())
++    .catch((err) => console.error('[marsha-brief] failed:', err));
++
+   // Monthly part-timer & driver report — emailed to owner + Marsha on the 1st.
+   await import('./staffPayReport.js')
+     .then(({ sweepStaffPayReport }) => sweepStaffPayReport())
+diff --git a/apps/api/test/marsha-brief.test.ts b/apps/api/test/marsha-brief.test.ts
+new file mode 100644
+index 0000000..9de3fb8
+--- /dev/null
++++ b/apps/api/test/marsha-brief.test.ts
+@@ -0,0 +1,75 @@
++/**
++ * Marsha's morning brief — pure builder + email renderer (no database).
++ */
++import { describe, expect, it } from 'vitest';
++import { buildMarshaBrief, printKind, renderMarshaBriefHtml, type BriefReadiness, type BriefTask } from '../src/domain/marshaBriefCore.js';
++
++const base = { reference: 'EV-1001', babyName: 'Saif', theme: 'Mickey', celebration: 'Birthday' };
++const task = (o: Partial<BriefTask>): BriefTask => ({
++  eventId: 'e1', eventDate: '2026-11-30', key: 'design_plate_papers', title: 'Plate Papers (design)',
++  dueDate: '2026-11-26', status: 'not_started', ...base, ...o,
++});
++
++describe('printKind', () => {
++  it('labels print, cricut and other design work', () => {
++    expect(printKind('design_plate_papers')).toBe('print');
++    expect(printKind('design_giveaways')).toBe('print');
++    expect(printKind('design_cricut')).toBe('cricut');
++    expect(printKind('design_something_new')).toBe('design');
++  });
++});
++
++describe('buildMarshaBrief', () => {
++  const today = '2026-11-26';
++
++  it('puts only work due today, tomorrow or late on the print list', () => {
++    const b = buildMarshaBrief(today, [
++      task({ key: 'design_water_labels', dueDate: '2026-11-25' }),   // late
++      task({ key: 'design_plate_papers', dueDate: '2026-11-26' }),   // today
++      task({ key: 'design_cricut', dueDate: '2026-11-27' }),         // tomorrow
++      task({ key: 'design_giveaways', dueDate: '2026-11-28' }),      // later → cards only
++      task({ key: 'design_entrance_stand', dueDate: null }),         // no date → cards only
++    ], []);
++    expect(b.printList.map((t) => t.key)).toEqual(['design_water_labels', 'design_plate_papers', 'design_cricut']);
++    expect(b.printList[0].overdue).toBe(true);
++    expect(b.printList[1].overdue).toBe(false);
++    expect(b.designCards).toHaveLength(1);
++    expect(b.designCards[0].items).toHaveLength(5);
++    expect(b.isEmpty).toBe(false);
++  });
++
++  it('ignores completed tasks and groups cards per party in date order', () => {
++    const b = buildMarshaBrief(today, [
++      task({ eventId: 'e2', eventDate: '2026-12-02', reference: 'EV-1002' }),
++      task({ eventId: 'e1', eventDate: '2026-11-29' }),
++      task({ eventId: 'e1', status: 'completed', key: 'design_cricut' }),
++    ], []);
++    expect(b.designCards.map((c) => c.eventId)).toEqual(['e1', 'e2']);
++    expect(b.designCards[0].items).toHaveLength(1);
++  });
++
++  it('keeps only parties that still need something in readiness', () => {
++    const r = (o: Partial<BriefReadiness>): BriefReadiness => ({
++      eventId: 'e1', reference: 'EV-1001', eventDate: '2026-11-27', babyName: 'Saif', theme: 'Mickey',
++      openPrep: 0, unassignedPrep: 0, openCrew: 0, ...o,
++    });
++    const b = buildMarshaBrief(today, [], [r({}), r({ eventId: 'e3', openCrew: 1 }), r({ eventId: 'e4', openPrep: 2, unassignedPrep: 1 })]);
++    expect(b.readiness.map((x) => x.eventId)).toEqual(['e3', 'e4']);
++  });
++
++  it('is empty when there is nothing to report', () => {
++    expect(buildMarshaBrief(today, [], []).isEmpty).toBe(true);
++  });
++});
++
++describe('renderMarshaBriefHtml', () => {
++  it('renders the three sections and escapes names', () => {
++    const b = buildMarshaBrief('2026-11-26', [task({ babyName: '<b>Saif</b>' })], []);
++    const html = renderMarshaBriefHtml(b);
++    expect(html).toContain('Print &amp; cut list');
++    expect(html).toContain('Design cards');
++    expect(html).toContain('Party readiness');
++    expect(html).toContain('&lt;b&gt;Saif&lt;/b&gt;');
++    expect(html).not.toContain('<b>Saif</b>');
++  });
++});
+-- 
+2.43.0
+
