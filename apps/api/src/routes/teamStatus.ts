@@ -69,8 +69,44 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
         LIMIT 60`,
       [today],
     );
+    // Office overview: money, leads, alerts, leave requests, ratings. Totals and staff first names only.
+    const one = async (sql: string) => (await pool.query(sql, [today])).rows[0] ?? {};
+    const money = await one(`SELECT
+        COALESCE(SUM(total_fils) FILTER (WHERE COALESCE(booked_on, date) = $1::date),0)::bigint AS today_fils,
+        COUNT(*) FILTER (WHERE COALESCE(booked_on, date) = $1::date)::int AS today_n,
+        COALESCE(SUM(total_fils) FILTER (WHERE COALESCE(booked_on, date) >= date_trunc('month',$1::date)),0)::bigint AS month_fils,
+        COUNT(*) FILTER (WHERE COALESCE(booked_on, date) >= date_trunc('month',$1::date))::int AS month_n
+       FROM finance_receipts WHERE total_fils > 0 AND source <> 'quickbooks'`).catch(() => ({}));
+    const leads = await one(`SELECT
+        COUNT(*) FILTER (WHERE (first_message_at AT TIME ZONE 'Asia/Dubai')::date = $1::date)::int AS new_today,
+        COUNT(*) FILTER (WHERE status = 'new')::int AS new_open,
+        COUNT(*) FILTER (WHERE status IN ('quoted','confirmed'))::int AS quoted_open,
+        COUNT(*) FILTER (WHERE status = 'booked' AND updated_at > now() - interval '7 days')::int AS booked_week
+       FROM whatsapp_leads`).catch(() => ({}));
+    const carts = await one(`SELECT COUNT(*)::int AS n FROM orders WHERE kind = 'booking' AND status = 'awaiting_payment' AND created_at > now() - interval '7 days'`).catch(() => ({}));
+    const alerts = await one(`SELECT
+        (SELECT COUNT(*) FROM prep_tasks pt JOIN events e ON e.id = pt.event_id WHERE pt.status = 'issue' AND e.event_date >= $1::date AND e.phase <> 'Cancelled')::int AS prep_issues,
+        (SELECT COUNT(DISTINCT pt.event_id) FROM prep_tasks pt JOIN events e ON e.id = pt.event_id WHERE pt.status <> 'completed' AND e.phase <> 'Cancelled' AND e.event_date BETWEEN $1::date AND $1::date + 3)::int AS at_risk,
+        (SELECT COUNT(*) FROM event_staff es JOIN events e ON e.id = es.event_id WHERE es.assignee_id IS NULL AND COALESCE(es.part_time_name,'') = '' AND e.phase <> 'Cancelled' AND e.event_date BETWEEN $1::date AND $1::date + 3)::int AS crew_open`).catch(() => ({}));
+    const ratings = await one(`SELECT ROUND(AVG(stars)::numeric,1)::float AS avg, COUNT(*)::int AS n FROM event_ratings WHERE created_at > now() - interval '30 days'`).catch(() => ({}));
+    const leaveReq = (await pool.query(`SELECT split_part(tm.name,' ',1) AS name, to_char(o.start_date,'YYYY-MM-DD') AS "from", to_char(o.end_date,'YYYY-MM-DD') AS "to"
+         FROM staff_days_off o JOIN team_members tm ON tm.id = o.member_id WHERE o.status = 'requested' AND o.end_date >= $1::date ORDER BY o.start_date LIMIT 20`, [today]).catch(() => ({ rows: [] }))).rows;
+    const tasks = (await pool.query(`SELECT split_part(tm.name,' ',1) AS name, COUNT(*)::int AS n
+         FROM prep_tasks pt JOIN prep_task_staff s ON s.task_id = pt.id JOIN team_members tm ON tm.id = s.member_id
+        WHERE pt.category = 'manual' AND pt.status <> 'completed' GROUP BY tm.name`).catch(() => ({ rows: [] }))).rows;
+    const aed = (f: unknown) => Math.round(Number(f ?? 0)) / 100;
+    const office = {
+      money: { todayAed: aed(money.today_fils), todayBookings: Number(money.today_n ?? 0), monthAed: aed(money.month_fils), monthBookings: Number(money.month_n ?? 0) },
+      leads: { newToday: Number(leads.new_today ?? 0), newOpen: Number(leads.new_open ?? 0), quotedOpen: Number(leads.quoted_open ?? 0), bookedWeek: Number(leads.booked_week ?? 0) },
+      unpaidCheckouts7d: Number(carts.n ?? 0),
+      alerts: { prepIssues: Number(alerts.prep_issues ?? 0), partiesAtRisk: Number(alerts.at_risk ?? 0), crewOpen3d: Number(alerts.crew_open ?? 0) },
+      ratings30d: { avg: ratings.avg ?? null, count: Number(ratings.n ?? 0) },
+      leaveRequests: leaveReq,
+      manualTasks: tasks,
+    };
     return {
       today,
+      office,
       team: rows.map((r) => ({ name: String(r.name).split(' ')[0], events: r.events, prepOpen: Number(r.prep_open), daysOff: r.days_off })),
       upcoming: up.rows.map((r) => ({ date: r.date, time: r.time, emirate: r.emirate, occasion: r.occasion, package: r.package, theme: r.theme, customTheme: r.custom_theme, crew: r.crew, prepTotal: Number(r.prep_total), prepDone: Number(r.prep_done), designOpen: Number(r.design_open), crewOpen: Number(r.crew_open) })),
     };
