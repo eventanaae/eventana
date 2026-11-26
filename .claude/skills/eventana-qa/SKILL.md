@@ -109,7 +109,7 @@ them. Include: totals, pass/fail, bugs found/fixed/open, and per-surface health
 Pricing, packages, delivery fees, discount terms and durations are **defined in
 code + DB**, not by you. Read them; never fabricate a number in a test or report.
 Anchors:
-- Catalogue/packages/services: synced from `apps/api/src/domain/catalogue.ts` on boot (code-defined, not QuickBooks).
+- Catalogue/packages/services: code-defined in `packages/shared` (synced to the DB on boot; not QuickBooks).
 - Delivery fees: `catalogue.deliveryZones` per emirate; some emirates are blocked.
 - Party length: standard 4h; a build with décor/inflatables/machines runs 6h (`effectiveEventHours` in `@eventana/shared`).
 - Discounts: `WELCOME10` = 10% first booking, min AED 2,000, online only; win-back = AED 600 off next booking > AED 3,000, single-use. Promo validity is authoritative on the **server** (`api.checkPromo`); the client preview only mirrors it.
@@ -130,3 +130,9 @@ When a rule is unclear, read the source or ask — do not guess.
 - Payment spine: `apps/api/src/domain/confirm.ts`, `apps/api/src/routes/webhooks.ts`, `apps/api/src/payments/*`.
 - Checkout flow: `apps/customer/src/screens/Checkout.tsx` (6-step wizard), `Build.tsx`, `BuildIntake.tsx`.
 - Deploy/verify loop: push `main` → watch Render deploy to `live` → verify in the in-app browser.
+
+## Team routing (owner, 26 Nov)
+Read `eventana-team`. Report results to the team log; only the secretary
+(`eventana-secretary`) talks to the owner. The Daily System Audit
+(`apps/api/src/domain/dailyAudit.ts`, ~45 read-only checks, emailed to the owner at 10:00
+Dubai) is the daily QA baseline — build on it rather than duplicating checks.
