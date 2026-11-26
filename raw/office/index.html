@@ -185,7 +185,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 
   <div class="main">
     <section class="stage" aria-label="المكتب">
-      <div class="legend" id="legend"></div><div class="viewport" id="vp"><div class="overlay" id="floor"></div></div>
+      <div class="legend" id="legend"></div><div class="legend" id="opsU"></div><div class="viewport" id="vp"><div class="overlay" id="floor"></div></div>
     </section>
     <aside class="log" aria-labelledby="log-h">
       <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
@@ -361,7 +361,7 @@ for(const k of ["mkt","sec","ops","sales","sys"]){
 if(HAS3D)initScene(); else floor.insertAdjacentHTML("beforeend",'<p class="note" style="padding:20px">ما قدرت أحمّل العرض الثلاثي الأبعاد، جربي تحدّثين الصفحة.</p>');
 const MOODS={happy:["😊","مستانس"],sad:["😞","زعلان"],busy:["💻","مشغول"],stressed:["😰","مضغوط"],free:["☕","فري"],need:["🙋","محتاج شي"]};
 const MOOD={shamma:"happy",hamdan:"busy",maitha:"busy",kafu:"busy",mahra:"stressed",majid:"free",saeed:"busy",sheikha:"free",hessa:"free",matar:"free",nouf:"free",dhiab:"need",sultan:"busy",khalifa:"free"};
-(()=>{const L=document.getElementById("legend");for(const [k,[e,t]] of Object.entries({happy:["😊","مستانس"],busy:["💻","مشغول"],stressed:["😰","مضغوط"],need:["🙋","محتاج شي"],free:["☕","فري"],sad:["😞","زعلان"]})){const s=document.createElement("span");s.textContent=e+" "+t;L.appendChild(s)}const r=document.createElement("span");r.textContent="✨ الفريق الحقيقي · اضغطي على أي واحد تعرفين اسمه وشغله";L.appendChild(r)})();
+(()=>{const L=document.getElementById("legend");for(const [k,[e,t]] of Object.entries({happy:["😊","مستانس"],busy:["💻","مشغول"],stressed:["😰","مضغوط"],need:["🙋","محتاج شي"],free:["☕","فري"],sad:["😞","زعلان"]})){const s=document.createElement("span");s.textContent=e+" "+t;L.appendChild(s)}const r=document.createElement("span");r.textContent="الفريق الحقيقي: 🎉 حفلة · 🛠️ يجهّز · 🌴 إجازة · اضغطي على أي واحد تعرفين اسمه وشغله";L.appendChild(r)})();
 const moodOf=p=>p.real?null:(MOOD[p.id]||{work:"busy",wait:"need",stop:"stressed"}[p.st]||"free");
 function closePops(except){T.forEach(q=>{if(q!==except)q.el.classList.remove("open")})}
 document.addEventListener("pointerdown",e=>{if(!e.target.closest(".overlay .p"))closePops()});
@@ -387,7 +387,7 @@ function frame(now){
   for(const p of everyone){
     if(!p.fig&&p.el&&p.pos){p.fig=makeFigure(p,7)}
     const f=p.fig;if(!f)continue;
-    const hidden=p.el.style.display==="none";f.visible=!hidden;
+    const hidden=p.el.style.display==="none";f.visible=!hidden&&!p.away;
     let k=1;if(p.t0){k=Math.min(1,(now-p.t0)/1900);if(k>=1)p.t0=0}
     const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
     const nx=p.from.x+(p.target.x-p.from.x)*e,nz=p.from.z+(p.target.z-p.from.z)*e;
@@ -474,6 +474,37 @@ async function playMeeting(){
   sh.busy=false;setDesk(sh);meetingBusy=false;
 }
 document.getElementById("mplay").onclick=playMeeting;
+
+/* ---- real team from Eventana Ops: parties, prep, days off (synced into the store daily) ---- */
+const OPSNAME={marsha:"Marsha",dindo:"Dindo",diana:"Diana",gloria:"Gloria",jane:"Jane"};
+const EMIR={dubai:"دبي","abu dhabi":"أبوظبي",abudhabi:"أبوظبي",sharjah:"الشارقة",ajman:"عجمان","ras al khaimah":"رأس الخيمة",rak:"رأس الخيمة",fujairah:"الفجيرة","umm al quwain":"أم القيوين",alain:"العين","al ain":"العين"};
+const emirAr=e=>EMIR[String(e||"").toLowerCase().trim()]||String(e||"");
+function hhmm(t){const m=/^(\d{1,2}):(\d{2})/.exec(String(t||""));if(!m)return "";let h=+m[1];const ap=h<12?"الصبح":(h<16?"الظهر":(h<19?"العصر":"المسا"));h=h%12||12;return `${h}:${m[2]} ${ap}`}
+function dayAr(d){return new Date(d+"T00:00:00Z").toLocaleDateString("ar-AE",{weekday:"long",day:"numeric",month:"long",timeZone:"UTC"})}
+function applyOps(doc){
+  if(!doc||!Array.isArray(doc.team))return;
+  const today=todayDubai(),nowMin=(()=>{const d=new Date(Date.now()+4*3600e3);return d.getUTCHours()*60+d.getUTCMinutes()})();
+  for(const p of T.filter(q=>q.real)){
+    const row=doc.team.find(r=>String(r.name||"").toLowerCase()===String(OPSNAME[p.id]||"").toLowerCase());if(!row)continue;
+    const off=(row.daysOff||[]).some(o=>o.from<=today&&o.to>=today);
+    const evToday=(row.events||[]).filter(e=>e.date===today);
+    const next=(row.events||[]).filter(e=>e.date>today)[0];
+    let icon="☕",label="فري",line="ما عنده حفلة ولا تجهيز اليوم.";p.away=false;
+    if(off){icon="🌴";label="إجازة";line="إجازة اليوم.";p.away=true}
+    else if(evToday.length){const e=evToday[0];const m=/^(\d{1,2}):(\d{2})/.exec(e.time||"");const st=m?(+m[1])*60+(+m[2]):null;
+      const live=st!==null&&nowMin>=st-90&&nowMin<=st+300;icon="🎉";label=live?"في حفلة الحين":"عنده حفلة اليوم";
+      line=`حفلة ${hhmm(e.time)} · ${emirAr(e.emirate)}${e.leader?" · قائد الحفلة":""}${evToday.length>1?` (+${evToday.length-1} حفلة ثانية)`:""}`;p.away=live}
+    else if(row.prepOpen>0){icon="🛠️";label="يجهّز";line=`عنده ${row.prepOpen} مهمة تجهيز لليوم وبكرة.`}
+    if(next&&!evToday.length)line+=` الحفلة الجاية: ${dayAr(next.date)} ${hhmm(next.time)} · ${emirAr(next.emirate)}`;
+    p.el.querySelector(".mood").textContent=icon;
+    p.el.querySelector(".ml").textContent=icon+" "+label;
+    p.el.querySelector(".tk").textContent=line;
+    p.el.setAttribute("aria-label",`${p.name}، ${p.role}، ${label}`);
+  }
+  const u=document.getElementById("opsU");if(u)u.textContent=doc.syncedAt?`حالة الفريق الحقيقي من لوحة التشغيل · آخر تحديث ${new Date(doc.syncedAt).toLocaleString("ar-AE",{timeZone:"Asia/Dubai",weekday:"short",hour:"numeric",minute:"2-digit"})}`:"";
+}
+(async()=>{const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;if(!db)return;
+  db.doc("team/today").onSnapshot(snap=>{if(snap.exists)applyOps(snap.data())},()=>{});})();
 
 /* ---- talk to Shamma inside the floor: text or voice; she answers by voice ---- */
 let ttsP=null,dictP=null;
