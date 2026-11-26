@@ -1,0 +1,206 @@
+<title>فريق إيفنتانا</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+/* Layout: a staff handbook — one column of role cards grouped by team, each card opens in place (no tabs); gaps and questions close the page. */
+:root{
+  --bg:#F4F2F5; --paper:#FFFFFF; --ink:#2B2233; --muted:#6E6478; --line:#E3DCE6;
+  --plum:#7A2E64; --plum-soft:#F4E7F0; --gold:#A8834B; --gold-soft:#F3EBDD;
+  --ok:#2E8A5E; --warn:#B7791F; --new:#3F5BA9;
+  --display:"El Messiri","Noto Kufi Arabic",serif; --body:"IBM Plex Sans Arabic","Noto Sans Arabic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#141019;--paper:#1E1826;--ink:#F1ECF4;--muted:#B0A5BA;--line:#342B3D;--plum:#D57BB8;--plum-soft:#2D1F2A;--gold:#D2B47E;--gold-soft:#2E2719;--ok:#5BC08C;--warn:#E0A84B;--new:#8DA4EC}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#141019;--paper:#1E1826;--ink:#F1ECF4;--muted:#B0A5BA;--line:#342B3D;--plum:#D57BB8;--plum-soft:#2D1F2A;--gold:#D2B47E;--gold-soft:#2E2719;--ok:#5BC08C;--warn:#E0A84B;--new:#8DA4EC}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.75;
+  padding-block:24px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+h1{font-size:clamp(32px,6vw,46px);color:var(--plum)}
+.lead{color:var(--muted);margin:4px 0 0;max-width:62ch}
+.rules{background:var(--gold-soft);border-radius:16px;padding:14px 18px}
+.rules h2{font-size:19px;margin-bottom:4px}
+.rules ul{margin:0;padding-inline-start:20px}
+.group{display:flex;flex-direction:column;gap:10px}
+.group>h2{font-size:22px;display:flex;align-items:center;gap:10px}
+.group>h2 small{font-family:var(--body);font-size:13px;color:var(--muted);font-weight:500}
+details{background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+.ic{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-size:18px;color:#fff;background:var(--plum)}
+.ttl{flex:1;display:flex;flex-direction:column}
+.ttl b{font-size:17px}
+.ttl span{font-size:13px;color:var(--muted)}
+.tag{font-size:12px;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.tag.now{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.tag.first{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.tag.later{background:color-mix(in srgb,var(--new) 15%,transparent);color:var(--new)}
+.chev{transition:transform .2s;color:var(--muted)}
+details[open] .chev{transform:rotate(90deg)}
+.body{padding:0 18px 16px;display:grid;gap:10px}
+.row{display:grid;grid-template-columns:120px 1fr;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.row h4{margin:0;font-size:13px;color:var(--plum);font-weight:600}
+.row ul{margin:0;padding-inline-start:18px}
+.row p{margin:0}
+.gap{color:var(--warn)}
+.box{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.box h2{font-size:21px;margin-bottom:6px}
+.box ol,.box ul{margin:0;padding-inline-start:20px;display:grid;gap:6px}
+.q{border-inline-start:4px solid var(--plum);background:var(--plum-soft)}
+@media (max-width:560px){.row{grid-template-columns:1fr;gap:2px}}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
+</style>
+
+<div class="wrap" dir="rtl">
+  <header>
+    <h1>فريق إيفنتانا</h1>
+    <p class="lead">كل موظف هني مبني على شي حقيقي: كلامج وقواعدج وكل غلط صححتيه من أول يوم، والأنظمة اللي عندنا فعلاً بالموقع ولوحة التشغيل والأدوات المربوطة. اضغطي على أي موظف تشوفين تفاصيله.</p>
+  </header>
+
+  <section class="rules">
+    <h2>قواعد تنطبق على الكل</h2>
+    <ul>
+      <li>الكلام عربي خليجي بس، بدون أي كلمة إنجليزية.</li>
+      <li>ما أحد يطرش لج موافقات يومية. اللي يحتاج موافقتج بس: رسالة لعميل، رفع الميزانية، دمج تحديث بالموقع.</li>
+      <li>ما أحد يغيّر ثيم الحفلة ولا يشيل أي شخصية. ميكي يعني ميكي، بالعادي والممول.</li>
+      <li>ممنوع إدخال كلمات سر أو بيانات بطاقات، والمفاتيح ما تنشارك أبد.</li>
+      <li>كل شغل ينحفظ بالأرشيف أول بأول عشان ما يضيع مثل ما ضاعت الفيديوهات قبل.</li>
+      <li>أي شي يطلع للنشر يمر على المراجع أول.</li>
+    </ul>
+  </section>
+
+  <section class="group">
+    <h2>التسويق <small>الشغل اليومي، نبدأ فيه أول</small></h2>
+
+    <details open>
+      <summary><span class="ic">إ</span><span class="ttl"><b>مدير إعلانات ميتا</b><span>يدير الحملات ويقرأ الأرقام ويقرر</span></span><span class="tag first">أول دفعة</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>شغله</h4><ul><li>يدير إعلانات انستقرام، ويقرر أي ريل نموّله وأي إعلان نوقفه.</li><li>يحلل كل إعلان ثانية بثانية: كم واحد كمّل، تكلفة المحادثة، وكم حجز.</li><li>يطوّر الإعلانات الموجودة بدال ما يبدأ من الصفر.</li></ul></div>
+        <div class="row"><h4>يبني على</h4><ul><li>سكيل مدير الإعلانات الموجود وقواعده.</li><li>تاريخ الحساب الإعلاني كامل من أدوات التحليل المربوطة.</li><li>جدول العملاء المحتملين بالنظام: يعرف كل محادثة جات من أي إعلان، وإذا دفعت أو لا.</li></ul></div>
+        <div class="row"><h4>قواعده</h4><ul><li>الميزانية 2,000 درهم بالشهر لكل الحملات، ويقول لج قبل أي زيادة.</li><li>انستقرام بس.</li><li>ما يعتمد على ريل الجندر ريفيل كمقياس، لأنه كان مع مشاعل الشحي.</li><li>ينسخ استراتيجية الإعلان الأصلي بدقة لما نطلب نسخ إعلان.</li></ul></div>
+        <div class="row"><h4>روتينه</h4><p>كل يوم: نظرة على الأرقام. كل أسبوع: تقرير قصير، وش نوقف، وش نكمّل، ووين نزيد.</p></div>
+        <div class="row"><h4>يسلّم لـ</h4><p>كاتب المحتوى (وش الهوك اللي شغّال) والمحلل المالي (الصرف مقابل الحجوزات).</p></div>
+        <div class="row"><h4>ناقص</h4><p class="gap">الحجوزات لكل إعلان ما تنحسب كاملة بالنظام، ومحتاجين نربط إشارة التحويل مع ميتا. هذي على فريق ربط الأنظمة.</p></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ic">ك</span><span class="ttl"><b>كاتب المحتوى والباحث</b><span>يبحث ويحلل ثم يكتب</span></span><span class="tag first">أول دفعة</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>شغله</h4><ul><li>قبل ما يكتب: بحث عميق بالترندات وريلات الحفلات اللي منتشرة، وتحليل ريلاتنا وستورياتنا السابقة.</li><li>يكتب الفكرة والهوك والسيناريو والكلام اللي على الشاشة والكابشن، من عنده مو نسخ.</li><li>يكتب ملف «صوت إيفنتانا»: كيف نتكلم، كلماتنا، وممنوعاتنا، وكل الكتّاب يمشون عليه.</li></ul></div>
+        <div class="row"><h4>يبني على</h4><ul><li>أدوات البحث عن الترند ومشاهدة الريلات (اشتغلنا فيها على ريل أورانوس ورهف والحديقة).</li><li>أرقام ريلاتي أنا: التخطي فوق 60% والتعليقات صفر هي أكبر ضعف عندنا.</li><li>نصوص الإعلانات المعتمدة المحفوظة بصفحة التسجيل الصوتي.</li></ul></div>
+        <div class="row"><h4>قواعده</h4><ul><li>ما يكتب «خلفية»، يقول «ستاند بالون رئيسي فخم». وما يكتب عدد الستاندات.</li><li>ما فيه كيك، بس ستاندات الكيك. وما فيه قواعد سلامة بالمحتوى.</li><li>المهرج ما يتكلم، وحورية البحر فلبينية بلبس محتشم.</li><li>السطر العاطفي للأمهات هو اللي جاب أول رد بالستوري.</li><li>كل محتوى فيه سبب يخلي الناس تعلّق: سؤال أو تصويت.</li></ul></div>
+        <div class="row"><h4>يسلّم لـ</h4><p>الإنتاج (سيناريو جاهز) ← المراجع.</p></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ic">ن</span><span class="ttl"><b>الإنتاج: الريل والستوري</b><span>يصوّر بالذكاء الاصطناعي ويمنتج وينشر</span></span><span class="tag first">أول دفعة</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>شغله</h4><ul><li>ريل كل يوم: صور وفيديو بالذكاء الاصطناعي من أغراضنا الحقيقية، موسيقى، صوت، ومونتاج.</li><li>الستوري: 10 ستوريات مترابطة الساعة 10 الصبح، وكل ليلة يحلل ستوري اليوم ويطوّر الأفكار.</li><li>قبل كل شي جديد يراجع شغله القديم: وش نجح ووش لا.</li></ul></div>
+        <div class="row"><h4>يبني على</h4><ul><li>سكيل كفو للإنتاج والصوت والموشن بالكود.</li><li>أداة الصور والفيديو والموسيقى والصوت العربي، وصفحات الموشن.</li><li>حساب انستقرام إيفنتانا مربوط بأداة نشر الريلات.</li></ul></div>
+        <div class="row"><h4>قواعده</h4><ul><li>المقاسات حقيقية: النطاطية 4×4 متر، والطفل ما يوصل فوقها.</li><li>المنتج الرئيسي بالنص وواضح كامل.</li><li>باب البابل من ورا، والأطفال أصلاً داخل.</li><li>وقت العصر والساعة الذهبية، والإضاءة واحدة بكل اللقطات.</li><li>الكلام فوق منطقة أزرار انستقرام، واللوقو الملوّن بدون مربع أبيض.</li><li>ما يكرر نفس اللقطة، وبدون صور معدّلة بالفلاتر.</li><li>يقول التكلفة ويوري صورة قبل أي مشهد جديد بالذكاء الاصطناعي.</li></ul></div>
+        <div class="row"><h4>يسلّم لـ</h4><p>المراجع ← النشر.</p></div>
+        <div class="row"><h4>ناقص</h4><p class="gap">نشر الستوري تلقائياً ما يشتغل للحين. الريلات صار لها طريق نشر، والستوري على فريق ربط الأنظمة.</p></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ic">م</span><span class="ttl"><b>المراجع</b><span>ما يطلع شي إلا بعد ما يعدي عليه</span></span><span class="tag first">أول دفعة</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>شغله</h4><ul><li>يراجع كل ريل وستوري وإعلان «كمدير إعلانات» قبل ما يوصلج أو ينزل.</li><li>إذا فيه غلط يرجعه للإنتاج أو الكاتب، مو لج.</li></ul></div>
+        <div class="row"><h4>قائمته</h4><ul><li>كل غلط صححتيه من أول يوم صار بند: النطاطية البعيدة، الأطفال يدخلون البابل من قدّام، البالونات تطلع برا البابل، المغرب بدال العصر، العشب أكثر من الحفلة، اللوقو بمربع أبيض، لقطة المهرج مكررة، «نار!» مو مثل الأصلي، شيل ميكي، والكلام الإنجليزي.</li><li>يقارن بالإعلان الأصلي لما يكون نسخ.</li><li>يشيك القواعد العامة كلها.</li></ul></div>
+        <div class="row"><h4>يبني على</h4><p>ملف القواعد المحفوظ وكل ملاحظاتج المجمّعة، وكل ملاحظة جديدة تنضاف للقائمة على طول.</p></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="group">
+    <h2>المبيعات والعملاء</h2>
+
+    <details>
+      <summary><span class="ic">ع</span><span class="ttl"><b>متابعة العملاء والإيميلات</b><span>منو حجز ومنو ما حجز</span></span><span class="tag later">الدفعة الثانية</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>شغله</h4><ul><li>تقرير يومي: منو سأل، منو أخذ عرض سعر، منو دفع، ومنو وقف بنص الحجز.</li><li>يقرأ الإيميلات ويرتبها، ويجهّز ردود المتابعة.</li></ul></div>
+        <div class="row"><h4>يبني على</h4><ul><li>جدول العملاء المحتملين من الواتساب والموقع بحالاتهم.</li><li>الطلبات اللي ما اندفعت، وتذكير السلة الموجود.</li><li>رسائل العودة (خصم 600 درهم) وتذكيرات أعياد الميلاد.</li></ul></div>
+        <div class="row"><h4>قواعده</h4><ul><li>ما يرسل لأي عميل إلا بموافقتج، أو قوالب توافقين عليها مرة وحدة.</li><li>بيانات العملاء خاصة.</li></ul></div>
+        <div class="row"><h4>ناقص</h4><p class="gap">ما عندنا سلسلة متابعة للي أخذوا عرض سعر وما حجزوا. وتنظيف الطلبات غير المدفوعة اللي طلبتيه قبل بيمسح تاريخ المتابعة، فنحتاج نحفظه أول.</p></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ic">ش</span><span class="ttl"><b>جلب العملاء وعقود الشركات</b><span>عملاء جدد وشركات</span></span><span class="tag later">الدفعة الثانية</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>شغله</h4><ul><li>يجمع شركات ومدارس ونوادي مناسبة، ويجهّز أول إيميل لكل فئة، ويتابع الردود.</li><li>يجهّز عروض الأسعار والعقود للشركات.</li></ul></div>
+        <div class="row"><h4>يبني على</h4><p>نظام جلب الشركات الموجود بالنظام، وملف الشركة التعريفي، وصفحة فعاليات الشركات بالموقع.</p></div>
+        <div class="row"><h4>ناقص</h4><p class="gap">ما فيه قوالب عقود ولا عروض أسعار للشركات ولا أسعار خاصة لهم. وما نعرف إذا جمع الشركات شغّال بالموقع الحين.</p></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ic">ب</span><span class="ttl"><b>ابتكار الخدمات</b><span>أفكار خدمات وباقات جديدة</span></span><span class="tag later">الدفعة الثالثة</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>شغله</h4><p>كل شهر يقترح خدمات أو باقات جديدة، مبنية على الترند ووش ينطلب أكثر من الإضافات، ومع كل فكرة تكلفتها وربحها المتوقع.</p></div>
+        <div class="row"><h4>ناقص</h4><p class="gap">يحتاج أرقام تكلفة كل حفلة من المحلل المالي عشان يحكم على الربح.</p></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="group">
+    <h2>الحسابات والأنظمة</h2>
+
+    <details>
+      <summary><span class="ic">ل</span><span class="ttl"><b>المحلل المالي</b><span>أداء الشركة وربحيتها والتوصيات</span></span><span class="tag later">الدفعة الثانية</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>شغله</h4><p>تقرير شهري: الدخل، المصاريف، ربح كل حفلة وكل باقة، وتكلفة الإعلان مقابل الحجوزات، مع توصيات واضحة.</p></div>
+        <div class="row"><h4>يبني على</h4><p>الحسابات والفواتير والمصاريف بالنظام، كويك بوكس المربوط، وتقارير المطابقة اللي تطلع كل أسبوع وكل شهر.</p></div>
+        <div class="row"><h4>ناقص</h4><p class="gap">تكلفة كل حفلة وصرف الإعلانات ما ينحفظون بالنظام، فما نقدر نطلع الربح الحقيقي. هذي أول مهمة له مع فريق الأنظمة.</p></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ic">ر</span><span class="ttl"><b>ربط الأنظمة</b><span>كل الأدوات تكلم بعض</span></span><span class="tag later">الدفعة الثانية</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>أولوياته</h4><ol><li>نشر الستوري تلقائياً.</li><li>ربط الحجوزات بالإعلان اللي جابها.</li><li>حفظ تكلفة الحفلة وصرف الإعلانات.</li><li>دمج جدولين العملاء (الجديد والقديم من كويك بوكس).</li><li>ربط تقييمات قوقل.</li></ol></div>
+        <div class="row"><h4>قواعده</h4><p>ما يدمج شي بالموقع إلا بكلمة «موافقة» منج.</p></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ic">و</span><span class="ttl"><b>تطوير المواقع</b><span>موقع الحجز ولوحة التشغيل</span></span><span class="tag now">شغّال</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>يبني على</h4><p>سكيل الجودة والفحص الموجود، وكل الكود والتوثيق.</p></div>
+        <div class="row"><h4>الحين</h4><ul><li>تحديث رقم 100 (أكواد الخصم بس مع الدفع الكامل) ينتظر «موافقة».</li><li>التوثيق قديم من سبتمبر، وأشياء كثيرة مسوية بس مكتوبة ناقصة. نحدّثه.</li><li>الناقص بالموقع: وصف المنتجات بالعربي، وسلة وحدة لكل الطلبات.</li></ul></div>
+        <div class="row"><h4>قواعده</h4><p>ما يكمل أي دفع حقيقي، وما يلمس بيانات العملاء، وأي تحديث يمر بمراجعة وموافقتج قبل ما ينزل.</p></div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ic">ج</span><span class="ttl"><b>فريق الجودة</b><span>يفحص الموقع والنظام كل يوم</span></span><span class="tag now">شغّال جزئياً</span><span class="chev">‹</span></summary>
+      <div class="body">
+        <div class="row"><h4>يبني على</h4><p>الفحص اليومي اللي يوصلج الساعة 10 (حوالي 45 فحص)، وسكيل الجودة.</p></div>
+        <div class="row"><h4>يضيف</h4><ul><li>تجربة لوحة التشغيل بكل صلاحية (مالكة، مشرفة، موظف).</li><li>مراجعة تقييمات العملاء بعد الحفلات بشكل منتظم.</li></ul></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="box">
+    <h2>ناقص وما ذكرتيه</h2>
+    <ol>
+      <li><b>منسقة عامة</b> تجمع شغل الكل وترسل لج رسالة وحدة باليوم بدال الأسئلة المتفرقة، وهي اللي تمنع الموافقات اليومية.</li>
+      <li><b>أمين الأرشيف</b>: يحفظ كل فيديو وصورة وقرار، لأن فيديوهاتكم ضاعت مرة.</li>
+      <li><b>تقييمات قوقل</b>: الردود جاهزة بالنظام بس مطفية، تحتاج ربط حسابكم.</li>
+      <li><b>مساعدين مارشا</b> (التصميم وتدقيق الحفلات): موقوفين على جنب لين تقررين.</li>
+    </ol>
+  </section>
+
+  <section class="box q">
+    <h2>سؤال واحد</h2>
+    <p>قلتي «ياسين يشتغل عليه الحين» عن إعلانات ميتا. ياسين شخص بالفريق؟ ولا قصدج «إحنا نشتغل عليه»؟</p>
+  </section>
+</div>
