@@ -99,7 +99,7 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
   - The click-to-WhatsApp `sourceAdId` / `ctwa_clid` on each lead goes to `whatsapp_leads`.
   - The lead is matched to a paid booking by phone (`status='booked'`, `order_id`).
   - A Meta CAPI Purchase is sent (`domain/attribution.ts`, `integrations/metaCapi.ts`).
-- **Known break (27 Nov):** ads send people to the main number +971 56 450 0777, and that number is NOT connected to the system yet. Status there is PENDING: coexistence onboarding isn't done. Until it is, ad chats and bookings can't be linked to ads. Fixing it is the top systems priority.
+- **Known break (27 Nov):** ads send people to the main number +971 56 450 0777, and that number is NOT connected to the system yet. Status there is PENDING: coexistence onboarding isn't done. Until it is, ad chats and bookings can't be linked to ads. The ads STAY on 0777 (owner rule): the fix is linking 0777, never moving the ads. This is the top systems priority.
 - **Weekly gap audit:** every Wednesday Sultan checks each link in the chain, plus any other integration, and logs anything broken with its fix.
 
 ## How work moves
