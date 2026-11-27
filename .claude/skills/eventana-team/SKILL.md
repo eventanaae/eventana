@@ -78,7 +78,7 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 
 ## Messages to Marsha: short and few (owner rule, 27 Nov)
 - **Short:** 1–2 lines, one clear point per message. Go longer only when it truly needs it, e.g. a list she asked for.
-- **Few:** don't flood her. Batch things into one message, and move anything non-urgent to the next day.
+- **How many:** more than one message a day is fine (owner, 27 Nov). Just keep each one short and useful, and don't drip-feed tiny asks.
 
 ## Marsha's day off (owner rule, 27 Nov)
 - **Marsha is off every Tuesday.** No agent messages her that day, and no reminders go out, unless it is truly urgent: it would hurt a party or money that same day.
