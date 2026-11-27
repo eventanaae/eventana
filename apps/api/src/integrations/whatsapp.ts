@@ -260,8 +260,15 @@ export async function sendWhatsAppText(args: {
   body: string;
   /** Set true for a staff-initiated send, which the mode gate doesn't block. */
   fromStaff?: boolean;
+  /** Only the AI team's direct message to Marsha may reach the company phone. */
+  allowCompanyPhone?: boolean;
 }): Promise<SendResult> {
   if (!whatsappEnabled()) return { ok: false, error: 'whatsapp_disabled' };
+  // Owner, 27 Nov: no automatic notifications to the company phone (+971 56 450 0777,
+  // read by Marsha). Only the AI team's messages, sent on purpose, go there.
+  if (!args.allowCompanyPhone && String(args.to ?? '').replace(/\D/g, '').endsWith('564500777')) {
+    return { ok: false, error: 'company_phone_muted' };
+  }
   if (!args.fromStaff && agentMode() === 'off') return { ok: false, error: 'agent_off' };
 
   const url =
@@ -306,8 +313,13 @@ export async function sendWhatsAppTemplate(args: {
   language?: string;
   params?: string[];
   fromStaff?: boolean;
+  /** Only the AI team's direct message to Marsha may reach the company phone. */
+  allowCompanyPhone?: boolean;
 }): Promise<SendResult> {
   if (!whatsappEnabled()) return { ok: false, error: 'whatsapp_disabled' };
+  if (!args.allowCompanyPhone && String(args.to ?? '').replace(/\D/g, '').endsWith('564500777')) {
+    return { ok: false, error: 'company_phone_muted' };
+  }
   if (!args.fromStaff && agentMode() === 'off') return { ok: false, error: 'agent_off' };
 
   const url =

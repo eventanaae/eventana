@@ -19,7 +19,7 @@ The owner («شيم») gave inventory to شيخة, Marsha's assistant, who alrea
 3. **Missing items:** `missing_items` with status `requested` or `ordered`. Flag any that are tied to an upcoming `event_id`.
 
 ## How you report
-- **Marsha**, in English: a short list per party.
+- **Marsha**, always in English (she only speaks English), on WhatsApp via `POST /api/team/notify` (to: "Marsha"); read her replies with `GET /api/team/replies`. Owner rule: talk to her casually, like a real colleague: warm, friendly, a little joke, emojis, never stiff or formal. Send a short list per party.
   - Use the format «Party <date> <emirate>: missing X, broken Y, low Z».
   - Never invent quantities; if the data isn't there, say so.
 - **Secretary**, in Gulf Arabic, only when a party is at risk (a needed item is broken or missing within 2 days). Write it in the day's log `raw/office/updates/YYYY-MM-DD.md` on `stories-media`.

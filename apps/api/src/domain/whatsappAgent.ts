@@ -252,12 +252,28 @@ async function escalateToOwner(msg: InboundMessage, reason: string): Promise<voi
  * Returns without sending whenever the mode forbids it, so the caller can
  * log the decision without needing to know the rules.
  */
+/** True for the company phone and any active team member's phone. */
+export async function isTeamPhone(phone: string): Promise<boolean> {
+  const d = String(phone ?? '').replace(/\D/g, '');
+  if (!d) return false;
+  if (d.endsWith('564500777')) return true;
+  try {
+    const r = await pool.query(
+      `SELECT 1 FROM team_members WHERE active AND phone IS NOT NULL
+          AND right(regexp_replace(phone, '\\D', '', 'g'), 9) = right($1, 9) LIMIT 1`, [d]);
+    return r.rows.length > 0;
+  } catch { return false; }
+}
+
 export async function respondToLead(
   msg: InboundMessage,
   result: RecordResult,
 ): Promise<AgentOutcome> {
   const mode = agentMode();
   if (mode === 'off') return { replied: false, handoff: false };
+  // Our own team (the company phone Marsha reads, or any staff phone) is never
+  // answered by the customer bot — those are work messages for the AI team.
+  if (await isTeamPhone(msg.phone)) return { replied: false, handoff: false };
   // Staff are talking to this customer: the bot stays quiet, but a booking
   // confirmation or a sensitive ask must still ALERT the team (silently).
   if (await staffActiveRecently(msg.phone)) {

@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify';
 import { createHash } from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { safeEqual } from '../payments/provider.js';
+import { staffWhatsApp } from '../integrations/push.js';
 
 const REPORT_KEY_SHA256 = 'd7adf93428c04153d718ec5a4d1084a9c5b78e63be712d392de4edf49b112ed9';
 const OFFICE_KEY_SHA256 = '7aea653830487eb7c8005bc03c32942b0ede599427388a205112a31d22972653';
@@ -25,6 +26,56 @@ function keyOk(given: string | undefined): boolean {
 }
 
 export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
+  /**
+   * POST /api/team/notify  { to: "Marsha", headline, details }  (header x-report-key)
+   * Lets the AI team send a short ENGLISH work message to ONE active internal team
+   * member on WhatsApp, through the approved staff_notify template and the phone
+   * already stored in Ops. Staff only — never a customer. Max 10 per day overall.
+   */
+  /** GET /api/team/replies — the last 30 WhatsApp messages Marsha sent back from the company phone. */
+  app.get('/api/team/replies', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const r = await pool.query(
+      `SELECT body, to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS at
+         FROM whatsapp_messages WHERE direction = 'in' AND right(phone, 9) = '564500777'
+        ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] }));
+    const sent = await pool.query(
+      `SELECT to_name, headline, to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS at
+         FROM ai_team_notify_log ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] }));
+    return { fromMarsha: r.rows, sentByTeam: sent.rows };
+  });
+
+  app.post('/api/team/notify', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const b = (request.body ?? {}) as { to?: unknown; headline?: unknown; details?: unknown };
+    const to = String(b.to ?? '').trim(), headline = String(b.headline ?? '').trim().slice(0, 60), details = String(b.details ?? '').trim().slice(0, 600);
+    if (!to || !headline || !details) return reply.code(400).send({ error: 'to, headline and details are required' });
+    // Marsha reads the company phone (+971 56 450 0777), owner 27 Nov: send hers there.
+    if (to.toLowerCase() === 'marsha') {
+      const h = new Date(Date.now() + 4 * 3600 * 1000).getUTCHours();
+      if (h < 10 || h >= 23) return reply.code(409).send({ error: 'staff messages only 10:00-23:00 Dubai' });
+      const sentM = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM ai_team_notify_log WHERE created_at > now() - interval '1 day'`);
+      if ((sentM.rows[0]?.n ?? 0) >= 10) return reply.code(429).send({ error: 'daily limit reached' });
+      await pool.query(`INSERT INTO ai_team_notify_log (to_name, headline) VALUES ($1, $2)`, ['Marsha', headline]);
+      const { sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
+      const one = (x: string) => x.replace(/\s*\n+\s*/g, ' • ').trim();
+      const r = await sendWhatsAppTemplate({ to: '971564500777', name: 'staff_notify', language: 'en', params: ['Marsha', one(headline), one(details)], fromStaff: true, allowCompanyPhone: true });
+      return { ok: r.ok, to: 'Marsha' };
+    }
+    const m = await pool.query<{ id: string; name: string }>(
+      `SELECT id, name FROM team_members WHERE active AND access_level <> 'owner' AND phone IS NOT NULL AND phone <> ''
+         AND lower(split_part(name,' ',1)) = lower($1)`, [to]);
+    if (m.rows.length !== 1) return reply.code(404).send({ error: 'no single active team member with that first name' });
+    const sent = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM ai_team_notify_log WHERE created_at > now() - interval '1 day'`);
+    if ((sent.rows[0]?.n ?? 0) >= 10) return reply.code(429).send({ error: 'daily limit reached' });
+    await pool.query(`INSERT INTO ai_team_notify_log (to_name, headline) VALUES ($1, $2)`, [m.rows[0].name.split(' ')[0], headline]);
+    await staffWhatsApp(headline, details, m.rows[0].id, { force: true });
+    return { ok: true, to: m.rows[0].name.split(' ')[0] };
+  });
+
   app.get('/api/team/status', async (request, reply) => {
     const hdr = request.headers['x-report-key'];
     if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
