@@ -70,6 +70,12 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
   - The secretary must not ask again a question the owner already answered (check `raw/RULES.md` and earlier logs).
 - **A blocked item can't stay silent.** If an item is still `blocked` the next day, the secretary either raises it at the meeting or writes who is fixing it and when.
 
+## Talking to Marsha (owner rule, 27 Nov)
+- **Who answers her:** شيخة replies to Marsha on WhatsApp the moment she writes, automatically, in casual English and using real Ops data.
+- **When Sheikha doesn't know:** the question lands in `openRequests` (`GET /api/team/replies`). The agent who owns it answers or acts the same day, and closes it with `POST /api/team/requests/close`. If no one can answer it, it goes to the secretary's meeting.
+- **Admin requests** («ADMIN:» items in `openRequests`) never get answered by an agent. These cover money, payments, salaries, leave, buying, hiring, policy, and customer refunds or discounts. They go straight to the secretary, who asks the owner at the 5:30 meeting and then sends Marsha the owner's answer.
+- **When the team needs something from Marsha** (design details, photos, footage, prints): message her through `POST /api/team/notify` (to: "Marsha"). Keep it short and casual, in English, with one clear ask. Never message her about things the data already answers.
+
 ## How work moves
 - Every agent appends to the day's log: `raw/office/updates/YYYY-MM-DD.md` on the
   `stories-media` branch, one block per item:
