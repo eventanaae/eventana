@@ -162,6 +162,8 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 .overlay .p.real .mood{font-size:14px}
 .overlay .p .pop{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);flex-direction:column;align-items:flex-start;gap:2px;min-width:170px;max-width:230px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.16);text-align:right}
 .overlay .p.open .pop{display:flex}
+.overlay .p .pop{transform:translateX(calc(-50% + var(--px,0px)))}
+.overlay .p.below .pop{bottom:auto;top:calc(100% + 6px)}
 .overlay .p.open{z-index:99999!important}
 .overlay .p .pop .name{font-size:15px}
 .overlay .p .pop .rl{font-size:12px;max-width:none;white-space:normal}
@@ -565,6 +567,14 @@ if(HAS3D)initScene(); else floor.insertAdjacentHTML("beforeend",'<p class="note"
 const MOODS={happy:["😊","مستانس"],sad:["😞","زعلان"],busy:["💻","مشغول"],stressed:["😰","مضغوط"],free:["☕","فري"],need:["🙋","محتاج شي"]};
 const MOOD={shamma:"happy",hamdan:"busy",maitha:"busy",kafu:"busy",mahra:"stressed",majid:"free",saeed:"busy",sheikha:"free",hessa:"free",matar:"free",nouf:"free",dhiab:"need",sultan:"busy",khalifa:"free"};
 const moodOf=p=>p.real?null:(MOOD[p.id]||{work:"busy",wait:"need",stop:"stressed"}[p.st]||"free");
+// Keep an open card fully inside the 3D view: flip it under the pin near the top, slide it in from the sides.
+function fitPop(p){const pop=p.el.querySelector(".pop"),ov=p.el.closest(".overlay");if(!pop||!ov||!p.el.classList.contains("open"))return;
+  const o=ov.getBoundingClientRect(),e=p.el.getBoundingClientRect(),h=pop.offsetHeight,w=pop.offsetWidth,pad=8;
+  p.el.classList.toggle("below",e.top-o.top<h+pad+6&&o.bottom-e.bottom>e.top-o.top);
+  const cx=e.left+e.width/2;let dx=0;
+  if(cx-w/2<o.left+pad)dx=o.left+pad-(cx-w/2);else if(cx+w/2>o.right-pad)dx=(o.right-pad)-(cx+w/2);
+  pop.style.setProperty("--px",dx+"px")}
+function fitPopSoon(p){let n=0;const t=setInterval(()=>{fitPop(p);if(++n>12)clearInterval(t)},120);fitPop(p)}
 function closePops(except){T.forEach(q=>{if(q!==except)q.el.classList.remove("open")})}
 document.addEventListener("pointerdown",e=>{if(!e.target.closest(".overlay .p"))closePops()});
 T.forEach((p,i)=>{
@@ -577,7 +587,7 @@ T.forEach((p,i)=>{
       <span class="ml">${mi?mi[0]+" "+mi[1]:"من الفريق الحقيقي"}</span>
       <span class="tk">${p.real?esc(p.task):(busy?"شغله الحين: ":"ما عنده شغل الحين. ")+esc(p.task)}</span>
       <span class="more">تفاصيل</span></span><span class="bub"></span></button>`);
-  p.el.onclick=e=>{if(e.target.closest(".more")){openPerson(p);return}const o=!p.el.classList.contains("open");closePops(p);p.el.classList.toggle("open",o);if(o)focusOn(p);
+  p.el.onclick=e=>{if(e.target.closest(".more")){openPerson(p);return}const o=!p.el.classList.contains("open");closePops(p);p.el.classList.toggle("open",o);if(o){focusOn(p);fitPopSoon(p)}
     // Owner: 1st tap = "I'm X, I do Y"; 2nd tap = their update. Real staff are not voiced.
     if(!p.real&&typeof speakAs==="function"){unlockPhoneVoice();p.taps=(p.taps||0)+1;
       const line=p.taps%2===1?`أنا ${p.name}، ${p.role}. ${(p.does&&p.does[0])?("أسوي "+p.does[0]+"."):""}`:`آخر شي عندي: ${p.task||"ما عندي جديد الحين."}`;
