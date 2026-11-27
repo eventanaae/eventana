@@ -43,7 +43,20 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     const sent = await pool.query(
       `SELECT to_name, headline, to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS at
          FROM ai_team_notify_log ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] }));
-    return { fromMarsha: r.rows, sentByTeam: sent.rows };
+    const open = await pool.query(
+      `SELECT id, text, marsha_said, to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS at
+         FROM ai_team_requests WHERE status = 'open' ORDER BY created_at LIMIT 30`).catch(() => ({ rows: [] }));
+    return { fromMarsha: r.rows, sentByTeam: sent.rows, openRequests: open.rows };
+  });
+
+  /** POST /api/team/requests/close { id } — the team finished one of Marsha's requests. */
+  app.post('/api/team/requests/close', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const id = Number((request.body as { id?: unknown } | undefined)?.id);
+    if (!Number.isInteger(id)) return reply.code(400).send({ error: 'id required' });
+    const r = await pool.query(`UPDATE ai_team_requests SET status = 'done', done_at = now() WHERE id = $1 AND status = 'open'`, [id]);
+    return { ok: (r.rowCount ?? 0) > 0 };
   });
 
   app.post('/api/team/notify', async (request, reply) => {
@@ -69,6 +82,10 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       const r = open24.rows.length
         ? await sendWhatsAppText({ to: '971564500777', body: `${headline}\n\n${details}`, fromStaff: true, allowCompanyPhone: true })
         : await sendWhatsAppTemplate({ to: '971564500777', name: 'staff_notify', language: 'en', params: ['Marsha', one(headline), one(details)], fromStaff: true, allowCompanyPhone: true });
+      if (r.ok) {
+        const { recordOutboundMessage } = await import('../domain/whatsappLeads.js');
+        await recordOutboundMessage({ phone: '971564500777', body: `${headline}\n\n${details}`, messageId: r.messageId ?? null, sentBy: 'agent' }).catch(() => {});
+      }
       return { ok: r.ok, to: 'Marsha', via: open24.rows.length ? 'text' : 'template', error: r.error };
     }
     const m = await pool.query<{ id: string; name: string }>(
@@ -145,7 +162,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
         COUNT(*) FILTER (WHERE status = 'new')::int AS new_open,
         COUNT(*) FILTER (WHERE status IN ('quoted','confirmed'))::int AS quoted_open,
         COUNT(*) FILTER (WHERE status = 'booked' AND updated_at > now() - interval '7 days')::int AS booked_week
-       FROM whatsapp_leads`).catch(() => ({}));
+       FROM whatsapp_leads WHERE right(phone, 9) <> '564500777'`).catch(() => ({}));
     const carts = await one(`SELECT COUNT(*)::int AS n FROM orders WHERE kind = 'booking' AND status = 'awaiting_payment' AND created_at > now() - interval '7 days'`).catch(() => ({}));
     const alerts = await one(`SELECT
         (SELECT COUNT(*) FROM prep_tasks pt JOIN events e ON e.id = pt.event_id WHERE pt.status = 'issue' AND e.event_date >= $1::date AND e.phase <> 'Cancelled')::int AS prep_issues,

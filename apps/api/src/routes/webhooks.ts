@@ -156,6 +156,9 @@ export async function webhookRoutes(app: FastifyInstance) {
               },
               'whatsapp lead updated',
             );
+            // Marsha on the company phone: Sheikha answers, never the customer bot.
+            const { isCompanyPhone, sheikhaReply } = await import('../domain/sheikha.js');
+            if (isCompanyPhone(msg.phone)) { await sheikhaReply(msg); return; }
             await respondToLead(msg, result);
             // Auto-reply a booking customer who replied to our automated line.
             await autoReplyKnownCustomer(msg);

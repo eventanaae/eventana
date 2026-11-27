@@ -2032,3 +2032,14 @@ CREATE TABLE IF NOT EXISTS ai_team_notify_log (
   headline    TEXT NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Things Marsha asked/told Sheikha that the AI team must act on or answer.
+CREATE TABLE IF NOT EXISTS ai_team_requests (
+  id          BIGSERIAL PRIMARY KEY,
+  source      TEXT NOT NULL DEFAULT 'marsha',
+  text        TEXT NOT NULL,
+  marsha_said TEXT,
+  status      TEXT NOT NULL DEFAULT 'open',   -- open | done
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  done_at     TIMESTAMPTZ
+);
