@@ -11,3 +11,4 @@ OWNER (26 Nov): does not want to use the chat; talks to Shamma inside the Eventa
 - (27 Nov) The owner's name is «شيم» (Shaim), NOT «شيماء». Always write and say «شيم».
 - (27 Nov) Stories: any story that mentions the website or the app must show «eventanauae.com» written clearly on the image (auto-posted stories cannot carry a link sticker).
 - (27 Nov) No waiting loops: agents do the work themselves; anything nobody can answer goes to the secretary once and she asks the owner at the 5:30 meeting.
+- (27 Nov) Marsha is off every Tuesday: nobody contacts her unless urgent.
