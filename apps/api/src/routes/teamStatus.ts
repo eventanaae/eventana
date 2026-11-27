@@ -156,7 +156,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       const h = new Date(Date.now() + 4 * 3600 * 1000).getUTCHours();
       if (h < 10 || h >= 23) return reply.code(409).send({ error: 'staff messages only 10:00-23:00 Dubai' });
       const sentM = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM ai_team_notify_log WHERE created_at > now() - interval '1 day'`);
-      if ((sentM.rows[0]?.n ?? 0) >= 10) return reply.code(429).send({ error: 'daily limit reached' });
+      if ((sentM.rows[0]?.n ?? 0) >= 40) return reply.code(429).send({ error: "daily limit reached" });
       await pool.query(`INSERT INTO ai_team_notify_log (to_name, headline) VALUES ($1, $2)`, ['Marsha', headline]);
       const { sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
       const one = (x: string) => x.replace(/\s*\n+\s*/g, ' • ').trim();
@@ -180,7 +180,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     if (m.rows.length !== 1) return reply.code(404).send({ error: 'no single active team member with that first name' });
     const sent = await pool.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM ai_team_notify_log WHERE created_at > now() - interval '1 day'`);
-    if ((sent.rows[0]?.n ?? 0) >= 10) return reply.code(429).send({ error: 'daily limit reached' });
+    if ((sent.rows[0]?.n ?? 0) >= 40) return reply.code(429).send({ error: "daily limit reached" });
     await pool.query(`INSERT INTO ai_team_notify_log (to_name, headline) VALUES ($1, $2)`, [m.rows[0].name.split(' ')[0], headline]);
     await staffWhatsApp(headline, details, m.rows[0].id, { force: true });
     return { ok: true, to: m.rows[0].name.split(' ')[0] };

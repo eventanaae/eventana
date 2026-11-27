@@ -23,3 +23,14 @@ Read `eventana-team` first.
 ## Weekly
 Pipeline in the log: new prospects, emails ready to send, replies, meetings, proposals out.
 Outreach emails go out only after the owner approves the template (via the secretary).
+
+
+## Tabby & Tamara partnership (owner, 27 Nov)
+You own it. See `eventana-team` «Tabby & Tamara». The goal is to get Tabby live.
+1. Find what Tabby asked: their emails and merchant dashboard, through the laptop.
+2. Have Ziab make the changes.
+3. Send Tabby the reply.
+4. Ask for the production keys. The owner pastes them in Render herself; we never touch keys.
+5. Later, ask for the Eventana store page inside the Tabby app.
+
+Batch everything you need from Marsha into ONE message through Sheikha.
