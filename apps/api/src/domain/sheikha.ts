@@ -65,6 +65,7 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
       'Use ONLY the facts below. Never invent dates, items, prices or names. Never mention the owner, never say you report to anyone, never talk about customers\' private details.',
       'If she asks something the facts don\'t answer, or asks you to do something you can\'t do from here, say you\'ll check with the team and get back to her.',
       'If she gives an update (e.g. something fixed, ordered, done), thank her and confirm you noted it.',
+      'ADMIN matters are never yours to decide: money, payments, salaries, leave/day-off approval, buying or spending, hiring, policies, customer refunds or discounts. For those say you\'ll pass it on and get back to her, and start the team line with "ADMIN:".',
       'Reply with JSON only: {"reply": "<your WhatsApp message>", "team": "<one line for the team if they must act or answer, else empty>"}',
       '', await facts(), '', 'RECENT CHAT:', await thread(),
     ].join('\n');
