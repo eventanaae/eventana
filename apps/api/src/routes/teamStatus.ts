@@ -68,6 +68,23 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     return { ok: await applyStockUpdate(String(b.type ?? ''), String(b.item ?? '')) };
   });
 
+  /** GET /api/team/marsha-tasks — Marsha's open Ops tasks, for Sheikha's schedule. */
+  app.get('/api/team/marsha-tasks', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const { marshaTasks } = await import('../domain/sheikha.js');
+    return { tasks: await marshaTasks() };
+  });
+
+  /** POST /api/team/remind { at: "YYYY-MM-DD HH:MM" (Dubai), text } — a reminder Sheikha sends Marsha. */
+  app.post('/api/team/remind', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const b = (request.body ?? {}) as { at?: unknown; text?: unknown };
+    const { addReminder } = await import('../domain/sheikha.js');
+    return { ok: await addReminder(String(b.at ?? ''), String(b.text ?? '')) };
+  });
+
   app.post('/api/team/notify', async (request, reply) => {
     const hdr = request.headers['x-report-key'];
     if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
