@@ -28,9 +28,10 @@ Built from everything the owner said and everything that exists in the systems
 | Comments & DMs (in `eventana-followup`) | Drafts fast replies to Instagram comments/DMs from approved templates; feeds questions to Content. | Content, Secretary |
 | Customer experience (in `eventana-followup`) | After each party: rating, photos with the family's consent, Google review request. | Content, Finance |
 | Search pages (in `eventana-qa`) | Keeps the 20 landing pages (`apps/customer/src/seo.json`) fresh monthly. | Content |
+| Inventory, done by شيخة (`eventana-inventory`) | Two days before each party: every item present and working, broken/missing items, consumables running low; tells Marsha. | Marsha, Secretary |
 | Party readiness auditor (in `eventana-marsha-design`) | Two days before each party: designs done, prints ready, crew assigned; tells Marsha. | Marsha, Secretary |
 
-Real people (never speak for them, never put words in their mouths): Shaima (owner),
+Real people (never speak for them, never put words in their mouths): Shaim (شيم) (owner),
 Marsha (operations + design; in-house printer, sends other items to a print shop on
 WhatsApp), field team Dindo, Diana, Gloria, Jane.
 
@@ -58,6 +59,16 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
    same day (the container gets wiped; footage was lost once).
 10. Before any new AI scene: state the cost and show a still (costs are pre-approved,
    but she wants to see the direction).
+
+## No waiting loops (owner rule, 27 Nov)
+- **Do the work.** Never ask another agent and then sit waiting.
+  - If the answer is in the repo, the data, the logs or `raw/RULES.md`, find it yourself and carry on.
+  - If it is another agent's job, do that step yourself under their skill and credit it to them in the log. Don't hand it back and forth.
+- **Ask a question once.** If no file, data or skill has the answer, write it once in the day's log as `needs owner: yes — <one-line question>`. Then keep working on everything else.
+- **Only the owner answers what nobody knows.** The secretary asks her in the 5:30 meeting.
+  - The secretary must not drop it.
+  - The secretary must not ask again a question the owner already answered (check `raw/RULES.md` and earlier logs).
+- **A blocked item can't stay silent.** If an item is still `blocked` the next day, the secretary either raises it at the meeting or writes who is fixing it and when.
 
 ## How work moves
 - Every agent appends to the day's log: `raw/office/updates/YYYY-MM-DD.md` on the
