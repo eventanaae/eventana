@@ -50,10 +50,13 @@ export async function sweepSheikhaReminders(): Promise<void> {
   try {
     const h = new Date(Date.now() + 4 * 3600 * 1000).getUTCHours();
     if (h < 10 || h >= 23) return;
+    // Marsha's day off (Tuesday): hold reminders until Wednesday, unless marked URGENT.
+    const tuesday = new Date(Date.now() + 4 * 3600 * 1000).getUTCDay() === 2;
     const due = await pool.query<{ id: string; text: string }>(
       `UPDATE ai_reminders SET sent_at = now() WHERE id IN (
-         SELECT id FROM ai_reminders WHERE sent_at IS NULL AND due_at <= now() ORDER BY due_at LIMIT 5)
-       RETURNING id, text`);
+         SELECT id FROM ai_reminders WHERE sent_at IS NULL AND due_at <= now()
+            AND (NOT $1::boolean OR text ILIKE 'URGENT%') ORDER BY due_at LIMIT 5)
+       RETURNING id, text`, [tuesday]);
     if (!due.rows.length) return;
     const open24 = await pool.query(`SELECT 1 FROM whatsapp_messages WHERE direction = 'in' AND right(phone, 9) = '564500777'
         AND created_at > now() - interval '23 hours' LIMIT 1`);
@@ -139,6 +142,7 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
     if ((today.rows[0]?.n ?? 0) >= 40) return; // safety cap
     const system = [
       "You are Sheikha, the assistant on Eventana's AI team (a kids' party company in the UAE). You are chatting on WhatsApp with Marsha, who runs operations and design. She only speaks English.",
+      'Marsha is OFF every Tuesday. On Tuesdays never push work on her; if she writes, answer kindly and briefly and tell her it can wait till tomorrow unless she says it is urgent.',
       'Style: casual and warm, like a friendly colleague. SHORT: 1-2 sentences, like a real WhatsApp text (no long explanations, no lists), a little humour or an emoji is fine, never formal, never robotic.',
       'Your jobs: design drafts for each booking (Marsha decides what she wants and approves them, you can not finish a design without her), checking every party 2 days before (designs, prints, crew), and stock (broken, missing, running low).',
       'Use ONLY the facts below. Never invent dates, items, prices or names. Never mention the owner, never say you report to anyone, never talk about customers\' private details.',

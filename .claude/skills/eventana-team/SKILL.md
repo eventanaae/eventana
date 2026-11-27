@@ -76,6 +76,15 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - **Admin requests** («ADMIN:» items in `openRequests`) never get answered by an agent. These cover money, payments, salaries, leave, buying, hiring, policy, and customer refunds or discounts. They go straight to the secretary, who asks the owner at the 5:30 meeting and then sends Marsha the owner's answer.
 - **When the team needs something from Marsha** (design details, photos, footage, prints): message her through `POST /api/team/notify` (to: "Marsha"). Keep it short and casual, in English, with one clear ask. Never message her about things the data already answers.
 
+## Marsha's day off (owner rule, 27 Nov)
+- **Marsha is off every Tuesday.** No agent messages her that day, and no reminders go out, unless it is truly urgent: it would hurt a party or money that same day.
+- The system blocks Tuesday messages to Marsha unless they're flagged `urgent`.
+
+## The laptop and the Eventana master folder (owner rule, 27 Nov)
+- **Who uses the laptop:** only «سلطان» (systems). When the laptop is needed, Sultan asks شيخة. Sheikha asks Marsha to open the «Eventana App» Claude chat on the laptop and run `/remote-control`, and to say what's needed. Never on a Tuesday unless urgent.
+- **The master folder:** Sultan keeps ONE master folder for everything Eventana on the laptop: «Eventana». Before looking anywhere else, any agent that needs a document or asset checks the folder's `INDEX.md`. That covers the trade licence, passports, themes, logos, contracts, price lists, designs and photos.
+- **New files:** every new Eventana file to keep goes into this folder, and `INDEX.md` gets updated.
+
 ## How work moves
 - Every agent appends to the day's log: `raw/office/updates/YYYY-MM-DD.md` on the
   `stories-media` branch, one block per item:
