@@ -76,3 +76,10 @@ Give each ad its own WhatsApp word (e.g. «حورية», «فيونكة», «ح�
 | a17 short 25 s (new) | 9 | 1 | — | 83% / 44% / 16% (best opening so far, small sample) |
 
 Lessons: theme-emotion videos give the cheapest chats; price-list images are 30–100% dearer; photos are dearer than video; every ad loses about half its viewers in the first second — the first frame is the biggest lever.
+
+
+## WhatsApp destination rule (owner, 27 Nov)
+- Every click-to-WhatsApp ad must open the system number **+971 56 453 4077**, which the API is connected to. Never point an ad at +971 56 450 0777: that's Marsha's phone, it isn't connected, and those chats and bookings can't be traced to ads.
+- The system assistant answers on 4077 instantly, and Marsha replies from the Ops WhatsApp (Leads) page.
+- **Daily check:** the destination of any new or edited ad must be 4077.
+- Once 0777 is linked (coexistence, after Meta verification), this rule can change, but only with the owner's yes.
