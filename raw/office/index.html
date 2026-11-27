@@ -216,7 +216,7 @@ body.big .log{display:none}
       <div class="viewbar" id="viewbar" role="toolbar" aria-label="التحكم بالمنظر"><button type="button" data-v="in" aria-label="قرّبي">＋</button><button type="button" data-v="out" aria-label="بعّدي">－</button><button type="button" data-v="left" aria-label="لفّي يمين">⟲</button><button type="button" data-v="right" aria-label="لفّي يسار">⟳</button><button type="button" data-v="home" aria-label="رجّعي المنظر">⌂</button><button type="button" data-v="full" aria-label="ملء الشاشة">⛶</button></div><div class="legend" id="opsU"></div><div class="viewport" id="vp"><div class="overlay" id="floor"></div></div>
     </section>
     <aside class="log" aria-labelledby="log-h">
-      <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">ابدئي اجتماع</button></div>
+      <div class="sec-h" style="justify-content:space-between"><h2 id="log-h">سوالف المكتب</h2><button class="btn" id="meetBtn" type="button">اجتماع حي 🎙️</button></div>
       <div class="mcard" id="mcard"><b>اجتماعج مع شمّا</b><span class="note" id="mstate">كل يوم الساعة 5:30 المسا، بس إذا فيه شي مهم.</span><div id="mlines"></div><button class="btn ghost" id="mplay" type="button" hidden>شوفي الاجتماع</button></div>
       <div class="talk" aria-label="كلمي شمّا">
         <b>كلمي شمّا</b>
@@ -690,8 +690,8 @@ async function playMeeting(){
   const ms=MEETSEATS.length?MEETSEATS:[[600,458],[640,458]]; SHAIMA.el.style.display=""; place(SHAIMA,ms[0][0],ms[0][1],true);
   place(sh,ms[1][0],ms[1][1],true);
   log(sh,SHAIMA,"اجتماع اليوم مع شيم");
-  const tts=await getTts();
-  for(const [k,t] of meetingLines(m)){const line=`${k}: ${t}`;const sp=tts?tts.speak(line,{language:"ar",voice:"airy"}).catch(()=>{}):null;await say(sh,line,3600);if(sp)await sp}
+  unlockPhoneVoice();
+  for(const [k,t] of meetingLines(m)){const line=`${k}: ${t}`;await speakAs(sh,line)}
   await say(sh,"هذا كل شي اليوم",1800);
   place(sh,SEAT.shamma.x,SEAT.shamma.y,true); SHAIMA.el.style.display="none";
   sh.busy=false;setDesk(sh);meetingBusy=false;
@@ -738,7 +738,7 @@ function applyStaff(doc){if(!doc||!doc.people)return;
     p.el.querySelector(".tk").textContent=(busy?"شغله الحين: ":"ما عنده شغل الحين. ")+(s.task||p.task);p.task=s.task||p.task;queueTalk(p.id,s.task);p.el.setAttribute("aria-label",`${p.name}، ${p.role}، ${mi[1]}`)}}
 (async()=>{const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;if(!db)return;
   db.doc("staff/status").onSnapshot(snap=>{if(snap.exists)applyStaff(snap.data())},()=>{})})();
-function applyOffice(o){const S=document.getElementById("ovS");if(!o||!S)return;S.hidden=false;
+function applyOffice(o){LAST_OFFICE=o;const S=document.getElementById("ovS");if(!o||!S)return;S.hidden=false;
   const n=v=>Number(v||0).toLocaleString("ar-AE");const W=document.getElementById("ovw");W.innerHTML="";
   const tile=(val,lab,cls)=>{const d=document.createElement("div");d.className="t"+(cls?" "+cls:"");const b=document.createElement("b");b.textContent=val;const sp=document.createElement("span");sp.textContent=lab;d.append(b,sp);W.appendChild(d)};
   const m=o.money||{},l=o.leads||{},a=o.alerts||{},r=o.ratings30d||{};
@@ -805,7 +805,7 @@ function bubble(cls,text,label){const d=document.createElement("div");d.classNam
 function phoneSpeak(text){try{const S=window.speechSynthesis;if(!S)return false;S.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="ar-AE";
   const v=(S.getVoices()||[]).find(x=>/^ar/i.test(x.lang));if(v)u.voice=v;u.rate=.95;S.speak(u);return true}catch(e){return false}}
 function unlockPhoneVoice(){try{const S=window.speechSynthesis;if(S&&!S._ok){const u=new SpeechSynthesisUtterance(" ");u.volume=0;S.speak(u);S._ok=1}}catch(e){}}
-async function speakShamma(text){lastShamma=text;listen.hidden=false;const t=await getTts();if(!t){phoneSpeak(text);return}try{await t.speak(text,{language:"ar",voice:"airy"})}catch(e){phoneSpeak(text)}}
+async function speakShamma(text){lastShamma=text;listen.hidden=false;await speakAs(byId("shamma"),text)}
 function teamStatus(){return T.filter(p=>!p.real).map(p=>`${p.name} (${p.role}): ${p.task}`).join("\n")}
 (async()=>{
   mic.hidden=false;
@@ -887,22 +887,55 @@ function openPerson(p){
     catch(e){out.textContent=e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"ما قدرت أرد الحين."}
     send.disabled=false};
 }
+/* ===== Live meeting: Sheem talks (voice or text), the right person answers in their own voice ===== */
+let LAST_OFFICE=null;
+const TTSV={f:["airy","glassy"],m:["buttery","rounded"]};
+let VOICE_OVR={};try{VOICE_OVR=JSON.parse(localStorage.getItem("ev_voices")||"{}")}catch(e){}
+let LAST_SPEAKER=null;
+const ALLV=["airy","glassy","buttery","rounded"];
+function cycleVoice(p){const cur=voiceFor(p);const nx=ALLV[(ALLV.indexOf(cur)+1)%ALLV.length];VOICE_OVR[p.id]=nx;try{localStorage.setItem("ev_voices",JSON.stringify(VOICE_OVR))}catch(e){};return nx}
+function voiceFor(p){if(VOICE_OVR[p.id])return VOICE_OVR[p.id];const pool=TTSV[p.g==="f"?"f":"m"];const i=[...p.id].reduce((a,c)=>a+c.charCodeAt(0),0)%pool.length;return pool[i]}
+function phoneVoiceFor(g){try{const vs=(speechSynthesis.getVoices()||[]).filter(v=>/^ar/i.test(v.lang));
+  const fem=/laila|layla|mariam|maryam|hoda|salma|amira|hala|sana|zariyah|zeina|female|woman/i,mal=/maged|majed|tarik|naayf|hamed|fahed|male/i;
+  return vs.find(v=>(g==="f"?fem:mal).test(v.name))||vs[0]||null}catch(e){return null}}
+function phoneSay(text,g){return new Promise(res=>{try{const S=window.speechSynthesis;if(!S)return res();S.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="ar-AE";
+  const v=phoneVoiceFor(g);if(v)u.voice=v;u.pitch=g==="f"?1.25:0.9;u.rate=.97;u.onend=u.onerror=()=>res();S.speak(u)}catch(e){res()}})}
+async function speakAs(p,text){LAST_SPEAKER=p;const t=await getTts();if(t){try{await t.speak(text,{language:"ar",voice:voiceFor(p)});return}catch(e){}}await phoneSay(text,p.g)}
+function introLine(p){return `أنا ${p.name}، ${p.role}. ${(p.does&&p.does[0])?("أسوي "+p.does[0]+"."):""}`}
 document.getElementById("meetBtn").onclick=()=>{
-  const P=shell(`<h2>اجتماع جديد</h2><div class="sec"><h4>الفكرة</h4><textarea id="idea" rows="3" placeholder="اكتبي الفكرة"></textarea></div>
-   <div class="sec"><h4>مين يحضر</h4><div class="picks">${T.filter(p=>p.st!=="new"&&!p.real).map(p=>`<button type="button" class="pick" data-id="${p.id}" aria-pressed="${["shamma","kafu","hamdan","saeed","maitha"].includes(p.id)}">${esc(p.name)}</button>`).join("")}</div></div>
-   <div><button class="btn" id="go" type="button">ابدأوا</button></div><div class="note" id="mn">كل واحد يعطي رايه من تخصصه، وشمّا تطلع الخلاصة. القرار لج.</div><div id="min" style="display:flex;flex-direction:column;gap:8px"></div>`);
-  P.querySelectorAll(".pick").forEach(b=>b.onclick=()=>b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true"));
-  const go=P.querySelector("#go"),min=P.querySelector("#min"),mn=P.querySelector("#mn");
-  getSample().then(s=>{if(!s){mn.textContent="الاجتماع يشتغل لما تفتحين الصفحة من حسابج.";go.disabled=true}});
-  go.onclick=async()=>{const idea=P.querySelector("#idea").value.trim();const sel=[...P.querySelectorAll('.pick[aria-pressed="true"]')].map(b=>byId(b.dataset.id));if(!idea||!sel.length)return;
-    min.innerHTML=`<div class="note">الفريق يتناقش…</div>`;go.disabled=true;
-    const ps=sel.slice(0,4).filter(p=>!p.busy);ps.forEach(p=>{p.busy=true;setDesk(p)});
-    const spots=MEETSEATS.length?MEETSEATS:[[600,458]];ps.forEach((p,i)=>walk(p,spots[i%spots.length][0],spots[i%spots.length][1]));
-    try{const s=await getSample();
-      const res=await s.json(`${CONTEXT}\nاجتماع. الحضور:\n${sel.map(p=>`- ${p.name} (${p.role}): ${p.does.join("، ")}`).join("\n")}\nفكرة شيم: ${idea}\nكل واحد يعطي رايه من تخصصه بجملتين أو ثلاث، وبعدها شمّا تكتب خلاصة وقرارات مقترحة تحتاج موافقة شيم. رجّع JSON فقط: {"turns":[{"name":"...","text":"..."}],"summary":"..."}`,{modelTier:"default"});
-      min.innerHTML="";for(const t of (res.turns||[])){min.insertAdjacentHTML("beforeend",`<div class="turn"><b>${esc(t.name||"")}</b><br>${esc(t.text||"")}</div>`);const p=T.find(x=>x.name===t.name);if(p){log(p,null,t.text||"");say(p,(t.text||"").slice(0,90),3500)}}
-      if(res.summary)min.insertAdjacentHTML("beforeend",`<div class="summary"><b>خلاصة شمّا</b><br>${esc(res.summary)}</div>`);
-    }catch(e){min.innerHTML=`<div class="note">${e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"ما قدرنا نكمل الاجتماع الحين."}</div>`}
-    await sleep(3600);await Promise.all(ps.map(p=>walk(p,SEAT[p.id].x,SEAT[p.id].y)));ps.forEach(p=>{p.busy=false;setDesk(p)});go.disabled=false};
+  const staff=T.filter(p=>!p.real&&p.st!=="new");
+  const P=shell(`<h2>اجتماع حي مع الفريق</h2><div class="note">تكلمي أو اكتبي، واللي شغله يخص سؤالج يرد عليج بصوته.</div>
+   <div class="sec"><h4>الحضور</h4><div class="picks" id="att">${staff.map(p=>`<button type="button" class="pick" data-id="${p.id}" aria-pressed="false" title="${esc(p.role)}">${esc(p.name)}<br><small>${esc(p.role)}</small></button>`).join("")}</div>
+   <div><button class="btn ghost" id="intro" type="button">عرّفوني بنفسكم</button></div></div>
+   <div id="lm" style="display:flex;flex-direction:column;gap:8px;max-height:40vh;overflow:auto"></div>
+   <textarea id="lmq" rows="2" placeholder="اسألي الفريق أو اطلبي شي"></textarea>
+   <div class="tbar"><button class="btn" id="lmsend" type="button">أرسلي</button><button class="btn ghost" id="lmmic" type="button">تكلمي</button><button class="btn ghost" id="lmvoice" type="button">غيّري صوت آخر واحد تكلم</button></div>
+   <div class="note" id="lmn"></div>`);
+  const lm=P.querySelector("#lm"),q=P.querySelector("#lmq"),n=P.querySelector("#lmn"),send=P.querySelector("#lmsend");
+  const add=(who,text,me)=>{const d=document.createElement("div");d.className="turn";d.innerHTML=me?`<b>انتي</b><br>${esc(text)}`:`<b>${esc(who.name)}</b> <small class="note">${esc(who.role)}</small><br>${esc(text)}`;lm.appendChild(d);lm.scrollTop=lm.scrollHeight};
+  const hi=id=>P.querySelectorAll("#att .pick").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.id===id)));
+  let busy=false;
+  const intro=async()=>{if(busy)return;busy=true;unlockPhoneVoice();for(const p of staff){hi(p.id);const line=introLine(p);add(p,line);await speakAs(p,line)}hi("");busy=false;try{localStorage.setItem("ev_intro","1")}catch(e){}};
+  P.querySelector("#intro").onclick=intro;
+  P.querySelectorAll("#att .pick").forEach(b=>b.onclick=()=>{const p=byId(b.dataset.id);if(!busy){hi(p.id);add(p,introLine(p));speakAs(p,introLine(p))}});
+  P.querySelector("#lmvoice").onclick=()=>{const p=LAST_SPEAKER;if(!p){n.textContent="خلي أحد يتكلم أول.";return}cycleVoice(p);const l=`هذا صوتي الجديد، أنا ${p.name}.`;n.textContent=`غيرت صوت ${p.name}.`;speakAs(p,l)};
+  const mic=P.querySelector("#lmmic");
+  getDict().then(d=>{mic.onclick=()=>{unlockPhoneVoice();if(!d){q.focus();n.textContent="اضغطي علامة المايك 🎤 في الكيبورد وتكلمي، وبعدين «أرسلي».";return}
+    if(d.active())d.stop();else{d.onFinal(({text})=>{if(text)q.value=(q.value?q.value+" ":"")+text});d.start({language:"ar"}).catch(()=>{n.textContent="ما قدرت أسمعج، اكتبي."})}}});
+  send.onclick=async()=>{const text=q.value.trim();if(!text||busy)return;busy=true;q.value="";unlockPhoneVoice();add(null,text,true);n.textContent="الفريق يفكر…";
+    try{const smp=await getSample();if(!smp)throw new Error("nosample");
+      const roster=staff.map(p=>`${p.id} | ${p.name} | ${p.role} | الحين: ${p.task||""}`).join("\n");
+      const office=LAST_OFFICE?JSON.stringify(LAST_OFFICE).slice(0,2500):"";
+      const parties=(OPS_UP||[]).slice(0,10).map(e=>`${e.date} ${e.emirate||""} ${e.theme||""} تجهيز ${e.prepDone}/${e.prepTotal} فريق فاضي ${e.crewOpen}`).join("\n");
+      const r=await smp.json(`${CONTEXT}\nاجتماع حي بالصوت مع شيم (صاحبة إيفنتانا). الموظفين:\n${roster}\nأرقام لوحة التشغيل: ${office}\nالحفلات الجاية:\n${parties}\nكلام شيم: ${text}\nاختار الموظف اللي شغله يخص كلامها (أو شمّا إذا عام)، ويرد هو بلهجة خليجية طبيعية مثل إنسان، بجملة أو جملتين بس، من المعلومات اللي فوق فقط بدون اختراع. إذا طلبت شغل، يقول إنه بيبدأ فيه وإذا يحتاج شي منها يسأله بوضوح. وإذا يحتاج رأي موظف ثاني تقدر تضيف رد ثاني قصير. رجّع JSON فقط: {"turns":[{"id":"<id>","text":"..."}],"task":"<إذا طلبت شغل: وصف قصير للشغل، وإلا فاضي>"}`,{modelTier:"default",cache:false});
+      n.textContent="";
+      for(const t of (r.turns||[]).slice(0,2)){const p=byId(t.id)||byId("shamma");hi(p.id);add(p,t.text||"");log(p,null,t.text||"");await speakAs(p,t.text||"")}
+      hi("");
+      if(r.task&&inboxRef){await inboxRef.add({at:Date.now(),text:`(من الاجتماع) ${text}`,status:"new",task:r.task}).catch(()=>{})}
+    }catch(e){n.textContent=e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"الاجتماع الحي يشتغل لما تفتحين المكتب من حسابج."}
+    busy=false};
+  q.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send.onclick()}});
+  let seen=false;try{seen=localStorage.getItem("ev_intro")==="1"}catch(e){}
+  if(!seen)n.textContent="أول مرة؟ اضغطي «عرّفوني بنفسكم» وكل واحد يعرّفج على نفسه بصوته.";
 };
 </script>
