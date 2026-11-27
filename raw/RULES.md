@@ -14,3 +14,4 @@ OWNER (26 Nov): does not want to use the chat; talks to Shamma inside the Eventa
 - (27 Nov) Marsha is off every Tuesday: nobody contacts her unless urgent.
 - (27 Nov) Messages to Marsha: short (1–2 lines) and few; batch, push non-urgent to the next day.
 - (27 Nov) Ads ALWAYS go to +971 56 450 0777. Never move ads to another number.
+- (27 Nov, update) Marsha: more than one message a day is fine; keep each short.
