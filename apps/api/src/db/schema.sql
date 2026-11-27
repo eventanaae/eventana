@@ -2043,3 +2043,12 @@ CREATE TABLE IF NOT EXISTS ai_team_requests (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   done_at     TIMESTAMPTZ
 );
+
+-- Reminders Sheikha sends Marsha on WhatsApp (asked for by Marsha or the team).
+CREATE TABLE IF NOT EXISTS ai_reminders (
+  id         BIGSERIAL PRIMARY KEY,
+  text       TEXT NOT NULL,
+  due_at     TIMESTAMPTZ NOT NULL,
+  sent_at    TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

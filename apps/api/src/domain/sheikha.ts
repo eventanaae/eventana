@@ -18,6 +18,55 @@ export function isCompanyPhone(phone: string): boolean {
   return String(phone ?? '').replace(/\D/g, '').endsWith('564500777');
 }
 
+/** Marsha's open Ops tasks (prep + manual), oldest due first. */
+export async function marshaTasks(): Promise<Array<{ due: string | null; title: string; status: string; category: string; party: string | null }>> {
+  const r = await pool.query(
+    `SELECT to_char(pt.due_date,'Dy DD Mon') AS due, pt.title, pt.status, pt.category,
+            CASE WHEN e.id IS NULL THEN NULL ELSE to_char(e.event_date,'Dy DD Mon') || ' ' || COALESCE(e.emirate,'') END AS party
+       FROM prep_tasks pt JOIN prep_task_staff s ON s.task_id = pt.id JOIN team_members tm ON tm.id = s.member_id
+       LEFT JOIN events e ON e.id = pt.event_id
+      WHERE lower(split_part(tm.name,' ',1)) = 'marsha' AND pt.status <> 'completed'
+      ORDER BY pt.due_date NULLS LAST, pt.id LIMIT 60`).catch(() => ({ rows: [] as any[] }));
+  return r.rows as any;
+}
+
+/** Store a reminder for Marsha. `at` is Dubai local time "YYYY-MM-DD HH:MM". */
+export async function addReminder(at: string, text: string): Promise<boolean> {
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})$/.exec(String(at ?? '').trim());
+  if (!m || !String(text ?? '').trim()) return false;
+  const r = await pool.query(
+    `INSERT INTO ai_reminders (text, due_at) SELECT $1, ($2::timestamp AT TIME ZONE 'Asia/Dubai')
+      WHERE ($2::timestamp AT TIME ZONE 'Asia/Dubai') > now() - interval '5 minutes'
+        AND (SELECT count(*) FROM ai_reminders WHERE sent_at IS NULL) < 50`,
+    [String(text).slice(0, 500), `${m[1]} ${m[2]}:${m[3]}`]).catch(() => ({ rowCount: 0 }));
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** Send any due reminders (called from the reconcile sweep). Night guard: 10:00–23:00 Dubai. */
+export async function sweepSheikhaReminders(): Promise<void> {
+  try {
+    const h = new Date(Date.now() + 4 * 3600 * 1000).getUTCHours();
+    if (h < 10 || h >= 23) return;
+    const due = await pool.query<{ id: string; text: string }>(
+      `UPDATE ai_reminders SET sent_at = now() WHERE id IN (
+         SELECT id FROM ai_reminders WHERE sent_at IS NULL AND due_at <= now() ORDER BY due_at LIMIT 5)
+       RETURNING id, text`);
+    if (!due.rows.length) return;
+    const open24 = await pool.query(`SELECT 1 FROM whatsapp_messages WHERE direction = 'in' AND right(phone, 9) = '564500777'
+        AND created_at > now() - interval '23 hours' LIMIT 1`);
+    const { sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
+    for (const r of due.rows) {
+      const body = `Reminder ⏰ ${r.text}`;
+      const res = open24.rows.length
+        ? await sendWhatsAppText({ to: COMPANY, body, fromStaff: true, allowCompanyPhone: true })
+        : await sendWhatsAppTemplate({ to: COMPANY, name: 'staff_notify', language: 'en', params: ['Marsha', 'Reminder ⏰', r.text.replace(/\s*\n+\s*/g, ' • ')], fromStaff: true, allowCompanyPhone: true });
+      if (res.ok) await recordOutboundMessage({ phone: COMPANY, body, messageId: res.messageId ?? null, sentBy: 'agent' }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[sheikha] reminders failed:', (err as Error).message);
+  }
+}
+
 async function facts(): Promise<string> {
   const q = async (sql: string) => (await pool.query(sql).catch(() => ({ rows: [] as any[] }))).rows;
   const parties = await q(`
@@ -32,6 +81,8 @@ async function facts(): Promise<string> {
        AND e.event_date BETWEEN (now() AT TIME ZONE 'Asia/Dubai')::date AND (now() AT TIME ZONE 'Asia/Dubai')::date + 7
      ORDER BY e.event_date, e.start_time LIMIT 25`);
   const issues = await q(`SELECT COALESCE(asset_name, asset_code) AS item, kind, status FROM asset_issues WHERE status <> 'resolved' LIMIT 20`);
+  const tasks = await marshaTasks();
+  const reminders = await q(`SELECT to_char(due_at AT TIME ZONE 'Asia/Dubai','Dy DD Mon HH24:MI') AS at, text FROM ai_reminders WHERE sent_at IS NULL ORDER BY due_at LIMIT 20`);
   const missing = await q(`SELECT item, quantity, status FROM missing_items WHERE status IN ('requested','ordered') LIMIT 30`);
   const low = await q(`SELECT name, on_hand, reorder_level FROM consumables WHERE active AND on_hand <= reorder_level LIMIT 20`);
   return [
@@ -39,6 +90,8 @@ async function facts(): Promise<string> {
     ...parties.map((p: any) => `- ${p.day} ${String(p.time ?? '').slice(0, 5)} ${p.emirate ?? ''} | theme ${p.theme ?? (p.custom ? 'custom' : '?')} | ${p.package ?? ''} | crew ${p.crew ?? 'none yet'} | prep ${p.prep_done}/${p.prep_total} | designs open ${p.design_open}`),
     'OPEN EQUIPMENT ISSUES:', ...issues.map((i: any) => `- ${i.item}: ${i.kind} (${i.status})`),
     'MISSING ITEMS NOT YET RECEIVED:', ...missing.map((m: any) => `- ${m.item} x${m.quantity} (${m.status})`),
+    "MARSHA'S OPEN TASKS IN OPS:", ...(tasks.length ? tasks.map((t) => `- due ${t.due ?? '?'} | ${t.title} | ${t.status}${t.party ? ` | party ${t.party}` : ''}`) : ['- none']),
+    'REMINDERS ALREADY SET:', ...(reminders.length ? reminders.map((r: any) => `- ${r.at}: ${r.text}`) : ['- none']),
     'CONSUMABLES LOW:', ...(low.length ? low.map((l: any) => `- ${l.name}: ${l.on_hand} left (reorder at ${l.reorder_level})`) : ['- none']),
   ].join('\n');
 }
@@ -90,7 +143,8 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
       'If she gives an update (e.g. something fixed, ordered, done), thank her and confirm you noted it.',
       'ADMIN matters are never yours to decide: money, payments, salaries, leave/day-off approval, buying or spending, hiring, policies, customer refunds or discounts. For those say you\'ll pass it on and get back to her, and start the team line with "ADMIN:".',
       'You are responsible for keeping the stock records in Ops up to date. When Marsha CLEARLY says an item with an open issue is fixed, or a missing item was ordered or received, add an action. Use the item name EXACTLY as written in the facts. Never guess.',
-      'Reply with JSON only: {"reply": "<your WhatsApp message>", "team": "<one line for the team if they must act or answer, else empty>", "actions": [{"type": "resolve_issue|missing_ordered|missing_received", "item": "<exact name>"}]}',
+      'You can set reminders for Marsha: when she asks to be reminded (or agrees to one), add an action {"type":"remind","at":"YYYY-MM-DD HH:MM" (Dubai time, between 10:00 and 22:59),"text":"<short reminder>"}. Today in Dubai is ' + new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' ') + '.',
+      'Reply with JSON only: {"reply": "<your WhatsApp message>", "team": "<one line for the team if they must act or answer, else empty>", "actions": [{"type": "resolve_issue|missing_ordered|missing_received", "item": "<exact name>"} or {"type": "remind", "at": "...", "text": "..."}]}',
       '', await facts(), '', 'RECENT CHAT:', await thread(),
     ].join('\n');
     const out = await generateText({ system, prompt: `Marsha just wrote: ${msg.text.slice(0, 1500)}`, maxTokens: 400 });
@@ -100,7 +154,8 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
       const j = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
       reply = String(j.reply ?? '').trim(); team = String(j.team ?? '').trim();
       for (const act of Array.isArray(j.actions) ? j.actions.slice(0, 5) : []) {
-        await applyStockUpdate(String(act?.type ?? ''), String(act?.item ?? ''));
+        if (act?.type === 'remind') await addReminder(String(act?.at ?? ''), String(act?.text ?? ''));
+        else await applyStockUpdate(String(act?.type ?? ''), String(act?.item ?? ''));
       }
     } catch { reply = out.trim(); }
     if (!reply) return;

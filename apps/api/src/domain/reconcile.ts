@@ -382,6 +382,11 @@ export async function reconcileOnce(): Promise<ReconcileReport> {
     .then(({ sweepStaffWaQueue }) => sweepStaffWaQueue())
     .catch((err) => console.error('[team-reminder] failed:', err));
 
+  // Sheikha's reminders to Marsha (AI team).
+  await import('./sheikha.js')
+    .then(({ sweepSheikhaReminders }) => sweepSheikhaReminders())
+    .catch((err) => console.error('[sheikha] sweep failed:', err));
+
   // Google Business Profile — reply to new reviews: 4–5★ get an automatic
   // thank-you (in the review's language); 1–3★ become a draft the owner
   // approves before it's posted. Throttled internally; runs only when
