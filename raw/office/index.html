@@ -267,7 +267,6 @@ const T=[
 const RULES={ev:["ما نغيّر ثيم الحفلة ولا نشيل أي شخصية","ما فيه كيك، بس ستاندات الكيك","نقول «ستاند بالون رئيسي فخم» مو «خلفية»","المهرج ما يتكلم، وحورية البحر فلبينية بلبس محتشم","ميزانية الإعلانات 2,000 درهم بالشهر"],
  hq:["ما نرسل لأي عميل بدون موافقة شيم","ولا كلمات سر ولا بيانات بطاقات"],mz:["كفو ونص يشتغل مع كفو"],od:[],mt:[]};
 const ASKS=[
- {who:"shamma",what:"ياسين",how:"شخص بالفريق؟ ولا قصدج «إحنا»؟"},
 ];
 // Talks come from each person's REAL current task (staff/status), each said once; no fixed script to loop.
 const PARTNER={hamdan:"maitha",maitha:"kafu",kafu:"saeed",mahra:"saeed",majid:"sultan",saeed:"kafu",sheikha:"shamma",hessa:"shamma",matar:"shamma",nouf:"khalifa",dhiab:"sultan",sultan:"dhiab",khalifa:"hamdan",shamma:"hamdan"};
@@ -578,7 +577,11 @@ T.forEach((p,i)=>{
       <span class="ml">${mi?mi[0]+" "+mi[1]:"من الفريق الحقيقي"}</span>
       <span class="tk">${p.real?esc(p.task):(busy?"شغله الحين: ":"ما عنده شغل الحين. ")+esc(p.task)}</span>
       <span class="more">تفاصيل</span></span><span class="bub"></span></button>`);
-  p.el.onclick=e=>{if(e.target.closest(".more")){openPerson(p);return}const o=!p.el.classList.contains("open");closePops(p);p.el.classList.toggle("open",o);if(o)focusOn(p)};
+  p.el.onclick=e=>{if(e.target.closest(".more")){openPerson(p);return}const o=!p.el.classList.contains("open");closePops(p);p.el.classList.toggle("open",o);if(o)focusOn(p);
+    // Owner: 1st tap = "I'm X, I do Y"; 2nd tap = their update. Real staff are not voiced.
+    if(!p.real&&typeof speakAs==="function"){unlockPhoneVoice();p.taps=(p.taps||0)+1;
+      const line=p.taps%2===1?`أنا ${p.name}، ${p.role}. ${(p.does&&p.does[0])?("أسوي "+p.does[0]+"."):""}`:`آخر شي عندي: ${p.task||"ما عندي جديد الحين."}`;
+      speakAs(p,line)}};
   if(HAS3D)p.fig=makeFigure(p,i);
   place(p,SEAT[p.id].x,SEAT[p.id].y,true);setDesk(p);
 });
@@ -906,7 +909,7 @@ document.getElementById("meetBtn").onclick=()=>{
   const staff=T.filter(p=>!p.real&&p.st!=="new");
   const P=shell(`<h2>اجتماع حي مع الفريق</h2><div class="note">تكلمي أو اكتبي، واللي شغله يخص سؤالج يرد عليج بصوته.</div>
    <div class="sec"><h4>الحضور</h4><div class="picks" id="att">${staff.map(p=>`<button type="button" class="pick" data-id="${p.id}" aria-pressed="false" title="${esc(p.role)}">${esc(p.name)}<br><small>${esc(p.role)}</small></button>`).join("")}</div>
-   <div><button class="btn ghost" id="intro" type="button">عرّفوني بنفسكم</button></div></div>
+   </div>
    <div id="lm" style="display:flex;flex-direction:column;gap:8px;max-height:40vh;overflow:auto"></div>
    <textarea id="lmq" rows="2" placeholder="اسألي الفريق أو اطلبي شي"></textarea>
    <div class="tbar"><button class="btn" id="lmsend" type="button">أرسلي</button><button class="btn ghost" id="lmmic" type="button">تكلمي</button><button class="btn ghost" id="lmvoice" type="button">غيّري صوت آخر واحد تكلم</button></div>
@@ -916,8 +919,8 @@ document.getElementById("meetBtn").onclick=()=>{
   const hi=id=>P.querySelectorAll("#att .pick").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.id===id)));
   let busy=false;
   const intro=async()=>{if(busy)return;busy=true;unlockPhoneVoice();for(const p of staff){hi(p.id);const line=introLine(p);add(p,line);await speakAs(p,line)}hi("");busy=false;try{localStorage.setItem("ev_intro","1")}catch(e){}};
-  P.querySelector("#intro").onclick=intro;
-  P.querySelectorAll("#att .pick").forEach(b=>b.onclick=()=>{const p=byId(b.dataset.id);if(!busy){hi(p.id);add(p,introLine(p));speakAs(p,introLine(p))}});
+
+  P.querySelectorAll("#att .pick").forEach(b=>b.onclick=()=>{const p=byId(b.dataset.id);if(busy)return;p.taps=(p.taps||0)+1;const line=p.taps%2===1?introLine(p):`آخر شي عندي: ${p.task||"ما عندي جديد الحين."}`;hi(p.id);add(p,line);speakAs(p,line)});
   P.querySelector("#lmvoice").onclick=()=>{const p=LAST_SPEAKER;if(!p){n.textContent="خلي أحد يتكلم أول.";return}cycleVoice(p);const l=`هذا صوتي الجديد، أنا ${p.name}.`;n.textContent=`غيرت صوت ${p.name}.`;speakAs(p,l)};
   const mic=P.querySelector("#lmmic");
   getDict().then(d=>{mic.onclick=()=>{unlockPhoneVoice();if(!d){q.focus();n.textContent="اضغطي علامة المايك 🎤 في الكيبورد وتكلمي، وبعدين «أرسلي».";return}
@@ -936,6 +939,6 @@ document.getElementById("meetBtn").onclick=()=>{
     busy=false};
   q.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send.onclick()}});
   let seen=false;try{seen=localStorage.getItem("ev_intro")==="1"}catch(e){}
-  if(!seen)n.textContent="أول مرة؟ اضغطي «عرّفوني بنفسكم» وكل واحد يعرّفج على نفسه بصوته.";
+  if(!seen)n.textContent="اضغطي على أي واحد يعرّفج على نفسه، واضغطي مرة ثانية يعطيج آخر شغله.";
 };
 </script>
