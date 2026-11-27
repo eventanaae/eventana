@@ -27,3 +27,9 @@ Rules:
 - Marsha is off on Tuesdays.
 - English with Marsha, simple and friendly. She isn't technical, so open the right page for her and tell her exactly which button to press.
 - Never type passwords or card numbers.
+
+4) Tabby (for «مطر», B2B — owner order 27 Nov):
+- On the laptop, help Marsha open the Eventana email inbox and the Tabby merchant dashboard (she logs in herself).
+- Find what Tabby asked us to fix or send for go-live (emails from tabby.ai, onboarding/integration review notes).
+- Save a short summary to ~/Eventana/07 Suppliers/Tabby - what they asked.md and report it.
+- Ask Marsha for everything in ONE go, never bit by bit.

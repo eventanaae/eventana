@@ -85,6 +85,17 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - **The master folder:** Sultan keeps ONE master folder for everything Eventana on the laptop: «Eventana». Before looking anywhere else, any agent that needs a document or asset checks the folder's `INDEX.md`. That covers the trade licence, passports, themes, logos, contracts, price lists, designs and photos.
 - **New files:** every new Eventana file to keep goes into this folder, and `INDEX.md` gets updated.
 
+## Tabby & Tamara (instalments): who owns it (owner, 27 Nov)
+- **Owner:** «مطر» (B2B & contracts) owns the relationship with Tabby and Tamara: follow-ups, their requirements, go-live, and the store page inside the Tabby app.
+- **Code:** «ذياب» (website & QA) does the technical changes they ask for.
+- **Status (from the records):**
+  - Tamara has been live since 19 Sep.
+  - Tabby's code is built (`apps/api/src/payments/*`), but go-live stopped: the production keys never came, and Tabby asked for changes that were never finished.
+  - What they asked is NOT in our records. It is likely in Tabby's emails or merchant dashboard.
+- **First step:** Matar uses the laptop (through Sultan) to read Tabby's emails and merchant dashboard and list exactly what they asked. Ziab then makes the fixes, and Matar sends Tabby the reply.
+- **Logins:** Marsha logs in herself, never us. Ask Sheikha for ONE batched request, with exactly what's needed. Don't drip-feed small asks to Marsha, and never on a Tuesday.
+- Rule already live: discount codes only apply with full payment, never with Tabby or Tamara.
+
 ## How work moves
 - Every agent appends to the day's log: `raw/office/updates/YYYY-MM-DD.md` on the
   `stories-media` branch, one block per item:
