@@ -97,7 +97,9 @@ export async function teamExamples(limit = 20): Promise<Array<{ q: string; a: st
         WHERE o.direction = 'out' AND o.sent_by = 'staff'
           AND length(COALESCE(o.body, '')) BETWEEN 2 AND 700
           AND o.created_at > now() - interval '120 days'
-        ORDER BY o.created_at DESC
+        -- Chats that became bookings («Order complete») teach best: put them first.
+        ORDER BY (SELECT l.status = 'booked' FROM whatsapp_leads l WHERE right(l.phone, 9) = right(o.phone, 9) LIMIT 1) DESC NULLS LAST,
+                 o.created_at DESC
         LIMIT $1`,
       [limit],
     );

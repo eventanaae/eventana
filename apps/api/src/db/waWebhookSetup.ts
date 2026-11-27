@@ -92,7 +92,7 @@ export async function waWebhookSetupFromEnv(): Promise<void> {
           object: 'whatsapp_business_account',
           callback_url: 'https://eventana-api.onrender.com/api/webhooks/whatsapp',
           verify_token: verify,
-          fields: 'messages',
+          fields: 'messages,history,smb_message_echoes',
           include_values: 'true',
         });
         L(`register webhook: ${JSON.stringify(r)}`);

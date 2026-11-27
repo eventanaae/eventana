@@ -132,6 +132,8 @@ export interface InboundMessage {
    * `ctwaClid` is what lets a booking be traced back to the exact ad.
    */
   ctwaClid: string | null;
+  /** Which of our numbers received it (Meta phone_number_id). */
+  toPhoneNumberId?: string | null;
   sourceAdId: string | null;
   sourceHeadline: string | null;
 }
@@ -186,6 +188,7 @@ export function parseInbound(body: unknown): InboundMessage[] {
           text: String(text),
           timestamp: m.timestamp ? new Date(Number(m.timestamp) * 1000) : new Date(),
           ctwaClid: referral?.ctwa_clid ?? null,
+          toPhoneNumberId: (value as any)?.metadata?.phone_number_id ? String((value as any).metadata.phone_number_id) : null,
           sourceAdId: referral?.source_id ? String(referral.source_id) : null,
           sourceHeadline: referral?.headline ? String(referral.headline) : null,
         });
