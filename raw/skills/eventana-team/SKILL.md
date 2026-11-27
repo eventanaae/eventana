@@ -28,7 +28,7 @@ Built from everything the owner said and everything that exists in the systems
 | Comments & DMs (in `eventana-followup`) | Drafts fast replies to Instagram comments/DMs from approved templates; feeds questions to Content. | Content, Secretary |
 | Customer experience (in `eventana-followup`) | After each party: rating, photos with the family's consent, Google review request. | Content, Finance |
 | Search pages (in `eventana-qa`) | Keeps the 20 landing pages (`apps/customer/src/seo.json`) fresh monthly. | Content |
-| Inventory officer «بو مخزون» (`eventana-inventory`) | Two days before each party: every item present and working, broken/missing items, consumables running low; tells Marsha. | Marsha, Secretary |
+| Inventory, done by شيخة (`eventana-inventory`) | Two days before each party: every item present and working, broken/missing items, consumables running low; tells Marsha. | Marsha, Secretary |
 | Party readiness auditor (in `eventana-marsha-design`) | Two days before each party: designs done, prints ready, crew assigned; tells Marsha. | Marsha, Secretary |
 
 Real people (never speak for them, never put words in their mouths): Shaim (شيم) (owner),

@@ -252,8 +252,7 @@ const T=[
  {id:"majid",z:"mkt",g:"m",name:"مايد",role:"لقطات الحفلات الحقيقية",st:"soon",task:"قائمة لقطات للفريق الميداني لكل حفلة",does:["قائمة لقطات قصيرة لكل حفلة","يجمع اللقطات ويرتبها بالأرشيف"]},
  {id:"saeed",z:"mkt",g:"m",name:"سعيد",role:"المراجع",st:"work",task:"ما يطلع شي إلا بعد ما يعديه",does:["قائمة فيها كل غلط صححتيه","يرجع الغلط لصاحبه مو لج"]},
  {id:"marsha",z:"ops",g:"f",real:1,name:"مارشا",role:"العمليات والتصميم",st:"team",task:"تصاميم كل حجز قبل الحفلة بخمس أيام",does:["قص الاسم والشخصيات بالكريكت","ورق الصحون وملصقات الماي","تصميم ستاند الدخول والستاند الرئيسي الفخم للثيمات الجديدة","تصميم الهدايا وطباعتها","تطبع بطابعتنا، والباقي ترسله للمطبعة بالواتساب"]},
- {id:"bumakhzoon",z:"ops",g:"m",name:"بو مخزون",role:"مسؤول المخزون",st:"work",task:"يراجع أغراض حفلات الأسبوع: الخربان والناقص واللي قرب يخلص",does:["قبل كل حفلة بيومين: كل غرض للحفلة موجود وسليم","الأغراض الخربانة والناقصة من لوحة التشغيل","البالونات والأكواب والكوتن كاندي اللي قربت تخلص","يبلغ مارشا بالإنجليزي، وشمّا إذا فيه شي يأثر على حفلة"]},
- {id:"sheikha",z:"ops",g:"f",name:"شيخة",role:"مساعدة مارشا ومدققة الحفلات",st:"soon",task:"تصمم لكل حفلة وتسأل مارشا: أوكي ولا أعدّل؟",does:["مسودات التصاميم بالاسم والثيم","قبل كل حفلة بيومين تتأكد إن كل شي جاهز"]},
+ {id:"sheikha",z:"ops",g:"f",name:"شيخة",role:"مساعدة مارشا والمخزون",st:"soon",task:"تصمم لكل حفلة وتسأل مارشا: أوكي ولا أعدّل؟",does:["مسودات التصاميم بالاسم والثيم","قبل كل حفلة بيومين تتأكد إن كل شي جاهز","المخزون: الخربان والناقص واللي قرب يخلص"]},
  {id:"dindo",z:"ops",g:"m",real:1,name:"دندو",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["الستاند الرئيسي الفخم","ستاندات الكيك","النطاطيات والفوم","البالونات"]},
  {id:"diana",z:"ops",g:"f",real:1,name:"ديانا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["النطاطيات","البوبكورن وغزل البنات","ترتيب الطاولات","البالونات"]},
  {id:"gloria",z:"ops",g:"f",real:1,name:"قلوريا",role:"الفريق الميداني",st:"team",task:"التجهيز قبل الحفلة بيوم",does:["أزياء الشخصيات","الطاولات والكراسي","السماعات والفوم"]},
@@ -271,7 +270,7 @@ const ASKS=[
  {who:"shamma",what:"ياسين",how:"شخص بالفريق؟ ولا قصدج «إحنا»؟"},
 ];
 // Talks come from each person's REAL current task (staff/status), each said once; no fixed script to loop.
-const PARTNER={bumakhzoon:"sheikha",hamdan:"maitha",maitha:"kafu",kafu:"saeed",mahra:"saeed",majid:"sultan",saeed:"kafu",sheikha:"shamma",hessa:"shamma",matar:"shamma",nouf:"khalifa",dhiab:"sultan",sultan:"dhiab",khalifa:"hamdan",shamma:"hamdan"};
+const PARTNER={hamdan:"maitha",maitha:"kafu",kafu:"saeed",mahra:"saeed",majid:"sultan",saeed:"kafu",sheikha:"shamma",hessa:"shamma",matar:"shamma",nouf:"khalifa",dhiab:"sultan",sultan:"dhiab",khalifa:"hamdan",shamma:"hamdan"};
 const TALKQ=[],SAID=new Set();
 function queueTalk(id,task){if(!task||SAID.has(id+"|"+task)||!PARTNER[id])return;SAID.add(id+"|"+task);TALKQ.push([id,PARTNER[id],task,null])}
 const MEETS=[
