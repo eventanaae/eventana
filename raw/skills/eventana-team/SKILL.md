@@ -89,16 +89,18 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - **The master folder:** Sultan keeps ONE master folder for everything Eventana on the laptop: «Eventana». Before looking anywhere else, any agent that needs a document or asset checks the folder's `INDEX.md`. That covers the trade licence, passports, themes, logos, contracts, price lists, designs and photos.
 - **New files:** every new Eventana file to keep goes into this folder, and `INDEX.md` gets updated.
 
-## Tabby & Tamara (instalments): who owns it (owner, 27 Nov)
-- **Owner:** «مطر» (B2B & contracts) owns the relationship with Tabby and Tamara: follow-ups, their requirements, go-live, and the store page inside the Tabby app.
-- **Code:** «ذياب» (website & QA) does the technical changes they ask for.
-- **Status (from the records):**
-  - Tamara has been live since 19 Sep.
-  - Tabby's code is built (`apps/api/src/payments/*`), but go-live stopped: the production keys never came, and Tabby asked for changes that were never finished.
-  - What they asked is NOT in our records. It is likely in Tabby's emails or merchant dashboard.
-- **First step:** Matar uses the laptop (through Sultan) to read Tabby's emails and merchant dashboard and list exactly what they asked. Ziab then makes the fixes, and Matar sends Tabby the reply.
-- **Logins:** Marsha logs in herself, never us. Ask Sheikha for ONE batched request, with exactly what's needed. Don't drip-feed small asks to Marsha, and never on a Tuesday.
-- Rule already live: discount codes only apply with full payment, never with Tabby or Tamara.
+## The team finds the gaps, not the owner (owner rule, 27 Nov)
+- The owner's knowledge is basic. It's the team's job to spot what's missing (data, connections, tracking) and fix it, or bring her a one-word decision. She should never be the one discovering it.
+- **Ad → chat → booking → profit**, end to end:
+  - «حمدان» reports which ad brought which chats and bookings.
+  - «سلطان» keeps the connections working.
+  - «خليفة» turns it into profit per ad.
+- How the chain works in code:
+  - The click-to-WhatsApp `sourceAdId` / `ctwa_clid` on each lead goes to `whatsapp_leads`.
+  - The lead is matched to a paid booking by phone (`status='booked'`, `order_id`).
+  - A Meta CAPI Purchase is sent (`domain/attribution.ts`, `integrations/metaCapi.ts`).
+- **Known break (27 Nov):** ads send people to the main number +971 56 450 0777, and that number is NOT connected to the system yet. Status there is PENDING: coexistence onboarding isn't done. Until it is, ad chats and bookings can't be linked to ads. Fixing it is the top systems priority.
+- **Weekly gap audit:** every Wednesday Sultan checks each link in the chain, plus any other integration, and logs anything broken with its fix.
 
 ## How work moves
 - Every agent appends to the day's log: `raw/office/updates/YYYY-MM-DD.md` on the
