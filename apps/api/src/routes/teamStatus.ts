@@ -148,6 +148,11 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     if (!to || !headline || !details) return reply.code(400).send({ error: 'to, headline and details are required' });
     // Marsha reads the company phone (+971 56 450 0777), owner 27 Nov: send hers there.
     if (to.toLowerCase() === 'marsha') {
+      // Owner rule (27 Nov): Marsha is off every Tuesday; nobody disturbs her unless urgent.
+      const dubai = new Date(Date.now() + 4 * 3600 * 1000);
+      if (dubai.getUTCDay() === 2 && (request.body as { urgent?: unknown } | undefined)?.urgent !== true) {
+        return reply.code(409).send({ error: 'Marsha is off on Tuesdays: send it tomorrow, or pass urgent:true only if it truly cannot wait' });
+      }
       const h = new Date(Date.now() + 4 * 3600 * 1000).getUTCHours();
       if (h < 10 || h >= 23) return reply.code(409).send({ error: 'staff messages only 10:00-23:00 Dubai' });
       const sentM = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM ai_team_notify_log WHERE created_at > now() - interval '1 day'`);

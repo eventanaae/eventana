@@ -27,3 +27,25 @@ switched by Render env vars.
 ## Archive (every day)
 All produced media, scripts, finals and decisions → `raw/` on `stories-media`, pushed.
 Never commit keys or customer personal data.
+
+
+## Laptop file clean-up and the «Eventana» master folder (owner order, 27 Nov)
+Do this through the laptop's Remote Control connection, which Marsha opens via Sheikha.
+
+1. **Inventory first, read only.** List every file on the laptop that relates to Eventana: themes, designs, logos, the trade licence, passports/IDs, contracts, invoices, price lists, photos and videos. Find duplicates by content hash, not by name.
+2. **Plan.** Write the plan as `Eventana/INDEX-plan.md`: what moves where, the new names, and which files are duplicates. Then do it.
+3. **Build one master folder, `Eventana/`,** with clear subfolders:
+   - `01 Legal` (licence, passports/IDs, contracts)
+   - `02 Brand` (logos, colours, fonts)
+   - `03 Themes` (move the existing «Themes» folder here, as it is)
+   - `04 Designs`
+   - `05 Photos & Videos`
+   - `06 Finance` (invoices, quotes)
+   - `07 Suppliers`
+   - `08 Marketing`
+   - `99 Other`
+4. **Rename clearly.** Example: `Trade Licence - Eventana - exp 2027-03.pdf`, `Passport - <Name>.pdf`. Never rename a file that a design tool or project depends on without checking first.
+5. **Never delete.** Duplicates go to `Eventana/_duplicates/` so a human can review them, and nothing outside Eventana is touched.
+6. **`Eventana/INDEX.md`:** what each folder holds and where key documents are. Give file names and locations only, never the contents of IDs or passports.
+7. **Privacy:** passports, IDs and the licence stay on the laptop. Never upload them, commit them, email them, or paste their contents anywhere, unless the owner asks for one specific use (e.g. Meta business verification).
+8. **From now on,** every new file to keep goes into this folder, and `INDEX.md` is updated each time.
