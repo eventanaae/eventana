@@ -26,6 +26,9 @@ export async function marshaTasks(): Promise<Array<{ due: string | null; title: 
        FROM prep_tasks pt JOIN prep_task_staff s ON s.task_id = pt.id JOIN team_members tm ON tm.id = s.member_id
        LEFT JOIN events e ON e.id = pt.event_id
       WHERE lower(split_part(tm.name,' ',1)) = 'marsha' AND pt.status <> 'completed'
+        -- only what is still ahead: parties from today on (not cancelled), or tasks with no party
+        AND (e.id IS NULL OR (e.event_date >= (now() AT TIME ZONE 'Asia/Dubai')::date AND e.phase <> 'Cancelled'))
+        AND (e.id IS NOT NULL OR pt.due_date IS NULL OR pt.due_date >= (now() AT TIME ZONE 'Asia/Dubai')::date - 14)
       ORDER BY pt.due_date NULLS LAST, pt.id LIMIT 60`).catch(() => ({ rows: [] as any[] }));
   return r.rows as any;
 }
