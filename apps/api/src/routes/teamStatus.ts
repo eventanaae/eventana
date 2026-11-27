@@ -61,7 +61,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       await pool.query(`INSERT INTO ai_team_notify_log (to_name, headline) VALUES ($1, $2)`, ['Marsha', headline]);
       const { sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
       const one = (x: string) => x.replace(/\s*\n+\s*/g, ' • ').trim();
-      const r = await sendWhatsAppTemplate({ to: '971564500777', name: 'staff_notify', language: 'en', params: ['Marsha', one(headline), one(details)], fromStaff: true });
+      const r = await sendWhatsAppTemplate({ to: '971564500777', name: 'staff_notify', language: 'en', params: ['Marsha', one(headline), one(details)], fromStaff: true, allowCompanyPhone: true });
       return { ok: r.ok, to: 'Marsha' };
     }
     const m = await pool.query<{ id: string; name: string }>(
