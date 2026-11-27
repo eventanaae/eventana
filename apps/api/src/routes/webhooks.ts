@@ -159,6 +159,10 @@ export async function webhookRoutes(app: FastifyInstance) {
             // Marsha on the company phone: Sheikha answers, never the customer bot.
             const { isCompanyPhone, sheikhaReply } = await import('../domain/sheikha.js');
             if (isCompanyPhone(msg.phone)) { await sheikhaReply(msg); return; }
+            // A supplier Sheikha contacted: forward to Marsha, never the customer bot.
+            const { supplierName, forwardSupplierReply } = await import('../domain/suppliers.js');
+            const sup = await supplierName(msg.phone);
+            if (sup) { await forwardSupplierReply(msg, sup); return; }
             await respondToLead(msg, result);
             // Auto-reply a booking customer who replied to our automated line.
             await autoReplyKnownCustomer(msg);
