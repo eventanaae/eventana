@@ -122,6 +122,24 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     return messageSupplier(String(b.phone ?? ''), String(b.name ?? ''), String(b.need ?? ''));
   });
 
+  /** GET /api/team/meta-status — read-only: Meta business verification + number status (for coexistence). */
+  app.get('/api/team/meta-status', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const { config: cfg } = await import('../config.js');
+    const tok = cfg.whatsapp.accessToken, waba = process.env.WHATSAPP_WABA_ID;
+    if (!tok || !waba) return { error: 'not_configured' };
+    const g = async (path: string) => {
+      const r = await fetch(`https://graph.facebook.com/${cfg.meta.graphVersion}/${path}`, { headers: { authorization: `Bearer ${tok}` }, signal: AbortSignal.timeout(15000) });
+      const j: any = await r.json().catch(() => ({}));
+      return r.ok ? j : { error: j?.error?.message ?? r.status };
+    };
+    return {
+      waba: await g(`${waba}?fields=name,account_review_status,business_verification_status,ownership_type,owner_business_info`),
+      numbers: await g(`${waba}/phone_numbers?fields=display_phone_number,verified_name,name_status,status,platform_type,code_verification_status,quality_rating,messaging_limit_tier`),
+    };
+  });
+
   app.post('/api/team/notify', async (request, reply) => {
     const hdr = request.headers['x-report-key'];
     if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
