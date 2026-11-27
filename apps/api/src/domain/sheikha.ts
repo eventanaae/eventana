@@ -50,6 +50,29 @@ async function thread(): Promise<string> {
   return r.rows.reverse().map((m) => `${m.direction === 'in' ? 'Marsha' : 'Sheikha'}: ${m.body}`).join('\n');
 }
 
+
+/**
+ * Stock updates Sheikha may make (owner, 27 Nov: «شيخة لازم تسوي ابديت هي مسؤوله»).
+ * Only on Marsha's clear word, matched to an exact item name from Ops. Never deletes.
+ */
+export async function applyStockUpdate(type: string, item: string): Promise<boolean> {
+  const name = String(item ?? '').trim();
+  if (!name) return false;
+  const by = 'Sheikha (AI team), confirmed by Marsha';
+  let r: { rowCount: number | null } = { rowCount: 0 };
+  if (type === 'resolve_issue') {
+    r = await pool.query(`UPDATE asset_issues SET status = 'resolved', resolved_by = $2, resolved_at = now()
+       WHERE status <> 'resolved' AND lower(COALESCE(asset_name, asset_code)) = lower($1)`, [name, by]).catch(() => ({ rowCount: 0 }));
+  } else if (type === 'missing_received' || type === 'missing_ordered') {
+    const to = type === 'missing_received' ? 'received' : 'ordered';
+    const from = type === 'missing_received' ? ['requested', 'ordered'] : ['requested'];
+    r = await pool.query(`UPDATE missing_items SET status = $2, actioned_at = now()
+       WHERE status = ANY($3) AND lower(item) = lower($1)`, [name, to, from]).catch(() => ({ rowCount: 0 }));
+  }
+  if ((r.rowCount ?? 0) > 0) console.log(`[sheikha] stock update ${type}: ${name}`);
+  return (r.rowCount ?? 0) > 0;
+}
+
 /** Answer Marsha now. Never throws. */
 export async function sheikhaReply(msg: InboundMessage): Promise<void> {
   try {
@@ -66,7 +89,8 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
       'If she asks something the facts don\'t answer, or asks you to do something you can\'t do from here, say you\'ll check with the team and get back to her.',
       'If she gives an update (e.g. something fixed, ordered, done), thank her and confirm you noted it.',
       'ADMIN matters are never yours to decide: money, payments, salaries, leave/day-off approval, buying or spending, hiring, policies, customer refunds or discounts. For those say you\'ll pass it on and get back to her, and start the team line with "ADMIN:".',
-      'Reply with JSON only: {"reply": "<your WhatsApp message>", "team": "<one line for the team if they must act or answer, else empty>"}',
+      'You are responsible for keeping the stock records in Ops up to date. When Marsha CLEARLY says an item with an open issue is fixed, or a missing item was ordered or received, add an action. Use the item name EXACTLY as written in the facts. Never guess.',
+      'Reply with JSON only: {"reply": "<your WhatsApp message>", "team": "<one line for the team if they must act or answer, else empty>", "actions": [{"type": "resolve_issue|missing_ordered|missing_received", "item": "<exact name>"}]}',
       '', await facts(), '', 'RECENT CHAT:', await thread(),
     ].join('\n');
     const out = await generateText({ system, prompt: `Marsha just wrote: ${msg.text.slice(0, 1500)}`, maxTokens: 400 });
@@ -75,6 +99,9 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
     try {
       const j = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
       reply = String(j.reply ?? '').trim(); team = String(j.team ?? '').trim();
+      for (const act of Array.isArray(j.actions) ? j.actions.slice(0, 5) : []) {
+        await applyStockUpdate(String(act?.type ?? ''), String(act?.item ?? ''));
+      }
     } catch { reply = out.trim(); }
     if (!reply) return;
     const r = await sendWhatsAppText({ to: COMPANY, body: reply.slice(0, 1500), fromStaff: true, allowCompanyPhone: true });

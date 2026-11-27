@@ -59,6 +59,15 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     return { ok: (r.rowCount ?? 0) > 0 };
   });
 
+  /** POST /api/team/stock { type: resolve_issue|missing_ordered|missing_received, item } — Sheikha's stock updates. */
+  app.post('/api/team/stock', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const b = (request.body ?? {}) as { type?: unknown; item?: unknown };
+    const { applyStockUpdate } = await import('../domain/sheikha.js');
+    return { ok: await applyStockUpdate(String(b.type ?? ''), String(b.item ?? '')) };
+  });
+
   app.post('/api/team/notify', async (request, reply) => {
     const hdr = request.headers['x-report-key'];
     if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
