@@ -10,3 +10,4 @@ SECRETARY (owner 26 Nov): ~5:12 pm reminder «عندج اجتماع معاي ا�
 OWNER (26 Nov): does not want to use the chat; talks to Shamma inside the Eventana floor page (inbox in its db), Shamma answers by voice. Secretary outputs go to the floor (meetings/today + inbox), not chat.
 - (27 Nov) The owner's name is «شيم» (Shaim), NOT «شيماء». Always write and say «شيم».
 - (27 Nov) Stories: any story that mentions the website or the app must show «eventanauae.com» written clearly on the image (auto-posted stories cannot carry a link sticker).
+- (27 Nov) No waiting loops: agents do the work themselves; anything nobody can answer goes to the secretary once and she asks the owner at the 5:30 meeting.
