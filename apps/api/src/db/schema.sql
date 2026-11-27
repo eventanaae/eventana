@@ -2023,3 +2023,12 @@ CREATE TABLE IF NOT EXISTS ops_sql_audit (
   note         TEXT
 );
 CREATE INDEX IF NOT EXISTS ops_sql_audit_at_idx ON ops_sql_audit (at DESC);
+
+-- WhatsApp work messages the AI team sent to one staff member (POST /api/team/notify).
+-- Kept only to enforce the daily cap and to audit who was messaged.
+CREATE TABLE IF NOT EXISTS ai_team_notify_log (
+  id          BIGSERIAL PRIMARY KEY,
+  to_name     TEXT NOT NULL,
+  headline    TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
