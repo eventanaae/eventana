@@ -76,6 +76,10 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - **Admin requests** («ADMIN:» items in `openRequests`) never get answered by an agent. These cover money, payments, salaries, leave, buying, hiring, policy, and customer refunds or discounts. They go straight to the secretary, who asks the owner at the 5:30 meeting and then sends Marsha the owner's answer.
 - **When the team needs something from Marsha** (design details, photos, footage, prints): message her through `POST /api/team/notify` (to: "Marsha"). Keep it short and casual, in English, with one clear ask. Never message her about things the data already answers.
 
+## Messages to Marsha: short and few (owner rule, 27 Nov)
+- **Short:** 1–2 lines, one clear point per message. Go longer only when it truly needs it, e.g. a list she asked for.
+- **Few:** don't flood her. Batch things into one message, and move anything non-urgent to the next day.
+
 ## Marsha's day off (owner rule, 27 Nov)
 - **Marsha is off every Tuesday.** No agent messages her that day, and no reminders go out, unless it is truly urgent: it would hurt a party or money that same day.
 - The system blocks Tuesday messages to Marsha unless they're flagged `urgent`.
@@ -84,6 +88,17 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - **Who uses the laptop:** only «سلطان» (systems). When the laptop is needed, Sultan asks شيخة. Sheikha asks Marsha to open the «Eventana App» Claude chat on the laptop and run `/remote-control`, and to say what's needed. Never on a Tuesday unless urgent.
 - **The master folder:** Sultan keeps ONE master folder for everything Eventana on the laptop: «Eventana». Before looking anywhere else, any agent that needs a document or asset checks the folder's `INDEX.md`. That covers the trade licence, passports, themes, logos, contracts, price lists, designs and photos.
 - **New files:** every new Eventana file to keep goes into this folder, and `INDEX.md` gets updated.
+
+## Tabby & Tamara (instalments): who owns it (owner, 27 Nov)
+- **Owner:** «مطر» (B2B & contracts) owns the relationship with Tabby and Tamara: follow-ups, their requirements, go-live, and the store page inside the Tabby app.
+- **Code:** «ذياب» (website & QA) does the technical changes they ask for.
+- **Status (from the records):**
+  - Tamara has been live since 19 Sep.
+  - Tabby's code is built (`apps/api/src/payments/*`), but go-live stopped: the production keys never came, and Tabby asked for changes that were never finished.
+  - What they asked is NOT in our records. It is likely in Tabby's emails or merchant dashboard.
+- **First step:** Matar uses the laptop (through Sultan) to read Tabby's emails and merchant dashboard and list exactly what they asked. Ziab then makes the fixes, and Matar sends Tabby the reply.
+- **Logins:** Marsha logs in herself, never us. Ask Sheikha for ONE batched request, with exactly what's needed. Don't drip-feed small asks to Marsha, and never on a Tuesday.
+- Rule already live: discount codes only apply with full payment, never with Tabby or Tamara.
 
 ## How work moves
 - Every agent appends to the day's log: `raw/office/updates/YYYY-MM-DD.md` on the
