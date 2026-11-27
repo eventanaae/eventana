@@ -38,6 +38,18 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     const b = (request.body ?? {}) as { to?: unknown; headline?: unknown; details?: unknown };
     const to = String(b.to ?? '').trim(), headline = String(b.headline ?? '').trim().slice(0, 60), details = String(b.details ?? '').trim().slice(0, 600);
     if (!to || !headline || !details) return reply.code(400).send({ error: 'to, headline and details are required' });
+    // Marsha reads the company phone (+971 56 450 0777), owner 27 Nov: send hers there.
+    if (to.toLowerCase() === 'marsha') {
+      const h = new Date(Date.now() + 4 * 3600 * 1000).getUTCHours();
+      if (h < 10 || h >= 23) return reply.code(409).send({ error: 'staff messages only 10:00-23:00 Dubai' });
+      const sentM = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM ai_team_notify_log WHERE created_at > now() - interval '1 day'`);
+      if ((sentM.rows[0]?.n ?? 0) >= 10) return reply.code(429).send({ error: 'daily limit reached' });
+      await pool.query(`INSERT INTO ai_team_notify_log (to_name, headline) VALUES ($1, $2)`, ['Marsha', headline]);
+      const { sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
+      const one = (x: string) => x.replace(/\s*\n+\s*/g, ' • ').trim();
+      const r = await sendWhatsAppTemplate({ to: '971564500777', name: 'staff_notify', language: 'en', params: ['Marsha', one(headline), one(details)], fromStaff: true });
+      return { ok: r.ok, to: 'Marsha' };
+    }
     const m = await pool.query<{ id: string; name: string }>(
       `SELECT id, name FROM team_members WHERE active AND access_level <> 'owner' AND phone IS NOT NULL AND phone <> ''
          AND lower(split_part(name,' ',1)) = lower($1)`, [to]);
