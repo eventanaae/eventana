@@ -109,6 +109,15 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
         COUNT(DISTINCT phone)::int AS chats
        FROM whatsapp_messages`).catch(() => ({}));
     const mode = await one(`SELECT value FROM settings WHERE key = 'whatsapp_agent_mode'`).catch(() => ({}));
+    // Inventory for «بو مخزون»: item names and counts only.
+    const invIssues = (await pool.query(`SELECT COALESCE(asset_name, asset_code) AS item, kind, status
+         FROM asset_issues WHERE status <> 'resolved' ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] }))).rows;
+    const invLow = (await pool.query(`SELECT name, unit, on_hand, reorder_level FROM consumables
+         WHERE active AND on_hand <= reorder_level ORDER BY name LIMIT 40`).catch(() => ({ rows: [] }))).rows;
+    const invMissing = (await pool.query(`SELECT m.item, m.quantity, m.status, to_char(e.event_date,'YYYY-MM-DD') AS party_date
+         FROM missing_items m LEFT JOIN events e ON e.id = m.event_id
+        WHERE m.status IN ('requested','ordered') ORDER BY e.event_date NULLS LAST, m.created_at LIMIT 40`).catch(() => ({ rows: [] }))).rows;
+    const invOut = (await pool.query(`SELECT name, status FROM inventory_assets WHERE status <> 'available' ORDER BY name LIMIT 40`).catch(() => ({ rows: [] }))).rows;
     const aed = (f: unknown) => Math.round(Number(f ?? 0)) / 100;
     const office = {
       money: { todayAed: aed(money.today_fils), todayBookings: Number(money.today_n ?? 0), monthAed: aed(money.month_fils), monthBookings: Number(money.month_n ?? 0), bookedToday: Number(booked.today_n ?? 0), bookedMonth: Number(booked.month_n ?? 0) },
@@ -118,6 +127,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       ratings30d: { avg: ratings.avg ?? null, count: Number(ratings.n ?? 0) },
       leaveRequests: leaveReq,
       manualTasks: tasks,
+      inventory: { openIssues: invIssues, lowStock: invLow, missing: invMissing, outOfService: invOut },
       whatsappLearning: {
         mode: typeof mode.value === 'string' ? mode.value : (process.env.WHATSAPP_AGENT_MODE ?? 'off'),
         listeningSince: learn.listening_since ?? null,
