@@ -105,6 +105,23 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     return { dryRun: false, closed: r.rowCount ?? 0 };
   });
 
+  /** POST /api/team/supplier-template — submit/check the Meta template for supplier inquiries. */
+  app.post('/api/team/supplier-template', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const { ensureSupplierTemplate } = await import('../domain/suppliers.js');
+    return ensureSupplierTemplate();
+  });
+
+  /** POST /api/team/supplier-message { phone, name, need } — Sheikha opens a chat with a supplier (owner-approved, 10/day). */
+  app.post('/api/team/supplier-message', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const b = (request.body ?? {}) as { phone?: unknown; name?: unknown; need?: unknown };
+    const { messageSupplier } = await import('../domain/suppliers.js');
+    return messageSupplier(String(b.phone ?? ''), String(b.name ?? ''), String(b.need ?? ''));
+  });
+
   app.post('/api/team/notify', async (request, reply) => {
     const hdr = request.headers['x-report-key'];
     if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });

@@ -2052,3 +2052,12 @@ CREATE TABLE IF NOT EXISTS ai_reminders (
   sent_at    TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Suppliers Sheikha contacted on WhatsApp (template supplier_inquiry).
+CREATE TABLE IF NOT EXISTS ai_suppliers (
+  phone        TEXT PRIMARY KEY,
+  name         TEXT,
+  need         TEXT,
+  last_sent_at TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

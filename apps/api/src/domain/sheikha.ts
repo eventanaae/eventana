@@ -147,6 +147,7 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
       'ADMIN matters are never yours to decide: money, payments, salaries, leave/day-off approval, buying or spending, hiring, policies, customer refunds or discounts. For those say you\'ll pass it on and get back to her, and start the team line with "ADMIN:".',
       'You are responsible for keeping the stock records in Ops up to date. When Marsha CLEARLY says an item with an open issue is fixed, or a missing item was ordered or received, add an action. Use the item name EXACTLY as written in the facts. Never guess.',
       'You can set reminders for Marsha: when she asks to be reminded (or agrees to one), add an action {"type":"remind","at":"YYYY-MM-DD HH:MM" (Dubai time, between 10:00 and 22:59),"text":"<short reminder>"}. Today in Dubai is ' + new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' ') + '.',
+      'You can message suppliers on WhatsApp for quotes: when Marsha asks you to contact a supplier and gives (or you already have in the chat) its phone number, add {"type":"contact_supplier","phone":"<number>","name":"<company>","need":"<what we need, short, in English>"}. Their reply will be forwarded to Marsha automatically. Never contact anyone else (no customers).',
       'Reply with JSON only: {"reply": "<your WhatsApp message>", "team": "<one line for the team if they must act or answer, else empty>", "actions": [{"type": "resolve_issue|missing_ordered|missing_received", "item": "<exact name>"} or {"type": "remind", "at": "...", "text": "..."}]}',
       '', await facts(), '', 'RECENT CHAT:', await thread(),
     ].join('\n');
@@ -157,7 +158,11 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
       const j = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
       reply = String(j.reply ?? '').trim(); team = String(j.team ?? '').trim();
       for (const act of Array.isArray(j.actions) ? j.actions.slice(0, 5) : []) {
-        if (act?.type === 'remind') await addReminder(String(act?.at ?? ''), String(act?.text ?? ''));
+        if (act?.type === 'contact_supplier') {
+          const { messageSupplier } = await import('./suppliers.js');
+          const res = await messageSupplier(String(act?.phone ?? ''), String(act?.name ?? ''), String(act?.need ?? ''));
+          if (!res.ok) team = `${team ? team + ' | ' : ''}Could not message supplier ${act?.name ?? ''}: ${res.error}`;
+        } else if (act?.type === 'remind') await addReminder(String(act?.at ?? ''), String(act?.text ?? ''));
         else await applyStockUpdate(String(act?.type ?? ''), String(act?.item ?? ''));
       }
     } catch {
