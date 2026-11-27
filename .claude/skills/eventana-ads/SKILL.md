@@ -76,3 +76,8 @@ Give each ad its own WhatsApp word (e.g. «حورية», «فيونكة», «ح�
 | a17 short 25 s (new) | 9 | 1 | — | 83% / 44% / 16% (best opening so far, small sample) |
 
 Lessons: theme-emotion videos give the cheapest chats; price-list images are 30–100% dearer; photos are dearer than video; every ad loses about half its viewers in the first second — the first frame is the biggest lever.
+
+
+## WhatsApp destination rule (owner, 27 Nov): FIXED
+- Ads ALWAYS send people to the main number **+971 56 450 0777** (Marsha's phone). NEVER change an ad's WhatsApp number. The owner was firm about this.
+- To trace ads to bookings, link 0777 to the system (coexistence, after Meta verification) instead of moving the ads.

@@ -76,6 +76,10 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - **Admin requests** («ADMIN:» items in `openRequests`) never get answered by an agent. These cover money, payments, salaries, leave, buying, hiring, policy, and customer refunds or discounts. They go straight to the secretary, who asks the owner at the 5:30 meeting and then sends Marsha the owner's answer.
 - **When the team needs something from Marsha** (design details, photos, footage, prints): message her through `POST /api/team/notify` (to: "Marsha"). Keep it short and casual, in English, with one clear ask. Never message her about things the data already answers.
 
+## Messages to Marsha: short and few (owner rule, 27 Nov)
+- **Short:** 1–2 lines, one clear point per message. Go longer only when it truly needs it, e.g. a list she asked for.
+- **How many:** more than one message a day is fine (owner, 27 Nov). Just keep each one short and useful, and don't drip-feed tiny asks.
+
 ## Marsha's day off (owner rule, 27 Nov)
 - **Marsha is off every Tuesday.** No agent messages her that day, and no reminders go out, unless it is truly urgent: it would hurt a party or money that same day.
 - The system blocks Tuesday messages to Marsha unless they're flagged `urgent`.
@@ -84,6 +88,19 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - **Who uses the laptop:** only «سلطان» (systems). When the laptop is needed, Sultan asks شيخة. Sheikha asks Marsha to open the «Eventana App» Claude chat on the laptop and run `/remote-control`, and to say what's needed. Never on a Tuesday unless urgent.
 - **The master folder:** Sultan keeps ONE master folder for everything Eventana on the laptop: «Eventana». Before looking anywhere else, any agent that needs a document or asset checks the folder's `INDEX.md`. That covers the trade licence, passports, themes, logos, contracts, price lists, designs and photos.
 - **New files:** every new Eventana file to keep goes into this folder, and `INDEX.md` gets updated.
+
+## The team finds the gaps, not the owner (owner rule, 27 Nov)
+- The owner's knowledge is basic. It's the team's job to spot what's missing (data, connections, tracking) and fix it, or bring her a one-word decision. She should never be the one discovering it.
+- **Ad → chat → booking → profit**, end to end:
+  - «حمدان» reports which ad brought which chats and bookings.
+  - «سلطان» keeps the connections working.
+  - «خليفة» turns it into profit per ad.
+- How the chain works in code:
+  - The click-to-WhatsApp `sourceAdId` / `ctwa_clid` on each lead goes to `whatsapp_leads`.
+  - The lead is matched to a paid booking by phone (`status='booked'`, `order_id`).
+  - A Meta CAPI Purchase is sent (`domain/attribution.ts`, `integrations/metaCapi.ts`).
+- **Known break (27 Nov):** ads send people to the main number +971 56 450 0777, and that number is NOT connected to the system yet. Status there is PENDING: coexistence onboarding isn't done. Until it is, ad chats and bookings can't be linked to ads. The ads STAY on 0777 (owner rule): the fix is linking 0777, never moving the ads. This is the top systems priority.
+- **Weekly gap audit:** every Wednesday Sultan checks each link in the chain, plus any other integration, and logs anything broken with its fix.
 
 ## How work moves
 - Every agent appends to the day's log: `raw/office/updates/YYYY-MM-DD.md` on the
