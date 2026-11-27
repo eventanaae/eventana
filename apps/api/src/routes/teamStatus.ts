@@ -85,6 +85,26 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     return { ok: await addReminder(String(b.at ?? ''), String(b.text ?? '')) };
   });
 
+  /**
+   * POST /api/team/close-past-tasks { dryRun?: boolean }
+   * Owner (27 Nov): «خله شيخه تسكر كل المهام». Marks every unfinished prep task of
+   * a party that is already over (event date before today, Dubai) as completed,
+   * stamped as Sheikha's cleanup. Future parties and tasks without a party are untouched.
+   */
+  app.post('/api/team/close-past-tasks', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const dry = (request.body as { dryRun?: unknown } | undefined)?.dryRun !== false;
+    const where = `pt.status <> 'completed' AND pt.event_id = e.id
+                   AND e.event_date < (now() AT TIME ZONE 'Asia/Dubai')::date`;
+    const n = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM prep_tasks pt, events e WHERE ${where}`);
+    if (dry) return { dryRun: true, wouldClose: n.rows[0]?.n ?? 0 };
+    const r = await pool.query(
+      `UPDATE prep_tasks pt SET status = 'completed', completed_by = 'Sheikha (AI team): past party cleanup', completed_at = now()
+         FROM events e WHERE ${where}`);
+    return { dryRun: false, closed: r.rowCount ?? 0 };
+  });
+
   app.post('/api/team/notify', async (request, reply) => {
     const hdr = request.headers['x-report-key'];
     if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
