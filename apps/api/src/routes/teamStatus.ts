@@ -61,8 +61,15 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
       await pool.query(`INSERT INTO ai_team_notify_log (to_name, headline) VALUES ($1, $2)`, ['Marsha', headline]);
       const { sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
       const one = (x: string) => x.replace(/\s*\n+\s*/g, ' • ').trim();
-      const r = await sendWhatsAppTemplate({ to: '971564500777', name: 'staff_notify', language: 'en', params: ['Marsha', one(headline), one(details)], fromStaff: true, allowCompanyPhone: true });
-      return { ok: r.ok, to: 'Marsha' };
+      // Inside WhatsApp's 24h window (Marsha wrote to us in the last 24h) a normal
+      // text goes through and keeps line breaks; outside it only the template can.
+      const open24 = await pool.query(`SELECT 1 FROM whatsapp_messages WHERE direction = 'in' AND right(phone, 9) = '564500777'
+          AND created_at > now() - interval '23 hours' LIMIT 1`).catch(() => ({ rows: [] }));
+      const { sendWhatsAppText } = await import('../integrations/whatsapp.js');
+      const r = open24.rows.length
+        ? await sendWhatsAppText({ to: '971564500777', body: `${headline}\n\n${details}`, fromStaff: true, allowCompanyPhone: true })
+        : await sendWhatsAppTemplate({ to: '971564500777', name: 'staff_notify', language: 'en', params: ['Marsha', one(headline), one(details)], fromStaff: true, allowCompanyPhone: true });
+      return { ok: r.ok, to: 'Marsha', via: open24.rows.length ? 'text' : 'template', error: r.error };
     }
     const m = await pool.query<{ id: string; name: string }>(
       `SELECT id, name FROM team_members WHERE active AND access_level <> 'owner' AND phone IS NOT NULL AND phone <> ''
