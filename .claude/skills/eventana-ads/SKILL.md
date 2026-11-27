@@ -76,3 +76,51 @@ Give each ad its own WhatsApp word (e.g. «حورية», «فيونكة», «ح�
 | a17 short 25 s (new) | 9 | 1 | — | 83% / 44% / 16% (best opening so far, small sample) |
 
 Lessons: theme-emotion videos give the cheapest chats; price-list images are 30–100% dearer; photos are dearer than video; every ad loses about half its viewers in the first second — the first frame is the biggest lever.
+
+## Expert standard and continuous improvement (owner, 27 Nov)
+Doing the work isn't enough. Results must improve week over week: less money for more and better results. Work like a senior Meta performance buyer.
+
+**Targets and tracking**
+- Keep `raw/office/ads/baseline.md` on stories-media up to date every week:
+  - cost per WhatsApp chat, chat → booking rate, cost per booking, CTR, CPM, frequency, 3-sec hook rate, thruplay rate
+  - both blended and per ad
+- Goal: cost per chat and cost per booking go down about 10% every 2 weeks, and bookings go up at the same 2,000 AED/month.
+- If the numbers stall for 2 weeks, change the approach. Don't repeat the same thing.
+
+**Meta best practice (inside the owner's rules: Instagram placements only, max 2,000 AED/month)**
+- **Signal**
+  - Pixel + Conversions API: `apps/api/src/integrations/metaCapi.ts` sends server Purchase events for paid bookings, with `ctwa_clid` from click-to-WhatsApp.
+  - Verify it is LIVE: check `META_PIXEL_ID` and `META_CAPI_ACCESS_TOKEN` exist on Render, look at the Events Manager test events and at API logs `[capi]`, and check match quality.
+  - Once Purchase events flow, optimise toward bookings, not just chats.
+  - If it is not connected, it is your job to connect it through Systems («سلطان»). Logins go through Sheikha → Marsha, never passwords from us.
+- **Structure**
+  - Few campaigns, consolidated ad sets.
+  - Don't edit during the learning phase (no budget change over ~20%, no edits for 3–4 days).
+  - Aim for ~50 optimisation events per week per ad set; consolidate when below that.
+- **Creative is the lever**
+  - Test 3–5 creatives per ad set, with real party footage first.
+  - Hook in the first second.
+  - Kill losers on data: at least 60 AED with no chats, or more than 2× average cost per chat.
+  - Scale winners gradually (+20% at a time).
+  - Refresh any creative whose frequency goes above about 3.
+- **Audiences**
+  - Broad + Advantage audience by default.
+  - Retarget IG engagers and video viewers (75%).
+  - Lookalikes from bookers.
+  - Exclude recent bookers.
+- **Tests**
+  - One variable per test (hook, offer, theme).
+  - Write down every test and its result in the baseline file.
+- **Tracking**
+  - UTM on every website link.
+  - Map each WhatsApp chat to its ad (`sourceAdId` on leads) and to the booking.
+
+**Reports**
+- **Every Thursday** → weekly report for Shamma (she tells the owner at the meeting). Five lines:
+  - spend versus the cap
+  - cost per chat and per booking, compared with last week and with the baseline
+  - best and worst ad, and why
+  - what changed
+  - one recommendation
+- **1st of every month** → the month's improvement plan: what you'll change and test, and the target numbers.
+- Recommendations that need the owner's yes (more budget, a new campaign, new AI spend) go to Shamma as one question that can be answered in one word.
