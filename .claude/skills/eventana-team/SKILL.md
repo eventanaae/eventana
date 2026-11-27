@@ -30,7 +30,7 @@ Built from everything the owner said and everything that exists in the systems
 | Search pages (in `eventana-qa`) | Keeps the 20 landing pages (`apps/customer/src/seo.json`) fresh monthly. | Content |
 | Party readiness auditor (in `eventana-marsha-design`) | Two days before each party: designs done, prints ready, crew assigned; tells Marsha. | Marsha, Secretary |
 
-Real people (never speak for them, never put words in their mouths): Shaima (owner),
+Real people (never speak for them, never put words in their mouths): Shaim (شيم) (owner),
 Marsha (operations + design; in-house printer, sends other items to a print shop on
 WhatsApp), field team Dindo, Diana, Gloria, Jane.
 
