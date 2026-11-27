@@ -32,6 +32,20 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
    * member on WhatsApp, through the approved staff_notify template and the phone
    * already stored in Ops. Staff only — never a customer. Max 10 per day overall.
    */
+  /** GET /api/team/replies — the last 30 WhatsApp messages Marsha sent back from the company phone. */
+  app.get('/api/team/replies', async (request, reply) => {
+    const hdr = request.headers['x-report-key'];
+    if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
+    const r = await pool.query(
+      `SELECT body, to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS at
+         FROM whatsapp_messages WHERE direction = 'in' AND right(phone, 9) = '564500777'
+        ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] }));
+    const sent = await pool.query(
+      `SELECT to_name, headline, to_char(created_at AT TIME ZONE 'Asia/Dubai','YYYY-MM-DD HH24:MI') AS at
+         FROM ai_team_notify_log ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] }));
+    return { fromMarsha: r.rows, sentByTeam: sent.rows };
+  });
+
   app.post('/api/team/notify', async (request, reply) => {
     const hdr = request.headers['x-report-key'];
     if (!keyOk(Array.isArray(hdr) ? hdr[0] : hdr)) return reply.code(401).send({ error: 'unauthorized' });
