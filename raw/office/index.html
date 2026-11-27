@@ -129,7 +129,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 .pick[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
 .turn{background:var(--floor);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px}.summary{background:var(--brass-soft);border-radius:12px;padding:10px 14px;font-size:14px}
 
-@media (max-width:1000px){.main{grid-template-columns:1fr}.log{max-height:420px}}
+@media (max-width:1000px){.main{grid-template-columns:1fr}.log{max-height:none}.log ul{max-height:360px}}
 @media (max-width:640px){.cards{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:78%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}.ask{scroll-snap-align:start}}
 .cards{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
 @media (prefers-reduced-motion:reduce){.p{transition:none}.p.walk .fig,.typing i{animation:none}.log li{animation:none}}
@@ -145,6 +145,7 @@ textarea{width:100%;font-family:inherit;font-size:15px;color:var(--ink);backgrou
 .viewport{position:relative;width:100%;border-radius:14px;overflow:hidden;touch-action:none}
 .viewport canvas.gl{display:block;width:100%;cursor:grab;border-radius:14px}
 .overlay{position:absolute;inset:0;pointer-events:none;direction:rtl}
+.stage{isolation:isolate}
 .overlay .p{all:unset;position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform}
 .overlay .p .card{display:flex;flex-direction:column;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px 7px 3px;box-shadow:0 4px 12px rgba(0,0,0,.10);position:relative;min-width:54px}
 .overlay .p.real .card{border-color:var(--brass);background:var(--brass-soft)}
@@ -259,37 +260,22 @@ const T=[
  {id:"hessa",z:"sales",g:"f",name:"حصة",role:"متابعة العملاء والتعليقات",st:"soon",task:"منو حجز ومنو ما حجز، والرد على التعليقات",does:["تقرير يومي بالعملاء","ردود بقوالب موافق عليها","تقييم وصور بعد كل حفلة"]},
  {id:"matar",z:"sales",g:"m",name:"مطر",role:"الشركات والعقود",st:"soon",task:"يجمع شركات ومدارس ويجهز العروض",does:["أول إيميل لكل فئة","عروض أسعار وعقود"]},
  {id:"nouf",z:"sales",g:"f",name:"نوف",role:"ابتكار الخدمات",st:"soon",task:"ثلاث أفكار كل شهر بتكلفتها",does:["خدمات وباقات جديدة","مع الربح المتوقع وطريقة التجربة"]},
- {id:"dhiab",z:"sys",g:"m",name:"ذياب",role:"تطوير المواقع والجودة",st:"wait",task:"تحديث الموقع 100 والسكيلات ينتظرون «موافقة»",does:["موقع الحجز ولوحة التشغيل","الفحص اليومي","صفحات البحث بالموقع"]},
+ {id:"dhiab",z:"sys",g:"m",name:"ذياب",role:"تطوير المواقع والجودة",st:"wait",task:"موظف الواتساب يتعلم من ردود الفريق",does:["موقع الحجز ولوحة التشغيل","الفحص اليومي","صفحات البحث بالموقع"]},
  {id:"sultan",z:"sys",g:"m",name:"سلطان",role:"ربط الأنظمة والأرشيف",st:"work",task:"يشتغل على نشر الستوري التلقائي",does:["يربط الأدوات ببعض","يربط الحجز بالإعلان","يحفظ كل شي بالأرشيف"]},
  {id:"khalifa",z:"sys",g:"m",name:"خليفة",role:"المحلل المالي",st:"soon",task:"أول مهمة: تكلفة كل حفلة وصرف الإعلانات",does:["ربح كل حفلة وكل باقة","تقرير شهري بتوصيات"]},
 ];
 const RULES={ev:["ما نغيّر ثيم الحفلة ولا نشيل أي شخصية","ما فيه كيك، بس ستاندات الكيك","نقول «ستاند بالون رئيسي فخم» مو «خلفية»","المهرج ما يتكلم، وحورية البحر فلبينية بلبس محتشم","ميزانية الإعلانات 2,000 درهم بالشهر"],
- hq:["ما نرسل لأي عميل بدون موافقة شيماء","ولا كلمات سر ولا بيانات بطاقات"],mz:["كفو ونص يشتغل مع كفو"],od:[],mt:[]};
+ hq:["ما نرسل لأي عميل بدون موافقة شيم","ولا كلمات سر ولا بيانات بطاقات"],mz:["كفو ونص يشتغل مع كفو"],od:[],mt:[]};
 const ASKS=[
- {who:"shamma",what:"تحديث الموقع 100 والسكيلات",how:"ينزلون بعد كلمة «موافقة»"},
  {who:"shamma",what:"ياسين",how:"شخص بالفريق؟ ولا قصدج «إحنا»؟"},
 ];
-const TALKS=[
- ["hamdan","maitha","التخطي فوق 60% والتعليقات صفر، نبي هوك يخلي الناس تعلّق","بسوي فكرة فيها تصويت مثل «أنقذوا عيد ميلاد سيف»"],
- ["maitha","kafu","السيناريو جاهز، والهوك من أول فريم","أبدأ الإنتاج بعد ما يعديه سعيد"],
- ["saeed","kafu","النطاطية بالنص وبمقاسها الحقيقي 4×4","تمام، والأطفال داخلها من أول ثانية"],
- ["saeed","kafu","البالونات لازم تبقى داخل البابل","كلها داخل الحين"],
- ["kafu","mahra","ريل الحديقة ينزل بكرة الصبح","والستوري الساعة 10، بس النشر التلقائي معلّق"],
- ["mahra","sultan","نشر الستوري التلقائي ما يشتغل","أشتغل على طريقة ثانية وأبلغج"],
- ["majid","marsha","قائمة لقطات قصيرة لكل حفلة للفريق الميداني",null],
- ["sheikha","marsha","أول ما ينأكد حجز، أجهّز لج مسودات التصاميم تراجعينها",null],
- ["hessa","shamma","أي رد على عميل أجهّزه وأعطيج إياه","وأرفعه لشيماء مع الباقي برسالة المسا"],
- ["khalifa","hamdan","تكلفة الحفلة وصرف الإعلانات ما ينحفظون، نحتاجهم للربح","أعطيك صرف كل شهر من تاريخ الحساب"],
- ["matar","dhiab","نظام جلب الشركات موجود، شغّال بالموقع؟","أتأكد وأرد لك"],
- ["nouf","khalifa","عندي فكرة خدمة جديدة، أبي تكلفتها","أحسبها تقريبية لين تنحفظ التكاليف"],
- ["shamma","hamdan","عندك شي يحتاج شيماء اليوم؟","لا، قرارات الإعلانات عندي وأكتبها بالسجل"],
- ["dhiab","shamma","تحديث الموقع 100 ينتظر «موافقة»","أضيفه لرسالة المسا"],
- ["sultan","majid","كل لقطة توصل تنحفظ بالأرشيف نفس اليوم","ما نبي شي يضيع مرة ثانية"],
- ["saeed","maitha","ممنوع «خلفية»، نقول «ستاند بالون رئيسي فخم»","وصلت، وما نكتب عدد الستاندات"],
-];
+// Talks come from each person's REAL current task (staff/status), each said once; no fixed script to loop.
+const PARTNER={hamdan:"maitha",maitha:"kafu",kafu:"saeed",mahra:"saeed",majid:"sultan",saeed:"kafu",sheikha:"shamma",hessa:"shamma",matar:"shamma",nouf:"khalifa",dhiab:"sultan",sultan:"dhiab",khalifa:"hamdan",shamma:"hamdan"};
+const TALKQ=[],SAID=new Set();
+function queueTalk(id,task){if(!task||SAID.has(id+"|"+task)||!PARTNER[id])return;SAID.add(id+"|"+task);TALKQ.push([id,PARTNER[id],task,null])}
 const MEETS=[
  {who:["hamdan","maitha","kafu","saeed"],topic:"اجتماع: ريل بكرة"},
- {who:["shamma","hamdan","khalifa","dhiab"],topic:"اجتماع: تحديث المسا لشيماء"},
+ {who:["shamma","hamdan","khalifa","dhiab"],topic:"اجتماع: تحديث المسا لشيم"},
 ];
 /* ===== 3D office, interior-designed (three.js): stone floor, walnut + linen walls with frames, LED coves,
    city windows, backlit shelves, one long stone table per team, upholstered chairs, linear pendants ===== */
@@ -676,13 +662,13 @@ async function coffee(){
   await walk(p,SEAT[p.id].x,SEAT[p.id].y); p.busy=false;setDesk(p);
 }
 function director(){
-  const r=Math.random();
-  if(r<.72){conversation(TALKS[ti++%TALKS.length])} else if(r<.86){meeting(MEETS[mi++%MEETS.length])} else {coffee()}
+  if(TALKQ.length){conversation(TALKQ.shift());return}
+  if(Math.random()<.25)coffee();
 }
-director();setTimeout(director,1500);setInterval(director,reduce?7000:4200);
+setTimeout(director,2500);setInterval(director,reduce?16000:9000);
 
 /* ---- the owner's meeting with the secretary (data written by Claude into the page's store) ---- */
-const SHAIMA={id:"shaima",z:"meet",g:"f",real:1,name:"شيماء",role:"المالكة",st:"team",task:"",does:[]};
+const SHAIMA={id:"shaima",z:"meet",g:"f",real:1,name:"شيم",role:"المالكة",st:"team",task:"",does:[]};
 SHAIMA.el=add(`<div class="p real" aria-hidden="true" style="--c:var(--brass);--s:var(--brass);display:none"><span class="mood">⭐</span><span class="bub"></span></div>`);
 let meetingData=null,meetingBusy=false;
 const todayDubai=()=>new Date(Date.now()+4*3600e3).toISOString().slice(0,10);
@@ -703,7 +689,7 @@ async function playMeeting(){
   meetingBusy=true;sh.busy=true;setDesk(sh);
   const ms=MEETSEATS.length?MEETSEATS:[[600,458],[640,458]]; SHAIMA.el.style.display=""; place(SHAIMA,ms[0][0],ms[0][1],true);
   place(sh,ms[1][0],ms[1][1],true);
-  log(sh,SHAIMA,"اجتماع اليوم مع شيماء");
+  log(sh,SHAIMA,"اجتماع اليوم مع شيم");
   const tts=await getTts();
   for(const [k,t] of meetingLines(m)){const line=`${k}: ${t}`;const sp=tts?tts.speak(line,{language:"ar",voice:"airy"}).catch(()=>{}):null;await say(sh,line,3600);if(sp)await sp}
   await say(sh,"هذا كل شي اليوم",1800);
@@ -711,7 +697,7 @@ async function playMeeting(){
   sh.busy=false;setDesk(sh);meetingBusy=false;
 }
 document.getElementById("mplay").onclick=playMeeting;
-const OCC={birthday:"عيد ميلاد",baby_shower:"استقبال مولود",gender_reveal:"كشف جنس المولود",graduation:"تخرج",bride_to_be:"حفلة عروس",corporate:"شركات"};
+const OCC={kids:"حفلة أطفال",kid:"حفلة أطفال",birthday:"عيد ميلاد",baby_shower:"استقبال مولود",gender_reveal:"كشف جنس المولود",graduation:"تخرج",bride_to_be:"حفلة عروس",corporate:"شركات"};
 function openBoard(){
   const list=OPS_UP;
   const P=shell(`<h2>الحفلات الجاية</h2><div class="note">من لوحة التشغيل، لأسبوعين قدام.</div><div id="upl" style="display:flex;flex-direction:column;gap:8px"></div>`);
@@ -723,11 +709,11 @@ function openBoard(){
     if(e.date!==lastDay){lastDay=e.date;const h=document.createElement("b");h.textContent=dayAr(e.date);h.style.marginTop="6px";box.appendChild(h)}
     const d=document.createElement("div");d.className="turn";
     const occ=OCC[String(e.occasion||"").toLowerCase()]||String(e.occasion||"حفلة");
-    const TH={mickey:"ميكي",minnie:"ميني",barbie:"باربي",mermaid:"حورية البحر",bow:"الفيونكة",princess:"الأميرات",frozen:"فروزن",safari:"سفاري",dinosaur:"الديناصورات",unicorn:"يونيكورن",spiderman:"سبايدرمان",cars:"السيارات"};
+    const TH={mickey:"ميكي",minnie:"ميني",barbie:"باربي",mermaid:"حورية البحر",bow:"الفيونكة",princess:"الأميرات",frozen:"فروزن",safari:"سفاري",dinosaur:"الديناصورات",unicorn:"يونيكورن",spiderman:"سبايدرمان",cars:"السيارات",fairy:"الجنية",circus:"السيرك",polo:"بولو",candy:"الحلويات",dinosaurs:"الديناصورات","mermaid":"حورية البحر"};
     const PK=[[/gold/i,"باقة الجولدن"],[/silver/i,"باقة السلفر"],[/bronze/i,"باقة البرونز"],[/summer|splash/i,"باقة الصيف"],[/spa/i,"باقة السبا"]];
     const CREW={marsha:"مارشا",dindo:"دندو",diana:"ديانا",gloria:"قلوريا",jane:"جين"};
     const tn=String(e.theme||"");const thAr=TH[tn.toLowerCase().trim()]||tn;
-    const theme=thAr||(e.customTheme?"ثيم جديد":"");
+    const theme=thAr||(e.customTheme?"جديد":"");
     const pk=e.package?((PK.find(([r])=>r.test(e.package))||[])[1]||e.package):"";
     const crew=(e.crew||[]).map(n=>CREW[String(n).toLowerCase()]||n);
     d.textContent=[hhmm(e.time),emirAr(e.emirate),occ,theme&&("ثيم "+theme),pk,crew.length?("الفريق: "+crew.join("، ")):""].filter(Boolean).join(" · ");
@@ -749,15 +735,17 @@ function applyStaff(doc){if(!doc||!doc.people)return;
   for(const p of T.filter(q=>!q.real)){const s=doc.people[p.id];if(!s)continue;const mi=MOODS[s.mood];if(!mi)continue;
     const busy=["busy","stressed","need"].includes(s.mood);
     p.el.querySelector(".mood").textContent=mi[0];p.el.querySelector(".ml").textContent=mi[0]+" "+mi[1];
-    p.el.querySelector(".tk").textContent=(busy?"شغله الحين: ":"ما عنده شغل الحين. ")+(s.task||p.task);p.el.setAttribute("aria-label",`${p.name}، ${p.role}، ${mi[1]}`)}}
+    p.el.querySelector(".tk").textContent=(busy?"شغله الحين: ":"ما عنده شغل الحين. ")+(s.task||p.task);p.task=s.task||p.task;queueTalk(p.id,s.task);p.el.setAttribute("aria-label",`${p.name}، ${p.role}، ${mi[1]}`)}}
 (async()=>{const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;if(!db)return;
   db.doc("staff/status").onSnapshot(snap=>{if(snap.exists)applyStaff(snap.data())},()=>{})})();
 function applyOffice(o){const S=document.getElementById("ovS");if(!o||!S)return;S.hidden=false;
   const n=v=>Number(v||0).toLocaleString("ar-AE");const W=document.getElementById("ovw");W.innerHTML="";
   const tile=(val,lab,cls)=>{const d=document.createElement("div");d.className="t"+(cls?" "+cls:"");const b=document.createElement("b");b.textContent=val;const sp=document.createElement("span");sp.textContent=lab;d.append(b,sp);W.appendChild(d)};
   const m=o.money||{},l=o.leads||{},a=o.alerts||{},r=o.ratings30d||{};
-  tile(n(m.todayAed)+" درهم",`دخل اليوم · ${n(m.todayBookings)} حجز`);
-  tile(n(m.monthAed)+" درهم",`دخل الشهر · ${n(m.monthBookings)} حجز`);
+  tile(n(m.bookedMonth??m.monthBookings),"حجزوا هالشهر (مهما كان تاريخ الحفلة)");
+  tile(n(m.monthAed)+" درهم","دخل هالشهر");
+  tile(n(m.bookedToday??m.todayBookings),"حجزوا اليوم");
+  tile(n(m.todayAed)+" درهم","دخل اليوم");
   tile(n(l.newToday),`رسايل جديدة اليوم · ${n(l.newOpen)} ما انردّ عليها`,l.newOpen>0?"warn":"");
   tile(n(l.quotedOpen),"عطيناهم سعر وما حجزوا");
   tile(n(l.bookedWeek),"حجزوا من الواتساب هالأسبوع");
@@ -766,9 +754,16 @@ function applyOffice(o){const S=document.getElementById("ovS");if(!o||!S)return;
   tile(n(a.crewOpen3d),"أماكن بالفريق فاضية خلال 3 أيام",a.crewOpen3d>0?"bad":"");
   tile(n(a.prepIssues),"مشاكل بالتجهيز",a.prepIssues>0?"bad":"");
   tile(r.count?`${r.avg} ⭐`:"—",`تقييم الأهالي آخر شهر · ${n(r.count)} تقييم`);
+  const w=o.whatsappLearning;if(w){const MODE={off:"يسمع ويتعلم بس",greet:"يرحب بس",full:"يرد على الكل"};
+    const st=w.listeningSince||w.since;const days=st?Math.max(1,Math.round((Date.parse(todayDubai())-Date.parse(st))/864e5)+1):0;
+    tile(days?`${n(days)} يوم`:"—",`صار له مربوط بالواتساب${st?" من "+dayAr(st):""} · ${MODE[w.mode]||MODE.off}`);
+    tile(n(w.teamReplies),`رد من الفريق تعلّم منها · ${n(w.teamRepliesWeek)} هالأسبوع`);
+    tile(n(w.botReplies),`رد هو بروحه · ${n(w.chats)} محادثة`);}
   const L=document.getElementById("ovl");L.innerHTML="";
   const CREW={marsha:"مارشا",dindo:"دندو",diana:"ديانا",gloria:"قلوريا",jane:"جين"};const nm=x=>CREW[String(x||"").toLowerCase()]||x;
   const line=t=>{const d=document.createElement("div");d.textContent=t;L.appendChild(d)};
+  const mine=q=>Object.prototype.hasOwnProperty.call(CREW,String(q.name||"").toLowerCase());
+  o.leaveRequests=(o.leaveRequests||[]).filter(mine);o.manualTasks=(o.manualTasks||[]).filter(mine);
   if((o.leaveRequests||[]).length)line("طلبات إجازة تنتظر: "+o.leaveRequests.map(q=>`${nm(q.name)} (${dayAr(q.from)}${q.to!==q.from?" إلى "+dayAr(q.to):""})`).join("، "));
   if((o.manualTasks||[]).length)line("مهام مفتوحة: "+o.manualTasks.map(q=>`${nm(q.name)} ${n(q.n)}`).join("، "));
 }
@@ -807,13 +802,17 @@ const getDict=()=>dictP||(dictP=(window.claude&&window.claude.use)?window.claude
 const thread=document.getElementById("thread"),sayBox=document.getElementById("sayBox"),sendS=document.getElementById("sendS"),mic=document.getElementById("mic"),listen=document.getElementById("listen"),tnote=document.getElementById("tnote");
 let inboxRef=null,lastShamma="",spokenReplies=new Set(),firstInbox=true;
 function bubble(cls,text,label){const d=document.createElement("div");d.className="msg "+cls;if(label){const b=document.createElement("b");b.textContent=label+" ";d.appendChild(b)}d.appendChild(document.createTextNode(String(text)));thread.appendChild(d)}
-async function speakShamma(text){lastShamma=text;listen.hidden=false;const t=await getTts();if(!t)return;try{await t.speak(text,{language:"ar",voice:"airy"})}catch(e){}}
+function phoneSpeak(text){try{const S=window.speechSynthesis;if(!S)return false;S.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="ar-AE";
+  const v=(S.getVoices()||[]).find(x=>/^ar/i.test(x.lang));if(v)u.voice=v;u.rate=.95;S.speak(u);return true}catch(e){return false}}
+function unlockPhoneVoice(){try{const S=window.speechSynthesis;if(S&&!S._ok){const u=new SpeechSynthesisUtterance(" ");u.volume=0;S.speak(u);S._ok=1}}catch(e){}}
+async function speakShamma(text){lastShamma=text;listen.hidden=false;const t=await getTts();if(!t){phoneSpeak(text);return}try{await t.speak(text,{language:"ar",voice:"airy"})}catch(e){phoneSpeak(text)}}
 function teamStatus(){return T.filter(p=>!p.real).map(p=>`${p.name} (${p.role}): ${p.task}`).join("\n")}
 (async()=>{
-  const d=await getDict(); if(d){mic.hidden=false;
+  mic.hidden=false;
+  const d=await getDict(); if(d){
     d.onFinal(({text})=>{if(text)sayBox.value=(sayBox.value?sayBox.value+" ":"")+text});
     d.onState(({state})=>{mic.textContent=state==="idle"?"تكلمي":"وقّفي"});}
-  const t=await getTts(); if(!t) tnote.textContent="الصوت يشتغل من متصفح قوقل كروم أو تطبيق كلود على الكمبيوتر. بالجوال تطلع الردود مكتوبة.";
+  const t=await getTts(); if(!t&&!window.speechSynthesis) tnote.textContent="بالجوال: اضغطي «تكلمي» وبعدين علامة المايك 🎤 اللي في الكيبورد.";
   const db=window.claude&&window.claude.use?await window.claude.use("db").catch(()=>null):null;
   if(!db){tnote.textContent="افتحي الطابق من حسابج عشان تكلمين شمّا.";sendS.disabled=true;return}
   inboxRef=db.collection("inbox");
@@ -830,17 +829,18 @@ function teamStatus(){return T.filter(p=>!p.real).map(p=>`${p.name} (${p.role}):
     firstInbox=false;thread.scrollTop=thread.scrollHeight;
   },()=>{tnote.textContent="ما قدرت أحمّل المحادثة الحين."});
 })();
-mic.onclick=()=>{getDict().then(d=>{if(!d)return;if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}})};
+const phoneMic=()=>{unlockPhoneVoice();sayBox.focus();tnote.textContent="اضغطي علامة المايك 🎤 اللي تحت في الكيبورد وتكلمي، وبعدين «أرسلي».";};
+mic.onclick=()=>{getDict().then(d=>{if(!d){phoneMic();return}if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}})};
 // keep the mic call synchronous inside the click when the namespace is already resolved
 getDict().then(d=>{if(d)mic.onclick=()=>{if(d.active()){d.stop()}else{d.start({language:"ar"}).catch(e=>{tnote.textContent=e&&e.code==="not_granted"?"المايك مسكّر، تقدرين تكتبين.":"ما قدرت أسمعج الحين، جربي مرة ثانية."})}}});
 listen.onclick=()=>{if(lastShamma)speakShamma(lastShamma)};
 sendS.onclick=async()=>{
-  const text=sayBox.value.trim();if(!text||!inboxRef)return;sayBox.value="";sendS.disabled=true;
+  const text=sayBox.value.trim();if(!text||!inboxRef)return;sayBox.value="";sendS.disabled=true;unlockPhoneVoice();tnote.textContent="شمّا تكتب…";
   try{
     const ref=await inboxRef.add({at:Date.now(),text,status:"new"});
     const s=await getSample();let quick="وصلني، بوصله للفريق وأرد عليج.";
-    if(s){try{const r=await s(`${CONTEXT}\nأنت شمّا، سكرتيرة شيماء والوحيدة اللي تكلمها. ردّي بجملة أو جملتين بس، بصوت هادي ومختصر. إذا كلامها طلب شغل أو قرار، قولي لها إنج وصلتيه للفريق وبترجعين لها أول ما يخلص ولا تدّعين إنه خلص. إذا سؤال عن الوضع، جاوبي من هالمعلومات بس:\nحالة الفريق:\n${teamStatus()}\nاجتماع اليوم: ${JSON.stringify(meetingData||{})}\nكلام شيماء: ${text}`,{modelTier:"quick",cache:false});quick=r.text.trim()||quick}catch(e){}}
-    await ref.update({quick});
+    if(s){try{const r=await s(`${CONTEXT}\nأنت شمّا، سكرتيرة شيم والوحيدة اللي تكلمها. ردّي بجملة أو جملتين بس، بصوت هادي ومختصر. إذا كلامها طلب شغل أو قرار، قولي لها إنج وصلتيه للفريق وبترجعين لها أول ما يخلص ولا تدّعين إنه خلص. إذا سؤال عن الوضع، جاوبي من هالمعلومات بس:\nحالة الفريق:\n${teamStatus()}\nاجتماع اليوم: ${JSON.stringify(meetingData||{})}\nكلام شيم: ${text}`,{modelTier:"quick",cache:false});quick=r.text.trim()||quick}catch(e){}}
+    await ref.update({quick});tnote.textContent="";
     speakShamma(quick);
   }catch(e){tnote.textContent="ما وصلت الرسالة، جربي مرة ثانية."}
   sendS.disabled=false;
@@ -865,7 +865,7 @@ tick();setInterval(tick,30000);
 
 /* side panel: person + meeting (Claude sampling when available) */
 let sp=null;const getSample=()=>sp||(sp=(window.claude&&window.claude.use)?window.claude.use("sample").catch(()=>null):Promise.resolve(null));
-const CONTEXT=`أنت موظف في مكتب افتراضي لشيماء، صاحبة إيفنتانا (حفلات أطفال في الإمارات). أنت في طابق إيفنتانا. تكلم باللهجة الخليجية فقط بدون أي كلمة إنجليزية، بجمل قصيرة. لا تخترع أرقام أو حقائق، قل «أحتاج أتأكد». قواعد إيفنتانا: ${RULES.ev.join("، ")}. التنفيذ الفعلي يصير لما شيماء ترد بالمحادثة الرئيسية.`;
+const CONTEXT=`أنت موظف في مكتب افتراضي لشيم، صاحبة إيفنتانا (حفلات أطفال في الإمارات). أنت في طابق إيفنتانا. تكلم باللهجة الخليجية فقط بدون أي كلمة إنجليزية، بجمل قصيرة. لا تخترع أرقام أو حقائق، قل «أحتاج أتأكد». قواعد إيفنتانا: ${RULES.ev.join("، ")}. التنفيذ الفعلي يصير لما شيم ترد بالمحادثة الرئيسية.`;
 function closeLayer(){document.getElementById("layer").innerHTML=""}
 function shell(inner){const L=document.getElementById("layer");
   L.innerHTML=`<div class="scrim"></div><aside class="panel" dir="rtl" role="dialog" aria-modal="true"><button class="x" type="button">إغلاق</button>${inner}</aside>`;
@@ -883,7 +883,7 @@ function openPerson(p){
   getSample().then(s=>{if(!s){sn.textContent="الدردشة تشتغل لما تفتحين الصفحة من حسابج.";send.disabled=true}});
   send.onclick=async()=>{const text=q.value.trim();if(!text)return;q.value="";
     chat.insertAdjacentHTML("beforeend",`<div class="msg me">${esc(text)}</div>`);const out=document.createElement("div");out.className="msg them";out.textContent="يفكّر…";chat.appendChild(out);send.disabled=true;
-    try{const s=await getSample();const r=await s(`${CONTEXT}\nأنت ${p.name}، ${p.role} في ${z.name}. شغلك: ${p.does.join("، ")}. شغلك الحالي: ${p.task}.\nشيماء تسألك: ${text}\nرد بأقل من 80 كلمة.`,{modelTier:"quick",cache:false,onText:({text})=>{out.textContent=text}});out.textContent=r.text}
+    try{const s=await getSample();const r=await s(`${CONTEXT}\nأنت ${p.name}، ${p.role} في ${z.name}. شغلك: ${p.does.join("، ")}. شغلك الحالي: ${p.task}.\nشيم تسألك: ${text}\nرد بأقل من 80 كلمة.`,{modelTier:"quick",cache:false,onText:({text})=>{out.textContent=text}});out.textContent=r.text}
     catch(e){out.textContent=e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"ما قدرت أرد الحين."}
     send.disabled=false};
 }
@@ -899,7 +899,7 @@ document.getElementById("meetBtn").onclick=()=>{
     const ps=sel.slice(0,4).filter(p=>!p.busy);ps.forEach(p=>{p.busy=true;setDesk(p)});
     const spots=MEETSEATS.length?MEETSEATS:[[600,458]];ps.forEach((p,i)=>walk(p,spots[i%spots.length][0],spots[i%spots.length][1]));
     try{const s=await getSample();
-      const res=await s.json(`${CONTEXT}\nاجتماع. الحضور:\n${sel.map(p=>`- ${p.name} (${p.role}): ${p.does.join("، ")}`).join("\n")}\nفكرة شيماء: ${idea}\nكل واحد يعطي رايه من تخصصه بجملتين أو ثلاث، وبعدها شمّا تكتب خلاصة وقرارات مقترحة تحتاج موافقة شيماء. رجّع JSON فقط: {"turns":[{"name":"...","text":"..."}],"summary":"..."}`,{modelTier:"default"});
+      const res=await s.json(`${CONTEXT}\nاجتماع. الحضور:\n${sel.map(p=>`- ${p.name} (${p.role}): ${p.does.join("، ")}`).join("\n")}\nفكرة شيم: ${idea}\nكل واحد يعطي رايه من تخصصه بجملتين أو ثلاث، وبعدها شمّا تكتب خلاصة وقرارات مقترحة تحتاج موافقة شيم. رجّع JSON فقط: {"turns":[{"name":"...","text":"..."}],"summary":"..."}`,{modelTier:"default"});
       min.innerHTML="";for(const t of (res.turns||[])){min.insertAdjacentHTML("beforeend",`<div class="turn"><b>${esc(t.name||"")}</b><br>${esc(t.text||"")}</div>`);const p=T.find(x=>x.name===t.name);if(p){log(p,null,t.text||"");say(p,(t.text||"").slice(0,90),3500)}}
       if(res.summary)min.insertAdjacentHTML("beforeend",`<div class="summary"><b>خلاصة شمّا</b><br>${esc(res.summary)}</div>`);
     }catch(e){min.innerHTML=`<div class="note">${e&&e.code==="rate_limited"?"الطلبات كثيرة، جربي بعد دقيقة.":"ما قدرنا نكمل الاجتماع الحين."}</div>`}
