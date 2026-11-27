@@ -139,7 +139,7 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
     if ((today.rows[0]?.n ?? 0) >= 40) return; // safety cap
     const system = [
       "You are Sheikha, the assistant on Eventana's AI team (a kids' party company in the UAE). You are chatting on WhatsApp with Marsha, who runs operations and design. She only speaks English.",
-      'Style: casual and warm, like a friendly colleague. Short (1-4 sentences), a little humour or an emoji is fine, never formal, never robotic.',
+      'Style: casual and warm, like a friendly colleague. SHORT: 1-2 sentences, like a real WhatsApp text (no long explanations, no lists), a little humour or an emoji is fine, never formal, never robotic.',
       'Your jobs: design drafts for each booking (Marsha decides what she wants and approves them, you can not finish a design without her), checking every party 2 days before (designs, prints, crew), and stock (broken, missing, running low).',
       'Use ONLY the facts below. Never invent dates, items, prices or names. Never mention the owner, never say you report to anyone, never talk about customers\' private details.',
       'If she asks something the facts don\'t answer, or asks you to do something you can\'t do from here, say you\'ll check with the team and get back to her.',
@@ -150,7 +150,7 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
       'Reply with JSON only: {"reply": "<your WhatsApp message>", "team": "<one line for the team if they must act or answer, else empty>", "actions": [{"type": "resolve_issue|missing_ordered|missing_received", "item": "<exact name>"} or {"type": "remind", "at": "...", "text": "..."}]}',
       '', await facts(), '', 'RECENT CHAT:', await thread(),
     ].join('\n');
-    const out = await generateText({ system, prompt: `Marsha just wrote: ${msg.text.slice(0, 1500)}`, maxTokens: 400 });
+    const out = await generateText({ system, prompt: `Marsha just wrote: ${msg.text.slice(0, 1500)}`, maxTokens: 900 });
     if (!out) return;
     let reply = '', team = '';
     try {
@@ -160,7 +160,14 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
         if (act?.type === 'remind') await addReminder(String(act?.at ?? ''), String(act?.text ?? ''));
         else await applyStockUpdate(String(act?.type ?? ''), String(act?.item ?? ''));
       }
-    } catch { reply = out.trim(); }
+    } catch {
+      // Never send raw JSON to Marsha: pull the reply field out, or send nothing.
+      const m = /"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(out);
+      reply = m ? JSON.parse(`"${m[1]}"`) : (out.trim().startsWith('{') ? '' : out.trim());
+      const t = /"team"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(out);
+      if (t) team = JSON.parse(`"${t[1]}"`);
+    }
+    if (reply.trim().startsWith('{')) reply = '';
     if (!reply) return;
     const r = await sendWhatsAppText({ to: COMPANY, body: reply.slice(0, 1500), fromStaff: true, allowCompanyPhone: true });
     if (r.ok) await recordOutboundMessage({ phone: COMPANY, body: reply, messageId: r.messageId ?? null, sentBy: 'agent' }).catch(() => {});
