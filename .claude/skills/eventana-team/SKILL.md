@@ -76,6 +76,10 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 - **Admin requests** («ADMIN:» items in `openRequests`) never get answered by an agent. These cover money, payments, salaries, leave, buying, hiring, policy, and customer refunds or discounts. They go straight to the secretary, who asks the owner at the 5:30 meeting and then sends Marsha the owner's answer.
 - **When the team needs something from Marsha** (design details, photos, footage, prints): message her through `POST /api/team/notify` (to: "Marsha"). Keep it short and casual, in English, with one clear ask. Never message her about things the data already answers.
 
+## Messages to Marsha: short and few (owner rule, 27 Nov)
+- **Short:** 1–2 lines, one clear point per message. Go longer only when it truly needs it, e.g. a list she asked for.
+- **Few:** don't flood her. Batch things into one message, and move anything non-urgent to the next day.
+
 ## Marsha's day off (owner rule, 27 Nov)
 - **Marsha is off every Tuesday.** No agent messages her that day, and no reminders go out, unless it is truly urgent: it would hurt a party or money that same day.
 - The system blocks Tuesday messages to Marsha unless they're flagged `urgent`.
