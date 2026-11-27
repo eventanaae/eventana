@@ -9,3 +9,4 @@ SECRETARY (owner 26 Nov): daily meeting with the secretary at 5:30 pm Dubai (sch
 SECRETARY (owner 26 Nov): ~5:12 pm reminder «عندج اجتماع معاي الساعة 5:30 وبعطيج التحديث» only if something important; 5:30 update only if important — «اذا في شيء مهم تكلمني، ما في شيء مهم تسكت».
 OWNER (26 Nov): does not want to use the chat; talks to Shamma inside the Eventana floor page (inbox in its db), Shamma answers by voice. Secretary outputs go to the floor (meetings/today + inbox), not chat.
 - (27 Nov) The owner's name is «شيم» (Shaim), NOT «شيماء». Always write and say «شيم».
+- (27 Nov) Stories: any story that mentions the website or the app must show «eventanauae.com» written clearly on the image (auto-posted stories cannot carry a link sticker).
