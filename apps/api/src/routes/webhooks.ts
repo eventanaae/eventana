@@ -137,6 +137,8 @@ export async function webhookRoutes(app: FastifyInstance) {
       }
     }
 
+    // Coexistence (main number): record app echoes + history; never replies.
+    void import('../domain/whatsappSync.js').then(({ syncCoexistence }) => syncCoexistence(body)).catch(() => {});
     const messages = parseInbound(body);
     reply.status(200).send({ received: messages.length });
 
@@ -156,6 +158,10 @@ export async function webhookRoutes(app: FastifyInstance) {
               },
               'whatsapp lead updated',
             );
+            // A customer writing to the MAIN number (coexistence): listen and learn only,
+            // until the owner switches the assistant on for that number.
+            const { config: cfg } = await import('../config.js');
+            if (msg.toPhoneNumberId && cfg.whatsapp.phoneNumberId && msg.toPhoneNumberId !== cfg.whatsapp.phoneNumberId) return;
             // Marsha on the company phone: Sheikha answers, never the customer bot.
             const { isCompanyPhone, sheikhaReply } = await import('../domain/sheikha.js');
             if (isCompanyPhone(msg.phone)) { await sheikhaReply(msg); return; }
