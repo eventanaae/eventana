@@ -1,0 +1,10 @@
+# أوامر سلطان (لابتوب المكتب)
+The owner «شيم» set this up on 28 Nov: the AI team writes laptop orders here, and Sultan (the Claude chat on the office laptop) checks this file every 30 minutes and carries out new orders.
+
+Format: `- [ ] <date> <order>`. When done Sultan changes it to `- [x]` and adds ` → <one Arabic line of result>`. Blocked: `- [!]` and the reason.
+Rules: never upload passports, IDs, the trade licence, contracts or invoices. Never type passwords or card numbers (Marsha or the owner does that). Never move or delete files on the laptop. Never show or copy API keys.
+
+## Orders
+- [ ] 2026-11-28 Azure Speech: owner and Marsha are signed in at portal.azure.com in Chrome. Create a Speech service named «eventana-voices», region UAE North (or West Europe if not offered), pricing tier Free F0. Report only the region.
+- [ ] 2026-11-28 360dialog: owner is signed in at hub.360dialog.com in Chrome. Finish linking 0777 (Connect WhatsApp Business App; Marsha scans the QR from the 0777 phone), then generate the API key and leave it on screen for the owner. Never copy it.
+- [ ] 2026-11-28 Cloud library: copy every non-sensitive Eventana file (themes from OneDrive\Desktop\themes, designs, logos, party photos and videos, price lists, marketing) into raw/library/ on this branch, using the master-folder subfolders (02 Brand, 03 Themes, 04 Designs, 05 Photos & Videos, 07 Suppliers, 08 Marketing, 99 Other). Keep the original names. Skip files over 50 MB and list them in raw/library/INDEX.md. Push in batches.
