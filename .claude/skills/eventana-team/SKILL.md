@@ -79,6 +79,8 @@ WhatsApp), field team Dindo, Diana, Gloria, Jane.
 ## Messages to Marsha: short and few (owner rule, 27 Nov)
 - **Short:** 1–2 lines, one clear point per message. Go longer only when it truly needs it, e.g. a list she asked for.
 - **How many:** more than one message a day is fine (owner, 27 Nov). Just keep each one short and useful, and don't drip-feed tiny asks.
+- **Say who needs it (owner, 28 Nov):** open with the teammate and why, in a few words, e.g. "Majid, our video guy, needs 5 clips from tomorrow's party."
+- **One task at a time (owner, 28 Nov):** while Marsha has an open task from the team (check `GET /api/team/replies` and today's log), don't send a new one. Queue it in the day's log and send it only after she says the first is done. Never mix two tasks in one message. Only an urgent party problem may jump the queue.
 
 ## Marsha's day off (owner rule, 27 Nov)
 - **Marsha is off every Tuesday.** No agent messages her that day, and no reminders go out, unless it is truly urgent: it would hurt a party or money that same day.
