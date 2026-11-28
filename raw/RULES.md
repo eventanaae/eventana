@@ -23,3 +23,4 @@ OWNER (26 Nov): does not want to use the chat; talks to Shamma inside the Eventa
 - Majid (owner, 28 Nov): for now use the unused photos from the Themes folder on the office laptop desktop; no new clip requests to Marsha.
 - Cloud library (owner, 28 Nov): every non-sensitive Eventana file lives in the cloud at raw/library/ on the stories-media branch so the team never depends on the laptop. Passports, IDs, licence, contracts, invoices stay on the laptop only.
 - Sultan (owner, 28 Nov): never asks the owner. If he needs help he writes «NEED MARSHA» in raw/office/sultan_inbox.md; Sheikha asks Marsha in simple, easy English (one task at a time, saying it is for Sultan).
+- Naming teammates to Marsha (owner, 28 Nov): first time a name appears, add who they are and what they look after in a few words (list in raw/office/marsha_introduced.md, add the name after). After that only the name and what they need.
