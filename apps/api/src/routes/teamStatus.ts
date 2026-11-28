@@ -15,12 +15,22 @@ import { safeEqual } from '../payments/provider.js';
 import { staffWhatsApp } from '../integrations/push.js';
 
 const REPORT_KEY_SHA256 = 'd7adf93428c04153d718ec5a4d1084a9c5b78e63be712d392de4edf49b112ed9';
-const OFFICE_KEY_SHA256 = '7aea653830487eb7c8005bc03c32942b0ede599427388a205112a31d22972653';
+// Office sync keys (only their SHA-256 live here). Rotate by adding the new hash first,
+// then removing the old one once nothing uses it.
+//  - 7aea65…: old main chat (session_01RpnLCvGnFFjpdTAksJQmm8), remove after the move
+//  - 4fd254…: new main chat (28 Nov 2026)
+const OFFICE_KEY_SHA256S: readonly string[] = [
+  '7aea653830487eb7c8005bc03c32942b0ede599427388a205112a31d22972653',
+  '4fd25487f73b44496dc95f2fb7d171e486c2a6f84386025c4713d7add61bf379',
+];
 
 function keyOk(given: string | undefined): boolean {
   const envKey = process.env.MARKETING_REPORT_KEY;
   // A separate key only for the owner's virtual office sync (only its SHA-256 lives here).
-  if (!!given && safeEqual(createHash('sha256').update(given).digest('hex'), OFFICE_KEY_SHA256)) return true;
+  if (given) {
+    const h = createHash('sha256').update(given).digest('hex');
+    if (OFFICE_KEY_SHA256S.some((k) => safeEqual(h, k))) return true;
+  }
   return (!!envKey && envKey.length >= 24 && safeEqual(given, envKey))
     || (!!given && safeEqual(createHash('sha256').update(given).digest('hex'), REPORT_KEY_SHA256));
 }
