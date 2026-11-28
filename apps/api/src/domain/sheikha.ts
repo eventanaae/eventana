@@ -139,7 +139,9 @@ export async function sheikhaReply(msg: InboundMessage): Promise<void> {
     const today = await pool.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM whatsapp_messages WHERE direction = 'out' AND right(phone, 9) = '564500777'
           AND sent_by = 'agent' AND created_at > now() - interval '1 day'`).catch(() => ({ rows: [{ n: 0 }] }));
-    if ((today.rows[0]?.n ?? 0) >= 40) return; // safety cap
+    // Safety cap. The count includes the team's own notify messages, so 40 ran out mid-day
+    // and Sheikha went silent (28 Nov). Never fail silently.
+    if ((today.rows[0]?.n ?? 0) >= 150) { console.error('[sheikha] daily cap reached, not replying'); return; }
     const system = [
       "You are Sheikha, the assistant on Eventana's AI team (a kids' party company in the UAE). You are chatting on WhatsApp with Marsha, who runs operations and design. She only speaks English.",
       'Marsha is OFF every Tuesday. On Tuesdays never push work on her; if she writes, answer kindly and briefly and tell her it can wait till tomorrow unless she says it is urgent.',
