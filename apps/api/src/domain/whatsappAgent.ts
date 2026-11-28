@@ -259,6 +259,7 @@ export async function isTeamPhone(phone: string): Promise<boolean> {
   const d = String(phone ?? '').replace(/\D/g, '');
   if (!d) return false;
   if (d.endsWith('564500777')) return true;
+  if (d.endsWith('566069616')) return true; // the owner (Shamma's line)
   try {
     const r = await pool.query(
       `SELECT 1 FROM team_members WHERE active AND phone IS NOT NULL

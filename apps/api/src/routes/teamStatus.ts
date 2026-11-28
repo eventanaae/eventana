@@ -156,6 +156,27 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
     const b = (request.body ?? {}) as { to?: unknown; headline?: unknown; details?: unknown };
     const to = String(b.to ?? '').trim(), headline = String(b.headline ?? '').trim().slice(0, 60), details = String(b.details ?? '').trim().slice(0, 600);
     if (!to || !headline || !details) return reply.code(400).send({ error: 'to, headline and details are required' });
+    // Shamma -> the owner «شيم» on her own WhatsApp (owner, 28 Nov).
+    if (['sheem', 'owner', 'شيم'].includes(to.toLowerCase())) {
+      const h = new Date(Date.now() + 4 * 3600 * 1000).getUTCHours();
+      if (h < 9 || h >= 23) return reply.code(409).send({ error: 'owner messages only 09:00-23:00 Dubai' });
+      const sentO = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM ai_team_notify_log WHERE to_name = 'Sheem' AND created_at > now() - interval '1 day'`);
+      if ((sentO.rows[0]?.n ?? 0) >= 10) return reply.code(429).send({ error: 'daily limit reached' });
+      await pool.query(`INSERT INTO ai_team_notify_log (to_name, headline) VALUES ($1, $2)`, ['Sheem', headline]);
+      const { sendWhatsAppText, sendWhatsAppTemplate } = await import('../integrations/whatsapp.js');
+      const { OWNER_PHONE } = await import('../domain/owner.js');
+      const one = (x: string) => x.replace(/\s*\n+\s*/g, ' • ').trim();
+      const open24 = await pool.query(`SELECT 1 FROM whatsapp_messages WHERE direction = 'in' AND right(phone, 9) = '566069616'
+          AND created_at > now() - interval '23 hours' LIMIT 1`).catch(() => ({ rows: [] }));
+      const r = open24.rows.length
+        ? await sendWhatsAppText({ to: OWNER_PHONE, body: `${headline}\n\n${details}`, fromStaff: true })
+        : await sendWhatsAppTemplate({ to: OWNER_PHONE, name: 'staff_notify', language: 'en', params: ['شيم', one(headline), one(details)], fromStaff: true });
+      if (r.ok) {
+        const { recordOutboundMessage } = await import('../domain/whatsappLeads.js');
+        await recordOutboundMessage({ phone: OWNER_PHONE, body: `${headline}\n\n${details}`, messageId: r.messageId ?? null, sentBy: 'agent' }).catch(() => {});
+      }
+      return { ok: r.ok, to: 'Sheem', via: open24.rows.length ? 'text' : 'template', error: r.error };
+    }
     // Marsha reads the company phone (+971 56 450 0777), owner 27 Nov: send hers there.
     if (to.toLowerCase() === 'marsha') {
       // Owner rule (27 Nov): Marsha is off every Tuesday; nobody disturbs her unless urgent.
@@ -258,7 +279,7 @@ export async function teamStatusRoutes(app: FastifyInstance): Promise<void> {
         COUNT(*) FILTER (WHERE status = 'new')::int AS new_open,
         COUNT(*) FILTER (WHERE status IN ('quoted','confirmed'))::int AS quoted_open,
         COUNT(*) FILTER (WHERE status = 'booked' AND updated_at > now() - interval '7 days')::int AS booked_week
-       FROM whatsapp_leads WHERE right(phone, 9) <> '564500777'`).catch(() => ({}));
+       FROM whatsapp_leads WHERE right(phone, 9) NOT IN ('564500777','566069616')`).catch(() => ({}));
     const carts = await one(`SELECT COUNT(*)::int AS n FROM orders WHERE kind = 'booking' AND status = 'awaiting_payment' AND created_at > now() - interval '7 days'`).catch(() => ({}));
     const alerts = await one(`SELECT
         (SELECT COUNT(*) FROM prep_tasks pt JOIN events e ON e.id = pt.event_id WHERE pt.status = 'issue' AND e.event_date >= $1::date AND e.phase <> 'Cancelled')::int AS prep_issues,
