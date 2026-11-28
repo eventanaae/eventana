@@ -17,3 +17,5 @@ OWNER (26 Nov): does not want to use the chat; talks to Shamma inside the Eventa
 - (27 Nov, update) Marsha: more than one message a day is fine; keep each short.
 
 - Marsha reads English only: never put any Arabic word in a message to her, not even «تم» (owner, 27 Nov). Ask her to type "done".
+
+- WhatsApp 0777 linking: owner approved the PAID partner route on 28 Nov («بسوي مال فلوس موافقه لين اتي الموافقة») until Meta verification comes. Partner: 360dialog Regular, EUR 49/month. Ads stay on 0777.
