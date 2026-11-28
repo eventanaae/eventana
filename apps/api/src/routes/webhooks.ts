@@ -16,7 +16,7 @@ import { pool } from '../db/pool.js';
 import { formatAed } from '@eventana/shared';
 import { parseInbound, parseStatuses, verifyWebhookSignature, sendWhatsAppText } from '../integrations/whatsapp.js';
 import { recordInboundMessage, normalizePhone } from '../domain/whatsappLeads.js';
-import { respondToLead } from '../domain/whatsappAgent.js';
+import { recordOutboundMessage } from '../domain/whatsappLeads.js';
 
 /**
  * A booking customer replied to our automated WhatsApp (a confirmation/reminder
@@ -26,21 +26,25 @@ import { respondToLead } from '../domain/whatsappAgent.js';
  * (fresh ad enquiries are handled by the leads flow). Our reply is outbound, so
  * it never re-triggers this — no loop.
  */
+/**
+ * Owner rule (28 Nov): this API number is for customer notifications only. Anyone who
+ * writes to it gets ONE short reply pointing to the main number (at most once per 12 h),
+ * never the sales bot greeting.
+ */
 async function autoReplyKnownCustomer(msg: { phone: string }): Promise<void> {
   try {
     const phone = normalizePhone(msg.phone);
     const last9 = phone.slice(-9);
     if (last9.length < 9) return;
-    const known = await pool.query(
-      `SELECT 1 FROM customers c
-        WHERE right(regexp_replace(COALESCE(c.phone,''), '\\D', '', 'g'), 9) = $1
-          AND EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id)
-        LIMIT 1`,
+    const recent = await pool.query(
+      `SELECT 1 FROM whatsapp_messages WHERE direction = 'out' AND right(phone, 9) = $1
+          AND body LIKE '%رقم آلي للإشعارات%' AND created_at > now() - interval '12 hours' LIMIT 1`,
       [last9],
-    );
-    if (!known.rows[0]) return;
+    ).catch(() => ({ rows: [] as unknown[] }));
+    if (recent.rows[0]) return;
     const body = `شكراً لتواصلك معنا 💛\nهذا رقم آلي للإشعارات فقط. لأي استفسار أو مساعدة كلّمنا على ${config.contact.phoneDisplay} (واتساب/اتصال) وبنردّ عليك فوراً 🌸`;
-    await sendWhatsAppText({ to: phone, body, fromStaff: true }).catch(() => {});
+    const r = await sendWhatsAppText({ to: phone, body, fromStaff: true }).catch(() => null);
+    if (r?.ok) await recordOutboundMessage({ phone, body, messageId: r.messageId ?? null, sentBy: 'agent' }).catch(() => {});
   } catch { /* non-fatal */ }
 }
 
@@ -172,8 +176,7 @@ export async function webhookRoutes(app: FastifyInstance) {
             const { supplierName, forwardSupplierReply } = await import('../domain/suppliers.js');
             const sup = await supplierName(msg.phone);
             if (sup) { await forwardSupplierReply(msg, sup); return; }
-            await respondToLead(msg, result);
-            // Auto-reply a booking customer who replied to our automated line.
+            // Notifications-only number (owner, 28 Nov): no sales bot here, just point to 0777.
             await autoReplyKnownCustomer(msg);
           } catch (err) {
             request.log.error({ err }, 'whatsapp webhook processing failed');
