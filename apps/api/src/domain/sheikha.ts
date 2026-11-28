@@ -73,7 +73,7 @@ export async function sweepSheikhaReminders(): Promise<void> {
   }
 }
 
-async function facts(): Promise<string> {
+export async function facts(): Promise<string> {
   const q = async (sql: string) => (await pool.query(sql).catch(() => ({ rows: [] as any[] }))).rows;
   const parties = await q(`
     SELECT to_char(e.event_date,'Dy DD Mon') AS day, e.start_time AS time, e.emirate, th.name AS theme,
