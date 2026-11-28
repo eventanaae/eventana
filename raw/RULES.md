@@ -19,3 +19,4 @@ OWNER (26 Nov): does not want to use the chat; talks to Shamma inside the Eventa
 - Marsha reads English only: never put any Arabic word in a message to her, not even «تم» (owner, 27 Nov). Ask her to type "done".
 
 - WhatsApp 0777 linking: owner approved the PAID partner route on 28 Nov («بسوي مال فلوس موافقه لين اتي الموافقة») until Meta verification comes. Partner: 360dialog Regular, EUR 49/month. Ads stay on 0777.
+- Messages to Marsha (owner, 28 Nov): SHORT, and always say which teammate needs it and why in a few words (e.g. "Majid, our video guy, needs…"). ONE task at a time: while Marsha has an open task from the team (e.g. Microsoft sign-in, 360dialog link), don't send a new one; queue it and send it only after she says the first is done. Urgent party problems are the only exception.
