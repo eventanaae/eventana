@@ -4,6 +4,8 @@ The owner «شيم» set this up on 28 Nov: the AI team writes laptop orders her
 Format: `- [ ] <date> <order>`. When done Sultan changes it to `- [x]` and adds ` → <one Arabic line of result>`. Blocked: `- [!]` and the reason.
 Rules: never upload passports, IDs, the trade licence, contracts or invoices. Never type passwords or card numbers (Marsha or the owner does that). Never move or delete files on the laptop. Never show or copy API keys.
 
+**Never ask the owner for anything (owner, 28 Nov).** If you need a person (a login, a QR scan, a payment, a click you can't do), mark the order `- [!] NEED MARSHA: <what, in one plain sentence>` and push. Sheikha checks this file and asks Marsha in simple English. When Marsha has done it, carry on.
+
 ## Orders
 - [ ] 2026-11-28 Azure Speech: owner and Marsha are signed in at portal.azure.com in Chrome. Create a Speech service named «eventana-voices», region UAE North (or West Europe if not offered), pricing tier Free F0. Report only the region.
 - [ ] 2026-11-28 360dialog: owner is signed in at hub.360dialog.com in Chrome. Finish linking 0777 (Connect WhatsApp Business App; Marsha scans the QR from the 0777 phone), then generate the API key and leave it on screen for the owner. Never copy it.
