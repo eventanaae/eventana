@@ -58,3 +58,8 @@ Text archive of the old chat since 21 Nov: `raw/archive/main_chat_2026-11.md`. E
 
 ## 11. Never
 Type passwords or card numbers · print or commit keys · upload passports/IDs/licence · message customers without the owner's yes · merge/deploy without «موافقة» · change ad numbers away from 0777 · use «خلفية» (say «ستاند بالون رئيسي فخم») · show cakes (only cake stands) · count stands · let the clown talk · change a booking's theme (Mickey stays Mickey).
+
+## 12. Update 28 Nov, 13:50 Dubai: two chats, two jobs
+- The new chat (session_01VSJY6NhHxGUyYKmApRBSGX) got the owner's computer permission, so it is **trusted-devices only** and can't receive scheduled runs.
+- So: **the old chat (session_01RpnLCvGnFFjpdTAksJQmm8) keeps ALL scheduled tasks** (stories, reels, meeting, ads, every agent). **Never archive it.**
+- **The new chat is for the laptop**: anything for «سلطان» or the laptop is asked there, and it runs it directly.
